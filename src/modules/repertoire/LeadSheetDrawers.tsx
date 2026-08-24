@@ -92,10 +92,22 @@ export default function LeadSheetDrawers({
     const apply = () => {
       const headers = el.querySelectorAll<HTMLElement>('[aria-expanded]');
       if (headers.length === 0) return;
+      // MEASURED BY ROW, not by drawer count. The stack is one column
+      // on a phone and one row from `sm` up, and the reservation is
+      // about height: two drawers in a row cost ONE header, two
+      // stacked cost two. Read off geometry rather than off the
+      // breakpoint, so the JS never has to agree with a class list
+      // about where the layout changes — which is the kind of pair
+      // that goes out of step the moment either is edited.
+      const tallestPerRow = new Map<number, number>();
+      for (const h of headers) {
+        const top = Math.round(h.getBoundingClientRect().top);
+        tallestPerRow.set(top, Math.max(tallestPerRow.get(top) ?? 0, h.offsetHeight));
+      }
       let total = 0;
-      for (const h of headers) total += h.offsetHeight;
-      // The flex `gap-2` between siblings, once per gap.
-      total += (headers.length - 1) * DRAWER_GAP;
+      for (const height of tallestPerRow.values()) total += height;
+      // The flex `gap-2` between ROWS, once per gap.
+      total += (tallestPerRow.size - 1) * DRAWER_GAP;
       const reserve = total + dockOffset + DRAWER_GAP + CONTENT_GAP;
       document.documentElement.style.setProperty(RESERVE_VAR, `${reserve}px`);
     };
@@ -125,7 +137,42 @@ export default function LeadSheetDrawers({
       style={{ bottom: dockOffset + DRAWER_GAP }}
       /* z-40: above the grid, below the cell-anchored overlays at
          180/190, so an open drawer never covers the placement prompt. */
-      className="fixed inset-x-3 z-40 flex flex-col gap-2"
+      className={[
+        'fixed inset-x-3 z-40 flex flex-col gap-2',
+        /* -------------------------------------------------------------
+           SIDE BY SIDE, BOTTOM RIGHT, FROM `sm` UP.
+
+           Two full-width bars spanning every page was more room than
+           two occasional drawers earn. Stacking them narrow fixed the
+           width and kept the cost: two bars of vertical space is what
+           was eating the bottom of the matrix, and vertical is the
+           axis that matters — the reservation below is a function of
+           HEIGHT. One row halves it.
+
+           Right rather than left because the desktop sidebar is on the
+           left, so a bottom-left stack reads as part of the nav; and
+           because the matrix scrolls horizontally with its key names
+           in the first column, so keeping that side clear means you
+           can still tell which key a row is while a drawer is open.
+
+           Below `sm` they stay stacked and full width. A 320px bar on
+           a 375px phone is nearly full width anyway, so capping buys
+           nothing and only risks cramping the header text.
+           ------------------------------------------------------------- */
+        'sm:left-auto sm:right-3 sm:w-auto sm:flex-row sm:items-end sm:justify-end',
+        /* Collapsed each drawer is a tab; open it is a panel. `:has`
+           lets the container own BOTH the layout and the sizing, which
+           is the arrangement this file exists to protect — the
+           two-drawer bug was two components holding beliefs about each
+           other. Neither drawer knows it has a neighbour.
+
+           512px rather than the 672px proposed for a stack: in a row
+           the open panel shares the width with its collapsed sibling,
+           and 672 + 320 + the gap runs past a laptop column. The
+           viewport cap is the backstop for a narrow window. */
+        'sm:[&>*]:w-80 sm:[&>*]:max-w-[calc(100vw-1.5rem)]',
+        'sm:[&>*:has([aria-expanded="true"])]:w-[32rem]',
+      ].join(' ')}
     >
       {children}
     </div>

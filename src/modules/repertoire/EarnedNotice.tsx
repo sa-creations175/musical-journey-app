@@ -24,6 +24,27 @@ import type { SongStageEarned } from '../../lib/db';
  * positions itself — the page renders one or the other. A drop and a
  * climb side by side would be two sentences about the same song
  * pointing in opposite directions.
+ *
+ * ---------------------------------------------------------------
+ * ONLY A STATUS CHANGE GETS THIS. A DECISION, NOT AN OVERSIGHT.
+ *
+ * `stageEarned` is written by `stageReconciliation`, which runs on a
+ * change of RUNG. So meeting one of Internalized's three criteria
+ * without advancing produces no notice, no auto-opened panel, and no
+ * tick-and-crossfade — the collapsed header's count simply moves,
+ * "0 of 8 keys run clean" to "1 of 8".
+ *
+ * That is the right size of feedback for that size of event, and the
+ * asymmetry is the point. If every criterion got the full treatment,
+ * the one that actually matters would stop feeling different from
+ * the ones that do not — the ceremony would become the background
+ * and there would be nothing left to mark a rung with.
+ *
+ * The alternative was considered and declined: recording
+ * criterion-completion events (a `criteriaMetLabels` watermark on the
+ * song, diffed each evaluation) would make every tick witnessable.
+ * It would also make every tick a small celebration, which is the
+ * failure above, at the cost of a second event log to keep correct.
  * ---------------------------------------------------------------
  */
 export default function EarnedNotice({

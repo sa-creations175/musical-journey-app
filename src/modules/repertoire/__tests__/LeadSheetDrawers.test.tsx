@@ -102,18 +102,31 @@ describe('LeadSheetDrawers — the page reserves room beneath itself', () => {
   const VAR = '--lead-sheet-drawers-reserve';
   const read = () => document.documentElement.style.getPropertyValue(VAR);
 
-  /** jsdom does no layout, so heights are stubbed and a resize is
-   *  dispatched to make the component re-measure. Stubbing is the
-   *  point: the arithmetic is what's under test, not jsdom. */
-  function withHeights(el: HTMLElement, heights: number[]) {
+  /** jsdom does no layout, so heights AND positions are stubbed and a
+   *  resize is dispatched to make the component re-measure. Stubbing
+   *  is the point: the arithmetic is what's under test, not jsdom.
+   *
+   *  `top` is what separates the two layouts. Equal tops mean the
+   *  drawers are side by side and cost one header's height between
+   *  them; different tops mean they are stacked and cost both. The
+   *  component reads geometry rather than the breakpoint, so this is
+   *  the only lever a test needs. */
+  function withLayout(el: HTMLElement, boxes: Array<{ h: number; top: number }>) {
     const headers = el.querySelectorAll<HTMLElement>('[aria-expanded]');
-    headers.forEach((h, i) => {
-      Object.defineProperty(h, 'offsetHeight', {
-        value: heights[i] ?? 0, configurable: true,
+    headers.forEach((header, i) => {
+      const box = boxes[i] ?? { h: 0, top: 0 };
+      Object.defineProperty(header, 'offsetHeight', {
+        value: box.h, configurable: true,
       });
+      header.getBoundingClientRect = () =>
+        ({ top: box.top, height: box.h }) as DOMRect;
     });
     act(() => { window.dispatchEvent(new Event('resize')); });
   }
+
+  /** Side by side, the arrangement from `sm` up. */
+  const inARow = (el: HTMLElement, heights: number[]) =>
+    withLayout(el, heights.map(h => ({ h, top: 100 })));
 
   function drawer(label: string) {
     // Shaped like the real ones: a disclosure button, then a panel.
@@ -139,19 +152,56 @@ describe('LeadSheetDrawers — the page reserves room beneath itself', () => {
         {drawer('lyrics')}
       </LeadSheetDrawers>,
     );
-    withHeights(el, [32, 32]);
-    // 32 + 32 headers, + 8 for the one gap between them, + 8 dock gap
-    // + 12 content gap. The 400px panel contributes nothing.
-    expect(read()).toBe('92px');
+    inARow(el, [32, 32]);
+    // One row: the tallest header, 32, + 8 dock gap + 12 content gap.
+    // The 400px open panel contributes nothing, and neither does the
+    // second drawer — it is beside the first, not below it.
+    expect(read()).toBe('52px');
   });
 
-  it('counts every drawer, not just the first', () => {
-    // Guard the guard: a measurement that read only one header would
-    // pass the test above by coincidence if both were the same height.
+  it('costs ONE header side by side and TWO stacked', () => {
+    // THE POINT OF THE ROW. Two narrow bars stacked still cost two
+    // bars of vertical space, which is what was eating the bottom of
+    // the matrix — narrowing them fixed the width and kept the cost.
+    // The reservation is a function of HEIGHT, so the row halves it.
+    const el = render(
+      <LeadSheetDrawers>
+        {drawer('progressions')}
+        {drawer('lyrics')}
+      </LeadSheetDrawers>,
+    );
+    inARow(el, [32, 32]);
+    expect(read()).toBe('52px');
+
+    // Same two drawers, stacked — the phone layout.
+    withLayout(el, [{ h: 32, top: 100 }, { h: 32, top: 140 }]);
+    expect(read()).toBe('92px');       // 32 + 32 + 8 gap + 8 + 12
+  });
+
+  it('takes the TALLEST header in a row, not the first', () => {
+    // A row is as tall as its tallest member. Reading the first would
+    // under-reserve whenever the second wrapped to two lines — which
+    // is exactly what a long "· 42 chords, 3 hidden" does.
+    const el = render(
+      <LeadSheetDrawers>
+        {drawer('progressions')}
+        {drawer('lyrics')}
+      </LeadSheetDrawers>,
+    );
+    inARow(el, [32, 48]);
+    expect(read()).toBe('68px');       // 48 + 8 + 12
+  });
+
+  it('adds no gap for a drawer that has no neighbour', () => {
+    // One drawer is one row with nothing to sit beside, so the
+    // between-rows gap must not be counted. (Its old job — catching a
+    // measurement that read only the first header — moved to the
+    // tallest-in-a-row test above, which the row layout made a
+    // sharper version of.)
     const el = render(
       <LeadSheetDrawers>{drawer('progressions')}</LeadSheetDrawers>,
     );
-    withHeights(el, [32]);
+    inARow(el, [32]);
     expect(read()).toBe('52px');   // 32 + no gap + 8 + 12
   });
 
@@ -160,9 +210,53 @@ describe('LeadSheetDrawers — the page reserves room beneath itself', () => {
     // would pad them for chrome that isn't there — and because it
     // lives on documentElement, nothing else would ever clear it.
     const el = render(<LeadSheetDrawers>{drawer('lyrics')}</LeadSheetDrawers>);
-    withHeights(el, [32]);
+    inARow(el, [32]);
     expect(read()).not.toBe('');
     act(() => root?.unmount());
     expect(read()).toBe('');
   });
 });
+
+describe('LeadSheetDrawers — the stack is a row, bottom right', () => {
+  it('spans nothing: it is right-aligned and auto-width from sm up', () => {
+    // Two full-width bars across every page was more room than two
+    // occasional drawers earn. Right rather than left because the
+    // desktop sidebar is on the left, and because the matrix scrolls
+    // horizontally with its key names in the first column.
+    const el = render(<LeadSheetDrawers>{drawerFor('lyrics')}</LeadSheetDrawers>);
+    const box = el.querySelector('[data-lead-sheet-drawers]')!;
+    const cls = box.className;
+    for (const c of ['sm:flex-row', 'sm:justify-end', 'sm:right-3', 'sm:left-auto', 'sm:w-auto']) {
+      expect(cls, c).toContain(c);
+    }
+  });
+
+  it('stays stacked and full width below sm', () => {
+    // A 320px bar on a 375px phone is nearly full width anyway, so
+    // capping there buys nothing and risks cramping the header.
+    const el = render(<LeadSheetDrawers>{drawerFor('lyrics')}</LeadSheetDrawers>);
+    const cls = el.querySelector('[data-lead-sheet-drawers]')!.className;
+    expect(cls).toContain('inset-x-3');
+    expect(cls).toContain('flex-col');
+  });
+
+  it('sizes the children itself, so neither drawer knows it has a neighbour', () => {
+    // The two-drawer bug this file exists to prevent was two
+    // components holding beliefs about each other. Sizing stays here
+    // with the layout: collapsed each is a tab, open it is a panel.
+    const cls = render(<LeadSheetDrawers>{drawerFor('lyrics')}</LeadSheetDrawers>)
+      .querySelector('[data-lead-sheet-drawers]')!.className;
+    expect(cls).toContain('sm:[&>*]:w-80');
+    expect(cls).toContain('sm:[&>*:has([aria-expanded="true"])]:w-[32rem]');
+    // Never past the viewport on a narrow window.
+    expect(cls).toContain('sm:[&>*]:max-w-[calc(100vw-1.5rem)]');
+  });
+});
+
+function drawerFor(label: string) {
+  return (
+    <div>
+      <button aria-expanded={false}>{label}</button>
+    </div>
+  );
+}

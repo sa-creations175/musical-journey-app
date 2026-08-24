@@ -475,3 +475,18 @@ describe('the criteria panel starts closed', () => {
     expect(PANEL).toContain('{ready && open && (');
   });
 });
+
+describe('the moment is reserved for a status change', () => {
+  it('records that as a decision where the moment is implemented', () => {
+    // Meeting one of Internalized's three criteria without advancing
+    // moves the collapsed header's count and nothing else. That is
+    // deliberate: if every criterion got the tick-and-crossfade, the
+    // one that matters would stop feeling different from the ones
+    // that do not. Asserted so the reasoning cannot be quietly
+    // deleted as a stale comment by someone who reads the asymmetry
+    // as a bug.
+    const notice = read('EarnedNotice.tsx');
+    expect(notice).toContain('A DECISION, NOT AN OVERSIGHT');
+    expect(notice).toContain('criteriaMetLabels');
+  });
+});
