@@ -1,4 +1,5 @@
 import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
+import { rotate } from './decoyGuard';
 import {
   INTERVAL_NAMES, invertedOrdinal, invertsSmaller,
 } from './intervalInversion';
@@ -187,15 +188,6 @@ export function scaleDegreeSpelled(key: string, degree: number): string {
 /** Strip "major"/"minor" suffix so "G major" → "G". */
 export function parseKeyRoot(key: string): string {
   return key.replace(/\s*(major|minor)\s*$/i, '').trim();
-}
-
-function shuffleArray<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 // Pad a decoy list to 3 unique values excluding the correct answer.
@@ -392,7 +384,7 @@ function generateNamedNoteCards(): Flashcard[] {
       categoryName: CATEGORY_LABELS['named-notes'],
       question: `In ${p.key} major, ${p.degree} of the scale = ?`,
       correctAnswer: correct,
-      decoys: makeDecoys(shuffleArray(decoyCandidates), correct),
+      decoys: makeDecoys(rotate(decoyCandidates, `nn-${i + 1}`), correct),
       explanation: `${p.key} major is ${fullScale} — degree ${p.degree} is ${correct}. Knowing every scale in every key cold is the unglamorous skill that lets you sit in at any session: when the MD calls "key of ${p.key}, hit the ${p.degree}", you're already there.`,
       skillTag: `named-note-key-${p.key}-degree-${p.degree}`,
       visualHint: {
@@ -425,7 +417,8 @@ function generateReversePivotCards(): Flashcard[] {
   return entries.map((e, i) => {
     const note = degreeNote(e.key, e.degree);
     const decoys = makeDecoys(
-      shuffleArray(allKeys.filter(k => k !== e.key)).slice(0, 3).map(k => `${k} major`),
+      rotate(allKeys.filter(k => k !== e.key), `rkp-${i + 1}`)
+        .slice(0, 3).map(k => `${k} major`),
       `${e.key} major`,
     );
     return {
@@ -481,7 +474,7 @@ function generateIntervalCards(): Flashcard[] {
       categoryName: CATEGORY_LABELS.intervals,
       question: `The interval from ${p.from} to ${p.to} ascending = ?`,
       correctAnswer: correct,
-      decoys: makeDecoys(shuffleArray(decoyPool), correct),
+      decoys: makeDecoys(rotate(decoyPool, `iv-${i + 1}`), correct),
       explanation: `${p.from} up to ${p.to} spans ${dist} semitones — that's a ${correct}. Intervals are the raw material of melody and chord voicing: every soul lick, every gospel run, every hip-hop sample chop is a specific sequence of these distances. Naming them instantly is what turns "I can copy that riff" into "I can write my own version in any key."`,
       skillTag: `interval-${dist}-semitones`,
       visualHint: { startingNote: p.from, destinationNote: p.to },
@@ -1634,7 +1627,10 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
     'b7', '7', '9', 'b9', '#9', '11', '#11', '13', 'b13',
   ];
   const intervalDecoys = (correct: string, members: readonly string[]) =>
-    makeDecoys(shuffleArray(intervalPool.filter(n => !members.includes(n))), correct);
+    makeDecoys(
+      rotate(intervalPool.filter(n => !members.includes(n)), `enh-i-${correct}`),
+      correct,
+    );
   const intervalGroups: Array<{ members: string[]; context: string }> = [
     { members: ['2', '9'], context: 'Same pitch an octave apart — "2" in sus/add voicings, "9" in extended (9th / 13th) chords.' },
     { members: ['b2', 'b9'], context: 'b2 for a Phrygian / sus flavour; b9 as the altered-dominant tension. Same pitch, different role.' },
