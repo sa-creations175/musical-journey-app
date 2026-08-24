@@ -8,9 +8,13 @@ import EtSelectToggle from '../EtSelectToggle';
 import { useEtCurationsLive } from '../useEtCurations';
 import { useEtSelection } from '../useEtSelection';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
+import ProgressBar from '../../../components/ProgressBar';
+import { barSegments, unratedLabel } from '../../../lib/progressBar';
+import {
+  spacingIntervalFor, useSpacingIntervals,
+} from '../../../lib/useSpacingIntervals';
 import { daysBetween, lastPracticedDaysAgo, localDayKey } from '../../../lib/dailyGoal';
 import {
-  MIN_ATTEMPTS_FOR_TIER,
   TIER_BADGE_CLASS,
   TIER_BAR_CLASS,
   TIER_DESCRIPTION,
@@ -26,6 +30,8 @@ const MODULE_ID = 'intervals';
 type Direction = 'asc' | 'desc';
 
 interface RollingStats {
+  /** The window's own rows — what the strip draws. */
+  window: AttemptRecord[];
   correct: number;
   total: number;
   percent: number;
@@ -51,6 +57,7 @@ function rollingFor(attempts: AttemptRecord[], itemId: string, direction: Direct
     daysSinceLastAttempt,
   });
   return {
+    window: recent,
     correct,
     total,
     percent: total === 0 ? 0 : Math.round((correct / total) * 100),
@@ -80,21 +87,31 @@ interface DirectionStatsProps {
   iv: IntervalData;
   direction: Direction;
   rolling: RollingStats;
+  /** REQUIRED. Ascending and descending are separately scheduled — the
+   *  drill writes `${id}:asc` and `${id}:desc` as distinct spacing
+   *  rows — so a shared value would age one direction at the other's
+   *  rate, which is invisible on screen. */
+  intervalDays: number;
+  now: number;
 }
 
-function DirectionStats({ iv, direction, rolling }: DirectionStatsProps) {
+function DirectionStats({
+  iv, direction, rolling, intervalDays, now,
+}: DirectionStatsProps) {
   const manualCorrect = direction === 'asc' ? iv.ascCorrect : iv.descCorrect;
   const manualTotal = direction === 'asc' ? iv.ascTotal : iv.descTotal;
-  const isUntouched = rolling.tier === 'untouched';
+  const seg = barSegments({
+    correct: rolling.correct,
+    wrong: rolling.total - rolling.correct,
+  });
+  const pending = unratedLabel(seg);
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-baseline justify-between text-xs text-neutral-500 mb-1 gap-2 flex-wrap">
         <span>{direction === 'asc' ? 'ascending' : 'descending'}</span>
         <span className="font-mono">
-          {isUntouched ? (
-            <span className="text-neutral-400">
-              no data yet — needs {MIN_ATTEMPTS_FOR_TIER} ({rolling.total}/{MIN_ATTEMPTS_FOR_TIER})
-            </span>
+          {pending !== null ? (
+            <span className="text-neutral-400">{pending}</span>
           ) : (
             <>
               {rolling.correct}/{rolling.total}
@@ -104,12 +121,12 @@ function DirectionStats({ iv, direction, rolling }: DirectionStatsProps) {
           )}
         </span>
       </div>
-      <div className="h-2 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-        <div
-          className={`h-full ${TIER_BAR_CLASS[rolling.tier]} transition-all`}
-          style={{ width: rolling.total === 0 ? 0 : `${Math.max(4, rolling.percent)}%` }}
-        />
-      </div>
+      <ProgressBar
+        attempts={rolling.window}
+        intervalDays={intervalDays}
+        now={now}
+        label={`${iv.name} ${direction === 'asc' ? 'ascending' : 'descending'}`}
+      />
       <div className="mt-2 text-[11px] text-neutral-500">
         <div className="flex items-center gap-1 flex-wrap">
           <span className="text-neutral-400">manual log</span>
@@ -277,6 +294,11 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
   const itemRefs = useMemo(() => sorted.map(iv => iv.id), [sorted]);
   const curations = useEtCurationsLive(itemRefs);
   const selection = useEtSelection();
+  // Named apart from `intervals`, which in THIS file is the twelve
+  // musical intervals. Two different things called the same word is
+  // how the wrong one gets passed.
+  const spacingIntervals = useSpacingIntervals(MODULE_ID);
+  const now = Date.now();
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
@@ -335,8 +357,19 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
                 </div>
               </div>
               <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 min-w-0">
-                <DirectionStats iv={iv} direction="asc" rolling={ascRolling} />
-                <DirectionStats iv={iv} direction="desc" rolling={descRolling} />
+                {/* THE REF IS `${id}:${direction}`, matching what
+                    IntervalsQuiz writes — the two directions are
+                    separate spacing rows and fade separately. */}
+                <DirectionStats
+                  iv={iv} direction="asc" rolling={ascRolling}
+                  intervalDays={spacingIntervalFor(spacingIntervals, `${iv.id}:asc`)}
+                  now={now}
+                />
+                <DirectionStats
+                  iv={iv} direction="desc" rolling={descRolling}
+                  intervalDays={spacingIntervalFor(spacingIntervals, `${iv.id}:desc`)}
+                  now={now}
+                />
               </div>
             </div>
           );
