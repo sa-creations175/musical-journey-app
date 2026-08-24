@@ -552,3 +552,80 @@ describe('the lead-sheet nudge fires on the write, never on the read', () => {
     expect(VIEW()).toContain('nudgeCellId !== null && !nudgeDismissed');
   });
 });
+
+describe('the practice history card moved to a calendar (3d-9)', () => {
+  /**
+   * SOURCE-LEVEL, because the load-bearing claims are absences and a
+   * move. A render test on the song page proves the card is gone only
+   * for the props it happened to pass, and it cannot say the pieces
+   * arrived anywhere.
+   *
+   * The failure being guarded is not the card coming back whole — it
+   * is one of its two halves being REBUILT on the calendar instead of
+   * moved. A second way of drawing the same rows is how two surfaces
+   * start disagreeing about one song, which is the fault this entire
+   * workstream began by fixing.
+   */
+  const VIEW = () => codeOf(read('SongDetailView.tsx'));
+  const CAL = () => codeOf(read('SongPracticeCalendar.tsx'));
+
+  it('the song page no longer draws either half', () => {
+    const src = VIEW();
+    expect(src).not.toContain('<SongHeatmap');
+    expect(src).not.toContain('<PracticeHistory');
+  });
+
+  it('and no longer subscribes to rows it does not draw', () => {
+    // A live query for a table this page stopped rendering is a
+    // re-render on every logged session for nothing.
+    //
+    // Narrowed to the SUBSCRIPTION, not every mention: the song-delete
+    // path still reads and bulk-deletes these rows, and must.
+    expect(VIEW()).not.toContain('useLiveQuery<SongPracticeLog[]>');
+  });
+
+  it('the calendar MOVES both halves rather than rebuilding them', () => {
+    const src = CAL();
+    expect(src).toContain('<SongHeatmap');
+    expect(src).toContain('<PracticeHistory');
+    // If it were rebuilding, it would be computing its own buckets.
+    expect(src).not.toContain('localDayKey');
+    expect(src).not.toContain('intensity');
+  });
+
+  it('the guidance moved with the thing it explains', () => {
+    expect(VIEW()).not.toContain('surface="practiceHistory"');
+    expect(CAL()).toContain('surface="practiceHistory"');
+  });
+
+  it('the link uses the words six other modules already use', () => {
+    // "view calendar →" appears in shapes-and-patterns, harmonic
+    // fluency and the four ear-training tabs, in this style and this
+    // position. A seventh phrasing for one door would read as a
+    // different door.
+    //
+    // Only the repertoire half is asserted here: this file's source
+    // glob is scoped to `../**`, which is modules/repertoire, so the
+    // six precedents are outside its reach. They were verified by
+    // grep when the link was written, and pinning the exact string
+    // here is what would catch this one drifting away from them.
+    expect(read('SongDetailView.tsx')).toContain('view calendar →');
+  });
+
+  it('the calendar is reached by the ?songId= convention, not a second one', () => {
+    // Repertoire.tsx already reads ?songId= for deep links. A route
+    // param would be a second way to name a song in a URL.
+    expect(VIEW()).toContain('/repertoire/calendar?songId=');
+    expect(CAL()).toContain("searchParams.get('songId')");
+  });
+
+  it('distinguishes a song still loading from a song that is gone', () => {
+    // useLiveQuery returns undefined before its first result. Treating
+    // that as "not found" would flash the error on every visit, and a
+    // not-found that turns out to be a song is worse than a moment of
+    // nothing.
+    const src = CAL();
+    expect(src).toContain('song === undefined');
+    expect(src).toContain('song === null');
+  });
+});

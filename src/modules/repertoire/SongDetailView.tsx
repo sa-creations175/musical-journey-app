@@ -8,7 +8,6 @@ import {
   type Song,
   type SongKey,
   type SongKeyRunThrough,
-  type SongPracticeLog,
   type LyricSyllable,
   type SongLyricLine,
   type SongSection,
@@ -70,7 +69,6 @@ import {
   savePatternsCollapsed,
 } from './leadSheetPrefs';
 import { planSectionMove } from './sectionReorder';
-import PracticeHistory from './PracticeHistory';
 import StageCriteriaPanel, { type HoldingKey } from './StageCriteriaPanel';
 import DemotionNotice from './DemotionNotice';
 import EarnedNotice from './EarnedNotice';
@@ -87,7 +85,6 @@ import {
   windowsFrom,
   type SongKeySpacingSettings,
 } from './spacingPrefs';
-import SongHeatmap from './SongHeatmap';
 import CellAnchoredMessage from './CellAnchoredMessage';
 import LyricDrawer from './LyricDrawer';
 import { useDismissOnOutside } from './useDismissOnOutside';
@@ -274,13 +271,10 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
       .sortBy('order'),
     [songId],
   ) ?? [];
-  const logs = useLiveQuery<SongPracticeLog[]>(
-    () => db.songPracticeLog
-      .where('songId').equals(songId)
-      .toArray()
-      .then(arr => arr.sort((a, b) => b.timestamp - a.timestamp)),
-    [songId],
-  ) ?? [];
+  // The songPracticeLog subscription went with the practice history
+  // card in 3d-9. The calendar route owns it now — a live query for
+  // rows this page no longer draws is a re-render on every logged
+  // session for nothing.
   // The songCrossKeyProgress subscription is gone as of 21 Aug 2026:
   // no advancement rule reads that @deprecated table any more, and
   // CrossKeyGrid runs its own query. A live subscription kept only to
@@ -2112,6 +2106,17 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">matrix</h3>
             <SectionGuidance surface="matrix" />
+            {/* THE SAME WORDS SIX OTHER MODULES USE. Shapes &
+                Patterns, harmonic fluency and the four ear-training
+                tabs all reach their calendar through "view calendar
+                →" in this style. A seventh phrasing for one door
+                would read as a different door. */}
+            <Link
+              to={`/repertoire/calendar?songId=${encodeURIComponent(song.id)}`}
+              className="text-xs text-neutral-500 hover:text-fluent"
+            >
+              view calendar →
+            </Link>
           </div>
           {/* The change-stage dropdown and the advance button are gone.
               A stage is where the evidence puts you: play it, prove it,
@@ -2358,31 +2363,27 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
           )}
         </section>
 
-      {/* Practice history + heatmap */}
-      <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">practice history</h3>
-            <SectionGuidance surface="practiceHistory" />
-          </div>
-        </div>
-        {/* The bottom timer strip is gone as of 3d-5. It sat below
-            the danger zone, inside practice history — a timer you had
-            to scroll past two cards to reach. Practice starts from a
-            matrix cell now, and the panel keeps the clock on screen
-            whatever else you are doing.
+      {/* ---------------------------------------------------------------
+          THE PRACTICE HISTORY CARD IS GONE (3d-9).
 
-            "+ log a practice session" went with PracticeLogModal in
-            3d-8. It was a second writer of songPracticeLog — adding
-            the row itself rather than going through
-            logPracticeSession — and it initialised its feel picker to
-            3, so every session the user did not explicitly rate was
-            stored as "comfortable", a judgement they never made,
-            which then fed the spacing curve. The panel's rating step
-            replaces it and leaves an unrated session unrated. */}
-        <SongHeatmap logs={logs} />
-        <PracticeHistory logs={logs} sections={sections} />
-      </section>
+          It held a heatmap and a session list, and both moved intact
+          to `/repertoire/calendar?songId=…` — reached by "view
+          calendar →" at the top of the matrix card. Neither was
+          rewritten; a second way of drawing the same rows is how two
+          surfaces start disagreeing about one song.
+
+          It went because the status has to be visible without
+          scrolling, and this was a lot of page for something consulted
+          occasionally rather than read every visit. The at-a-glance
+          loss is smaller than it looks: the matrix cells already fade
+          with staleness, so "has this been touched recently" stays
+          readable in the grid. If that turns out not to be enough, the
+          fix is a line in the matrix header, not this card returning.
+
+          The bottom timer strip that used to live inside it went in
+          3d-5, and "+ log a practice session" with PracticeLogModal in
+          3d-8.
+          --------------------------------------------------------------- */}
 
       {/* Danger zone — destructive actions, visually separated from
           the rest of the page so nothing is clicked by accident. */}

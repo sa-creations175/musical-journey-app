@@ -16,6 +16,7 @@ import ChordProgressionQuiz from './modules/ear-training/chord-progression-quiz/
 import ScalesModes from './modules/ear-training/scales-modes/ScalesModes';
 import ScalesModesCalendar from './modules/ear-training/scales-modes/ScalesModesCalendar';
 import Repertoire from './modules/repertoire/Repertoire';
+import SongPracticeCalendar from './modules/repertoire/SongPracticeCalendar';
 import ShapesAndPatterns from './modules/shapes-and-patterns/ShapesAndPatterns';
 import ShapesAndPatternsCalendar from './modules/shapes-and-patterns/ShapesAndPatternsCalendar';
 import Production from './modules/production/Production';
@@ -93,6 +94,11 @@ export default function App() {
             <Route path="ear-training/scales-modes" element={<ScalesModes />} />
             <Route path="ear-training/scales-modes/calendar" element={<ScalesModesCalendar />} />
             <Route path="repertoire" element={<Repertoire />} />
+            {/* Song-scoped, via the ?songId= convention Repertoire
+                already reads. A second way to name a song in a URL
+                would be a second thing to keep in step with the
+                first. */}
+            <Route path="repertoire/calendar" element={<SongPracticeCalendar />} />
             <Route path="shapes-and-patterns" element={<ShapesAndPatterns />} />
             <Route path="shapes-and-patterns/calendar" element={<ShapesAndPatternsCalendar />} />
             <Route path="production" element={<Production />} />
