@@ -691,12 +691,12 @@ const KEY_SIG_CARDS: Flashcard[] = [
   { id: 'ks-21', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
     question: 'The order of sharps in a key signature is _____', correctAnswer: 'F# C# G# D# A# E# B#',
     decoys: ['Bb Eb Ab Db Gb Cb Fb', 'F# G# A# B# C# D# E#', 'C# D# E# F# G# A# B#'],
-    explanation: "Sharps always appear in this fixed order: F# C# G# D# A# E# B# (mnemonic: 'Father Charles Goes Down And Ends Battle'). A key with four sharps has the first four; a key with two has the first two. This is how you read any sharp key signature instantly without memorizing each one.",
+    explanation: "Sharps always appear in this fixed order: F♯ C♯ G♯ D♯ A♯ E♯ B♯ (mnemonic: 'Father Charles Goes Down And Ends Battle'). A key with four sharps has the first four; a key with two has the first two. This is how you read any sharp key signature instantly without memorizing each one. Read the same sentence backwards and you have the order of flats.",
     skillTag: 'order-of-sharps' },
   { id: 'ks-22', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
     question: 'The order of flats in a key signature is _____', correctAnswer: 'Bb Eb Ab Db Gb Cb Fb',
     decoys: ['F# C# G# D# A# E# B#', 'Ab Bb Cb Db Eb Fb Gb', 'Eb Bb Ab Db Gb Cb Fb'],
-    explanation: "Flats always appear in this order: Bb Eb Ab Db Gb Cb Fb — exactly the reverse of sharps. Knowing this lets you read any flat key signature at a glance.",
+    explanation: "Flats always appear in this order: B♭ E♭ A♭ D♭ G♭ C♭ F♭ — Battle Ends And Down Goes Charles' Father. That's the sharps mnemonic read backwards, because the two orders are exact reverses of each other. Learn one sentence and you have both. Quicker still: the first four spell BEAD, then G C F.",
     skillTag: 'order-of-flats' },
 
   // --- Scale construction (sc-* IDs) ---------------------------------
