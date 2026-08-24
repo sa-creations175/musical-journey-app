@@ -111,6 +111,17 @@ retirement that had already happened.
   has none. Playback must derive from structured pitches, never from parsing
   the answer string.
 
+- **Category strip at the top of the drill.** Today the current category is
+  faint text ("PROGRESSION VOCABULARY") and there is no way to see what else
+  exists without leaving the session. Show all categories compactly at the top,
+  highlight the one you are in, and allow jumping to another.
+  Constraints: ~15 categories, so it must be compact and it must WRAP rather
+  than scroll sideways — sideways scrolling was already rejected for the answer
+  keyboard. The current category needs to read as distinctly current, not just
+  as a label.
+  Related to the dashboard-legibility item: seeing what a category holds
+  without drilling it to find out.
+
 **Partial coverage, measured 24 August.**
 
 | Shape | Keys present |
