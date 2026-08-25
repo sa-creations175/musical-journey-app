@@ -112,7 +112,10 @@ export default function Layout() {
           }`}
         >
           <div className={sidebarCollapsed ? 'hidden' : ''}>
-            <div className="text-sm font-medium tracking-tight text-fluent">musical journey</div>
+            {/* CAPS BY DISPLAY, like the module names in the nav below —
+                the string stays as it is. "practice companion" under it
+                is the one lowercase item in the sidebar, deliberately. */}
+            <div className="text-sm font-medium tracking-wide uppercase text-fluent">musical journey</div>
             <div className="text-xs text-neutral-500 mt-0.5">practice companion</div>
           </div>
           <button

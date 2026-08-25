@@ -1,19 +1,24 @@
 /**
- * How a nav label is CASED, decided once.
+ * How a LABEL is cased, decided once.
+ *
+ * Nav rows and module-home card titles both read from here. They are
+ * the same problem — a canonical lowercase label that has to appear in
+ * a style — and answering it twice is how "Chord Recognition" in one
+ * list comes to sit beside "chord recognition" in another.
  *
  * =====================================================================
  * THE LABELS STAY CANONICAL. ONLY THE RENDER CHANGES.
  *
- * Every nav label already exists in exactly one place — `moduleMeta`,
- * a sidebar group's item list, a module's own sub-items — and those
- * strings are what the rest of the app matches on. Retyping forty of
+ * Every label already exists in exactly one place — `moduleMeta`, a
+ * sidebar group's item list, a module's own sub-items, a card adapter —
+ * and those strings are what the rest of the app matches on. Retyping
  * them in Title Case would make the style a property of each string,
  * so a renamed item would silently arrive in the old style, and
  * something that matched on a label would match the wrong one.
  *
- * So casing is applied where the label is drawn, from here. A module
+ * So casing is applied where the label is DRAWN, from here. A module
  * renamed in `moduleMeta` arrives capitalised without anyone
- * remembering to.
+ * remembering to, and a card and its nav row cannot disagree.
  * =====================================================================
  *
  * MODULE NAMES ARE UPPERCASED IN CSS, not here: `uppercase` is a render

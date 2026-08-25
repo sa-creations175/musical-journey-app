@@ -22,6 +22,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { isNarrowed, useDrillFilter } from '../../lib/drillFilter';
+import { useUrlTabSync } from '../../lib/useUrlTabSync';
 import ReadingDrill from './ReadingDrill';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
@@ -78,6 +79,20 @@ export default function Reading() {
    * =====================================================================
    */
   const [drilling, setDrilling] = useState(false);
+  /**
+   * `?skill=note|shape|sig|chord` — the sidebar's four sub-items.
+   *
+   * SELECTS, NEVER STARTS. It sets which skill the drill area is on and
+   * leaves `drilling` alone, so arriving from the nav lands on the
+   * cards with that skill chosen rather than on a question with its
+   * clock already running.
+   *
+   * The same hook every other module uses for its `?tab=`, and the same
+   * guard the cards use for their keys — one definition of what a
+   * reading skill id is.
+   */
+  useUrlTabSync<ReadingDrillSkill>('skill', isReadingCardKey, setSkill);
+
   /** Which skill's progress detail is open, if any. */
   const [detailSkill, setDetailSkill] = useState<ReadingDrillSkill | null>(null);
   const axisViews = useAxisViews();

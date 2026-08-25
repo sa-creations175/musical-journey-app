@@ -37,6 +37,7 @@
 import ProgressBar from '../ProgressBar';
 import { FALLBACK_INTERVAL_DAYS, barSegments, unratedLabel } from '../../lib/progressBar';
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
+import { titleCase } from '../../lib/labelCase';
 import type { CategoryCardModel } from './model';
 
 /**
@@ -124,7 +125,12 @@ export default function CategoryCard({
         style={{ backgroundColor: `${accentHex}0f` }}
       >
         <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="font-medium text-sm">{card.label}</span>
+          {/* TITLE CASE HERE, not in six adapters. The adapters hand
+              over the canonical label — the catalog's own words — and
+              the style is applied where the title is drawn, the same
+              rule the sidebar follows. Production's path titles are
+              already capitalised and pass through unchanged. */}
+          <span className="font-medium text-sm">{titleCase(card.label)}</span>
           {/* NO BADGE WITHOUT A MEASUREMENT. A module that records
               duration and a self-rating has no tier; the alternative is
               `computeTier` on an empty window, which says `untouched`

@@ -8,7 +8,7 @@
  * label added tomorrow is covered without this file changing.
  */
 import { describe, expect, it } from 'vitest';
-import { MODULE_NAME_CASE, titleCase } from '../navCase';
+import { MODULE_NAME_CASE, titleCase } from '../labelCase';
 import { MODULE_ORDER, isLearningModule } from '../moduleMeta';
 
 describe('title case', () => {
@@ -34,6 +34,27 @@ describe('title case', () => {
   it('does not touch the spacing it was given', () => {
     expect(titleCase('reference track library')).toBe('Reference Track Library');
     expect(titleCase('')).toBe('');
+  });
+});
+
+describe('card titles use the same rule', () => {
+  it('capitalises the labels the module homes hand over', () => {
+    // The adapters keep the catalog's own lowercase words; the card
+    // draws them in Title Case. Same function as the nav, so a card and
+    // its nav row cannot disagree.
+    expect(titleCase('chord recognition')).toBe('Chord Recognition');
+    expect(titleCase('scales & modes')).toBe('Scales & Modes');
+    expect(titleCase('mental visualisation')).toBe('Mental Visualisation');
+    expect(titleCase('vocabulary')).toBe('Vocabulary');
+    expect(titleCase('notes')).toBe('Notes');
+  });
+
+  it('leaves an already-capitalised catalog title alone', () => {
+    // Production's paths are stored capitalised — they must pass
+    // through untouched rather than being re-cased into a new shape.
+    expect(titleCase('Workflow Foundations')).toBe('Workflow Foundations');
+    expect(titleCase('The Language of Production')).toBe('The Language of Production');
+    expect(titleCase('Arrangement & Song Structure')).toBe('Arrangement & Song Structure');
   });
 });
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getPref, setPref } from '../lib/userPrefs';
-import { MODULE_NAME_CASE, titleCase } from '../lib/navCase';
+import { MODULE_NAME_CASE, titleCase } from '../lib/labelCase';
 import { isLearningModule, moduleMetaById, CREATIVE_SESSIONS_ACCENT_HEX } from '../lib/moduleMeta';
 import ModuleGlyph from './ModuleGlyph';
 
@@ -144,6 +144,15 @@ const NAV_GROUPS: NavGroup[] = [
         id: 'reading',
         label: 'reading',
         to: '/reading',
+        // The four skills its module home already leads with. Reading
+        // was the one module whose sections could not be reached from
+        // the nav at all, because it had no expand control.
+        children: [
+          { label: 'notes',      to: '/reading?skill=note' },
+          { label: 'shapes',     to: '/reading?skill=shape' },
+          { label: 'signatures', to: '/reading?skill=sig' },
+          { label: 'chords',     to: '/reading?skill=chord' },
+        ],
       },
       {
         id: 'shapes-and-patterns',
