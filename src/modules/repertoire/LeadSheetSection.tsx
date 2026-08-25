@@ -2050,6 +2050,23 @@ export default function LeadSheetSection({
     await commit({ stage: next });
   };
 
+  /**
+   * The chart-finished tick.
+   *
+   * THROUGH `commit`, LIKE EVERY OTHER SECTION EDIT. It is undoable
+   * with the rest, and it passes the same `updateSection` funnel — so
+   * ticking the box can offer the lead-sheet practice nudge, which is
+   * apt: the moment you declare the chart written is the moment the
+   * evening's chart-building is worth logging.
+   *
+   * A SECOND WRITE PATH IS THE THING TO AVOID HERE. Anything that set
+   * this outside a tap — a save hook, a chord count, a migration —
+   * would make the flag the app's opinion rather than the user's.
+   */
+  const setChartComplete = async (next: boolean) => {
+    await commit({ chartComplete: next });
+  };
+
   const comparing = compareIds.length > 0;
 
   return (
@@ -2101,6 +2118,21 @@ export default function LeadSheetSection({
               {section.name}
             </button>
           )}
+          {/* Beside the name, where the chords are being written —
+              not in a settings panel a chart-builder never opens. */}
+          <label
+            className="text-[11px] text-neutral-500 flex items-center gap-1 cursor-pointer"
+            title="you've finished writing this section's chart — only you set this"
+          >
+            <input
+              type="checkbox"
+              checked={section.chartComplete === true}
+              onChange={e => { void setChartComplete(e.target.checked); }}
+              data-testid="section-chart-complete"
+              className="accent-fluent"
+            />
+            chords added
+          </label>
           <label className="text-[11px] text-neutral-500 flex items-center gap-1">
             stage:
             <select

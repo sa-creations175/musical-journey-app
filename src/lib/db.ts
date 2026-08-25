@@ -534,6 +534,32 @@ export interface SongSection {
   struckLines?: number[];
   /** Section hidden from playback view (collapsed) but still in data. */
   hidden?: boolean;
+  /**
+   * The user's declaration that THIS SECTION'S CHART IS FINISHED.
+   *
+   * ---------------------------------------------------------------
+   * ONLY A PERSON SETS THIS. Nothing derives it, nothing infers it,
+   * and no save path sets it as a side effect — a chord landing on
+   * the grid is evidence about the chart, never a verdict on it. The
+   * app may one day SUGGEST the tick from `chordPlacements` /
+   * `deriveBarGrid` (both readable per section today); it may not
+   * decide it, because "I am done writing this" is a fact only the
+   * writer holds.
+   *
+   * IT LIVES BESIDE THE CHORDS ON PURPOSE. The flag and the content
+   * it describes are one row, so no reconciliation can put them out
+   * of step. `SongMatrixSection` owns archived/live; this owns
+   * written/unwritten, and the two are different questions.
+   *
+   * Absent means unticked. Not backfilled: every existing section is
+   * already in the right state, and a backfill would be the app
+   * making the declaration.
+   *
+   * Unindexed — rides the section's `data` JSONB blob across sync
+   * (`songSections` maps only `songId` to a column), so it needs no
+   * Dexie version bump and no Postgres migration.
+   */
+  chartComplete?: boolean;
   /** Per-section stage — can diverge from song-level stage. Defaults to
    *  inheriting the song's stage at render time. */
   stage?: RepertoireStage;

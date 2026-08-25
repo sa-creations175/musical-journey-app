@@ -20,10 +20,14 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   db,
   type Song,
+  type SongCell,
   type SongKey,
   type SongKeyRunThrough,
+  type SongMatrixSection,
   type SongPracticeLog,
+  type SongSection,
 } from '../../lib/db';
+import { readSectionChips } from './sectionChips';
 import {
   STAGES,
   STAGE_LABEL,
@@ -130,6 +134,26 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     () => db.songKeyRunThroughs.toArray(),
     [],
   ) ?? [];
+  // The three reads behind the section chips, grouped by song below in
+  // the same shape as `logs` and `matrixKeys`. Whole-table like its
+  // neighbours: this list already renders every song, so a per-song
+  // query would be three round trips per card.
+  //
+  // ALL THREE, BECAUSE A CHIP SPANS ALL THREE. The tick is on the
+  // lead-sheet section, the cell test is on `songCells`, and only
+  // `songMatrixSections` knows which cell belongs to which section.
+  const leadSheetSections = useLiveQuery<SongSection[]>(
+    () => db.songSections.toArray(),
+    [],
+  ) ?? [];
+  const matrixSections = useLiveQuery<SongMatrixSection[]>(
+    () => db.songMatrixSections.toArray(),
+    [],
+  ) ?? [];
+  const cells = useLiveQuery<SongCell[]>(
+    () => db.songCells.toArray(),
+    [],
+  ) ?? [];
   // See SongDetailView: captured once, not read during render.
   const [advancementNow] = useState(() => Date.now());
   // See SongDetailView: async, and defaulting to never-proven holds
@@ -179,6 +203,40 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
     return m;
   }, [keyRunThroughs]);
 
+  // Lead-sheet order is `order`, and it is sorted here rather than
+  // relied on: `toArray()` gives Dexie's primary-key order, which is
+  // the section id.
+  const sectionsBySong = useMemo(() => {
+    const m = new Map<string, SongSection[]>();
+    for (const s of leadSheetSections) {
+      const arr = m.get(s.songId) ?? [];
+      arr.push(s);
+      m.set(s.songId, arr);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.order - b.order);
+    return m;
+  }, [leadSheetSections]);
+
+  const matrixSectionsBySong = useMemo(() => {
+    const m = new Map<string, SongMatrixSection[]>();
+    for (const s of matrixSections) {
+      const arr = m.get(s.songId) ?? [];
+      arr.push(s);
+      m.set(s.songId, arr);
+    }
+    return m;
+  }, [matrixSections]);
+
+  const cellsBySong = useMemo(() => {
+    const m = new Map<string, SongCell[]>();
+    for (const c of cells) {
+      const arr = m.get(c.songId) ?? [];
+      arr.push(c);
+      m.set(c.songId, arr);
+    }
+    return m;
+  }, [cells]);
+
   // The songCrossKeyProgress query and its grouping are gone as of
   // 21 Aug 2026 — no advancement rule reads that @deprecated table.
 
@@ -224,13 +282,25 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         advancementNow,
         windowsFrom(spacing),
       );
+      // One reading per song, shared by the chips and the counts under
+      // them — see `readSectionChips`.
+      const sectionReading = readSectionChips({
+        sections: sectionsBySong.get(song.id) ?? [],
+        matrixSections: matrixSectionsBySong.get(song.id) ?? [],
+        cells: cellsBySong.get(song.id) ?? [],
+        songKeys: keysBySong.get(song.id) ?? [],
+      });
       return {
         song, lastPractisedAt, freshness, derivedStage, due,
         spelling: resolveSpelling(song.spelling, globalSpelling),
         readyToAdvance: advancement.suggest,
+        sectionReading,
       };
     });
-  }, [songs, logsBySong, keysBySong, runsBySong, advancementNow, globalSpelling]);
+  }, [
+    songs, logsBySong, keysBySong, runsBySong, advancementNow, globalSpelling,
+    sectionsBySong, matrixSectionsBySong, cellsBySong,
+  ]);
 
   const stageCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -407,7 +477,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-2">
-              {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage, due, spelling }) => (
+              {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage, due, spelling, sectionReading }) => (
                 <SortableSongRow
                   key={song.id}
                   song={song}
@@ -419,6 +489,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
                   stage={derivedStage}
                   due={due}
                   spelling={spelling}
+                  sections={sectionReading}
                   onOpen={() => onOpenSong(song.id)}
                 />
               ))}
@@ -427,7 +498,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         </DndContext>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage, due, spelling }) => (
+          {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage, due, spelling, sectionReading }) => (
             <SongCard
               key={song.id}
               song={song}
@@ -439,6 +510,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
               stage={derivedStage}
               due={due}
               spelling={spelling}
+              sections={sectionReading}
               onOpen={() => onOpenSong(song.id)}
             />
           ))}

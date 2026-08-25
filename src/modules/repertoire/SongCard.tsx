@@ -8,6 +8,12 @@ import {
   type Freshness,
 } from './stage';
 import type { RepertoireStage } from '../../lib/db';
+import {
+  needsChordsLine,
+  sectionFooterLine,
+  type SectionChip,
+  type SectionChipReading,
+} from './sectionChips';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -52,6 +58,15 @@ export interface SongCardProps {
   due: SongDueReading | null;
   /** How the due keys are named back. Per song, resolved by the list. */
   spelling: Spelling;
+  /**
+   * The section chips and their counts, read once per list by
+   * `readSectionChips`.
+   *
+   * A READING, NOT A LIST OF CHIPS. The counts under the chips have to
+   * agree with the chips themselves, and the only way to guarantee
+   * that is for one function to produce both.
+   */
+  sections: SectionChipReading;
   onOpen: () => void;
 }
 
@@ -65,9 +80,13 @@ export default function SongCard({
   stage,
   due,
   spelling,
+  sections,
   onOpen,
 }: SongCardProps) {
   void lastPractisedAt;
+
+  const footer = sectionFooterLine(sections);
+  const needChords = needsChordsLine(sections);
 
   return (
     <article
@@ -118,8 +137,36 @@ export default function SongCard({
         )}
       </div>
 
+      {/* THE SECTIONS, AS THEY STAND. Two axes per chip — see
+          sectionChips.ts. A song with none says so in words: "0 of 0"
+          and an empty bar both describe a lead sheet that has not been
+          set up as though it were one that had been and scored zero. */}
+      {sections.chips.length === 0 ? (
+        <div className="text-[11px] text-neutral-400" data-testid="song-card-no-sections">
+          No sections in this lead sheet
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-1" data-testid="song-card-section-chips">
+          {sections.chips.map(chip => (
+            <SectionChipView key={chip.sectionId} chip={chip} />
+          ))}
+        </div>
+      )}
+
+      {needChords !== null && (
+        <div className="text-[11px] text-neutral-500" data-testid="song-card-needs-chords">
+          {needChords}
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 pt-1">
         <span className="text-[11px] text-neutral-500 min-w-0 truncate">
+          {footer !== null && (
+            <>
+              <span data-testid="song-card-section-footer">{footer}</span>
+              <span className="text-neutral-400 mx-1">·</span>
+            </>
+          )}
           {lastPractisedLabel === 'never' ? 'not practised yet' : `last ${lastPractisedLabel}`}
           <span className="text-neutral-400 mx-1">·</span>
           {addedLabel}
@@ -128,10 +175,54 @@ export default function SongCard({
           onClick={onOpen}
           className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent"
         >
-          open →
+          open
         </button>
       </div>
     </article>
+  );
+}
+
+/**
+ * One section, drawn as two independent readings.
+ *
+ * THE BORDER AND THE FILL ARE SET SEPARATELY, from the two fields,
+ * with no lookup table of combined states between them. That is the
+ * point: a four-state enum would have to name "dashed and practised",
+ * and the naming is where such an enum starts deciding that a
+ * practised section must have a finished chart.
+ *
+ * The words are in the tooltip because the chip is a glance surface —
+ * six of them fit on a card only as shapes. The `data-` attributes
+ * carry the same two facts for tests, so a test asserts the axes
+ * rather than a class string.
+ */
+function SectionChipView({ chip }: { chip: SectionChip }) {
+  const fillClass =
+    chip.fill === 'passed'
+      ? 'bg-mastered/35'
+      : chip.fill === 'practised'
+        ? 'bg-developing/25'
+        : 'bg-transparent';
+  const fillWord =
+    chip.fill === 'passed'
+      ? 'passed'
+      : chip.fill === 'practised'
+        ? 'in progress'
+        : 'not practised';
+  return (
+    <span
+      data-testid="song-card-section-chip"
+      data-chart={chip.chartComplete ? 'complete' : 'incomplete'}
+      data-fill={chip.fill}
+      title={`${chip.name} — ${chip.chartComplete ? 'chords added' : 'chords not added yet'}, ${fillWord}`}
+      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] max-w-[9rem] truncate border ${
+        chip.chartComplete
+          ? 'border-solid border-neutral-400 dark:border-neutral-500'
+          : 'border-dashed border-neutral-300 dark:border-neutral-600'
+      } ${fillClass} text-neutral-600 dark:text-neutral-300`}
+    >
+      {chip.name}
+    </span>
   );
 }
 
