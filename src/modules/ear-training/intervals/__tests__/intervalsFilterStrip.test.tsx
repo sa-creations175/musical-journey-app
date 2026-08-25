@@ -161,6 +161,16 @@ describe('the live count matches what is actually served', () => {
     await click(chip('distance', empty!.d), `${empty!.d} chip`);
     expect(container!.querySelector('[data-testid="filter-count-empty"]')).not.toBeNull();
     expect(countText()).not.toMatch(/\b0 of\b/);
+    // THE PREVIOUS POOL IS THE LAST ONE APPLIED, not the catalog. The
+    // first chip narrowed to a real group and that WAS applied; only
+    // the second chip resolved to nothing. So the message must name
+    // the group, which is smaller than the full pool.
+    const afterFirstChip = resolveFacets(
+      intervalFacetList(), { consonance: [empty!.c] },
+    ).keys.length;
+    expect(afterFirstChip).toBeGreaterThan(0);
+    expect(afterFirstChip).toBeLessThan(allIntervalKeys().length);
+    expect(countText()).toContain(`keeping your previous pool of ${afterFirstChip}`);
   });
 });
 
@@ -218,6 +228,18 @@ describe('the filter applies to the NEXT question', () => {
       .find(({ c, d }) => resolveFacets(facets, { consonance: [c], distance: [d] }).keys.length === 0)!;
     await click(chip('consonance', empty.c), 'consonance chip');
     await click(chip('distance', empty.d), 'distance chip');
+
+    // THE MESSAGE NAMES THE POOL THAT IS PLAYING, not the catalog and
+    // not the widest thing selected along the way. Ascending plus the
+    // consonance chip was applied; adding the distance chip resolved to
+    // nothing and was not. So the previous pool is that intersection.
+    const lastApplied = resolveFacets(
+      intervalFacetList(), { direction: ['asc'], consonance: [empty.c] },
+    ).keys.length;
+    expect(lastApplied).toBeGreaterThan(0);
+    expect(lastApplied).toBeLessThan(allIntervalKeys().length);
+    expect(countText()).toContain(`keeping your previous pool of ${lastApplied}`);
+    expect(countText()).not.toContain(`pool of ${allIntervalKeys().length}`);
 
     expect(served()).toBe(answeredKey);
     await click(anyAnswerOption(), 'an answer option');

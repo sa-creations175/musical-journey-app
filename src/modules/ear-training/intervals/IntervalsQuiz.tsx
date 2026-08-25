@@ -122,10 +122,19 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
    * still going.
    */
   const appliedRef = useRef<ReadonlySet<string> | null>(null);
+  /**
+   * The same fact as `appliedRef`, in state, purely so the strip can
+   * RENDER how many items are actually playing. A ref cannot be read
+   * during render, and the zero-state message names this number — it
+   * says "your previous pool", which is a claim about what is being
+   * served, not about the catalog. `null` means the full pool.
+   */
+  const [appliedSize, setAppliedSize] = useState<number | null>(null);
   useEffect(() => {
     const keys = appliedKeys(resolution);
     if (keys === null && resolution.narrowed) return;
     appliedRef.current = keys === null ? null : new Set(keys);
+    setAppliedSize(keys === null ? null : keys.length);
   }, [resolution]);
   const focusActiveRef = useRef(focusActive);
   focusActiveRef.current = focusActive;
@@ -435,6 +444,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
                 setSelection(prev => toggleFacetValue(prev, facetId, valueId))}
               accentHex={ACCENT}
               poolSize={ascCount + descCount}
+              servingSize={appliedSize ?? ascCount + descCount}
             />
           </div>
         )}

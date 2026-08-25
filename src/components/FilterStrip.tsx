@@ -33,11 +33,25 @@ export interface FilterStripProps {
   accentHex: string;
   /** How many items the drill holds when nothing is selected. */
   poolSize: number;
+  /**
+   * How many items are ACTUALLY being served right now.
+   *
+   * Differs from `poolSize` exactly when a narrowing is already in
+   * force — and that is the only case the zero-state message reads it.
+   * Saying "keeping your previous pool of 25" while the drill is
+   * serving thirteen ascending intervals would be a specific false
+   * claim, where the vaguer wording it replaced merely said nothing.
+   *
+   * Defaults to `poolSize`, which is correct for a drill that has not
+   * narrowed anything yet.
+   */
+  servingSize?: number;
 }
 
 export default function FilterStrip({
-  facets, selection, onToggle, accentHex, poolSize,
+  facets, selection, onToggle, accentHex, poolSize, servingSize,
 }: FilterStripProps) {
+  const serving = servingSize ?? poolSize;
   const resolution = resolveFacets(facets, selection);
   const empty = resolution.narrowed && resolution.keys.length === 0;
 
@@ -84,7 +98,7 @@ export default function FilterStrip({
           // Said, not shown as a number, and paired with what is still
           // being served so the screen never contradicts itself.
           <span data-testid="filter-count-empty">
-            no items match — still drilling {poolSize}
+            No items match — keeping your previous pool of {serving}
           </span>
         ) : resolution.narrowed ? (
           <>{resolution.keys.length} of {poolSize}</>
