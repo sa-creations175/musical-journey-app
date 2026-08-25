@@ -68,12 +68,35 @@ export default function CategoryCard({
     wrong: card.rollingTotal - card.rollingCorrect,
   }));
 
+  /**
+   * =================================================================
+   * A COLUMN, SO THE CARD FILLS THE HEIGHT THE ROW GIVES IT.
+   *
+   * The grid never needed telling to equalise heights — CSS grid
+   * stretches every item to its row, so two cards side by side have
+   * always been the same height. What was wrong was the INSIDE.
+   *
+   * This was a plain block: the tinted header and the tinted bar
+   * stacked at their natural heights from the top, and the slack the
+   * stretch added fell below them, showing the section's own white
+   * background. That pale strip under the shorter card's progress bar
+   * is what read as "the other card is taller" — on ear training,
+   * where the intervals card carries a `countDetail` sub-line that
+   * chord recognition does not, so chord recognition is the one
+   * wearing the slack.
+   *
+   * A column with a growing bar wrapper puts the slack INSIDE the
+   * tinted region instead. Nothing is clipped and no height is written
+   * down: the tallest card in the row still sets the height, the
+   * shorter ones just now reach it.
+   * =================================================================
+   */
   return (
     <section
       data-testid="category-card"
       data-card-key={card.key}
       data-expanded={expanded ? 'true' : 'false'}
-      className="rounded-xl border overflow-hidden bg-white dark:bg-neutral-900"
+      className="rounded-xl border overflow-hidden bg-white dark:bg-neutral-900 flex flex-col"
       style={{ borderColor: `${accentHex}33` }}
     >
       <button
@@ -127,8 +150,12 @@ export default function CategoryCard({
           `FALLBACK_INTERVAL_DAYS` is only for a rep whose item has no
           spacing row — every tick normally carries its own, because a
           card covers many separately scheduled items. */}
+      {/* `grow`, not `flex-1`: basis stays `auto`, so the bar keeps its
+          natural height and only the ROW'S SLACK is absorbed here. With
+          `flex-1`'s zero basis the wrapper would be sized from free
+          space first and lean on `min-height` to get its content back. */}
       <div
-        className="px-3 pb-2"
+        className="px-3 pb-2 grow"
         style={{ backgroundColor: expanded ? undefined : `${accentHex}0f` }}
       >
         <ProgressBar
