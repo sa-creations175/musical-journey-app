@@ -144,7 +144,7 @@ export default function Reading() {
       <ModuleHomeHeader
         leading={(
           <Link to="/reading/reference" className="hover:text-fluent">
-            staff reference
+            Notation Reference
           </Link>
         )}
         moduleIds={[READING_MODULE_ID]}
