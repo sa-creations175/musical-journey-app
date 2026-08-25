@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { taglineForPath, titleForPath } from '../lib/pageTitle';
 import SettingsPanel from './SettingsPanel';
@@ -17,6 +17,12 @@ import {
 } from '../modules/goals/cleanup';
 import { migrateScaleDegreeMathIfNeeded } from '../modules/harmonic-fluency/sdmQualityMigration';
 import { getPref, setPref } from '../lib/userPrefs';
+import {
+  SIDEBAR_DEFAULT_REM,
+  SIDEBAR_WIDTH_PREF,
+  clampSidebarWidth,
+  rootFontSizePx,
+} from '../lib/sidebarWidth';
 import { useDevMode } from '../lib/devMode';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
 import { useStartArmedSessionOnArrival } from '../lib/sessionTimer/useStartArmedSessionOnArrival';
@@ -76,6 +82,56 @@ export default function Layout() {
     };
   }, []);
 
+  /**
+   * The dragged width, in rem.
+   *
+   * SEPARATE FROM COLLAPSED, and that separation is the feature. The
+   * button switches between the rail and this width; the drag only
+   * changes what "this width" is. Expanding from the rail therefore
+   * returns to whatever it was last dragged to, and a drag can never
+   * land on the rail — see `SIDEBAR_MIN_REM`.
+   */
+  const [sidebarWidth, setSidebarWidth] = useState<number>(SIDEBAR_DEFAULT_REM);
+  const draggingFrom = useRef<{ x: number; width: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPref<unknown>(SIDEBAR_WIDTH_PREF, null).then(stored => {
+      if (cancelled || stored === null) return;
+      setSidebarWidth(clampSidebarWidth(stored));
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  /**
+   * Drag on the divider between the sidebar and the page.
+   *
+   * Listeners live on the WINDOW for the duration, not on the handle:
+   * a pointer that leaves the four-pixel strip mid-drag must keep
+   * dragging, and the release must be caught wherever it happens.
+   */
+  const startResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    draggingFrom.current = { x: e.clientX, width: sidebarWidth };
+    const perRem = rootFontSizePx();
+
+    const move = (ev: PointerEvent) => {
+      const from = draggingFrom.current;
+      if (from === null) return;
+      setSidebarWidth(clampSidebarWidth(from.width + (ev.clientX - from.x) / perRem));
+    };
+    const up = () => {
+      draggingFrom.current = null;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      // Persisted on release rather than on every frame — a drag is one
+      // decision, not sixty.
+      setSidebarWidth(current => { void setPref(SIDEBAR_WIDTH_PREF, current); return current; });
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }, [sidebarWidth]);
+
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed(prev => {
       const next = !prev;
@@ -100,10 +156,30 @@ export default function Layout() {
     <GlobalSessionBanner />
     <div className="flex-1 flex flex-col md:flex-row">
       <aside
-        className={`hidden md:block ${
-          sidebarCollapsed ? 'md:w-14' : 'md:w-60'
-        } md:min-h-screen md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur transition-[width] duration-150`}
+        className={`hidden md:block relative ${
+          sidebarCollapsed ? 'md:w-14' : ''
+        } md:min-h-screen md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur ${
+          // No width TRANSITION while dragging — an eased width chases
+          // the pointer instead of following it.
+          draggingFrom.current === null ? 'transition-[width] duration-150' : ''
+        }`}
+        style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}rem` }}
       >
+        {/* THE DIVIDER IS THE HANDLE. It was already a border between
+            the sidebar and the page; it now takes a drag, so the width
+            is adjustable by hand rather than only by the collapse
+            button. Hidden on the rail: the rail is a state, not a
+            width, and dragging out of it would blur the two. */}
+        {!sidebarCollapsed && (
+          <div
+            onPointerDown={startResize}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="resize sidebar"
+            data-testid="sidebar-resize-handle"
+            className="hidden md:block absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize hover:bg-fluent/30 z-10"
+          />
+        )}
         <div
           className={`flex items-center gap-2 ${
             sidebarCollapsed
