@@ -72,6 +72,17 @@ function drillButton(row: HTMLElement): HTMLElement {
 }
 
 async function renderScreen(initialEntry = '/'): Promise<HTMLDivElement> {
+  await mountScreen(initialEntry);
+  // THE CONTROLS ARE BEHIND A DISCLOSURE NOW. Every rule these tests
+  // assert — sort, filter, grouping, reset, collapse — still exists and
+  // is still asserted; it is just one press further in. Opened here, in
+  // the one place the screen is mounted, rather than in each test.
+  await openControls();
+  return container!;
+}
+
+/** The screen as it actually arrives: controls closed. */
+async function mountScreen(initialEntry = '/'): Promise<HTMLDivElement> {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
@@ -85,6 +96,16 @@ async function renderScreen(initialEntry = '/'): Promise<HTMLDivElement> {
   });
   await settle();
   return container;
+}
+
+/** Press "Controls" if the block is not already showing. */
+async function openControls(): Promise<void> {
+  const toggle = container!.querySelector(
+    '[data-testid="dashboard-controls-toggle"]',
+  ) as HTMLButtonElement | null;
+  if (toggle === null || toggle.getAttribute('aria-expanded') === 'true') return;
+  await act(async () => { toggle.click(); });
+  await settle();
 }
 
 /**
@@ -1070,5 +1091,48 @@ describe('key signatures read as pairs', () => {
     const el = await renderScreen();
     expect(rows(el).filter(r => r.getAttribute('data-ends-group') === 'true'))
       .toHaveLength(0);
+  });
+});
+
+
+/**
+ * The disclosure itself.
+ *
+ * Mounted through `mountScreen`, which does NOT open it — the other
+ * suites go through `renderScreen`, which does, because what they are
+ * about is what the controls do rather than whether they are showing.
+ */
+describe('the controls are behind a button', () => {
+  it('starts collapsed, with the table straight below', async () => {
+    const el = await mountScreen();
+    const toggle = el.querySelector('[data-testid="dashboard-controls-toggle"]')!;
+    expect(toggle).not.toBeNull();
+    expect(toggle.textContent).toContain('Controls');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    // The block itself is not rendered at all, not merely hidden.
+    expect(el.querySelector('[data-testid="dashboard-controls"]')).toBeNull();
+    // And the rows are still there — collapsing the controls must not
+    // take the table with them.
+    expect(el.querySelector('[data-testid="dashboard-rows"]')).not.toBeNull();
+  });
+
+  it('expands in place, above the table', async () => {
+    const el = await mountScreen();
+    await openControls();
+    const controls = el.querySelector('[data-testid="dashboard-controls"]')!;
+    const rows = el.querySelector('[data-testid="dashboard-rows"]')!;
+    expect(controls).not.toBeNull();
+    // Above, in document order — a panel over the rows would hide what
+    // the filter is about to change.
+    expect(controls.compareDocumentPosition(rows) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+  });
+
+  it('closes again', async () => {
+    const el = await mountScreen();
+    await openControls();
+    const toggle = el.querySelector('[data-testid="dashboard-controls-toggle"]') as HTMLButtonElement;
+    await act(async () => { toggle.click(); });
+    expect(el.querySelector('[data-testid="dashboard-controls"]')).toBeNull();
   });
 });

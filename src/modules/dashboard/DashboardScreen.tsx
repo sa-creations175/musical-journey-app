@@ -194,6 +194,9 @@ export default function DashboardScreen({
    * One at a time. Two open panels would push the whole list off screen
    * to answer a question about one column.
    */
+  /** Collapsed by default — see the note where the button renders. */
+  const [controlsOpen, setControlsOpen] = useState(false);
+
   const [openTopic, setOpenTopic] = useState<ColumnTopic | null>(null);
   const onToggleTopic = useCallback((topic: ColumnTopic) => {
     setOpenTopic(current => (current === topic ? null : topic));
@@ -389,12 +392,41 @@ export default function DashboardScreen({
           screen most of the time and position alone does not say which
           column is which. */}
       <div className="sticky top-0 z-10 bg-white/95 dark:bg-neutral-950/95 backdrop-blur">
-        <DashboardControls
-          state={{ ...state, expanded }}
-          onChange={setState}
-          openTopic={openTopic}
-          onToggleTopic={onToggleTopic}
-        />
+        {/* =============================================================
+            THE CONTROLS ARE BEHIND A BUTTON NOW.
+
+            Sort and filter sat permanently above the table, in the
+            sticky band, so every row of a 55-row list was read past
+            them. They are a thing you reach for occasionally and then
+            stop thinking about — which is what a disclosure is for.
+
+            IN PLACE, ABOVE THE TABLE, so opening them pushes the table
+            down rather than covering it: a panel that floated over the
+            rows would hide what the filter was about to change.
+
+            The controls themselves are untouched — only whether they
+            are showing.
+            ============================================================= */}
+        <div className="px-1 py-1">
+          <button
+            type="button"
+            onClick={() => setControlsOpen(v => !v)}
+            aria-expanded={controlsOpen}
+            data-testid="dashboard-controls-toggle"
+            className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-fluent rounded px-2 py-1"
+          >
+            Controls
+            <span aria-hidden className={`text-neutral-400/70 transition-transform ${controlsOpen ? 'rotate-90' : ''} inline-block`}>›</span>
+          </button>
+        </div>
+        {controlsOpen && (
+          <DashboardControls
+            state={{ ...state, expanded }}
+            onChange={setState}
+            openTopic={openTopic}
+            onToggleTopic={onToggleTopic}
+          />
+        )}
         <ColumnHeaders openTopic={openTopic} onToggleTopic={onToggleTopic} />
         {/* BELOW the headers, not above: the panel explains the row of
             labels it sits under, and opening it must not shift them. */}
