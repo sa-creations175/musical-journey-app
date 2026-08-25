@@ -1,10 +1,16 @@
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
-import { PRODUCTION_PATHS } from './content/paths';
-import { lessonById, lessonsByPath, PRODUCTION_LESSONS } from './content/lessons';
+import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import { lessonById, PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
 import { isCovered, isStarted, ratingOption } from './lessonRating';
+import {
+  PRODUCTION_MODULE_ID,
+  VOCABULARY_CARD_KEY,
+  isProductionPathKey,
+  productionCards,
+} from './homeCards';
 
 interface Props {
   onOpenPath: (pathId: string) => void;
@@ -36,12 +42,6 @@ export default function ProductionOverview({
     [],
   ) ?? 0;
 
-  const stateById = useMemo(() => {
-    const m = new Map<string, typeof lessonStates[number]>();
-    for (const s of lessonStates) m.set(s.id, s);
-    return m;
-  }, [lessonStates]);
-
   const totals = useMemo(() => {
     const total = PRODUCTION_LESSONS.length;
     // Covered = tried it or better. Started = read about, not yet run.
@@ -59,6 +59,18 @@ export default function ProductionOverview({
     const gotIt = termStates.filter(s => s.mastery === 'got-it').length;
     return { all, gotIt };
   }, [termStates]);
+
+  const attempts = useLiveQuery(
+    () => db.attempts.where('moduleId').equals(PRODUCTION_MODULE_ID).toArray(),
+    [],
+  ) ?? [];
+  const now = Date.now();
+  const cards = useMemo(
+    () => productionCards(lessonStates, attempts, now),
+    // `now` is deliberately not a dep — freshness moves in days.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lessonStates, attempts],
+  );
 
   const recent = useMemo(() => {
     return [...lessonStates]
@@ -78,12 +90,11 @@ export default function ProductionOverview({
           value={`${glossaryTotals.gotIt}/${glossaryTotals.all}`}
           onClick={onOpenGlossary}
         />
-        <Stat
-          label="vocabulary"
-          value="practice →"
-          accent="text-production"
-          onClick={onOpenVocabulary}
-        />
+        {/* NO VOCABULARY TILE. It has a card below now, and two doors
+            to one drill is how a reader starts wondering whether they
+            are two drills. Glossary and reference tracks keep theirs —
+            neither is a path nor the vocabulary drill, and the sidebar
+            links straight to them. */}
         <Stat
           label="reference tracks"
           value={String(refTracks)}
@@ -91,57 +102,26 @@ export default function ProductionOverview({
         />
       </section>
 
-      {/* Paths */}
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
-          the six paths
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-          {PRODUCTION_PATHS.map(p => {
-            const lessons = lessonsByPath(p.id);
-            const covered = lessons.filter(
-              l => isCovered(stateById.get(l.id)?.rating ?? 0),
-            ).length;
-            const pct = lessons.length === 0 ? 0 : Math.round((covered / lessons.length) * 100);
-            const planned = p.status === 'planned';
-            return (
-              <button
-                key={p.id}
-                onClick={() => onOpenPath(p.id)}
-                className={`text-left rounded-2xl border p-4 transition-colors ${
-                  planned
-                    ? 'border-neutral-200 dark:border-neutral-800 opacity-60 hover:opacity-80'
-                    : 'border-production/30 hover:border-production'
-                }`}
-              >
-                <div className="flex items-baseline justify-between gap-2 mb-1">
-                  <span className="text-sm font-medium">{p.title}</span>
-                  {planned ? (
-                    <span className="text-[10px] uppercase tracking-wide text-neutral-500 border border-neutral-200 dark:border-neutral-700 rounded-full px-2 py-0.5">
-                      phase 2
-                    </span>
-                  ) : (
-                    <span className="text-[10px] font-mono tabular-nums text-neutral-500">
-                      {covered}/{lessons.length}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-neutral-500 leading-relaxed line-clamp-2">
-                  {p.subtitle}
-                </p>
-                {!planned && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <div className="flex-1 h-1 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden">
-                      <span className="block h-full bg-production" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="text-[10px] font-mono tabular-nums text-neutral-500">{pct}%</span>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      {/* THE PATHS AND VOCABULARY, AS CARDS.
+
+          ONE GRID, TWO KINDS OF EVIDENCE. A path is lessons the reader
+          declares a state on, so its card carries no tier and no bar.
+          Vocabulary is a drill that writes real attempts, so it carries
+          both. A grid where one card has a bar and six do not is the
+          honest rendering of a module that measures two things.
+
+          THE HEADING WENT WITH THE HAND-BUILT GRID. It said "the six
+          paths" above what is now seven cards. */}
+      <CategoryCardGrid
+        cards={cards}
+        moduleId={PRODUCTION_MODULE_ID}
+        onDrill={key => {
+          if (key === VOCABULARY_CARD_KEY) onOpenVocabulary();
+          else if (isProductionPathKey(key)) onOpenPath(key);
+        }}
+        drillLabel="open"
+        now={now}
+      />
 
       {/* Recent lessons */}
       {recent.length > 0 && (
