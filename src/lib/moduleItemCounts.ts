@@ -19,8 +19,17 @@
  *     directions — the unison has one case, since zero semitones up and
  *     zero down are the same two notes. Modes are 9 × 2 tabs = 18
  *     because Hear-Scale and Sit-Inside log separate spacingState rows.
+ *     Chord recognition is 51 rather than 30 for the same reason once
+ *     removed: the drill writes `attemptItemId(chordId, inversion)`, so
+ *     an inversion is part of the row's identity. It is not 30 x 4 —
+ *     most of those combinations are unreachable, and the number comes
+ *     from `reachableChordRefs`, the same enumeration the dashboard
+ *     denominator uses. THIS NOTE RECONCILES ALL THREE now; it used to
+ *     account for intervals x direction and modes x tab and leave the
+ *     third dimension unmentioned, which is how chord recognition kept
+ *     a seed count while its siblings did not.
  *     The user-facing card count for Ear Training is 134; the coverage
- *     denominator was 143 and is now 142.
+ *     denominator was 142 and is now 163.
  *   - **Mental Visualization is excluded** from `shapesCounts` per the
  *     April 27 design call: it counts toward consistency only, not
  *     toward breadth/depth/mastery. Step 1e wires this exclusion into
@@ -46,6 +55,7 @@ import {
 import { SCALE_CELLS } from '../modules/shapes-and-patterns/scaleSkills';
 import { intervalItemRefs } from '../modules/ear-training/intervals/seed';
 import { CHORD_SEEDS } from '../modules/ear-training/chord-recognition/seed';
+import { reachableChordRefs } from '../modules/ear-training/chord-recognition/inversionUtils';
 import { PROGRESSIONS } from '../modules/ear-training/chord-progressions/catalog';
 import { MODES } from '../modules/ear-training/scales-modes/catalog';
 import { FLASHCARDS, type FlashcardCategory } from '../modules/harmonic-fluency/catalog';
@@ -70,7 +80,18 @@ export interface EarTrainingCounts {
    * music, and a constant cannot express an exception.
    */
   intervals: number;
-  /** Each chord seed = one spacingState row. */
+  /**
+   * Chord x REACHABLE inversion — 51, not 30.
+   *
+   * A chord seed is not one spacingState row: the drill writes
+   * `attemptItemId(chordId, inversion)`, so a maj7 answered in second
+   * inversion and the same chord in root are separate rows. Counting
+   * seeds made this the one sub-area whose denominator ignored the
+   * dimension its own attempts carry.
+   *
+   * Coverage goals should count inversions — knowing C major in root
+   * position is not knowing C major.
+   */
   chordRecognition: number;
   /** Each progression in the full catalog (includes Key Detection +
    *  Chord Motion catalog progressions, but NOT KeyDetectionTab /
@@ -86,7 +107,10 @@ const SCALE_MODE_TABS = 2;
 
 export function earTrainingCounts(): EarTrainingCounts {
   const intervals = intervalItemRefs().length;
-  const chordRecognition = CHORD_SEEDS.length;
+  // 51, DERIVED — root positions plus the inversions that can actually
+  // be asked. The same function the dashboard's denominator calls, so
+  // widening or narrowing an inversion exclusion moves both or neither.
+  const chordRecognition = reachableChordRefs(CHORD_SEEDS).length;
   const chordProgressions = PROGRESSIONS.length;
   const scalesModes = MODES.length * SCALE_MODE_TABS;
   return {

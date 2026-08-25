@@ -180,6 +180,30 @@ export function reachableInversions(
 }
 
 /**
+ * Every `chordId:inversion` the drill can ever ask, structurally.
+ *
+ * =====================================================================
+ * ONE ENUMERATION, TWO CONSUMERS, SO THEY CANNOT DRIFT.
+ *
+ * The dashboard's coverage denominator and the goals layer's
+ * `earTrainingCounts` both need this set. They disagreed for months —
+ * 114 against 30 — because each answered the question its own way and
+ * nothing compared them. Sharing the function is what makes "widen an
+ * exclusion and both move" true by construction rather than by two
+ * people remembering.
+ *
+ * Takes the seed list as a parameter so a test can hand it a different
+ * catalog. Defaulted, because every caller wants the real one.
+ * =====================================================================
+ */
+export function reachableChordRefs(
+  seeds: ReadonlyArray<{ id: string; tier: string; intervals: ReadonlyArray<number> }>,
+): string[] {
+  return seeds.flatMap(chord =>
+    reachableInversions(chord).map(inv => `${chord.id}:${inv}`));
+}
+
+/**
  * Rotate the displayed scale-degree formula to match the played
  * inversion. Mirrors rotateForInversion's semantics for intervals,
  * but on the comma-separated string format ChordData.formula uses

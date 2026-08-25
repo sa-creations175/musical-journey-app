@@ -12,6 +12,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { intervalItemRefs } from '../../modules/ear-training/intervals/seed';
+import { CHORD_SEEDS } from '../../modules/ear-training/chord-recognition/seed';
+import { reachableChordRefs } from '../../modules/ear-training/chord-recognition/inversionUtils';
 import {
   earTrainingCounts,
   harmonicFluencyCounts,
@@ -37,8 +39,13 @@ describe('earTrainingCounts', () => {
     expect(intervalItemRefs()).not.toContain('P1:desc');
   });
 
-  it('chordRecognition = 30', () => {
-    expect(c.chordRecognition).toBe(30);
+  it('chordRecognition = 30 roots + 21 reachable inversions = 51', () => {
+    // Was 30 — a seed count, which ignored the dimension the drill's
+    // own attempts carry: it writes `attemptItemId(chordId, inversion)`.
+    // Derived, so widening an inversion exclusion moves this and the
+    // dashboard denominator together.
+    expect(c.chordRecognition).toBe(reachableChordRefs(CHORD_SEEDS).length);
+    expect(c.chordRecognition).toBe(51);
   });
 
   it('chordProgressions = 69 (full PROGRESSIONS catalog)', () => {
@@ -49,9 +56,10 @@ describe('earTrainingCounts', () => {
     expect(c.scalesModes).toBe(18);
   });
 
-  it('total = 142 (sum of sub-areas)', () => {
-    // 143 before the unison merge.
-    expect(c.total).toBe(142);
+  it('total = 163 (sum of sub-areas)', () => {
+    // 143 before the unison merge, 142 after it, and 163 once chord
+    // recognition started counting inversions rather than seeds.
+    expect(c.total).toBe(163);
     expect(c.total).toBe(
       c.intervals + c.chordRecognition + c.chordProgressions + c.scalesModes,
     );

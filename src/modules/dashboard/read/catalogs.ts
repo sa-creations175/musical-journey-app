@@ -290,6 +290,11 @@ export const chordRecognitionCatalog: ModuleCatalog = {
   // drill's `positions.length >= 2`, which reads a live setting. A
   // denominator that moved when someone opened the inversion drawer
   // would not be a denominator.
+  // `reachableChordRefs` is the shared enumeration; this maps it to
+  // rows. The goals layer counts the same function's output, so the
+  // denominator here and the coverage total there move together or not
+  // at all — they disagreed 114 to 30 for months because each answered
+  // the question its own way.
   items: CHORD_SEEDS.flatMap(chord => {
     const inversions = reachableInversions(chord);
     const name = titleCase(chord.name);
