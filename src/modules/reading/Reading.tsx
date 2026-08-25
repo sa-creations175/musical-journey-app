@@ -58,6 +58,25 @@ export default function Reading() {
     : undefined;
 
   const [skill, setSkill] = useState<ReadingDrillSkill>(focusSkill ?? 'note');
+  /**
+   * Whether a drill has been started.
+   *
+   * =====================================================================
+   * OPENING THE MODULE IS NOT STARTING A DRILL.
+   *
+   * The page used to serve a card the moment it mounted: the category
+   * cards rendered, and underneath them a question was already on
+   * screen with its clock running. Beyond the surprise, it fed
+   * `elapsedMs` the time the reader spent looking at the cards before
+   * noticing — the one measurement that field exists to make.
+   *
+   * SET ONLY BY "drill category", never by a skill change. A skill
+   * switch while un-started leaves it un-started, so nothing can start
+   * a drill except asking for one. That matches the pattern 2a and 2b
+   * set: cards first, then an explicit choice.
+   * =====================================================================
+   */
+  const [drilling, setDrilling] = useState(false);
   /** Which skill's progress detail is open, if any. */
   const [detailSkill, setDetailSkill] = useState<ReadingDrillSkill | null>(null);
   const axisViews = useAxisViews();
@@ -101,7 +120,11 @@ export default function Reading() {
       <CategoryCardGrid
         cards={cards}
         moduleId={READING_MODULE_ID}
-        onDrill={key => { if (isReadingCardKey(key)) setSkill(key); }}
+        onDrill={key => {
+          if (!isReadingCardKey(key)) return;
+          setSkill(key);
+          setDrilling(true);
+        }}
         onProgressDetail={key => { if (isReadingCardKey(key)) setDetailSkill(key); }}
         now={now}
       />
@@ -132,6 +155,7 @@ export default function Reading() {
       <ReadingDrill
         key={skill}
         skill={skill}
+        autoStart={drilling}
         {...(focusRefs && skill === focusSkill ? { focusRefs } : {})}
       />
     </div>

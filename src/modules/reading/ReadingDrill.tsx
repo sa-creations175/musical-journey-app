@@ -195,6 +195,7 @@ function staffRangeBracket(clef: Clef): KeyboardBracket {
 export default function ReadingDrill({
   skill,
   focusRefs,
+  autoStart = false,
 }: {
   skill: ReadingDrillSkill;
   /**
@@ -211,6 +212,9 @@ export default function ReadingDrill({
    * drill that serves nothing is worse than one that serves the module.
    */
   focusRefs?: readonly string[];
+  /** Serve a card on mount. False until the reader starts a drill from
+   *  a category card — see the effect below. */
+  autoStart?: boolean;
 }) {
   const [card, setCard] = useState<PickedCard | null>(null);
   const [answer, setAnswer] = useState<AnswerState>(EMPTY);
@@ -219,10 +223,25 @@ export default function ReadingDrill({
    *  in while learning, and resetting it every card would make it
    *  useless. Only key-signature `name` cards consult it. */
   const [hintOn, setHintOn] = useState(false);
-  /** When the current card appeared. A ref, not state: it must not
-   *  trigger a re-render, and reading it during submit must give the
-   *  value set at mount rather than one a render cycle behind. */
-  const shownAt = useRef<number>(Date.now());
+  /**
+   * When the current card appeared, or null before one has been served.
+   *
+   * =====================================================================
+   * NULL UNTIL A CARD EXISTS, AND THAT IS THE FIX.
+   *
+   * This used to initialise to `Date.now()` at MOUNT. Opening the
+   * Reading module mounted the drill, so the clock started while the
+   * reader was still looking at the category cards — and the first
+   * `elapsedMs` of every visit was "time spent reading the cards, plus
+   * the answer". That is precisely the measurement this field exists
+   * for, fed a number that measures something else.
+   *
+   * A ref rather than state: it must not trigger a re-render, and
+   * reading it during submit must give the value set when the card
+   * appeared rather than one render cycle behind.
+   * =====================================================================
+   */
+  const shownAt = useRef<number | null>(null);
 
   const focusPool = useMemo(() => {
     if (!focusRefs || focusRefs.length === 0) return null;
@@ -267,9 +286,30 @@ export default function ReadingDrill({
     shownAt.current = Date.now();
   }, [skill]);
 
-  // A SKILL change is a new drill, not a continuation. A FILTER change
-  // is neither — it lands on the next card.
-  useEffect(() => { next(); }, [next]);
+  /**
+   * NOTHING IS SERVED UNTIL THE READER ASKS FOR IT.
+   *
+   * =====================================================================
+   * THE SAME EFFECT CAUSED TWO SEPARATE BUGS.
+   *
+   * Unguarded, this ran on mount — so opening the module started a
+   * drill under the category cards, with a card on screen and a clock
+   * already running. fad873b fixed the other half of it: `next` carried
+   * `focusPool` in its dependency list, so the effect re-fired whenever
+   * the pool changed and replaced the card mid-answer. One effect, two
+   * reported defects, and narrowing the dependencies only addressed the
+   * second.
+   *
+   * `autoStart` is the guard. A SKILL change is still a new drill
+   * rather than a continuation — but only once the reader has started
+   * one. Mounted un-started, and remounted un-started by a skill
+   * switch, this serves nothing and starts no clock.
+   * =====================================================================
+   */
+  useEffect(() => {
+    if (!autoStart) return;
+    next();
+  }, [next, autoStart]);
 
   const resolved = useMemo(
     () => (card ? resolveReadingCard(card.itemRef, card.options) : null),
@@ -281,7 +321,21 @@ export default function ReadingDrill({
   );
 
   if (!card || !resolved || !parsed) {
-    return <p className="text-sm text-neutral-500">Loading…</p>;
+    // NOT AN EMPTY STATE WITH A MESSAGE. Before a drill is started the
+    // page is its category cards and nothing else — a "Loading…" line
+    // under them would say something is coming when nothing is.
+    //
+    // The element is still rendered, invisible, so that "no card" and
+    // "no clock running" can be asserted as the separate facts they
+    // are: a card with no clock and a clock with no card are different
+    // bugs, and one marker cannot tell them apart.
+    return (
+      <div
+        data-testid="reading-drill"
+        data-card="none"
+        data-timer-started={shownAt.current === null ? 'false' : 'true'}
+      />
+    );
   }
 
   const sig = parsed.skill === 'sig'
@@ -320,7 +374,15 @@ export default function ReadingDrill({
     void recordReadingAttempt({
       itemRef: card.itemRef,
       correct: v.correct,
-      elapsedMs: Date.now() - shownAt.current,
+      // OMITTED rather than measured from the epoch when no card was
+      // ever served. Unreachable while a card is on screen — one cannot
+      // be submitted before it was served — and the guard is what keeps
+      // that true if it ever stops being. The walk-away ceiling is
+      // applied inside `recordReadingAttempt`, so this passes the raw
+      // duration and does not re-check it here.
+      ...(shownAt.current === null
+        ? {}
+        : { elapsedMs: Date.now() - shownAt.current }),
       noteVerdict: v.noteVerdict,
       hintUsed: hintOn,
     });

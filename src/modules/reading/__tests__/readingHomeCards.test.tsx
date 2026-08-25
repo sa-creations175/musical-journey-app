@@ -131,26 +131,53 @@ describe('the page', () => {
       .toEqual([(n >> 16) & 255, (n >> 8) & 255, n & 255]);
   });
 
-  it('switches the mounted drill when a card drills, and only then', async () => {
+  it('serves nothing until a card drills, then serves that skill', async () => {
     const el = await renderPage();
     const served = () => el.querySelector('[data-item-ref]')?.getAttribute('data-item-ref') ?? '';
-    expect(readingSkillForItemRef(served())).toBe('note');
+    // Nothing on arrival — the page is its cards.
+    expect(el.querySelector('[data-item-ref]')).toBeNull();
 
-    // Expanding is not drilling: the drill must still be on notes.
+    // Expanding is not drilling.
     await click(card(el, 'sig').querySelector('[data-testid="category-card-toggle"]')!);
-    expect(readingSkillForItemRef(served())).toBe('note');
+    expect(el.querySelector('[data-item-ref]')).toBeNull();
 
     await click(card(el, 'sig').querySelector('[data-testid="category-card-drill"]')!);
     expect(readingSkillForItemRef(served())).toBe('sig');
   });
 
-  it('renders a drill immediately — reading has no Start button to press', async () => {
-    // Reading never had one: the drill is always mounted and serves a
-    // card on arrival. Pinned so a later step does not add a Start here
-    // for symmetry with harmonic fluency and change what the page IS.
+  it('opens as cards only — no card served and no clock running', async () => {
+    // THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is the
+    // point. It pinned "the drill is always mounted and serves a card
+    // on arrival" as deliberate, which was a fair reading of what the
+    // module did — but serving on mount started `elapsedMs` while the
+    // reader was still looking at the category cards, so the first
+    // timing of every visit measured browsing rather than answering.
+    //
+    // BOTH FACTS, SEPARATELY. A card with no clock and a clock with no
+    // card are different bugs, and one marker cannot tell them apart.
     const el = await renderPage();
-    expect(el.querySelector('[data-item-ref]')).not.toBeNull();
+    expect(el.querySelector('[data-item-ref]'), 'a card was served').toBeNull();
+    const drill = el.querySelector('[data-testid="reading-drill"]');
+    expect(drill, 'the drill did not render its un-started marker').not.toBeNull();
+    expect(drill!.getAttribute('data-timer-started'), 'the clock started').toBe('false');
+
+    // Still no Start button of its own: starting is what a category
+    // card's "drill category" does.
     const labels = [...el.querySelectorAll('button')].map(b => (b.textContent ?? '').toLowerCase());
     expect(labels.some(t => t.includes('start'))).toBe(false);
+  });
+
+  it('does not auto-start the new skill when the skill changes', async () => {
+    // The un-started state SURVIVES a remount. `key={skill}` makes a
+    // skill change a fresh mount, and a fresh mount used to be a fresh
+    // auto-start — so anything that moved the skill would quietly begin
+    // a drill the reader never asked for.
+    const el = await renderPage();
+    await click(card(el, 'sig').querySelector('[data-testid="category-card-toggle"]')!);
+    await click(card(el, 'chord').querySelector('[data-testid="category-card-toggle"]')!);
+    expect(el.querySelector('[data-item-ref]')).toBeNull();
+    expect(
+      el.querySelector('[data-testid="reading-drill"]')!.getAttribute('data-timer-started'),
+    ).toBe('false');
   });
 });

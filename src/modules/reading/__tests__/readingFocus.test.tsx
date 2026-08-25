@@ -46,7 +46,7 @@ async function servedRefs(
   const seen = new Set<string>();
   for (let i = 0; i < runs; i++) {
     const el = await render(
-      <ReadingDrill skill={skill} {...(focusRefs ? { focusRefs } : {})} />,
+      <ReadingDrill skill={skill} autoStart {...(focusRefs ? { focusRefs } : {})} />,
     );
     const staff = el.querySelector('[data-item-ref]');
     if (staff) seen.add(staff.getAttribute('data-item-ref')!);

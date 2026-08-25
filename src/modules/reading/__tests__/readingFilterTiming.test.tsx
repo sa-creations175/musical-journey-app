@@ -30,7 +30,7 @@ async function mount(focusRefs: string[]) {
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root!.render(<ReadingDrill skill="note" focusRefs={focusRefs} />);
+    root!.render(<ReadingDrill skill="note" focusRefs={focusRefs} autoStart />);
   });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
   return container;
@@ -38,7 +38,7 @@ async function mount(focusRefs: string[]) {
 
 async function rerender(focusRefs: string[]) {
   await act(async () => {
-    root!.render(<ReadingDrill skill="note" focusRefs={focusRefs} />);
+    root!.render(<ReadingDrill skill="note" focusRefs={focusRefs} autoStart />);
   });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
 }
@@ -95,7 +95,7 @@ describe('the filter applies to the next question', () => {
     await mount(POOL_A);
     expect(served()).toBe(POOL_A[0]);
     await act(async () => {
-      root!.render(<ReadingDrill skill="sig" />);
+      root!.render(<ReadingDrill skill="sig" autoStart />);
     });
     await act(async () => { await new Promise(r => setTimeout(r, 0)); });
     expect(served()!.startsWith('sig:')).toBe(true);

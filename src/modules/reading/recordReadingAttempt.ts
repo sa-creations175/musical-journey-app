@@ -43,9 +43,15 @@ export interface ReadingAttemptInput {
    *  `itemRef` — one identity, not two. */
   itemRef: string;
   correct: boolean;
-  /** Time from the card appearing to the answer being submitted.
-   *  Recorded, not shown, and nothing branches on it. */
-  elapsedMs: number;
+  /**
+   * Time from the card appearing to the answer being submitted.
+   * Recorded, not shown, and nothing branches on it.
+   *
+   * OPTIONAL, because a drill that never served a card has no start to
+   * measure from. Absent means "not measured" — which is a different
+   * fact from zero, and the row simply carries no `elapsedMs`.
+   */
+  elapsedMs?: number;
   /** Note items: the staged verdict, so a miss can be attributed to
    *  the letter or the octave. Ignored for every other skill. */
   noteVerdict?: NoteVerdict;
@@ -114,10 +120,10 @@ export function buildReadingAttempt(
     // so the start is reconstructed from the two numbers already here.
     // The alternative — a second ceiling check written inline — is the
     // copy of a rule that goes wrong when the rule moves.
-    ...elapsedFields(
+    ...(input.elapsedMs === undefined ? {} : elapsedFields(
       (input.timestamp ?? Date.now()) - input.elapsedMs,
       input.timestamp ?? Date.now(),
-    ),
+    )),
   };
 
   // Skill-scoped fields, gated on the SKILL rather than on the caller
