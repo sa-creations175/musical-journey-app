@@ -223,20 +223,16 @@ describe('the landing statistics', () => {
     // words are what it means, and the flame is not a day count.
     const day = row.querySelector('[data-kind="day"]')!;
     expect(day.textContent).toContain('📅');
-    expect(day.textContent).toContain('at goal');
+    expect(day.textContent).toContain('day streak');
   });
 
-  it('says "day" for one and "days" for the rest', async () => {
-    // Derived from the number beside it — the alternative is "day(s)",
-    // which is a rule the reader has to apply themselves.
+  it('counts days practised, not days that met a number', async () => {
+    // The label is invariant now — "day streak", whatever the count —
+    // because the figure is days practised rather than days at a
+    // target. The old label pluralised because it named a threshold.
     await db.attempts.bulkAdd(FIXTURE.map(a => withAttemptId({ ...a })));
     const el = await renderPage();
-    // The label span, read on its own: the row's spans are separated by
-    // flex gap rather than whitespace, so `textContent` runs the number
-    // into the word.
     const day = el.querySelector('[data-testid="hf-streak"][data-kind="day"]')!;
-    const n = Number(day.querySelector('.tabular-nums')!.textContent);
-    const label = day.lastElementChild!.textContent;
-    expect(label).toBe(n === 1 ? 'day at goal' : 'days at goal');
+    expect(day.lastElementChild!.textContent).toBe('day streak');
   });
 });

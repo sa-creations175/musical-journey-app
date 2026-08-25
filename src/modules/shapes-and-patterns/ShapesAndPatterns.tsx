@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import ModuleIntro from '../../components/ModuleIntro';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
@@ -14,6 +13,7 @@ import {
 } from './cleanup';
 import type { QualityKind } from './catalog';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 import {
@@ -87,14 +87,16 @@ export default function ShapesAndPatterns() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <Link
-          to="/shapes-and-patterns/calendar"
-          className="text-xs text-neutral-500 hover:text-fluent"
-        >
-          view calendar →
-        </Link>
-      </div>
+      {/* NO "CORRECT IN A ROW". This module records a duration and a
+          self-rating, so there is no run of right answers to report —
+          the row carries the day streak and the calendar link, both of
+          which it can mean. */}
+      <ModuleHomeHeader
+        moduleIds={[SHAPES_MODULE_ID]}
+        moduleId={SHAPES_MODULE_ID}
+        gradesAnswers={false}
+        calendarTo="/shapes-and-patterns/calendar"
+      />
 
       <TodayAndAttention />
 

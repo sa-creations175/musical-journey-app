@@ -135,7 +135,11 @@ export default function Reading() {
 
           NO INTRO: this page has never carried copy, and copy is
           authored. See the report. */}
-      <ModuleHomeHeader moduleIds={[READING_MODULE_ID]} />
+      <ModuleHomeHeader
+        moduleIds={[READING_MODULE_ID]}
+        moduleId={READING_MODULE_ID}
+        calendarTo="/reading/calendar"
+      />
 
       <CategoryCardGrid
         cards={cards}

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Song } from '../../lib/db';
 import ModuleIntro from '../../components/ModuleIntro';
+import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
 import { migrateSongsToMatrixIfNeeded } from './matrixMigration';
@@ -150,6 +151,15 @@ export default function Repertoire() {
 
   return (
     <div className="space-y-3">
+      {/* NO "CORRECT IN A ROW". A song is practised and rated by feel,
+          never marked right or wrong. */}
+      <ModuleHomeHeader
+        moduleIds={['repertoire']}
+        moduleId="repertoire"
+        gradesAnswers={false}
+        calendarTo="/repertoire/calendar"
+      />
+
       {/* Module-level explainer only on the Active tab — when the
           user has drilled into a single song or is browsing the
           want-to-learn list, the broad context isn't useful. */}

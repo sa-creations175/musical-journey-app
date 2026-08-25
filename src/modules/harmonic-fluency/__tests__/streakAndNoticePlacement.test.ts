@@ -96,7 +96,7 @@ describe('the streak figures are printed once', () => {
     expect(header).toContain('🔥');
     expect(header).toContain('📅');
     expect(header).toContain('correct in a row');
-    expect(header).toContain('at goal');
+    expect(header).toContain('day streak');
   });
 
   it('and the module home renders that header rather than its own row', () => {

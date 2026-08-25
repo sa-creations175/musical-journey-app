@@ -30,17 +30,18 @@
  * A module missing one renders the rest. See the report for which
  * modules are missing what.
  */
-import { useMemo, type ComponentProps } from 'react';
+import { useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ModuleIntro from '../ModuleIntro';
 import { db } from '../../lib/db';
+import { computeHotStreak, localDayKey } from '../../lib/dailyGoal';
 import {
-  computeDayStreak,
-  computeHotStreak,
-  localDayKey,
-} from '../../lib/dailyGoal';
-import { dailyGoalKey, defaultDailyGoal } from '../../lib/goalConfig';
+  DEFAULT_MODULE_GOAL,
+  moduleGoalKey,
+  normaliseModuleGoal,
+} from '../../lib/goalConfig';
+import { dayStreakFrom, loadPracticeDays } from '../../lib/practiceDays';
 import { getPref } from '../../lib/userPrefs';
 
 export interface ModuleHomeHeaderProps {
@@ -53,14 +54,24 @@ export interface ModuleHomeHeaderProps {
    */
   moduleIds: readonly string[];
   /**
-   * The module whose daily goal the day streak is measured against.
+   * The module this home belongs to — the id its goal, its practice
+   * dates and its calendar are all keyed on.
    *
-   * OMIT WHERE THE MODULE HAS NO GOAL. `defaultDailyGoal` falls back to
-   * 30 for any unknown id, so passing one anyway would count days
-   * against a target the reader has never seen, cannot edit from this
-   * page, and did not choose. The row then shows the flame alone.
+   * NO LONGER OPTIONAL. Every module has a goal now (all six ship on
+   * "any practice"), and every module's dates are readable, so there is
+   * no module that cannot show a day streak.
    */
-  goalModuleId?: string;
+  moduleId: string;
+  /**
+   * Whether this module records RIGHT AND WRONG.
+   *
+   * "N correct in a row" is only true of a module that grades answers.
+   * Shapes & patterns records a duration and a self-rating and song
+   * repertoire records a session and a feel, so neither has a correct
+   * answer to have got in a row — those rows carry the day streak and
+   * the calendar link alone.
+   */
+  gradesAnswers?: boolean;
   /** Where "view calendar →" goes. Omit where there is no such route. */
   calendarTo?: string;
   /**
@@ -82,46 +93,46 @@ export interface ModuleHomeHeaderProps {
 }
 
 export default function ModuleHomeHeader({
-  moduleIds, goalModuleId, calendarTo, intro, showIntro = true,
+  moduleIds, moduleId, gradesAnswers = true, calendarTo, intro, showIntro = true,
 }: ModuleHomeHeaderProps) {
   // Its own read rather than a prop. The pages already query attempts
   // for their cards, so this is a second READ of one table — not a
   // second copy of the streak RULE, which is the thing that must not
   // fork. `useLiveQuery` dedupes the re-render, and the alternative is
-  // three pages each computing two figures the same way.
+  // every page computing the same two figures.
   const key = moduleIds.join(',');
   const attempts = useLiveQuery(
     () => db.attempts.where('moduleId').anyOf([...moduleIds]).toArray(),
     [key],
   ) ?? [];
 
-  /**
-   * The goal, and it must be a NUMBER before it counts anything.
-   *
-   * TYPE-CHECKED, NOT NULL-CHECKED, and that is not defensive noise.
-   * `computeDayStreak` walks backwards while each day clears the goal —
-   * so a goal of 0 walks back forever, because every day in history
-   * cleared it. A `?? null` guard lets anything non-nullish through,
-   * and `>= []` is true, which is how ear training's page test (it
-   * mocks `useLiveQuery` wholesale, so this read returned an attempts
-   * array) hung the suite instead of failing it.
-   *
-   * `isValidGoal` keeps a stored goal at 5 or above, so this cannot
-   * happen from real data — which is exactly why it would have gone
-   * unnoticed anywhere but here.
-   */
   const storedGoal = useLiveQuery(
-    async () => (goalModuleId === undefined
-      ? null
-      : getPref<number>(dailyGoalKey(goalModuleId), defaultDailyGoal(goalModuleId))),
-    [goalModuleId],
+    async () => getPref<unknown>(moduleGoalKey(moduleId), null),
+    [moduleId],
   );
-  const goal = typeof storedGoal === 'number' && storedGoal > 0 ? storedGoal : null;
+  const goal = useMemo(
+    () => (storedGoal === undefined ? DEFAULT_MODULE_GOAL : normaliseModuleGoal(storedGoal)),
+    [storedGoal],
+  );
+
+  /**
+   * The days this module was practised, from whichever table records
+   * them — see `loadPracticeDays`. Re-read whenever the module's own
+   * attempts change so an answer just given moves the streak; the
+   * duration-based modules have no such signal here and settle on the
+   * next visit, which is the same freshness their cards have.
+   */
+  const [days, setDays] = useState<Awaited<ReturnType<typeof loadPracticeDays>> | null>(null);
+  useEffect(() => {
+    let live = true;
+    void loadPracticeDays(moduleId).then(d => { if (live) setDays(d); });
+    return () => { live = false; };
+  }, [moduleId, attempts.length]);
 
   const hotStreak = useMemo(() => computeHotStreak(attempts).current, [attempts]);
   const dayStreak = useMemo(
-    () => (goal === null ? null : computeDayStreak(attempts, goal, localDayKey())),
-    [attempts, goal],
+    () => (days === null ? 0 : dayStreakFrom(days, goal, localDayKey())),
+    [days, goal],
   );
 
   return (
@@ -139,38 +150,40 @@ export default function ModuleHomeHeader({
           is app-wide (`Layout`) and stays that way — one module wanting
           to start higher is not a reason to move every screen up. */}
       <div className="-mt-2 flex items-center justify-end gap-2 text-xs text-neutral-500">
-        <span
-          className="inline-flex items-baseline gap-1"
-          title="consecutive correct answers, all time"
-          data-testid="hf-streak"
-          data-kind="hot"
-        >
-          <span aria-hidden>🔥</span>
-          <span className="font-mono tabular-nums font-medium">{hotStreak}</span>
-          <span>correct in a row</span>
-        </span>
-        {dayStreak !== null && (
+        {/* "CORRECT IN A ROW" ONLY WHERE THERE IS A CORRECT ANSWER.
+            A module that records a duration and a self-rating has no
+            run of right answers to report, so it shows the day streak
+            and the calendar and nothing it cannot mean. */}
+        {gradesAnswers && (
           <>
-            <span aria-hidden className="text-neutral-400">·</span>
             <span
               className="inline-flex items-baseline gap-1"
-              title="consecutive days the daily goal was met"
+              title="consecutive correct answers, all time"
               data-testid="hf-streak"
-              data-kind="day"
+              data-kind="hot"
             >
-              <span aria-hidden>📅</span>
-              <span className="font-mono tabular-nums font-medium">{dayStreak}</span>
-              {/* One day is a day. Derived from the number beside it rather
-                  than written as "day(s)". */}
-              <span>{dayStreak === 1 ? 'day' : 'days'} at goal</span>
+              <span aria-hidden>🔥</span>
+              <span className="font-mono tabular-nums font-medium">{hotStreak}</span>
+              <span>correct in a row</span>
             </span>
+            <span aria-hidden className="text-neutral-400">·</span>
           </>
         )}
+        <span
+          className="inline-flex items-baseline gap-1"
+          title="consecutive days practised"
+          data-testid="hf-streak"
+          data-kind="day"
+        >
+          <span aria-hidden>📅</span>
+          <span className="font-mono tabular-nums font-medium">{dayStreak}</span>
+          <span>day streak</span>
+        </span>
         {calendarTo !== undefined && (
           <>
             <span aria-hidden className="text-neutral-400">·</span>
             <Link to={calendarTo} className="hover:text-fluent">
-              view calendar →
+              view calendar
             </Link>
           </>
         )}

@@ -5,12 +5,11 @@
  * =====================================================================
  * THE OMISSIONS ARE THE BEHAVIOUR.
  *
- * One component now renders the row for three module homes, and the
- * three do not carry the same data: harmonic fluency has a daily goal
- * and a calendar route, ear training and reading have neither. The
- * temptation a shared component creates is to fill the gaps — a
- * fallback goal of 30, a link to a route that 404s — so each absence is
- * pinned here.
+ * One component renders this row for every module home, and the modules
+ * do not all record the same thing: some grade answers, some record a
+ * duration and a self-rating. The temptation a shared component creates
+ * is to show every part everywhere — a run of "correct" answers on a
+ * module that never marks one — so each absence is pinned here.
  * =====================================================================
  *
  * NO LAYOUT ASSERTIONS. jsdom has no layout engine, so nothing here
@@ -24,8 +23,7 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import ModuleHomeHeader, { type ModuleHomeHeaderProps } from '../ModuleHomeHeader';
 import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
-import { dailyGoalKey } from '../../../lib/goalConfig';
-import { setPref } from '../../../lib/userPrefs';
+
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -75,7 +73,7 @@ describe('the flame', () => {
       attempt('reading', true, now - 2000),
       attempt('reading', true, now - 1000),
     ]);
-    const el = await mount({ moduleIds: ['reading'] });
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
     expect(hot(el)!.querySelector('.tabular-nums')!.textContent).toBe('3');
     expect(hot(el)!.textContent).toContain('🔥');
     expect(hot(el)!.textContent).toContain('correct in a row');
@@ -90,7 +88,7 @@ describe('the flame', () => {
       attempt('chord-recognition', true, now - 2000),
       attempt('scales-modes', true, now - 1000),
     ]);
-    const el = await mount({ moduleIds: ['intervals', 'chord-recognition', 'scales-modes'] });
+    const el = await mount({ moduleIds: ['intervals', 'chord-recognition', 'scales-modes'], moduleId: 'ear-training' });
     expect(hot(el)!.querySelector('.tabular-nums')!.textContent).toBe('3');
   });
 
@@ -100,45 +98,59 @@ describe('the flame', () => {
       attempt('reading', true, now - 3000),
       attempt('harmonic-fluency', true, now - 2000),
     ]);
-    const el = await mount({ moduleIds: ['reading'] });
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
     expect(hot(el)!.querySelector('.tabular-nums')!.textContent).toBe('1');
   });
 });
 
-describe('the day streak, only where there is a goal', () => {
-  it('is absent when no goal module is named', async () => {
-    const el = await mount({ moduleIds: ['reading'] });
-    // Not "0 days at goal" — absent. Reading has no goal to count
-    // against, and the fallback 30 is not one the reader chose.
-    expect(day(el)).toBeNull();
-    expect(el.textContent).not.toContain('at goal');
-    expect(el.textContent).not.toContain('📅');
-  });
-
-  it('appears, with its words, when one is', async () => {
+describe('the day streak', () => {
+  it('counts days practised, and every module has one', async () => {
+    // No goal is stored, so the module is on the shipped default:
+    // "any practice". A day counts because something was recorded,
+    // never because a number was cleared.
     const now = Date.now();
-    await setPref(dailyGoalKey('harmonic-fluency'), 1);
-    await db.attempts.bulkAdd([attempt('harmonic-fluency', true, now - 1000)]);
-    const el = await mount({ moduleIds: ['harmonic-fluency'], goalModuleId: 'harmonic-fluency' });
+    await db.attempts.bulkAdd([attempt('reading', true, now - 1000)]);
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
     expect(day(el)).not.toBeNull();
-    expect(day(el)!.textContent).toContain('📅');
-    expect(day(el)!.textContent).toContain('at goal');
+    expect(day(el)!.querySelector('.tabular-nums')!.textContent).toBe('1');
   });
 
-  it('says "day" for one and "days" otherwise', async () => {
-    const now = Date.now();
-    await setPref(dailyGoalKey('harmonic-fluency'), 1);
-    await db.attempts.bulkAdd([attempt('harmonic-fluency', true, now - 1000)]);
-    const el = await mount({ moduleIds: ['harmonic-fluency'], goalModuleId: 'harmonic-fluency' });
-    const n = Number(day(el)!.querySelector('.tabular-nums')!.textContent);
-    expect(day(el)!.lastElementChild!.textContent)
-      .toBe(n === 1 ? 'day at goal' : 'days at goal');
+  it('uses the settled wording', async () => {
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
+    expect(day(el)!.textContent).toContain('day streak');
+    // The old label counted days against a target; this one counts days.
+    expect(el.textContent).not.toContain('at goal');
+  });
+
+  it('is zero, not absent, for a module never practised', async () => {
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
+    expect(day(el)).not.toBeNull();
+    expect(day(el)!.querySelector('.tabular-nums')!.textContent).toBe('0');
+  });
+});
+
+describe('"correct in a row" only where answers are graded', () => {
+  it('is shown for a module that records right and wrong', async () => {
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
+    expect(hot(el)).not.toBeNull();
+  });
+
+  it('is absent for a module that records duration and a self-rating', async () => {
+    const el = await mount({
+      moduleIds: ['shapes-and-patterns'],
+      moduleId: 'shapes-and-patterns',
+      gradesAnswers: false,
+    });
+    expect(hot(el)).toBeNull();
+    expect(el.textContent).not.toContain('correct in a row');
+    // The day streak and the calendar are still its own.
+    expect(day(el)).not.toBeNull();
   });
 });
 
 describe('the calendar link, only where there is a route', () => {
   it('is absent when none is given', async () => {
-    const el = await mount({ moduleIds: ['reading'] });
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
     expect(el.querySelector('a')).toBeNull();
     expect(el.textContent).not.toContain('view calendar');
   });
@@ -146,17 +158,19 @@ describe('the calendar link, only where there is a route', () => {
   it('points where it was told when there is one', async () => {
     const el = await mount({
       moduleIds: ['harmonic-fluency'],
+      moduleId: 'harmonic-fluency',
       calendarTo: '/harmonic-fluency/calendar',
     });
     const link = el.querySelector('a')!;
     expect(link.getAttribute('href')).toBe('/harmonic-fluency/calendar');
-    expect(link.textContent).toContain('view calendar');
+    // The settled wording, with no trailing arrow.
+    expect(link.textContent).toBe('view calendar');
   });
 });
 
 describe('the intro, only where there is copy', () => {
   it('renders nothing when the module has none', async () => {
-    const el = await mount({ moduleIds: ['reading'] });
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
     // No headline, no "learn more" disclosure — not an empty card.
     expect(el.textContent).not.toContain('learn more');
   });
@@ -164,6 +178,7 @@ describe('the intro, only where there is copy', () => {
   it('renders the copy it is handed', async () => {
     const el = await mount({
       moduleIds: ['harmonic-fluency'],
+      moduleId: 'harmonic-fluency',
       intro: {
         accent: 'blue',
         headline: 'A headline the module owns.',
@@ -183,7 +198,7 @@ describe('the intro, only where there is copy', () => {
       description: 'A description the module owns.',
       bullets: ['A bullet'],
     };
-    const el = await mount({ moduleIds: ['harmonic-fluency'], intro, showIntro: false });
+    const el = await mount({ moduleIds: ['harmonic-fluency'], moduleId: 'harmonic-fluency', intro, showIntro: false });
     expect(el.textContent).not.toContain('A headline the module owns.');
     // And the row above it is unaffected.
     expect(hot(el)).not.toBeNull();

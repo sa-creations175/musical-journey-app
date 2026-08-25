@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { lessonById, PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
 import { isCovered, isStarted, ratingOption } from './lessonRating';
@@ -81,6 +82,13 @@ export default function ProductionOverview({
 
   return (
     <div className="space-y-6 max-w-4xl">
+      {/* The flame is true here: vocabulary writes real attempts. */}
+      <ModuleHomeHeader
+        moduleIds={[PRODUCTION_MODULE_ID]}
+        moduleId={PRODUCTION_MODULE_ID}
+        calendarTo="/production/calendar"
+      />
+
       {/* Stats strip */}
       <section className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <Stat label="lessons tried" value={`${totals.covered}/${totals.total}`} accent="text-production" />

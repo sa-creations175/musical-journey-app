@@ -267,7 +267,7 @@ export default function HarmonicFluency() {
           copy still exists, the moment is just wrong for it. */}
       <ModuleHomeHeader
         moduleIds={[MODULE_ID]}
-        goalModuleId={MODULE_ID}
+        moduleId={MODULE_ID}
         calendarTo="/harmonic-fluency/calendar"
         showIntro={!sessionActive}
         intro={{

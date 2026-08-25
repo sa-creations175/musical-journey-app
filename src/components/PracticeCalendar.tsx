@@ -13,6 +13,16 @@ import {
 
 interface Props {
   moduleId: string;
+  /**
+   * Extra module ids to merge in, for a home that sits above several
+   * drills.
+   *
+   * Ear training is the case: its four sub-modules each write their own
+   * daily summaries, and its calendar is about the module, so the day
+   * counts add up across them. Absent everywhere else, where the module
+   * IS the drill.
+   */
+  alsoModuleIds?: readonly string[];
 }
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -34,7 +44,9 @@ function formatLongDate(key: string): string {
 // Reusable monthly practice calendar. Reads the moduleId's dailySummaries
 // via useLiveQuery, classifies each day, and renders a navigable grid.
 // Identical markup + behavior for any future module.
-export default function PracticeCalendar({ moduleId }: Props) {
+export default function PracticeCalendar({ moduleId, alsoModuleIds }: Props) {
+  const ids = [moduleId, ...(alsoModuleIds ?? [])];
+  const idKey = ids.join(',');
   const now = new Date();
   const [viewYear, setViewYear] = useState<number>(() => now.getFullYear());
   const [viewMonth, setViewMonth] = useState<number>(() => now.getMonth());
@@ -42,13 +54,27 @@ export default function PracticeCalendar({ moduleId }: Props) {
   const [selectedDate, setSelectedDate] = useState<string>(todayKey);
 
   const summaries = useLiveQuery(
-    () => db.dailySummaries.where('moduleId').equals(moduleId).toArray(),
-    [moduleId],
+    () => db.dailySummaries.where('moduleId').anyOf(ids).toArray(),
+    [idKey],
   ) ?? [];
 
   const summariesByDate = useMemo(() => {
+    // MERGED BY DATE, not last-one-wins: with several ids a day can
+    // carry one row per sub-module, and the calendar is asking what the
+    // MODULE did that day.
     const m = new Map<string, DailySummary>();
-    for (const s of summaries) m.set(s.date, s);
+    for (const s of summaries) {
+      const prev = m.get(s.date);
+      m.set(s.date, prev === undefined ? s : {
+        ...prev,
+        correctCount: prev.correctCount + s.correctCount,
+        wrongCount: prev.wrongCount + s.wrongCount,
+        // The day's target is the sum of the sub-modules' — the module
+        // was asked for all of them, not for whichever is largest.
+        dailyGoal: prev.dailyGoal + s.dailyGoal,
+        goalMet: prev.goalMet || s.goalMet,
+      });
+    }
     return m;
   }, [summaries]);
 

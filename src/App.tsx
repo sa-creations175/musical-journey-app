@@ -31,6 +31,9 @@ import HarmonicDiary from './modules/harmonic-diary/HarmonicDiary';
 // lazy boundary now carries real weight rather than merely deferring
 // a page nobody could reach.
 const Reading = lazy(() => import('./modules/reading/Reading'));
+const ReadingCalendar = lazy(() => import('./modules/reading/ReadingCalendar'));
+const EarTrainingCalendar = lazy(() => import('./modules/ear-training/EarTrainingCalendar'));
+const ProductionCalendar = lazy(() => import('./modules/production/ProductionCalendar'));
 const ReadingPreview = lazy(() => import('./modules/reading/ReadingPreview'));
 import DashboardScreen from './modules/dashboard/DashboardScreen';
 import Goals from './modules/goals/Goals';
@@ -84,6 +87,7 @@ export default function App() {
             <Route path="harmonic-fluency" element={<HarmonicFluency />} />
             <Route path="harmonic-fluency/calendar" element={<HarmonicFluencyCalendar />} />
             <Route path="ear-training" element={<EarTraining />} />
+            <Route path="ear-training/calendar" element={<EarTrainingCalendar />} />
             <Route path="ear-training/intervals" element={<Intervals />} />
             <Route path="ear-training/intervals/calendar" element={<IntervalsCalendar />} />
             <Route path="ear-training/chord-recognition" element={<ChordRecognition />} />
@@ -102,6 +106,7 @@ export default function App() {
             <Route path="shapes-and-patterns" element={<ShapesAndPatterns />} />
             <Route path="shapes-and-patterns/calendar" element={<ShapesAndPatternsCalendar />} />
             <Route path="production" element={<Production />} />
+            <Route path="production/calendar" element={<ProductionCalendar />} />
             <Route path="session-log" element={<SessionLog />} />
             <Route path="skills-catalogue" element={<SkillsCatalogue />} />
             <Route path="harmonic-diary" element={<HarmonicDiary />} />
@@ -110,6 +115,14 @@ export default function App() {
               element={
                 <Suspense fallback={<div className="p-6 text-sm text-neutral-500">Loading notation…</div>}>
                   <Reading />
+                </Suspense>
+              }
+            />
+            <Route
+              path="reading/calendar"
+              element={
+                <Suspense fallback={<div className="p-6 text-sm text-neutral-500">Loading notation…</div>}>
+                  <ReadingCalendar />
                 </Suspense>
               }
             />

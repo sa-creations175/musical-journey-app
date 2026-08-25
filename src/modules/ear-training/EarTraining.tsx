@@ -94,7 +94,11 @@ export default function EarTraining() {
 
           The flame is real: consecutive correct answers across all four
           sub-modules, which is what a session here actually is. */}
-      <ModuleHomeHeader moduleIds={EAR_TRAINING_SUB_MODULES.map(m => m.id)} />
+      <ModuleHomeHeader
+        moduleIds={EAR_TRAINING_SUB_MODULES.map(m => m.id)}
+        moduleId={EAR_TRAINING_MODULE_ID}
+        calendarTo="/ear-training/calendar"
+      />
 
       <CategoryCardGrid
         cards={cards}
