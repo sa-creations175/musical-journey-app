@@ -419,7 +419,7 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
         to={item.to}
         end={item.end}
         className={({ isActive }) =>
-          `px-3 py-2 rounded-lg text-sm whitespace-nowrap transition inline-flex items-center gap-2 ${
+          `px-3 py-2 rounded-lg text-sm transition inline-flex items-center gap-2 min-w-0 ${
             isActive
               ? 'bg-fluent/10 text-fluent'
               : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -438,16 +438,22 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
     );
   }
 
-  // Module with children — caret toggles expansion; the label itself
-  // still navigates to the module's base route.
+  // Module with children — PRESSING THE NAME toggles the group, and
+  // still navigates to the module's base route. The name was the
+  // obvious place to press and did not open anything; the mark beside
+  // it was a separate button for what reads as one action.
   return (
     <div>
       <div className="flex items-center gap-0.5">
         <NavLink
           to={item.to}
           end={item.end}
+          onClick={() => onToggle(item.id)}
+          aria-expanded={isOpen}
+          data-testid="module-nav-name"
+          data-module={item.id}
           className={({ isActive }) =>
-            `flex-1 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition inline-flex items-center gap-2 ${
+            `flex-1 min-w-0 px-3 py-2 rounded-lg text-sm transition inline-flex items-center gap-2 ${
               isActive
                 ? 'bg-fluent/10 text-fluent'
                 : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -457,25 +463,9 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
           {meta && <ModuleIcon meta={meta} />}
           <span className={isLearningModule(item.id) ? MODULE_NAME_CASE : undefined}>
             {isLearningModule(item.id) ? item.label : titleCase(item.label)}
+            <DisclosureMark open={isOpen} size={8} />
           </span>
         </NavLink>
-        <button
-          onClick={() => onToggle(item.id)}
-          aria-label={isOpen ? `collapse ${item.label}` : `expand ${item.label}`}
-          aria-expanded={isOpen}
-          className="w-6 h-7 shrink-0 rounded-md text-neutral-400 hover:text-fluent hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center justify-center"
-          title={isOpen ? 'collapse' : 'expand'}
-        >
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 10 10"
-            className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
-            aria-hidden
-          >
-            <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
       </div>
       {isOpen && (
         <div className="ml-3 pl-2 mt-0.5 border-l border-neutral-200 dark:border-neutral-800 flex flex-col gap-0.5">
@@ -494,6 +484,44 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
         </div>
       )}
     </div>
+  );
+}
+
+
+/**
+ * The disclosure mark, sitting with the label rather than beside it.
+ *
+ * =====================================================================
+ * PART OF THE WORD, NOT A CONTROL OF ITS OWN.
+ *
+ * It used to be a right-aligned button at the row's far edge, which
+ * formed a ragged column down the sidebar and read as a separate thing
+ * to press. It is inline after the label's last word now, with a small
+ * fixed gap — so when a label wraps, it follows the last word onto the
+ * second line, because it IS in the text flow rather than positioned
+ * against the box.
+ *
+ * LIGHTER AND SMALLER than the label. It says "this opens"; it should
+ * not compete with the word that says what opens.
+ *
+ * NOT A BUTTON ANY MORE. Pressing the name toggles the group, so the
+ * mark sits inside that control — and a button inside a link is
+ * invalid markup, which is how a tap meant for one lands on the other.
+ * =====================================================================
+ */
+function DisclosureMark({ open, size }: { open: boolean; size: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 10 10"
+      aria-hidden
+      className={`inline-block shrink-0 ml-1 text-neutral-400/70 transition-transform ${
+        open ? 'rotate-90' : ''
+      }`}
+    >
+      <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -518,24 +546,13 @@ function NestedNavRow({
   return (
     <div>
       <div className="flex items-center gap-0.5">
-        <SubNavLink to={nested.to} label={nested.label} currentPath={currentPath} />
-        <button
-          onClick={() => onToggle(nested.id)}
-          aria-label={isOpen ? `collapse ${nested.label}` : `expand ${nested.label}`}
-          aria-expanded={isOpen}
-          className="w-5 h-6 shrink-0 rounded text-neutral-400 hover:text-fluent flex items-center justify-center"
-          title={isOpen ? 'collapse' : 'expand'}
-        >
-          <svg
-            width="8"
-            height="8"
-            viewBox="0 0 10 10"
-            className={`transition-transform ${isOpen ? 'rotate-90' : ''}`}
-            aria-hidden
-          >
-            <path d="M3 1.5L7 5L3 8.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
+        <SubNavLink
+          to={nested.to}
+          label={nested.label}
+          currentPath={currentPath}
+          onPress={() => onToggle(nested.id)}
+          disclosureOpen={isOpen}
+        />
       </div>
       {isOpen && (
         <div className="ml-2 pl-2 mt-0.5 border-l border-neutral-200 dark:border-neutral-800 flex flex-col gap-0.5">
@@ -559,11 +576,17 @@ function SubNavLink({
   label,
   currentPath,
   currentPathCompare = 'equal',
+  onPress,
+  disclosureOpen,
 }: {
   to: string;
   label: string;
   currentPath: string;
   currentPathCompare?: 'equal' | 'prefix';
+  /** Set on a row that has children — pressing the word opens them. */
+  onPress?: () => void;
+  /** Present on a row with children; drives the mark after the label. */
+  disclosureOpen?: boolean;
 }) {
   const active = currentPathCompare === 'prefix'
     ? currentPath.startsWith(to.split('?')[0])
@@ -571,7 +594,9 @@ function SubNavLink({
   return (
     <NavLink
       to={to}
-      className={`flex-1 px-3 py-1.5 rounded-md text-[12px] whitespace-nowrap transition ${
+      {...(onPress !== undefined ? { onClick: onPress } : {})}
+      {...(disclosureOpen !== undefined ? { 'aria-expanded': disclosureOpen } : {})}
+      className={`flex-1 min-w-0 px-3 py-1.5 rounded-md text-[12px] transition ${
         active
           ? 'bg-fluent/10 text-fluent'
           : 'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200'
@@ -580,6 +605,7 @@ function SubNavLink({
       {/* Nested under a module — Title Case, computed from the
           canonical label rather than typed a second time. */}
       {titleCase(label)}
+      {disclosureOpen !== undefined && <DisclosureMark open={disclosureOpen} size={7} />}
     </NavLink>
   );
 }
