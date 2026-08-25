@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { filterSize } from '../../../lib/drillFilter';
+import FilterStrip from '../../../components/FilterStrip';
+import { moduleMetaById } from '../../../lib/moduleMeta';
+import {
+  NO_SELECTION, allSelected, appliedKeys, resolveFacets, toggleFacetValue,
+  type FacetSelection,
+} from '../../../lib/facetSelection';
+import { chordProgressionFacets, selectionFromStoredTier } from './facets';
 import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
@@ -58,6 +65,9 @@ import {
 import { useSpelling } from '../../../lib/spellingPref';
 
 const MODULE_ID = 'chord-progressions';
+
+/** From `moduleMeta`, never a local hex — one hue per module. */
+const ACCENT = moduleMetaById(MODULE_ID)?.accentHex ?? '#5a8752';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
 const PREF_KEY = 'chordProgressionsKey';
 const PREF_TIER = 'chordProgressionsTier';
@@ -75,20 +85,8 @@ const NUMERAL_POOL = [
 // Labels pair the tier number with its data-driven name so users don't
 // have to memorize the tier structure. `title` is retained for tooltip
 // parity with the previous numeric-only labels.
-const TIER_TABS: Array<{ id: 'all' | number; label: string; title?: string }> = [
-  { id: 'all', label: 'all progressions' },
-  { id: 1, label: `Tier 1: ${TIER_NAMES[1]}`, title: TIER_NAMES[1] },
-  { id: 2, label: `Tier 2: ${TIER_NAMES[2]}`, title: TIER_NAMES[2] },
-  { id: 3, label: `Tier 3: ${TIER_NAMES[3]}`, title: TIER_NAMES[3] },
-  { id: 4, label: `Tier 4: ${TIER_NAMES[4]}`, title: TIER_NAMES[4] },
-  { id: 5, label: `Tier 5: ${TIER_NAMES[5]}`, title: TIER_NAMES[5] },
-  { id: 6, label: `Tier 6: ${TIER_NAMES[6]}`, title: TIER_NAMES[6] },
-  { id: 7, label: `Tier 7: ${TIER_NAMES[7]}`, title: TIER_NAMES[7] },
-  { id: 8, label: `Tier 8: ${TIER_NAMES[8]}`, title: TIER_NAMES[8] },
-];
 
 type RunState = 'idle' | 'playing' | 'identifying' | 'pattern' | 'reveal';
-type TierFilter = 'all' | number;
 type LoopCount = 1 | 2 | 3 | 4 | 99;
 
 interface Props {
@@ -120,7 +118,14 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
   const [spelling] = useSpelling();
   // --- Persisted config ------------------------------------------------
   const [key, setKeyState] = useState<string>('C');
-  const [tierFilter, setTierFilter] = useState<TierFilter>('all');
+  /**
+   * The strip's tier selection, replacing the single-select tier tabs.
+   * Empty until prefs hydrate — a stored value wins over the
+   * lit-everything default, so lighting everything first would flash
+   * the wrong pool.
+   */
+  const [selection, setSelection] = useState<FacetSelection>(NO_SELECTION);
+  const facets = useMemo(() => chordProgressionFacets(), []);
   const [complexity, setComplexity] = useState<Complexity>('seventh');
   const [listening, setListening] = useState<ListeningMode>('bass-chords');
   const [bpm, setBpm] = useState<number>(DEFAULT_TEMPO);
@@ -130,17 +135,24 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
   useEffect(() => {
     (async () => {
       const k = await getPref<string>(PREF_KEY, 'C');
-      const t = await getPref<TierFilter>(PREF_TIER, 'all');
+      const t = await getPref<unknown>(PREF_TIER, 'all');
       const c = await getPref<Complexity>(PREF_COMPLEXITY, 'seventh');
       const l = await getPref<ListeningMode>(PREF_LISTENING, 'bass-chords');
       const b = await getPref<number>(PREF_TEMPO, DEFAULT_TEMPO);
       const tc = await getPref<TonicContext>(PREF_TONIC, 'singleNote');
-      setKeyState(k); setTierFilter(t); setComplexity(c); setListening(l); setBpm(b);
+      setKeyState(k); setComplexity(c); setListening(l); setBpm(b);
+      // A stored single tier — or 'all' — carried into the multi-select
+      // shape. Never dropped; see `selectionFromStoredTier`. Falls back
+      // to every chip lit when there is nothing usable stored.
+      setSelection(selectionFromStoredTier(t, facets) ?? allSelected(facets));
       setTonicContext(tc);
     })();
   }, []);
   useEffect(() => { setPref(PREF_KEY, key); }, [key]);
-  useEffect(() => { setPref(PREF_TIER, tierFilter); }, [tierFilter]);
+  // Persisted as the selected tier ids. The old single value is still
+  // READ by `selectionFromStoredTier`, so an install that has not
+  // written since the change opens where the reader left it.
+  useEffect(() => { setPref(PREF_TIER, selection.tier ?? []); }, [selection]);
   useEffect(() => { setPref(PREF_COMPLEXITY, complexity); }, [complexity]);
   useEffect(() => { setPref(PREF_LISTENING, listening); }, [listening]);
   useEffect(() => { setPref(PREF_TEMPO, bpm); }, [bpm]);
@@ -230,9 +242,11 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
       const set = new Set(focusKeys);
       return PROGRESSIONS.filter(p => set.has(p.id));
     }
-    if (tierFilter === 'all') return PROGRESSIONS;
-    return PROGRESSIONS.filter(p => p.tier === tierFilter);
-  }, [focusActive, focusKeys, tierFilter]);
+    const allowed = appliedKeys(resolveFacets(facets, selection));
+    if (allowed === null) return PROGRESSIONS;
+    const set = new Set(allowed);
+    return PROGRESSIONS.filter(p => set.has(p.id));
+  }, [focusActive, focusKeys, facets, selection]);
 
   /**
    * Focus sessions below the pool minimum don't truly test fluency —
@@ -641,29 +655,35 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
   };
 
   return (
-    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5"
+      /* `data-item-key` names the question currently being asked.
+         The same seam ReadingDrill carries as `data-item-ref` and
+         IntervalsQuiz as `data-item-key`: without it, "the question
+         did not change when the filter did" has to infer the item
+         from rendered text and passes whenever two look alike. */
+      data-item-key={active ? active.id : undefined}
+    >
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">chord progressions quiz</h2>
       </div>
 
       {/* Scope tabs (all-first) + focus button + dynamic status line. */}
       <div className="flex flex-col items-center gap-2">
+        {/* THE STRIP REPLACES THE TIER TABS. Multi-select, so two
+            genres can be drilled together — which the tabs could not
+            express. The pool-description string is superseded by the
+            strip's live count. */}
         {!focusActive && (
-          <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs flex-wrap justify-center">
-            {TIER_TABS.map(tab => (
-              <button
-                key={String(tab.id)}
-                onClick={() => setTierFilter(tab.id)}
-                title={tab.title}
-                className={`px-2.5 py-1.5 rounded-md transition ${
-                  tierFilter === tab.id
-                    ? 'bg-fluent text-white'
-                    : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="w-full">
+            <FilterStrip
+              facets={facets}
+              selection={selection}
+              onToggle={(facetId, valueId) =>
+                setSelection(prev => toggleFacetValue(prev, facetId, valueId))}
+              accentHex={ACCENT}
+              poolSize={PROGRESSIONS.length}
+              servingSize={pool.length}
+            />
           </div>
         )}
         <button
@@ -676,9 +696,9 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
           <span>
             {focusActive
               ? `focused practice — ${focusKeys.length} progression${focusKeys.length === 1 ? '' : 's'} selected`
-              : tierFilter === 'all'
-                ? `all progressions — ${pool.length} in pool`
-                : `Tier ${tierFilter}: ${TIER_NAMES[tierFilter as number]} — ${pool.length} in pool`}
+              // The tier-specific pool strings are superseded by the
+              // strip's live count directly above.
+              : null}
           </span>
           {focusActive && (
             <button

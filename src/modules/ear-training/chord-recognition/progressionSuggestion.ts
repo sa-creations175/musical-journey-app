@@ -81,24 +81,38 @@ Readonly<Record<Exclude<SuggestionTab, 'all'>, ChordRecognitionTier>> = {
 const SUGGESTABLE: ReadonlyArray<{
   tier: ChordRecognitionTier;
   tab: Exclude<SuggestionTab, 'all'>;
-  headline: string;
+  /** The tier, named. The sentence is built from it — see `headlineFor`
+   *  — so one wording serves whichever tier is lowest-uncleared. */
+  name: string;
   why: string;
 }> = [
   {
     tier: 1,
     tab: 'foundational',
-    headline: 'The foundational triads first.',
+    name: 'foundational triads',
     why: 'A seventh is a triad with a note added, so the triads make these '
       + 'easier to hear.',
   },
   {
     tier: 2,
     tab: 'seventh',
-    headline: 'The seventh chords next.',
+    name: 'seventh chords',
     why: 'Extensions and dominant variations are seventh chords with more on '
       + 'top, so the sevenths make these easier to hear.',
   },
 ];
+
+/**
+ * The instruction, built from the tier's name.
+ *
+ * ONE SENTENCE, NOT ONE PER TIER. The rule names whichever tier is
+ * lowest-uncleared, so a per-tier headline would have to read correctly
+ * in a position it was not written for — "The seventh chords next."
+ * says "next" about a tier being named as the thing to do first.
+ */
+function headlineFor(name: string): string {
+  return `Get solid on the ${name} first.`;
+}
 
 export interface ProgressionSuggestion {
   /** The tab the player should open. */
@@ -129,22 +143,40 @@ export interface ProgressionSuggestion {
  * which is the one case where the ladder has something to add.
  */
 export function progressionSuggestionFor(
-  tab: SuggestionTab,
+  tabs: SuggestionTab | ReadonlyArray<SuggestionTab>,
   statsByItem: ReadonlyMap<string, { correct: number; total: number }>,
 ): ProgressionSuggestion | null {
-  if (tab === 'all') return null;
-  const here = PROGRESSION_TIER_BY_TAB[tab];
+  // Multi-select: the ladder compares against the HIGHEST tier in the
+  // pool, because that is how far ahead the reader has reached.
+  const list = Array.isArray(tabs) ? tabs : [tabs];
+  const tiers = list
+    .filter((t): t is Exclude<SuggestionTab, 'all'> => t !== 'all')
+    .map(t => PROGRESSION_TIER_BY_TAB[t]);
+  if (tiers.length === 0) return null;
+  const here = Math.max(...tiers);
 
   for (const step of SUGGESTABLE) {
     const { cleared, total } = tierProgress(step.tier, statsByItem);
     if (cleared >= total) continue;
-    // The first incomplete step is what the ladder is waiting on.
+    // =================================================================
+    // WHETHER THE PREREQUISITE TIER IS ITSELF SELECTED DOES NOT MATTER.
+    //
+    // Selecting sevenths with triads uncleared fires this. Selecting
+    // triads AND sevenths with triads still uncleared fires it too —
+    // the ask is "get solid at triads", and having them in the pool is
+    // not the same as being solid at them. A naive "stay quiet if it is
+    // selected" would lose exactly the case a reader is most likely to
+    // be in, having widened the pool rather than narrowed it.
+    //
+    // It goes quiet only when the lower tiers are actually cleared,
+    // which the `continue` above handles.
+    // =================================================================
     if (here <= step.tier) return null;
     return {
       tab: step.tab,
       cleared,
       total,
-      headline: step.headline,
+      headline: headlineFor(step.name),
       progress: `You've cleared ${cleared} of ${total}; a chord clears at `
         + `${UNLOCK_MIN_ATTEMPTS} attempts with `
         + `${Math.round(UNLOCK_MIN_ACCURACY * 100)}% correct.`,

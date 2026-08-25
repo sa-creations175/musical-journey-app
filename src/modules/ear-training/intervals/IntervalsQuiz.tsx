@@ -6,7 +6,7 @@ import FilterStrip from '../../../components/FilterStrip';
 import { moduleMetaById } from '../../../lib/moduleMeta';
 import { intervalFacetList } from './facets';
 import {
-  NO_SELECTION, appliedKeys, resolveFacets, toggleFacetValue,
+  allSelected, appliedKeys, resolveFacets, toggleFacetValue,
   type FacetSelection,
 } from '../../../lib/facetSelection';
 import { eligibleDirections } from './directionBalance';
@@ -72,8 +72,12 @@ interface Props {
 }
 
 export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }: Props) {
-  const [selection, setSelection] = useState<FacetSelection>(NO_SELECTION);
   const facets = useMemo(() => intervalFacetList(), []);
+  // Every chip lit, because the full pool should look full. Identical
+  // in effect to nothing selected — see `allSelected`.
+  const [selection, setSelection] = useState<FacetSelection>(
+    () => allSelected(intervalFacetList()),
+  );
   const resolution = useMemo(
     () => resolveFacets(facets, selection),
     [facets, selection],

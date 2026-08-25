@@ -43,7 +43,7 @@ describe('it fires only when you have jumped ahead', () => {
   it('suggests the triads from a tab further up the ladder', () => {
     const s = progressionSuggestionFor('seventh', nothing)!;
     expect(s.tab).toBe('foundational');
-    expect(s.headline).toBe('The foundational triads first.');
+    expect(s.headline).toBe('Get solid on the foundational triads first.');
   });
 
   it('says nothing on the tab it would have suggested', () => {
@@ -116,6 +116,15 @@ describe('it goes quiet past tier 2', () => {
   });
 });
 
+/**
+ * ONE SENTENCE, BUILT FROM THE TIER'S NAME.
+ *
+ * Both headlines used to be written out per tier, and the seventh's
+ * said "next" — which reads wrongly the moment the rule names it as the
+ * thing to do FIRST. The rule now picks whichever tier is
+ * lowest-uncleared, so the wording has to work in that position for any
+ * of them.
+ */
 describe('what it says', () => {
   const partial = cleared(TIER_1[0], TIER_1[1], TIER_1[2]);
 
@@ -123,7 +132,7 @@ describe('what it says', () => {
     const s = progressionSuggestionFor('seventh', partial)!;
     // A sentence, capitalised after the dash.
     expect(`${SUGGESTION_PREFIX}${s.headline}`)
-      .toBe('Suggestion — The foundational triads first.');
+      .toBe('Suggestion — Get solid on the foundational triads first.');
   });
 
   it('counts live, on the same definition the unlock walk gates on', () => {
@@ -170,7 +179,7 @@ describe('what it says', () => {
 
   it('names the sevenths once the triads are done', () => {
     const s = progressionSuggestionFor('extensions', cleared(...TIER_1))!;
-    expect(s.headline).toBe('The seventh chords next.');
+    expect(s.headline).toBe('Get solid on the seventh chords first.');
     expect(s.why).toContain('seventh chords with more on top');
     expect(s.total).toBe(TIER_2.length);
   });

@@ -32,6 +32,13 @@ import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 import PianoKeyboard from '../../../components/PianoKeyboard';
 import AnswerVerdict from '../../../components/AnswerVerdict';
+import FilterStrip from '../../../components/FilterStrip';
+import { moduleMetaById } from '../../../lib/moduleMeta';
+import {
+  NO_SELECTION, allSelected, appliedKeys, resolveFacets, toggleFacetValue,
+  type FacetSelection,
+} from '../../../lib/facetSelection';
+import { chordIdsFromRefs, chordRecognitionFacets, servedRefsFor } from './facets';
 import {
   DEFAULT_INVERSION_POSITIONS,
   INVERSION_EXCLUDED_CHORD_IDS,
@@ -57,12 +64,16 @@ import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
 import {
   SUGGESTION_PREFIX,
   progressionSuggestionFor,
+  type SuggestionTab,
 } from './progressionSuggestion';
 import { useToast } from '../../../components/Toaster';
 import { chordIdentityText as buildChordIdentityText, rootNoteName } from './chordIdentity';
 import { useSpelling } from '../../../lib/spellingPref';
 
 const MODULE_ID = 'chord-recognition';
+
+/** From `moduleMeta`, never a local hex — one hue per module. */
+const ACCENT = moduleMetaById(MODULE_ID)?.accentHex ?? '#5a8752';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
 const PREF_BROKEN_DIRECTION = 'chordRecognitionBrokenDirection';
 const PREF_INVERSION_POSITIONS = 'chordRecognitionInversionPositions';
@@ -85,7 +96,6 @@ type QuizPhase =
   | 'quality-wrong-revealed'
   | 'fully-revealed';
 
-type TierFilter = 'all' | ChordData['tier'];
 type PlaybackStyle = 'blocked' | 'broken';
 
 const TIER_ORDER: ChordData['tier'][] = ['foundational', 'seventh', 'dominant', 'extensions'];
@@ -99,12 +109,6 @@ const TIER_SECTION_LABEL: Record<ChordData['tier'], string> = {
 // Scope tabs show the full descriptive label — no abbreviation. Same
 // strings as TIER_SECTION_LABEL; kept as a separate alias so the focus
 // panel's section headers can diverge later without affecting the tabs.
-const TIER_TAB_LABEL: Record<ChordData['tier'], string> = {
-  foundational: TIER_SECTION_LABEL.foundational,
-  seventh: TIER_SECTION_LABEL.seventh,
-  dominant: TIER_SECTION_LABEL.dominant,
-  extensions: TIER_SECTION_LABEL.extensions,
-};
 
 function pickRootMidi(): number {
   // C3..B3 — keeps Maj13 / Dom13 top notes in a comfortable range.
@@ -143,7 +147,14 @@ export default function ChordRecognitionQuiz({
   chords, attempts, initialFocusKeys,
 }: Props) {
   const [spelling] = useSpelling();
-  const [tierFilter, setTierFilter] = useState<TierFilter>('all');
+  /**
+   * The strip's tier selection, replacing the single-select tier tabs.
+   *
+   * Every chip lit on load, because the full pool should look full —
+   * see `allSelected`. The tabs' 'all' state is that; each single tier
+   * is one chip kept.
+   */
+  const [selection, setSelection] = useState<FacetSelection>(NO_SELECTION);
   const [playStyle, setPlayStyle] = useState<PlaybackStyle>('blocked');
   const [brokenDir, setBrokenDir] = useState<BrokenChordDirection>('asc');
   const [current, setCurrent] = useState<{
@@ -185,7 +196,7 @@ export default function ChordRecognitionQuiz({
     DEFAULT_INVERSION_POSITIONS,
   );
 
-  const filterRef = useRef(tierFilter); filterRef.current = tierFilter;
+
   const playStyleRef = useRef(playStyle); playStyleRef.current = playStyle;
   const brokenDirRef = useRef(brokenDir); brokenDirRef.current = brokenDir;
   const focusActiveRef = useRef(focusActive); focusActiveRef.current = focusActive;
@@ -596,18 +607,45 @@ export default function ChordRecognitionQuiz({
    * off the pool anyway: a number that happens to be right because
    * nothing is filtering it goes wrong the next time something does.
    */
+  const facets = useMemo(
+    () => chordRecognitionFacets(chords, inversionPositions),
+    [chords, inversionPositions],
+  );
+  // The lit-everything default, applied once the facets exist. A stored
+  // selection would win here; chord recognition has none today.
+  useEffect(() => {
+    setSelection(prev => (Object.keys(prev).length === 0 ? allSelected(facets) : prev));
+  }, [facets]);
+
+  const resolution = useMemo(() => resolveFacets(facets, selection), [facets, selection]);
+  /**
+   * The whole pool, in the strip's own units — chord x inversion under
+   * the CURRENT inversion setting. Not `chords.length`: that is the
+   * number the old label reported, and it understated the pool by
+   * however many inversions were enabled.
+   */
+  const fullPoolSize = useMemo(
+    () => chords.reduce((n, c) => n + servedRefsFor(c, inversionPositions).length, 0),
+    [chords, inversionPositions],
+  );
+  /** The refs the strip currently applies, or null for the whole pool. */
+  const appliedRefs = useMemo(() => appliedKeys(resolution), [resolution]);
+
   const poolChords = useMemo(() => {
+    // The item-level focus pool still overrides the strip, exactly as it
+    // overrode the tier tabs.
+    const allowed = appliedRefs === null ? null : new Set(chordIdsFromRefs(appliedRefs));
     const list = focusActive
       ? chords.filter(c => new Set(focusKeys).has(c.id))
-      : tierFilter === 'all'
+      : allowed === null
         ? chords
-        : chords.filter(c => c.tier === tierFilter);
+        : chords.filter(c => allowed.has(c.id));
     // Sort by tier then by name for consistent layout.
     return [...list].sort((a, b) => {
       const t = TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier);
       return t !== 0 ? t : a.name.localeCompare(b.name);
     });
-  }, [chords, tierFilter, focusActive, focusKeys]);
+  }, [chords, appliedRefs, focusActive, focusKeys]);
 
   const poolChordsRef = useRef(poolChords); poolChordsRef.current = poolChords;
 
@@ -618,9 +656,13 @@ export default function ChordRecognitionQuiz({
    * the suggestion is about which TAB to open, and there is no tab
    * strip to act on.
    */
+  const selectedTiers = useMemo(
+    () => (selection.tier ?? []) as SuggestionTab[],
+    [selection],
+  );
   const suggestion = useMemo(
-    () => (focusActive ? null : progressionSuggestionFor(tierFilter, lifetimeStats)),
-    [focusActive, tierFilter, lifetimeStats],
+    () => (focusActive ? null : progressionSuggestionFor(selectedTiers, lifetimeStats)),
+    [focusActive, selectedTiers, lifetimeStats],
   );
   const [suggestionDismissed, setSuggestionDismissed] = useState(sessionDismissed);
   const dismissSuggestion = () => {
@@ -798,12 +840,21 @@ export default function ChordRecognitionQuiz({
       // say four while the quiz is choosing between one.
       return `focused practice — ${focusPoolSize} chord${focusPoolSize === 1 ? '' : 's'} selected`;
     }
-    if (tierFilter === 'all') return `all chords — ${poolChords.length} in pool`;
-    return `${TIER_SECTION_LABEL[tierFilter].toLowerCase()} — ${poolChords.length} in pool`;
+    // The tier-specific pool strings are superseded by the strip's live
+    // count, which reports chord x inversion rather than chord
+    // qualities — the number this used to under-report.
+    return null;
   })();
 
   return (
-    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
+    <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5"
+      /* `data-item-key` names the question currently being asked.
+         The same seam ReadingDrill carries as `data-item-ref` and
+         IntervalsQuiz as `data-item-key`: without it, "the question
+         did not change when the filter did" has to infer the item
+         from rendered text and passes whenever two look alike. */
+      data-item-key={current ? attemptItemId(current.chord.id, current.inversion) : undefined}
+    >
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">chord recognition quiz</h2>
       </div>
@@ -814,70 +865,34 @@ export default function ChordRecognitionQuiz({
           on that tab regardless of which tab is selected — configuring
           inversion training is independent of scoping the pool. */}
       <div className="flex flex-col items-center gap-2">
+        {/* THE STRIP REPLACES THE TIER TABS. Multi-select, so a reader
+            can drill triads and sevenths together — which the tabs
+            could not express at all. The gear that opened inversion
+            settings moves onto the strip's own row rather than onto a
+            chip: it configures a setting that applies across tiers, and
+            hanging it off one chip said it belonged to that tier. */}
         {!focusActive && (
-          <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs flex-wrap justify-center">
-            {([
-              { id: 'all', label: 'all chords' },
-              { id: 'foundational', label: TIER_TAB_LABEL.foundational },
-              { id: 'seventh', label: TIER_TAB_LABEL.seventh },
-              { id: 'dominant', label: TIER_TAB_LABEL.dominant },
-              { id: 'extensions', label: TIER_TAB_LABEL.extensions },
-            ] as const).map(tab => {
-              const active = tierFilter === tab.id;
-              // The gear sits on every tab inversion training applies
-              // to. On foundational alone it would have said the
-              // setting was about triads, which stopped being true the
-              // moment step 2 started firing for sevenths.
-              // DERIVED, not listed. This was a literal pair that happened
-              // to agree with INVERSION_TRAINED_TIERS — the same shape of
-              // duplication that let the dashboard drift 63 rows away
-              // from the drill. The gear belongs on exactly the tabs
-              // inversion training applies to, so it asks that set.
-              const hasGear = tab.id !== 'all' && INVERSION_TRAINED_TIERS.has(tab.id);
-              // Each tab is a wrapper with one or two buttons inside —
-              // a button for the label, and (foundational only) a
-              // sibling button for the gear. Avoids nesting interactive
-              // elements while still rendering the gear as part of the
-              // tab's visual unit.
-              const wrapperClass = `inline-flex items-center rounded-md transition ${
-                active ? 'bg-fluent text-white' : ''
-              }`;
-              const labelClass = `px-3 py-1.5 rounded-md transition ${
-                active
-                  ? 'text-white'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-              } ${hasGear ? 'pr-1.5' : ''}`;
-              const gearClass = `inline-flex items-center justify-center pr-2 py-1.5 text-[12px] leading-none rounded-md transition ${
-                active
-                  ? 'text-white opacity-90 hover:opacity-100'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-              }`;
-              return (
-                <span key={tab.id} className={wrapperClass}>
-                  <button
-                    type="button"
-                    onClick={() => setTierFilter(tab.id)}
-                    className={labelClass}
-                  >
-                    {tab.label}
-                  </button>
-                  {hasGear && (
-                    <button
-                      type="button"
-                      aria-label="inversion training settings"
-                      title="inversion training settings"
-                      onClick={e => {
-                        e.stopPropagation();
-                        setShowInversionSettings(v => !v);
-                      }}
-                      className={gearClass}
-                    >
-                      ⚙
-                    </button>
-                  )}
-                </span>
-              );
-            })}
+          <div className="w-full space-y-1.5">
+            <FilterStrip
+              facets={facets}
+              selection={selection}
+              onToggle={(facetId, valueId) =>
+                setSelection(prev => toggleFacetValue(prev, facetId, valueId))}
+              accentHex={ACCENT}
+              poolSize={fullPoolSize}
+              servingSize={appliedRefs?.length ?? fullPoolSize}
+            />
+            <div className="flex justify-end">
+              <button
+                type="button"
+                aria-label="inversion training settings"
+                title="inversion training settings"
+                onClick={() => setShowInversionSettings(v => !v)}
+                className="text-[12px] leading-none text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+              >
+                ⚙ inversions
+              </button>
+            </div>
           </div>
         )}
 

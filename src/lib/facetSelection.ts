@@ -42,6 +42,34 @@ export type FacetSelection = Readonly<Record<string, readonly string[]>>;
 
 export const NO_SELECTION: FacetSelection = {};
 
+/**
+ * Every value of every facet, selected.
+ *
+ * =====================================================================
+ * THE FULL POOL SHOULD LOOK FULL.
+ *
+ * Nothing selected resolves to everything, which is correct and reads
+ * as empty. A reader arriving at a strip with no chip lit cannot tell
+ * "you have all thirteen" from "you have none of them", and the number
+ * beside it is doing all the work.
+ *
+ * THIS IS A UI STATE, NOT A CONTRACT CHANGE. `resolveFacets` is
+ * untouched: everything selected already resolves to everything,
+ * because each facet's union is its whole pool and intersecting whole
+ * pools gives the whole pool. "Nothing selected does not constrain"
+ * stays true as a rule — it is simply no longer the state a drill
+ * starts in.
+ * =====================================================================
+ */
+export function allSelected(facets: readonly Facet[]): FacetSelection {
+  const out: Record<string, readonly string[]> = {};
+  for (const facet of facets) {
+    if (facet.values.length === 0) continue;
+    out[facet.id] = facet.values.map(v => v.id);
+  }
+  return out;
+}
+
 export interface Resolution {
   /**
    * The keys the selection resolves to, in a deterministic order.

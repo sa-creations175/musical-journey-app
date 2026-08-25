@@ -20,7 +20,7 @@ import { MemoryRouter } from 'react-router-dom';
 import IntervalsQuiz from '../IntervalsQuiz';
 import { INTERVAL_SEEDS, directionsFor, intervalFacets } from '../seed';
 import { intervalFacetList, allIntervalKeys } from '../facets';
-import { resolveFacets } from '../../../../lib/facetSelection';
+import { allSelected, resolveFacets } from '../../../../lib/facetSelection';
 import type { AttemptRecord, IntervalData } from '../../../../lib/db';
 
 /**
@@ -78,8 +78,30 @@ async function click(el: Element | null | undefined, what: string) {
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
 }
 
-const chip = (facet: string, value: string) =>
-  container!.querySelector(`[data-facet="${facet}"][data-value="${value}"]`);
+/**
+ * Reduce a facet to exactly one value.
+ *
+ * The strip loads with every chip lit, so narrowing means DESELECTING
+ * the others rather than selecting one — which is the whole behavioural
+ * consequence of the lit-everything default and is why these tests read
+ * differently from the ones written against the empty default.
+ */
+async function keepOnly(facetId: string, valueId: string): Promise<number | null> {
+  const others = [...container!.querySelectorAll(`[data-facet="${facetId}"]`)]
+    .filter(el => el.getAttribute('data-value') !== valueId);
+  // EVERY intermediate deselection that still resolves to something is
+  // applied, so the pool moves several times inside one call. The last
+  // non-empty value is what "your previous pool" will name — captured
+  // here rather than recomputed, because recomputing it would mean
+  // modelling this loop a second time.
+  let lastServing: number | null = shownServing();
+  for (const el of others) {
+    await click(el, `deselect ${el.getAttribute('data-value')}`);
+    const now = shownServing();
+    if (now !== null) lastServing = now;
+  }
+  return lastServing;
+}
 
 const byText = (text: RegExp) =>
   [...container!.querySelectorAll('button')]
@@ -87,6 +109,14 @@ const byText = (text: RegExp) =>
 
 const countText = () =>
   container!.querySelector('[data-testid="filter-count"]')!.textContent ?? '';
+
+/** The "N of M" the strip is currently showing, or null when it is not
+ *  in that state. Used to capture what was serving immediately before a
+ *  selection went empty. */
+function shownServing(): number | null {
+  const m = countText().match(/(\d+) of \d+/);
+  return m ? Number(m[1]) : null;
+}
 
 /**
  * Any enabled answer button.
@@ -130,14 +160,33 @@ describe('the strip replaces the direction tabs', () => {
 });
 
 describe('the live count matches what is actually served', () => {
-  it('shows the pool size when nothing is selected', async () => {
-    await render();
+  it('lights every chip on a fresh load, resolving to the whole pool', async () => {
+    // BOTH HALVES. That the chips are lit, AND that lighting them
+    // resolves to the same pool as lighting none — equality alone would
+    // pass on a strip that still started empty.
+    const el = await render();
+    const chips = [...el.querySelectorAll('[data-facet]')] as HTMLElement[];
+    expect(chips.length).toBeGreaterThan(0);
+    for (const c of chips) {
+      expect(c.getAttribute('aria-pressed'), c.getAttribute('data-value') ?? '').toBe('true');
+    }
+    const facets = intervalFacetList();
+    expect(resolveFacets(facets, allSelected(facets)).keys.length)
+      .toBe(allIntervalKeys().length);
+    expect(countText()).toContain(`${allIntervalKeys().length} of ${allIntervalKeys().length}`);
+  });
+
+  it('falls back to the un-narrowed reading if every chip is turned off', async () => {
+    // The rule "nothing selected does not constrain" is still true; it
+    // is just no longer where a drill starts.
+    const el = await render();
+    for (const c of [...el.querySelectorAll('[data-facet]')]) await click(c, 'deselect');
     expect(countText()).toContain(`${allIntervalKeys().length} in pool`);
   });
 
   it('shows the resolved size, derived from the same source', async () => {
     await render();
-    await click(chip('consonance', 'dissonant'), 'dissonant chip');
+    await keepOnly('consonance', 'dissonant');
     // Derived here the same way the component derives it, so the test
     // cannot drift from the implementation by carrying its own number.
     const expected = resolveFacets(intervalFacetList(), { consonance: ['dissonant'] }).keys.length;
@@ -157,20 +206,20 @@ describe('the live count matches what is actually served', () => {
       .find(({ c, d }) => resolveFacets(facets, { consonance: [c], distance: [d] }).keys.length === 0);
     expect(empty, 'no empty combination exists in the catalog').toBeTruthy();
 
-    await click(chip('consonance', empty!.c), `${empty!.c} chip`);
-    await click(chip('distance', empty!.d), `${empty!.d} chip`);
+    await keepOnly('consonance', empty!.c);
+    const previous = await keepOnly('distance', empty!.d);
     expect(container!.querySelector('[data-testid="filter-count-empty"]')).not.toBeNull();
     expect(countText()).not.toMatch(/\b0 of\b/);
-    // THE PREVIOUS POOL IS THE LAST ONE APPLIED, not the catalog. The
-    // first chip narrowed to a real group and that WAS applied; only
-    // the second chip resolved to nothing. So the message must name
-    // the group, which is smaller than the full pool.
-    const afterFirstChip = resolveFacets(
-      intervalFacetList(), { consonance: [empty!.c] },
-    ).keys.length;
-    expect(afterFirstChip).toBeGreaterThan(0);
-    expect(afterFirstChip).toBeLessThan(allIntervalKeys().length);
-    expect(countText()).toContain(`keeping your previous pool of ${afterFirstChip}`);
+    // THE PREVIOUS POOL IS THE LAST ONE APPLIED, and it is CAPTURED
+    // rather than recomputed. Every deselection that still resolves to
+    // something is applied, so the "previous" pool depends on the order
+    // the chips were turned off — recomputing it here would be a second
+    // model of that sequence, and a wrong one the first time the
+    // sequence changed.
+    expect(previous, 'nothing was serving before the empty selection').not.toBeNull();
+    expect(previous!).toBeGreaterThan(0);
+    expect(previous!).toBeLessThan(allIntervalKeys().length);
+    expect(countText()).toContain(`keeping your previous pool of ${previous}`);
   });
 });
 
@@ -199,7 +248,7 @@ describe('the filter applies to the NEXT question', () => {
     const { value, keys } = disjointSelection(before);
     expect(keys).not.toContain(before);
 
-    await click(chip('consonance', value), `${value} chip`);
+    await keepOnly('consonance', value);
 
     // HALF ONE: the question the reader was asked is still the question.
     expect(served()).toBe(before);
@@ -218,7 +267,7 @@ describe('the filter applies to the NEXT question', () => {
     await click(byText(/play interval/i), 'play');
 
     // Narrow to something real first, so there IS a previous pool.
-    await click(chip('direction', 'asc'), 'ascending chip');
+    await keepOnly('direction', 'asc');
     const answeredKey = served()!;
 
     // Now add a combination that resolves to nothing.
@@ -226,19 +275,14 @@ describe('the filter applies to the NEXT question', () => {
     const empty = (['perfect', 'imperfect', 'dissonant'] as const).flatMap(c =>
       (['near', 'middle', 'far'] as const).map(d => ({ c, d })))
       .find(({ c, d }) => resolveFacets(facets, { consonance: [c], distance: [d] }).keys.length === 0)!;
-    await click(chip('consonance', empty.c), 'consonance chip');
-    await click(chip('distance', empty.d), 'distance chip');
+    await keepOnly('consonance', empty.c);
+    const previous = await keepOnly('distance', empty.d);
 
-    // THE MESSAGE NAMES THE POOL THAT IS PLAYING, not the catalog and
-    // not the widest thing selected along the way. Ascending plus the
-    // consonance chip was applied; adding the distance chip resolved to
-    // nothing and was not. So the previous pool is that intersection.
-    const lastApplied = resolveFacets(
-      intervalFacetList(), { direction: ['asc'], consonance: [empty.c] },
-    ).keys.length;
-    expect(lastApplied).toBeGreaterThan(0);
-    expect(lastApplied).toBeLessThan(allIntervalKeys().length);
-    expect(countText()).toContain(`keeping your previous pool of ${lastApplied}`);
+    // THE MESSAGE NAMES THE POOL THAT IS PLAYING, captured immediately
+    // before the selection went empty rather than recomputed here.
+    expect(previous, 'nothing was serving before the empty selection').not.toBeNull();
+    expect(previous!).toBeLessThan(allIntervalKeys().length);
+    expect(countText()).toContain(`keeping your previous pool of ${previous}`);
     expect(countText()).not.toContain(`pool of ${allIntervalKeys().length}`);
 
     expect(served()).toBe(answeredKey);

@@ -23,6 +23,8 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import ChordRecognitionQuiz from '../ChordRecognitionQuiz';
 import { CHORD_SEEDS } from '../seed';
+import { DEFAULT_INVERSION_POSITIONS } from '../inversionUtils';
+import { servedRefsFor } from '../facets';
 import { UNLOCK_MIN_ATTEMPTS } from '../tierUnlock';
 import type { AttemptRecord, ChordData } from '../../../../lib/db';
 
@@ -88,12 +90,32 @@ async function render(
   return container;
 }
 
+/**
+ * Narrow the strip to one tier.
+ *
+ * The tabs this replaced were single-select, so choosing a tier was one
+ * tap. The strip loads with every chip lit, so choosing a tier means
+ * DESELECTING the others — the same end state by a different gesture,
+ * which is why these call sites read differently from the ones they
+ * replaced.
+ */
+const TIER_BY_LABEL: Readonly<Record<string, string>> = {
+  'Foundational Triads': 'foundational',
+  'Seventh Chords': 'seventh',
+  'Dominant Variations': 'dominant',
+  'Extensions & Colors': 'extensions',
+};
+
 function clickTab(el: HTMLElement, label: string): void {
-  const button = [...el.querySelectorAll('button')]
-    .find(b => b.textContent?.trim() === label);
-  if (!button) throw new Error(`no tab labelled ${label}`);
+  const tier = TIER_BY_LABEL[label];
+  if (!tier) throw new Error(`no tier for ${label}`);
+  const others = [...el.querySelectorAll('[data-facet="tier"]')]
+    .filter(c => c.getAttribute('data-value') !== tier);
+  if (others.length === 0) throw new Error(`no tier chips rendered for ${label}`);
   act(() => {
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    for (const c of others) {
+      c.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    }
   });
 }
 
@@ -197,9 +219,21 @@ describe('the count reads the pool', () => {
     // that is the test below.
     const el = await render();
     clickTab(el, 'Seventh Chords');
-    const stated = Number(/(\d+) in pool/.exec(el.textContent ?? '')?.[1]);
-    expect(stated).toBe(answerNames(el).length);
-    expect(stated).toBe(seededIn('seventh'));
+    // THE STRIP COUNTS CHORD x INVERSION, and the answer grid counts
+    // QUALITIES — they are different numbers on purpose. The old label
+    // conflated them and so understated the pool by however many
+    // inversions were enabled.
+    const stated = Number(/(\d+) of \d+/.exec(
+      el.querySelector('[data-testid="filter-count"]')?.textContent ?? '',
+    )?.[1]);
+    const served = chords
+      .filter(c => c.tier === 'seventh')
+      .reduce((n, c) => n + servedRefsFor(c, DEFAULT_INVERSION_POSITIONS).length, 0);
+    expect(stated).toBe(served);
+    // The grid still offers one button per quality, and there are more
+    // refs than qualities — which is the understatement being fixed.
+    expect(answerNames(el).length).toBe(seededIn('seventh'));
+    expect(stated).toBeGreaterThan(answerNames(el).length);
   });
 
   it('follows the catalog it was given, not the seed it was built from', () => {
@@ -303,9 +337,8 @@ describe('the suggestion sits where the tap was', () => {
     const note = suggestion(el);
     expect(note).not.toBeNull();
 
-    const strip = [...el.querySelectorAll('button')]
-      .find(b => b.textContent?.trim() === 'Seventh Chords')!
-      .closest('div')!;
+    const strip = el.querySelector('[data-testid="filter-strip"]')!
+      .parentElement!;
     // Siblings in one column, suggestion immediately after the strip.
     expect(note!.parentElement).toBe(strip.parentElement);
     expect(strip.nextElementSibling).toBe(note);
@@ -317,7 +350,7 @@ describe('the suggestion sits where the tap was', () => {
     ]);
     clickTab(el, 'Extensions & Colors');
     const text = suggestion(el)!.textContent ?? '';
-    expect(text).toContain('Suggestion — The foundational triads first.');
+    expect(text).toContain('Suggestion — Get solid on the foundational triads first.');
     expect(text).toContain("You've cleared 3 of 6");
     expect(text).toContain('10 attempts with 75% correct');
     expect(text).toContain('triad with a note added');
@@ -332,12 +365,47 @@ describe('the suggestion sits where the tap was', () => {
     expect(suggestion(el)!.textContent).toContain("You've cleared 1 of 6");
   });
 
-  it('stays quiet where there is nothing to suggest', async () => {
+  it('stays quiet when nothing is selected below the lowest uncleared tier', async () => {
+    // THE RULE CHANGED, AND SO DID THIS TEST. It used to assert silence
+    // on `all`, because `all` was its own case that returned null. The
+    // rule now names the lowest uncleared tier below the HIGHEST tier
+    // selected, and does not care whether that tier is also selected —
+    // so a pool holding extensions with triads uncleared speaks up,
+    // and "all" is exactly such a pool.
+    //
+    // What is still silent is a selection with nothing beneath it.
     const el = await render();
-    // On `all` — not skipping anything.
-    expect(suggestion(el)).toBeNull();
-    // On the suggested tab itself — already doing it.
     clickTab(el, 'Foundational Triads');
+    expect(suggestion(el)).toBeNull();
+  });
+
+  it('fires when the prerequisite tier IS selected and still uncleared', async () => {
+    // THE CASE A NAIVE IMPLEMENTATION LOSES. "Stay quiet if the tier is
+    // selected" would silence this, and it is the state a reader is
+    // most likely to be in — they widened the pool rather than jumping
+    // past it. Having triads in the pool is not being solid at them.
+    const el = await render(undefined, clearing('maj'));
+    const chips = [...el.querySelectorAll('[data-facet="tier"]')];
+    const drop = chips.filter(c => !['foundational', 'seventh'].includes(
+      c.getAttribute('data-value') ?? '',
+    ));
+    act(() => {
+      for (const c of drop) {
+        c.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+      }
+    });
+    const text = suggestion(el)?.textContent ?? '';
+    expect(text).toContain('Get solid on the foundational triads first.');
+  });
+
+  it('goes quiet once the lower tiers are cleared', async () => {
+    // Every foundational chord cleared, so there is nothing below the
+    // sevenths left to ask for.
+    const attempts = CHORD_SEEDS
+      .filter(c => c.tier === 'foundational')
+      .flatMap((c, i) => clearing(c.id, i * 100));
+    const el = await render(undefined, attempts);
+    clickTab(el, 'Seventh Chords');
     expect(suggestion(el)).toBeNull();
   });
 
