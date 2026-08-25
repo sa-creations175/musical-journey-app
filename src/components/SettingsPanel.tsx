@@ -1,7 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from './Modal';
-import { getPref } from '../lib/userPrefs';
+import { getPref, setPref } from '../lib/userPrefs';
+import { MODULE_ORDER, type ModuleMeta } from '../lib/moduleMeta';
+import {
+  DAILY_GOAL_UNITS,
+  DAILY_GOAL_UNIT_LABEL,
+  DEFAULT_MODULE_GOAL,
+  MAX_DAILY_GOAL,
+  isNumericGoal,
+  isValidGoalAmount,
+  moduleGoalKey,
+  normaliseModuleGoal,
+  type DailyGoalUnit,
+  type ModuleDailyGoal,
+} from '../lib/goalConfig';
 import { useUserName } from '../modules/dashboard/userName';
 import { useAuth } from '../lib/auth/useAuth';
 import { useSyncStatus } from '../lib/sync/useSyncStatus';
@@ -163,6 +176,120 @@ function DeveloperSection() {
           />
         </span>
       </button>
+    </section>
+  );
+}
+
+/**
+ * Daily goals, one block per module.
+ *
+ * =====================================================================
+ * THE UNIT COMES FIRST, AND IT DECIDES WHETHER THERE IS A NUMBER.
+ *
+ * Picking "any practice" does not set the number to zero — it stores a
+ * goal with no `amount` field at all, so nothing stale sits behind the
+ * hidden input and nothing can read a number that is not there. See
+ * `ModuleDailyGoal`.
+ * =====================================================================
+ *
+ * THE MODULE LIST IS `MODULE_ORDER`, not a list typed here: a module
+ * added to the app arrives in this panel with the goal every module
+ * ships with, and in the same pedagogical order the sidebar uses.
+ */
+function ModuleGoalRow({ module }: { module: ModuleMeta }) {
+  /**
+   * The SELECTED unit and the TYPED number are held apart from the
+   * stored goal, and only a valid pair is written.
+   *
+   * The alternative — one `ModuleDailyGoal` in state — needs a value
+   * for `amount` the moment a numeric unit is picked, before anything
+   * has been typed. The only value available is 0, which is the
+   * number this whole design exists to keep out of a goal. So an
+   * unfinished edit stays unfinished: the module keeps the goal it
+   * had until a usable number exists.
+   */
+  const [unit, setUnit] = useState<DailyGoalUnit>(DEFAULT_MODULE_GOAL.unit);
+  const [draft, setDraft] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    void getPref<unknown>(moduleGoalKey(module.id), null)
+      .then(raw => {
+        if (!live) return;
+        const stored = normaliseModuleGoal(raw);
+        setUnit(stored.unit);
+        setDraft(isNumericGoal(stored) ? String(stored.amount) : '');
+      });
+    return () => { live = false; };
+  }, [module.id]);
+
+  const store = (next: ModuleDailyGoal) => {
+    void setPref(moduleGoalKey(module.id), next);
+  };
+
+  const pickUnit = (next: DailyGoalUnit) => {
+    setUnit(next);
+    if (next === 'any-practice') {
+      // The stored goal loses its amount entirely, so nothing stale
+      // waits behind the hidden field.
+      setDraft('');
+      store({ unit: next });
+      return;
+    }
+    const amount = Number(draft);
+    if (isValidGoalAmount(amount)) store({ unit: next, amount });
+  };
+
+  const pickAmount = (raw: string) => {
+    setDraft(raw);
+    if (unit === 'any-practice') return;
+    const amount = Number(raw);
+    if (isValidGoalAmount(amount)) store({ unit, amount });
+  };
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-sm min-w-[9rem]">{module.label}</span>
+      <select
+        value={unit}
+        onChange={e => pickUnit(e.target.value as DailyGoalUnit)}
+        aria-label={`${module.label} daily goal unit`}
+        data-testid="module-goal-unit"
+        data-module={module.id}
+        className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
+      >
+        {DAILY_GOAL_UNITS.map(u => (
+          <option key={u} value={u}>{DAILY_GOAL_UNIT_LABEL[u]}</option>
+        ))}
+      </select>
+      {/* NO FIELD AT ALL ON "ANY PRACTICE" — not a disabled one holding
+          a number the goal no longer has. */}
+      {unit !== 'any-practice' && (
+        <input
+          type="number"
+          min={1}
+          max={MAX_DAILY_GOAL}
+          value={draft}
+          onChange={e => pickAmount(e.target.value)}
+          aria-label={`${module.label} daily goal amount`}
+          data-testid="module-goal-amount"
+          data-module={module.id}
+          className="w-20 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm"
+        />
+      )}
+    </div>
+  );
+}
+
+function DailyGoalsSection() {
+  return (
+    <section>
+      <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+        daily goals per module
+      </h4>
+      <div className="space-y-2" data-testid="daily-goals">
+        {MODULE_ORDER.map(m => <ModuleGoalRow key={m.id} module={m} />)}
+      </div>
     </section>
   );
 }
@@ -354,12 +481,17 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
           <AccountSection />
 
+          {/* The "coming soon" note promised daily goals per module;
+              this is them. The rest of what it promised is still to
+              come, so the note keeps the rest. */}
+          <DailyGoalsSection />
+
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
               more settings
             </h4>
             <p className="text-sm text-neutral-500">
-              more settings coming soon — daily goals per module, notification preferences,
+              more settings coming soon — notification preferences,
               theme options, and more.
             </p>
           </section>

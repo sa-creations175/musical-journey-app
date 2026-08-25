@@ -33,6 +33,12 @@ export function daysBetween(olderKey: string, newerKey: string): number {
 // consecutive days where total-attempt count met the goal. Wrong answers
 // count toward the goal alongside correct ones — see DailyGoalBar.
 export function computeDayStreak(attempts: AttemptRecord[], goal: number, today: string = localDayKey()): number {
+  // A NON-POSITIVE GOAL IS CLEARED BY EVERY DAY THERE HAS EVER BEEN, so
+  // the walk below never terminates. It hung a full test run once, from
+  // a goal that arrived as an array and coerced to 0. Callers should
+  // never pass one — "any practice" is its own unit, see
+  // `ModuleDailyGoal` — and if one gets here anyway it stops here.
+  if (!(goal > 0)) return 0;
   const attemptsByDay = new Map<string, number>();
   for (const a of attempts) {
     const key = localDayKey(new Date(a.timestamp));

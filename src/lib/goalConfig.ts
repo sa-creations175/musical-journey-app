@@ -75,3 +75,92 @@ export function speedPrefKey(moduleId: string): string {
 export function isValidGoal(n: number): boolean {
   return Number.isInteger(n) && n >= MIN_DAILY_GOAL && n <= MAX_DAILY_GOAL;
 }
+
+// =====================================================================
+// Per-module daily goals — unit first, number second
+// =====================================================================
+
+/**
+ * What a module's daily goal COUNTS.
+ *
+ * ---------------------------------------------------------------
+ * "ANY PRACTICE" IS A MODE, NOT A THRESHOLD OF ZERO.
+ *
+ * `computeDayStreak` walks backwards while each day clears the goal, so
+ * a goal of 0 clears on every day in history and the walk never ends —
+ * that is the run that hung. Modelling "just show up" as `amount: 0`
+ * puts that value one typo away from every streak on the app.
+ *
+ * So it is a separate unit with NO amount field at all: the numeric
+ * path is unreachable from it by construction, not by remembering to
+ * check. See `ModuleDailyGoal`.
+ * ---------------------------------------------------------------
+ */
+export type DailyGoalUnit = 'any-practice' | 'answers' | 'minutes';
+
+/**
+ * A module's goal.
+ *
+ * A DISCRIMINATED UNION, deliberately. `{ unit, amount? }` would let
+ * `amount` be read wherever the unit was not checked first; this shape
+ * makes "read the number" impossible until the unit says there is one.
+ */
+export type ModuleDailyGoal =
+  | { unit: 'any-practice' }
+  | { unit: 'answers'; amount: number }
+  | { unit: 'minutes'; amount: number };
+
+/** The goal every module ships with. One constant, no per-module numbers. */
+export const DEFAULT_MODULE_GOAL: ModuleDailyGoal = { unit: 'any-practice' };
+
+/** The units a reader can pick, in the order they are offered. */
+export const DAILY_GOAL_UNITS: ReadonlyArray<DailyGoalUnit> =
+  ['any-practice', 'answers', 'minutes'];
+
+export const DAILY_GOAL_UNIT_LABEL: Readonly<Record<DailyGoalUnit, string>> = {
+  'any-practice': 'any practice',
+  answers: 'answers',
+  minutes: 'minutes',
+};
+
+/**
+ * Pref key for the module's goal. Distinct from `dailyGoalKey`, which
+ * addresses the older answers-only number the in-session bar reads —
+ * two shapes under one key would make a stored number ambiguous.
+ */
+export function moduleGoalKey(moduleId: string): string {
+  return `moduleGoal${pascalModule(moduleId)}`;
+}
+
+/** True when this goal carries a number to compare a day against. */
+export function isNumericGoal(
+  goal: ModuleDailyGoal,
+): goal is { unit: 'answers' | 'minutes'; amount: number } {
+  return goal.unit !== 'any-practice';
+}
+
+/** A goal amount that `computeDayStreak` can safely walk. */
+export function isValidGoalAmount(amount: unknown): amount is number {
+  return typeof amount === 'number'
+    && Number.isInteger(amount)
+    && amount > 0
+    && amount <= MAX_DAILY_GOAL;
+}
+
+/**
+ * A stored value, made safe to use.
+ *
+ * ANYTHING THAT IS NOT A VALID NUMERIC GOAL BECOMES "ANY PRACTICE" —
+ * an older row, a hand-edited pref, a synced value from a future shape,
+ * a zero. The fallback is the mode that cannot loop, so a bad row
+ * degrades to "you practised that day" rather than to a hang.
+ */
+export function normaliseModuleGoal(raw: unknown): ModuleDailyGoal {
+  if (typeof raw !== 'object' || raw === null) return DEFAULT_MODULE_GOAL;
+  const unit = (raw as { unit?: unknown }).unit;
+  if (unit === 'answers' || unit === 'minutes') {
+    const amount = (raw as { amount?: unknown }).amount;
+    return isValidGoalAmount(amount) ? { unit, amount } : DEFAULT_MODULE_GOAL;
+  }
+  return DEFAULT_MODULE_GOAL;
+}
