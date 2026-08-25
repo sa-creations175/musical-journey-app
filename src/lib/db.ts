@@ -1595,6 +1595,34 @@ export interface AttemptRecord {
    * union type keeps them from drifting into free text. */
   drillTab?: DrillTab;
   /**
+   * Chord recognition only. How many stages the reader actually
+   * answered in.
+   *
+   * =====================================================================
+   * ITS OWN COLUMN, NOT A `drillTab` VALUE.
+   *
+   * `drillTab` says it is absent in single-drill modules, and chord
+   * recognition has no tabs. Putting 'quality' there would make that
+   * field's own documentation false — and the two facts are not the
+   * same shape: a tab is a place the reader chose to be, a stage is
+   * how the question resolved once they answered. Same two literals,
+   * two different claims.
+   *
+   * WHY IT MUST BE RECORDED RATHER THAN RECONSTRUCTED. Step two fires
+   * only when the chord is inversion-trained, not excluded, AND the
+   * reader has at least two inversion positions enabled. That third
+   * condition is a mutable setting that appears nowhere on the row, so
+   * a later reader cannot tell a one-stage answer from a two-stage one
+   * — and the two take visibly different times. Pooled, they are two
+   * distributions wearing one name.
+   *
+   * DECIDED AT ANSWER TIME, unlike the four ask-time settings, and
+   * correctly so: whether step two fires depends on the quality
+   * verdict, which does not exist until the reader has answered. There
+   * is nothing to capture in advance.
+   * ===================================================================== */
+  answerStage?: 'quality' | 'quality-inversion';
+  /**
    * Reading note items only. Which half of the staged letter/octave
    * answer was missed, set ONLY when the attempt was wrong.
    *

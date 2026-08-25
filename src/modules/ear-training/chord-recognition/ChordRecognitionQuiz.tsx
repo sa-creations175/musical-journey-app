@@ -530,6 +530,12 @@ export default function ChordRecognitionQuiz({
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
       ...answerTimingFields(asked.current, timestamp),
+      // ONE STAGE: the reader answered once and the card resolved,
+      // either because the quality was wrong or because step two does
+      // not fire for this chord under the current settings. Recorded
+      // rather than inferred — the settings half of that condition is
+      // not on the row and can move between now and reading it.
+      answerStage: 'quality',
     });
     await recordEngagement({
       itemRef: itemId,
@@ -558,6 +564,9 @@ export default function ChordRecognitionQuiz({
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
       ...answerTimingFields(asked.current, timestamp),
+      // TWO STAGES: quality was right and the reader then placed the
+      // inversion, so this row's elapsed time covers both answers.
+      answerStage: 'quality-inversion',
     });
     await recordEngagement({
       itemRef: itemId,

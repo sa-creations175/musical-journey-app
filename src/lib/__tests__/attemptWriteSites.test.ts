@@ -87,6 +87,42 @@ describe('the flashcard shell modules', () => {
   }
 });
 
+describe('chord recognition records the stage, not a tab', () => {
+  it('marks its two write sites as one-stage and two-stage', () => {
+    // The two sites resolve differently: one is reached when the
+    // reader answered once, the other when they answered twice.
+    expect(count(chordRecognitionSource, /answerStage: 'quality',/g)).toBe(1);
+    expect(count(chordRecognitionSource, /answerStage: 'quality-inversion',/g)).toBe(1);
+  });
+
+  it('does NOT put the stage on drillTab', () => {
+    // `drillTab`'s own docblock says it is absent in single-drill
+    // modules, and chord recognition has no tabs. Putting 'quality'
+    // there would make that documentation false — and a tab is a place
+    // the reader chose to be, a stage is how the question resolved.
+    // Same two literals, two different claims.
+    expect(chordRecognitionSource).not.toContain('drillTab');
+  });
+
+  it('is the only module that records a stage', () => {
+    // A single-stage module writing one would be claiming a
+    // distinction it does not have.
+    for (const { name, source } of HEARD) {
+      if (name === 'chord recognition') continue;
+      expect(source, name).not.toContain('answerStage');
+    }
+  });
+
+  it('records it rather than leaving it reconstructable', () => {
+    // Step two fires only when the chord is inversion-trained, not
+    // excluded, AND at least two inversion positions are enabled. That
+    // last condition is a mutable setting that appears nowhere on the
+    // row, so nothing downstream could recover the split.
+    expect(chordRecognitionSource).toContain('inversionPositionsRef.current.length >= 2');
+    expect(chordRecognitionSource).not.toContain('inversionPositions: ');
+  });
+});
+
 describe('the count itself', () => {
   it('is twelve write sites — nine heard, two shell, one reading', () => {
     // PINNED, because the number is the thing that was wrong twice.
