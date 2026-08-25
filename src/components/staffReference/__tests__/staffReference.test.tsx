@@ -2,11 +2,20 @@
 /**
  * The drawing, and the mnemonics behind it.
  *
- * NO LAYOUT ASSERTIONS. jsdom has no layout engine, so nothing here
- * claims a space note LOOKS like it sits between two ledger lines.
- * What is pinned is the mechanism that makes it so: every position is
- * drawn, each carries its kind, and a line is dotted exactly when it is
- * a ledger.
+ * =====================================================================
+ * NO LAYOUT ASSERTIONS, AND THIS FILE CANNOT MAKE ANY.
+ *
+ * jsdom has no layout engine. It resolves no boxes, measures no text
+ * and paints nothing, so whether the two columns actually clear each
+ * other, whether a line passes behind its row's text rather than
+ * through it, and whether the brace meets the staves cannot be observed
+ * here at all. Those need the app.
+ *
+ * What IS pinned is the structure underneath: every position drawn
+ * once, in the column its kind puts it in, at the y its ladder index
+ * gives it; a line for every line position; ledgers dashed and full
+ * width; the furniture present; the mnemonics stored centrally.
+ * =====================================================================
  */
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -60,6 +69,12 @@ function type(input: HTMLInputElement, value: string) {
 const row = (el: HTMLElement, note: string) =>
   el.querySelector(`[data-testid="staff-row"][data-note="${note}"]`) as HTMLElement;
 
+/** The staff or ledger line drawn AT a position — now in the stage's
+ *  own SVG rather than inside the row, so the line can run the full
+ *  width behind both label columns. */
+const line = (el: HTMLElement, note: string) =>
+  el.querySelector(`[data-testid="staff-line"][data-note="${note}"]`);
+
 describe('the drawing', () => {
   it('renders every position on the ladder, once', async () => {
     const el = await mount();
@@ -71,56 +86,137 @@ describe('the drawing', () => {
 
   it('draws a line for every line position and none for a space', async () => {
     const el = await mount();
-    expect(row(el, 'E4').querySelector('[data-testid="staff-line"]')).not.toBeNull();
-    expect(row(el, 'F4').querySelector('[data-testid="staff-line"]')).toBeNull();
+    expect(line(el, 'E4')).not.toBeNull();
+    expect(line(el, 'F4')).toBeNull();
+    const lines = el.querySelectorAll('[data-testid="staff-line"]');
+    expect(lines).toHaveLength(buildLadder().filter(p => p.kind === 'line').length);
+  });
+
+  it('puts spaces and lines in two separate columns', async () => {
+    // The reason for the split: within a column the rows are two
+    // diatonic steps apart, which is what stops them colliding.
+    const el = await mount();
+    const spaceLeft = (row(el, 'F4') as HTMLElement).style.left;
+    const lineLeft = (row(el, 'E4') as HTMLElement).style.left;
+    expect(spaceLeft).not.toBe(lineLeft);
+    for (const pos of buildLadder()) {
+      const expected = pos.kind === 'space' ? spaceLeft : lineLeft;
+      expect((row(el, pos.id) as HTMLElement).style.left, pos.id).toBe(expected);
+    }
+  });
+
+  it('places every row from its ladder index, one step apart', async () => {
+    const el = await mount();
+    const ladder = buildLadder();
+    const topOf = (id: string) => parseFloat((row(el, id) as HTMLElement).style.top);
+    const step = topOf(ladder[0].id) - topOf(ladder[1].id);
+    expect(step).toBeGreaterThan(0);
+    for (let i = 1; i < ladder.length; i++) {
+      expect(topOf(ladder[i - 1].id) - topOf(ladder[i].id), ladder[i].id)
+        .toBeCloseTo(step, 5);
+    }
+  });
+
+  it('draws no noteheads — the letter is the mark', async () => {
+    const el = await mount();
+    const note = el.querySelector('[data-testid="staff-note"]')!;
+    expect(note.className).not.toContain('rounded-full');
+    expect(note.className).not.toContain('border');
   });
 
   it('dots the ledger lines and only those', async () => {
     const el = await mount();
-    const staffLine = row(el, 'E4').querySelector('[data-testid="staff-line"]')!;
-    const ledger = row(el, 'C4').querySelector('[data-testid="staff-line"]')!;
-    expect(staffLine.className).toContain('border-solid');
-    expect(ledger.className).toContain('border-dashed');
+    expect(line(el, 'E4')!.getAttribute('stroke-dasharray')).toBeNull();
+    expect(line(el, 'C4')!.getAttribute('stroke-dasharray')).not.toBeNull();
+    expect(line(el, 'A5')!.getAttribute('stroke-dasharray')).not.toBeNull();
+  });
+
+  it('colours ledgers and middle C from tokens, not literals', async () => {
+    const el = await mount();
+    expect(line(el, 'A5')!.getAttribute('class')).toContain('text-developing');
+    expect(line(el, 'C4')!.getAttribute('class')).toContain('text-fluent');
+    expect(line(el, 'E4')!.getAttribute('class')).toContain('text-neutral');
+    // No hex anywhere in the drawing.
+    expect(el.innerHTML).not.toMatch(/#[0-9a-fA-F]{6}\b/);
   });
 
   it('runs the ledger line the full width, like the staff lines', async () => {
-    // A ledger drawn only under the notehead leaves the space note
-    // above it looking like it floats.
-    const ledger = row(await mount(), 'A5').querySelector('[data-testid="staff-line"]')!;
-    expect(ledger.className).toContain('left-0');
-    expect(ledger.className).toContain('right-0');
+    // A ledger drawn only under the note leaves the space note above it
+    // looking like it floats.
+    const el = await mount();
+    const ledger = line(el, 'A5')!;
+    const staff = line(el, 'E4')!;
+    expect(ledger.getAttribute('x1')).toBe(staff.getAttribute('x1'));
+    expect(ledger.getAttribute('x2')).toBe(staff.getAttribute('x2'));
+  });
+
+  it('gives a line row an opaque break so the staff passes behind it', async () => {
+    // Without it the line runs THROUGH the text and strikes it out.
+    const el = await mount();
+    expect(row(el, 'E4').className).toContain('bg-white');
+    // A space row needs none: nothing is drawn where it sits.
+    expect(row(el, 'F4').className).not.toContain('bg-white');
   });
 
   it('marks middle C', async () => {
+    // WAS a text label beside the letter. It is marked by COLOUR now —
+    // its own dotted line and its letter both take the shared-note
+    // token, and the legend beneath the card says what that colour
+    // means. The rule is unchanged: middle C is distinguishable from
+    // every other position at a glance.
     const el = await mount();
-    expect(row(el, 'C4').querySelector('[data-testid="staff-middle-c"]')).not.toBeNull();
-    expect(row(el, 'E4').querySelector('[data-testid="staff-middle-c"]')).toBeNull();
+    expect(row(el, 'C4').getAttribute('data-middle-c')).toBe('true');
+    expect(row(el, 'C4').querySelector('[data-testid="staff-note"]')!.className)
+      .toContain('text-fluent');
+    expect(line(el, 'C4')!.getAttribute('class')).toContain('text-fluent');
+    // And nothing else claims it.
+    expect(el.querySelectorAll('[data-middle-c="true"]')).toHaveLength(1);
+    expect(row(el, 'E4').querySelector('[data-testid="staff-note"]')!.className)
+      .not.toContain('text-fluent');
+    expect(el.querySelector('[data-testid="staff-legend"]')!.textContent)
+      .toContain('middle C');
   });
 
   it('distinguishes a ledger note from a staff note', async () => {
     const el = await mount();
     const ledgerNote = row(el, 'C6').querySelector('[data-testid="staff-note"]')!;
     const staffNote = row(el, 'B4').querySelector('[data-testid="staff-note"]')!;
-    expect(ledgerNote.className).not.toBe(staffNote.className);
-    expect(ledgerNote.className).toContain('border-dashed');
+    const middleC = row(el, 'C4').querySelector('[data-testid="staff-note"]')!;
+    expect(ledgerNote.className).toContain('text-developing');
+    expect(middleC.className).toContain('text-fluent');
+    expect(staffNote.className).toContain('text-neutral');
+  });
+
+  it('carries the furniture the staff needs to read as one', async () => {
+    const el = await mount();
+    expect(el.querySelector('[data-testid="staff-brace"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="ledger-bracket-above"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="ledger-bracket-below"]')).not.toBeNull();
+    expect([...el.querySelectorAll('[data-testid="clef-label"]')].map(n => n.textContent))
+      .toEqual(['TREBLE', 'BASS']);
+    expect([...el.querySelectorAll('[data-testid="column-header"]')].map(n => n.textContent))
+      .toEqual(['SPACES', 'LINES']);
+    expect(el.querySelector('[data-testid="staff-legend"]')).not.toBeNull();
   });
 });
 
 describe('the octave toggle', () => {
-  it('is a control, and starts off', async () => {
+  it('says what it does, and shows the digit after the letter', async () => {
+    // It was labelled "8va", which is an instruction to play an octave
+    // higher — a different thing entirely.
     const el = await mount();
     const box = el.querySelector('[data-testid="staff-reference-octaves"]') as HTMLInputElement;
-    expect(box).not.toBeNull();
-    expect(box.checked).toBe(false);
-    expect(row(el, 'C4').textContent).not.toContain('C4');
+    expect(box.parentElement!.textContent).toContain('show octave numbers');
+    expect(el.textContent).not.toContain('8va');
+    expect(row(el, 'F5').querySelector('[data-testid="staff-octave"]')!.textContent).toBe('5');
   });
 
-  it('shows the numbers when switched on', async () => {
+  it('hides the digits when switched off, and the letters stay', async () => {
     const el = await mount();
     const box = el.querySelector('[data-testid="staff-reference-octaves"]') as HTMLInputElement;
     await act(async () => { box.click(); });
-    expect(row(el, 'C4').querySelector('[data-testid="staff-note"]')!.textContent)
-      .toContain('4');
+    expect(row(el, 'F5').querySelector('[data-testid="staff-octave"]')).toBeNull();
+    expect(row(el, 'F5').querySelector('[data-testid="staff-note"]')!.textContent).toBe('F');
   });
 });
 
@@ -131,11 +227,11 @@ describe('the mnemonics', () => {
     expect(row(el, 'G3').textContent).toContain('Grass');
   });
 
-  it('offer a prompt where a position has none', async () => {
+  it('prompt an empty ledger position in words', async () => {
     const el = await mount({ editable: true });
-    // Every ledger position ships empty.
-    expect(row(el, 'A5').querySelector('[data-testid="staff-mnemonic-add"]')).not.toBeNull();
-    expect(row(el, 'E4').querySelector('[data-testid="staff-mnemonic-add"]')).toBeNull();
+    const field = row(el, 'A5').querySelector('[data-testid="staff-mnemonic"]') as HTMLInputElement;
+    expect(field.value).toBe('');
+    expect(field.placeholder).toBe('add your own');
   });
 
   it('do not ask for one on the four treble spaces', async () => {
@@ -143,29 +239,31 @@ describe('the mnemonics', () => {
     // one would be asking for a mnemonic for the mnemonic.
     const el = await mount({ editable: true });
     for (const note of ['F4', 'A4', 'C5', 'E5']) {
-      expect(row(el, note).querySelector('[data-testid="staff-mnemonic-add"]'), note).toBeNull();
-      expect(row(el, note).querySelector('[data-testid="staff-spells-face"]'), note).not.toBeNull();
-      expect(row(el, note).textContent, note).toContain('F-A-C-E');
+      expect(row(el, note).querySelector('[data-testid="staff-mnemonic"]'), note).toBeNull();
     }
   });
 
-  it('say it whether the drawing is editable or not', async () => {
-    const el = await mount({ editable: false });
-    expect(row(el, 'A4').querySelector('[data-testid="staff-spells-face"]')).not.toBeNull();
-    // And no other position claims to spell it.
-    expect(el.querySelectorAll('[data-testid="staff-spells-face"]')).toHaveLength(4);
+  it('say it ONCE, beside the four, not once per row', async () => {
+    // Repeated per row it read as each row's own mnemonic. The four
+    // spell it together.
+    const el = await mount({ editable: true });
+    const tags = el.querySelectorAll('[data-testid="staff-spells-face"]');
+    expect(tags).toHaveLength(1);
+    expect(tags[0].textContent).toContain('F');
+    expect(tags[0].textContent).toContain('E');
   });
 
-  it('do not offer the prompt where the drawing is read-only', async () => {
+  it('offer no field at all where the drawing is read-only', async () => {
     const el = await mount({ editable: false });
-    expect(row(el, 'A5').querySelector('[data-testid="staff-mnemonic-add"]')).toBeNull();
+    expect(row(el, 'A5').querySelector('[data-testid="staff-mnemonic"]')).toBeNull();
+    // A position that HAS words still shows them.
+    expect(row(el, 'E4').textContent).toContain('Every');
   });
 
   it('persist an edit to the one central row', async () => {
     const el = await mount({ editable: true });
-    const add = row(el, 'A5').querySelector('[data-testid="staff-mnemonic-add"]') as HTMLElement;
-    await act(async () => { add.click(); });
-    const input = row(el, 'A5').querySelector('[data-testid="staff-mnemonic-input"]') as HTMLInputElement;
+    const input = row(el, 'A5').querySelector('[data-testid="staff-mnemonic"]') as HTMLInputElement;
+    await act(async () => { input.dispatchEvent(new FocusEvent('focusin', { bubbles: true })); });
     await act(async () => { type(input, 'A ledger word'); });
     // `focusout`, not `blur`: React delegates from the root and blur
     // does not bubble, so a plain blur event never reaches the handler.

@@ -21,9 +21,9 @@ export default function ReadingReference() {
         ← {meta?.label ?? 'reading'}
       </Link>
 
-      <section className="rounded-2xl border border-black/[0.07] bg-white dark:bg-neutral-900 shadow-[0_2px_12px_rgba(0,0,0,0.07)] p-3 sm:p-5">
-        <StaffReference editable />
-      </section>
+      {/* No card of its own here — the reference draws one, with the
+          legend beneath it. Two nested cards read as two panels. */}
+      <StaffReference editable />
     </div>
   );
 }
