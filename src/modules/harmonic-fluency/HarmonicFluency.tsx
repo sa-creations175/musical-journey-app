@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
+import { harmonicFluencyCards } from './homeCards';
+import { Link, useSearchParams } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlMultiSelectSync } from '../../lib/useUrlTabSync';
@@ -11,9 +14,7 @@ import HarmonicFluencySession, {
   type SessionStats,
   type TimerMode,
 } from './HarmonicFluencySession';
-import HarmonicFluencyTracker from './HarmonicFluencyTracker';
 import {
-  CATEGORY_LABELS,
   CATEGORY_ORDER,
   FLASHCARDS,
   type FlashcardCategory,
@@ -143,24 +144,36 @@ export default function HarmonicFluency() {
     })();
   }, [prefsLoaded, searchParams, setSearchParams]);
 
-  const totalCards = FLASHCARDS.length;
+  // --- The category cards -----------------------------------------
+  const allAttempts = useLiveQuery(
+    () => db.attempts.where('moduleId').equals(MODULE_ID).toArray(),
+    [],
+  ) ?? [];
+  const spacingIntervals = useSpacingIntervals(MODULE_ID);
+  const now = Date.now();
+  const cards = useMemo(
+    () => harmonicFluencyCards(allAttempts, spacingIntervals, now),
+    // `now` is deliberately not a dep — it changes every render and
+    // would rebuild fifteen cards each time. Freshness moves in days.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allAttempts, spacingIntervals],
+  );
 
-  const activeCategoryCount = useMemo(() => {
-    if (selectedCategories.size === 0) return totalCards;
-    return FLASHCARDS.filter(c => selectedCategories.has(c.category)).length;
-  }, [selectedCategories, totalCards]);
 
-  const toggleCategory = (cat: FlashcardCategory) => {
-    setSelectedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat); else next.add(cat);
-      return next;
-    });
-  };
 
-  const handleStart = async () => {
+  /**
+   * Start a drill over an explicit category list.
+   *
+   * Takes the categories rather than reading `selectedCategories`,
+   * because a card's "drill category" sets the filter and starts in the
+   * same tap — and `setSelectedCategories` has not committed by the
+   * time the session is built. Reading state here would drill the
+   * PREVIOUS selection, which is the kind of bug that looks like a
+   * race and is really a stale read.
+   */
+  const startWith = async (categories: FlashcardCategory[]) => {
     const session = await buildSession({
-      categories: [...selectedCategories],
+      categories,
       target: SESSION_TARGET,
       flaggedOnly,
     });
@@ -173,6 +186,31 @@ export default function HarmonicFluency() {
     setSessionActive(true);
     setAutoStarted(false);
     setLastSummary(null);
+  };
+
+  const handleStart = () => startWith([...selectedCategories]);
+
+  /**
+   * A card's "drill category": narrow to that one category and start.
+   *
+   * Writes `?category=` as well as setting state, so this goes through
+   * the SAME path the sidebar sub-items and the skills catalogue
+   * already use (`useUrlMultiSelectSync` above). One way in, so a
+   * category drill started from a card and one arrived at by link
+   * cannot diverge.
+   */
+  const drillCategory = (key: string) => {
+    if (!isCategory(key)) return;
+    setSelectedCategories(new Set([key]));
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev);
+        next.set('category', key);
+        return next;
+      },
+      { replace: true },
+    );
+    void startWith([key]);
   };
 
   const handleExit = (stats: SessionStats) => {
@@ -317,48 +355,6 @@ export default function HarmonicFluency() {
             </label>
           </div>
 
-          {/* Category filter */}
-          <div>
-            <div className="flex items-baseline justify-between mb-1.5">
-              <div className="text-xs uppercase tracking-wide text-neutral-500">categories</div>
-              <div className="flex items-center gap-2 text-[11px]">
-                <button
-                  onClick={() => setSelectedCategories(new Set(CATEGORY_ORDER))}
-                  className="text-neutral-500 hover:text-fluent"
-                >
-                  all
-                </button>
-                <button
-                  onClick={() => setSelectedCategories(new Set())}
-                  className="text-neutral-500 hover:text-fluent"
-                >
-                  mixed (default)
-                </button>
-              </div>
-            </div>
-            <p className="text-[11px] text-neutral-400 mb-2">
-              no selection = all categories mixed · {activeCategoryCount} / {totalCards} cards in current pool
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {CATEGORY_ORDER.map(cat => {
-                const active = selectedCategories.has(cat);
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => toggleCategory(cat)}
-                    className={`px-2.5 py-1 rounded-md border text-xs transition ${
-                      active
-                        ? 'border-fluent bg-fluent/10 text-fluent'
-                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
-                    }`}
-                  >
-                    {CATEGORY_LABELS[cat]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <div>
             <button
               onClick={handleStart}
@@ -382,7 +378,20 @@ export default function HarmonicFluency() {
       )}
 
       {!sessionActive && <FlaggedForReviewPanel />}
-      {!sessionActive && <HarmonicFluencyTracker />}
+      {/* The fifteen category cards. These REPLACE the tracker rows
+          and the category chips: the chips said which categories a
+          drill would cover and the tracker said how each was going,
+          and they were two readings of one list sitting on one
+          screen. A card carries both, and its drill button is the
+          selection the chips used to make. */}
+      {!sessionActive && (
+        <CategoryCardGrid
+          cards={cards}
+          moduleId={MODULE_ID}
+          onDrill={drillCategory}
+          now={now}
+        />
+      )}
     </div>
   );
 }

@@ -38,9 +38,28 @@ interface Props {
   now: number;
   /** Names the item for a screen reader — "Perfect 5th ascending". */
   label: string;
+  /**
+   * Whether to draw the strip of reps under the bar. Default true.
+   *
+   * ---------------------------------------------------------------
+   * A PROP, NOT A SECOND COMPONENT.
+   *
+   * The module-home card shows the bar when collapsed and the bar plus
+   * its twenty ticks when expanded. Drawing three segment divs itself
+   * for the collapsed half would have been a second bar — sharing
+   * `barSegments`' arithmetic but not its markup, which is exactly how
+   * two bars come to disagree about a rounding or a minimum width.
+   *
+   * The bar NEVER hides. Only the strip does, and only where the
+   * caller has somewhere else to put it.
+   * ---------------------------------------------------------------
+   */
+  showStrip?: boolean;
 }
 
-export default function ProgressBar({ attempts, intervalDays, now, label }: Props) {
+export default function ProgressBar({
+  attempts, intervalDays, now, label, showStrip = true,
+}: Props) {
   const [infoOpen, setInfoOpen] = useState(false);
   const correct = attempts.filter(a => a.correct).length;
   const seg = barSegments({ correct, wrong: attempts.length - correct });
@@ -89,6 +108,7 @@ export default function ProgressBar({ attempts, intervalDays, now, label }: Prop
 
       {/* The strip carries what the bar cannot: a sequence, and how old
           each rep is. So it gets its own text equivalent. */}
+      {showStrip && (
       <div className="flex gap-[2px]" role="img" aria-label={stripText}>
         {ticks.map(t => (
           <span
@@ -104,6 +124,7 @@ export default function ProgressBar({ attempts, intervalDays, now, label }: Prop
           />
         ))}
       </div>
+      )}
 
       {infoOpen && (
         <div className="rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900 px-2.5 py-2 space-y-1.5">
