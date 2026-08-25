@@ -94,7 +94,7 @@ describe('encodeDimensionRecords — Ear Training', () => {
     const records = encodeDimensionRecords(et(baseEt));
     const breadth = records[0];
     expect(breadth.targetMetric).toBe('ear_training_coverage_at_acquired');
-    expect(breadth.targetValue).toBe(143);
+    expect(breadth.targetValue).toBe(142);
     expect(breadth.targetUnit).toBe('items');
     expect(breadth.relatedItems).toEqual([]);
   });
@@ -107,7 +107,8 @@ describe('encodeDimensionRecords — Ear Training', () => {
     const records = encodeDimensionRecords(et(e));
     const breadth = records.find(r => r.targetMetric === 'ear_training_coverage_at_acquired_specific');
     expect(breadth).toBeDefined();
-    expect(breadth!.targetValue).toBe(26 + 30);  // intervals + chord-recognition
+    // 25, not 26: the unison has one case. See intervals/seed.ts.
+    expect(breadth!.targetValue).toBe(25 + 30);  // intervals + chord-recognition
     expect(breadth!.targetUnit).toBe('intervals');
     expect(breadth!.relatedItems).toEqual(['intervals', 'chord-recognition']);
   });
@@ -129,7 +130,7 @@ describe('encodeDimensionRecords — Ear Training', () => {
     const records = encodeDimensionRecords(et(e));
     const mastery = records.find(r => r.targetMetric.includes('mastery'));
     expect(mastery!.targetMetric).toBe('ear_training_mastery_at_mastered');
-    expect(mastery!.targetValue).toBe(143);
+    expect(mastery!.targetValue).toBe(142);
     expect(mastery!.relatedItems).toEqual([]);
   });
 

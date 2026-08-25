@@ -14,11 +14,13 @@
  *
  *   - **spacingState-row counts, not surface counts.** Counts mirror
  *     the itemRefs that `recordEngagement` actually writes (Step
- *     1b–1g). Intervals are 13 catalog × 2 directions = 26 because
- *     `IntervalsQuiz` writes itemRefs as `${id}:${direction}`. Modes
- *     are 9 × 2 tabs = 18 because Hear-Scale and Sit-Inside log
- *     separate spacingState rows. The user-facing card count for Ear
- *     Training is 134; the coverage denominator is 143.
+ *     1b–1g). Intervals are 25 because `IntervalsQuiz` writes itemRefs
+ *     as `${id}:${direction}` and twelve of the thirteen carry both
+ *     directions — the unison has one case, since zero semitones up and
+ *     zero down are the same two notes. Modes are 9 × 2 tabs = 18
+ *     because Hear-Scale and Sit-Inside log separate spacingState rows.
+ *     The user-facing card count for Ear Training is 134; the coverage
+ *     denominator was 143 and is now 142.
  *   - **Mental Visualization is excluded** from `shapesCounts` per the
  *     April 27 design call: it counts toward consistency only, not
  *     toward breadth/depth/mastery. Step 1e wires this exclusion into
@@ -42,7 +44,7 @@ import {
   type QualityKind,
 } from '../modules/shapes-and-patterns/catalog';
 import { SCALE_CELLS } from '../modules/shapes-and-patterns/scaleSkills';
-import { INTERVAL_SEEDS } from '../modules/ear-training/intervals/seed';
+import { intervalItemRefs } from '../modules/ear-training/intervals/seed';
 import { CHORD_SEEDS } from '../modules/ear-training/chord-recognition/seed';
 import { PROGRESSIONS } from '../modules/ear-training/chord-progressions/catalog';
 import { MODES } from '../modules/ear-training/scales-modes/catalog';
@@ -58,8 +60,15 @@ import { enumerateReading } from '../modules/goals/scopeEnumeration';
 // =====================================================================
 
 export interface EarTrainingCounts {
-  /** 13 catalog seeds × 2 directions (asc/desc) = 26. Matches
-   *  IntervalsQuiz's itemRef format `${id}:${direction}`. */
+  /**
+   * One row per drillable `${id}:${direction}` — 25, not 26.
+   *
+   * Twelve intervals carry both directions; the unison carries one,
+   * because zero semitones up and zero down are the same two notes.
+   * DERIVED from `directionsFor` rather than multiplied by a constant:
+   * the old `seeds × 2` was right about the code and wrong about the
+   * music, and a constant cannot express an exception.
+   */
   intervals: number;
   /** Each chord seed = one spacingState row. */
   chordRecognition: number;
@@ -73,11 +82,10 @@ export interface EarTrainingCounts {
   total: number;
 }
 
-const INTERVAL_DIRECTIONS = 2;
 const SCALE_MODE_TABS = 2;
 
 export function earTrainingCounts(): EarTrainingCounts {
-  const intervals = INTERVAL_SEEDS.length * INTERVAL_DIRECTIONS;
+  const intervals = intervalItemRefs().length;
   const chordRecognition = CHORD_SEEDS.length;
   const chordProgressions = PROGRESSIONS.length;
   const scalesModes = MODES.length * SCALE_MODE_TABS;

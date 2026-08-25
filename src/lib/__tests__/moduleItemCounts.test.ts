@@ -11,6 +11,7 @@
  * guard at module load — same pattern as spacingState.test.ts.
  */
 import { describe, it, expect } from 'vitest';
+import { intervalItemRefs } from '../../modules/ear-training/intervals/seed';
 import {
   earTrainingCounts,
   harmonicFluencyCounts,
@@ -25,8 +26,15 @@ import {
 describe('earTrainingCounts', () => {
   const c = earTrainingCounts();
 
-  it('intervals = 13 catalog × 2 directions = 26', () => {
-    expect(c.intervals).toBe(26);
+  it('intervals = 12 two-way + 1 one-way unison = 25', () => {
+    // NOT `seeds × 2`. A unison has one case — zero semitones up and
+    // zero down are the same two notes — so the old arithmetic was
+    // right about the code and wrong about the music.
+    expect(c.intervals).toBe(25);
+    // And it follows the seed list rather than this number: adding an
+    // interval must move it without anyone editing here.
+    expect(c.intervals).toBe(intervalItemRefs().length);
+    expect(intervalItemRefs()).not.toContain('P1:desc');
   });
 
   it('chordRecognition = 30', () => {
@@ -41,8 +49,9 @@ describe('earTrainingCounts', () => {
     expect(c.scalesModes).toBe(18);
   });
 
-  it('total = 143 (sum of sub-areas)', () => {
-    expect(c.total).toBe(143);
+  it('total = 142 (sum of sub-areas)', () => {
+    // 143 before the unison merge.
+    expect(c.total).toBe(142);
     expect(c.total).toBe(
       c.intervals + c.chordRecognition + c.chordProgressions + c.scalesModes,
     );

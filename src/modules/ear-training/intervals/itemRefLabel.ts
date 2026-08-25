@@ -6,7 +6,7 @@
  * maps them to the interval's display name + direction for surfaces
  * that list a block's items, like the session prep breakdown.
  */
-import { INTERVAL_SEEDS } from './seed';
+import { INTERVAL_SEEDS, directionsForId } from './seed';
 
 const NAME_BY_ID: ReadonlyMap<string, string> = new Map(
   INTERVAL_SEEDS.map(i => [i.id, i.name]),
@@ -26,6 +26,12 @@ export function labelForIntervalItemRef(itemRef: string): string {
   const id = colon < 0 ? itemRef : itemRef.slice(0, colon);
   const dir = colon < 0 ? '' : itemRef.slice(colon + 1);
   const name = NAME_BY_ID.get(id) ?? id;
+  // An interval with one case is named WITHOUT a direction, whichever
+  // direction the stored ref carries. Historical `P1:desc` rows exist
+  // in session blocks that were built before the merge, and rendering
+  // "Unison (descending)" would keep a distinction the module no
+  // longer makes — in a label a reader cannot act on.
+  if (directionsForId(id).length === 1) return name;
   const dirLabel = DIRECTION_LABEL[dir];
   return dirLabel ? `${name} (${dirLabel})` : name;
 }

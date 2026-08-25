@@ -61,7 +61,7 @@ describe('intervals — the mechanism already exists', () => {
     const descending = flatten(tree).find(c => c.label === 'Descending')!;
     const target = drillTargetFor(descending, 'intervals');
     if (target.kind !== 'filtered') throw new Error('expected filtered');
-    expect(target.focusKeys).toHaveLength(13);
+    expect(target.focusKeys).toHaveLength(12);
     expect(target.focusKeys.every(k => k.endsWith('|desc'))).toBe(true);
   });
 
@@ -245,7 +245,7 @@ describe('a row resolves against its own catalog, not its module', () => {
     expect(target.kind).toBe('filtered');
     if (target.kind !== 'filtered') throw new Error('unreachable');
     expect(target.route).toBe('/ear-training/intervals');
-    expect(target.focusKeys).toHaveLength(13);
+    expect(target.focusKeys).toHaveLength(12);
     expect(target.focusKeys.every(k => k.includes('|desc'))).toBe(true);
   });
 

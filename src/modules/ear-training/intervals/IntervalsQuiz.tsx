@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { intervalPlaybackMs, playInterval } from '../../../lib/audio';
+import { directionsFor } from './seed';
+import { eligibleDirections } from './directionBalance';
 import { db, type AttemptRecord, type IntervalData } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
@@ -150,22 +152,32 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
   const buildCandidates = (): AdaptiveCandidate<PoolItem>[] => {
     const today = localDayKey();
     const focusSet = focusActiveRef.current ? new Set(focusKeysRef.current) : null;
-    const allDirs: PlayDirection[] = ['asc', 'desc'];
     const candidates: AdaptiveCandidate<PoolItem>[] = [];
     for (const iv of intervalsRef.current) {
-      for (const dir of allDirs) {
+      // `directionsFor`, not a literal ['asc','desc']: a unison has one
+      // case, because zero semitones up and zero down are the same two
+      // notes. See intervals/seed.ts.
+      const passesFilters = (dir: PlayDirection) => {
         const k = keyOf(iv.id, dir);
-        if (focusSet) {
-          if (!focusSet.has(k)) continue;
-        } else {
-          if (filterRef.current === 'asc' && dir === 'desc') continue;
-          if (filterRef.current === 'desc' && dir === 'asc') continue;
-        }
+        if (focusSet) return focusSet.has(k);
+        if (filterRef.current === 'asc' && dir === 'desc') return false;
+        if (filterRef.current === 'desc' && dir === 'asc') return false;
+        return true;
+      };
+      const available = directionsFor(iv.semitones).filter(passesFilters);
+      // Then: within this interval, prefer the direction with fewer
+      // attempts. Applied AFTER the filters so a focus pool holding one
+      // direction is never widened by it. See directionBalance.ts.
+      const dirs = eligibleDirections(
+        available,
+        dir => (groupedRef.current.get(keyOf(iv.id, dir)) ?? []).length,
+      );
+      for (const dir of dirs) {
         const tier = tierForPair(iv.id, dir, today);
         candidates.push({
           item: { interval: iv, direction: dir },
           baseWeight: TIER_WEIGHT[tier],
-          inRecentHistory: recentHistoryKeysRef.current.has(k),
+          inRecentHistory: recentHistoryKeysRef.current.has(keyOf(iv.id, dir)),
         });
       }
     }
@@ -274,6 +286,19 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
     return () => window.removeEventListener('keydown', onKey);
   }, [showLifetime]);
 
+  // COUNTED, NOT WRITTEN. These read 13/13/26 before the unison merge
+  // and would have gone on reading them: three literals describing a
+  // catalog they do not consult. Descending is now 12 and the full
+  // quiz 25, and both follow the seed list from here on.
+  const ascCount = useMemo(
+    () => sortedIntervals.filter(iv => directionsFor(iv.semitones).includes('asc')).length,
+    [sortedIntervals],
+  );
+  const descCount = useMemo(
+    () => sortedIntervals.filter(iv => directionsFor(iv.semitones).includes('desc')).length,
+    [sortedIntervals],
+  );
+
   const focusSections: SelectionSection[] = useMemo(() => [
     {
       title: 'Ascending',
@@ -281,7 +306,9 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
     },
     {
       title: 'Descending',
-      items: sortedIntervals.map(iv => ({ key: keyOf(iv.id, 'desc'), label: iv.id })),
+      items: sortedIntervals
+        .filter(iv => directionsFor(iv.semitones).includes('desc'))
+        .map(iv => ({ key: keyOf(iv.id, 'desc'), label: iv.id })),
     },
   ], [sortedIntervals]);
 
@@ -340,11 +367,11 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
               </button>
             </>
           ) : filter === 'asc' ? (
-            'ascending only — 13 combinations active'
+            `ascending only — ${ascCount} combinations active`
           ) : filter === 'desc' ? (
-            'descending only — 13 combinations active'
+            `descending only — ${descCount} combinations active`
           ) : (
-            'full quiz — all 26 interval combinations active'
+            `full quiz — all ${ascCount + descCount} interval combinations active`
           )}
         </p>
         {!focusActive && (

@@ -19,6 +19,7 @@
  * A module with no legacy shapes returns its id unchanged. That is the
  * common case and deliberately requires no registration.
  */
+import { normaliseDirection } from '../../ear-training/intervals/seed';
 import type { AttemptRecord } from '../../../lib/db';
 import {
   normalizeAttemptItemId,
@@ -114,7 +115,12 @@ export function itemRefForAttempt(
 ): string {
   const base = canonicalItemId(attempt.moduleId, attempt.itemId);
   if (attempt.moduleId === 'intervals') {
-    return `${base}:${attempt.direction ?? 'asc'}`;
+    // `normaliseDirection` folds a historical `P1:desc` onto `P1:asc`.
+    // Those attempts are REAL unison data — at zero semitones
+    // `playInterval` plays the same MIDI note twice whichever branch it
+    // takes — so they merge rather than being stranded under a ref the
+    // drill can no longer produce.
+    return `${base}:${normaliseDirection(base, attempt.direction ?? 'asc')}`;
   }
   return base;
 }

@@ -8,6 +8,7 @@ import EtSelectToggle from '../EtSelectToggle';
 import { useEtCurationsLive } from '../useEtCurations';
 import { useEtSelection } from '../useEtSelection';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
+import { directionsFor } from './seed';
 import ProgressBar from '../../../components/ProgressBar';
 import { barSegments, unratedLabel } from '../../../lib/progressBar';
 import {
@@ -71,14 +72,18 @@ async function bumpManual(id: string, direction: Direction, field: 'correct' | '
   if (!iv) return;
   const key = (direction === 'asc' ? 'asc' : 'desc') + (field === 'correct' ? 'Correct' : 'Total') as
     | 'ascCorrect' | 'ascTotal' | 'descCorrect' | 'descTotal';
-  const next = Math.max(0, iv[key] + delta);
+  // The descending columns are absent on a directionless interval, so
+  // every read here defaults. `?? 0` rather than a non-null assertion:
+  // the row genuinely may not have the field, and the manual editor
+  // must not crash on the one interval that does not.
+  const next = Math.max(0, (iv[key] ?? 0) + delta);
   const patch: Partial<IntervalData> = { [key]: next };
   if (field === 'total') {
     const correctKey = direction === 'asc' ? 'ascCorrect' : 'descCorrect';
-    if (iv[correctKey] > next) patch[correctKey] = next;
+    if ((iv[correctKey] ?? 0) > next) patch[correctKey] = next;
   } else {
     const totalKey = direction === 'asc' ? 'ascTotal' : 'descTotal';
-    if (next > iv[totalKey]) patch[totalKey] = next;
+    if (next > (iv[totalKey] ?? 0)) patch[totalKey] = next;
   }
   await db.intervals.update(id, patch);
 }
@@ -161,9 +166,12 @@ interface AnchorEditorProps {
 }
 
 function AnchorRow({ iv, direction }: AnchorEditorProps) {
+  // An interval with one case needs no direction gutter — "asc ♪"
+  // beside a unison would reintroduce the distinction being retired.
+  const oneCase = directionsFor(iv.semitones).length === 1;
   const defaultText = direction === 'asc' ? iv.ascAnchorDefault : iv.descAnchorDefault;
   const customText = direction === 'asc' ? iv.ascAnchorCustom : iv.descAnchorCustom;
-  const active = customText ?? defaultText;
+  const active = customText ?? defaultText ?? '';
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(customText ?? '');
 
@@ -192,7 +200,7 @@ function AnchorRow({ iv, direction }: AnchorEditorProps) {
   return (
     <div className="text-xs">
       <div className="flex items-start gap-2">
-        <div className="text-neutral-500 w-14 shrink-0 pt-0.5">{direction === 'asc' ? 'asc ♪' : 'desc ♪'}</div>
+        <div className="text-neutral-500 w-14 shrink-0 pt-0.5">{oneCase ? '♪' : direction === 'asc' ? 'asc ♪' : 'desc ♪'}</div>
         {!editing ? (
           <div className="flex-1 min-w-0 flex items-start gap-2">
             <span className={customText ? 'italic' : ''}>
@@ -314,10 +322,17 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
       </div>
       <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
         {sorted.map(iv => {
-          const ascRolling = rollingFor(attempts, iv.id, 'asc');
-          const descRolling = rollingFor(attempts, iv.id, 'desc');
-          const bothMastered = ascRolling.tier === 'mastered' && descRolling.tier === 'mastered';
-          const anyStale = ascRolling.tier === 'stale' || descRolling.tier === 'stale';
+          // ONE BAR PER DIRECTION THE INTERVAL HAS. Unison has one
+          // case, so it gets one bar and one anchor — the pair used to
+          // be rendered unconditionally, which is how 25 sounds came to
+          // occupy 26 rows on screen as well as in the counts.
+          const dirs = directionsFor(iv.semitones);
+          const rollingByDir = new Map(
+            dirs.map(d => [d, rollingFor(attempts, iv.id, d)] as const),
+          );
+          const tiers = [...rollingByDir.values()].map(r => r.tier);
+          const bothMastered = tiers.every(t => t === 'mastered');
+          const anyStale = tiers.some(t => t === 'stale');
           const ivAttempts = attempts.filter(a => a.moduleId === MODULE_ID && a.itemId === iv.id);
           const daysAgo = lastPracticedDaysAgo(ivAttempts);
           const curation = curations.get(iv.id);
@@ -352,24 +367,21 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
                   </div>
                 )}
                 <div className="mt-2 space-y-1.5">
-                  <AnchorRow iv={iv} direction="asc" />
-                  <AnchorRow iv={iv} direction="desc" />
+                  {dirs.map(d => <AnchorRow key={d} iv={iv} direction={d} />)}
                 </div>
               </div>
               <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 min-w-0">
                 {/* THE REF IS `${id}:${direction}`, matching what
                     IntervalsQuiz writes — the two directions are
                     separate spacing rows and fade separately. */}
-                <DirectionStats
-                  iv={iv} direction="asc" rolling={ascRolling}
-                  intervalDays={spacingIntervalFor(spacingIntervals, `${iv.id}:asc`)}
-                  now={now}
-                />
-                <DirectionStats
-                  iv={iv} direction="desc" rolling={descRolling}
-                  intervalDays={spacingIntervalFor(spacingIntervals, `${iv.id}:desc`)}
-                  now={now}
-                />
+                {dirs.map(d => (
+                  <DirectionStats
+                    key={d}
+                    iv={iv} direction={d} rolling={rollingByDir.get(d)!}
+                    intervalDays={spacingIntervalFor(spacingIntervals, `${iv.id}:${d}`)}
+                    now={now}
+                  />
+                ))}
               </div>
             </div>
           );

@@ -33,7 +33,7 @@
  * from loaded rows so it stays a pure function of its inputs.
  */
 import { FLASHCARDS, CATEGORY_LABELS, CATEGORY_ORDER } from '../../harmonic-fluency/catalog';
-import { INTERVAL_SEEDS } from '../../ear-training/intervals/seed';
+import { INTERVAL_SEEDS, directionsFor } from '../../ear-training/intervals/seed';
 import { CHORD_SEEDS } from '../../ear-training/chord-recognition/seed';
 import { MODES } from '../../ear-training/scales-modes/catalog';
 import { PROGRESSIONS } from '../../ear-training/chord-progressions/catalog';
@@ -233,7 +233,10 @@ export const intervalsCatalog: ModuleCatalog = {
   moduleId: 'ear-training',
   label: 'intervals',
   accuracyKind: 'measured',
-  items: INTERVAL_SEEDS.flatMap(seed => (['asc', 'desc'] as const).map(dir => {
+  // `directionsFor`, not a literal pair: a unison has one case, so
+  // intervals contributes 25 rows rather than 26. See
+  // ear-training/intervals/seed.ts.
+  items: INTERVAL_SEEDS.flatMap(seed => directionsFor(seed.semitones).map(dir => {
     const direction = DIRECTION_LABEL[dir];
     return one(
       `${seed.id}:${dir}`,

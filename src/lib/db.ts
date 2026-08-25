@@ -8,13 +8,33 @@ export interface IntervalData {
   name: string;
   semitones: number;
   ascAnchorDefault: string;
-  descAnchorDefault: string;
   ascAnchorCustom?: string;
-  descAnchorCustom?: string;
   ascCorrect: number;
   ascTotal: number;
-  descCorrect: number;
-  descTotal: number;
+  /**
+   * The descending half — ABSENT, not zeroed, for an interval that has
+   * no descending case.
+   *
+   * ---------------------------------------------------------------
+   * OPTIONAL IS THE POINT. A unison is the same sound in both
+   * directions (`playInterval` plays one pitch twice at zero
+   * semitones), so P1 has one case, not two.
+   *
+   * Writing zeroes would say "a descending unison exists and has never
+   * been drilled", which is the claim being retired — and every count
+   * over these columns would still read 26 rows for 25 sounds. Absent
+   * is checkable: `Object.hasOwn(iv, 'descTotal')` is false, and a
+   * count test cannot pass on a blanked field.
+   *
+   * Which intervals have them is decided ONLY by `directionsFor` in
+   * intervals/seed.ts. Nothing should test these for undefined to infer
+   * it.
+   * ---------------------------------------------------------------
+   */
+  descAnchorDefault?: string;
+  descAnchorCustom?: string;
+  descCorrect?: number;
+  descTotal?: number;
 }
 
 export interface ChordData {
@@ -4001,6 +4021,37 @@ export class AppDB extends Dexie {
           itemRefs: b.itemRefs.map((r: string) => remap(r) ?? r),
         });
       }
+    });
+
+    // v37 — the unison stops having a descending case.
+    //
+    // Zero semitones up and zero semitones down are the same two
+    // notes: `playInterval` computes both pitches as `rootMidi` at
+    // semitones 0, so "descending unison" named a sound already in the
+    // catalog. The drill no longer generates it.
+    //
+    // ONLY THE SPACING ROW IS SWEPT, AND ONLY THIS ONE.
+    //
+    // `spacingState` is keyed on itemRef, so `intervals|P1:desc` would
+    // go on coming due forever for a card nothing can produce — a
+    // permanent false debt on the dashboard. Deleting it is the whole
+    // fix: `P1:asc` keeps its own schedule.
+    //
+    // ATTEMPTS ARE NOT TOUCHED. They are real unison data — the drill
+    // played two identical notes under both labels — and they merge on
+    // READ, through `normaliseDirection` in `itemRefForAttempt`. A
+    // rewrite would be the same answer with an irreversible edit
+    // attached, and would lose the record of which label was shown.
+    //
+    // Other refs may already be orphaned the same way (see the report
+    // on `aug:1` / `dim7:*`); they are deliberately NOT swept here.
+    // This migration deletes exactly what this change orphaned.
+    this.version(37).stores({}).upgrade(async tx => {
+      const spacing = tx.table('spacingState');
+      const stale = (await spacing.toArray()).filter(
+        r => r.moduleRef === 'intervals' && r.itemRef === 'P1:desc',
+      );
+      if (stale.length) await spacing.bulkDelete(stale.map(r => r.id));
     });
   }
 }

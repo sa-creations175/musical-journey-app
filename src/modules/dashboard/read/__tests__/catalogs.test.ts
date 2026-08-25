@@ -34,8 +34,13 @@ import { itemRefForAttempt } from '../canonicalItemId';
 import { LESSON_COVERAGE_RULE } from '../itemStats';
 
 describe('catalog sizes — the denominators', () => {
-  it('intervals: 13 × 2 directions = 26', () => {
-    expect(catalogItemCount(intervalsCatalog)).toBe(26);
+  it('intervals: 12 × 2 directions + 1 unison = 25', () => {
+    // The unison has one row, not two: at zero semitones `playInterval`
+    // plays the same pitch twice whichever direction is asked for.
+    expect(catalogItemCount(intervalsCatalog)).toBe(25);
+    const refs = intervalsCatalog.items.flatMap(i => i.itemRefs);
+    expect(refs).not.toContain('P1:desc');
+    expect(refs).toContain('P1:asc');
   });
 
   it('scales & modes: 9 modes × 2 tabs = 18', () => {

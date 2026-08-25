@@ -16,6 +16,7 @@ import {
   EAR_TRAINING_SUB_MODULES, earTrainingCards, earTrainingRouteFor,
 } from '../homeCards';
 import { earTrainingCounts } from '../../../lib/moduleItemCounts';
+import { INTERVAL_SEEDS, intervalItemRefs } from '../intervals/seed';
 import { moduleMetaById } from '../../../lib/moduleMeta';
 import type { AttemptRecord } from '../../../lib/db';
 
@@ -130,6 +131,23 @@ describe('counts and tint come from the shared sources', () => {
     expect(by.get('scales-modes')).toBe(counts.scalesModes);
     // Asymmetric: the four differ, so one constant cannot satisfy them.
     expect(new Set(by.values()).size).toBeGreaterThan(1);
+  });
+
+  it('follows the SEED LIST for intervals, not a literal or a multiplier', async () => {
+    // The card reads 25, not 26. The old count was
+    // `INTERVAL_SEEDS.length * 2`, which is right about the code and
+    // wrong about the music — a unison has one case. Asserted against
+    // the ref list so adding an interval moves the card without anyone
+    // editing a number here.
+    const el = await renderPage();
+    const shown = card(el, 'intervals')
+      .querySelector('[data-testid="category-card-count"]')!.textContent;
+    expect(shown).toBe(`0/${intervalItemRefs().length}`);
+    expect(intervalItemRefs()).toHaveLength(25);
+    expect(intervalItemRefs()).not.toContain('P1:desc');
+    // Asymmetric: a plain seeds × 2 would give 26 and pass a looser
+    // check, so pin that the two differ.
+    expect(intervalItemRefs().length).not.toBe(INTERVAL_SEEDS.length * 2);
   });
 
   it('tints all four from the PARENT module, not four sub-module hexes', async () => {

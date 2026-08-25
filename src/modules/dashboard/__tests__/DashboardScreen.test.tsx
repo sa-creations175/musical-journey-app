@@ -452,7 +452,10 @@ describe('the drill affordance', () => {
     expect(pathname(el)).toBe('/ear-training/intervals');
     // The pool travels in the quiz's own key format, not the catalog's.
     const focus = new URLSearchParams(search(el)).get('focus') ?? '';
-    expect(focus.split(',')).toHaveLength(26);
+    // 25 interval/direction pairs — the unison has one. The key-
+    // signature assertion further down stays at 26 (13 signatures ×
+    // 2 modes) and is unrelated.
+    expect(focus.split(',')).toHaveLength(25);
     expect(focus).toContain('M3|asc');
     expect(focus).not.toContain('M3:asc');
   });
