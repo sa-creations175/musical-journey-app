@@ -55,15 +55,11 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'overview',
     label: 'overview',
     items: [
-      // Goals leads the Overview group: it's the meta-layer that
-      // shapes everything the dashboard reflects.
-      {
-        id: 'goals',
-        label: 'goals',
-        to: '/goals',
-      },
-      // Skills Catalogue sits under Dashboard as a child — it's the
-      // detail companion to the Dashboard's top-level summary.
+      // Dashboard leads the Overview group — it is where the app opens,
+      // and the nav reads in the order the app is used.
+      //
+      // Skills Catalogue sits under it as a child: the detail companion
+      // to the Dashboard's top-level summary.
       {
         id: 'dashboard',
         label: 'dashboard',
@@ -72,6 +68,13 @@ const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'skills catalogue', to: '/skills-catalogue' },
         ],
+      },
+      // Goals is the meta-layer that shapes what the dashboard
+      // reflects, and reads after it.
+      {
+        id: 'goals',
+        label: 'goals',
+        to: '/goals',
       },
       // Practice Sessions is the action-layer companion to Goals —
       // Goals defines intent, Practice Sessions executes against it.
@@ -105,10 +108,11 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'progression vocabulary',   to: '/harmonic-fluency?category=progressions' },
           { label: 'slash chords',             to: '/harmonic-fluency?category=slash-chords' },
           { label: 'ear-theory crossover',     to: '/harmonic-fluency?category=ear-theory' },
-          // Dual-homed: the diary is the emotional companion to
-          // harmonic fluency's theoretical side, so it also lives
-          // here as well as under Creative Sessions.
-          { label: 'harmonic diary',           to: '/harmonic-diary' },
+          // NO HARMONIC DIARY HERE. It was dual-homed — listed under
+          // harmonic fluency as well as under Creative Sessions — and
+          // one page in two places in one nav makes the reader work out
+          // whether they are two pages. It keeps its home under
+          // Creative Sessions, where it is not deleted, only single.
         ],
       },
       {
@@ -128,7 +132,6 @@ const NAV_GROUPS: NavGroup[] = [
               { label: 'full progression',  to: '/ear-training/chord-progressions?tab=full-progression' },
             ],
           },
-          { id: 'chord-progression-quiz', label: 'progression quiz', to: '/ear-training/chord-progression-quiz' },
           { id: 'scales-modes',      label: 'scales & modes',    to: '/ear-training/scales-modes' },
         ],
       },
@@ -160,6 +163,16 @@ const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'active repertoire', to: '/repertoire?tab=active' },
           { label: 'want to learn',     to: '/repertoire?tab=want-to-learn' },
+          // PROGRESSION QUIZ LISTS HERE, NOT UNDER EAR TRAINING. It
+          // drills the progressions from THIS repertoire — the charts
+          // on these songs are where its cards come from — so this is
+          // the module it belongs to.
+          //
+          // The route is unchanged. Where a page lives in the nav and
+          // where it lives in the URL are different questions, and
+          // moving the second would break every link that already
+          // points at it.
+          { label: 'progression quiz',  to: '/ear-training/chord-progression-quiz' },
         ],
       },
       {
