@@ -120,11 +120,55 @@ export const INTERVAL_SEEDS: IntervalSeed[] = [
     consonance: 'perfect', distance: 'far' },
 ];
 
+/**
+ * The two facets of one interval, by id or by a stored row.
+ *
+ * =====================================================================
+ * THE JOIN, IN ONE PLACE, BECAUSE THE STORED ROW CANNOT ANSWER IT.
+ *
+ * `db.intervals` holds `IntervalData`, which deliberately has no
+ * facets — they are catalog data and persisting them would leave a copy
+ * in every reader's database that only a re-seed could refresh. That
+ * narrowing already makes `row.consonance` a compile error rather than
+ * a silent `undefined`, which is the half that stops a consumer
+ * reading a field that is not there.
+ *
+ * This is the other half: having been stopped, a consumer needs one
+ * obvious way through. Without it the natural move is an inline
+ * `INTERVAL_SEEDS.find(...)` at each call site — and there are already
+ * five of those in this codebase for other purposes, each with its own
+ * answer for an id the catalog does not know.
+ *
+ * NULL FOR AN UNKNOWN ID, and the caller decides. `directionsForId`
+ * can default an unknown interval to both directions because serving
+ * one extra direction is harmless; a facet has no such safe default.
+ * Guessing `dissonant` would put an interval in a group it was never
+ * tagged into, and a dashboard would show it there with no way to tell.
+ * =====================================================================
+ */
+export interface IntervalFacets {
+  consonance: Consonance;
+  distance: Distance;
+}
+
+export function intervalFacets(
+  interval: string | { id: string },
+): IntervalFacets | null {
+  const id = typeof interval === 'string' ? interval : interval.id;
+  const seed = SEED_BY_ID.get(id);
+  return seed ? { consonance: seed.consonance, distance: seed.distance } : null;
+}
+
 /** Built from the seed list, so it cannot fall out of step with it.
  *  Declared after `INTERVAL_SEEDS`; nothing calls the lookups during
  *  module evaluation. */
 const SEMITONES_BY_ID: ReadonlyMap<string, number> = new Map(
   INTERVAL_SEEDS.map(s => [s.id, s.semitones]),
+);
+
+/** The seeds by id, for the facet join above. */
+const SEED_BY_ID: ReadonlyMap<string, IntervalSeed> = new Map(
+  INTERVAL_SEEDS.map(s => [s.id, s]),
 );
 
 export async function seedIntervals(): Promise<void> {
