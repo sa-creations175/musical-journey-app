@@ -26,7 +26,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import CategoryCard from '../CategoryCard';
-import CategoryCardGrid from '../CategoryCardGrid';
+import CategoryCardGrid, { CARD_MIN_WIDTH } from '../CategoryCardGrid';
 import type { CategoryCardModel } from '../model';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -85,15 +85,19 @@ describe('the card is a column', () => {
     expect((barRegion(el) as HTMLElement).style.backgroundColor).not.toBe('');
   });
 
-  it('carries no written-down height', () => {
-    // The row's tallest card sets the height. A `h-[N]` or a min-height
-    // here would be a number to keep in step with the content.
+  it('has a floor but no fixed height', () => {
+    // The row's tallest card still sets that row's height — a `h-[N]`
+    // would be a number to keep in step with the content. The MINIMUM
+    // is different: it stops the same card looking shorter on one
+    // module home than another, and it lives here so no page can pick
+    // its own.
     const el = mount(<CategoryCard card={model()} accentHex="#5a8752" expanded={false} onToggle={() => {}} onDrill={() => {}} now={0} />);
     const c = card(el) as HTMLElement;
-    expect(c.className).not.toMatch(/\bh-\[/);
-    expect(c.className).not.toMatch(/\bmin-h-/);
+    // Anchored on a class boundary: `\bh-\[` also matches inside
+    // `min-h-[…]`, which would make this assertion contradict the next.
+    expect(c.className).not.toMatch(/(?:^|\s)h-\[/);
+    expect(c.className).toMatch(/\bmin-h-/);
     expect(c.style.height).toBe('');
-    expect(c.style.minHeight).toBe('');
   });
 });
 
@@ -113,6 +117,24 @@ describe('why two cards in a row differ at all', () => {
       <CategoryCard card={model()} accentHex="#5a8752" expanded={false} onToggle={() => {}} onDrill={() => {}} now={0} />,
     );
     expect(without.textContent).not.toContain('25 rows across 13 intervals');
+  });
+
+  it('sizes its columns from the card, not from a breakpoint', () => {
+    // The one number is the card's minimum width; the column count
+    // falls out of it. A page cannot narrow the grid because the page
+    // no longer says anything about width.
+    const el = mount(
+      <CategoryCardGrid
+        cards={[model({ key: 'a' }), model({ key: 'b' })]}
+        moduleId="ear-training"
+        onDrill={() => {}}
+        now={0}
+      />,
+    );
+    const grid = el.querySelector('[data-testid="category-card-grid"]') as HTMLElement;
+    expect(grid.style.gridTemplateColumns).toContain('auto-fill');
+    expect(grid.style.gridTemplateColumns).toContain(CARD_MIN_WIDTH);
+    expect(grid.className).not.toMatch(/max-w-/);
   });
 
   it('the grid still lets the row decide the height', () => {

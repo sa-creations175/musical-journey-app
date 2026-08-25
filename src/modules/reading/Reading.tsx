@@ -114,7 +114,11 @@ export default function Reading() {
   );
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+    /* No width, padding or gap here. The grid owns the card's size —
+       this wrapper used to narrow it to `max-w-2xl` and pad it again
+       inside the shell's own padding, which is why reading's cards came
+       out smaller than every other module home's. */
+    <div className="space-y-6">
       {/* No module heading here. The pinned header in Layout already
           carries the name and the module tagline — see pageTitle.ts —
           and no other module repeats its own. */}

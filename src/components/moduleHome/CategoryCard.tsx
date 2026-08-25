@@ -39,6 +39,21 @@ import { FALLBACK_INTERVAL_DAYS, barSegments, unratedLabel } from '../../lib/pro
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
 import type { CategoryCardModel } from './model';
 
+/**
+ * The floor every card stands on, wherever it is rendered.
+ *
+ * A FLOOR, NOT A HEIGHT. The tallest card in a row still sets that
+ * row's height — grid stretch has always done that, and nothing here
+ * writes a fixed one. This stops a card with the fewest lines from
+ * being markedly shorter than the same card on another module home,
+ * which is what made reading's grid read as a different component from
+ * ear training's.
+ *
+ * It lives on the card rather than on a page for the same reason the
+ * width does: a page that could set it would set a different one.
+ */
+const CARD_MIN_HEIGHT = 'min-h-[6.5rem]';
+
 export interface CategoryCardProps {
   card: CategoryCardModel;
   /** The MODULE's accent, from `moduleMeta`. */
@@ -96,7 +111,7 @@ export default function CategoryCard({
       data-testid="category-card"
       data-card-key={card.key}
       data-expanded={expanded ? 'true' : 'false'}
-      className="rounded-xl border overflow-hidden bg-white dark:bg-neutral-900 flex flex-col"
+      className={`rounded-xl border overflow-hidden bg-white dark:bg-neutral-900 flex flex-col ${CARD_MIN_HEIGHT}`}
       style={{ borderColor: `${accentHex}33` }}
     >
       <button

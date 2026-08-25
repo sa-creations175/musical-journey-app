@@ -19,6 +19,28 @@ import CategoryCard from './CategoryCard';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import type { CategoryCardModel } from './model';
 
+/**
+ * The narrowest a card may be before the grid drops a column.
+ *
+ * Declared here rather than at a call site because it is the ONE input
+ * to how many columns appear — see the note in the render.
+ */
+export const CARD_MIN_WIDTH = '17rem';
+
+/**
+ * The column rule, derived from `CARD_MIN_WIDTH`.
+ *
+ * AN INLINE STYLE, NOT A TAILWIND CLASS, and deliberately: Tailwind
+ * finds classes by scanning source text for complete strings, so an
+ * interpolated `grid-cols-[...]` would compile to nothing and the grid
+ * would silently fall back to one column. A style built from the
+ * constant cannot drift from it.
+ */
+const CARD_COLUMNS = `repeat(auto-fill, minmax(${CARD_MIN_WIDTH}, 1fr))`;
+
+/** One gap for every module home. */
+const CARD_GAP = 'gap-3';
+
 export interface CategoryCardGridProps {
   cards: readonly CategoryCardModel[];
   /**
@@ -48,7 +70,28 @@ export default function CategoryCardGrid({
   const accentHex = moduleMetaById(moduleId)?.accentHex ?? NO_MODULE_ACCENT;
 
   return (
-    <div className="grid gap-2 sm:grid-cols-2" data-testid="category-card-grid">
+    /* =================================================================
+       THE GRID OWNS THE SIZE. A PAGE CANNOT SET ITS OWN.
+
+       Reading's cards came out smaller than ear training's and both
+       differed from harmonic fluency's, because the size was never
+       here: reading wrapped this in `max-w-2xl mx-auto px-4`, the other
+       two let the shell's width through, and `sm:grid-cols-2` then cut
+       whatever it was given into two. Three pages, three widths, one
+       component that never knew.
+
+       `CARD_MIN_WIDTH` is the one number, and the column COUNT falls
+       out of it: `auto-fill` fits as many tracks of at least that width
+       as the container allows. So a narrow shell gets one column and a
+       wide one gets three, without a breakpoint guessing on behalf of a
+       container it cannot measure — and every module home lands on the
+       same card, because the card is what is specified.
+       ================================================================= */
+    <div
+      className={`grid ${CARD_GAP}`}
+      style={{ gridTemplateColumns: CARD_COLUMNS }}
+      data-testid="category-card-grid"
+    >
       {cards.map(card => (
         <CategoryCard
           key={card.key}
