@@ -195,3 +195,66 @@ describe('the three calls', () => {
     expect(await db.dailySummaries.count()).toBe(0);
   });
 });
+
+describe('the walk-away ceiling, newly applied to Reading', () => {
+  /**
+   * =================================================================
+   * READING IS WHERE THE CONTAMINATION CAME FROM.
+   *
+   * `ReadingDrill` sets `shownAt` once per card and never invalidates
+   * it, so a card left open overnight is written as an answer that
+   * took hours. Those rows are real records of nothing, and they sat
+   * beside genuine measurements under one field name for months
+   * because this module wrote `elapsedMs` unguarded.
+   *
+   * The ceiling stops NEW rows like that. It deliberately does not
+   * touch the old ones — `window.__readingElapsedShape()` has to see
+   * the corpus as it is before anyone decides what to do about it.
+   * =================================================================
+   */
+  const FIVE_MINUTES = 5 * 60 * 1000;
+
+  it('keeps a real answer', () => {
+    const row = buildReadingAttempt({
+      itemRef: 'note:bass:0', correct: true, elapsedMs: 2_400,
+    })!;
+    expect(row.elapsedMs).toBe(2_400);
+  });
+
+  it('keeps an answer at exactly five minutes', () => {
+    const row = buildReadingAttempt({
+      itemRef: 'note:bass:0', correct: true, elapsedMs: FIVE_MINUTES,
+    })!;
+    expect(Object.hasOwn(row, 'elapsedMs')).toBe(true);
+  });
+
+  it('records NO elapsedMs one millisecond over', () => {
+    const row = buildReadingAttempt({
+      itemRef: 'note:bass:0', correct: true, elapsedMs: FIVE_MINUTES + 1,
+    })!;
+    // Object.hasOwn, not toHaveProperty(x, undefined): those read
+    // identically for absent and set-to-undefined, and only absence
+    // survives the trip to Postgres as "no measurement".
+    expect(Object.hasOwn(row, 'elapsedMs')).toBe(false);
+  });
+
+  it('records nothing for the overnight card that started all this', () => {
+    const row = buildReadingAttempt({
+      itemRef: 'note:bass:0', correct: true, elapsedMs: 9 * 60 * 60 * 1000,
+    })!;
+    expect(Object.hasOwn(row, 'elapsedMs')).toBe(false);
+    // Omitted, not clamped to the ceiling — a clamp would file a
+    // "slow" vote from a datapoint nobody trusts.
+    expect(row.elapsedMs).toBeUndefined();
+  });
+
+  it('still writes everything else on a discarded-timing row', () => {
+    // The attempt itself is real. Only the measurement is missing.
+    const row = buildReadingAttempt({
+      itemRef: 'note:bass:0', correct: false, elapsedMs: 6 * 60 * 1000,
+    })!;
+    expect(row.correct).toBe(false);
+    expect(row.itemId).toBe('note:bass:0');
+    expect(typeof row.timestamp).toBe('number');
+  });
+});

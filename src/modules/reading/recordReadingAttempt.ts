@@ -30,6 +30,7 @@
  */
 
 import { addAttempt } from '../../lib/practiceWrites';
+import { elapsedFields } from '../../lib/attemptTiming';
 import { recordEngagement } from '../../lib/spacingState';
 import { updateDailySummary } from '../../lib/dailySummaries';
 import type { AttemptRecord } from '../../lib/db';
@@ -86,7 +87,21 @@ export function buildReadingAttempt(
     itemId: input.itemRef,
     correct: input.correct,
     timestamp: input.timestamp ?? Date.now(),
-    elapsedMs: input.elapsedMs,
+    // THROUGH THE CEILING, which Reading has never had. It has been
+    // recording elapsedMs unguarded for months with `shownAt` set once
+    // per card and never invalidated, so a card left open overnight is
+    // stored as an answer that took hours. This stops new rows like
+    // that; it does not touch the old ones, which the probe needs to
+    // see as they are.
+    //
+    // `elapsedFields` takes a start and a now rather than a duration,
+    // so the start is reconstructed from the two numbers already here.
+    // The alternative — a second ceiling check written inline — is the
+    // copy of a rule that goes wrong when the rule moves.
+    ...elapsedFields(
+      (input.timestamp ?? Date.now()) - input.elapsedMs,
+      input.timestamp ?? Date.now(),
+    ),
   };
 
   // Skill-scoped fields, gated on the SKILL rather than on the caller
