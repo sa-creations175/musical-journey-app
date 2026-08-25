@@ -67,6 +67,27 @@ export interface CardAnsweredArgs<TCard extends BaseFlashcard> {
    *  AttemptRecord so future rolling-average planning can reason
    *  about answer pace vs cap. */
   targetSeconds?: number;
+  /**
+   * When this card became answerable, epoch ms — or null if the shell
+   * could not tell. Module callers turn it into `elapsedMs` through
+   * `elapsedFields`, which applies the walk-away ceiling.
+   *
+   * =====================================================================
+   * THE CLOCK RUNS WHETHER OR NOT THE COUNTDOWN DOES.
+   *
+   * The countdown is a cap the reader asked for; this is the time they
+   * actually took. Until now the shell had no clock at all when the
+   * timer was 'off', which meant the measurement only existed for
+   * readers who had opted into speed pressure — the worst possible
+   * sample, because the pressure changes the number.
+   *
+   * Started when the CARD CHANGES, which for a flashcard is the moment
+   * the question is answerable: the text and its options render
+   * together, there is no audio to wait for. The ear modules cannot use
+   * this rule and start their clocks after playback instead.
+   * =====================================================================
+   */
+  shownAt: number | null;
 }
 
 interface VisualAidArgs<TCard extends BaseFlashcard> {
@@ -169,6 +190,9 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   const [flagNoteDraft, setFlagNoteDraft] = useState('');
 
   const timerRef = useRef<number | null>(null);
+  /** When the current card became answerable. See `shownAt` on
+   *  CardAnsweredArgs for why this is not the countdown. */
+  const shownAt = useRef<number>(Date.now());
   const card = queue[index];
   const currentOutcome = outcomes[index];
   const hasAnswered = currentOutcome !== undefined;
@@ -225,6 +249,14 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
     }
   }, [index, card, timerSecs, hasAnswered]);
 
+  // The measurement clock. Deliberately NOT keyed on `timerSecs` or
+  // `hasAnswered` — restarting it when the countdown setting changes
+  // would reset a reader's elapsed time mid-card, and restarting it on
+  // answer would zero the number being reported.
+  useEffect(() => {
+    shownAt.current = Date.now();
+  }, [index, card]);
+
   // Close the flag editor whenever the user moves to a different card,
   // so a half-typed note doesn't bleed over to the next item.
   useEffect(() => {
@@ -264,6 +296,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
       // already parsed from `timerMode` upstream and is null when
       // the user picked 'off'.
       ...(timerSecs !== null ? { targetSeconds: timerSecs } : {}),
+      shownAt: shownAt.current,
     });
 
     setOutcomes(prev => {

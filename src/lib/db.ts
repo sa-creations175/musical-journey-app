@@ -1513,6 +1513,27 @@ export interface AttemptRecord {
    * the decision to keep it was explicit. */
   elapsedMs?: number;
   /**
+   * True when the per-card countdown expired instead of the user
+   * answering. Present ONLY in that case, matching `excludeFromFluency`
+   * and `hintUsed` in omitting the false half.
+   *
+   * =====================================================================
+   * "RAN OUT OF TIME" AND "PICKED THE WRONG ONE" ARE DIFFERENT EVENTS.
+   *
+   * Both score as `correct: false`, and until now the distinction was
+   * computed and thrown away — the flashcard shell knew, and no writer
+   * kept it. They are not the same signal. A wrong answer says the
+   * knowledge is wrong; a timeout says it was not retrieved at all,
+   * which is the strongest evidence of slowness the app can collect.
+   *
+   * Written alongside `elapsedMs` and, like it, DELIBERATELY UNREAD.
+   * Nothing branches on it and no UI shows it — the fast/slow boundary
+   * has to be drawn from real history, and none exists yet outside
+   * Reading. Record now, decide later.
+   * =====================================================================
+   */
+  timedOut?: boolean;
+  /**
    * Reading note items only. Which half of the staged letter/octave
    * answer was missed, set ONLY when the attempt was wrong.
    *

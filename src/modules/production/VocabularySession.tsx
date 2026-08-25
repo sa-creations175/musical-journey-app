@@ -17,6 +17,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type AttemptRecord } from '../../lib/db';
 import { addAttempt } from '../../lib/practiceWrites';
+import { elapsedFields, timedOutFields } from '../../lib/attemptTiming';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { updateDailySummary } from '../../lib/dailySummaries';
 import {
@@ -278,6 +279,8 @@ export default function VocabularySession({ onBack }: Props) {
     correct,
     timestamp,
     targetSeconds,
+    timedOut,
+    shownAt,
   }: CardAnsweredArgs<VocabFlashcard>) {
     const record: AttemptRecord = {
       moduleId: MODULE_ID,
@@ -285,6 +288,11 @@ export default function VocabularySession({ onBack }: Props) {
       correct,
       timestamp,
       ...(targetSeconds !== undefined ? { targetSeconds } : {}),
+      // Same shell, same clock. Vocabulary skips recordEngagement (see
+      // below) but its attempts are ordinary attempt rows and carry
+      // the measurement like every other module's.
+      ...elapsedFields(shownAt, timestamp),
+      ...timedOutFields(timedOut),
     };
     await addAttempt(record);
     await recordSrAttempt(card.id, correct, timestamp);

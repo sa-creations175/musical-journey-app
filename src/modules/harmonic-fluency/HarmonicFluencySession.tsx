@@ -11,6 +11,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type AttemptRecord } from '../../lib/db';
 import { addAttempt } from '../../lib/practiceWrites';
+import { elapsedFields, timedOutFields } from '../../lib/attemptTiming';
 import { updateDailySummary } from '../../lib/dailySummaries';
 import ScaleDegreeCompass from './ScaleDegreeCompass';
 import LinearScaleStrip from './LinearScaleStrip';
@@ -97,6 +98,8 @@ export default function HarmonicFluencySession({
     correct,
     timestamp,
     targetSeconds,
+    timedOut,
+    shownAt,
   }: CardAnsweredArgs<Flashcard>) {
     const record: AttemptRecord = {
       moduleId: MODULE_ID,
@@ -105,6 +108,11 @@ export default function HarmonicFluencySession({
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
       ...(targetSeconds !== undefined ? { targetSeconds } : {}),
+      // Silent measurement — nothing reads either of these yet. The
+      // clock starts when the card renders, which for a written
+      // flashcard is when it becomes answerable.
+      ...elapsedFields(shownAt, timestamp),
+      ...timedOutFields(timedOut),
     };
     await addAttempt(record);
     await recordEngagement({
