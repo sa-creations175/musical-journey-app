@@ -102,7 +102,6 @@ export default function StaffReference({
   const ledgersBelow = ladder.filter(p => p.region === 'ledger-below' && p.kind === 'line');
   const trebleLines = ladder.filter(p => p.region === 'treble' && p.kind === 'line');
   const bassLines = ladder.filter(p => p.region === 'bass' && p.kind === 'line');
-  const trebleSpaces = ladder.filter(p => p.spellsFace);
 
   const trebleTop = yOf(trebleLines[trebleLines.length - 1]);
   const trebleBottom = yOf(trebleLines[0]);
@@ -286,24 +285,6 @@ export default function StaffReference({
               onCommit={value => set(pos.id, value)}
             />
           ))}
-
-          {/* ONE TAG FOR THE FOUR, not four copies of the same fact.
-              Repeated per row it read as each row's own mnemonic; the
-              four spaces spell it together, so it is said once beside
-              the group. */}
-          {trebleSpaces.length > 0 && (
-            <div
-              data-testid="staff-spells-face"
-              className="absolute text-[9px] text-neutral-400 tracking-[0.05em]"
-              style={{
-                top: (yOf(trebleSpaces[0]) + yOf(trebleSpaces[trebleSpaces.length - 1])) / 2,
-                left: LINES_X - 56,
-                transform: 'translateY(-50%)',
-              }}
-            >
-              spells F–A–C–E
-            </div>
-          )}
         </div>
       </div>
 
@@ -379,7 +360,10 @@ function Row({
       </span>
 
       {pos.spellsFace ? (
-        // The four say it together, once, beside the group.
+        // NOTHING IN THIS COLUMN, and nothing said about it either. The
+        // four spaces are their own mnemonic; a prompt here would ask
+        // for a mnemonic for the mnemonic, and a tag beside them would
+        // spend a line of the drawing saying what they already spell.
         <span className="min-w-[128px]" />
       ) : (
         <Mnemonic

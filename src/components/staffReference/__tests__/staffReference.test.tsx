@@ -243,14 +243,11 @@ describe('the mnemonics', () => {
     }
   });
 
-  it('say it ONCE, beside the four, not once per row', async () => {
-    // Repeated per row it read as each row's own mnemonic. The four
-    // spell it together.
+  it('say nothing about them at all', async () => {
+    // The four spaces carry no tag either. What they spell is already
+    // on the drawing, in the letter column, in order.
     const el = await mount({ editable: true });
-    const tags = el.querySelectorAll('[data-testid="staff-spells-face"]');
-    expect(tags).toHaveLength(1);
-    expect(tags[0].textContent).toContain('F');
-    expect(tags[0].textContent).toContain('E');
+    expect(el.querySelectorAll('[data-testid="staff-spells-face"]')).toHaveLength(0);
   });
 
   it('offer no field at all where the drawing is read-only', async () => {
