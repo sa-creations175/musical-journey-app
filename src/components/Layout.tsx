@@ -22,6 +22,7 @@ import {
   SIDEBAR_WIDTH_PREF,
   clampSidebarWidth,
   rootFontSizePx,
+  showsLabels,
 } from '../lib/sidebarWidth';
 import { useDevMode } from '../lib/devMode';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
@@ -143,6 +144,17 @@ export default function Layout() {
   useAutoPauseOnNavigation();
   useStartArmedSessionOnArrival();
 
+  /**
+   * Icons only — either because the button put the sidebar on the rail,
+   * or because it has been dragged narrower than a label can read.
+   *
+   * ONE PRESENTATION, TWO WAYS IN, and they stay distinct: the button
+   * switches a STATE that persists, while this is a consequence of the
+   * current width. Dragging back out restores the labels because
+   * nothing was switched; the button still reaches the rail directly.
+   */
+  const iconsOnly = sidebarCollapsed || !showsLabels(sidebarWidth);
+
   const location = useLocation();
   const pageTitle = titleForPath(location.pathname);
   const pageTagline = taglineForPath(location.pathname);
@@ -201,12 +213,12 @@ export default function Layout() {
         )}
         <div
           className={`flex items-center gap-2 ${
-            sidebarCollapsed
+            iconsOnly
               ? 'p-2 justify-end md:justify-center'
               : 'p-4 justify-between'
           }`}
         >
-          <div className={sidebarCollapsed ? 'hidden' : ''}>
+          <div className={iconsOnly ? 'hidden' : ''}>
             {/* CAPS BY DISPLAY, like the module names in the nav below —
                 the string stays as it is. "practice companion" under it
                 is the one lowercase item in the sidebar, deliberately. */}
@@ -258,7 +270,7 @@ export default function Layout() {
             </svg>
           </button>
         </div>
-        <SidebarNav collapsed={sidebarCollapsed} />
+        <SidebarNav collapsed={iconsOnly} />
       </aside>
       <div className="flex-1 flex flex-col min-w-0">
         {/* Pinned app header. Sticky (not fixed) so it occupies space

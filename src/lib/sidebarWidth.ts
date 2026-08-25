@@ -40,12 +40,40 @@ export const SIDEBAR_RAIL_REM = SIDEBAR_RAIL_UNITS * TAILWIND_UNIT_REM;
 export const SIDEBAR_MAX_REM = SIDEBAR_FULL_UNITS * TAILWIND_UNIT_REM;
 
 /**
- * Comfortably clear of the rail, so a drag cannot imitate a collapse.
+ * The floor: an icon column, and no narrower.
  *
- * Twice the rail: derived from it, so a rail that changed width would
- * carry its own floor with it.
+ * The rail's own width, because the rail is exactly what an icon plus
+ * its padding measures — there is nothing to show below it.
  */
-export const SIDEBAR_MIN_REM = SIDEBAR_RAIL_REM * 2;
+export const SIDEBAR_MIN_REM = SIDEBAR_RAIL_REM;
+
+/**
+ * The width at which labels stop fitting, and the sidebar shows icons.
+ *
+ * ---------------------------------------------------------------
+ * DERIVED FROM THE RAIL, WHICH IS THE ICON COLUMN.
+ *
+ * The rail is an icon and its padding. A label sits BESIDE that column,
+ * so it has whatever is left over — and below twice the rail there is
+ * less room for the word than for the icon next to it, which is the
+ * point at which a wrapped label is one or two characters per line.
+ *
+ * So: twice the rail, taken from the rail rather than measured by eye.
+ * A rail that changed width carries this with it.
+ * ---------------------------------------------------------------
+ */
+export const SIDEBAR_LABELS_MIN_REM = SIDEBAR_RAIL_REM * 2;
+
+/**
+ * Whether the sidebar can show words at this width.
+ *
+ * The same PRESENTATION as the collapsed rail, reached a different way:
+ * the button switches state, this is a consequence of size. Dragging
+ * back out restores the labels, because nothing was switched.
+ */
+export function showsLabels(widthRem: number): boolean {
+  return widthRem >= SIDEBAR_LABELS_MIN_REM;
+}
 
 /** The width the sidebar has always opened at. */
 export const SIDEBAR_DEFAULT_REM = SIDEBAR_MAX_REM;
