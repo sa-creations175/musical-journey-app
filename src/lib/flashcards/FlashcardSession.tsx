@@ -23,6 +23,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import FluencyProtectionNotice from '../../components/FluencyProtectionNotice';
 import AnswerVerdict from '../../components/AnswerVerdict';
+import { renderedOptions } from './optionOrder';
 
 export type TimerMode = 'off' | '5' | '10' | '15';
 
@@ -220,20 +221,24 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   }, [streaks, fadeStreakThreshold]);
 
   // -----------------------------------------------------------------
-  // Deterministic per-card decoy shuffle so Previous shows the same
-  // choice order. Uses the card id as the seed.
+  // Deterministic per-card option order, so Previous shows the same
+  // four buttons in the same places. Seeded on the card id.
+  //
+  // THE ORDER LIVES IN `optionOrder.ts`, NOT HERE. It used to be six
+  // lines of sort inline in this memo, and being inline is why nothing
+  // ever checked it: the deck leak guard's rules all read the catalog,
+  // so none of them could see the render order at all. It sorted on one
+  // character with a stable sort, so every tie fell back to the input
+  // order — `[correctAnswer, ...decoys]` — and put the answer first on
+  // 52.5% of the deck.
+  //
+  // As a pure function the guard can call it. `always-first` is now the
+  // ninth blind rule and reads exactly what this renders.
   // -----------------------------------------------------------------
-  const choices = useMemo(() => {
-    if (!card) return [];
-    const opts = [card.correctAnswer, ...card.decoys];
-    let h = 0;
-    for (let i = 0; i < card.id.length; i++) h = (h * 31 + card.id.charCodeAt(i)) | 0;
-    return [...opts].sort((a, b) => {
-      const ah = ((a.charCodeAt(0) || 0) + h) % 97;
-      const bh = ((b.charCodeAt(0) || 0) + h) % 97;
-      return ah - bh;
-    });
-  }, [card]);
+  const choices = useMemo(
+    () => (card ? renderedOptions(card.id, card.correctAnswer, card.decoys) : []),
+    [card],
+  );
 
   // -----------------------------------------------------------------
   // Timer lifecycle: restart on fresh card; tick down per second;

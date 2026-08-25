@@ -13,7 +13,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
-import { rulesFor } from '../decoyGuard';
+import { catalogRulesFor } from '../decoyGuard';
 import { scaleDegreeQualityCards } from '../scaleDegreeQualityCards';
 import { LEGACY_TO_QUALITY } from '../sdmQualityMigration';
 import {
@@ -111,8 +111,14 @@ describe('the answer is derived, never typed', () => {
 
 describe('decoys', () => {
   it('trip no rule the guard runs on this category', () => {
+    // `catalogRulesFor`, because this hands the rules `[correct,
+    // ...decoys]`. A rendered-order rule asked that question answers
+    // "first slot" every time and would fail every card here while
+    // saying nothing about the decoys, which is what this test is
+    // about. Where the answer is DRAWN is asserted per category, over
+    // the real render, in deckLeakGuard.test.ts.
     for (const c of CARDS) {
-      expect(rulesFor('scale-degree-math')
+      expect(catalogRulesFor('scale-degree-math')
         .filter(r => r.pick([c.correctAnswer, ...c.decoys]) === c.correctAnswer)
         .map(r => r.id), c.id).toEqual([]);
     }

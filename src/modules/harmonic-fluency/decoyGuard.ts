@@ -27,6 +27,12 @@
  * =====================================================================
  */
 
+// The one import, and it is not the catalog. `renderedOptions` is how
+// the flashcard shell actually orders the four buttons; a guard that
+// re-derived that order would be checking its own copy rather than the
+// screen, which is how the render order went eight rules unexamined.
+import { renderedOptions } from '../../lib/flashcards/optionOrder';
+
 /**
  * Every rule sees ONLY the options, in a fixed order, and returns the
  * one it would pick — or null when it does not fire.
@@ -70,6 +76,35 @@ export interface BlindRule {
     /** Why these and not the rest — with the numbers. */
     because: string;
   };
+  /**
+   * This rule must be handed the options in the order they are
+   * RENDERED, not `[correct, ...decoys]`.
+   *
+   * =====================================================================
+   * WHY THE FLAG EXISTS, AND WHY THE CHOOSER MUST SKIP THESE.
+   *
+   * The other eight rules are order-invariant — they sort, or they
+   * filter to a unique match — so it never mattered which order they
+   * were given. `always-first` is the opposite: order is the ONLY thing
+   * it reads. That is also why it went unnoticed for so long. Every
+   * rule read the catalog, so no rule could see a defect that lives
+   * purely in the render.
+   *
+   * `chooseDecoys` must not try to satisfy a rule carrying this flag,
+   * and the reason is not taste. Under a seeded shuffle the answer's
+   * rendered index is a function of the card's SEED and the option
+   * COUNT — the permutation moves slot 0 somewhere regardless of what
+   * strings are in the other slots. So swapping decoys cannot change
+   * whether this rule fires: for a given card either every candidate
+   * set trips it or none does. Letting the chooser see it would make it
+   * throw "no clean decoy set" on roughly a quarter of the deck while
+   * searching for something no search can find.
+   *
+   * The position is fixed by the shuffle. The guard's job is to CHECK
+   * that, per category, not to have the chooser chase it.
+   * =====================================================================
+   */
+  readsRenderedOrder?: true;
 }
 
 /** The only option carrying `char`, if exactly one does. */
@@ -210,13 +245,151 @@ export const BLIND_RULES: ReadonlyArray<BlindRule> = [
         + 'before widening this.',
     },
   },
+  {
+    // ---------------------------------------------------------------
+    // THE NINTH RULE, AND THE ONLY ONE THAT READS THE SCREEN.
+    //
+    // The eight above read the catalog, which is why all eight were
+    // blind to this: the answer sat in the FIRST rendered slot on 341
+    // of 649 harmonic-fluency cards — 52.5% against a 25% baseline —
+    // and no rule that reads `[correct, ...decoys]` can express that.
+    //
+    // The cause was in `FlashcardSession`, not in any generator. The
+    // order came from a stable sort keyed on one character, so every
+    // tie fell back to the input order and the input order began with
+    // the answer. Categories whose options share a leading character
+    // were near-total: progressions 24 of 26 (92.3%), slash-chords 53
+    // of 60 (88.3%), modes 43 of 52 (82.7%). Production Vocabulary,
+    // through the same shell, was 105 of 199 (52.8%).
+    //
+    // ONLY THE FIRST POSITION IS A RULE. Measured on the same deck the
+    // other three were 14.0%, 19.3% and 14.2% — all at or below chance,
+    // so "always second" and its siblings are not tells, and asserting
+    // them would add three noisy rules to catch nothing.
+    //
+    // The per-category bound is NOT a flat percentage — see
+    // `positionBound`. A flat one would make tritone-pairs, at twelve
+    // cards, fail or pass on noise.
+    // ---------------------------------------------------------------
+    id: 'always-first',
+    name: 'the option rendered in the first slot',
+    pick: options => options[0] ?? null,
+    readsRenderedOrder: true,
+  },
 ];
+
+/**
+ * The largest count of first-slot answers a category of `n` cards may
+ * show before it is evidence of a leak rather than of sampling.
+ *
+ * =====================================================================
+ * A BINOMIAL BOUND, NOT A PERCENTAGE, AND SMALL CATEGORIES ARE WHY.
+ *
+ * A flat ceiling — "no category above 35%" — is wrong at both ends of
+ * this deck. tritone-pairs has twelve cards, so a fair shuffle puts
+ * four of them first about as often as not; 33% there is silence, not
+ * signal, and a flat rule would either fail it for nothing or be set so
+ * loose that scale-degree-math's 168 cards could hide a real skew
+ * underneath it.
+ *
+ * So the bound is derived from the size of the category. Under a fair
+ * shuffle each card's answer lands in the first of four slots with
+ * probability 1/4 independently, so the count is Binomial(n, 1/4), and
+ * this returns the smallest k with P(X > k) <= alpha. Small categories
+ * get a proportionally wider bound because they genuinely deserve one,
+ * and no separate "exempt anything under twenty" clause is needed —
+ * which is the same rule stated twice, and the second copy is the one
+ * that goes stale.
+ *
+ * EXACT, NOT A NORMAL APPROXIMATION. n·p is 3 for tritone-pairs, where
+ * the normal approximation is at its worst — and the small categories
+ * are the entire reason this function exists.
+ * =====================================================================
+ */
+/**
+ * Per category: how many cards there are, and on how many of them a
+ * rendered-order rule picks the answer.
+ *
+ * ONE IMPLEMENTATION, TWO DECKS. Harmonic Fluency and Production
+ * Vocabulary render through the same `FlashcardSession`, so they had
+ * the same defect and are fixed by the same change. Two copies of this
+ * loop would let one deck's guard be tightened and the other's quietly
+ * left behind — which is the failure mode the whole file is about.
+ */
+export interface RenderedRuleCount {
+  /** Cards in the category. */
+  n: number;
+  /** Rule id → how many of them it answered correctly. */
+  hits: Map<string, number>;
+  /**
+   * What a fair shuffle would score, DERIVED from the option counts
+   * rather than written as 0.25.
+   *
+   * Every card in both decks offers four options today, so this is a
+   * quarter — but a five-option card would silently make a written
+   * 0.25 the wrong baseline, and the bound built on it would be wrong
+   * in the permissive direction. Deducing it costs one line.
+   */
+  chance: number;
+}
+
+export function renderedRuleCounts(
+  cards: readonly GuardedCard[],
+): Map<string, RenderedRuleCount> {
+  const out = new Map<string, RenderedRuleCount>();
+  const slotSum = new Map<string, number>();
+  for (const c of cards) {
+    const e = out.get(c.category)
+      ?? { n: 0, hits: new Map<string, number>(), chance: 0 };
+    e.n += 1;
+    const options = renderedOptions(c.id, c.correctAnswer, c.decoys);
+    slotSum.set(c.category, (slotSum.get(c.category) ?? 0) + 1 / options.length);
+    for (const r of renderedRulesFor(c.category)) {
+      if (r.pick(options) === c.correctAnswer) {
+        e.hits.set(r.id, (e.hits.get(r.id) ?? 0) + 1);
+      }
+    }
+    out.set(c.category, e);
+  }
+  for (const [cat, e] of out) e.chance = (slotSum.get(cat) ?? 0) / e.n;
+  return out;
+}
+
+export function positionBound(n: number, p: number, alpha: number): number {
+  if (n <= 0) return 0;
+  // pmf(0) = (1-p)^n, then pmf(k+1) = pmf(k) · (n-k)/(k+1) · p/(1-p).
+  let pmf = Math.pow(1 - p, n);
+  let cdf = pmf;
+  for (let k = 0; k < n; k++) {
+    // P(X > k) = 1 - cdf(k). Return as soon as that is within alpha.
+    if (1 - cdf <= alpha) return k;
+    pmf = pmf * ((n - k) / (k + 1)) * (p / (1 - p));
+    cdf += pmf;
+  }
+  return n;
+}
 
 /** The rules that apply to a card in `category`. */
 export function rulesFor(category: string): BlindRule[] {
   return BLIND_RULES.filter(
     r => r.scope === undefined || r.scope.categories.includes(category),
   );
+}
+
+/**
+ * Those of them that read `[correct, ...decoys]` — the catalog order.
+ *
+ * The chooser's set, and the set every count-pinned allowlist entry is
+ * about. A rendered-order rule cannot be answered from a decoy set and
+ * must not be mixed into these totals; see `readsRenderedOrder`.
+ */
+export function catalogRulesFor(category: string): BlindRule[] {
+  return rulesFor(category).filter(r => r.readsRenderedOrder !== true);
+}
+
+/** Those of them that must be handed the rendered order instead. */
+export function renderedRulesFor(category: string): BlindRule[] {
+  return rulesFor(category).filter(r => r.readsRenderedOrder === true);
 }
 
 /**
@@ -233,7 +406,12 @@ export function tripped(
   category: string,
 ): string[] {
   const options = [correct, ...decoys];
-  return rulesFor(category).filter(r => r.pick(options) === correct).map(r => r.id);
+  // Catalog order in, so rendered-order rules are not asked. They
+  // cannot be answered from a decoy SET — see `readsRenderedOrder`.
+  // The deck test checks those against the real render instead.
+  return catalogRulesFor(category)
+    .filter(r => r.pick(options) === correct)
+    .map(r => r.id);
 }
 
 /**
@@ -490,10 +668,34 @@ export function cardsGivenAway(
 
 // =====================================================================
 // Where the answer sits once the options are sorted
+//
+// ---------------------------------------------------------------------
+// TWO DIFFERENT THINGS ARE CALLED "POSITION". READ THIS BEFORE
+// TRUSTING A COMMIT MESSAGE ABOUT EITHER.
+//
+// This section is about RANK AMONG SORTED OPTION VALUES — is the answer
+// the lowest number, the highest, one of the middle two. It is a
+// property of the option VALUES and it is what commit 31152c7, "the
+// answer's position is no longer the answer", fixed. That commit is
+// accurate about what it did and says nothing about the other one.
+//
+// The other one is RENDERED INDEX — which of the four buttons the
+// answer is drawn in. It is a property of the SHUFFLE, lives in
+// `lib/flashcards/optionOrder.ts`, and was still broken long after
+// 31152c7 shipped: 52.5% of the deck rendered its answer in the first
+// slot. It is caught by the `always-first` rule above.
+//
+// They are independent. Fixing rank does nothing for index, and fixing
+// index does nothing for rank. If you are here because a commit said
+// "position" was handled, check WHICH — the name is the trap.
+// ---------------------------------------------------------------------
 // =====================================================================
 
 /**
  * The answer's index in the sorted option list, 0-based.
+ *
+ * SORTED, not rendered — see the section header. `sortedRank` never
+ * describes where a button appears on screen.
  *
  * Numeric sort when every option is a number, so 10 does not sort
  * between 1 and 2. Nothing in this deck mixes the two.

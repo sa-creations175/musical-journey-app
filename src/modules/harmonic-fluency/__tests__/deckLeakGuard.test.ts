@@ -25,9 +25,12 @@
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import {
-  BLIND_RULES, TOKENISERS, cardsGivenAway, chooseDecoys, findTells, rotate,
-  rulesFor, type GuardedCard,
+  BLIND_RULES, TOKENISERS, cardsGivenAway, catalogRulesFor, chooseDecoys,
+  findTells, positionBound, renderedRuleCounts, renderedRulesFor, rotate,
+  rulesFor,
+  type GuardedCard,
 } from '../decoyGuard';
+import { renderedOptions } from '../../../lib/flashcards/optionOrder';
 
 const CARDS: GuardedCard[] = FLASHCARDS.map(c => ({
   id: c.id, category: c.category, correctAnswer: c.correctAnswer, decoys: c.decoys,
@@ -107,10 +110,15 @@ function blindCounts(): Map<string, number> {
   const counts = new Map<string, number>();
   for (const c of CARDS) {
     const options = [c.correctAnswer, ...c.decoys];
-    // `rulesFor`, not BLIND_RULES: a scoped rule is a tell in its own
-    // categories and noise elsewhere, and running it everywhere would
-    // fill the allowlist with cards that are fine.
-    for (const r of rulesFor(c.category)) {
+    // `catalogRulesFor`, not BLIND_RULES: a scoped rule is a tell in
+    // its own categories and noise elsewhere, and running it everywhere
+    // would fill the allowlist with cards that are fine.
+    //
+    // CATALOG rules only. This allowlist pins COUNTS, and a
+    // rendered-order rule has no count worth pinning — it fires on
+    // every card by construction and what matters is the proportion.
+    // It is asserted against a derived bound below instead.
+    for (const r of catalogRulesFor(c.category)) {
       if (r.pick(options) === c.correctAnswer) {
         const k = `${c.category}|${r.id}`;
         counts.set(k, (counts.get(k) ?? 0) + 1);
@@ -145,6 +153,139 @@ describe('a blind solver cannot beat the deck', () => {
       .map(a => `${a.category}|${a.rule} pinned ${a.cards}, actually `
         + `${counts.get(`${a.category}|${a.rule}`) ?? 0}`);
     expect(stale).toEqual([]);
+  });
+});
+
+// --- The ninth rule: where the answer is DRAWN -----------------------
+
+/**
+ * How unlikely a category's first-slot count has to be before the build
+ * calls it a leak.
+ *
+ * =====================================================================
+ * THE ONE AUTHORED NUMBER HERE, SO IT IS ON ITS OWN LINE.
+ *
+ * Everything else about this bound is derived: the baseline comes from
+ * the option count, the ceiling from the category size. This is the
+ * false-alarm rate we are willing to run, and it is a judgement, not a
+ * measurement.
+ *
+ * It is set tight because seventeen categories are checked on every
+ * run. At alpha = 0.05 each has a 1-in-20 chance of tripping on nothing
+ * — across seventeen that is closer to a coin flip per build than to a
+ * rare event, and a guard that goes red on noise is a guard that gets
+ * switched off. Production Vocabulary's `microphones` sits at exactly
+ * the 0.05 ceiling today (4 of 7), so one new card there would have
+ * failed the build for no reason at all.
+ *
+ * At 0.001 the same category's ceiling is 6, and every category in both
+ * decks clears its bound with room. The cost is sensitivity: a skew has
+ * to be substantial before this fires. That is the right trade for a
+ * BUILD GATE, whose job is to catch a mechanism breaking rather than to
+ * detect a subtle bias — and the mechanism breaking looks like 52.5%,
+ * not like 30%.
+ * =====================================================================
+ */
+const POSITION_ALPHA = 0.001;
+
+describe('the answer is not drawn in a predictable slot', () => {
+  const counts = renderedRuleCounts(CARDS);
+
+  // Every category, every rendered-order rule — no allowlist to opt out
+  // of. A category that cannot meet the bound is a bug in the shuffle,
+  // and the shuffle is one function shared by the whole deck, so there
+  // is no such thing as "this category is a known exception".
+  for (const category of CATEGORIES) {
+    const e = counts.get(category)!;
+    for (const rule of renderedRulesFor(category)) {
+      const bound = positionBound(e.n, e.chance, POSITION_ALPHA);
+      it(`${category} / ${rule.id}: at most ${bound} of ${e.n}`, () => {
+        expect(e.hits.get(rule.id) ?? 0).toBeLessThanOrEqual(bound);
+      });
+    }
+  }
+
+  it('holds deck-wide, where the bound is tightest', () => {
+    // =================================================================
+    // THE CATEGORY TESTS ABOVE CANNOT REPLACE THIS ONE.
+    //
+    // A bound scales with the square root of n, so fifteen small
+    // ceilings are collectively far looser than one ceiling over the
+    // whole deck. A uniform 30% skew would clear every category above
+    // and still be a tell — it is the deck a reader practises, not a
+    // category.
+    // =================================================================
+    const all = renderedRuleCounts(
+      CARDS.map(c => ({ ...c, category: 'deck' })),
+    ).get('deck')!;
+    const failures = renderedRulesFor('deck').map(r => {
+      const bound = positionBound(all.n, all.chance, POSITION_ALPHA);
+      const hits = all.hits.get(r.id) ?? 0;
+      return { rule: r.id, hits, bound, of: all.n };
+    }).filter(f => f.hits > f.bound);
+    expect(failures).toEqual([]);
+  });
+
+  it('measures the RENDERED order, which is the whole point', () => {
+    // =================================================================
+    // THE REVERSAL, PINNED.
+    //
+    // This rule exists because eight rules read `[correct, ...decoys]`
+    // and were therefore structurally unable to see a defect that lives
+    // in the shuffle. If a later refactor ever feeds it catalog order
+    // instead, every one of its assertions would pass trivially —
+    // `[correct, ...decoys]` puts the answer first 100% of the time, so
+    // the rule would be perfectly wrong and perfectly green.
+    //
+    // So: assert that catalog order FAILS the rule outright. This is
+    // the one shape that proves the rule is reading the screen.
+    // =================================================================
+    const rule = BLIND_RULES.find(r => r.id === 'always-first')!;
+    const onCatalogOrder = CARDS.filter(
+      c => rule.pick([c.correctAnswer, ...c.decoys]) === c.correctAnswer,
+    ).length;
+    expect(onCatalogOrder).toBe(CARDS.length);
+
+    const onRendered = CARDS.filter(
+      c => rule.pick(renderedOptions(c.id, c.correctAnswer, c.decoys)) === c.correctAnswer,
+    ).length;
+    expect(onRendered).toBeLessThan(CARDS.length);
+  });
+
+  it('would have failed on the order this replaced', () => {
+    // =================================================================
+    // A GUARD THAT PASSES ON THE NUMBERS THAT MOTIVATED IT PROVES
+    // NOTHING.
+    //
+    // The old order sorted the four options by `(firstCharCode +
+    // cardHash) % 97`. The key reads ONE character, and `sort` is
+    // stable, so every tie fell back to the input order — which begins
+    // with the answer. The rule has to go red on that, or it is not a
+    // guard, it is decoration.
+    //
+    // The old comparator is reproduced here rather than imported: it is
+    // deleted code, and the point is that THIS rule catches THAT shape,
+    // not that some helper still exists.
+    // =================================================================
+    const oldOrder = (c: GuardedCard): string[] => {
+      const opts = [c.correctAnswer, ...c.decoys];
+      let h = 0;
+      for (let i = 0; i < c.id.length; i++) h = (h * 31 + c.id.charCodeAt(i)) | 0;
+      return [...opts].sort((a, b) =>
+        (((a.charCodeAt(0) || 0) + h) % 97) - (((b.charCodeAt(0) || 0) + h) % 97));
+    };
+    const firstUnder = (order: (c: GuardedCard) => string[]) =>
+      CARDS.filter(c => order(c)[0] === c.correctAnswer).length;
+
+    const before = firstUnder(oldOrder);
+    const after = firstUnder(c => renderedOptions(c.id, c.correctAnswer, c.decoys));
+    const bound = positionBound(CARDS.length, 0.25, POSITION_ALPHA);
+
+    // 341 of 649 — 52.5%, against a 197 ceiling. Red by a mile.
+    expect(before).toBe(341);
+    expect(before).toBeGreaterThan(bound);
+    // And the replacement clears it.
+    expect(after).toBeLessThanOrEqual(bound);
   });
 });
 
@@ -211,10 +352,16 @@ describe('no decoy pins its answer', () => {
     // So the honest aggregate is derived here rather than written into
     // a commit message, where nobody can check it.
     // =================================================================
+    // Catalog rules only, for the same reason `blindCounts` uses them:
+    // `always-first` fires on every card and is right on a quarter of
+    // them BY DESIGN, so folding it in here would report a sixth of the
+    // deck as leaky and make this aggregate meaningless.
     const leaky = new Set<string>();
     for (const c of CARDS) {
       const options = [c.correctAnswer, ...c.decoys];
-      if (rulesFor(c.category).some(r => r.pick(options) === c.correctAnswer)) leaky.add(c.id);
+      if (catalogRulesFor(c.category).some(r => r.pick(options) === c.correctAnswer)) {
+        leaky.add(c.id);
+      }
     }
     const told = new Set<string>();
     for (const category of CATEGORIES) {
@@ -298,8 +445,27 @@ describe('the rules fire on a card built to be answerable', () => {
     // Four mode names, same shape, no accidentals, no punctuation.
     // `longest` is excluded because "Aeolian" IS one letter longer —
     // it fires correctly here, and it is asserted on its own below.
-    for (const r of BLIND_RULES.filter(r => r.id !== 'longest')) {
+    //
+    // RENDERED-ORDER RULES ARE EXCLUDED FOR A DIFFERENT REASON, and it
+    // is not an exemption. This test asks "does the rule go quiet when
+    // the option VALUES give nothing away". `always-first` never reads
+    // the values at all — there is always a first slot, so it always
+    // fires, and whether it is a leak is a fact about the PROPORTION it
+    // gets right across a category rather than about any single card.
+    // Its silence is not a meaningful property and asserting it would
+    // be asserting the wrong thing about the right rule.
+    const catalogRules = BLIND_RULES.filter(
+      r => r.id !== 'longest' && r.readsRenderedOrder !== true,
+    );
+    for (const r of catalogRules) {
       expect(r.pick(['Dorian', 'Aeolian', 'Lydian', 'Ionian'])).toBeNull();
+    }
+    // The exclusion is not an escape hatch: this is what it excludes.
+    // If a rendered-order rule ever DID go silent on a real four-option
+    // card, it would be firing on nothing and its bound would be
+    // meaningless — so pin the opposite.
+    for (const r of BLIND_RULES.filter(r => r.readsRenderedOrder === true)) {
+      expect(r.pick(['Dorian', 'Aeolian', 'Lydian', 'Ionian'])).not.toBeNull();
     }
   });
 
