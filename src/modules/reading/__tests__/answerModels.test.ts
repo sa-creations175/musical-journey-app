@@ -25,7 +25,6 @@ import {
   keyNameOptions,
   letterOptions,
   mnemonicFor,
-  octaveOptions,
   octavesForClef,
   qualityOptions,
   rootId,
@@ -56,15 +55,16 @@ describe('note answer sets', () => {
     for (const o of letterOptions()) expect(o.label).not.toMatch(/[#b♯♭]/);
   });
 
-  it('THE OCTAVE SET IS PER-CLEF, not a shared row', () => {
-    // Easy to assume fixed and wrong. A shared row would offer octaves
-    // the clef cannot reach, which is a free elimination hint.
+  it('THE OCTAVE RANGE IS PER-CLEF, not a shared span', () => {
+    // No longer an answer set — it is what the reveal's keyboard
+    // brackets. Still per-clef, and still worth pinning: the two do
+    // not overlap the way a single hardcoded span would suggest.
     expect(octavesForClef('treble')).toEqual([3, 4, 5, 6]);
     expect(octavesForClef('bass')).toEqual([2, 3, 4]);
     expect(octavesForClef('treble')).not.toEqual(octavesForClef('bass'));
   });
 
-  it('the octave set is DERIVED — it is exactly what the catalog reaches', () => {
+  it('the octave range is DERIVED — it is exactly what the catalog reaches', () => {
     for (const clef of ['treble', 'bass'] as const) {
       const walked = new Set(
         enumerateNoteItems()
@@ -76,35 +76,29 @@ describe('note answer sets', () => {
     }
   });
 
-  it('every note item has BOTH its halves on offer', () => {
+  it('every note item has its answer on offer', () => {
     for (const ref of enumerateNoteItems()) {
       const p = parseReadingItemRef(ref);
       if (p?.skill !== 'note') continue;
       const pitch = pitchAtStaffPosition(p.clef, p.position);
       expect(letterOptions().map(o => o.id), ref).toContain(pitch.letter);
-      expect(octaveOptions(p.clef).map(o => o.id), ref).toContain(String(pitch.octave));
     }
   });
 
-  it('one half right is still WRONG, and the miss is attributable', () => {
-    // note:treble:0 is E4.
-    const both = judgeNote('treble', 0, 'E', '4');
-    expect(both).toEqual({ letterCorrect: true, octaveCorrect: true, correct: true });
+  it('THE ANSWER IS THE LETTER — the octave is not judged', () => {
+    // note:treble:0 is E4, and note:treble:7 is E5. The same letter at
+    // a different octave is the same answer; the verdict must not
+    // reach for a numbering convention the question never asked for.
+    expect(judgeNote('treble', 0, 'E')).toEqual({ letterCorrect: true, correct: true });
+    expect(judgeNote('treble', 7, 'E')).toEqual({ letterCorrect: true, correct: true });
 
-    const octaveMiss = judgeNote('treble', 0, 'E', '5');
-    expect(octaveMiss.correct).toBe(false);
-    expect(octaveMiss.letterCorrect).toBe(true);
-    expect(octaveMiss.octaveCorrect).toBe(false);
-
-    const letterMiss = judgeNote('treble', 0, 'F', '4');
+    const letterMiss = judgeNote('treble', 0, 'F');
     expect(letterMiss.correct).toBe(false);
     expect(letterMiss.letterCorrect).toBe(false);
-    expect(letterMiss.octaveCorrect).toBe(true);
   });
 
-  it('an unanswered half is not silently correct', () => {
-    expect(judgeNote('treble', 0, 'E', null).correct).toBe(false);
-    expect(judgeNote('treble', 0, null, '4').correct).toBe(false);
+  it('an unanswered card is not silently correct', () => {
+    expect(judgeNote('treble', 0, null).correct).toBe(false);
   });
 });
 

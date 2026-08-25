@@ -29,11 +29,11 @@ import { LETTERS, pitchAtStaffPosition, withAccidentalGlyphs, isLinePosition } f
 import type { PickerOption } from '../../components/FullSetPicker';
 
 // =====================================================================
-// Note recognition — staged: letter, then octave
+// Note recognition — the answer is the letter
 // =====================================================================
 
 /** The seven letters. Note cards render no accidentals by design, so
- *  this is the whole first-stage answer set. */
+ *  this is the whole answer set. */
 export function letterOptions(): PickerOption[] {
   return LETTERS.map(l => ({ id: l, label: l }));
 }
@@ -42,12 +42,23 @@ export function letterOptions(): PickerOption[] {
  * The octaves reachable on a clef — DERIVED by walking every catalog
  * position, not written down.
  *
- * THE OCTAVE STAGE IS NOT A FIXED SET, which is easy to assume and
- * wrong. Treble spans A3–C6 across the catalog's two-ledger range and
- * bass spans C2–E4, so the second stage is four buttons on treble and
- * three on bass. A shared five-button row would offer octaves that
- * cannot occur on the clef being asked about, which is a free
- * elimination hint.
+ * =====================================================================
+ * NO LONGER AN ANSWER SET. IT DESCRIBES THE REVEAL.
+ *
+ * This used to build the second stage of the question, and there was a
+ * good argument for deriving it: a shared five-button row would have
+ * offered octaves that cannot occur on the clef being asked about,
+ * which is a free elimination hint.
+ *
+ * The question no longer asks. Naming the note is reading; knowing
+ * that middle C is called C4 is a numbering convention, and asking for
+ * it tested a second skill inside the first one's score. What survives
+ * is the RANGE — treble reaches A3–C6 across the catalog's two-ledger
+ * span and bass reaches C2–E4 — which is what the reveal's keyboard is
+ * showing you when it brackets the clef. Kept derived rather than
+ * written down for the original reason: the catalog moves and a typed
+ * list would not.
+ * =====================================================================
  */
 export function octavesForClef(clef: Clef): number[] {
   const seen = new Set<number>();
@@ -57,14 +68,19 @@ export function octavesForClef(clef: Clef): number[] {
   return [...seen].sort((a, b) => a - b);
 }
 
-export function octaveOptions(clef: Clef): PickerOption[] {
-  return octavesForClef(clef).map(o => ({ id: String(o), label: String(o) }));
-}
-
+/**
+ * The verdict on a note card.
+ *
+ * `letterCorrect` and `correct` are the same value, and both are kept
+ * deliberately. `correct` is what every skill's verdict carries and
+ * what the attempt row records; `letterCorrect` is what `noteMissFor`
+ * reads to decide the miss reason. Collapsing them would make the
+ * miss reason depend on a field named for the whole answer, which is
+ * how the next half of a staged answer gets added back without anyone
+ * noticing the reason column stopped meaning anything.
+ */
 export interface NoteVerdict {
   letterCorrect: boolean;
-  octaveCorrect: boolean;
-  /** Both halves. Getting one half right is still wrong. */
   correct: boolean;
 }
 
@@ -72,12 +88,10 @@ export function judgeNote(
   clef: Clef,
   position: number,
   pickedLetter: string | null,
-  pickedOctave: string | null,
 ): NoteVerdict {
   const pitch = pitchAtStaffPosition(clef, position);
   const letterCorrect = pickedLetter === pitch.letter;
-  const octaveCorrect = pickedOctave === String(pitch.octave);
-  return { letterCorrect, octaveCorrect, correct: letterCorrect && octaveCorrect };
+  return { letterCorrect, correct: letterCorrect };
 }
 
 // =====================================================================

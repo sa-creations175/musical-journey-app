@@ -66,7 +66,11 @@ export default function FullSetPicker({
   const layout = gridClassName ?? 'flex justify-center gap-2 flex-wrap';
 
   return (
-    <div className="space-y-1.5">
+    /* `data-picker` names the answer set on screen. A test asserting a
+       drill asks for one thing and not another has to be able to count
+       the pickers by name — inferring them from option labels passes on
+       the wrong picker whenever two answer sets happen to share one. */
+    <div className="space-y-1.5" {...(title ? { 'data-picker': title } : {})}>
       {title && (
         <div className="text-[10px] uppercase tracking-wide text-neutral-500 text-center">
           {title}

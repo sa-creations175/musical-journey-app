@@ -75,14 +75,14 @@ describe('noteMiss — which half went wrong', () => {
   it('is absent when the attempt was right', () => {
     // The field answers "what went wrong", so it should not be present
     // when nothing did.
-    expect(noteMissFor(judgeNote('treble', 0, 'E', '4'))).toBeUndefined();
+    expect(noteMissFor(judgeNote('treble', 0, 'E'))).toBeUndefined();
   });
 
-  it('attributes the miss to the half that actually missed', () => {
-    // note:treble:0 is E4.
-    expect(noteMissFor(judgeNote('treble', 0, 'E', '5'))).toBe('octave');
-    expect(noteMissFor(judgeNote('treble', 0, 'F', '4'))).toBe('letter');
-    expect(noteMissFor(judgeNote('treble', 0, 'F', '5'))).toBe('both');
+  it("a wrong note is a wrong LETTER — 'octave' is no longer reachable", () => {
+    // note:treble:0 is E4. The octave is not asked, so it cannot be
+    // missed; the only miss a new row can carry is the letter.
+    expect(noteMissFor(judgeNote('treble', 0, 'F'))).toBe('letter');
+    expect(noteMissFor(judgeNote('treble', 0, 'B'))).toBe('letter');
   });
 
   it('rides on the row only for NOTE items', () => {
@@ -90,9 +90,9 @@ describe('noteMiss — which half went wrong', () => {
       itemRef: 'note:treble:0',
       correct: false,
       elapsedMs: 1,
-      noteVerdict: judgeNote('treble', 0, 'E', '5'),
+      noteVerdict: judgeNote('treble', 0, 'F'),
     })!;
-    expect(note.noteMiss).toBe('octave');
+    expect(note.noteMiss).toBe('letter');
 
     // A verdict handed in for a non-note card is ignored rather than
     // written — the field would mean nothing on a chord row.
@@ -100,7 +100,7 @@ describe('noteMiss — which half went wrong', () => {
       itemRef: 'chord:maj:root:treble',
       correct: false,
       elapsedMs: 1,
-      noteVerdict: judgeNote('treble', 0, 'E', '5'),
+      noteVerdict: judgeNote('treble', 0, 'F'),
     })!;
     expect(chord.noteMiss).toBeUndefined();
   });
@@ -178,7 +178,7 @@ describe('the three calls', () => {
   it('a wrong attempt counts toward the day, not only a right one', async () => {
     await recordReadingAttempt({
       itemRef: 'note:bass:-4', correct: false, elapsedMs: 10,
-      noteVerdict: judgeNote('bass', -4, 'D', '2'),
+      noteVerdict: judgeNote('bass', -4, 'D'),
     });
     const [summary] = await db.dailySummaries.toArray();
     expect(summary.wrongCount).toBe(1);

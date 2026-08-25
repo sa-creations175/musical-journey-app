@@ -56,15 +56,31 @@ export interface ReadingAttemptInput {
   timestamp?: number;
 }
 
-/** Which half missed, or undefined when nothing did. Undefined for a
- *  correct attempt is the point — the field answers "what went wrong",
- *  so it should be absent when nothing did. */
+/**
+ * What missed, or undefined when nothing did. Undefined for a correct
+ * attempt is the point — the field answers "what went wrong", so it
+ * should be absent when nothing did.
+ *
+ * =====================================================================
+ * ONLY 'letter' IS REACHABLE NOW, AND THE OTHER TWO ARE NOT DEAD.
+ *
+ * The question asked for a letter and an octave, so a miss was one of
+ * three: 'letter', 'octave', or 'both'. It now asks only for the
+ * letter, so a wrong answer can only be a wrong letter.
+ *
+ * `AttemptRecord.noteMiss` keeps all three values and
+ * `readingMissBreakdown` keeps counting all three, because rows
+ * written before this change carry them and that history is true. A
+ * narrowed union would make those rows unreadable to their own reader
+ * — reinterpreting recorded practice to match a question that has
+ * since changed, which is the one thing a history must not do.
+ * =====================================================================
+ */
 export function noteMissFor(
   verdict: NoteVerdict | undefined,
 ): AttemptRecord['noteMiss'] {
   if (!verdict || verdict.correct) return undefined;
-  if (!verdict.letterCorrect && !verdict.octaveCorrect) return 'both';
-  return verdict.letterCorrect ? 'octave' : 'letter';
+  return 'letter';
 }
 
 /**

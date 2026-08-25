@@ -51,7 +51,6 @@ import {
   type NoteVerdict,
   letterOptions,
   mnemonicFor,
-  octaveOptions,
   qualityOptions,
   rootOptions,
   shapeOptions,
@@ -67,7 +66,6 @@ const SEPIA = '#6f4a2f';
  *  reset path is a single assignment and cannot half-clear. */
 interface AnswerState {
   letter: string | null;
-  octave: string | null;
   shape: string | null;
   keyName: string | null;
   count: string | null;
@@ -78,7 +76,7 @@ interface AnswerState {
 }
 
 const EMPTY: AnswerState = {
-  letter: null, octave: null, shape: null, keyName: null,
+  letter: null, shape: null, keyName: null,
   count: null, sequence: [], inversion: null, root: null, quality: null,
 };
 
@@ -106,12 +104,10 @@ function evaluate(
   answer: AnswerState,
 ): Evaluation {
   if (parsed.skill === 'note') {
-    const noteVerdict = judgeNote(
-      parsed.clef, parsed.position, answer.letter, answer.octave,
-    );
+    const noteVerdict = judgeNote(parsed.clef, parsed.position, answer.letter);
     return {
       correct: noteVerdict.correct,
-      ready: answer.letter !== null && answer.octave !== null,
+      ready: answer.letter !== null,
       countStage: null,
       noteVerdict,
     };
@@ -335,7 +331,15 @@ export default function ReadingDrill({
       {submitted && (
         <div className="space-y-2">
           <AnswerVerdict state={correct ? 'correct' : 'incorrect'} />
-          <p className="text-center text-sm font-medium" style={{ color: SEPIA }}>
+          {/* For a note card this is the scientific pitch — "A3". The
+              octave is no longer ASKED, and it is still SHOWN, which is
+              the whole point: it is a fact to be handed, next to the
+              keyboard that places it, rather than a second question. */}
+          <p
+            data-testid="reveal-caption"
+            className="text-center text-sm font-medium"
+            style={{ color: SEPIA }}
+          >
             {resolved.caption}
           </p>
           {/* The notes, under the name. Naming the chord without naming
@@ -358,7 +362,7 @@ export default function ReadingDrill({
             // something behind. Shown right or wrong, every time — a
             // mnemonic that only appears after a miss reads as a
             // correction rather than as the thing being learned.
-            <div className="space-y-4 pt-1">
+            <div className="space-y-4 pt-1" data-testid="note-reveal">
               <MnemonicStaff
                 mnemonic={mnemonicFor(parsed.clef, parsed.position)}
                 accentHex={SEPIA}
@@ -384,7 +388,13 @@ export default function ReadingDrill({
       {/* --------------------------------------------------------- */}
 
       {parsed.skill === 'note' && (
-        <div className="space-y-3">
+        /* ONE PICKER, AND THE OCTAVE IS NOT A SECOND ONE.
+           The skill is naming the note. Which octave a staff position
+           falls in is a numbering convention — a real thing to know,
+           learned from the keyboard on the reveal, not a second answer
+           folded into this one's score. A2 and A3 stay separate items
+           on separate schedules; they simply share an answer. */
+        <div className="space-y-3" data-testid="note-question">
           <FullSetPicker
             title="letter"
             options={letterOptions()}
@@ -393,18 +403,6 @@ export default function ReadingDrill({
             locked={submitted}
             onPick={id => set({ letter: id })}
           />
-          {/* Octave only after a letter — staged, as designed. The set
-              is per-clef, so it is built from the card's own clef. */}
-          {answer.letter !== null && (
-            <FullSetPicker
-              title="octave"
-              options={octaveOptions(parsed.clef)}
-              correctId={resolved.caption.slice(1)}
-              selectedId={answer.octave}
-              locked={submitted}
-              onPick={id => set({ octave: id })}
-            />
-          )}
         </div>
       )}
 
