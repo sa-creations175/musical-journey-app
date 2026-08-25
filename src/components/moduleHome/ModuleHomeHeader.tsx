@@ -75,13 +75,12 @@ export interface ModuleHomeHeaderProps {
   /** Where "view calendar →" goes. Omit where there is no such route. */
   calendarTo?: string;
   /**
-   * The module's one line, and whatever expanded content it already
-   * had. Absent where the module has no copy.
+   * The module's one line. Absent where the module has no copy.
    *
-   * COLLAPSED SHOWS NEITHER — see `ModuleHomeIntro`. The row is "About
-   * <module>" and the control, and nothing else.
+   * COLLAPSED SHOWS NONE OF IT — see `ModuleHomeIntro`. The row is
+   * "About MODULE" and the control, and nothing else.
    */
-  intro?: { description: string; bullets?: readonly string[] };
+  intro?: { description: string };
   /**
    * Whether to render the intro at all right now.
    *

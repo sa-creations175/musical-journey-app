@@ -178,7 +178,7 @@ describe('the intro, only where there is copy', () => {
     const el = await mount({
       moduleIds: ['harmonic-fluency'],
       moduleId: 'harmonic-fluency',
-      intro: { description: 'A description the module owns.', bullets: ['A bullet'] },
+      intro: { description: 'A description the module owns.' },
     });
     // The block is there, and closed: the sentence is behind the
     // expand, not in the collapsed row.
@@ -189,7 +189,7 @@ describe('the intro, only where there is copy', () => {
   it('hides it while a session is running, without discarding it', async () => {
     // HF passes `showIntro={!sessionActive}`. The copy still exists; the
     // moment is wrong for it.
-    const intro = { description: 'A description the module owns.', bullets: ['A bullet'] };
+    const intro = { description: 'A description the module owns.' };
     const el = await mount({ moduleIds: ['harmonic-fluency'], moduleId: 'harmonic-fluency', intro, showIntro: false });
     expect(el.querySelector('[data-testid="module-home-intro"]')).toBeNull();
     // And the row above it is unaffected.

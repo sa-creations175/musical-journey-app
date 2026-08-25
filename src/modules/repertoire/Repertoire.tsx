@@ -159,15 +159,6 @@ export default function Repertoire() {
         calendarTo="/repertoire/calendar"
         intro={{
           description: 'Bring songs to life by mastering each song, section by section, key by key.',
-          // The bullets the active tab's explainer already carried.
-          // It rendered only on that tab; the block is the module's, so
-          // it now sits above all three with the rest of the header.
-          bullets: [
-            'Five **learning stages** with coaching guidance',
-            'Per-section **cross-key** mastery across all 12 keys',
-            'Lead sheets with **chord parsing** that surfaces known progressions',
-            '**Practice session log** — freshness, feel ratings, notes',
-          ],
         }}
       />
 

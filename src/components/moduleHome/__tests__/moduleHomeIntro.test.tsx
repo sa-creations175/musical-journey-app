@@ -30,18 +30,12 @@ let root: Root | null = null;
 
 const SENTENCE = 'The one line the module owns.';
 
-function mount(moduleId: string, bullets?: string[]): HTMLDivElement {
+function mount(moduleId: string): HTMLDivElement {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
   act(() => {
-    root!.render(
-      <ModuleHomeIntro
-        moduleId={moduleId}
-        description={SENTENCE}
-        {...(bullets ? { bullets } : {})}
-      />,
-    );
+    root!.render(<ModuleHomeIntro moduleId={moduleId} description={SENTENCE} />);
   });
   return container;
 }
@@ -64,12 +58,11 @@ describe('collapsed', () => {
   });
 
   it('shows the label and the control, and nothing else', () => {
-    const el = mount('harmonic-fluency', ['A bullet']);
+    const el = mount('harmonic-fluency');
     expect(el.textContent).toContain('About');
     expect(el.textContent).toContain('harmonic fluency');
-    // The whole point: no sentence, no bullets, no subtitle.
+    // The whole point: no sentence, no subtitle.
     expect(el.textContent).not.toContain(SENTENCE);
-    expect(el.textContent).not.toContain('A bullet');
     expect(el.querySelector('[data-testid="module-home-intro-body"]')).toBeNull();
   });
 });
@@ -81,18 +74,14 @@ describe('expanded', () => {
     expect(el.textContent).toContain(SENTENCE);
   });
 
-  it('keeps the bullets the module already had', () => {
-    const el = mount('shapes-and-patterns', ['A bullet', 'Another']);
-    act(() => { toggle(el).click(); });
-    expect(el.textContent).toContain('A bullet');
-    expect(el.textContent).toContain('Another');
-  });
-
-  it('renders no bullet list for a module with none', () => {
-    const el = mount('reading');
+  it('holds the sentence and nothing else', () => {
+    // No list, for any module — shapes & patterns was the last one
+    // carrying bullets and they are gone with the rest.
+    const el = mount('shapes-and-patterns');
     act(() => { toggle(el).click(); });
     expect(el.textContent).toContain(SENTENCE);
     expect(el.querySelector('ul')).toBeNull();
+    expect(el.querySelector('li')).toBeNull();
   });
 
   it('closes again', () => {
@@ -109,8 +98,11 @@ describe('the label', () => {
     // rename carries.
     for (const meta of MODULE_ORDER) {
       const el = mount(meta.id);
-      const name = el.querySelector('[data-testid="module-home-intro-name"]')!;
+      const name = el.querySelector('[data-testid="module-home-intro-name"]') as HTMLElement;
+      // The canonical label, uppercased by RENDER rather than by a
+      // second string — `moduleMeta` keeps one copy of each name.
       expect(name.textContent).toBe(meta.label);
+      expect(name.className).toContain('uppercase');
       expect(el.textContent).toContain(`About ${meta.label}`);
       act(() => root!.unmount());
       container!.remove();
@@ -127,10 +119,11 @@ describe('the label', () => {
     // rendered value being matched loosely.
     const [r, g, b] = [1, 3, 5].map(i => parseInt(accent.slice(i, i + 2), 16));
     expect(name.style.color).toBe(`rgb(${r}, ${g}, ${b})`);
-    // "About" is not coloured.
+    // "About" is neither coloured nor capitalised.
     const about = name.previousElementSibling as HTMLElement;
     expect(about.textContent).toBe('About ');
     expect(about.getAttribute('style')).toBeNull();
+    expect(about.className).not.toContain('uppercase');
   });
 
   it('falls back to the id for a module moduleMeta does not know', () => {

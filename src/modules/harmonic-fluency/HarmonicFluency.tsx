@@ -271,12 +271,6 @@ export default function HarmonicFluency() {
         showIntro={!sessionActive}
         intro={{
           description: "Know your way around every key — degrees up, down and around, diatonic and chromatic, chord building, tritones and modes.",
-          bullets: [
-            'Scale degree math in all 12 keys',
-            'Functional harmony and cadence recognition',
-            'Chord construction and quality relationships',
-            'Fast flashcard practice with **spaced repetition**',
-          ],
         }}
       />
 

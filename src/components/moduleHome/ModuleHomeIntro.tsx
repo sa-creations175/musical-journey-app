@@ -10,8 +10,9 @@
  * sentence visible before expanding spends exactly the space the
  * collapse was for.
  *
- * So the sentence lives in the EXPANDED state, with whatever bullets
- * the module already had, and the collapsed row carries nothing else.
+ * So the sentence lives in the EXPANDED state — the sentence and
+ * nothing else, no list under it — and the collapsed row carries the
+ * label and the control.
  *
  * WHY NOT `ModuleIntro`. That component is the learn-more card on seven
  * drill pages, where the headline and description are meant to be read
@@ -31,10 +32,15 @@ import { moduleMetaById } from '../../lib/moduleMeta';
 export interface ModuleHomeIntroProps {
   /** The module whose name and accent title this block. */
   moduleId: string;
-  /** The one line, shown only once expanded. Authored, never generated. */
+  /**
+   * The one line, shown only once expanded. Authored, never generated.
+   *
+   * THE WHOLE OF THE EXPANDED STATE. There is no bullet list any more —
+   * the block is a sentence behind a label, and a list underneath it
+   * made the expanded state a second page of content rather than an
+   * answer to "what is this module".
+   */
   description: string;
-  /** Whatever expanded content the module already had. */
-  bullets?: readonly string[];
 }
 
 /** `**bold**` spans, the same inline convention `ModuleIntro` reads. */
@@ -48,7 +54,7 @@ function formatInline(text: string): ReactNode[] {
 }
 
 export default function ModuleHomeIntro({
-  moduleId, description, bullets,
+  moduleId, description,
 }: ModuleHomeIntroProps) {
   // ALWAYS CLOSED ON ARRIVAL. Not persisted: a module home that opened
   // holding a block the reader expanded last week would be back to
@@ -72,9 +78,14 @@ export default function ModuleHomeIntro({
         <span className="text-sm">
           <span className="text-neutral-500">About </span>
           {/* The module's own accent, from `moduleMeta` — the same hex
-              its cards are tinted with. */}
+              its cards are tinted with.
+
+              ALL CAPS BY DISPLAY, NOT BY STRING. `uppercase` is a
+              render transform, so `moduleMeta` keeps the one canonical
+              label and nothing here holds a second, shoutier copy of
+              six module names. */}
           <span
-            className="font-medium"
+            className="font-medium uppercase tracking-wide"
             style={meta === undefined ? undefined : { color: meta.accentHex }}
             data-testid="module-home-intro-name"
           >
@@ -87,20 +98,10 @@ export default function ModuleHomeIntro({
       </button>
 
       {expanded && (
-        <div className="px-3 pb-3 space-y-2" data-testid="module-home-intro-body">
+        <div className="px-3 pb-3" data-testid="module-home-intro-body">
           <p className="text-sm text-neutral-600 dark:text-neutral-300 leading-snug">
             {formatInline(description)}
           </p>
-          {bullets !== undefined && bullets.length > 0 && (
-            <ul className="space-y-1 text-sm text-neutral-600 dark:text-neutral-300">
-              {bullets.map((b, i) => (
-                <li key={i} className="flex gap-2">
-                  <span aria-hidden className="text-neutral-400">·</span>
-                  <span>{formatInline(b)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
         </div>
       )}
     </div>

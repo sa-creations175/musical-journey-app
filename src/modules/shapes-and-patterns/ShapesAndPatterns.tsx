@@ -97,14 +97,6 @@ export default function ShapesAndPatterns() {
         calendarTo="/shapes-and-patterns/calendar"
         intro={{
           description: "Master scales, chord shapes, and voice-leading so that they're under your hands and in your mind's eye.",
-          // The bullets the learn-more card at the foot of the page
-          // already carried, moved with it rather than rewritten.
-          bullets: [
-            '**Heat grid** shows time invested × freshness across 12 keys',
-            'Every drill is **editable** and **renameable**; add your own anytime',
-            'Global **metronome** (top-right) auto-starts with every drill timer',
-            'No daily goal — just honest accumulation',
-          ],
         }}
       />
 
