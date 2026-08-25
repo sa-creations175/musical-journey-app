@@ -194,7 +194,7 @@ describe('counts and tint come from the shared sources', () => {
       new Map(),
       now,
     );
-    const by = new Map(cards.map(c => [c.key, c.rollingTotal]));
+    const by = new Map(cards.map(c => [c.key, c.accuracy!.rollingTotal]));
     expect(by.get('intervals')).toBe(2);
     expect(by.get('scales-modes')).toBe(1);
     expect(by.get('chord-recognition')).toBe(0);

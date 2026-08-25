@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ModuleIntro from '../../components/ModuleIntro';
 import { getPref, setPref } from '../../lib/userPrefs';
@@ -13,7 +13,16 @@ import {
   cleanupScaleDirectionalDrillsIfNeeded,
 } from './cleanup';
 import type { QualityKind } from './catalog';
-import SubTabs from '../../components/SubTabs';
+import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../../lib/db';
+import {
+  MENTAL_VIZ_MODULE_REF,
+  SHAPES_MODULE_ID,
+  SHAPES_MODULE_REF,
+  isShapesSectionId,
+  shapesCards,
+} from './homeCards';
 
 type TabId = 'chord-shapes' | 'scales' | 'voice-leading' | 'mental-viz';
 
@@ -24,16 +33,9 @@ function isTabId(v: string): v is TabId {
 const PREF_ACTIVE_TAB = 'shapesAndPatternsActiveTab';
 const PREF_CHORD_SCOPE = 'shapesAndPatternsChordScope';
 
-// Scales first: they're the parent structure from which chords are
-// derived, so leading with scales frames the rest of the module
-// pedagogically. Mental viz stays last as the away-from-keyboard
-// capstone.
-const TABS: Array<{ id: TabId; label: string; hint: string }> = [
-  { id: 'scales',        label: 'scales',             hint: 'major, minor scales & more' },
-  { id: 'chord-shapes',  label: 'chord shapes',       hint: 'triads, sevenths, extensions — 12 keys' },
-  { id: 'voice-leading', label: 'voice-leading',      hint: 'named patterns across 12 keys' },
-  { id: 'mental-viz',    label: 'mental visualisation', hint: 'away-from-keyboard cognitive drills' },
-];
+// The tab strip's order and labels now live in `SHAPES_SECTIONS`,
+// which the cards read — scales first as the parent structure chords
+// derive from, mental viz last as the away-from-keyboard capstone.
 
 const DEFAULT_TAB: TabId = 'scales';
 
@@ -67,6 +69,22 @@ export default function ShapesAndPatterns() {
   useEffect(() => { if (prefsLoaded) void setPref(PREF_ACTIVE_TAB, tab); }, [tab, prefsLoaded]);
   useEffect(() => { if (prefsLoaded) void setPref(PREF_CHORD_SCOPE, chordScope); }, [chordScope, prefsLoaded]);
 
+  const shapesRows = useLiveQuery(
+    () => db.spacingState.where('moduleRef').equals(SHAPES_MODULE_REF).toArray(),
+    [],
+  ) ?? [];
+  const mentalVizRows = useLiveQuery(
+    () => db.spacingState.where('moduleRef').equals(MENTAL_VIZ_MODULE_REF).toArray(),
+    [],
+  ) ?? [];
+  const now = Date.now();
+  const cards = useMemo(
+    () => shapesCards(shapesRows, mentalVizRows, now),
+    // `now` is deliberately not a dep — freshness moves in days.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [shapesRows, mentalVizRows],
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-end">
@@ -80,11 +98,26 @@ export default function ShapesAndPatterns() {
 
       <TodayAndAttention />
 
-      <SubTabs
-        tabs={TABS}
-        active={tab}
-        onChange={setTab}
-        label="shapes and patterns view"
+      {/* THE CARDS REPLACE THE TAB STRIP. The tabs said which section
+          was selected and nothing about how it was going; a card
+          carries the coverage and the last time it was worked, which is
+          what decides where to start.
+
+          NO BADGE AND NO BAR ON ANY OF THEM — this module records a
+          duration and a self-rating, never a right answer. The adapter
+          passes `accuracy: null` and the card omits both rather than
+          drawing an empty one.
+
+          `?tab=` STILL LANDS. The sidebar's sub-items, the skills
+          catalogue's jump and the session generator's quick-launch all
+          arrive with one, and `useUrlTabSync` above still reads it — a
+          card tap is a second way in, not a replacement for the URL. */}
+      <CategoryCardGrid
+        cards={cards}
+        moduleId={SHAPES_MODULE_ID}
+        onDrill={key => { if (isShapesSectionId(key)) setTab(key); }}
+        drillLabel="open drills"
+        now={now}
       />
 
       {tab === 'chord-shapes' && (

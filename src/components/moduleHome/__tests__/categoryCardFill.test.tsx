@@ -37,8 +37,9 @@ let root: Root | null = null;
 
 const model = (over: Partial<CategoryCardModel> = {}): CategoryCardModel => ({
   key: 'k', label: 'intervals', itemCount: 25, countDetail: null,
-  description: null, window: [], rollingCorrect: 0, rollingTotal: 0,
-  tier: 'untouched', itemsSeen: 0, lastPracticedDaysAgo: null, ...over,
+  description: null, itemsSeen: 0, lastPracticedDaysAgo: null,
+  accuracy: { window: [], rollingCorrect: 0, rollingTotal: 0, tier: 'untouched' },
+  ...over,
 });
 
 function mount(node: React.ReactNode): HTMLDivElement {

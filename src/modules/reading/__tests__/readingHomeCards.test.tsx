@@ -82,10 +82,10 @@ describe('the adapter', () => {
       now,
     );
     const by = new Map(cards.map(c => [c.key, c]));
-    expect(by.get('note')!.rollingTotal).toBe(2);
-    expect(by.get('note')!.rollingCorrect).toBe(1);
-    expect(by.get('sig')!.rollingTotal).toBe(1);
-    expect(by.get('chord')!.rollingTotal).toBe(0);
+    expect(by.get('note')!.accuracy!.rollingTotal).toBe(2);
+    expect(by.get('note')!.accuracy!.rollingCorrect).toBe(1);
+    expect(by.get('sig')!.accuracy!.rollingTotal).toBe(1);
+    expect(by.get('chord')!.accuracy!.rollingTotal).toBe(0);
   });
 
   it('ignores attempts from other modules', () => {
@@ -95,7 +95,7 @@ describe('the adapter', () => {
       new Map(),
       now,
     );
-    expect(cards.every(c => c.rollingTotal === 0)).toBe(true);
+    expect(cards.every(c => c.accuracy!.rollingTotal === 0)).toBe(true);
   });
 
   it('takes every count from readingCounts(), not a written number', () => {

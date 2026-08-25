@@ -78,9 +78,10 @@ export default function CategoryCard({
 }: CategoryCardProps) {
   // The unrated state is `barSegments`' own — "3 of 5 attempts" — not a
   // second empty-state branch. See the header of lib/progressBar.
-  const pending = unratedLabel(barSegments({
-    correct: card.rollingCorrect,
-    wrong: card.rollingTotal - card.rollingCorrect,
+  const acc = card.accuracy;
+  const pending = acc === null ? null : unratedLabel(barSegments({
+    correct: acc.rollingCorrect,
+    wrong: acc.rollingTotal - acc.rollingCorrect,
   }));
 
   /**
@@ -124,12 +125,18 @@ export default function CategoryCard({
       >
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="font-medium text-sm">{card.label}</span>
-          <span
-            className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${TIER_BADGE_CLASS[card.tier]}`}
-            data-testid="category-card-tier"
-          >
-            {TIER_LABEL[card.tier]}
-          </span>
+          {/* NO BADGE WITHOUT A MEASUREMENT. A module that records
+              duration and a self-rating has no tier; the alternative is
+              `computeTier` on an empty window, which says `untouched`
+              forever and looks like a reading. */}
+          {acc !== null && (
+            <span
+              className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${TIER_BADGE_CLASS[acc.tier]}`}
+              data-testid="category-card-tier"
+            >
+              {TIER_LABEL[acc.tier]}
+            </span>
+          )}
           <span
             className="ml-auto text-[11px] text-neutral-500 tabular-nums"
             data-testid="category-card-count"
@@ -143,14 +150,14 @@ export default function CategoryCard({
           </div>
         )}
         <div className="mt-0.5 text-[11px] text-neutral-500 tabular-nums">
-          {pending !== null ? (
-            <span className="text-neutral-400">{pending}</span>
-          ) : (
-            <>{card.rollingCorrect}/{card.rollingTotal} right</>
+          {acc !== null && (
+            pending !== null
+              ? <span className="text-neutral-400">{pending}</span>
+              : <>{acc.rollingCorrect}/{acc.rollingTotal} right</>
           )}
           {card.lastPracticedDaysAgo !== null && (
             <>
-              {' · '}
+              {acc !== null && ' · '}
               {card.lastPracticedDaysAgo === 0
                 ? 'today'
                 : card.lastPracticedDaysAgo === 1
@@ -169,17 +176,22 @@ export default function CategoryCard({
           natural height and only the ROW'S SLACK is absorbed here. With
           `flex-1`'s zero basis the wrapper would be sized from free
           space first and lean on `min-height` to get its content back. */}
+      {/* NO BAR WITHOUT RIGHT/WRONG. The wrapper still grows, so a
+          module without one keeps the same card shape and the same fill
+          — it just has nothing to draw inside it. */}
       <div
         className="px-3 pb-2 grow"
         style={{ backgroundColor: expanded ? undefined : `${accentHex}0f` }}
       >
-        <ProgressBar
-          attempts={card.window}
-          intervalDays={FALLBACK_INTERVAL_DAYS}
-          now={now}
-          label={card.label}
-          showStrip={expanded}
-        />
+        {acc !== null && (
+          <ProgressBar
+            attempts={acc.window}
+            intervalDays={FALLBACK_INTERVAL_DAYS}
+            now={now}
+            label={card.label}
+            showStrip={expanded}
+          />
+        )}
       </div>
 
       {expanded && (

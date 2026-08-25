@@ -31,8 +31,24 @@ import { computeTier, type Tier } from '../../lib/tier';
 import { spacingIntervalFor } from '../../lib/useSpacingIntervals';
 import type { TickAttempt } from '../../lib/progressBar';
 
-/** The measured half of a card — everything derived from attempts. */
-export interface CategoryCardStats {
+/**
+ * The RIGHT/WRONG half of a card, absent for a module that has none.
+ *
+ * =====================================================================
+ * NOT EVERY MODULE GRADES ITSELF.
+ *
+ * Shapes & patterns records a DURATION and a three-way self-rating
+ * (flying / cruising / crawling); production's lessons carry a
+ * five-step declaration. Neither produces a correct-or-not answer, so
+ * neither has a rolling window, a tier, or anything for a progress bar
+ * to draw.
+ *
+ * Split out so those modules can say so by passing `null`, rather than
+ * handing `computeTier` an empty window and getting `untouched`
+ * forever — a badge that looks measured and is not.
+ * =====================================================================
+ */
+export interface CategoryCardAccuracy {
   /**
    * The rolling window, newest first, each rep carrying ITS OWN item's
    * interval.
@@ -47,7 +63,17 @@ export interface CategoryCardStats {
   rollingCorrect: number;
   rollingTotal: number;
   tier: Tier;
-  /** Distinct items with at least one attempt. */
+}
+
+/** The measured half of a card. */
+export interface CategoryCardStats {
+  /**
+   * The rolling window, the tier and the bar — or `null` for a module
+   * that records no right/wrong. See `CategoryCardAccuracy`.
+   */
+  accuracy: CategoryCardAccuracy | null;
+  /** Distinct items with at least one attempt, or with any practice
+   *  recorded at all where the module has no attempts. */
   itemsSeen: number;
   lastPracticedDaysAgo: number | null;
 }
@@ -109,18 +135,20 @@ export function categoryCardStats(
     ? daysBetween(localDayKey(new Date(latestTs)), localDayKey(new Date(now)))
     : null;
   return {
-    window: recent.map(a => ({
-      correct: a.correct,
-      timestamp: a.timestamp,
-      intervalDays: spacingIntervalFor(intervals, a.itemId),
-    })),
-    rollingCorrect,
-    rollingTotal: recent.length,
-    tier: computeTier({
-      windowCorrect: rollingCorrect,
-      windowTotal: recent.length,
-      daysSinceLastAttempt: lastPracticedDaysAgo,
-    }),
+    accuracy: {
+      window: recent.map(a => ({
+        correct: a.correct,
+        timestamp: a.timestamp,
+        intervalDays: spacingIntervalFor(intervals, a.itemId),
+      })),
+      rollingCorrect,
+      rollingTotal: recent.length,
+      tier: computeTier({
+        windowCorrect: rollingCorrect,
+        windowTotal: recent.length,
+        daysSinceLastAttempt: lastPracticedDaysAgo,
+      }),
+    },
     itemsSeen: new Set(sorted.map(a => a.itemId)).size,
     lastPracticedDaysAgo,
   };
