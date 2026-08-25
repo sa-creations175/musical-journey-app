@@ -149,6 +149,37 @@ export function inversionsForIntervalCount(count: number): Inversion[] {
 }
 
 /**
+ * The inversions a chord can EVER be asked in, ignoring settings.
+ *
+ * =====================================================================
+ * STRUCTURAL ONLY. THAT IS THE WHOLE DISTINCTION.
+ *
+ * The drill's full gate is this AND `positions.length >= 2`, which
+ * reads the reader's current inversion preference. That last condition
+ * must never reach a coverage denominator: a total that moves when
+ * someone toggles a setting is not a total — yesterday's 51 becomes
+ * today's 30 and the dashboard reports progress nobody made.
+ *
+ * So the three structural questions live here and the runtime one stays
+ * at the call site that cares:
+ *   · is this chord's tier inversion-trained
+ *   · is this chord excluded from inversion training
+ *   · does a chord of this size have this inversion at all
+ *
+ * The dashboard calls this. The quiz composes it with the preference.
+ * Neither writes the rule out again — a second copy is how the drill
+ * and the dashboard came to disagree about 63 rows.
+ * =====================================================================
+ */
+export function reachableInversions(
+  chord: { id: string; tier: string; intervals: ReadonlyArray<number> },
+): Inversion[] {
+  const trained = INVERSION_TRAINED_TIERS.has(chord.tier)
+    && !INVERSION_EXCLUDED_CHORD_IDS.has(chord.id);
+  return trained ? inversionsForIntervalCount(chord.intervals.length) : [0];
+}
+
+/**
  * Rotate the displayed scale-degree formula to match the played
  * inversion. Mirrors rotateForInversion's semantics for intervals,
  * but on the comma-separated string format ChordData.formula uses

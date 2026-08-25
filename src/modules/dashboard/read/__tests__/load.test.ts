@@ -133,17 +133,22 @@ describe('every catalog has a source wired', () => {
       'shapes-and-patterns': 1188,
       // 199 vocabulary cards + 56 lessons.
       'production': 255,
-      // 25 intervals + 114 chord recognition + 18 scales & modes +
-      // 420 chord progressions = 577.
+      // 25 intervals + 51 chord recognition + 18 scales & modes +
+      // 420 chord progressions = 514.
       //   intervals: 12 with both directions plus the unison, which
       //     has one — zero semitones up and zero down are the same
       //     two notes. See ear-training/intervals/seed.ts.
-      //   chord recognition: 30 chords, 6 triads x 3 inversions (18)
-      //     plus 24 four-note chords x 4 inversions (96).
+      //   chord recognition: REACHABLE chord x inversion, not every
+      //     combination the chord sizes allow. 12 foundational + 21
+      //     seventh + 6 dominant + 12 extensions. Was 114, of which 63
+      //     named combinations no path could attempt — an augmented
+      //     triad has no audible inversion, a dim7's four are the same
+      //     four pitches, and nothing above the sevenths is
+      //     inversion-trained. See inversionUtils.reachableInversions.
       //   chord progressions: 12 key-detection + 132 motion +
       //     132 motion-first + 144 full-progression rows (69 chord +
       //     69 pattern + 6 inversion, inversion only on the slash ones).
-      'ear-training': 577,
+      'ear-training': 514,
     });
   });
 

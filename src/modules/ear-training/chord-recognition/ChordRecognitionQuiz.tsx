@@ -39,6 +39,7 @@ import {
   INVERSION_LABEL,
   attemptItemId,
   inversionsForIntervalCount,
+  reachableInversions,
   rotateForInversion,
   rotateFormula,
   type Inversion,
@@ -395,13 +396,14 @@ export default function ChordRecognitionQuiz({
       // variations run to six and seven notes, where "third inversion"
       // stops being something an ear can pick out, and none of them is
       // in the tier table.
-      const stepTwoEligible =
-        INVERSION_TRAINED_TIERS.has(c.tier) &&
-        !INVERSION_EXCLUDED_CHORD_IDS.has(c.id) &&
-        positions.length >= 2;
-      const validInversions = inversionsForIntervalCount(c.intervals.length);
+      // The STRUCTURAL half comes from `reachableInversions`, which the
+      // dashboard's denominator also calls. The runtime half — whether
+      // the reader has two positions enabled — stays here, because a
+      // coverage total must not move when a setting does.
+      const reachable = reachableInversions(c);
+      const stepTwoEligible = reachable.length > 1 && positions.length >= 2;
       const inversionsForCard: Inversion[] = stepTwoEligible
-        ? positions.filter(p => validInversions.includes(p))
+        ? positions.filter(p => reachable.includes(p))
         : [0];
       // Fallback if filter eliminates everything (shouldn't happen for
       // triads + standard positions, but defensive).
@@ -826,7 +828,12 @@ export default function ChordRecognitionQuiz({
               // to. On foundational alone it would have said the
               // setting was about triads, which stopped being true the
               // moment step 2 started firing for sevenths.
-              const hasGear = tab.id === 'foundational' || tab.id === 'seventh';
+              // DERIVED, not listed. This was a literal pair that happened
+              // to agree with INVERSION_TRAINED_TIERS — the same shape of
+              // duplication that let the dashboard drift 63 rows away
+              // from the drill. The gear belongs on exactly the tabs
+              // inversion training applies to, so it asks that set.
+              const hasGear = tab.id !== 'all' && INVERSION_TRAINED_TIERS.has(tab.id);
               // Each tab is a wrapper with one or two buttons inside —
               // a button for the label, and (foundational only) a
               // sibling button for the gear. Avoids nesting interactive

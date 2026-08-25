@@ -34,6 +34,7 @@
  */
 import { FLASHCARDS, CATEGORY_LABELS, CATEGORY_ORDER } from '../../harmonic-fluency/catalog';
 import { INTERVAL_SEEDS, directionsFor } from '../../ear-training/intervals/seed';
+import { reachableInversions } from '../../ear-training/chord-recognition/inversionUtils';
 import { CHORD_SEEDS } from '../../ear-training/chord-recognition/seed';
 import { MODES } from '../../ear-training/scales-modes/catalog';
 import { PROGRESSIONS } from '../../ear-training/chord-progressions/catalog';
@@ -276,8 +277,21 @@ export const chordRecognitionCatalog: ModuleCatalog = {
   moduleId: 'ear-training',
   label: 'chord recognition',
   accuracyKind: 'measured',
+  // THE SAME GATE THE DRILL APPLIES, called rather than copied.
+  //
+  // This enumerated every seed against every inversion its size allows,
+  // so 63 of 114 rows named combinations no path can attempt: an
+  // augmented triad has no audible inversion, a dim7's four are the same
+  // four pitches, and nothing above the sevenths is inversion-trained at
+  // all. They sat permanently uncovered in the denominator and pinned
+  // the module's stalest recency to "never".
+  //
+  // `reachableInversions` is STRUCTURAL — it deliberately omits the
+  // drill's `positions.length >= 2`, which reads a live setting. A
+  // denominator that moved when someone opened the inversion drawer
+  // would not be a denominator.
   items: CHORD_SEEDS.flatMap(chord => {
-    const inversions = chord.intervals.length >= 4 ? [0, 1, 2, 3] : [0, 1, 2];
+    const inversions = reachableInversions(chord);
     const name = titleCase(chord.name);
     return inversions.map(inv => one(
       `${chord.id}:${inv}`,

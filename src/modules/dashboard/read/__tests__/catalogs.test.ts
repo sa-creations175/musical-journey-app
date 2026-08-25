@@ -8,6 +8,8 @@
  * and that the refs match what the app actually stores.
  */
 import { describe, expect, it } from 'vitest';
+import { CHORD_SEEDS } from '../../../ear-training/chord-recognition/seed';
+import { reachableInversions } from '../../../ear-training/chord-recognition/inversionUtils';
 import {
   STATIC_CATALOGS,
   catalogBySourceId,
@@ -49,11 +51,20 @@ describe('catalog sizes — the denominators', () => {
     expect(scalesModesCatalog.items.filter(i => i.label === 'Hear Mode In Context')).toHaveLength(9);
   });
 
-  it('chord recognition: 114 — chord x inversion, per chord size', () => {
-    // 6 triads x 3 inversions + 24 four-note chords x 4. Never pinned
-    // before, and a report of mine said 104 from an estimate that was
-    // never checked.
-    expect(catalogItemCount(chordRecognitionCatalog)).toBe(114);
+  it('chord recognition: 51 — chord x REACHABLE inversion', () => {
+    // 114 before: every seed against every inversion its size allows,
+    // including 63 combinations no path can attempt. An augmented triad
+    // has no audible inversion, a dim7's four are the same four
+    // pitches, and nothing above the sevenths is inversion-trained at
+    // all. Those rows sat permanently uncovered in the denominator.
+    //
+    // 12 foundational + 21 seventh + 6 dominant + 12 extensions.
+    // DERIVED below rather than pinned, so widening the exclusions
+    // moves this test with the rule instead of breaking it.
+    const reachable = CHORD_SEEDS
+      .reduce((n, c) => n + reachableInversions(c).length, 0);
+    expect(catalogItemCount(chordRecognitionCatalog)).toBe(reachable);
+    expect(reachable).toBe(51);
   });
 
   it('harmonic fluency: 649 cards', () => {

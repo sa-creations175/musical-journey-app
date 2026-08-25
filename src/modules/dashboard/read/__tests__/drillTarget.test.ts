@@ -173,11 +173,13 @@ describe('chord recognition — the catalog is finer than the pool', () => {
 
   it('keeps every distinct chord under a tier row', () => {
     // The fold must not collapse rows that are genuinely different
-    // chords. Seventh chords are six, at four inversions each.
+    // chords. Seventh chords are six: five at four REACHABLE inversions
+    // each, plus dim7 at one — its four inversions are the same four
+    // pitches, so only root position can ever be asked.
     const tier = rowNamed('Seventh Chords');
     const target = drillTargetFor(tier, 'ear-training');
     if (target.kind !== 'filtered') throw new Error('expected filtered');
-    expect(target.itemRefs.length).toBe(24);
+    expect(target.itemRefs.length).toBe(21);
     expect(target.focusKeys).toEqual(
       ['maj7', 'min7', 'dom7', 'dim7', 'm7b5', 'minMaj7'],
     );
