@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../lib/db';
 import {
-  computeDayStreak,
-  computeHotStreak,
   localDayKey,
   nextLocalMidnight,
   startOfLocalDay,
@@ -58,9 +56,10 @@ export default function DailyGoalBar({ moduleId }: Props) {
   const wrong = attempted - correct;
   const accuracy = attempted === 0 ? 0 : Math.round((correct / attempted) * 100);
 
-  const dayStreak = computeDayStreak(moduleAttempts, goal, todayKey);
-  const hot = computeHotStreak(moduleAttempts);
-
+  // The two streak figures were computed here and are not any more —
+  // see the note where the cluster used to render. `computeDayStreak` /
+  // `computeHotStreak` still live in `lib/dailyGoal`, and the module
+  // home calls them for the row that shows them with their words.
   const goalMet = attempted >= goal;
   const overshoot = Math.max(0, attempted - goal);
 
@@ -196,23 +195,16 @@ export default function DailyGoalBar({ moduleId }: Props) {
           )}
         </div>
 
-        {/* Right cluster: streaks */}
-        <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-xs">
-          <span
-            className="inline-flex items-center gap-1"
-            title={`hot streak (longest: ${hot.best})`}
-          >
-            <span aria-hidden>🔥</span>
-            <span className="font-mono tabular-nums font-medium">{hot.current}</span>
-          </span>
-          <span
-            className="inline-flex items-center gap-1"
-            title="day streak — consecutive days the goal was met"
-          >
-            <span aria-hidden>📅</span>
-            <span className="font-mono tabular-nums font-medium">{dayStreak}</span>
-          </span>
-        </div>
+        {/* NO STREAK CLUSTER. It printed 🔥 and 📅 with bare numbers and
+            no words, and on harmonic fluency it printed them a second
+            time — the module home's calendar row carries both streaks,
+            labelled, a few pixels above. Two readings of one figure
+            invite the reader to work out whether they are the same
+            figure.
+
+            THE BAR ITSELF STAYS, mid-session included, because it is
+            the only place the daily goal can be edited. That is what
+            survives here; the streaks belong to the page. */}
       </div>
 
       {/* Mixed-color progress bar — green (correct) + amber (wrong).

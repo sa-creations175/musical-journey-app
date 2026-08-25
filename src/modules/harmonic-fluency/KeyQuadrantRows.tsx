@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { QUADRANT_ROOTS, initialSelection, rootLabel } from './lydianChords';
 
 /**
@@ -54,28 +54,49 @@ export default function KeyQuadrantRows({
       <div className="text-[10px] uppercase tracking-wide text-neutral-500">
         {caption}
       </div>
-      {QUADRANT_ROOTS.map((rowRoots, row) => (
-        <div key={row} className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1 shrink-0">
-            {rowRoots.map(root => (
-              <button
-                key={root}
-                type="button"
-                onClick={() => pick(row, root)}
-                aria-pressed={root === selected[row]}
-                className={`px-1.5 py-0.5 rounded text-[11px] font-mono transition-colors ${
-                  root === selected[row]
-                    ? 'bg-fluent text-white'
-                    : 'text-neutral-500 hover:text-fluent'
-                }`}
-              >
-                {rootLabel(root)}
-              </button>
-            ))}
-          </div>
-          {renderRow(selected[row], row === activeRow)}
-        </div>
-      ))}
+      {/* ONE GRID FOR ALL FOUR ROWS, not four flex rows.
+          =============================================================
+          The chip groups are different widths — "C D♭ E♭" is narrower
+          than "F♯ G♭ B♭" — so as flex rows every sentence began at its
+          own column and the four "In C that's …" lines stepped raggedly
+          down the panel. They are the same sentence four times and they
+          should read as a column.
+
+          `max-content` on the first track takes its width from the
+          WIDEST chip group across every row, which is the alignment
+          derived rather than a padding literal picked by eye: add a key
+          whose name is wider and all four rows move together.
+
+          `min-w-0` on the sentence cell lets a long line wrap inside
+          its own column instead of pushing the grid wider. */}
+      <div className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-2 items-center">
+        {QUADRANT_ROOTS.map((rowRoots, row) => (
+          <Fragment key={row}>
+            {/* The rule sits on the chip column's edge, so it runs down
+                the panel at the one place the two kinds of thing meet. */}
+            <div className="flex items-center gap-1 pr-3 border-r border-black/[0.07] dark:border-white/10">
+              {rowRoots.map(root => (
+                <button
+                  key={root}
+                  type="button"
+                  onClick={() => pick(row, root)}
+                  aria-pressed={root === selected[row]}
+                  className={`px-1.5 py-0.5 rounded text-[11px] font-mono transition-colors ${
+                    root === selected[row]
+                      ? 'bg-fluent text-white'
+                      : 'text-neutral-500 hover:text-fluent'
+                  }`}
+                >
+                  {rootLabel(root)}
+                </button>
+              ))}
+            </div>
+            <div className="min-w-0">
+              {renderRow(selected[row], row === activeRow)}
+            </div>
+          </Fragment>
+        ))}
+      </div>
     </div>
   );
 }

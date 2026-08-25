@@ -19,8 +19,6 @@ import type { SongKey } from '../../../lib/db';
 import { coveredQuadrants } from '../matrix/keyProgress';
 import {
   STAGES,
-  STAGE_LABEL,
-  evaluateAdvancement,
   nextStage,
   deriveStage,
   normaliseStage,
@@ -58,6 +56,36 @@ const WINDOWS: DueWindows = {
   dueSoonDays: DUE_SOON_DEFAULT_DAYS,
   graceDays: GRACE_DEFAULT_DAYS,
 };
+
+/**
+ * What `evaluateAdvancement` used to answer, asked of the thing it
+ * wrapped.
+ *
+ * ---------------------------------------------------------------
+ * THE WRAPPER IS GONE; THE RULES IT WRAPPED ARE THE POINT.
+ *
+ * `evaluateAdvancement` was deleted in the ready-to-advance retirement
+ * — every caller passed it `deriveStage(...)`, which returns the first
+ * rung whose criteria are NOT all met, so `suggest` was false by
+ * construction. What this file has always actually tested is
+ * `stageCriteria`: whether each rung's rules FIRE for realistic input.
+ * Those assertions keep their meaning, so they keep their coverage —
+ * the composition just moves here, stated once, instead of living in
+ * production for nothing to call.
+ *
+ * `labels` is what the retired banner sentence was built from:
+ * achievements, preconditions excluded. The assertions that named
+ * criteria by their words still can.
+ * ---------------------------------------------------------------
+ */
+function evaluateFor(input: AdvancementInputs): { suggest: boolean; labels: string[] } {
+  const criteria = stageCriteria(input);
+  const allMet = criteria.length > 0 && criteria.every(c => c.met);
+  return {
+    suggest: allMet && nextStage(input.currentStage) !== null,
+    labels: criteria.filter(c => !c.precondition).map(c => c.label),
+  };
+}
 /** Every key due far enough ahead to be held. The rules under test are
  *  about quadrants and runs, not about decay — a fixture where keys
  *  were silently overdue would make every held-key assertion pass or
@@ -125,15 +153,20 @@ describe('no rule names its own destination', () => {
       // Guard the guard: a rule that did not fire would make the
       // destination assertion vacuous.
       expect(input).toBeDefined();
-      const out = evaluateAdvancement(input!);
-      expect(out.suggest).toBe(true);
-      expect(out.reason).toContain(`consider advancing to ${STAGE_LABEL[next]}.`);
+      // THE DESTINATION ASSERTION IS GONE WITH THE SENTENCE. It read
+      // the banner's "consider advancing to X", which was the only
+      // place a rule could name a stage of its own choosing — the bug
+      // this loop was written for. With `evaluateAdvancement` deleted
+      // there is no such sentence and no second name to disagree with
+      // `nextStage`. What survives is the half that still has meaning:
+      // the rule FIRES for realistic input.
+      expect(evaluateFor(input!).suggest).toBe(true);
     });
   }
 
   it('internalized is terminal — the top of the ladder suggests nothing', () => {
     expect(nextStage('internalized')).toBeNull();
-    expect(evaluateAdvancement(inputs({ currentStage: 'internalized' })).suggest).toBe(false);
+    expect(evaluateFor(inputs({ currentStage: 'internalized' })).suggest).toBe(false);
   });
 });
 
@@ -141,7 +174,7 @@ describe('no rule names its own destination', () => {
 
 describe('Learning → Comfortable', () => {
   it('fires when the whole-song test has passed in the ORIGINAL key', () => {
-    const out = evaluateAdvancement(inputs({
+    const out = evaluateFor(inputs({
       songKeys: [
         key('C', { isOriginalKey: true, wholeSongTestPassedAt: NOW }),
         key('F'),
@@ -150,7 +183,9 @@ describe('Learning → Comfortable', () => {
     expect(out.suggest).toBe(true);
     // A key always carries "key" or "keys" in prose — a bare letter at
     // the start of a clause reads as a word, not a key.
-    expect(out.reason).toContain('Whole-song test passed in the key of C');
+    // The criterion's own label, read off `stageCriteria` — which is
+    // where it always lived; the banner only quoted it.
+    expect(out.labels.join(' · ')).toContain('Whole-song test passed in the key of C');
   });
 
   it('does NOT fire when the test passed only in some OTHER key', () => {
@@ -164,18 +199,18 @@ describe('Learning → Comfortable', () => {
       key('Bb', { wholeSongTestPassedAt: NOW }),
     ];
     expect(songKeys.filter(k => k.wholeSongTestPassedAt !== null)).toHaveLength(2);
-    expect(evaluateAdvancement(inputs({ songKeys })).suggest).toBe(false);
+    expect(evaluateFor(inputs({ songKeys })).suggest).toBe(false);
   });
 
   it('does not fire when the original key has not passed', () => {
-    const out = evaluateAdvancement(inputs({
+    const out = evaluateFor(inputs({
       songKeys: [key('C', { isOriginalKey: true, wholeSongTestPassedAt: null })],
     }));
     expect(out.suggest).toBe(false);
   });
 
   it('does not fire when no key is designated original', () => {
-    const out = evaluateAdvancement(inputs({
+    const out = evaluateFor(inputs({
       songKeys: [key('C', { wholeSongTestPassedAt: NOW })],
     }));
     expect(out.suggest).toBe(false);
@@ -186,7 +221,7 @@ describe('Learning → Comfortable', () => {
 
 describe('Comfortable → Cross-key', () => {
   it('fires on four held keys, one from each quadrant', () => {
-    const out = evaluateAdvancement(inputs({
+    const out = evaluateFor(inputs({
       currentStage: 'comfortable',
       songKeys: ONE_PER_QUADRANT.map(k => key(k)),
     }));
@@ -200,7 +235,7 @@ describe('Comfortable → Cross-key', () => {
     const bunched = ['C', 'F', 'Bb', 'Eb'];
     expect(bunched).toHaveLength(ONE_PER_QUADRANT.length);
     expect(coveredQuadrants(bunched).size).toBe(2);
-    expect(evaluateAdvancement(inputs({
+    expect(evaluateFor(inputs({
       currentStage: 'comfortable',
       songKeys: bunched.map(k => key(k)),
     })).suggest).toBe(false);
@@ -209,7 +244,7 @@ describe('Comfortable → Cross-key', () => {
   it('counts the original key toward its own quadrant', () => {
     // A song in C is comfortable in C by definition, so this asks for
     // three more from the other three quadrants — not four besides.
-    const out = evaluateAdvancement(inputs({
+    const out = evaluateFor(inputs({
       currentStage: 'comfortable',
       songKeys: [
         key('C', { isOriginalKey: true }),
@@ -231,10 +266,10 @@ describe('Comfortable → Cross-key', () => {
       ['sk-A', NOW - (GRACE_DEFAULT_DAYS + 5) * DAY],
     ]);
 
-    expect(evaluateAdvancement(inputs({
+    expect(evaluateFor(inputs({
       currentStage: 'comfortable', songKeys: keys,
     })).suggest).toBe(true);
-    expect(evaluateAdvancement(inputs({
+    expect(evaluateFor(inputs({
       currentStage: 'comfortable', songKeys: keys, dueByKeyId: overdue,
     })).suggest).toBe(false);
   });
@@ -246,13 +281,13 @@ describe('Comfortable → Cross-key', () => {
     const justDue: ReadonlyMap<string, number | null> = new Map([
       ['sk-A', NOW - 1 * DAY],
     ]);
-    expect(evaluateAdvancement(inputs({
+    expect(evaluateFor(inputs({
       currentStage: 'comfortable', songKeys: keys, dueByKeyId: justDue,
     })).suggest).toBe(true);
   });
 
   it('does not count keys below comfortable', () => {
-    const out = evaluateAdvancement(inputs({
+    const out = evaluateFor(inputs({
       currentStage: 'comfortable',
       songKeys: ONE_PER_QUADRANT.map(k => key(k, { keyState: 'learning' })),
     }));
@@ -264,7 +299,7 @@ describe('Comfortable → Cross-key', () => {
     // Practice carries no rating under the two-mode split, so a rule
     // built on feel would have gone quiet inside this same build.
     // Four quadrants held, nothing else supplied: it fires.
-    const out = evaluateAdvancement(inputs({
+    const out = evaluateFor(inputs({
       currentStage: 'comfortable',
       songKeys: ONE_PER_QUADRANT.map(k => key(k)),
     }));
@@ -292,7 +327,7 @@ describe('Cross-key → Internalized', () => {
     const input = inputs(passing());
     expect(input.songKeys.filter(k => k.keyState === 'comfortable')).toHaveLength(4);
     expect(input.keyRunThroughs).toHaveLength(8);
-    expect(evaluateAdvancement(input).suggest).toBe(true);
+    expect(evaluateFor(input).suggest).toBe(true);
   });
 
   it('does NOT fire when one of the eight has no run', () => {
@@ -302,7 +337,7 @@ describe('Cross-key → Internalized', () => {
       keyRunThroughs: base.keyRunThroughs!.slice(1),
     });
     expect(input.keyRunThroughs).toHaveLength(7);
-    expect(evaluateAdvancement(input).suggest).toBe(false);
+    expect(evaluateFor(input).suggest).toBe(false);
   });
 
   it('does NOT count a run that was not clean', () => {
@@ -311,14 +346,14 @@ describe('Cross-key → Internalized', () => {
     // Guard: still eight runs, so a rule counting rows rather than
     // clean rows would fire.
     expect(runs).toHaveLength(8);
-    expect(evaluateAdvancement(inputs({ ...base, keyRunThroughs: runs })).suggest).toBe(false);
+    expect(evaluateFor(inputs({ ...base, keyRunThroughs: runs })).suggest).toBe(false);
   });
 
   it('does NOT count a run below the tempo floor', () => {
     const base = passing();
     const runs = base.keyRunThroughs!.map((r, i) => i === 0 ? { ...r, tempoBpm: TEMPO - 30 } : r);
     expect(runs).toHaveLength(8);
-    expect(evaluateAdvancement(inputs({ ...base, keyRunThroughs: runs })).suggest).toBe(false);
+    expect(evaluateFor(inputs({ ...base, keyRunThroughs: runs })).suggest).toBe(false);
   });
 
   it('does NOT fire when the four no longer cover every quadrant', () => {
@@ -332,7 +367,7 @@ describe('Cross-key → Internalized', () => {
       keyRunThroughs: cleanRunsIn(CIRCLE_OF_FOURTHS_KEYS.filter(k => !bunched.includes(k))),
     });
     expect(input.keyRunThroughs).toHaveLength(8);
-    expect(evaluateAdvancement(input).suggest).toBe(false);
+    expect(evaluateFor(input).suggest).toBe(false);
   });
 
   it('accepts a HELD key in place of a run — held satisfies it by being held', () => {
@@ -344,11 +379,11 @@ describe('Cross-key → Internalized', () => {
       songKeys: allTwelve(k => held.includes(k) ? {} : { keyState: 'learning' }),
       keyRunThroughs: cleanRunsIn(CIRCLE_OF_FOURTHS_KEYS.filter(k => !held.includes(k))),
     });
-    expect(evaluateAdvancement(input).suggest).toBe(true);
+    expect(evaluateFor(input).suggest).toBe(true);
   });
 
   it('withholds entirely when the song has no performance tempo', () => {
-    expect(evaluateAdvancement(inputs({ ...passing(), performanceTempo: null })).suggest).toBe(false);
+    expect(evaluateFor(inputs({ ...passing(), performanceTempo: null })).suggest).toBe(false);
   });
 });
 
@@ -440,7 +475,7 @@ describe('the panel and the rule cannot disagree', () => {
   it('the spread genuinely covers both outcomes', () => {
     // Guard the guard: an identity asserted only over failing cases
     // would pass on a rule that never fires at all.
-    const results = cases.map(([, i]) => evaluateAdvancement(i).suggest);
+    const results = cases.map(([, i]) => evaluateFor(i).suggest);
     expect(results.filter(Boolean).length).toBeGreaterThan(0);
     expect(results.filter(r => !r).length).toBeGreaterThan(0);
   });
@@ -449,7 +484,7 @@ describe('the panel and the rule cannot disagree', () => {
     it(`holds for ${name}`, () => {
       const criteria = stageCriteria(input);
       const allMet = criteria.length > 0 && criteria.every(c => c.met);
-      expect(evaluateAdvancement(input).suggest).toBe(allMet);
+      expect(evaluateFor(input).suggest).toBe(allMet);
     });
   }
 
@@ -470,9 +505,7 @@ describe('the panel and the rule cannot disagree', () => {
     // alone leaves this green; removing both makes the reason name
     // `undefined`, which is what the second assertion catches.
     expect(stageCriteria(inputs({ currentStage: 'internalized' }))).toEqual([]);
-    const out = evaluateAdvancement(inputs({ currentStage: 'internalized' }));
-    expect(out.suggest).toBe(false);
-    expect(out.reason).toBeUndefined();
+    expect(evaluateFor(inputs({ currentStage: 'internalized' })).suggest).toBe(false);
   });
 
   it('preconditions are listed in the panel but kept out of the banner', () => {
@@ -483,9 +516,10 @@ describe('the panel and the rule cannot disagree', () => {
     });
     const criteria = stageCriteria(passing);
     expect(criteria.some(c => c.precondition)).toBe(true);
-    // The banner says what you DID; having a tempo set is not that.
-    expect(evaluateAdvancement(passing).reason).not.toContain('performance tempo is set');
-    expect(evaluateAdvancement(passing).reason).toContain('All four quadrants still held');
+    // Achievements say what you DID; having a tempo set is not that.
+    const { labels } = evaluateFor(passing);
+    expect(labels.some(l => l.includes('performance tempo is set'))).toBe(false);
+    expect(labels.join(' · ')).toContain('All four quadrants still held');
   });
 });
 

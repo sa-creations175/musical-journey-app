@@ -328,13 +328,21 @@ export default function HarmonicFluency() {
               a message that expires after four seconds is how the old
               caught-up notice managed to be invisible to the person who
               had just tapped a card. */}
+          {/* THE SAME TREATMENT `FluencyProtectionNotice` USES, down to
+              the ⓘ. Both are the app explaining why a drill just behaved
+              in a way the reader did not ask for, which is the one thing
+              a muted grey aside cannot do — it read as decoration and
+              got skipped. `developing` is the token already behind the
+              DEVELOPING badge and the wrong-answer segment of every
+              progress bar; no new colour enters here. */}
           {sessionQueue.practiceAhead && (
-            <p
+            <div
               data-testid="hf-practice-ahead"
-              className="text-xs text-neutral-500 italic"
+              className="rounded-lg border border-developing/40 bg-developing/5 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200"
             >
+              <span aria-hidden className="mr-1.5">ⓘ</span>
               {practiceAheadNotice(sessionQueue.dueElsewhere ?? 0)}
-            </p>
+            </div>
           )}
           <DailyGoalBar moduleId={MODULE_ID} />
           <HarmonicFluencySession

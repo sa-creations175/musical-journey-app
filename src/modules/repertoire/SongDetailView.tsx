@@ -21,7 +21,6 @@ import {
   keysWhereRunCounts,
   STAGE_LABEL,
   deriveStage,
-  evaluateAdvancement,
   normaliseStage,
   ladderCriteria,
 } from './stage';
@@ -676,16 +675,11 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     () => keysWhereRunCounts(advancementInputs),
     [advancementInputs],
   );
-  const advancement = useMemo(() => evaluateAdvancement({
-    currentStage,
-    songKeys: matrixKeys,
-    keyRunThroughs,
-    performanceTempo: song?.tempo ?? null,
-    now: advancementNow,
-    dueByKeyId: dueMap,
-    dueWindows: windowsFrom(spacing),
-    spelling: songSpelling,
-  }), [currentStage, matrixKeys, keyRunThroughs, song?.tempo, advancementNow, dueMap, spacing]);
+  // THE ADVANCEMENT SUGGESTION IS GONE, and it could never have fired.
+  // `currentStage` above is `deriveStage(...)`, which returns the first
+  // rung whose criteria are NOT all met — so "every criterion met",
+  // which is what the suggestion required, was false by construction.
+  // The ladder panel below already says which criteria are outstanding.
 
   // Re-proving still available, from the SAME dueMap the stage rules
   // just read — so the banner and the grid beneath it cannot disagree
@@ -2182,8 +2176,9 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             than a gain you already have; in practice they cannot both
             be set, since each write clears the other.
 
-            Above the ✨ banner for the same reason it always was:
-            news outranks an invitation.
+            First of the notices, as it always was: news of a rung
+            gained or lost outranks anything still to be done about the
+            next one.
             --------------------------------------------------------------- */}
         {song.stageDemotion ? (
           <DemotionNotice
@@ -2199,8 +2194,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             Below the demotion notice, because a loss already taken
             outranks one still avoidable — and `songDueReading` excludes
             overdue keys anyway, so the two cannot both be describing
-            the same key. Above the ✨ invitation, because keeping what
-            you have outranks reaching for more.
+            the same key.
             --------------------------------------------------------------- */}
         {dueReading !== null && (
           <DueBanner
@@ -2208,12 +2202,6 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
             now={advancementNow}
             spelling={songSpelling}
           />
-        )}
-        {advancement.suggest && advancement.reason && (
-          <div className="rounded-md border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-fluent">
-            <span aria-hidden className="mr-1.5">✨</span>
-            {advancement.reason}
-          </div>
         )}
         <SongMatrixView
           song={song}

@@ -149,14 +149,6 @@ export function nextStage(stage: RepertoireStage): RepertoireStage | null {
 // lands before them rather than with them.
 // ---------------------------------------------------------------
 
-export interface AdvancementEvaluation {
-  /** True when the criteria for advancing from `currentStage` are met. */
-  suggest: boolean;
-  /** Short reason shown beside the suggestion. Always composed by
-   *  `suggestion()`, never written by a rule — see above. */
-  reason?: string;
-}
-
 export interface AdvancementInputs {
   currentStage: RepertoireStage;
   /**
@@ -652,36 +644,29 @@ export function deriveStage(
   return stage;
 }
 
-export function evaluateAdvancement(input: AdvancementInputs): AdvancementEvaluation {
-  const criteria = stageCriteria(input);
-  if (criteria.length === 0 || !criteria.every(c => c.met)) {
-    return { suggest: false };
-  }
-  const next = nextStage(input.currentStage);
-  if (next === null) return { suggest: false };
-  return {
-    suggest: true,
-    reason: `${evidenceFrom(criteria)} — consider advancing to ${STAGE_LABEL[next]}.`,
-  };
-}
-
 /**
- * The banner's "why", built from the criteria that were achieved.
+ * `evaluateAdvancement` USED TO LIVE HERE, with `evidenceFrom` behind
+ * it composing the banner's sentence. Both are deleted.
  *
- * Preconditions are dropped: the banner says what you did, and having
- * a tempo set is not something you did toward the stage. Everything
- * after the first item is lowercased at the first character so a list
- * of sentence-case panel labels reads as one sentence here — the
- * labels are written for the panel, which is where they are read
- * most, and this adapts them rather than keeping a second set.
+ * ---------------------------------------------------------------
+ * IT COULD NOT FIRE, AND HAD NOT SINCE STAGE WENT DERIVED.
+ *
+ * It returned `suggest: true` when every criterion for LEAVING
+ * `currentStage` was met. Its callers — the song card, the list header,
+ * the song page banner — all passed `deriveStage(...)`, which returns
+ * the FIRST rung whose criteria are NOT all met. So the condition was
+ * false by construction at every call site.
+ *
+ * That is not a fault in either function. It is what "advancing" became
+ * when the advance button was deleted: a rung is a reading of the
+ * evidence, so meeting the criteria IS the promotion, and there is no
+ * gap between "not yet" and "already there" for a suggestion to sit in.
+ *
+ * `stageCriteria` — which this only ever wrapped — stays, and is what
+ * `StageCriteriaPanel` reads to show which criteria are outstanding.
+ * That panel is where the question the banner gestured at is answered.
+ * ---------------------------------------------------------------
  */
-function evidenceFrom(criteria: StageCriterion[]): string {
-  const achievements = criteria.filter(c => !c.precondition);
-  if (achievements.length === 0) return 'criteria met';
-  return achievements
-    .map((c, i) => (i === 0 ? c.label : c.label.charAt(0).toLowerCase() + c.label.slice(1)))
-    .join(', and ');
-}
 
 // --- Freshness (practice recency) -----------------------------------
 

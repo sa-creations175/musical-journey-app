@@ -27,7 +27,23 @@ import {
   GRACE_DEFAULT_DAYS,
   type DueWindows,
 } from '../keySpacing';
-import { evaluateAdvancement } from '../../stage';
+import { nextStage, stageCriteria, type AdvancementInputs } from '../../stage';
+
+/**
+ * "Every criterion for leaving this rung now holds."
+ *
+ * `evaluateAdvancement` used to answer this and was deleted — it was
+ * unreachable in production, where every caller passed the DERIVED
+ * stage. The question is still a fair one to ask of a run-through that
+ * should have completed a rung, so it is composed here from the rules
+ * themselves.
+ */
+function criteriaAllMet(input: AdvancementInputs): boolean {
+  const criteria = stageCriteria(input);
+  return criteria.length > 0
+    && criteria.every(c => c.met)
+    && nextStage(input.currentStage) !== null;
+}
 
 const NOW = 1_700_000_000_000;
 const SONG = 's1';
@@ -291,7 +307,7 @@ describe('testing a key whose sections are not comfortable', () => {
     });
     const after = (await db.songKeys.get('key-1'))!;
 
-    expect(evaluateAdvancement({
+    expect(criteriaAllMet({
       currentStage: 'learning',
       songKeys: [after],
       keyRunThroughs: [],
@@ -300,7 +316,7 @@ describe('testing a key whose sections are not comfortable', () => {
       dueByKeyId: new Map(),
       dueWindows: WINDOWS,
       spelling: 'flat' as const,
-    }).suggest).toBe(true);
+    })).toBe(true);
   });
 
   it('but the key still does not count toward cross-key', async () => {
