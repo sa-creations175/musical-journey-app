@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import ProgressDetail from '../../components/moduleHome/ProgressDetail';
+import { useAxisViews } from '../../components/moduleHome/useAxisViews';
+import { moduleMetaById } from '../../lib/moduleMeta';
+import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
+import { HARMONIC_FLUENCY_GRIDS } from './progressGrids';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { harmonicFluencyCards } from './homeCards';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -15,6 +20,7 @@ import HarmonicFluencySession, {
   type TimerMode,
 } from './HarmonicFluencySession';
 import {
+  CATEGORY_LABELS,
   CATEGORY_ORDER,
   FLASHCARDS,
   type FlashcardCategory,
@@ -151,6 +157,21 @@ export default function HarmonicFluency() {
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(MODULE_ID);
   const now = Date.now();
+  /** Which category's progress detail is open, if any. */
+  const [detailCategory, setDetailCategory] = useState<FlashcardCategory | null>(null);
+  const axisViews = useAxisViews();
+  /**
+   * The registry, built only while a detail panel is open. It walks
+   * every module, so paying for it on arrival would slow the module
+   * home for the visits that never open one.
+   */
+  const [records, setRecords] = useState<SkillRecord[] | null>(null);
+  useEffect(() => {
+    if (detailCategory === null) return;
+    let live = true;
+    void buildSkillRegistry().then(r => { if (live) setRecords(r); });
+    return () => { live = false; };
+  }, [detailCategory, allAttempts]);
   const cards = useMemo(
     () => harmonicFluencyCards(allAttempts, spacingIntervals, now),
     // `now` is deliberately not a dep — it changes every render and
@@ -257,7 +278,10 @@ export default function HarmonicFluency() {
       ) : (
         <>
           {/* Order (context before action): learn-more card (collapsed) →
-              Today's progress → Start drill → session settings. */}
+              today's progress → the mixed drill → the category cards →
+              session settings, collapsed. The settings moved below the
+              cards because they configure the mixed run, which is now
+              one of sixteen ways to start from this page. */}
           <ModuleIntro
             accent="blue"
             headline="The mental map that makes music make sense."
@@ -272,16 +296,58 @@ export default function HarmonicFluency() {
 
           <DailyGoalBar moduleId={MODULE_ID} />
 
+          {/* THE MIXED DRILL, ABOVE THE CARDS. It is the same button it
+              always was; the label now says what it covers, because a
+              grid of fifteen categories underneath makes "Start drill"
+              ambiguous about which of them it means. */}
           <button
             onClick={handleStart}
             className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
           >
-            Start drill
+            Start drill · all categories mixed
           </button>
 
+          {/* The fifteen category cards, one per CATEGORY_ORDER entry —
+              derived, never listed. Same component Ear Training and
+              Reading use. */}
+          <CategoryCardGrid
+            cards={cards}
+            moduleId={MODULE_ID}
+            onDrill={drillCategory}
+            onProgressDetail={key => { if (isCategory(key)) setDetailCategory(key); }}
+            now={now}
+          />
+
+          {detailCategory !== null && axisViews.loaded && (
+            <ProgressDetail
+              categoryLabel={CATEGORY_LABELS[detailCategory]}
+              items={(records ?? []).filter(
+                r => r.moduleId === MODULE_ID
+                  && r.category === CATEGORY_LABELS[detailCategory],
+              )}
+              grid={HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS[detailCategory]] ?? null}
+              accentHex={moduleMetaById(MODULE_ID)?.accentHex ?? '#7a5aa8'}
+              now={now}
+              viewFor={axisViews.viewFor}
+              onViewChange={axisViews.setView}
+              onClose={() => setDetailCategory(null)}
+            />
+          )}
+
+          {/* SESSION SETTINGS BELOW THE CARDS, AND COLLAPSED. They
+              configure the mixed drill above, which is one of sixteen
+              ways to start from this page now — so they stopped being
+              the thing the page is about and became the thing you open
+              when you want to change how the mixed run behaves. */}
+          <details className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur">
+            <summary className="cursor-pointer select-none px-4 sm:px-5 py-3 text-sm font-medium">
+              session settings
+            </summary>
+            <div className="px-1 pb-1">
         <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
           <div>
-            <h2 className="text-base sm:text-lg font-medium tracking-tight">session settings</h2>
+            {/* The heading lives on the <summary> now — repeating it
+                here would name the panel twice on one screen. */}
             <p className="text-xs text-neutral-500 mt-0.5">
               {SESSION_TARGET} cards per session · spaced repetition picks what's due
             </p>
@@ -374,24 +440,13 @@ export default function HarmonicFluency() {
             )}
           </div>
         </section>
+            </div>
+          </details>
+
         </>
       )}
 
       {!sessionActive && <FlaggedForReviewPanel />}
-      {/* The fifteen category cards. These REPLACE the tracker rows
-          and the category chips: the chips said which categories a
-          drill would cover and the tracker said how each was going,
-          and they were two readings of one list sitting on one
-          screen. A card carries both, and its drill button is the
-          selection the chips used to make. */}
-      {!sessionActive && (
-        <CategoryCardGrid
-          cards={cards}
-          moduleId={MODULE_ID}
-          onDrill={drillCategory}
-          now={now}
-        />
-      )}
     </div>
   );
 }
