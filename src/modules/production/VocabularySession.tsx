@@ -276,6 +276,7 @@ export default function VocabularySession({ onBack }: Props) {
 
   async function handleCardAnswered({
     card,
+    choice,
     correct,
     timestamp,
     targetSeconds,
@@ -293,6 +294,13 @@ export default function VocabularySession({ onBack }: Props) {
       // the measurement like every other module's.
       ...elapsedFields(shownAt, timestamp),
       ...timedOutFields(timedOut),
+      // The option the reader picked, as TEXT — these decoys are
+      // generated values and name no card, so this is deliberately not
+      // `chosenItemId`. See the two fields' declarations.
+      //
+      // Omitted when `choice` is null, which is the shell's timeout
+      // answer: no option was picked, and `timedOut` already says so.
+      ...(choice !== null ? { chosenAnswerText: choice } : {}),
     };
     await addAttempt(record);
     await recordSrAttempt(card.id, correct, timestamp);

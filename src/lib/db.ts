@@ -1720,6 +1720,56 @@ export interface AttemptRecord {
    * JSONB `data` blob rather than a column whitelist.
    */
   chosenItemId?: string;
+  /**
+   * The option TEXT the reader picked, when the options are values
+   * rather than items. `"A"`, `"♭3"`, `"a mesh screen placed between
+   * the singer and the microphone"`.
+   *
+   * =====================================================================
+   * THIS IS NOT `chosenItemId` IN DIFFERENT CLOTHES, AND THE DIFFERENCE
+   * IS THE REASON THERE ARE TWO FIELDS.
+   *
+   *   `chosenItemId`      the wrong answer IS another catalog item.
+   *                       Joins to the catalog. Feeds pool padding —
+   *                       drilling a narrowed pool alongside the items
+   *                       a reader genuinely confuses with the target.
+   *
+   *   `chosenAnswerText`  the wrong answer is a VALUE. It joins to
+   *                       NOTHING. It feeds per-card error diagnosis
+   *                       and only that. It can never feed padding,
+   *                       because there is no item on the other end of
+   *                       it to pad a pool with.
+   *
+   * The flashcard shell generates its decoys — `chooseDecoys` builds
+   * them from note names and degrees, not from other cards — so the
+   * string a reader picks identifies no card. Searching a category for
+   * cards whose `correctAnswer` matches is many-to-one and often zero,
+   * which is why that lookup is not offered here: an answer that
+   * sometimes resolves is worse than one that never claims to.
+   *
+   * NAMED `...Text` DELIBERATELY. A reader skimming a call site has to
+   * be unable to mistake it for something passable where an itemId is
+   * expected. `chosenAnswer` would not have carried that.
+   *
+   * ---------------------------------------------------------------
+   * NO ROW CARRIES BOTH. The two are written by disjoint modules —
+   * `chosenItemId` by intervals and chord progressions, this by
+   * harmonic fluency and production vocabulary — so a reader holding a
+   * row can always tell which kind it is. Pinned by a test over the
+   * write sites rather than left as a convention.
+   * ---------------------------------------------------------------
+   *
+   * ABSENT ON TIMEOUT. The shell answers with `null` when the countdown
+   * expires, and no option was chosen — `timedOut` already records
+   * that. Storing a null here would make "ran out of time" and "picked
+   * nothing" the same value, which is the distinction `timedOut` exists
+   * to keep.
+   *
+   * Recorded on every answer, correct included: a correct choice says
+   * which options are picked confidently, and only recording mistakes
+   * would make "never confused" and "never asked" the same absence.
+   */
+  chosenAnswerText?: string;
 }
 
 export interface DailySummary {
