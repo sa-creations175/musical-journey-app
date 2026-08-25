@@ -296,6 +296,24 @@ function clampSpeed(m: number): number {
   return Math.max(0.1, m);
 }
 
+/**
+ * How long `playInterval` will sound for, in ms.
+ *
+ * Derived from the same two numbers the player uses — the second note
+ * starts at `dur * 0.95` and runs a full `dur` — so a change to the
+ * playback shape cannot leave the measurement clock behind. The 0.05
+ * scheduling lead-in is included because the reader waits through it
+ * too.
+ *
+ * Exists because `playInterval` resolves once the notes are SCHEDULED,
+ * not once they are heard: awaiting it tells a caller nothing about
+ * when the question became answerable.
+ */
+export function intervalPlaybackMs(speedMultiplier = 1.0, noteDuration = 0.8): number {
+  const dur = noteDuration / clampSpeed(speedMultiplier);
+  return (0.05 + dur * 0.95 + dur) * 1000;
+}
+
 export async function playInterval(
   rootMidi: number,
   semitones: number,
@@ -339,6 +357,38 @@ export type BrokenChordDirection = 'asc' | 'desc' | 'both';
 //   · 'desc' → high → low
 //   · 'both' → ascending then descending, without re-striking the apex
 //              (e.g. C-E-G-C then G-E-C for a C major triad)
+/**
+ * How long a blocked chord sounds for, in ms. All notes start
+ * together, so it is one note's duration plus the scheduling lead-in.
+ */
+export function chordBlockedMs(speedMultiplier = 1.0, duration = 3.2): number {
+  return (0.05 + duration / clampSpeed(speedMultiplier)) * 1000;
+}
+
+/**
+ * How long a broken chord sounds for, in ms.
+ *
+ * The last note STARTS at `(n - 1) * step` and runs a full `dur`, so
+ * the sound ends later than the sequence does — and `both` plays the
+ * shape up and back down without restriking the apex, which is why
+ * the note count is derived here rather than passed in.
+ *
+ * Broken chords are several times longer than blocked ones at the same
+ * speed, which is the whole reason `playStyle` goes on the row: pooled
+ * without it, a reader who prefers broken looks slower at everything.
+ */
+export function chordBrokenMs(
+  noteCount: number,
+  speedMultiplier = 1.0,
+  direction: BrokenChordDirection = 'asc',
+  stepTime = 0.4,
+  noteDuration = 2.0,
+): number {
+  const m = clampSpeed(speedMultiplier);
+  const steps = direction === 'both' ? noteCount * 2 - 1 : noteCount;
+  return (0.05 + (steps - 1) * (stepTime / m) + noteDuration / m) * 1000;
+}
+
 export async function playChordBroken(
   rootMidi: number,
   intervals: number[],

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { getPref } from '../../../lib/userPrefs';
@@ -99,6 +100,8 @@ export default function KeyDetectionTab({ attempts }: Props) {
 
   const playbackRef = useRef<PlaybackHandle | null>(null);
   const droneRef = useRef<PlaybackHandle | null>(null);
+  /** What was in force when this round was played. */
+  const asked = useRef<AskedContext | null>(null);
   const endTimerRef = useRef<number | null>(null);
 
   const speedFallback = defaultSpeed(MODULE_ID);
@@ -175,6 +178,13 @@ export default function KeyDetectionTab({ attempts }: Props) {
     const m = Math.max(0.1, speedRef.current);
     const totalBeats = r.progression.durationPattern.reduce((s, b) => s + b, 0) * 3;
     const totalMs = ((totalBeats * 60) / (90 * m)) * 1000 + 300;
+    // The clock starts when the passage stops. Same number the
+    // run-state timer uses, so measurement and UI agree.
+    asked.current = {
+      playbackEndsAt: Date.now() + totalMs,
+      playbackSpeed: speedRef.current,
+      drillTab: 'key-detection',
+    };
     endTimerRef.current = window.setTimeout(() => {
       playbackRef.current = null;
       endTimerRef.current = null;
@@ -212,6 +222,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
       itemId: keyDetectionItemId(round.key),
       correct,
       timestamp: Date.now(),
+      ...answerTimingFields(asked.current, Date.now()),
     });
     await updateDailySummary(MODULE_ID);
 

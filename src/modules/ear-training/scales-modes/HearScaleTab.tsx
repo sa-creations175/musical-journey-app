@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
   RECENT_HISTORY_SIZE,
@@ -63,6 +64,9 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
   const focusProtected = focusActive && pool.length < FLUENCY_POOL_MINIMUM;
   const [runState, setRunState] = useState<RunState>('idle');
   const [active, setActive] = useState<Mode | null>(null);
+  /** What was in force when this round was presented. See
+   *  `AskedContext` — captured here, read at answer time. */
+  const asked = useRef<AskedContext | null>(null);
   const [rootMidi, setRootMidi] = useState<number>(() => randomRootMidi());
   const [choices, setChoices] = useState<Mode[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -169,9 +173,18 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
     setSubmitted(false);
     setRunState('playing');
 
-    const handle = await playModeScale(newRoot, mode.scaleIntervals, speedRef.current);
+    const speed = speedRef.current;
+    const handle = await playModeScale(newRoot, mode.scaleIntervals, speed);
     playbackRef.current = handle;
-    const dur = scaleDurationSeconds(mode.scaleIntervals, speedRef.current);
+    const dur = scaleDurationSeconds(mode.scaleIntervals, speed);
+    // The clock starts when the scale finishes sounding. `dur` is the
+    // same number the run-state timer below uses, so the measurement
+    // and the UI agree about when the question became answerable.
+    asked.current = {
+      playbackEndsAt: Date.now() + dur * 1000,
+      playbackSpeed: speed,
+      drillTab: 'scale',
+    };
     endTimerRef.current = window.setTimeout(() => {
       playbackRef.current = null;
       endTimerRef.current = null;
@@ -204,6 +217,7 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
       correct,
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
+      ...answerTimingFields(asked.current, timestamp),
     });
     await recordEngagement({
       itemRef,

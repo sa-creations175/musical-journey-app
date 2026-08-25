@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt, bulkAddAttempts } from '../../../lib/practiceWrites';
+import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
   RECENT_HISTORY_SIZE,
@@ -149,6 +150,8 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
   const [loopOn, setLoopOn] = useState(false);
   const [loopCount, setLoopCount] = useState<LoopCount>(1);
   const [runState, setRunState] = useState<RunState>('idle');
+  /** What was in force when this progression was played. */
+  const asked = useRef<AskedContext | null>(null);
   const [active, setActive] = useState<Progression | null>(null);
   // Settings captured at round start. Replay, feedback rendering, and
   // the transition timer all read from here instead of the live pill /
@@ -317,6 +320,16 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
     const totalBeats = prog.durationPattern.reduce((s, b) => s + b, 0) * count;
     const leadInSecs = tonicLeadInSeconds(cfg.tonicContext);
     const totalMs = ((totalBeats * 60 / (cfg.bpm * Math.max(0.1, speedRef.current))) + leadInSecs) * 1000 + 300;
+    // THE TONIC LEAD-IN COUNTS AS PLAYBACK. It is a reference pitch
+    // the reader waits through before the progression starts, so
+    // including it in the offset is what keeps a primed round
+    // comparable with an unprimed one — `totalMs` already carries it,
+    // which is why the clock reuses that number rather than a second.
+    asked.current = {
+      playbackEndsAt: Date.now() + totalMs,
+      playbackSpeed: speedRef.current,
+      drillTab: 'full-progression',
+    };
     endTimerRef.current = window.setTimeout(() => {
       playbackRef.current = null;
       endTimerRef.current = null;
@@ -432,7 +445,15 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
         });
       }
     });
-    await bulkAddAttempts(records);
+    // ONE MEASUREMENT ACROSS THE WHOLE SUBMISSION, stamped on every
+    // row of it. A four-chord transcription is answered as one act —
+    // the reader fills every slot and submits once — so there is no
+    // per-chord time to record, and inventing one by dividing would
+    // report four measurements where one was taken. The rows already
+    // share a `submissionId`, so a later reader can collapse them
+    // without double-counting the time.
+    const submissionTiming = answerTimingFields(asked.current, now);
+    await bulkAddAttempts(records.map(r => ({ ...r, ...submissionTiming })));
     // One spacingState engagement per chord position. The -inversion
     // sub-records are sub-skill grades, not catalog items, so they
     // don't get spacingState rows (see Phase 2 1c report). Calls are
@@ -474,6 +495,10 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
         correct: isCorrect,
         timestamp,
         ...(focusProtected ? { excludeFromFluency: true } : {}),
+        // Measured from the SAME playback as the transcription above:
+        // pattern recognition is a second question about one hearing,
+        // not a second hearing.
+        ...answerTimingFields(asked.current, timestamp),
       });
       // Pattern recognition is a different angle on the same catalog
       // item — credit the engagement against the progression itself

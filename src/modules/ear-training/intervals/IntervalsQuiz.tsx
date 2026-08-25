@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { playInterval } from '../../../lib/audio';
+import { intervalPlaybackMs, playInterval } from '../../../lib/audio';
 import { db, type AttemptRecord, type IntervalData } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
   ROLLING_WINDOW_SIZE,
@@ -54,6 +55,16 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
   const [filter, setFilter] = useState<DirectionFilter>('both');
   const [current, setCurrent] = useState<{ interval: IntervalData; rootMidi: number; direction: PlayDirection } | null>(null);
   const [hasPlayed, setHasPlayed] = useState(false);
+  /**
+   * When this question became answerable, and the speed it was asked
+   * at. Both are captured WHEN THE QUESTION IS PRESENTED: the reader
+   * can move the speed slider while thinking, and the row has to say
+   * what they actually heard, not what the slider says at write time.
+   *
+   * A ref rather than state — nothing renders from it, and a re-render
+   * between hearing and answering would be a bug, not a feature.
+   */
+  const asked = useRef<AskedContext | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [answered, setAnswered] = useState(false);
   const [showLifetime, setShowLifetime] = useState(false);
@@ -171,7 +182,16 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
     setSelectedId(null);
     setAnswered(false);
     setHasPlayed(true);
-    await playInterval(rootMidi, choice.interval.semitones, choice.direction === 'asc', speedRef.current);
+    const speed = speedRef.current;
+    // The clock starts when the SOUND ENDS, not when the play call
+    // returns — `playInterval` resolves once the notes are scheduled,
+    // so awaiting it would leave the whole playback inside every
+    // measurement.
+    asked.current = {
+      playbackEndsAt: Date.now() + intervalPlaybackMs(speed),
+      playbackSpeed: speed,
+    };
+    await playInterval(rootMidi, choice.interval.semitones, choice.direction === 'asc', speed);
   };
 
   const replay = async () => {
@@ -191,6 +211,10 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
       correct: isCorrect,
       timestamp: Date.now(),
       ...(focusProtected ? { excludeFromFluency: true } : {}),
+      // Silent measurement. A replay does NOT restart the clock: the
+      // question became answerable the first time it sounded, and a
+      // reader who needs three replays took that long to answer.
+      ...answerTimingFields(asked.current, Date.now()),
     };
     await addAttempt(record);
     await recordEngagement({

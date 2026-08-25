@@ -1440,6 +1440,18 @@ export function newAttemptId(): string {
   return `att-${crypto.randomUUID()}`;
 }
 
+/**
+ * The tab an attempt came from, across the two multi-drill ear modules.
+ *
+ * Values match the tab ids those modules already use for their URL
+ * params and prefs — `?tab=vamp` lands on sit-inside — so the row says
+ * the same thing the link does. */
+export type DrillTab =
+  // chord progressions
+  | 'key-detection' | 'chord-motion' | 'full-progression'
+  // scales & modes
+  | 'scale' | 'vamp';
+
 export interface AttemptRecord {
   /**
    * Client-generated stable id, `att-<uuid>`, minted by `addAttempt` /
@@ -1533,6 +1545,55 @@ export interface AttemptRecord {
    * =====================================================================
    */
   timedOut?: boolean;
+  /**
+   * The playback speed multiplier in force WHEN THE QUESTION WAS
+   * ASKED. 1.0 is the module default; below 1 is slower.
+   *
+   * =====================================================================
+   * FOUR SETTINGS CHANGE HOW LONG AN ANSWER TAKES. THIS IS THE FIRST.
+   *
+   * `elapsedMs` on its own pools measurements that are not comparable:
+   * a progression heard at half speed takes longer to answer for a
+   * reason that has nothing to do with how well it is known. Without
+   * the setting on the row, the only way to split the sample later is
+   * to guess what it was — and the setting is a slider that moves.
+   *
+   * RECORDED AT ANSWER TIME, NOT READ AT WRITE TIME. The two differ
+   * whenever the reader changes the speed between hearing the question
+   * and answering it, which is exactly when it matters. Modules
+   * capture it alongside the question and carry it through.
+   *
+   * Recorded rather than FROZEN: freezing the speed for the length of
+   * a measurement window would lock a real practice setting for weeks
+   * to protect a statistic, which is the wrong way round.
+   * ===================================================================== */
+  playbackSpeed?: number;
+  /**
+   * Chord recognition only. Whether the chord sounded as a block or
+   * one note at a time.
+   *
+   * Broken chords take longer to hear out by construction — every note
+   * arrives in sequence — so pooling the two makes a reader look
+   * slower on whichever they use more. */
+  playStyle?: 'blocked' | 'broken';
+  /**
+   * Which tab of a multi-drill module the attempt came from. Absent in
+   * single-drill modules.
+   *
+   * =====================================================================
+   * THESE ARE DIFFERENT TASKS, NOT DIFFERENT PLAYBACK LENGTHS.
+   *
+   * Chord progressions: naming the key from a passage, tracing one
+   * chord's motion, and transcribing a whole progression are three
+   * skills that happen to share a module. Scales and modes: hearing a
+   * scale played and recognising a mode from a vamp underneath are
+   * two. Pooling their answer times would compare a one-chord judgment
+   * against a four-chord transcription and call the difference speed.
+   *
+   * ONE FIELD RATHER THAN ONE PER MODULE. Every attempt belongs to
+   * exactly one module, so the vocabularies cannot collide, and a
+   * union type keeps them from drifting into free text. */
+  drillTab?: DrillTab;
   /**
    * Reading note items only. Which half of the staged letter/octave
    * answer was missed, set ONLY when the attempt was wrong.

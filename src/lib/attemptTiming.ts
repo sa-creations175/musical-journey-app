@@ -72,3 +72,93 @@ export function elapsedFields(
 export function timedOutFields(timedOut: boolean): { timedOut?: boolean } {
   return timedOut ? { timedOut: true } : {};
 }
+
+/**
+ * The `elapsedMs` fragment for a drill whose question is HEARD.
+ *
+ * =====================================================================
+ * THE CLOCK STARTS WHEN THE SOUND ENDS, AND ZERO IS A REAL ANSWER.
+ *
+ * `playInterval` and its siblings are `async` only because they await
+ * the audio context — they resolve once the notes are SCHEDULED, not
+ * once they are heard. So "await the play call, then start the clock"
+ * still folds the whole playback duration into every measurement,
+ * which is the fixed offset that would make every progression look
+ * slow for a reason that has nothing to do with the reader.
+ *
+ * So callers pass the moment playback is scheduled to FINISH, computed
+ * from the same durations the player uses.
+ *
+ * A READER WHO ANSWERS BEFORE THE SOUND ENDS RECORDS ZERO, not a
+ * negative and not nothing. Recognising a chord from its first note is
+ * the fastest answer there is; zero is a true lower bound on it.
+ * Discarding it instead would throw away precisely the fastest answers
+ * and bias the whole sample slow.
+ *
+ * THAT IS NOT THE CLAMP THE CEILING REFUSES. The ceiling's clamp would
+ * invent "slow" for something never measured — a card abandoned on
+ * screen. This floor reports "immediate" for something that genuinely
+ * happened immediately. One fabricates evidence, the other rounds a
+ * real observation to the nearest representable value.
+ * =====================================================================
+ */
+export function heardElapsedFields(
+  playbackEndsAt: number | null,
+  now: number,
+): { elapsedMs?: number } {
+  if (playbackEndsAt === null) return {};
+  const elapsed = Math.max(0, now - playbackEndsAt);
+  if (elapsed > WALK_AWAY_CEILING_MS) return {};
+  return { elapsedMs: elapsed };
+}
+
+/** The context fields four settings contribute, spread onto a record. */
+export function contextFields(context: {
+  playbackSpeed?: number;
+  playStyle?: 'blocked' | 'broken';
+  drillTab?: string;
+}): Record<string, unknown> {
+  return {
+    ...(context.playbackSpeed !== undefined ? { playbackSpeed: context.playbackSpeed } : {}),
+    ...(context.playStyle !== undefined ? { playStyle: context.playStyle } : {}),
+    ...(context.drillTab !== undefined ? { drillTab: context.drillTab } : {}),
+  };
+}
+
+/**
+ * Everything a heard question contributes to its attempt row.
+ *
+ * =====================================================================
+ * CAPTURED WHEN THE QUESTION IS ASKED, READ WHEN IT IS ANSWERED.
+ *
+ * The four settings that change how long an answer takes — speed,
+ * blocked vs broken, and which tab of a multi-drill module — are all
+ * controls the reader can move WHILE THINKING. Reading them at write
+ * time records what the slider says after the fact, which is a
+ * different measurement wearing the same field name, and wrong exactly
+ * in the cases where the setting matters.
+ *
+ * So a module fills one of these when it presents the question and
+ * hands it back untouched when the answer lands. One object, so a
+ * caller cannot capture three of the four and read the fourth live.
+ * =====================================================================
+ */
+export interface AskedContext {
+  /** When the sound is scheduled to stop, epoch ms. */
+  playbackEndsAt: number;
+  playbackSpeed?: number;
+  playStyle?: 'blocked' | 'broken';
+  drillTab?: string;
+}
+
+/** The measurement and context fragment for a heard question. */
+export function answerTimingFields(
+  asked: AskedContext | null,
+  answeredAt: number,
+): Record<string, unknown> {
+  if (asked === null) return {};
+  return {
+    ...heardElapsedFields(asked.playbackEndsAt, answeredAt),
+    ...contextFields(asked),
+  };
+}

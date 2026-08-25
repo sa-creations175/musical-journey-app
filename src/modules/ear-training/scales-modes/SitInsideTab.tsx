@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
   RECENT_HISTORY_SIZE,
@@ -67,6 +68,8 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
   const focusProtected = focusActive && pool.length < FLUENCY_POOL_MINIMUM;
   const [runState, setRunState] = useState<RunState>('idle');
   const [active, setActive] = useState<Mode | null>(null);
+  /** What was in force when this round was presented. */
+  const asked = useRef<AskedContext | null>(null);
   const [rootMidi, setRootMidi] = useState<number>(() => randomRootMidi());
   const [choices, setChoices] = useState<Mode[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -181,10 +184,23 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
     // changes apply only to the next round, never retroactively.
     const roundLoop: LoopCount = loopCount === 99 ? 99 : loopCount;
     setActiveLoopCount(roundLoop);
-    const handle = await playModalVamp(newRoot, mode.vamp, speedRef.current, roundLoop);
+    const speed = speedRef.current;
+    const handle = await playModalVamp(newRoot, mode.vamp, speed, roundLoop);
     playbackRef.current = handle;
+    // A LOOPING VAMP HAS NO END, so the clock starts when the FIRST
+    // pass finishes — the point at which the reader has heard the
+    // whole shape once and could answer. A vamp set to loop forever
+    // (99) is the same question with more repetitions available, not a
+    // different one, so it is measured from the same place rather than
+    // going unmeasured.
+    asked.current = {
+      playbackEndsAt: Date.now()
+        + vampDurationSeconds(mode.vamp, 1, speed) * 1000,
+      playbackSpeed: speed,
+      drillTab: 'vamp',
+    };
     if (roundLoop !== 99) {
-      const dur = vampDurationSeconds(mode.vamp, roundLoop, speedRef.current);
+      const dur = vampDurationSeconds(mode.vamp, roundLoop, speed);
       endTimerRef.current = window.setTimeout(() => {
         playbackRef.current = null;
         endTimerRef.current = null;
@@ -229,6 +245,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
       correct,
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
+      ...answerTimingFields(asked.current, timestamp),
     });
     await recordEngagement({
       itemRef,

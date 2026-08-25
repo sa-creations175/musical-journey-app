@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
+  chordBlockedMs,
+  chordBrokenMs,
   playChordBlocked,
   playChordBroken,
   type BrokenChordDirection,
 } from '../../../lib/audio';
 import { db, type AttemptRecord, type ChordData } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
   RECENT_HISTORY_SIZE,
@@ -148,6 +151,15 @@ export default function ChordRecognitionQuiz({
     inversion: Inversion;
   } | null>(null);
   const [hasPlayed, setHasPlayed] = useState(false);
+  /**
+   * What was in force when this question was ASKED — when the sound
+   * ends, the speed, and whether it was blocked or broken.
+   *
+   * Captured at presentation, not read at write time: all three are
+   * controls the reader can move while thinking, and the row has to
+   * say what they actually heard.
+   */
+  const asked = useRef<AskedContext | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedInversion, setSelectedInversion] = useState<Inversion | null>(null);
   const [phase, setPhase] = useState<QuizPhase>('awaiting-quality');
@@ -438,10 +450,22 @@ export default function ChordRecognitionQuiz({
     inversion: Inversion,
   ) => {
     const intervals = rotateForInversion(chord.intervals, inversion);
-    if (playStyleRef.current === 'broken') {
-      await playChordBroken(rootMidi, intervals, speedRef.current, brokenDirRef.current);
+    const style = playStyleRef.current;
+    const speed = speedRef.current;
+    // The clock starts when the SOUND ENDS. A broken chord runs several
+    // times longer than a blocked one at the same speed, so the two
+    // durations are computed separately from the players' own numbers.
+    asked.current = {
+      playbackEndsAt: Date.now() + (style === 'broken'
+        ? chordBrokenMs(intervals.length, speed, brokenDirRef.current)
+        : chordBlockedMs(speed)),
+      playbackSpeed: speed,
+      playStyle: style,
+    };
+    if (style === 'broken') {
+      await playChordBroken(rootMidi, intervals, speed, brokenDirRef.current);
     } else {
-      await playChordBlocked(rootMidi, intervals, speedRef.current);
+      await playChordBlocked(rootMidi, intervals, speed);
     }
   };
 
@@ -505,6 +529,7 @@ export default function ChordRecognitionQuiz({
       correct: isCorrect,
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
+      ...answerTimingFields(asked.current, timestamp),
     });
     await recordEngagement({
       itemRef: itemId,
@@ -532,6 +557,7 @@ export default function ChordRecognitionQuiz({
       correct: isCorrect,
       timestamp,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
+      ...answerTimingFields(asked.current, timestamp),
     });
     await recordEngagement({
       itemRef: itemId,

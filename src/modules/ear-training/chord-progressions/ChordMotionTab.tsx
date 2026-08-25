@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { bulkAddAttempts } from '../../../lib/practiceWrites';
+import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { getPref, setPref } from '../../../lib/userPrefs';
@@ -420,6 +421,16 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   const [runState, setRunState] = useState<RunState>('idle');
+  /**
+   * What was in force when this round became answerable.
+   *
+   * Set where the tab ITSELF decides the question is answerable —
+   * inside the timeout that flips runState to 'answering' — rather
+   * than from a computed duration. The two chords are separated by a
+   * fixed gap and may be preceded by a cadence, so the component's own
+   * definition is the only one that stays right when either changes.
+   */
+  const asked = useRef<AskedContext | null>(null);
   const [round, setRound] = useState<Round | null>(null);
   const [clickedStart, setClickedStart] = useState<number | null>(null);
   const [clickedDest, setClickedDest] = useState<number | null>(null);
@@ -513,6 +524,9 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   // flow based on the round's captured scaffold.
   const launchRound = async (r: Round) => {
     setRound(r);
+    // Cleared per round, so the ??= above captures the first playback
+    // of THIS round rather than keeping the previous round's clock.
+    asked.current = null;
     setClickedStart(null);
     setClickedDest(null);
     setVerdict(null);
@@ -568,6 +582,15 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     timerRef.current = window.setTimeout(async () => {
       await playStep(destChord.root, destChord.intervals, listeningRef.current);
       timerRef.current = window.setTimeout(() => {
+        // A REPLAY DOES NOT RESTART THE CLOCK. The question became
+        // answerable the first time it sounded; a reader who needs
+        // three replays took that long to answer, and restarting here
+        // would report only the time after the last one.
+        asked.current ??= {
+          playbackEndsAt: Date.now(),
+          playbackSpeed: speedRef.current,
+          drillTab: 'chord-motion',
+        };
         setRunState('answering');
       }, gapMs);
     }, gapMs);
@@ -661,7 +684,13 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
         ...excludeFlag,
       });
     }
-    await bulkAddAttempts(records);
+    // ONE MEASUREMENT ACROSS THE SUBMISSION, stamped on every row.
+    // A minimal-scaffold round grades the start, the destination and
+    // the mode from a single act of answering — there is no per-row
+    // time to record, and dividing one measurement into three would
+    // report three where one was taken.
+    const submissionTiming = answerTimingFields(asked.current, now);
+    await bulkAddAttempts(records.map(r => ({ ...r, ...submissionTiming })));
     await updateDailySummary(MODULE_ID);
   };
 
