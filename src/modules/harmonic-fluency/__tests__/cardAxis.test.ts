@@ -169,9 +169,12 @@ describe('absent means flat list, not broken', () => {
     }
   });
 
-  it('adds coordinates to eight generators and no more than that', () => {
+  it('pins how many cards carry coordinates, per category', () => {
     // A count over the whole deck, so a generator that quietly stopped
     // supplying them shows up here even if its own test was deleted.
+    // ELEVEN OF FIFTEEN CATEGORIES. The four with none — scale degree
+    // math, diatonic qualities, chord construction, ear theory — are
+    // hand-written or already carry their own `facts`.
     const withAxis = FLASHCARDS.filter(c => Object.hasOwn(c, 'axis'));
     const byCategory = new Map<string, number>();
     for (const c of withAxis) {
@@ -179,9 +182,15 @@ describe('absent means flat list, not broken', () => {
     }
     expect(Object.fromEntries([...byCategory].sort())).toEqual({
       'enharmonic-equivalents': 35,
-      'intervals': 20,
+      'functional-harmony': 33,
+      'intervals': 25,
+      'key-signatures': 17,
+      'modes': 33,
       'named-notes': 24,
-      'reverse-key-pivots': 24,
+      'pentatonic-scales': 36,
+      'progressions': 6,
+      'reverse-key-pivots': 27,
+      'slash-chords': 44,
       'tritone-pairs': 12,
     });
   });
@@ -195,10 +204,10 @@ describe('the grid reads the passed list, not the coordinates present', () => {
       generated('reverse-key-pivots', /^rkp-\d+$/).map(c => String(c.axis!.key)),
     );
     const offered = grid.columns.views[0].values.map(String);
-    // ASYMMETRIC: the pivots use fewer than twelve keys, so a column
-    // list collected off the cards would be SHORTER than this one.
-    expect(offered).toEqual([...HF_MAJOR_KEYS]);
+    // ASYMMETRIC: the pivots use fewer keys than the axis offers, so a
+    // column list collected off the cards would be SHORTER than this.
     expect(offered.length).toBeGreaterThan(used.size);
+    for (const k of HF_MAJOR_KEYS) expect(offered).toContain(k);
   });
 
   it('keeps both key views over the same twelve', async () => {

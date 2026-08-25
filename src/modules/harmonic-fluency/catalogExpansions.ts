@@ -210,6 +210,9 @@ export function generateIiViCards(): Flashcard[] {
     out.push({
       ...base('functional-harmony', 'Functional Harmony'),
       id: `fh-ii-v-i-${root}`,
+      // `shape` separates the three functional-harmony generators, which
+      // all key on root and would otherwise share a cell.
+      axis: { key: root, shape: 'ii-V-I' },
       question: `The ii-V-I cadence in ${noteLabel(root)} major is _____`,
       correctAnswer: `${two}m7 - ${five}7 - ${one}maj7`,
       decoys: [
@@ -240,6 +243,7 @@ export function generateVofVCards(): Flashcard[] {
     out.push({
       ...base('functional-harmony', 'Functional Harmony'),
       id: `fh-v-of-v-${root}`,
+      axis: { key: root, shape: 'V/V' },
       question: `A secondary dominant V/V in ${noteLabel(root)} major is which chord?`,
       correctAnswer: `${two}7`,
       // The other three dominants a player might reach for: the real V,
@@ -268,6 +272,7 @@ export function generateVofViCards(): Flashcard[] {
     out.push({
       ...base('functional-harmony', 'Functional Harmony'),
       id: `fh-v-of-vi-${root}`,
+      axis: { key: root, shape: 'V/vi' },
       question: `V/vi in ${noteLabel(root)} major resolves to _____`,
       correctAnswer: `${six}m`,
       decoys: [`${three}m`, `${two}m`, `${four}maj7`],
@@ -286,8 +291,9 @@ export function generateVofViCards(): Flashcard[] {
 // Modes — the mode of {key} major starting on {degree}
 // =====================================================================
 
-/** The three the hand-written C cards drilled, by degree. */
-const MODE_BY_DEGREE: ReadonlyArray<{ degree: string; mode: string }> = [
+/** The three the hand-written C cards drilled, by degree. Exported for
+ *  the modes grid's row order. */
+export const MODE_BY_DEGREE: ReadonlyArray<{ degree: string; mode: string }> = [
   { degree: '2', mode: 'Dorian' },
   { degree: '5', mode: 'Mixolydian' },
   { degree: '6', mode: 'Aeolian' },
@@ -338,6 +344,7 @@ export function generateModeOfCards(): Flashcard[] {
       out.push({
         ...base('modes', 'Modes'),
         id: `mo-mode-of-${root}-${degree}`,
+        axis: { key: root, degree: Number(degree) },
         question: `The mode of ${noteLabel(root)} major starting on ${startGlossed} is _____`,
         correctAnswer: `${start} ${mode}`,
         // The same starting note under three other mode names — the
@@ -369,7 +376,9 @@ export function generateModeOfCards(): Flashcard[] {
 // =====================================================================
 
 /** The four shapes the hand-written C cards drilled. */
-const SLASH_SHAPES: ReadonlyArray<{
+/** Exported so the slash-chord grid reads the same shape order the
+ *  generator emits, rather than a second list beside it. */
+export const SLASH_SHAPES: ReadonlyArray<{
   id: string; label: string; chord: string; bass: string; quality: string;
 }> = [
   { id: '1-3', label: '1/3', chord: '1', bass: '3', quality: '' },
@@ -420,6 +429,7 @@ export function generateSlashCards(): Flashcard[] {
       out.push({
         ...base('slash-chords', 'Slash Chords'),
         id: `sc-${shape.id}-${root}`,
+        axis: { key: root, shape: shape.id },
         question: `What is ${shape.label} in ${noteLabel(root)} major?`,
         correctAnswer: `${chord}/${bass}`,
         decoys,
@@ -465,6 +475,7 @@ export function generatePivotTopUps(): Flashcard[] {
     return {
       ...base('reverse-key-pivots', 'Reverse Key Pivots'),
       id: `rkp-${root}-${degree}`,
+      axis: { key: root, degree: Number(degree) },
       question: `${note} is the ${degree} of which major key?`,
       correctAnswer: `${noteLabel(root)} major`,
       decoys: wrong.map(k => `${noteLabel(k)} major`),
@@ -488,6 +499,7 @@ export function generateProgressionTopUps(): Flashcard[] {
     return {
       ...base('progressions', 'Progressions'),
       id: `pr-1564-${root}`,
+      axis: { key: root, shape: '1-5-6-4' },
       question: `The 1-5-6-4 progression in ${noteLabel(root)} major is _____`,
       correctAnswer: `${one} - ${five} - ${six}m - ${four}`,
       decoys: [
@@ -544,6 +556,7 @@ export function generateRelativeMinorTopUps(): Flashcard[] {
     return {
       ...base('key-signatures', 'Key Signatures'),
       id: `ks-relative-${root}`,
+      axis: { key: root, relation: 'relative' },
       question: `The relative minor of ${noteLabel(root)} major is _____`,
       correctAnswer: `${six} minor`,
       decoys: chooseDecoys(
@@ -570,6 +583,7 @@ export function generateParallelMinorTopUps(): Flashcard[] {
   return FLAT_TWELVE.filter(r => !have.has(r)).map(root => ({
     ...base('key-signatures', 'Key Signatures'),
     id: `ks-parallel-${root}`,
+    axis: { key: root, relation: 'parallel' },
     question: `The parallel minor of ${noteLabel(root)} major is _____`,
     correctAnswer: `${noteLabel(root)} minor`,
     decoys: chooseDecoys(
@@ -641,6 +655,9 @@ export function generateIntervalTopUps(): Flashcard[] {
     return {
       ...base('intervals', 'Intervals'),
       id: `iv-${from}-${degree}`,
+      // Same coordinates as the catalog's own interval generator, so
+      // the top-ups land in the SAME grid rather than a parallel one.
+      axis: { from, to, semitones },
       question: `The interval from ${noteLabel(from)} to ${toGlossed} ascending = ?`,
       correctAnswer: correct,
       decoys,

@@ -1771,6 +1771,7 @@ function generatePentatonicKeyCards(): Flashcard[] {
     cards.push({
       ...base,
       id: pentatonicCardId('minor', root),
+      axis: { root, shape: 'minor' },
       question: `In ${scaleName(root, 'minor')} minor pentatonic, the notes are _____`,
       correctAnswer: noteList(notes),
       decoys: pentatonicDecoys(root, 'minor'),
@@ -1787,6 +1788,7 @@ function generatePentatonicKeyCards(): Flashcard[] {
     cards.push({
       ...base,
       id: pentatonicCardId('major', root),
+      axis: { root, shape: 'major' },
       question: `In ${scaleName(root, 'major')} major pentatonic, the notes are _____`,
       correctAnswer: noteList(notes),
       decoys: pentatonicDecoys(root, 'major'),
@@ -1805,6 +1807,7 @@ function generatePentatonicKeyCards(): Flashcard[] {
     cards.push({
       ...base,
       id: pentatonicCardId('relative', root),
+      axis: { root, shape: 'relative' },
       question: `${scaleName(root, 'major')} major pentatonic and `
         + `${scaleName(rel, 'minor')} minor pentatonic share the same _____`,
       correctAnswer: '5 notes (identical pitch set)',
