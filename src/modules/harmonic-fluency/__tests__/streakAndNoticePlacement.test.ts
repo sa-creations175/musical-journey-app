@@ -89,12 +89,22 @@ describe('the streak figures are printed once', () => {
     expect(bar).not.toContain('computeDayStreak');
   });
 
-  it('the module home still shows both, with their words', () => {
-    const page = read('HarmonicFluency.tsx');
-    expect(page).toContain('🔥');
-    expect(page).toContain('📅');
-    expect(page).toContain('correct in a row');
-    expect(page).toContain('at goal');
+  it('the shared module-home header shows both, with their words', () => {
+    // The row moved into `ModuleHomeHeader` so ear training and reading
+    // could have it too. The words travelled with the glyphs.
+    const header = read('ModuleHomeHeader.tsx');
+    expect(header).toContain('🔥');
+    expect(header).toContain('📅');
+    expect(header).toContain('correct in a row');
+    expect(header).toContain('at goal');
+  });
+
+  it('and the module home renders that header rather than its own row', () => {
+    const page = code('HarmonicFluency.tsx');
+    expect(page).toContain('<ModuleHomeHeader');
+    // No second copy left behind on the page.
+    expect(page).not.toContain('🔥');
+    expect(page).not.toContain('📅');
   });
 
   it('the Today bar is still there, and still editable', () => {

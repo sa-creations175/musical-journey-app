@@ -38,6 +38,24 @@ async function renderPage(): Promise<HTMLDivElement> {
   return container;
 }
 
+/**
+ * Flush until `ready` holds, or give up.
+ *
+ * The page's figures arrive from Dexie across several `useLiveQuery`
+ * resolutions, and the streak row's own query starts a render AFTER the
+ * page's — it lives in `ModuleHomeHeader`, a child. One `setTimeout(0)`
+ * happened to be enough before that component existed; asserting on a
+ * fixed number of ticks is asserting on how fast the machine is.
+ *
+ * BOUNDED, so a value that never arrives still fails the test rather
+ * than hanging it.
+ */
+async function settle(ready: () => boolean): Promise<void> {
+  for (let i = 0; i < 20 && !ready(); i++) {
+    await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+  }
+}
+
 afterEach(async () => {
   await db.attempts.clear();
   if (root) await act(async () => root!.unmount());
@@ -187,6 +205,12 @@ describe('the landing statistics', () => {
     const expected = computeHotStreak(FIXTURE).current;
     expect(expected).toBe(3);
 
+    // The figure comes from a live query in the header component — wait
+    // for it rather than for a fixed tick count.
+    await settle(() => {
+      const n = el.querySelector('[data-testid="hf-streak"][data-kind="hot"] .tabular-nums');
+      return n !== null && n.textContent !== '0';
+    });
     const row = el.querySelector('a[href="/harmonic-fluency/calendar"]')!.parentElement!;
     const hot = row.querySelector('[data-testid="hf-streak"][data-kind="hot"]')!;
     // The figure, read on its own so a longer number cannot contain the

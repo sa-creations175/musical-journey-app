@@ -24,6 +24,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { isNarrowed, useDrillFilter } from '../../lib/drillFilter';
 import ReadingDrill from './ReadingDrill';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import ProgressDetail from '../../components/moduleHome/ProgressDetail';
 import { useAxisViews } from '../../components/moduleHome/useAxisViews';
 import { moduleMetaById } from '../../lib/moduleMeta';
@@ -117,6 +118,21 @@ export default function Reading() {
       {/* No module heading here. The pinned header in Layout already
           carries the name and the module tagline — see pageTitle.ts —
           and no other module repeats its own. */}
+      {/* THE SHARED HEADER. The flame counts consecutive correct
+          answers in this module and is the whole of it here.
+
+          NO DAY STREAK: reading has no entry in `MODULE_DEFAULT_GOALS`
+          and no `DailyGoalBar` anywhere, so "days at goal" would be
+          days measured against the unknown-module fallback of 30 — a
+          number the reader has never seen and cannot change from this
+          page.
+
+          NO CALENDAR LINK: `/reading/calendar` does not exist.
+
+          NO INTRO: this page has never carried copy, and copy is
+          authored. See the report. */}
+      <ModuleHomeHeader moduleIds={[READING_MODULE_ID]} />
+
       <CategoryCardGrid
         cards={cards}
         moduleId={READING_MODULE_ID}

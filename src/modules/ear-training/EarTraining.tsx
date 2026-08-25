@@ -25,6 +25,7 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { db } from '../../lib/db';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import {
@@ -72,17 +73,41 @@ export default function EarTraining() {
   );
 
   return (
-    <CategoryCardGrid
-      cards={cards}
-      moduleId={EAR_TRAINING_MODULE_ID}
-      onDrill={key => {
-        const route = earTrainingRouteFor(key);
-        if (route !== null) navigate(route);
-      }}
-      // "open", not "drill": this lands on a page with a play button
-      // rather than on a question. See the header.
-      drillLabel="open module"
-      now={now}
-    />
+    <div className="space-y-6">
+      {/* THE SHARED HEADER, WITH TWO OF ITS THREE PARTS ABSENT — and
+          absent rather than filled in.
+
+          NO DAY STREAK. It counts days that met a daily GOAL, and ear
+          training has none: `MODULE_DEFAULT_GOALS` lists the four
+          sub-modules, not their parent, so a goal here would be the
+          unknown-module fallback of 30 measured against the union of
+          four drills the reader set separately. That is a target
+          nobody chose.
+
+          NO CALENDAR LINK. Each sub-module has its own calendar route;
+          `/ear-training/calendar` does not exist, and a link that opens
+          nothing is worse than no link.
+
+          NO INTRO. The four sub-module pages each carry their own copy;
+          this page has never had any, and copy is written, not
+          generated. See the report.
+
+          The flame is real: consecutive correct answers across all four
+          sub-modules, which is what a session here actually is. */}
+      <ModuleHomeHeader moduleIds={EAR_TRAINING_SUB_MODULES.map(m => m.id)} />
+
+      <CategoryCardGrid
+        cards={cards}
+        moduleId={EAR_TRAINING_MODULE_ID}
+        onDrill={key => {
+          const route = earTrainingRouteFor(key);
+          if (route !== null) navigate(route);
+        }}
+        // "open", not "drill": this lands on a page with a play button
+        // rather than on a question. See the header.
+        drillLabel="open module"
+        now={now}
+      />
+    </div>
   );
 }

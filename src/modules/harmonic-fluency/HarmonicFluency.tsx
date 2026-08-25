@@ -8,14 +8,12 @@ import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import { HARMONIC_FLUENCY_GRIDS } from './progressGrids';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { harmonicFluencyCards } from './homeCards';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { db } from '../../lib/db';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlMultiSelectSync } from '../../lib/useUrlTabSync';
-import ModuleIntro from '../../components/ModuleIntro';
+import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import DailyGoalBar from '../../components/DailyGoalBar';
-import { computeDayStreak, computeHotStreak, localDayKey } from '../../lib/dailyGoal';
-import { dailyGoalKey, defaultDailyGoal } from '../../lib/goalConfig';
 import HarmonicFluencySession, {
   type DisplayMode,
   type SessionStats,
@@ -161,25 +159,10 @@ export default function HarmonicFluency() {
   const spacingIntervals = useSpacingIntervals(MODULE_ID);
   const now = Date.now();
 
-  /**
-   * The two streak figures, computed from the same functions
-   * `DailyGoalBar` uses rather than a second reading of the attempts.
-   *
-   *   hotStreak — consecutive CORRECT ANSWERS, all time, ending at the
-   *               most recent attempt. Any wrong answer resets it. Not
-   *               a day count, which is what the flame glyph implied.
-   *   dayStreak — consecutive DAYS whose attempt count met the daily
-   *               goal, ending today or yesterday.
-   */
-  const hfGoal = useLiveQuery(
-    async () => getPref<number>(dailyGoalKey(MODULE_ID), defaultDailyGoal(MODULE_ID)),
-    [],
-  ) ?? defaultDailyGoal(MODULE_ID);
-  const hotStreak = useMemo(() => computeHotStreak(allAttempts).current, [allAttempts]);
-  const dayStreak = useMemo(
-    () => computeDayStreak(allAttempts, hfGoal, localDayKey()),
-    [allAttempts, hfGoal],
-  );
+  // The two streak figures moved into `ModuleHomeHeader` with the row
+  // that shows them — the goal read, the hot streak and the day streak
+  // are one rule, and it now lives in one place for all three module
+  // homes rather than being re-derived per page.
 
   /** Which category's progress detail is open, if any. */
   const [detailCategory, setDetailCategory] = useState<FlashcardCategory | null>(null);
@@ -276,50 +259,30 @@ export default function HarmonicFluency() {
 
   return (
     <div className="space-y-6">
-      {/* The streaks share the calendar row rather than taking one of
-          their own — the row was otherwise empty, and these two numbers
-          did not earn a band of their own above the cards.
-
-          EMOJI AND WORDS, NOT ONE OR THE OTHER. The glyphs alone said
-          nothing about what they counted, and the flame is not a day
-          count at all — see `computeHotStreak`. The words carry the
-          meaning; the glyph is what the eye finds first. Both, on the
-          same line, costing no extra height. */}
-      {/* `-mt-2` eats half the shell's top padding. The shell's `py-4`
-          is app-wide (`Layout`) and stays that way — one module wanting
-          to start higher is not a reason to move every screen up. */}
-      <div className="-mt-2 flex items-center justify-end gap-2 text-xs text-neutral-500">
-        <span
-          className="inline-flex items-baseline gap-1"
-          title="consecutive correct answers, all time"
-          data-testid="hf-streak"
-          data-kind="hot"
-        >
-          <span aria-hidden>🔥</span>
-          <span className="font-mono tabular-nums font-medium">{hotStreak}</span>
-          <span>correct in a row</span>
-        </span>
-        <span aria-hidden className="text-neutral-400">·</span>
-        <span
-          className="inline-flex items-baseline gap-1"
-          title="consecutive days the daily goal was met"
-          data-testid="hf-streak"
-          data-kind="day"
-        >
-          <span aria-hidden>📅</span>
-          <span className="font-mono tabular-nums font-medium">{dayStreak}</span>
-          {/* One day is a day. Derived from the number beside it rather
-              than written as "day(s)". */}
-          <span>{dayStreak === 1 ? 'day' : 'days'} at goal</span>
-        </span>
-        <span aria-hidden className="text-neutral-400">·</span>
-        <Link
-          to="/harmonic-fluency/calendar"
-          className="hover:text-fluent"
-        >
-          view calendar →
-        </Link>
-      </div>
+      {/* THE ROW AND THE INTRO ARE `ModuleHomeHeader` NOW. Identical
+          markup, moved — this page is the reference the component was
+          lifted from, so routing it through changes nothing here and
+          gives ear training and reading the same row without a second
+          copy of it. `showIntro` keeps the mid-session behaviour: the
+          copy still exists, the moment is just wrong for it. */}
+      <ModuleHomeHeader
+        moduleIds={[MODULE_ID]}
+        goalModuleId={MODULE_ID}
+        calendarTo="/harmonic-fluency/calendar"
+        showIntro={!sessionActive}
+        intro={{
+          accent: 'blue',
+          persistKey: PREF_INTRO_OPEN,
+          headline: 'The mental map that makes music make sense.',
+          description: 'Build instant fluency in scale degrees, key relationships, and chord construction. When your theory is automatic, your ear is free to listen.',
+          bullets: [
+            'Scale degree math in all 12 keys',
+            'Functional harmony and cadence recognition',
+            'Chord construction and quality relationships',
+            'Fast flashcard practice with **spaced repetition**',
+          ],
+        }}
+      />
 
       {sessionActive && sessionQueue ? (
         <>
@@ -367,28 +330,11 @@ export default function HarmonicFluency() {
         </>
       ) : (
         <>
-          {/* Order (context before action): learn-more card (headline
-              only) → the mixed drill → the category cards →
-              session settings, collapsed. The settings moved below the
-              cards because they configure the mixed run, which is now
-              one of sixteen ways to start from this page. */}
-          {/* And `-mt-4` against the page's `space-y-6`, so the card sits
-              just under the streak row instead of a band below it. */}
-          <div className="-mt-4">
-          <ModuleIntro
-            compact
-            persistKey={PREF_INTRO_OPEN}
-            accent="blue"
-            headline="The mental map that makes music make sense."
-            description="Build instant fluency in scale degrees, key relationships, and chord construction. When your theory is automatic, your ear is free to listen."
-            bullets={[
-              'Scale degree math in all 12 keys',
-              'Functional harmony and cadence recognition',
-              'Chord construction and quality relationships',
-              'Fast flashcard practice with **spaced repetition**',
-            ]}
-          />
-          </div>
+          {/* Order (context before action): the learn-more card, which
+              `ModuleHomeHeader` renders above → the mixed drill → the
+              category cards → session settings, collapsed. The settings
+              moved below the cards because they configure the mixed
+              run, which is now one of sixteen ways to start here. */}
 
           {/* NO "TODAY" ROW HERE. The N/10 counter and its bar told the
               reader a number they do not act on, and cost a band of
