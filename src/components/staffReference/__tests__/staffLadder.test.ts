@@ -116,11 +116,20 @@ describe('the mnemonics that ship', () => {
   });
 
   it('leave the treble spaces wordless — they spell FACE', () => {
-    const spaces = ladder
-      .filter(p => p.region === 'treble' && p.kind === 'space')
-      .map(p => p.id);
-    expect(spaces).toEqual(['F4', 'A4', 'C5', 'E5']);
-    for (const id of spaces) expect(defaults[id]).toBeUndefined();
+    const spaces = ladder.filter(p => p.spellsFace);
+    // Bottom to top, the four ARE the mnemonic.
+    expect(spaces.map(p => p.id)).toEqual(['F4', 'A4', 'C5', 'E5']);
+    expect(spaces.map(p => p.letter).join('')).toBe('FACE');
+    for (const p of spaces) expect(defaults[p.id]).toBeUndefined();
+  });
+
+  it('flag those four and nothing else as spelling it', () => {
+    const flagged = ladder.filter(p => p.spellsFace);
+    expect(flagged).toHaveLength(4);
+    for (const p of flagged) {
+      expect(p.region).toBe('treble');
+      expect(p.kind).toBe('space');
+    }
   });
 
   it('leave EVERY ledger position empty', () => {

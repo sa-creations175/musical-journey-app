@@ -65,6 +65,14 @@ export interface StaffPosition {
   region: StaffRegion;
   /** A line that is NOT one of the ten staff lines — including middle C. */
   isLedgerLine: boolean;
+  /**
+   * One of the four treble spaces.
+   *
+   * THEY TAKE NO WRITTEN MNEMONIC, because they already are one: read
+   * bottom to top they spell F-A-C-E. An "add your own" prompt on them
+   * would be asking for a mnemonic for the mnemonic.
+   */
+  spellsFace: boolean;
   isMiddleC: boolean;
 }
 
@@ -121,6 +129,7 @@ export function buildLadder(): StaffPosition[] {
       kind,
       region,
       isLedgerLine: kind === 'line' && region !== 'treble' && region !== 'bass',
+      spellsFace: kind === 'space' && region === 'treble',
       isMiddleC: step === middleC,
     });
   }

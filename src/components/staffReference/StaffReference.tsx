@@ -183,6 +183,18 @@ function Row({
           </span>
         )}
 
+        {/* THE FOUR TREBLE SPACES ARE THEIR OWN MNEMONIC. They spell
+            F-A-C-E bottom to top, so they say so instead of offering a
+            field to write one in. Every other position keeps its. */}
+        {pos.spellsFace ? (
+          <span
+            data-testid="staff-spells-face"
+            data-note={pos.id}
+            className="text-xs text-neutral-500 font-mono tracking-wide"
+          >
+            F-A-C-E
+          </span>
+        ) : (
         <Mnemonic
           value={mnemonic}
           noteId={pos.id}
@@ -192,6 +204,7 @@ function Row({
           onCommit={onCommit}
           onCancel={onCancel}
         />
+        )}
       </div>
     </div>
   );

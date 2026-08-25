@@ -138,6 +138,24 @@ describe('the mnemonics', () => {
     expect(row(el, 'E4').querySelector('[data-testid="staff-mnemonic-add"]')).toBeNull();
   });
 
+  it('do not ask for one on the four treble spaces', async () => {
+    // They spell F-A-C-E, so they already are a mnemonic. Asking for
+    // one would be asking for a mnemonic for the mnemonic.
+    const el = await mount({ editable: true });
+    for (const note of ['F4', 'A4', 'C5', 'E5']) {
+      expect(row(el, note).querySelector('[data-testid="staff-mnemonic-add"]'), note).toBeNull();
+      expect(row(el, note).querySelector('[data-testid="staff-spells-face"]'), note).not.toBeNull();
+      expect(row(el, note).textContent, note).toContain('F-A-C-E');
+    }
+  });
+
+  it('say it whether the drawing is editable or not', async () => {
+    const el = await mount({ editable: false });
+    expect(row(el, 'A4').querySelector('[data-testid="staff-spells-face"]')).not.toBeNull();
+    // And no other position claims to spell it.
+    expect(el.querySelectorAll('[data-testid="staff-spells-face"]')).toHaveLength(4);
+  });
+
   it('do not offer the prompt where the drawing is read-only', async () => {
     const el = await mount({ editable: false });
     expect(row(el, 'A5').querySelector('[data-testid="staff-mnemonic-add"]')).toBeNull();
