@@ -14,8 +14,8 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import {
-  INTERVAL_SEEDS, directionsFor, directionsForId, intervalItemRefs,
-  normaliseDirection, seedIntervals,
+  INTERVAL_SEEDS, directionsFor, directionsForId, intervalCountSummary,
+  intervalItemRefs, normaliseDirection, seedIntervals, type IntervalSeed,
 } from '../seed';
 import { eligibleDirections } from '../directionBalance';
 import { labelForIntervalItemRef } from '../itemRefLabel';
@@ -154,5 +154,63 @@ describe('the selector prefers the direction with fewer attempts', () => {
     }
     expect(eligibleDirections(['asc', 'desc'], counts(asc, desc))).toEqual(['asc', 'desc']);
     expect([asc, desc]).toEqual([7, 7]);
+  });
+});
+
+describe('the card caption counts itself', () => {
+  const seed = (id: string, name: string, semitones: number): IntervalSeed =>
+    ({ id, name, semitones, ascAnchorDefault: 'x', descAnchorDefault: 'y' });
+
+  it('reads the approved sentence against the real catalog', () => {
+    expect(intervalCountSummary()).toBe('25 · 12 both ways, plus unison');
+  });
+
+  it('takes BOTH numbers from the seed list, not from literals', () => {
+    // The proof that it is derived: hand it a different catalog and the
+    // whole sentence moves. A hard-coded "25 · 12 both ways, plus
+    // unison" passes the test above and fails every one of these.
+    //
+    // ASYMMETRIC FIXTURES — different sizes, and the directionless
+    // interval in a different position each time, so a builder that
+    // assumed "the first seed is the unison" would fail.
+    expect(intervalCountSummary([
+      seed('P1', 'Unison', 0),
+      seed('m2', 'Minor 2nd', 1),
+    ])).toBe('3 · 1 both ways, plus unison');
+
+    expect(intervalCountSummary([
+      seed('m2', 'Minor 2nd', 1),
+      seed('M2', 'Major 2nd', 2),
+      seed('P1', 'Unison', 0),
+    ])).toBe('5 · 2 both ways, plus unison');
+  });
+
+  it('names the one-way intervals rather than assuming which they are', () => {
+    // A second directionless interval must make the sentence say so,
+    // not go quietly wrong. `Perfect 0th` is not real music — it is a
+    // second zero-semitone seed, which is the only thing that reaches
+    // this branch.
+    expect(intervalCountSummary([
+      seed('P1', 'Unison', 0),
+      seed('P0', 'Perfect 0th', 0),
+      seed('m2', 'Minor 2nd', 1),
+    ])).toBe('4 · 1 both ways, plus unison and perfect 0th');
+  });
+
+  it('drops the clause entirely when every interval has two directions', () => {
+    // No dangling "plus" — the sentence has to be right when the
+    // exception it exists to explain is gone.
+    expect(intervalCountSummary([
+      seed('m2', 'Minor 2nd', 1),
+      seed('M2', 'Major 2nd', 2),
+    ])).toBe('4 · 2 both ways');
+  });
+
+  it('agrees with the numbers the rest of the app derives', () => {
+    // The sentence and the count beside it must not be two sources.
+    const refs = intervalItemRefs().length;
+    const twoWay = INTERVAL_SEEDS.filter(s => directionsFor(s.semitones).length === 2).length;
+    expect(intervalCountSummary()).toBe(`${refs} · ${twoWay} both ways, plus unison`);
+    expect(refs).not.toBe(INTERVAL_SEEDS.length * 2);
   });
 });

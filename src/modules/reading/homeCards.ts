@@ -53,6 +53,8 @@ export function readingCards(
     key: skill,
     label: LABELS[skill],
     itemCount: countFor[skill],
+    // The bare count is honest here: one card, one item apiece.
+    countDetail: null,
     // The one line lands when the copy exists — see the report on where
     // descriptions should live. The four blurbs the tab strip carried
     // are NOT moved here: they would become a fifth home for the same

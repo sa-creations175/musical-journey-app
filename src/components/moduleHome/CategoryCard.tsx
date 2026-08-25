@@ -94,6 +94,11 @@ export default function CategoryCard({
             {card.itemsSeen}/{card.itemCount}
           </span>
         </div>
+        {card.countDetail !== null && (
+          <div className="mt-0.5 text-[11px] text-neutral-400 tabular-nums">
+            {card.countDetail}
+          </div>
+        )}
         <div className="mt-0.5 text-[11px] text-neutral-500 tabular-nums">
           {pending !== null ? (
             <span className="text-neutral-400">{pending}</span>

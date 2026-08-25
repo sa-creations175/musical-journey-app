@@ -16,7 +16,9 @@ import {
   EAR_TRAINING_SUB_MODULES, earTrainingCards, earTrainingRouteFor,
 } from '../homeCards';
 import { earTrainingCounts } from '../../../lib/moduleItemCounts';
-import { INTERVAL_SEEDS, intervalItemRefs } from '../intervals/seed';
+import {
+  INTERVAL_SEEDS, intervalCountSummary, intervalItemRefs,
+} from '../intervals/seed';
 import { moduleMetaById } from '../../../lib/moduleMeta';
 import type { AttemptRecord } from '../../../lib/db';
 
@@ -148,6 +150,16 @@ describe('counts and tint come from the shared sources', () => {
     // Asymmetric: a plain seeds × 2 would give 26 and pass a looser
     // check, so pin that the two differ.
     expect(intervalItemRefs().length).not.toBe(INTERVAL_SEEDS.length * 2);
+  });
+
+  it('captions the intervals count, and only where it would mislead', async () => {
+    const el = await renderPage();
+    const text = (key: string) => card(el, key).textContent ?? '';
+    expect(text('intervals')).toContain(intervalCountSummary());
+    expect(text('intervals')).toContain('25 · 12 both ways, plus unison');
+    // Chord recognition is one row per chord, so a caption there would
+    // be explaining a number that needs no explanation.
+    expect(text('chord-recognition')).not.toContain('both ways');
   });
 
   it('tints all four from the PARENT module, not four sub-module hexes', async () => {

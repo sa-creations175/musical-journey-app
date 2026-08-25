@@ -27,6 +27,7 @@
 import type { AttemptRecord } from '../../lib/db';
 import { categoryCardStats, type CategoryCardModel } from '../../components/moduleHome/model';
 import { earTrainingCounts } from '../../lib/moduleItemCounts';
+import { intervalCountSummary } from './intervals/seed';
 
 /** The parent module, whose accent all four cards share. */
 export const EAR_TRAINING_MODULE_ID = 'ear-training';
@@ -70,6 +71,12 @@ export function earTrainingCards(
     key: mod.id,
     label: mod.label,
     itemCount: countFor[mod.id] ?? 0,
+    // Only where the bare number would mislead. Intervals reads 25
+    // against a module that says thirteen intervals, so the card says
+    // why — derived, so adding an interval moves the sentence and not
+    // just the number beside it. Scales & modes has the same shape (18
+    // rows for 9 modes, two tabs apiece) and is awaiting its copy.
+    countDetail: mod.id === 'intervals' ? intervalCountSummary() : null,
     // The one line lands when the copy exists — see the report. The
     // four descriptions the old sub-module list carried are NOT moved
     // here; that would be a fifth home for the same sentence.

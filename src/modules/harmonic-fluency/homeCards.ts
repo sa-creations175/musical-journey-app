@@ -42,6 +42,8 @@ export function harmonicFluencyCards(
       key: category,
       label: CATEGORY_LABELS[category],
       itemCount: ids.size,
+    // The bare count is honest here: one card, one item apiece.
+    countDetail: null,
       // The one line lands when the copy exists — see the report on
       // where descriptions should live. Null renders nothing.
       description: null,

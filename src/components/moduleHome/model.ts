@@ -38,7 +38,7 @@ export interface CategoryCardStats {
    * interval.
    *
    * A card is not an item. "Pentatonic scales" is 41 cards on 41
-   * schedules and "intervals" is 26 rows on 26; there is no single
+   * schedules and "intervals" is 25 rows on 25; there is no single
    * interval for the group, so the strip fades each tick against the
    * item it was on. See `TickAttempt.intervalDays`, which is optional
    * for exactly this case.
@@ -61,6 +61,19 @@ export interface CategoryCardModel extends CategoryCardStats {
   /** How many items the card covers. DERIVED by the adapter from a
    *  catalog helper, never written down. */
   itemCount: number;
+  /**
+   * A short caption explaining the count, when the bare number would
+   * mislead.
+   *
+   * Ear training's intervals card reads 25 against a module that says
+   * thirteen intervals, and scales & modes reads 18 against nine modes
+   * — both because a spacing row is per direction or per tab, not per
+   * catalog entry. `null` where the count speaks for itself.
+   *
+   * DERIVED BY THE ADAPTER, never written. See `intervalCountSummary`.
+   */
+  countDetail: string | null;
+
   /**
    * The one line saying what this asks of the reader.
    *

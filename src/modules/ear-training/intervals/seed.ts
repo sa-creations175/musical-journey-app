@@ -125,3 +125,44 @@ export async function seedIntervals(): Promise<void> {
     }
   });
 }
+
+/**
+ * "25 · 12 both ways, plus unison" — the card's count, said in full.
+ *
+ * =====================================================================
+ * EVERY PART OF THIS SENTENCE IS COUNTED, INCLUDING THE NAME.
+ *
+ * The card reads 25 where the module says thirteen intervals, and
+ * without a reason on screen that looks like a contradiction rather
+ * than a fact. So the line states the arithmetic: twelve intervals
+ * carry both directions, and the unison carries one.
+ *
+ * The 25 comes from `intervalItemRefs()`, the 12 from `directionsFor`,
+ * and the WORD "unison" from the seed that has one direction. Adding a
+ * fourteenth interval moves all three; adding a second directionless
+ * one makes it read "plus unison and X" rather than going quietly
+ * wrong. A hand-written sentence beside a derived number is the same
+ * defect as a hand-written denominator — it just takes longer to
+ * notice.
+ * =====================================================================
+ *
+ * `seeds` is a parameter so a test can hand it a different catalog and
+ * watch the sentence move. Defaulted, because every caller wants the
+ * real one.
+ */
+export function intervalCountSummary(
+  seeds: readonly IntervalSeed[] = INTERVAL_SEEDS,
+): string {
+  const refs = seeds.reduce((n, s) => n + directionsFor(s.semitones).length, 0);
+  const twoWay = seeds.filter(s => directionsFor(s.semitones).length === 2);
+  const oneWay = seeds.filter(s => directionsFor(s.semitones).length === 1);
+  const base = `${refs} · ${twoWay.length} both ways`;
+  if (oneWay.length === 0) return base;
+  return `${base}, plus ${joinNames(oneWay.map(s => s.name.toLowerCase()))}`;
+}
+
+/** "a", "a and b", "a, b and c". Oxford-less, matching the app's prose. */
+function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
