@@ -6,10 +6,12 @@
  * THE OMISSIONS ARE THE BEHAVIOUR.
  *
  * One component renders this row for every module home, and the modules
- * do not all record the same thing: some grade answers, some record a
- * duration and a self-rating. The temptation a shared component creates
- * is to show every part everywhere — a run of "correct" answers on a
- * module that never marks one — so each absence is pinned here.
+ * do not all carry the same data — some have a calendar route, some
+ * have copy, some have neither. The temptation a shared component
+ * creates is to fill the gaps, so each absence is pinned here.
+ *
+ * THE FLAME IS GONE, and with it the only part that could not be shown
+ * on two of the six modules. What is left is true of all of them.
  * =====================================================================
  *
  * NO LAYOUT ASSERTIONS. jsdom has no layout engine, so nothing here
@@ -41,7 +43,7 @@ async function mount(props: ModuleHomeHeaderProps): Promise<HTMLDivElement> {
   // Bounded, like the page tests: the figures arrive from Dexie.
   for (let i = 0; i < 20; i++) {
     await act(async () => { await new Promise(r => setTimeout(r, 5)); });
-    if (container.querySelector('[data-kind="hot"] .tabular-nums')?.textContent !== '0') break;
+    if (container.querySelector('[data-kind="day"] .tabular-nums')?.textContent !== '0') break;
   }
   return container;
 }
@@ -61,47 +63,7 @@ afterEach(async () => {
   await db.attempts.clear();
 });
 
-const hot = (el: HTMLElement) => el.querySelector('[data-testid="hf-streak"][data-kind="hot"]');
 const day = (el: HTMLElement) => el.querySelector('[data-testid="hf-streak"][data-kind="day"]');
-
-describe('the flame', () => {
-  it('counts consecutive correct answers for the module', async () => {
-    const now = Date.now();
-    await db.attempts.bulkAdd([
-      attempt('reading', false, now - 4000),
-      attempt('reading', true, now - 3000),
-      attempt('reading', true, now - 2000),
-      attempt('reading', true, now - 1000),
-    ]);
-    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
-    expect(hot(el)!.querySelector('.tabular-nums')!.textContent).toBe('3');
-    expect(hot(el)!.textContent).toContain('🔥');
-    expect(hot(el)!.textContent).toContain('correct in a row');
-  });
-
-  it('reads across every module id it is given', async () => {
-    // Ear training's home sits above four sub-modules that each write
-    // under their own id; the row is about the session, not the drill.
-    const now = Date.now();
-    await db.attempts.bulkAdd([
-      attempt('intervals', true, now - 3000),
-      attempt('chord-recognition', true, now - 2000),
-      attempt('scales-modes', true, now - 1000),
-    ]);
-    const el = await mount({ moduleIds: ['intervals', 'chord-recognition', 'scales-modes'], moduleId: 'ear-training' });
-    expect(hot(el)!.querySelector('.tabular-nums')!.textContent).toBe('3');
-  });
-
-  it('ignores attempts from modules it was not given', async () => {
-    const now = Date.now();
-    await db.attempts.bulkAdd([
-      attempt('reading', true, now - 3000),
-      attempt('harmonic-fluency', true, now - 2000),
-    ]);
-    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
-    expect(hot(el)!.querySelector('.tabular-nums')!.textContent).toBe('1');
-  });
-});
 
 describe('the day streak', () => {
   it('counts days practised, and every module has one', async () => {
@@ -126,25 +88,6 @@ describe('the day streak', () => {
     const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
     expect(day(el)).not.toBeNull();
     expect(day(el)!.querySelector('.tabular-nums')!.textContent).toBe('0');
-  });
-});
-
-describe('"correct in a row" only where answers are graded', () => {
-  it('is shown for a module that records right and wrong', async () => {
-    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
-    expect(hot(el)).not.toBeNull();
-  });
-
-  it('is absent for a module that records duration and a self-rating', async () => {
-    const el = await mount({
-      moduleIds: ['shapes-and-patterns'],
-      moduleId: 'shapes-and-patterns',
-      gradesAnswers: false,
-    });
-    expect(hot(el)).toBeNull();
-    expect(el.textContent).not.toContain('correct in a row');
-    // The day streak and the calendar are still its own.
-    expect(day(el)).not.toBeNull();
   });
 });
 
@@ -215,6 +158,6 @@ describe('the intro, only where there is copy', () => {
     const el = await mount({ moduleIds: ['harmonic-fluency'], moduleId: 'harmonic-fluency', intro, showIntro: false });
     expect(el.querySelector('[data-testid="module-home-intro"]')).toBeNull();
     // And the row above it is unaffected.
-    expect(hot(el)).not.toBeNull();
+    expect(day(el)).not.toBeNull();
   });
 });

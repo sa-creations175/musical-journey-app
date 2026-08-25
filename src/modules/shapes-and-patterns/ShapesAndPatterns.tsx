@@ -86,14 +86,9 @@ export default function ShapesAndPatterns() {
 
   return (
     <div className="space-y-6">
-      {/* NO "CORRECT IN A ROW". This module records a duration and a
-          self-rating, so there is no run of right answers to report —
-          the row carries the day streak and the calendar link, both of
-          which it can mean. */}
       <ModuleHomeHeader
         moduleIds={[SHAPES_MODULE_ID]}
         moduleId={SHAPES_MODULE_ID}
-        gradesAnswers={false}
         calendarTo="/shapes-and-patterns/calendar"
         intro={{
           description: "Master scales, chord shapes, and voice-leading so that they're under your hands and in your mind's eye.",

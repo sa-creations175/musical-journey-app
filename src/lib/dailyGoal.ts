@@ -57,24 +57,6 @@ export function computeDayStreak(attempts: AttemptRecord[], goal: number, today:
   return streak;
 }
 
-// Hot streak — current = consecutive corrects ending at most-recent attempt;
-// best = longest run ever observed across all attempts.
-export interface HotStreakStats { current: number; best: number; }
-
-export function computeHotStreak(attempts: AttemptRecord[]): HotStreakStats {
-  const sorted = [...attempts].sort((a, b) => a.timestamp - b.timestamp);
-  let current = 0;
-  let best = 0;
-  for (const a of sorted) {
-    if (a.correct) {
-      current += 1;
-      if (current > best) best = current;
-    } else {
-      current = 0;
-    }
-  }
-  return { current, best };
-}
 
 export function lastPracticedDaysAgo(attempts: AttemptRecord[], today: string = localDayKey()): number | null {
   if (attempts.length === 0) return null;

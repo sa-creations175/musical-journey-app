@@ -35,7 +35,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ModuleHomeIntro from './ModuleHomeIntro';
 import { db } from '../../lib/db';
-import { computeHotStreak, localDayKey } from '../../lib/dailyGoal';
+import { localDayKey } from '../../lib/dailyGoal';
 import {
   DEFAULT_MODULE_GOAL,
   moduleGoalKey,
@@ -62,16 +62,6 @@ export interface ModuleHomeHeaderProps {
    * no module that cannot show a day streak.
    */
   moduleId: string;
-  /**
-   * Whether this module records RIGHT AND WRONG.
-   *
-   * "N correct in a row" is only true of a module that grades answers.
-   * Shapes & patterns records a duration and a self-rating and song
-   * repertoire records a session and a feel, so neither has a correct
-   * answer to have got in a row — those rows carry the day streak and
-   * the calendar link alone.
-   */
-  gradesAnswers?: boolean;
   /** Where "view calendar →" goes. Omit where there is no such route. */
   calendarTo?: string;
   /**
@@ -102,8 +92,7 @@ export interface ModuleHomeHeaderProps {
 }
 
 export default function ModuleHomeHeader({
-  moduleIds, moduleId, gradesAnswers = true, calendarTo, intro, showIntro = true,
-  leading,
+  moduleIds, moduleId, calendarTo, intro, showIntro = true, leading,
 }: ModuleHomeHeaderProps) {
   // Its own read rather than a prop. The pages already query attempts
   // for their cards, so this is a second READ of one table — not a
@@ -146,7 +135,6 @@ export default function ModuleHomeHeader({
     return () => { live = false; };
   }, [moduleId, attempts.length]);
 
-  const hotStreak = useMemo(() => computeHotStreak(attempts).current, [attempts]);
   const dayStreak = useMemo(
     () => (days === null ? 0 : dayStreakFrom(days, goal, localDayKey())),
     [days, goal],
@@ -154,15 +142,17 @@ export default function ModuleHomeHeader({
 
   return (
     <>
-      {/* The streaks share the calendar row rather than taking one of
-          their own — the row was otherwise empty, and these two numbers
-          did not earn a band of their own above the cards.
+      {/* The day streak shares the calendar row rather than taking one
+          of its own — the row was otherwise empty on the right, and one
+          number did not earn a band above the cards.
 
-          EMOJI AND WORDS, NOT ONE OR THE OTHER. The glyphs alone said
-          nothing about what they counted, and the flame is not a day
-          count at all — see `computeHotStreak`. The words carry the
-          meaning; the glyph is what the eye finds first. Both, on the
-          same line, costing no extra height. */}
+          NO "CORRECT IN A ROW". A run of right answers was a fifth
+          thing to read on arrival and said nothing about what to do
+          next: it counted answers rather than days, it reset on one
+          wrong answer mid-session, and two of the six modules never
+          marked an answer right or wrong at all so it could not be
+          shown there. Gone as a concept — `computeHotStreak` went with
+          it. */}
       {/* `-mt-2` eats half the shell's top padding. The shell's `py-4`
           is app-wide (`Layout`) and stays that way — one module wanting
           to start higher is not a reason to move every screen up. */}
@@ -170,25 +160,6 @@ export default function ModuleHomeHeader({
         {/* `mr-auto` pushes it to the far left of a row that is
             otherwise right-aligned — no extra height, nothing moved. */}
         {leading !== undefined && <span className="mr-auto">{leading}</span>}
-        {/* "CORRECT IN A ROW" ONLY WHERE THERE IS A CORRECT ANSWER.
-            A module that records a duration and a self-rating has no
-            run of right answers to report, so it shows the day streak
-            and the calendar and nothing it cannot mean. */}
-        {gradesAnswers && (
-          <>
-            <span
-              className="inline-flex items-baseline gap-1"
-              title="consecutive correct answers, all time"
-              data-testid="hf-streak"
-              data-kind="hot"
-            >
-              <span aria-hidden>🔥</span>
-              <span className="font-mono tabular-nums font-medium">{hotStreak}</span>
-              <span>correct in a row</span>
-            </span>
-            <span aria-hidden className="text-neutral-400">·</span>
-          </>
-        )}
         <span
           className="inline-flex items-baseline gap-1"
           title="consecutive days practised"

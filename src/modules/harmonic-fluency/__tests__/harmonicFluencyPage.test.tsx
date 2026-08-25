@@ -15,7 +15,6 @@ import { MemoryRouter } from 'react-router-dom';
 import HarmonicFluency from '../HarmonicFluency';
 import { CATEGORY_LABELS, CATEGORY_ORDER, FLASHCARDS } from '../catalog';
 import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
-import { computeHotStreak } from '../../../lib/dailyGoal';
 
 // Attempts carry client-minted ids (see db.ts), so seed rows are
 // stamped the way the production write path stamps them.
@@ -199,28 +198,19 @@ describe('the landing statistics', () => {
     expect(el.textContent).not.toMatch(/Today:/i);
   });
 
-  it('shows both streaks with their emoji AND their words', async () => {
+  it('shows the day streak, with its glyph and its words', async () => {
+    // WAS "shows both streaks". The flame and its count are gone as a
+    // concept, so the assertions that described them go with the
+    // behaviour rather than being rewritten to expect nothing.
     await db.attempts.bulkAdd(FIXTURE.map(a => withAttemptId({ ...a })));
     const el = await renderPage();
-    const expected = computeHotStreak(FIXTURE).current;
-    expect(expected).toBe(3);
+    await settle(() => el.querySelector('[data-kind="day"] .tabular-nums') !== null);
 
-    // The figure comes from a live query in the header component — wait
-    // for it rather than for a fixed tick count.
-    await settle(() => {
-      const n = el.querySelector('[data-testid="hf-streak"][data-kind="hot"] .tabular-nums');
-      return n !== null && n.textContent !== '0';
-    });
     const row = el.querySelector('a[href="/harmonic-fluency/calendar"]')!.parentElement!;
-    const hot = row.querySelector('[data-testid="hf-streak"][data-kind="hot"]')!;
-    // The figure, read on its own so a longer number cannot contain the
-    // expected one and pass by substring.
-    expect(hot.querySelector('.tabular-nums')!.textContent).toBe(String(expected));
-    expect(hot.textContent).toContain('🔥');
-    expect(hot.textContent).toContain('correct in a row');
+    expect(row.querySelector('[data-kind="hot"]')).toBeNull();
+    expect(row.textContent).not.toContain('correct in a row');
+    expect(row.textContent).not.toContain('🔥');
 
-    // BOTH, not one or the other. The glyph is what the eye finds; the
-    // words are what it means, and the flame is not a day count.
     const day = row.querySelector('[data-kind="day"]')!;
     expect(day.textContent).toContain('📅');
     expect(day.textContent).toContain('day streak');

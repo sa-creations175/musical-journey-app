@@ -150,12 +150,9 @@ export default function Repertoire() {
 
   return (
     <div className="space-y-3">
-      {/* NO "CORRECT IN A ROW". A song is practised and rated by feel,
-          never marked right or wrong. */}
       <ModuleHomeHeader
         moduleIds={['repertoire']}
         moduleId="repertoire"
-        gradesAnswers={false}
         calendarTo="/repertoire/calendar"
         intro={{
           description: 'Bring songs to life by mastering each song, section by section, key by key.',

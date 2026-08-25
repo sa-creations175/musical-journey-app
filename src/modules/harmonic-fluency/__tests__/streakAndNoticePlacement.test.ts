@@ -74,37 +74,33 @@ describe('the sweep actually reads files', () => {
   });
 });
 
-describe('the streak figures are printed once', () => {
-  it('the Today bar carries no streak glyphs', () => {
-    const bar = code('DailyGoalBar.tsx');
-    // Not in a render, not in a title, not anywhere: the module home's
-    // calendar row owns these two numbers, with words attached.
-    expect(bar).not.toContain('🔥');
-    expect(bar).not.toContain('📅');
-  });
-
-  it('and computes no streak it does not show', () => {
-    const bar = code('DailyGoalBar.tsx');
-    expect(bar).not.toContain('computeHotStreak');
-    expect(bar).not.toContain('computeDayStreak');
-  });
-
-  it('the shared module-home header shows both, with their words', () => {
-    // The row moved into `ModuleHomeHeader` so ear training and reading
-    // could have it too. The words travelled with the glyphs.
+describe('the streak row', () => {
+  it('carries the day streak, with its glyph and its words', () => {
     const header = read('ModuleHomeHeader.tsx');
-    expect(header).toContain('🔥');
     expect(header).toContain('📅');
-    expect(header).toContain('correct in a row');
     expect(header).toContain('day streak');
   });
 
-  it('and the module home renders that header rather than its own row', () => {
-    const page = code('HarmonicFluency.tsx');
-    expect(page).toContain('<ModuleHomeHeader');
-    // No second copy left behind on the page.
-    expect(page).not.toContain('🔥');
-    expect(page).not.toContain('📅');
+  it('carries no run of correct answers anywhere', () => {
+    // WAS "the streak figures are printed once", which pinned that the
+    // Today bar did not repeat the flame the module home showed. The
+    // flame is gone from both, so what is pinned now is its absence.
+    for (const file of ['ModuleHomeHeader.tsx', 'DailyGoalBar.tsx']) {
+      const src = code(file);
+      expect(src, file).not.toContain('🔥');
+      expect(src, file).not.toContain('correct in a row');
+      expect(src, file).not.toContain('computeHotStreak');
+    }
+  });
+
+  it('leaves no rule behind with nothing to call it', () => {
+    // `computeHotStreak` was the only thing that counted a run of
+    // correct answers, and nothing counts one now.
+    const daily = code('lib/dailyGoal.ts');
+    expect(daily).not.toContain('computeHotStreak');
+    expect(daily).not.toContain('HotStreakStats');
+    // The day streak's own helper is untouched.
+    expect(daily).toContain('computeDayStreak');
   });
 
   it('the Today bar is still there, and still editable', () => {
