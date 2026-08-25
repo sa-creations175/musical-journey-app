@@ -27,7 +27,7 @@ import {
   FLASHCARDS,
   type FlashcardCategory,
 } from './catalog';
-import { buildSession } from './spacedRepetition';
+import { buildSession, practiceAheadNotice } from './spacedRepetition';
 import { setReviewFlag } from '../../lib/flashcards/spacedRepetition';
 
 function isCategory(v: string): v is FlashcardCategory {
@@ -216,6 +216,15 @@ export default function HarmonicFluency() {
    * PREVIOUS selection, which is the kind of bug that looks like a
    * race and is really a stale read.
    */
+  /**
+   * Start, including when nothing here is due.
+   *
+   * `allCaughtUp` now means the queue is EMPTY, not "nothing is due" —
+   * see `buildSession`. A finished category returns a practice-ahead
+   * queue and starts like any other; the notice above the session says
+   * so. The early return survives for the case it was always meant
+   * for: a selection with no cards behind it.
+   */
   const startWith = async (categories: FlashcardCategory[]) => {
     const session = await buildSession({
       categories,
@@ -314,6 +323,19 @@ export default function HarmonicFluency() {
 
       {sessionActive && sessionQueue ? (
         <>
+          {/* WHERE YOU ARE, said once, at the top of the run it applies
+              to. Not a toast: the fact holds for the whole session, and
+              a message that expires after four seconds is how the old
+              caught-up notice managed to be invisible to the person who
+              had just tapped a card. */}
+          {sessionQueue.practiceAhead && (
+            <p
+              data-testid="hf-practice-ahead"
+              className="text-xs text-neutral-500 italic"
+            >
+              {practiceAheadNotice(sessionQueue.dueElsewhere ?? 0)}
+            </p>
+          )}
           <DailyGoalBar moduleId={MODULE_ID} />
           <HarmonicFluencySession
             queue={sessionQueue.cards}

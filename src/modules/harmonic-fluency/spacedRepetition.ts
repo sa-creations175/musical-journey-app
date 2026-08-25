@@ -32,14 +32,63 @@ export interface BuiltSession {
   cards: Flashcard[];
   dueCount: number;
   newCount: number;
+  /**
+   * There is nothing at all to serve for this selection.
+   *
+   * NARROWER THAN IT USED TO BE, and that is the fix. It meant "nothing
+   * DUE and nothing NEW", which a finished category satisfies for weeks
+   * — so the one category you had just completed was the one you could
+   * not open. It now means the queue is empty, which for a real
+   * category only happens if it holds no cards at all.
+   */
   allCaughtUp: boolean;
+  /**
+   * The queue is ahead-of-schedule practice: nothing in it was due.
+   *
+   * The caller says so on screen. It does NOT change how the reps are
+   * recorded — an answer given early is an answer, and `recordAttempt`
+   * / the SM-2 update treat it exactly like any other.
+   */
+  practiceAhead: boolean;
+  /**
+   * Cards due RIGHT NOW in categories OUTSIDE this selection, or `null`
+   * when it was not counted.
+   *
+   * COUNTED ONLY FOR A PRACTICE-AHEAD QUEUE, which is the only session
+   * that shows it. Every other session would be paying a second read of
+   * the whole catalog's states for a number nothing displays — and it
+   * did, briefly: doing this eagerly made the ordinary start path slow
+   * enough to cross a task boundary and broke a page test that had
+   * always passed.
+   *
+   * `null` is not zero. Zero is "nothing else is due", which suppresses
+   * the second sentence of the notice; null is "nobody asked".
+   */
+  dueElsewhere: number | null;
 }
 
 /**
- * Build a session queue — due cards first, then introduce new (unseen)
- * cards until reaching target. If there are no due or new cards within
- * the selected categories, the caller can show an "all caught up"
- * message and offer practice-ahead mode.
+ * Build a session queue — due cards first, then new (unseen) cards up
+ * to target.
+ *
+ * =====================================================================
+ * A FINISHED CATEGORY IS STILL DRILLABLE.
+ *
+ * When the selection has nothing due and nothing new, this used to
+ * return an empty queue and let the caller bail. That is exactly the
+ * state a category reaches by being COMPLETED — every card seen, every
+ * one scheduled into the future — so finishing a category took it away
+ * from you, and "drill category" on a 12/12 card did nothing.
+ *
+ * So emptiness is handled HERE, at the one place it can occur, rather
+ * than at each caller: the queue falls back to the seen cards ordered
+ * by how soon they are due, nearest first. That is the same priority
+ * the due path uses, just without the cutoff.
+ *
+ * The fallback is reported (`practiceAhead`), never disguised — the
+ * reader is told they are ahead of schedule and where the due work
+ * actually is.
+ * =====================================================================
  */
 export async function buildSession(opts: SessionBuildOptions): Promise<BuiltSession> {
   const now = opts.now ?? Date.now();
@@ -61,11 +110,16 @@ export async function buildSession(opts: SessionBuildOptions): Promise<BuiltSess
     });
     shuffleInPlace(flagged);
     const cards = flagged.slice(0, target);
+    // NO PRACTICE-AHEAD FALLBACK HERE, deliberately. The reader asked
+    // for their flagged cards by name; serving unflagged ones because
+    // the flag set was empty would answer a different question.
     return {
       cards,
       dueCount: 0,
       newCount: 0,
       allCaughtUp: cards.length === 0,
+      practiceAhead: false,
+      dueElsewhere: null,
     };
   }
 
@@ -89,12 +143,79 @@ export async function buildSession(opts: SessionBuildOptions): Promise<BuiltSess
   const newSlice = untouched.slice(0, remaining);
   const queue = [...dueSlice, ...newSlice];
 
+  if (queue.length > 0) {
+    return {
+      cards: queue,
+      dueCount: due.length,
+      newCount: untouched.length,
+      allCaughtUp: false,
+      practiceAhead: false,
+      dueElsewhere: null,
+    };
+  }
+
+  // Nothing due, nothing new — the shape of a FINISHED category. Drill
+  // it anyway, nearest-due first: that is the same ordering the due
+  // path applies, with the cutoff removed rather than a different rule
+  // substituted. Shuffled at the end so a repeat run is not identical.
+  const ahead = eligible
+    .map((card, i) => ({ card, state: states[i] }))
+    .filter((row): row is { card: Flashcard; state: NonNullable<typeof row.state> } =>
+      row.state !== undefined)
+    .sort((a, b) => a.state.nextReviewDate - b.state.nextReviewDate)
+    .slice(0, target)
+    .map(row => row.card);
+  shuffleInPlace(ahead);
+
   return {
-    cards: queue,
-    dueCount: due.length,
-    newCount: untouched.length,
-    allCaughtUp: queue.length === 0,
+    cards: ahead,
+    dueCount: 0,
+    newCount: 0,
+    // Only when the selection genuinely holds nothing — an empty
+    // category, not a completed one.
+    allCaughtUp: ahead.length === 0,
+    practiceAhead: ahead.length > 0,
+    // Counted HERE, on the one path that displays it. See the field.
+    dueElsewhere: await countDueOutside(opts.categories, now),
   };
+}
+
+/**
+ * How many cards are due right now OUTSIDE these categories.
+ *
+ * Zero when there is no outside: selecting every category means the
+ * whole catalog is the selection, and "0 cards are due in other
+ * categories" is a true sentence about a question nobody asked — the
+ * notice drops it either way.
+ */
+async function countDueOutside(
+  categories: FlashcardCategory[],
+  now: number,
+): Promise<number> {
+  if (categories.length === 0) return 0;
+  const categorySet = new Set(categories);
+  const outside = FLASHCARDS.filter(c => !categorySet.has(c.category));
+  if (outside.length === 0) return 0;
+  const states = await db.flashcardStates.bulkGet(outside.map(c => c.id));
+  return states.reduce<number>(
+    (n, state) => (state && state.nextReviewDate <= now ? n + 1 : n),
+    0,
+  );
+}
+
+/**
+ * What a practice-ahead session says about itself.
+ *
+ * TWO SENTENCES, THE SECOND CONDITIONAL. "0 cards are due in other
+ * categories" is a sentence whose only content is a zero, so it is not
+ * shortened — it is removed. The first sentence stands alone perfectly
+ * well, which is the test of whether the second was ever load-bearing.
+ */
+export function practiceAheadNotice(dueElsewhere: number): string {
+  const first = "Nothing due here — you just finished these.";
+  if (dueElsewhere <= 0) return first;
+  const cards = dueElsewhere === 1 ? '1 card is' : `${dueElsewhere} cards are`;
+  return `${first} ${cards} due in other categories.`;
 }
 
 function shuffleInPlace<T>(arr: T[]) {
