@@ -12,6 +12,8 @@
  * =====================================================================
  */
 import { describe, expect, it } from 'vitest';
+import { enumerateNoteItems, parseReadingItemRef } from '../../../modules/reading/catalog';
+import { pitchAtStaffPosition } from '../../../modules/reading/pitch';
 import {
   BASS_LINES,
   LEDGER_LINES,
@@ -141,5 +143,42 @@ describe('the mnemonics that ship', () => {
       }
     }
     expect(defaults[MIDDLE_C]).toBeUndefined();
+  });
+});
+
+
+/**
+ * MIGRATED FROM `answerModels.test.ts`, where they guarded the
+ * four-set mnemonic panel that this ladder replaced.
+ *
+ * The panel is deleted; these two rules are not about the panel. One is
+ * about the words themselves, and the other is the coverage claim whose
+ * failure was the whole reason for the replacement — a drillable note
+ * the reference does not draw is a note the reveal cannot explain.
+ */
+describe('rules kept from the panel that was replaced', () => {
+  it('starts every mnemonic word with the letter it stands for', () => {
+    const defaults = defaultMnemonics();
+    const byId = new Map(buildLadder().map(p => [p.id, p]));
+    for (const [id, word] of Object.entries(defaults)) {
+      if (word === '') continue;
+      expect(word[0].toUpperCase(), `${id} → ${word}`).toBe(byId.get(id)!.letter);
+    }
+  });
+
+  it('draws every note the reading drill can ask about', () => {
+    // The defect the ladder fixed: a ledger note belonged to none of
+    // the four sets, so the panel could not contain the answer.
+    const drawn = new Set(buildLadder().map(p => p.id));
+    let checked = 0;
+    for (const ref of enumerateNoteItems()) {
+      const parsed = parseReadingItemRef(ref);
+      if (parsed?.skill !== 'note') continue;
+      const pitch = pitchAtStaffPosition(parsed.clef, parsed.position);
+      expect(drawn.has(`${pitch.letter}${pitch.octave}`), ref).toBe(true);
+      checked += 1;
+    }
+    // Guard the guard: an empty enumeration would pass vacuously.
+    expect(checked).toBeGreaterThan(0);
   });
 });

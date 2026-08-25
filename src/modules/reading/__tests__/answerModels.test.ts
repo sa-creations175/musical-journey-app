@@ -24,7 +24,6 @@ import {
   judgeSignatureCount,
   keyNameOptions,
   letterOptions,
-  mnemonicFor,
   octavesForClef,
   qualityOptions,
   rootId,
@@ -40,7 +39,6 @@ import {
   parseReadingItemRef,
 } from '../catalog';
 import { pitchAtStaffPosition } from '../pitch';
-import { vexLinesForItem } from '../MnemonicStaff';
 
 // =====================================================================
 // Note recognition
@@ -102,95 +100,28 @@ describe('note answer sets', () => {
   });
 });
 
-describe('mnemonics', () => {
-  it('names the right rhyme for each clef and line/space', () => {
-    // treble position 0 is the bottom LINE (E), 1 is the first space (F).
-    expect(mnemonicFor('treble', 0).phrase).toContain('Every Good Boy');
-    expect(mnemonicFor('treble', 1).phrase).toContain('F A C E');
-    expect(mnemonicFor('bass', 0).phrase).toContain('Good Boys Do Fine');
-    expect(mnemonicFor('bass', 1).phrase).toContain('All Cows Eat Grass');
-  });
-
-  it('SAYS WHICH STAFF AND WHICH RUN IT IS FOR', () => {
-    // There are four of these. A bare rhyme does not say when it
-    // applies, which makes it unusable on the next card.
-    expect(mnemonicFor('treble', 0).label).toBe('treble clef · staff lines');
-    expect(mnemonicFor('treble', 1).label).toBe('treble clef · staff spaces');
-    expect(mnemonicFor('bass', 0).label).toBe('bass clef · staff lines');
-    expect(mnemonicFor('bass', 1).label).toBe('bass clef · staff spaces');
-    // All four labels distinct — the point is telling them apart.
-    const labels = new Set([
-      mnemonicFor('treble', 0).label, mnemonicFor('treble', 1).label,
-      mnemonicFor('bass', 0).label, mnemonicFor('bass', 1).label,
-    ]);
-    expect(labels.size).toBe(4);
-  });
-
-  it('items run BOTTOM TO TOP and match the staff they name', () => {
-    // The ordering contract the diagram relies on: item 0 is drawn on
-    // the bottom line. Reversed, every mnemonic would be upside down
-    // and still look plausible.
-    for (const clef of ['treble', 'bass'] as const) {
-      for (const kind of [0, 1]) {
-        const m = mnemonicFor(clef, kind);
-        // Lines are positions 0,2,4,6,8; spaces are 1,3,5,7.
-        const positions = m.kind === 'line' ? [0, 2, 4, 6, 8] : [1, 3, 5, 7];
-        expect(m.items, `${clef}/${m.kind}`).toHaveLength(positions.length);
-        m.items.forEach((item, i) => {
-          const actual = pitchAtStaffPosition(clef, positions[i]).letter;
-          expect(item.letter, `${clef}/${m.kind}[${i}]`).toBe(actual);
-        });
-      }
-    }
-  });
-
-  it('VexFlow line indices invert bottom-to-top correctly', () => {
-    // items run BOTTOM to TOP; VexFlow counts lines TOP-DOWN, so the
-    // bottom line is index 4. Getting this backwards draws every
-    // mnemonic upside down and looks entirely plausible.
-    expect(vexLinesForItem('line', 0)).toEqual([4]);   // bottom line
-    expect(vexLinesForItem('line', 4)).toEqual([0]);   // top line
-    // A space sits between the two lines either side of it.
-    expect(vexLinesForItem('space', 0)).toEqual([4, 3]); // bottom space
-    expect(vexLinesForItem('space', 3)).toEqual([1, 0]); // top space
-  });
-
-  it('every mnemonic item maps to a line index on the staff', () => {
-    // Five lines are indices 0-4. Anything outside would draw off the
-    // staff entirely.
-    for (const clef of ['treble', 'bass'] as const) {
-      for (const kind of [0, 1]) {
-        const m = mnemonicFor(clef, kind);
-        m.items.forEach((_, i) => {
-          for (const line of vexLinesForItem(m.kind, i)) {
-            expect(line, `${clef}/${m.kind}[${i}]`).toBeGreaterThanOrEqual(0);
-            expect(line, `${clef}/${m.kind}[${i}]`).toBeLessThanOrEqual(4);
-          }
-        });
-      }
-    }
-  });
-
-  it('each word starts with the letter it stands for', () => {
-    for (const clef of ['treble', 'bass'] as const) {
-      for (const kind of [0, 1]) {
-        for (const item of mnemonicFor(clef, kind).items) {
-          if (!item.word) continue;
-          expect(item.word[0].toUpperCase(), item.word).toBe(item.letter);
-        }
-      }
-    }
-  });
-
-  it('every note item resolves to a mnemonic', () => {
-    for (const ref of enumerateNoteItems()) {
-      const p = parseReadingItemRef(ref);
-      if (p?.skill !== 'note') continue;
-      expect(mnemonicFor(p.clef, p.position).items.length, ref)
-        .toBeGreaterThan(0);
-    }
-  });
-});
+/**
+ * THE MNEMONIC BLOCK WENT WITH `mnemonicFor`.
+ *
+ * Four fixed sets — treble lines, treble spaces, bass lines, bass
+ * spaces — chosen by clef and parity, drawn by `MnemonicStaff`. Both
+ * are deleted: the reveal shows the full ladder now, so a ledger note
+ * is explained by a panel that contains it.
+ *
+ * The rules those tests asserted did not go with them. The two that
+ * still describe something real moved to
+ * `components/staffReference/__tests__/staffLadder.test.ts`:
+ *
+ *   · every mnemonic word starts with the letter it stands for;
+ *   · every drillable note item lands on a position the reference
+ *     draws — the coverage claim that made the old panel wrong.
+ *
+ * The rest described the deleted thing itself: which of four labels a
+ * set carried, and how `vexLinesForItem` inverted bottom-up items into
+ * VexFlow's top-down line indices. There is no VexFlow mnemonic staff
+ * and there are no four sets, so there is nothing left for them to be
+ * true or false about.
+ */
 
 // =====================================================================
 // Notation shapes
