@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import ModuleIntro from '../../components/ModuleIntro';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
 import TodayAndAttention from './TodayAndAttention';
@@ -96,6 +95,17 @@ export default function ShapesAndPatterns() {
         moduleId={SHAPES_MODULE_ID}
         gradesAnswers={false}
         calendarTo="/shapes-and-patterns/calendar"
+        intro={{
+          description: "Master scales, chord shapes, and voice-leading so that they're under your hands and in your mind's eye.",
+          // The bullets the learn-more card at the foot of the page
+          // already carried, moved with it rather than rewritten.
+          bullets: [
+            '**Heat grid** shows time invested × freshness across 12 keys',
+            'Every drill is **editable** and **renameable**; add your own anytime',
+            'Global **metronome** (top-right) auto-starts with every drill timer',
+            'No daily goal — just honest accumulation',
+          ],
+        }}
       />
 
       <TodayAndAttention />
@@ -129,18 +139,6 @@ export default function ShapesAndPatterns() {
       {tab === 'voice-leading' && <VoiceLeadingDrills />}
       {tab === 'mental-viz' && <MentalVizDrills />}
 
-      {/* Learn-more card — secondary, below the drills. */}
-      <ModuleIntro
-        accent="green"
-        headline="Drill reps compound. Show up across 12 keys."
-        description="Chord shapes, scales, voice-leading patterns, and mental visualisation — every rep lands on a cell and the heat grid shows your landscape at a glance."
-        bullets={[
-          '**Heat grid** shows time invested × freshness across 12 keys',
-          'Every drill is **editable** and **renameable**; add your own anytime',
-          'Global **metronome** (top-right) auto-starts with every drill timer',
-          'No daily goal — just honest accumulation',
-        ]}
-      />
     </div>
   );
 }

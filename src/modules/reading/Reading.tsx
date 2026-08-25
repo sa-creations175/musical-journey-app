@@ -139,6 +139,9 @@ export default function Reading() {
         moduleIds={[READING_MODULE_ID]}
         moduleId={READING_MODULE_ID}
         calendarTo="/reading/calendar"
+        intro={{
+          description: "Read notation so that you can instantly know what's happening musically from the page, decoding notes, key signatures, chord symbols, ledger lines and all.",
+        }}
       />
 
       <CategoryCardGrid

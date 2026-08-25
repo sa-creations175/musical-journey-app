@@ -87,6 +87,9 @@ export default function ProductionOverview({
         moduleIds={[PRODUCTION_MODULE_ID]}
         moduleId={PRODUCTION_MODULE_ID}
         calendarTo="/production/calendar"
+        intro={{
+          description: "Create soundscapes and experiences by learning the tools, terms, and techniques to build them.",
+        }}
       />
 
       {/* Stats strip */}

@@ -30,10 +30,10 @@
  * A module missing one renders the rest. See the report for which
  * modules are missing what.
  */
-import { useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import ModuleIntro from '../ModuleIntro';
+import ModuleHomeIntro from './ModuleHomeIntro';
 import { db } from '../../lib/db';
 import { computeHotStreak, localDayKey } from '../../lib/dailyGoal';
 import {
@@ -75,13 +75,13 @@ export interface ModuleHomeHeaderProps {
   /** Where "view calendar →" goes. Omit where there is no such route. */
   calendarTo?: string;
   /**
-   * The collapsed intro, or absent where the module has no copy.
+   * The module's one line, and whatever expanded content it already
+   * had. Absent where the module has no copy.
    *
-   * Passed through to `ModuleIntro` whole. `compact` is set here — a
-   * module home leads with its cards, and that is the difference
-   * between this placement and the same card on a drill page.
+   * COLLAPSED SHOWS NEITHER — see `ModuleHomeIntro`. The row is "About
+   * <module>" and the control, and nothing else.
    */
-  intro?: Omit<ComponentProps<typeof ModuleIntro>, 'compact'>;
+  intro?: { description: string; bullets?: readonly string[] };
   /**
    * Whether to render the intro at all right now.
    *
@@ -189,11 +189,11 @@ export default function ModuleHomeHeader({
         )}
       </div>
 
-      {/* `-mt-4` against the page's `space-y-6`, so the card sits just
+      {/* `-mt-4` against the page's `space-y-6`, so the block sits just
           under the streak row instead of a band below it. */}
       {intro !== undefined && showIntro && (
         <div className="-mt-4">
-          <ModuleIntro compact {...intro} />
+          <ModuleHomeIntro moduleId={moduleId} {...intro} />
         </div>
       )}
     </>

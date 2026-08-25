@@ -171,35 +171,27 @@ describe('the calendar link, only where there is a route', () => {
 describe('the intro, only where there is copy', () => {
   it('renders nothing when the module has none', async () => {
     const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
-    // No headline, no "learn more" disclosure — not an empty card.
-    expect(el.textContent).not.toContain('learn more');
+    expect(el.querySelector('[data-testid="module-home-intro"]')).toBeNull();
   });
 
   it('renders the copy it is handed', async () => {
     const el = await mount({
       moduleIds: ['harmonic-fluency'],
       moduleId: 'harmonic-fluency',
-      intro: {
-        accent: 'blue',
-        headline: 'A headline the module owns.',
-        description: 'A description the module owns.',
-        bullets: ['A bullet'],
-      },
+      intro: { description: 'A description the module owns.', bullets: ['A bullet'] },
     });
-    expect(el.textContent).toContain('A headline the module owns.');
+    // The block is there, and closed: the sentence is behind the
+    // expand, not in the collapsed row.
+    expect(el.querySelector('[data-testid="module-home-intro"]')).not.toBeNull();
+    expect(el.textContent).not.toContain('A description the module owns.');
   });
 
   it('hides it while a session is running, without discarding it', async () => {
     // HF passes `showIntro={!sessionActive}`. The copy still exists; the
     // moment is wrong for it.
-    const intro = {
-      accent: 'blue' as const,
-      headline: 'A headline the module owns.',
-      description: 'A description the module owns.',
-      bullets: ['A bullet'],
-    };
+    const intro = { description: 'A description the module owns.', bullets: ['A bullet'] };
     const el = await mount({ moduleIds: ['harmonic-fluency'], moduleId: 'harmonic-fluency', intro, showIntro: false });
-    expect(el.textContent).not.toContain('A headline the module owns.');
+    expect(el.querySelector('[data-testid="module-home-intro"]')).toBeNull();
     // And the row above it is unaffected.
     expect(hot(el)).not.toBeNull();
   });

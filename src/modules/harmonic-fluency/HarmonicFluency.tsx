@@ -35,7 +35,6 @@ function isCategory(v: string): v is FlashcardCategory {
 const MODULE_ID = 'harmonic-fluency';
 const PREF_DISPLAY_MODE = 'harmonicFluencyDisplayMode';
 const PREF_TIMER = 'harmonicFluencyTimerMode';
-const PREF_INTRO_OPEN = 'harmonicFluencyIntroOpen';
 const PREF_CATEGORIES = 'harmonicFluencyCategoryFilter';
 const SESSION_TARGET = 20;
 
@@ -271,10 +270,7 @@ export default function HarmonicFluency() {
         calendarTo="/harmonic-fluency/calendar"
         showIntro={!sessionActive}
         intro={{
-          accent: 'blue',
-          persistKey: PREF_INTRO_OPEN,
-          headline: 'The mental map that makes music make sense.',
-          description: 'Build instant fluency in scale degrees, key relationships, and chord construction. When your theory is automatic, your ear is free to listen.',
+          description: "Know your way around every key — degrees up, down and around, diatonic and chromatic, chord building, tritones and modes.",
           bullets: [
             'Scale degree math in all 12 keys',
             'Functional harmony and cadence recognition',

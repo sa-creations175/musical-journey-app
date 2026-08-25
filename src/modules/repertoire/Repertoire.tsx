@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Song } from '../../lib/db';
-import ModuleIntro from '../../components/ModuleIntro';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
@@ -158,24 +157,19 @@ export default function Repertoire() {
         moduleId="repertoire"
         gradesAnswers={false}
         calendarTo="/repertoire/calendar"
-      />
-
-      {/* Module-level explainer only on the Active tab — when the
-          user has drilled into a single song or is browsing the
-          want-to-learn list, the broad context isn't useful. */}
-      {tab === 'active' && (
-        <ModuleIntro
-          accent="green"
-          headline="Your song repertoire — where theory meets practice."
-          description="Track each song's stage, keep it fresh across weeks, and stretch its sections through 12 keys. The lead sheet is your working canvas; the practice log is your diary."
-          bullets={[
+        intro={{
+          description: 'Bring songs to life by mastering each song, section by section, key by key.',
+          // The bullets the active tab's explainer already carried.
+          // It rendered only on that tab; the block is the module's, so
+          // it now sits above all three with the rest of the header.
+          bullets: [
             'Five **learning stages** with coaching guidance',
             'Per-section **cross-key** mastery across all 12 keys',
             'Lead sheets with **chord parsing** that surfaces known progressions',
             '**Practice session log** — freshness, feel ratings, notes',
-          ]}
-        />
-      )}
+          ],
+        }}
+      />
 
       <SubTabs
         tabs={TABS}

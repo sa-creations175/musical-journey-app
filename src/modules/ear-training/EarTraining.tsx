@@ -98,6 +98,9 @@ export default function EarTraining() {
         moduleIds={EAR_TRAINING_SUB_MODULES.map(m => m.id)}
         moduleId={EAR_TRAINING_MODULE_ID}
         calendarTo="/ear-training/calendar"
+        intro={{
+          description: "Name what you hear the moment it lands — intervals, chords, progressions, scales — becoming a transcription master.",
+        }}
       />
 
       <CategoryCardGrid
