@@ -244,7 +244,7 @@ export default function CategoryCard({
                   : 'border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300 hover:border-neutral-500'
               }`}
             >
-              progress detail
+              Progress Detail
             </button>
           </div>
         </div>

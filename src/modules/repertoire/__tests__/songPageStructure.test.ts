@@ -16,6 +16,7 @@
  * ---------------------------------------------------------------
  */
 import { describe, expect, it } from 'vitest';
+import { VIEW_CALENDAR_LABEL } from '../../../lib/labelCase';
 
 const SOURCES: Record<string, string> = import.meta.glob(
   '../**/*.{ts,tsx}',
@@ -598,18 +599,12 @@ describe('the practice history card moved to a calendar (3d-9)', () => {
     expect(CAL()).toContain('surface="practiceHistory"');
   });
 
-  it('the link uses the words six other modules already use', () => {
-    // "view calendar →" appears in shapes-and-patterns, harmonic
-    // fluency and the four ear-training tabs, in this style and this
-    // position. A seventh phrasing for one door would read as a
-    // different door.
-    //
-    // Only the repertoire half is asserted here: this file's source
-    // glob is scoped to `../**`, which is modules/repertoire, so the
-    // six precedents are outside its reach. They were verified by
-    // grep when the link was written, and pinning the exact string
-    // here is what would catch this one drifting away from them.
-    expect(read('SongDetailView.tsx')).toContain('view calendar →');
+  it('the link uses the words every other module uses', () => {
+    // The words are one shared constant now, so this cannot drift from
+    // the module homes by being retyped — which is exactly how it came
+    // to be lowercase here while they were capitalised.
+    expect(read('SongDetailView.tsx')).toContain('VIEW_CALENDAR_LABEL');
+    expect(VIEW_CALENDAR_LABEL).toBe('View Calendar');
   });
 
   it('the calendar is reached by the ?songId= convention, not a second one', () => {

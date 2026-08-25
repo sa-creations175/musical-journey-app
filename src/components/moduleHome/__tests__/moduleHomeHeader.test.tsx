@@ -24,6 +24,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import ModuleHomeHeader, { type ModuleHomeHeaderProps } from '../ModuleHomeHeader';
+import { VIEW_CALENDAR_LABEL } from '../../../lib/labelCase';
 import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
 
 
@@ -106,8 +107,9 @@ describe('the calendar link, only where there is a route', () => {
     });
     const link = el.querySelector('a')!;
     expect(link.getAttribute('href')).toBe('/harmonic-fluency/calendar');
-    // The settled wording, with no trailing arrow.
-    expect(link.textContent).toBe('view calendar');
+    // The shared label, so the song page and the module homes cannot
+    // capitalise it differently.
+    expect(link.textContent).toBe(VIEW_CALENDAR_LABEL);
   });
 });
 

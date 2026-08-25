@@ -75,3 +75,13 @@ export function titleCase(label: string): string {
  * label — see the header.
  */
 export const MODULE_NAME_CASE = 'uppercase tracking-wide';
+
+/**
+ * The one label that appears on two unrelated surfaces.
+ *
+ * The module home's streak row and the song page both offer it, and
+ * they typed the words separately — which is how one came to be
+ * capitalised and the other not. Defined here rather than in either,
+ * because neither owns it.
+ */
+export const VIEW_CALENDAR_LABEL = 'View Calendar';

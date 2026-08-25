@@ -8,7 +8,7 @@
  * label added tomorrow is covered without this file changing.
  */
 import { describe, expect, it } from 'vitest';
-import { MODULE_NAME_CASE, titleCase } from '../labelCase';
+import { MODULE_NAME_CASE, VIEW_CALENDAR_LABEL, titleCase } from '../labelCase';
 import { MODULE_ORDER, isLearningModule } from '../moduleMeta';
 
 describe('title case', () => {
@@ -77,5 +77,22 @@ describe('module names', () => {
     expect(isLearningModule('practice-sessions')).toBe(false);
     // A sub-module is nested under one, so it is not one either.
     expect(isLearningModule('intervals')).toBe(false);
+  });
+});
+
+describe('the shared calendar label', () => {
+  it('is capitalised, and defined once for both surfaces', () => {
+    // The module home's streak row and the song page both offer it.
+    // They typed the words separately, which is how one came to be
+    // capitalised and the other not.
+    expect(VIEW_CALENDAR_LABEL).toBe('View Calendar');
+  });
+});
+
+describe('song repertoire’s tabs', () => {
+  it('capitalise through the same rule as everything else', () => {
+    expect(titleCase('active repertoire')).toBe('Active Repertoire');
+    expect(titleCase('song detail')).toBe('Song Detail');
+    expect(titleCase('want to learn')).toBe('Want to Learn');
   });
 });

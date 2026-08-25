@@ -132,6 +132,7 @@ import { SONG_KEY_OPTIONS, isCanonicalSongKey } from './matrix/keys';
 import { ensureSongHasOriginalKey } from './matrixMigration';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
+import { VIEW_CALENDAR_LABEL } from '../../lib/labelCase';
 
 
 
@@ -2120,7 +2121,7 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
               to={`/repertoire/calendar?songId=${encodeURIComponent(song.id)}`}
               className="text-xs text-neutral-500 hover:text-fluent"
             >
-              view calendar →
+              {VIEW_CALENDAR_LABEL} →
             </Link>
           </div>
           {/* The change-stage dropdown and the advance button are gone.

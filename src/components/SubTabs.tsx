@@ -22,7 +22,9 @@
  * nothing else. One component, one height.
  */
 
-export interface SubTab<Id extends string> {
+import { titleCase } from '../lib/labelCase';
+
+interface SubTab<Id extends string> {
   id: Id;
   label: string;
   /** Shown on hover and to assistive tech. Never rendered inline. */
@@ -58,7 +60,9 @@ export default function SubTabs<Id extends string>({
               : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
           }`}
         >
-          {t.label}
+          {/* Title Case here, not in the tab list — the labels stay the
+              canonical lowercase the rest of the app matches on. */}
+          {titleCase(t.label)}
         </button>
       ))}
     </nav>

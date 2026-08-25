@@ -43,6 +43,7 @@ import {
 } from '../../lib/goalConfig';
 import { dayStreakFrom, loadPracticeDays } from '../../lib/practiceDays';
 import { getPref } from '../../lib/userPrefs';
+import { VIEW_CALENDAR_LABEL } from '../../lib/labelCase';
 
 export interface ModuleHomeHeaderProps {
   /**
@@ -174,7 +175,7 @@ export default function ModuleHomeHeader({
           <>
             <span aria-hidden className="text-neutral-400">·</span>
             <Link to={calendarTo} className="hover:text-fluent">
-              view calendar
+              {VIEW_CALENDAR_LABEL}
             </Link>
           </>
         )}
