@@ -2,6 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { intervalPlaybackMs, playInterval } from '../../../lib/audio';
 import { directionsFor } from './seed';
+import FilterStrip from '../../../components/FilterStrip';
+import { moduleMetaById } from '../../../lib/moduleMeta';
+import { intervalFacetList } from './facets';
+import {
+  NO_SELECTION, appliedKeys, resolveFacets, toggleFacetValue,
+  type FacetSelection,
+} from '../../../lib/facetSelection';
 import { eligibleDirections } from './directionBalance';
 import { db, type AttemptRecord, type IntervalData } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
@@ -29,9 +36,20 @@ import PianoKeyboard, {
 import AnswerVerdict from '../../../components/AnswerVerdict';
 
 const MODULE_ID = 'intervals';
+
+/** From `moduleMeta`, never a local hex — one hue per module. */
+const ACCENT = moduleMetaById(MODULE_ID)?.accentHex ?? '#5a8752';
 const PREF_FOCUS_SELECTION = 'intervalsFocusSelection';
 
-type DirectionFilter = 'both' | 'asc' | 'desc';
+/**
+ * The strip's selection, replacing the old `DirectionFilter` tabs.
+ *
+ * Those tabs reached three states — both / asc / desc — and all three
+ * survive: nothing selected in the direction facet does not constrain
+ * and so serves both, and each single value reproduces its tab. What
+ * they could not reach is a selection across two facets, which is the
+ * whole point of the strip.
+ */
 type PlayDirection = 'asc' | 'desc';
 
 interface PoolItem { interval: IntervalData; direction: PlayDirection; }
@@ -54,7 +72,12 @@ interface Props {
 }
 
 export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }: Props) {
-  const [filter, setFilter] = useState<DirectionFilter>('both');
+  const [selection, setSelection] = useState<FacetSelection>(NO_SELECTION);
+  const facets = useMemo(() => intervalFacetList(), []);
+  const resolution = useMemo(
+    () => resolveFacets(facets, selection),
+    [facets, selection],
+  );
   const [current, setCurrent] = useState<{ interval: IntervalData; rootMidi: number; direction: PlayDirection } | null>(null);
   const [hasPlayed, setHasPlayed] = useState(false);
   /**
@@ -85,8 +108,25 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
     initialFocusKeys ? [...initialFocusKeys] : [],
   );
 
-  const filterRef = useRef(filter);
-  filterRef.current = filter;
+  /**
+   * The keys the strip currently applies, READ AT PICK TIME.
+   *
+   * A ref for the same reason the focus pool is one: the filter lands
+   * on the NEXT question, never the one on screen. The strip makes
+   * mid-question tapping possible for the first time, so a dependency
+   * here would discard a question the reader was part-way through.
+   *
+   * `null` means "do not narrow". A selection resolving to NOTHING also
+   * leaves this alone — the previous pool keeps serving, and the strip
+   * says so rather than showing a bare zero beside a drill that is
+   * still going.
+   */
+  const appliedRef = useRef<ReadonlySet<string> | null>(null);
+  useEffect(() => {
+    const keys = appliedKeys(resolution);
+    if (keys === null && resolution.narrowed) return;
+    appliedRef.current = keys === null ? null : new Set(keys);
+  }, [resolution]);
   const focusActiveRef = useRef(focusActive);
   focusActiveRef.current = focusActive;
   const focusKeysRef = useRef(focusKeys);
@@ -159,10 +199,13 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
       // notes. See intervals/seed.ts.
       const passesFilters = (dir: PlayDirection) => {
         const k = keyOf(iv.id, dir);
+        // The item-level focus pool still OVERRIDES the strip, exactly
+        // as it overrode the direction tabs before it. Narrowing to two
+        // named intervals and then tapping "far" should not widen the
+        // pool back out.
         if (focusSet) return focusSet.has(k);
-        if (filterRef.current === 'asc' && dir === 'desc') return false;
-        if (filterRef.current === 'desc' && dir === 'asc') return false;
-        return true;
+        const applied = appliedRef.current;
+        return applied === null || applied.has(k);
       };
       const available = directionsFor(iv.semitones).filter(passesFilters);
       // Then: within this interval, prefer the direction with fewer
@@ -373,36 +416,26 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
                 exit focus
               </button>
             </>
-          ) : filter === 'asc' ? (
-            `ascending only — ${ascCount} combinations active`
-          ) : filter === 'desc' ? (
-            `descending only — ${descCount} combinations active`
-          ) : (
-            `full quiz — all ${ascCount + descCount} interval combinations active`
-          )}
+          ) : null}
         </p>
+        {/* THE STRIP REPLACES THE DIRECTION TABS. Direction is now one
+            facet of three rather than a control of its own — the tabs'
+            three states all survive (see the selection's declaration)
+            and a cross-facet selection is newly reachable.
+
+            Hidden while focus mode is active, exactly as the tabs were,
+            because the focus selection already pins direction per item
+            and overrides the strip in `passesFilters`. */}
         {!focusActive && (
-          <div className="inline-flex items-center gap-2 flex-wrap justify-center">
-            <span className="text-[11px] text-neutral-500 uppercase tracking-wide">direction:</span>
-            <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
-              {([
-                { id: 'both', label: 'both' },
-                { id: 'asc', label: 'ascending' },
-                { id: 'desc', label: 'descending' },
-              ] as const).map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setFilter(tab.id)}
-                  className={`px-3 py-1.5 rounded-md transition ${
-                    filter === tab.id
-                      ? 'bg-fluent text-white'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          <div className="w-full">
+            <FilterStrip
+              facets={facets}
+              selection={selection}
+              onToggle={(facetId, valueId) =>
+                setSelection(prev => toggleFacetValue(prev, facetId, valueId))}
+              accentHex={ACCENT}
+              poolSize={ascCount + descCount}
+            />
           </div>
         )}
       </div>
@@ -415,8 +448,19 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
         <SpeedControl moduleId={MODULE_ID} />
       </div>
 
-      {/* Play / Next */}
-      <div className="flex flex-wrap items-center justify-center gap-3">
+      {/* Play / Next.
+
+          `data-item-key` names the interval+direction currently being
+          asked. It is the same seam `ReadingDrill` carries as
+          `data-item-ref`, and for the same reason: without it a test
+          asserting "the question did not change when the filter did"
+          has to infer the item from rendered option text, which passes
+          on the wrong card whenever two questions happen to look
+          alike. */}
+      <div
+        className="flex flex-wrap items-center justify-center gap-3"
+        data-item-key={current ? keyOf(current.interval.id, current.direction) : undefined}
+      >
         {!hasPlayed ? (
           <button
             onClick={startNew}
