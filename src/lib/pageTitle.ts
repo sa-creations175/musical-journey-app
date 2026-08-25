@@ -36,6 +36,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/ear-training/scales-modes/calendar':          'Scales & Modes · Calendar',
   '/reading':                                     'Reading',
   '/reading/calendar':                            'Reading · Calendar',
+  '/reading/reference':                           'Reading · Staff Reference',
   '/reading/preview':                             'Reading · Notation Preview',
   '/repertoire':                                  'Song Repertoire',
   '/shapes-and-patterns':                         'Shapes & Patterns',

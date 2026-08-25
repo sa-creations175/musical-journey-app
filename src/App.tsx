@@ -32,6 +32,7 @@ import HarmonicDiary from './modules/harmonic-diary/HarmonicDiary';
 // a page nobody could reach.
 const Reading = lazy(() => import('./modules/reading/Reading'));
 const ReadingCalendar = lazy(() => import('./modules/reading/ReadingCalendar'));
+const ReadingReference = lazy(() => import('./modules/reading/ReadingReference'));
 const EarTrainingCalendar = lazy(() => import('./modules/ear-training/EarTrainingCalendar'));
 const ProductionCalendar = lazy(() => import('./modules/production/ProductionCalendar'));
 const ReadingPreview = lazy(() => import('./modules/reading/ReadingPreview'));
@@ -115,6 +116,14 @@ export default function App() {
               element={
                 <Suspense fallback={<div className="p-6 text-sm text-neutral-500">Loading notation…</div>}>
                   <Reading />
+                </Suspense>
+              }
+            />
+            <Route
+              path="reading/reference"
+              element={
+                <Suspense fallback={<div className="p-6 text-sm text-neutral-500">Loading notation…</div>}>
+                  <ReadingReference />
                 </Suspense>
               }
             />
