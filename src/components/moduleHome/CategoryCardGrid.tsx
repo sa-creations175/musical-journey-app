@@ -35,11 +35,14 @@ export interface CategoryCardGridProps {
    *  length between render and tap would drill the wrong category. */
   onDrill: (key: string) => void;
   drillLabel?: string;
+  /** Opens progress detail for a card. Omit where the module has none;
+   *  the button then renders inert rather than wired to nothing. */
+  onProgressDetail?: (key: string) => void;
   now: number;
 }
 
 export default function CategoryCardGrid({
-  cards, moduleId, onDrill, drillLabel, now,
+  cards, moduleId, onDrill, drillLabel, onProgressDetail, now,
 }: CategoryCardGridProps) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const accentHex = moduleMetaById(moduleId)?.accentHex ?? NO_MODULE_ACCENT;
@@ -59,6 +62,9 @@ export default function CategoryCardGrid({
           })}
           onDrill={() => onDrill(card.key)}
           {...(drillLabel !== undefined ? { drillLabel } : {})}
+          {...(onProgressDetail !== undefined
+            ? { onProgressDetail: () => onProgressDetail(card.key) }
+            : {})}
           now={now}
         />
       ))}

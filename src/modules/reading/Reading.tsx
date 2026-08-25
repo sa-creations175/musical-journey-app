@@ -19,11 +19,17 @@
  * Nothing here writes an attempt; see ReadingDrill.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ReadingDrill from './ReadingDrill';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
+import ProgressDetail from '../../components/moduleHome/ProgressDetail';
+import { useAxisViews } from '../../components/moduleHome/useAxisViews';
+import { moduleMetaById } from '../../lib/moduleMeta';
+import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
+import { READING_CATEGORY_LABEL } from './skillRecords';
+import { READING_GRIDS } from './progressGrids';
 import { db } from '../../lib/db';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { readingSkillForItemRef } from './catalog';
@@ -49,6 +55,9 @@ export default function Reading() {
     : undefined;
 
   const [skill, setSkill] = useState<ReadingDrillSkill>(focusSkill ?? 'note');
+  /** Which skill's progress detail is open, if any. */
+  const [detailSkill, setDetailSkill] = useState<ReadingDrillSkill | null>(null);
+  const axisViews = useAxisViews();
 
   const attempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(READING_MODULE_ID).toArray(),
@@ -56,6 +65,23 @@ export default function Reading() {
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(READING_MODULE_ID);
   const now = Date.now();
+  // The registry, only while a detail panel is open. It walks every
+  // module, so paying for it on arrival would make the module home
+  // slower for a surface most visits never open.
+  const [records, setRecords] = useState<SkillRecord[] | null>(null);
+  useEffect(() => {
+    if (detailSkill === null) return;
+    let live = true;
+    void buildSkillRegistry().then(r => { if (live) setRecords(r); });
+    return () => { live = false; };
+  }, [detailSkill, attempts]);
+
+  const dueByItem = useLiveQuery(async () => {
+    const rows = await db.spacingState
+      .where('moduleRef').equals(READING_MODULE_ID).toArray();
+    return new Map(rows.map(r => [r.itemRef, r.nextDueAt] as const));
+  }, []) ?? new Map<string, number | null>();
+
   const cards = useMemo(
     () => readingCards(attempts, spacingIntervals, now),
     // `now` is deliberately not a dep — it changes every render and
@@ -73,8 +99,26 @@ export default function Reading() {
         cards={cards}
         moduleId={READING_MODULE_ID}
         onDrill={key => { if (isReadingCardKey(key)) setSkill(key); }}
+        onProgressDetail={key => { if (isReadingCardKey(key)) setDetailSkill(key); }}
         now={now}
       />
+
+      {detailSkill !== null && axisViews.loaded && (
+        <ProgressDetail
+          categoryLabel={READING_CATEGORY_LABEL[detailSkill]}
+          items={(records ?? []).filter(
+            r => r.moduleId === READING_MODULE_ID
+              && r.category === READING_CATEGORY_LABEL[detailSkill],
+          )}
+          grid={READING_GRIDS[READING_CATEGORY_LABEL[detailSkill]] ?? null}
+          accentHex={moduleMetaById(READING_MODULE_ID)?.accentHex ?? '#6f4a2f'}
+          now={now}
+          viewFor={axisViews.viewFor}
+          onViewChange={axisViews.setView}
+          dueByItem={dueByItem}
+          onClose={() => setDetailSkill(null)}
+        />
+      )}
 
       {/* Remounting per skill resets the drill's local state without
           the drill needing to know a skill can change under it.

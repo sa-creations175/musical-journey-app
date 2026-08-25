@@ -50,11 +50,16 @@ export interface CategoryCardProps {
   /** Named per module only where the action genuinely differs — see the
    *  report for why ear training's cannot honestly say "drill". */
   drillLabel?: string;
+  /** Opens progress detail. Omitted where the module has no detail
+   *  surface yet — the button then renders disabled rather than
+   *  wired to nothing. */
+  onProgressDetail?: () => void;
   now: number;
 }
 
 export default function CategoryCard({
-  card, accentHex, expanded, onToggle, onDrill, drillLabel = 'drill category', now,
+  card, accentHex, expanded, onToggle, onDrill, drillLabel = 'drill category',
+  onProgressDetail, now,
 }: CategoryCardProps) {
   // The unrated state is `barSegments`' own — "3 of 5 attempts" — not a
   // second empty-state branch. See the header of lib/progressBar.
@@ -153,16 +158,23 @@ export default function CategoryCard({
             >
               {drillLabel}
             </button>
-            {/* DISABLED, NOT STUBBED. 2b builds what this opens. A
-                button that navigates nowhere, or opens a placeholder,
-                is a control that looks live and is not — the same
-                defect as a filter strip that does nothing. */}
+            {/* STILL DISABLED WHERE THERE IS NOTHING TO OPEN. A module
+                without a detail surface gets an obviously inert button
+                rather than one that opens an empty page — a control
+                that looks live and is not is the defect this avoids. */}
             <button
               type="button"
-              disabled
+              disabled={onProgressDetail === undefined}
+              onClick={onProgressDetail}
               data-testid="category-card-progress-detail"
-              title="Progress detail is not built yet."
-              className="px-3 py-1.5 rounded-lg text-xs font-medium border border-neutral-200 dark:border-neutral-700 text-neutral-400 cursor-not-allowed"
+              {...(onProgressDetail === undefined
+                ? { title: 'Progress detail is not built for this module yet.' }
+                : {})}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
+                onProgressDetail === undefined
+                  ? 'border-neutral-200 dark:border-neutral-700 text-neutral-400 cursor-not-allowed'
+                  : 'border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300 hover:border-neutral-500'
+              }`}
             >
               progress detail
             </button>
