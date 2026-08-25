@@ -124,7 +124,14 @@ export default function ModuleHomeHeader({
   const [days, setDays] = useState<Awaited<ReturnType<typeof loadPracticeDays>> | null>(null);
   useEffect(() => {
     let live = true;
-    void loadPracticeDays(moduleId).then(d => { if (live) setDays(d); });
+    // CAUGHT, so a read that fails leaves the streak at zero instead of
+    // rejecting into nothing. This is the one read here that is not a
+    // `useLiveQuery` — it goes to Dexie directly, because which table
+    // holds a module's dates depends on the module — so it is also the
+    // one that can reject on its own.
+    void loadPracticeDays(moduleId)
+      .then(d => { if (live) setDays(d); })
+      .catch(() => { if (live) setDays(new Map()); });
     return () => { live = false; };
   }, [moduleId, attempts.length]);
 

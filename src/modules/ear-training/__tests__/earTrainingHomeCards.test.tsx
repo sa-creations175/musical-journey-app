@@ -7,6 +7,10 @@
  * because "renders no Start" passes trivially on a page that renders
  * nothing at all.
  */
+// The header reads a module's practice dates from Dexie directly — the
+// table depends on the module, so it is not behind the `useLiveQuery`
+// mock below. Without a backing store that read rejects unhandled.
+import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
