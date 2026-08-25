@@ -196,3 +196,36 @@ describe('the highlight', () => {
     expect(el.querySelectorAll('[data-highlighted="true"]')).toHaveLength(0);
   });
 });
+
+/**
+ * THE DEFECT THIS COMPONENT REPLACED, pinned at the level that
+ * mattered: the panel shown after a note question has to CONTAIN the
+ * note that was asked.
+ *
+ * The old reveal chose one of four mnemonic sets by clef and parity —
+ * treble lines, treble spaces, bass lines, bass spaces. A ledger note
+ * belongs to none of them, so a missed middle C was explained by five
+ * treble lines that did not include it.
+ */
+describe('the panel always contains the answer', () => {
+  it('holds a ledger note, marked', async () => {
+    for (const note of ['C4', 'A5', 'C6', 'E6', 'E2', 'C2', 'A1']) {
+      const el = await mount({ highlight: note });
+      const marked = el.querySelector('[data-highlighted="true"]');
+      expect(marked, note).not.toBeNull();
+      expect(marked!.getAttribute('data-note')).toBe(note);
+      await act(async () => root!.unmount());
+      container!.remove();
+    }
+  });
+
+  it('holds a staff note in either clef, marked', async () => {
+    for (const note of ['E4', 'F4', 'G2', 'A2']) {
+      const el = await mount({ highlight: note });
+      expect(el.querySelector('[data-highlighted="true"]')!.getAttribute('data-note'), note)
+        .toBe(note);
+      await act(async () => root!.unmount());
+      container!.remove();
+    }
+  });
+});

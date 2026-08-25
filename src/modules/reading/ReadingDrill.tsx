@@ -50,13 +50,12 @@ import {
   type CountStage,
   type NoteVerdict,
   letterOptions,
-  mnemonicFor,
   qualityOptions,
   rootOptions,
   shapeOptions,
 } from './answerModels';
 import { pitchAtStaffPosition, withAccidentalGlyphs } from './pitch';
-import MnemonicStaff from './MnemonicStaff';
+import StaffReference from '../../components/staffReference/StaffReference';
 import KeyboardDiagram, { type KeyboardBracket } from '../../components/KeyboardDiagram';
 import { recordReadingAttempt } from './recordReadingAttempt';
 
@@ -452,10 +451,23 @@ export default function ReadingDrill({
             // mnemonic that only appears after a miss reads as a
             // correction rather than as the thing being learned.
             <div className="space-y-4 pt-1" data-testid="note-reveal">
-              <MnemonicStaff
-                mnemonic={mnemonicFor(parsed.clef, parsed.position)}
-                accentHex={SEPIA}
-              />
+              {/* ---------------------------------------------------
+                  THE PANEL NOW CONTAINS THE ANSWER.
+
+                  It used to be one of four mnemonic sets — treble
+                  lines, treble spaces, bass lines, bass spaces — chosen
+                  by clef and parity. A LEDGER note belongs to none of
+                  them, so missing middle C was explained by a panel of
+                  five treble lines that did not include it. The reader
+                  was handed a correction that could not correct.
+
+                  The full ladder always contains the note, and the note
+                  is marked on it. Same component as the reference page,
+                  so what is taught here and what is checked there
+                  cannot differ — including any mnemonic edited on
+                  either.
+                  --------------------------------------------------- */}
+              <StaffReference highlight={notePitch === null ? null : `${notePitch.letter}${notePitch.octave}`} />
               {/* Octave numbers are being tested with nothing to
                   anchor them to. The full 88 is what supplies the
                   anchor: where this note actually falls, how little of
