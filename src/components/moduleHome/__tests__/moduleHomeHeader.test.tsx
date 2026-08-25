@@ -168,6 +168,28 @@ describe('the calendar link, only where there is a route', () => {
   });
 });
 
+describe('the leading slot', () => {
+  it('is absent unless something is put in it', async () => {
+    const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
+    expect(el.querySelectorAll('a')).toHaveLength(0);
+  });
+
+  it('sits at the left of the row, without moving the streak items', async () => {
+    const el = await mount({
+      moduleIds: ['reading'],
+      moduleId: 'reading',
+      leading: <span data-testid="leading">something</span>,
+    });
+    const slot = el.querySelector('[data-testid="leading"]')!;
+    expect(slot).not.toBeNull();
+    // First child of the row, pushed left by `mr-auto` — the streak
+    // items keep their own right alignment.
+    const row = el.querySelector('[data-testid="hf-streak"]')!.parentElement!;
+    expect(row.firstElementChild!.className).toContain('mr-auto');
+    expect(row.firstElementChild!.contains(slot)).toBe(true);
+  });
+});
+
 describe('the intro, only where there is copy', () => {
   it('renders nothing when the module has none', async () => {
     const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });

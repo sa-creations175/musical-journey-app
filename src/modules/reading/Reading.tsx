@@ -20,6 +20,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { isNarrowed, useDrillFilter } from '../../lib/drillFilter';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
@@ -137,20 +138,15 @@ export default function Reading() {
       {/* No module heading here. The pinned header in Layout already
           carries the name and the module tagline — see pageTitle.ts —
           and no other module repeats its own. */}
-      {/* THE SHARED HEADER. The flame counts consecutive correct
-          answers in this module and is the whole of it here.
-
-          NO DAY STREAK: reading has no entry in `MODULE_DEFAULT_GOALS`
-          and no `DailyGoalBar` anywhere, so "days at goal" would be
-          days measured against the unknown-module fallback of 30 — a
-          number the reader has never seen and cannot change from this
-          page.
-
-          NO CALENDAR LINK: `/reading/calendar` does not exist.
-
-          NO INTRO: this page has never carried copy, and copy is
-          authored. See the report. */}
+      {/* THE SHARED HEADER, with the staff reference at the left end of
+          its row — the row is right-aligned and its left half was
+          empty, so the reference costs no vertical space. */}
       <ModuleHomeHeader
+        leading={(
+          <Link to="/reading/reference" className="hover:text-fluent">
+            staff reference
+          </Link>
+        )}
         moduleIds={[READING_MODULE_ID]}
         moduleId={READING_MODULE_ID}
         calendarTo="/reading/calendar"

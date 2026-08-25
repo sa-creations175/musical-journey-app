@@ -30,7 +30,7 @@
  * A module missing one renders the rest. See the report for which
  * modules are missing what.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ModuleHomeIntro from './ModuleHomeIntro';
@@ -75,6 +75,16 @@ export interface ModuleHomeHeaderProps {
   /** Where "view calendar →" goes. Omit where there is no such route. */
   calendarTo?: string;
   /**
+   * Something to sit at the LEFT end of the streak row.
+   *
+   * An optional slot rather than a second row: the row is right-aligned
+   * and was otherwise empty on its left, so a module with one more
+   * place to go can put it there without buying a band of vertical
+   * space. Omitted everywhere else, and the streak items are untouched
+   * by its presence.
+   */
+  leading?: ReactNode;
+  /**
    * The module's one line. Absent where the module has no copy.
    *
    * COLLAPSED SHOWS NONE OF IT — see `ModuleHomeIntro`. The row is
@@ -93,6 +103,7 @@ export interface ModuleHomeHeaderProps {
 
 export default function ModuleHomeHeader({
   moduleIds, moduleId, gradesAnswers = true, calendarTo, intro, showIntro = true,
+  leading,
 }: ModuleHomeHeaderProps) {
   // Its own read rather than a prop. The pages already query attempts
   // for their cards, so this is a second READ of one table — not a
@@ -156,6 +167,9 @@ export default function ModuleHomeHeader({
           is app-wide (`Layout`) and stays that way — one module wanting
           to start higher is not a reason to move every screen up. */}
       <div className="-mt-2 flex items-center justify-end gap-2 text-xs text-neutral-500">
+        {/* `mr-auto` pushes it to the far left of a row that is
+            otherwise right-aligned — no extra height, nothing moved. */}
+        {leading !== undefined && <span className="mr-auto">{leading}</span>}
         {/* "CORRECT IN A ROW" ONLY WHERE THERE IS A CORRECT ANSWER.
             A module that records a duration and a self-rating has no
             run of right answers to report, so it shows the day streak
