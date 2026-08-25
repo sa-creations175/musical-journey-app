@@ -12,14 +12,16 @@ import {
   type Song,
 } from '../../lib/db';
 import { computeTier, type Tier } from '../../lib/tier';
+import type { TickAttempt } from '../../lib/progressBar';
 import { normaliseStage } from '../repertoire/stage';
 import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
+import { bucketReadingAttempts, readingSkillRows } from '../reading/skillRecords';
 import {
   bucketAttemptsForCatalog,
   tierAndLastFromAttempts,
 } from '../dashboard/read/tierAdapter';
 import { CATEGORY_LABELS, FLASHCARDS } from '../harmonic-fluency/catalog';
-import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
+import { INTERVAL_SEEDS, directionsFor } from '../ear-training/intervals/seed';
 import { MODES } from '../ear-training/scales-modes/catalog';
 import { PROGRESSIONS } from '../ear-training/chord-progressions/catalog';
 import {
@@ -153,6 +155,50 @@ export interface SkillRecord {
   tags: string[];
   /** User-written note (from annotations). */
   note?: string;
+  /**
+   * The rolling window itself, newest first — not a summary of it.
+   *
+   * =====================================================================
+   * CARRIED, NOT REDUCED AWAY. THIS IS THE WHOLE POINT.
+   *
+   * Every other field here is a REDUCTION: `currentTier` is twenty reps
+   * collapsed to a word, `daysSince` a timestamp collapsed to a number.
+   * That was enough for a list. It is not enough for a strip, which has
+   * to say WHICH reps and IN WHAT ORDER — and this file was already
+   * bucketing exactly those rows and then discarding them.
+   *
+   * EMPTY IS A STATEMENT ABOUT THE MODULE, NOT ABOUT THE USER. Songs are
+   * stage-tracked, shapes read DrillType rows, production lessons carry
+   * a self-rating; none of them records reps. Empty there means "this
+   * module does not count in reps", not "no reps yet", and each such
+   * builder says so at its own call site rather than leaving the reader
+   * to infer it.
+   *
+   * Capped at `TIER_WINDOW` per record. Measured: ~1,026 catalog records
+   * across the attempt-shaped modules, so ~20k tick objects at absolute
+   * worst — and only for a user who has drilled every item 20+ times.
+   * =====================================================================
+   */
+  window: TickAttempt[];
+  /**
+   * Where this item sits on its category's axes, when the category has
+   * any. Absent means the category renders as a flat list.
+   *
+   * SUPPLIED FROM TYPED DATA, never parsed back out of an id. Ids exist
+   * for stability and several of them cannot be parsed at all.
+   */
+  axis?: Readonly<Record<string, string | number>>;
+}
+
+/**
+ * The window rows for one item, newest first, capped and shaped for
+ * `ProgressBar`. One implementation, so no builder invents a second.
+ */
+function windowFrom(attempts: readonly AttemptRecord[]): TickAttempt[] {
+  return [...attempts]
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, TIER_WINDOW)
+    .map(a => ({ correct: a.correct, timestamp: a.timestamp }));
 }
 
 function freshnessFrom(ts: number | null): FreshnessTier {
@@ -202,6 +248,7 @@ const MODULE_LABELS: Record<string, { label: string; route: string }> = {
   'repertoire':         { label: 'song repertoire',   route: '/repertoire' },
   'shapes-and-patterns':{ label: 'shapes & patterns', route: '/shapes-and-patterns' },
   'production':         { label: 'production',             route: '/production' },
+  'reading':            { label: 'reading',              route: '/reading' },
 };
 
 function moduleMeta(moduleId: string): { label: string; route: string } {
@@ -246,6 +293,20 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
   // --- Harmonic Fluency (one skill per flashcard) ------------------
   const stateByCard = new Map<string, FlashcardState>();
   for (const s of flashcardStates) stateByCard.set(s.cardId, s);
+  // HARMONIC FLUENCY'S TIER AND ITS STRIP READ DIFFERENT SOURCES, and
+  // that is pre-existing rather than introduced here. The tier comes
+  // from `FlashcardState` — lifetime totals scaled into a pseudo-window
+  // by `tierForFlashcardState` — while these are the actual attempt
+  // rows. They can disagree, and the module-home card already reads the
+  // attempts. Reported rather than quietly reconciled: moving the tier
+  // onto attempts changes displayed tiers across the catalogue and is
+  // its own decision.
+  const hfAttemptsByCard = new Map<string, AttemptRecord[]>();
+  for (const a of attempts) {
+    if (a.moduleId !== 'harmonic-fluency') continue;
+    const arr = hfAttemptsByCard.get(a.itemId);
+    if (arr) arr.push(a); else hfAttemptsByCard.set(a.itemId, [a]);
+  }
   for (const card of FLASHCARDS) {
     const state = stateByCard.get(card.id);
     const tier = tierForFlashcardState(state, now);
@@ -272,6 +333,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
       priority: ann?.priority,
       tags: ann?.tags ?? [],
       note: ann?.note,
+      window: windowFrom(hfAttemptsByCard.get(card.id) ?? []),
     });
   }
 
@@ -292,7 +354,11 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     const mod = byModule.get('intervals') ?? new Map();
     for (const seed of INTERVAL_SEEDS) {
       const bucket: AttemptRecord[] = mod.get(seed.id) ?? [];
-      for (const dir of ['asc', 'desc'] as const) {
+      // `directionsFor`, not ['asc','desc']. A unison has one case, and
+      // this builder was still emitting a "Unison (descending)" row for
+      // a skill the drill can no longer produce — the catalogue half of
+      // the merge, missed when the drill half landed.
+      for (const dir of directionsFor(seed.semitones)) {
         // Attempts without a direction value are treated as ascending
         // — older rows pre-date the direction field.
         const filtered = bucket.filter(a => (a.direction ?? 'asc') === dir);
@@ -308,6 +374,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
           itemId: `${seed.id}:${dir}`,
           name: ann?.customName ?? `${seed.name} (${dirWord})`,
           category: dir === 'asc' ? 'Ascending intervals' : 'Descending intervals',
+          axis: { interval: seed.id, semitones: seed.semitones, direction: dir },
           skillType: 'ear',
           currentTier: tier,
           freshness: freshnessFrom(last),
@@ -317,6 +384,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
           priority: ann?.priority,
           tags: ann?.tags ?? [],
           note: ann?.note,
+          window: windowFrom(filtered),
         });
       }
     }
@@ -359,6 +427,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         priority: ann?.priority,
         tags: ann?.tags ?? [],
         note: ann?.note,
+        window: windowFrom(bucket),
       });
     }
   }
@@ -392,6 +461,9 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         priority: ann?.priority,
         tags: ann?.tags ?? [],
         note: ann?.note,
+        // Concept entry — the Key Detection tab logs no per-key
+        // attempts, so there are no reps to strip. Not "none yet".
+        window: [],
       });
     }
 
@@ -417,6 +489,9 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         priority: ann?.priority,
         tags: ann?.tags ?? [],
         note: ann?.note,
+        // Concept entry — the Chord Motion tab logs no per-motion
+        // attempts. Not "none yet".
+        window: [],
       });
     }
 
@@ -444,6 +519,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         priority: ann?.priority,
         tags: ann?.tags ?? [],
         note: ann?.note,
+        window: windowFrom(bucket),
       });
     }
   }
@@ -476,6 +552,42 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         priority: ann?.priority,
         tags: ann?.tags ?? [],
         note: ann?.note,
+        window: windowFrom(bucket),
+      });
+    }
+  }
+
+  // --- Reading -----------------------------------------------------
+  // The module the registry never walked. Rows and coordinates come
+  // from `reading/skillRecords.ts`, because the ref grammar belongs to
+  // reading and the registry must not learn it.
+  {
+    const { label, route } = moduleMeta('reading');
+    const byRef = bucketReadingAttempts(attempts);
+    for (const row of readingSkillRows()) {
+      const bucket = byRef.get(row.itemRef) ?? [];
+      const skillId = canonicalSkillId('reading', row.skill, row.itemRef);
+      const ann = annotationById.get(skillId);
+      const { tier, last } = tierForAttempts(bucket, now);
+      records.push({
+        skillId,
+        moduleId: 'reading',
+        moduleLabel: label,
+        moduleRoute: route,
+        itemId: row.itemRef,
+        name: ann?.customName ?? row.name,
+        category: row.category,
+        skillType: 'theory',
+        currentTier: tier,
+        freshness: freshnessFrom(last),
+        daysSince: daysSinceOf(last, now),
+        lastPracticed: last,
+        totalTime: bucket.length * 6,
+        priority: ann?.priority,
+        tags: ann?.tags ?? [],
+        note: ann?.note,
+        window: windowFrom(bucket),
+        axis: row.axis,
       });
     }
   }
@@ -528,6 +640,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         priority: ann?.priority,
         tags: mergeTags(ann?.tags, autoTags),
         note: ann?.note,
+      // Not attempt-shaped: a song is stage-tracked, not repped.
+      window: [],
       });
     }
   }
@@ -616,6 +730,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
           priority: ann?.priority,
           tags: ann?.tags ?? [],
           note: ann?.note,
+          // Not attempt-shaped: shapes read DrillType rows.
+          window: [],
         });
       }
     }
@@ -648,6 +764,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
           priority: ann?.priority,
           tags: ann?.tags ?? [],
           note: ann?.note,
+          // Not attempt-shaped: shapes read DrillType rows.
+          window: [],
         });
       }
     }
@@ -678,6 +796,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
           priority: ann?.priority,
           tags: ann?.tags ?? [],
           note: ann?.note,
+          // Not attempt-shaped: shapes read DrillType rows.
+          window: [],
         });
       }
     }
@@ -710,6 +830,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         priority: ann?.priority,
         tags: ann?.tags ?? [],
         note: ann?.note,
+        // Not attempt-shaped: shapes read DrillType rows.
+        window: [],
       });
     }
   }
@@ -752,6 +874,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
         priority: ann?.priority,
         tags: ann?.tags ?? [],
         note: ann?.note,
+      // Not attempt-shaped: a lesson carries a self-rating, not reps.
+      window: [],
       });
     }
   }
