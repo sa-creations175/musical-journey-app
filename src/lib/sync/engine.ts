@@ -22,8 +22,14 @@ import {
  * upserts. The whole Dexie row lives in `data` (JSONB) so nothing is
  * lost; the indexed top-level columns (`added_date`, `song_id`, etc.)
  * are extracted per the table config.
+ *
+ * EXPORTED FOR ONE REASON: so "a new field survives the push unstripped"
+ * is a test rather than a claim. It is the only place a row is reshaped
+ * on the way out, so reading the source and asserting `data: row` by eye
+ * is exactly the kind of check that stops being true without anyone
+ * noticing.
  */
-function toPgRow(cfg: SyncTableConfig, dexieRow: unknown, userId: string): Record<string, unknown> {
+export function toPgRow(cfg: SyncTableConfig, dexieRow: unknown, userId: string): Record<string, unknown> {
   const row = dexieRow as Record<string, unknown>;
   const id = row[cfg.idField];
   if (typeof id !== 'string' || id === '') {

@@ -222,6 +222,13 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
       direction: current.direction,
       correct: isCorrect,
       timestamp: Date.now(),
+      // The interval the reader picked, in the SAME vocabulary as
+      // `itemId` — both are bare interval ids, and this row's
+      // `direction` applies to the chosen one unchanged: the reader
+      // picks a NAME and the question fixes the direction. So the
+      // chosen item's spacing ref is `${chosenItemId}:${direction}`,
+      // built exactly as `itemRefForAttempt` builds this row's.
+      chosenItemId: chosen.id,
       ...(focusProtected ? { excludeFromFluency: true } : {}),
       // Silent measurement. A replay does NOT restart the clock: the
       // question became answerable the first time it sounded, and a

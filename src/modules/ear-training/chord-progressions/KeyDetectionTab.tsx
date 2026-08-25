@@ -222,6 +222,13 @@ export default function KeyDetectionTab({ attempts }: Props) {
       itemId: keyDetectionItemId(round.key),
       correct,
       timestamp: Date.now(),
+      // THE SAME CALL THAT BUILT `itemId`, on the chosen note. That is
+      // what makes the two joinable: `selectedNote` is display-spelled
+      // — it comes from `noteNameForKey(..., spelling)` — so a reader
+      // seeing G♭ would otherwise record a key the catalog stores as
+      // F♯. `keyDetectionItemId` normalises through `canonicaliseKey`,
+      // which is the whole reason it exists.
+      chosenItemId: keyDetectionItemId(selectedNote),
       ...answerTimingFields(asked.current, Date.now()),
     });
     await updateDailySummary(MODULE_ID);

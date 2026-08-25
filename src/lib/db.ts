@@ -1662,6 +1662,64 @@ export interface AttemptRecord {
    * `excludeFromFluency` could not do because it drops the row from
    * accuracy entirely. Read by `readingHintSplit()`. */
   hintUsed?: boolean;
+  /**
+   * The itemId of the item the reader ACTUALLY CHOSE, on every answer.
+   *
+   * =====================================================================
+   * TWELVE WRITE SITES KEPT A BOOLEAN AND THREW THE CHOICE AWAY.
+   *
+   * `correct: false` says the answer was wrong and nothing else. Which
+   * wrong answer was picked is the whole signal: answering "minor 6th"
+   * for a minor 7th is a different weakness from answering "tritone",
+   * and the two are indistinguishable once the choice is discarded.
+   *
+   * NOT BACKFILLABLE. Every attempt already on disk is a boolean, and
+   * no amount of later work recovers what was picked. This starts
+   * accumulating the day it ships and not before, which is why it is
+   * recorded ahead of the feature that reads it — padding a narrowed
+   * pool with the items a reader genuinely confuses with the target.
+   *
+   * RECORDED ON EVERY ANSWER, INCLUDING CORRECT ONES. A correct choice
+   * costs one string and says which items are picked confidently; only
+   * recording mistakes would make "never confused" and "never asked"
+   * the same absence.
+   *
+   * ---------------------------------------------------------------
+   * IT IS AN itemId, IN THIS ROW'S OWN VOCABULARY. THAT IS THE POINT.
+   *
+   * A choice recorded in a different vocabulary from `itemId` cannot be
+   * joined back to the item it names, and the whole record becomes
+   * unreadable — which is a defect you discover months later with no
+   * way to repair the history. So each writer converts at the write
+   * site, where the mapping is known, rather than leaving a reader to
+   * guess:
+   *
+   *   intervals        `chosen.id` is already the itemId; the row's own
+   *                    `direction` column applies to it unchanged,
+   *                    because the reader picks a name and the question
+   *                    fixes the direction. No-op.
+   *   key detection    `keyDetectionItemId(note)` — one call, and the
+   *                    same one that built `itemId`. It normalises the
+   *                    display spelling, so a G♭ on screen and an F♯
+   *                    identity do not become two items.
+   *   pattern question the row's `itemId` is `${id}-pattern`, so the
+   *                    chosen one is too. Stripping the suffix gives
+   *                    the catalog progression, exactly as it does for
+   *                    `itemId` itself.
+   *
+   * ABSENT rather than null when a drill has no single chosen item —
+   * a multi-slot transcription, or a shell whose options are answer
+   * TEXT with no item behind them. Absent means "this drill does not
+   * record a choice", which is a different fact from "the reader chose
+   * nothing", and neither should be inferred from the other.
+   * ---------------------------------------------------------------
+   *
+   * No schema change: the field is not indexed, so `attempts` keeps its
+   * existing `'id, timestamp, moduleId, [moduleId+itemId+direction]'`
+   * store definition, and the sync layer carries the whole row in its
+   * JSONB `data` blob rather than a column whitelist.
+   */
+  chosenItemId?: string;
 }
 
 export interface DailySummary {

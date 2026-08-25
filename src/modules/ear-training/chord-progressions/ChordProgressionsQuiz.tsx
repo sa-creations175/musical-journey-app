@@ -515,6 +515,13 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
         itemId: `${active.id}-pattern`,
         correct: isCorrect,
         timestamp,
+        // Suffixed to match THIS ROW'S vocabulary, not the catalog's.
+        // `itemId` here is the pattern sub-skill of a progression, so
+        // the chosen item is the pattern sub-skill of whichever
+        // progression was picked. Stripping `-pattern` gives the
+        // catalog id, exactly as it does for `itemId` itself — the two
+        // are read the same way or neither is.
+        chosenItemId: `${choiceId}-pattern`,
         ...(focusProtected ? { excludeFromFluency: true } : {}),
         // Measured from the SAME playback as the transcription above:
         // pattern recognition is a second question about one hearing,
