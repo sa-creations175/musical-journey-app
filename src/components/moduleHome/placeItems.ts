@@ -45,12 +45,15 @@ export function placeItems(
 
   const colKeys = new Set(columnView.values.map(key));
   const rowKeys = new Set(rowView.values.map(key));
+  // A 1-D grid has no row FIELD, so every placed item shares the one
+  // row. Reading `axis[undefined]` would put everything in the tail.
+  const oneRow = spec.rows === undefined;
   const cells = new Map<string, Map<string, SkillRecord[]>>();
   const tail: SkillRecord[] = [];
 
   for (const item of items) {
     const c = item.axis?.[spec.columns.field];
-    const r = item.axis?.[spec.rows.field];
+    const r = oneRow ? rowView.values[0] : item.axis?.[spec.rows!.field];
     // Missing a coordinate, or carrying one the axis does not list —
     // both are tail. Extending the axis to fit would make the grid a
     // picture of the data rather than a claim about a known set.

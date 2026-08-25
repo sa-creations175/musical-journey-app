@@ -334,6 +334,10 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
       tags: ann?.tags ?? [],
       note: ann?.note,
       window: windowFrom(hfAttemptsByCard.get(card.id) ?? []),
+      // Carried straight through. The registry does not know what a
+      // key or a degree means here — only that the generator supplied
+      // coordinates and the grid will read them.
+      ...(card.axis ? { axis: card.axis } : {}),
     });
   }
 

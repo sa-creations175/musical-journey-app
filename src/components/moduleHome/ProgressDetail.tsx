@@ -18,7 +18,7 @@ import ProgressBar from '../ProgressBar';
 import { FALLBACK_INTERVAL_DAYS } from '../../lib/progressBar';
 import { TIER_BADGE_CLASS, TIER_BAR_CLASS, TIER_LABEL } from '../../lib/tier';
 import type { SkillRecord } from '../../modules/skills/registry';
-import { axisLabel, resolveView, type GridSpec } from './axis';
+import { SINGLE_ROW, axisLabel, resolveView, type GridSpec } from './axis';
 import { placeItems } from './placeItems';
 
 export interface ProgressDetailProps {
@@ -43,7 +43,9 @@ export default function ProgressDetail({
   const [openItem, setOpenItem] = useState<SkillRecord | null>(null);
 
   const columnView = grid ? resolveView(grid.columns, viewFor(grid.columns.field)) : null;
-  const rowView = grid ? resolveView(grid.rows, viewFor(grid.rows.field)) : null;
+  const rowView = grid
+    ? (grid.rows ? resolveView(grid.rows, viewFor(grid.rows.field)) : SINGLE_ROW)
+    : null;
 
   const placed = useMemo(
     () => placeItems(items, grid, columnView ?? { id: '', label: '', values: [] },
@@ -119,7 +121,7 @@ export default function ProgressDetail({
                 {g.rows.map(r => (
                   <tr key={String(r)} data-testid="grid-row" data-row={String(r)}>
                     <th className="sticky left-0 bg-white dark:bg-neutral-900 z-10 pr-2 py-1 text-right font-medium text-neutral-500 whitespace-nowrap">
-                      {axisLabel(grid.rows, r)}
+                      {grid.rows ? axisLabel(grid.rows, r) : ''}
                     </th>
                     {g.columns.map(c => {
                       const cell = g.cells.get(String(c))?.get(String(r)) ?? [];
@@ -168,7 +170,7 @@ export default function ProgressDetail({
             // does not vary by the grid's axes.
             <p className="text-[11px] text-neutral-500 mb-1.5">
               {placed.tail.length} item{placed.tail.length === 1 ? '' : 's'} with no
-              {' '}{grid?.columns.label} / {grid?.rows.label} coordinates
+              {' '}{grid?.columns.label}{grid?.rows ? ` / ${grid.rows.label}` : ''} coordinates
             </p>
           )}
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800 border border-black/[0.07] rounded-lg overflow-hidden">

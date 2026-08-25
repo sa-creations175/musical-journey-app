@@ -53,8 +53,20 @@ export interface AxisSpec {
 /** The grid for one category, or `null` where it has no axes. */
 export interface GridSpec {
   columns: AxisSpec;
-  rows: AxisSpec;
+  /**
+   * The second axis, when the category has one.
+   *
+   * ABSENT MEANS ONE ROW, not no grid. Several categories vary along a
+   * single dimension — twelve tritone pairs, a run of staff positions —
+   * and forcing a second axis on them would mean inventing one. A
+   * 12 x 1 strip of cells is the honest picture of a 1-D category, and
+   * it still colours, still opens an item, and still has a tail.
+   */
+  rows?: AxisSpec;
 }
+
+/** The single row a 1-D grid renders along. Its value never shows. */
+export const SINGLE_ROW: AxisView = { id: 'only', label: '', values: [''] };
 
 /**
  * Whether every view of an axis holds the same values.

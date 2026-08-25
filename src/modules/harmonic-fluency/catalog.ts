@@ -75,7 +75,31 @@ export interface Flashcard {
   explanation?: string;
   skillTag: string;
   visualHint?: VisualHint;
+  /**
+   * Where this card sits on its category's axes.
+   *
+   * =====================================================================
+   * SUPPLIED BY THE GENERATOR, NEVER PARSED BACK OUT OF THE ID.
+   *
+   * Ids here are POSITIONAL — `nn-7`, `tt-3`, `iv-12`. They are that way
+   * on purpose: an id is a stable handle for stored SM-2 state and user
+   * annotations, and three of these categories carry no recoverable
+   * structure in the id at all. Parsing one for a UI coordinate would
+   * make the id a schema, and then renumbering a generator would move a
+   * reader's progress.
+   *
+   * The generator already holds the values a moment before it writes the
+   * id. Taking them from there costs one line and cannot drift.
+   *
+   * OPTIONAL, AND ABSENT MEANS FLAT LIST. Every card without one still
+   * compiles and still renders — the progress-detail surface puts it in
+   * the tail rather than the grid. That is why the twenty hand-written
+   * progression cards need no invented coordinates.
+   * =====================================================================
+   */
+  axis?: Readonly<Record<string, string | number>>;
 }
+
 
 // --- Shared music theory tables ------------------------------------
 
@@ -109,6 +133,27 @@ const MAJOR_KEY_TONICS: Record<string, number> = {
   C: 0, G: 7, D: 2, A: 9, E: 4, B: 11, 'F#': 6,
   F: 5, Bb: 10, Eb: 3, Ab: 8, Db: 1,
 };
+
+/**
+ * The twelve major keys the harmonic-fluency generators work in, in the
+ * order they are declared.
+ *
+ * EXPORTED SO A GRID CAN READ IT RATHER THAN COLLECT IT. A grid never
+ * sorts its own axis, and deriving the key order from the cards present
+ * gives first-appearance order — an accident of the catalog walk.
+ *
+ * Not `FLAT_TWELVE`: these spell the sixth key F♯ where that list says
+ * G♭, and an axis whose values do not match the coordinates on the
+ * cards would silently drop a column into the tail.
+ */
+export const HF_MAJOR_KEYS: ReadonlyArray<string> = Object.keys(MAJOR_KEY_TONICS);
+
+/** 1–7. The list every degree axis reads, so no grid writes its own. */
+export const SCALE_DEGREES: ReadonlyArray<number> = [1, 2, 3, 4, 5, 6, 7];
+
+/** Semitone distances an interval card can span, 0–12. */
+export const INTERVAL_SEMITONES: ReadonlyArray<number> =
+  Array.from({ length: 13 }, (_, i) => i);
 
 const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const NOTE_NAMES_FLAT =  ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -258,6 +303,9 @@ function generateNamedNoteCards(): Flashcard[] {
       .map(d => scaleDegreeSpelled(p.key, d)).join(' ');
     return {
       id: `nn-${i + 1}`,
+      // Coordinates from the pair the generator is standing on, not
+      // from `nn-${i+1}`, which carries no key and no degree.
+      axis: { key: p.key, degree: p.degree },
       category: 'named-notes',
       categoryName: CATEGORY_LABELS['named-notes'],
       question: `In ${p.key} major, ${p.degree} of the scale = ?`,
@@ -312,6 +360,7 @@ function generateReversePivotCards(): Flashcard[] {
     );
     return {
       id: `rkp-${i + 1}`,
+      axis: { key: e.key, degree: e.degree },
       category: 'reverse-key-pivots',
       categoryName: CATEGORY_LABELS['reverse-key-pivots'],
       question: `${note} is the ${e.degree} of which major key?`,
@@ -359,6 +408,9 @@ function generateIntervalCards(): Flashcard[] {
     const decoyPool = INTERVAL_NAMES.filter(iv => iv.name !== correct).map(iv => iv.name);
     return {
       id: `iv-${i + 1}`,
+      // `dist` is the computed semitone span — the axis a reader
+      // actually compares intervals along.
+      axis: { from: p.from, to: p.to, semitones: dist },
       category: 'intervals',
       categoryName: CATEGORY_LABELS.intervals,
       question: `The interval from ${p.from} to ${p.to} ascending = ?`,
@@ -1513,6 +1565,7 @@ function generateTritonePairCards(): Flashcard[] {
     const altText = partnerAlt ? ` (= ${partnerAlt})` : '';
     cards.push({
       id: `tt-${i++}`,
+      axis: { note, partner },
       category: 'tritone-pairs',
       categoryName: CATEGORY_LABELS['tritone-pairs'],
       question: `Tritone of ${note}?`,
@@ -1529,12 +1582,15 @@ function generateTritonePairCards(): Flashcard[] {
   return cards;
 }
 
-function generateEnharmonicEquivalentCards(): Flashcard[] {
-  const cards: Flashcard[] = [];
-  let i = 1;
-
-  // Note-name equivalents — same pitch, two spellings. [a, b, context]
-  const notePairs: Array<[string, string, string]> = [
+/**
+ * The enharmonic note pairs, at module scope so the axis order can
+ * read them.
+ *
+ * MOVED OUT OF THE GENERATOR RATHER THAN COPIED BESIDE THE GRID. A
+ * second list of the same spellings is how a grid comes to show a
+ * column no card can land in.
+ */
+export const ENHARMONIC_NOTE_PAIRS: ReadonlyArray<[string, string, string]> = [
     ['Ab', 'G#', 'Ab in flat keys (Eb/Ab/Db major); G# in sharp keys (A/E/B major).'],
     ['Bb', 'A#', 'Bb in flat keys; A# only in sharp keys (B / F# major).'],
     ['Db', 'C#', 'Db in flat keys (Ab/Db/Gb); C# in sharp keys (D/A/E major).'],
@@ -1544,10 +1600,44 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
     ['Cb', 'B', 'Cb is B re-spelled — the 4th of Gb major and other flat-key contexts.'],
     ['E#', 'F', 'E# is F re-spelled — the 3rd of C# major / raised degrees.'],
     ['Fb', 'E', 'Fb is E re-spelled — appears in heavily-flat keys and lowered degrees.'],
-  ];
+];
+
+/** The enharmonic degree groups, at module scope for the same
+ *  reason as the note pairs above. */
+export const ENHARMONIC_INTERVAL_GROUPS:
+  ReadonlyArray<{ members: readonly string[]; context: string }> = [
+    { members: ['2', '9'], context: 'Same pitch an octave apart — "2" in sus/add voicings, "9" in extended (9th / 13th) chords.' },
+    { members: ['b2', 'b9'], context: 'b2 for a Phrygian / sus flavour; b9 as the altered-dominant tension. Same pitch, different role.' },
+    { members: ['#2', 'b3', '#9'], context: 'All the minor-third pitch: b3 as the chord’s third, #2 as a raised-2nd passing tone, #9 as the "Hendrix" altered-dominant tension. Context decides the spelling.' },
+    { members: ['4', '11'], context: 'Same pitch an octave apart — "4" in sus/add voicings, "11" in extended chords.' },
+    { members: ['#4', 'b5', '#11'], context: 'The tritone: #4 (Lydian, raising the 4th), b5 (altered dominant / half-diminished, lowering the 5th), #11 (the extended-chord name). Context decides the spelling.' },
+    { members: ['6', '13'], context: 'Same pitch an octave apart — "6" in sixth chords, "13" in extended dominants.' },
+    { members: ['b6', '#5', 'b13'], context: 'The augmented-fifth sound: #5 (augmented / altered dominant), b6 (minor / borrowed), b13 (the extended-dominant name). Context decides the spelling.' },
+];
+
+/**
+ * Every spelling the enharmonic cards ask about, in generation
+ * order: both halves of each note pair, then each degree group's
+ * members. DERIVED from the two lists above, so a spelling cannot
+ * exist on a card and be missing from the axis.
+ */
+export const ENHARMONIC_SPELLINGS: ReadonlyArray<string> = [
+  ...ENHARMONIC_NOTE_PAIRS.flatMap(([x, y]) => [x, y]),
+  ...ENHARMONIC_INTERVAL_GROUPS.flatMap(g => g.members),
+];
+
+function generateEnharmonicEquivalentCards(): Flashcard[] {
+  const cards: Flashcard[] = [];
+  let i = 1;
+
+  // Note-name equivalents — same pitch, two spellings. [a, b, context]
+  const notePairs = ENHARMONIC_NOTE_PAIRS;
   for (const [x, y, ctx] of notePairs) {
     cards.push({
       id: `enh-n-${i++}`,
+      // `spelling` is the note being ASKED about, so the two cards of a
+      // pair sit in different cells rather than colliding in one.
+      axis: { spelling: x, equivalent: y, kind: 'note' },
       category: 'enharmonic-equivalents',
       categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
       question: `Enharmonic equivalent of ${x}?`,
@@ -1558,6 +1648,7 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
     });
     cards.push({
       id: `enh-n-${i++}`,
+      axis: { spelling: y, equivalent: x, kind: 'note' },
       category: 'enharmonic-equivalents',
       categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
       question: `Enharmonic equivalent of ${y}?`,
@@ -1616,20 +1707,15 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
       count: DECOY_COUNT, seed, label: seed, category: 'enharmonic-equivalents',
     });
   };
-  const intervalGroups: Array<{ members: string[]; context: string }> = [
-    { members: ['2', '9'], context: 'Same pitch an octave apart — "2" in sus/add voicings, "9" in extended (9th / 13th) chords.' },
-    { members: ['b2', 'b9'], context: 'b2 for a Phrygian / sus flavour; b9 as the altered-dominant tension. Same pitch, different role.' },
-    { members: ['#2', 'b3', '#9'], context: 'All the minor-third pitch: b3 as the chord’s third, #2 as a raised-2nd passing tone, #9 as the "Hendrix" altered-dominant tension. Context decides the spelling.' },
-    { members: ['4', '11'], context: 'Same pitch an octave apart — "4" in sus/add voicings, "11" in extended chords.' },
-    { members: ['#4', 'b5', '#11'], context: 'The tritone: #4 (Lydian, raising the 4th), b5 (altered dominant / half-diminished, lowering the 5th), #11 (the extended-chord name). Context decides the spelling.' },
-    { members: ['6', '13'], context: 'Same pitch an octave apart — "6" in sixth chords, "13" in extended dominants.' },
-    { members: ['b6', '#5', 'b13'], context: 'The augmented-fifth sound: #5 (augmented / altered dominant), b6 (minor / borrowed), b13 (the extended-dominant name). Context decides the spelling.' },
-  ];
+  const intervalGroups = ENHARMONIC_INTERVAL_GROUPS;
   for (const { members, context } of intervalGroups) {
     for (const m of members) {
       const answer = members.filter(x => x !== m).join(' / ');
       cards.push({
         id: `enh-i-${i++}`,
+        // `members.join('/')` names the GROUP the degree belongs to —
+        // the row every spelling of one pitch shares.
+        axis: { spelling: m, group: members.join('/'), kind: 'interval' },
         category: 'enharmonic-equivalents',
         categoryName: CATEGORY_LABELS['enharmonic-equivalents'],
         question: `Enharmonic equivalent of ${m}?`,
