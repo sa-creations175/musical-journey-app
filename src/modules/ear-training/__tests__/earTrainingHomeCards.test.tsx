@@ -24,6 +24,7 @@ import {
   INTERVAL_SEEDS, intervalCountSummary, intervalItemRefs,
 } from '../intervals/seed';
 import { moduleMetaById } from '../../../lib/moduleMeta';
+import { CARD_ACTION_LABEL } from '../../../components/moduleHome/CategoryCard';
 import type { AttemptRecord } from '../../../lib/db';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -88,14 +89,18 @@ describe('the page runs no drill', () => {
     expect(labels.some(t => t.includes('start'))).toBe(false);
   });
 
-  it('calls the action "open module" rather than "drill category"', async () => {
-    // It lands on a page with a play button, not on a question. Naming
-    // it "drill" would promise something this page cannot deliver.
+  it('calls the action what every other card calls it', async () => {
+    // WAS "open module rather than drill category". Both are gone: one
+    // action, one label, on every module home — three wordings for
+    // "open the thing this card is about" made the reader check
+    // whether they were three actions.
     const el = await renderPage();
-    await click(card(el, 'intervals').querySelector('[data-testid="category-card-toggle"]')!);
-    const btn = card(el, 'intervals')
-      .querySelector('[data-testid="category-card-drill"]')!;
-    expect(btn.textContent).toBe('open module');
+    const card = el.querySelector('[data-card-key="intervals"]')!;
+    await act(async () => {
+      (card.querySelector('[data-testid="category-card-toggle"]') as HTMLElement).click();
+    });
+    const btn = card.querySelector('[data-testid="category-card-drill"]')!;
+    expect(btn.textContent).toBe(CARD_ACTION_LABEL);
   });
 });
 

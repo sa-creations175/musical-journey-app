@@ -115,7 +115,6 @@ export default function ShapesAndPatterns() {
         cards={cards}
         moduleId={SHAPES_MODULE_ID}
         onDrill={key => { if (isShapesSectionId(key)) setTab(key); }}
-        drillLabel="open drills"
         now={now}
       />
 

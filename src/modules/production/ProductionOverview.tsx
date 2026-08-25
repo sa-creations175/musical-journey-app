@@ -130,7 +130,6 @@ export default function ProductionOverview({
           if (key === VOCABULARY_CARD_KEY) onOpenVocabulary();
           else if (isProductionPathKey(key)) onOpenPath(key);
         }}
-        drillLabel="open"
         now={now}
       />
 

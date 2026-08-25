@@ -55,6 +55,17 @@ import type { CategoryCardModel } from './model';
  */
 const CARD_MIN_HEIGHT = 'min-h-[6.5rem]';
 
+/**
+ * What a card's action says, on every module home.
+ *
+ * ONE LABEL, DEFINED ONCE. It was per module — "drill category", "open
+ * module", "open drills" — on the reasoning that each module's action
+ * differed. It does not: every one of them opens the thing the card is
+ * about. Three wordings for one action just made the reader check
+ * whether they were three actions.
+ */
+export const CARD_ACTION_LABEL = 'Open';
+
 export interface CategoryCardProps {
   card: CategoryCardModel;
   /** The MODULE's accent, from `moduleMeta`. */
@@ -63,9 +74,7 @@ export interface CategoryCardProps {
   onToggle: () => void;
   /** What "drill category" does here. Set by the adapter's module. */
   onDrill: () => void;
-  /** Named per module only where the action genuinely differs — see the
-   *  report for why ear training's cannot honestly say "drill". */
-  drillLabel?: string;
+
   /** Opens progress detail. Omitted where the module has no detail
    *  surface yet — the button then renders disabled rather than
    *  wired to nothing. */
@@ -74,8 +83,7 @@ export interface CategoryCardProps {
 }
 
 export default function CategoryCard({
-  card, accentHex, expanded, onToggle, onDrill, drillLabel = 'drill category',
-  onProgressDetail, now,
+  card, accentHex, expanded, onToggle, onDrill, onProgressDetail, now,
 }: CategoryCardProps) {
   // The unrated state is `barSegments`' own — "3 of 5 attempts" — not a
   // second empty-state branch. See the header of lib/progressBar.
@@ -216,7 +224,7 @@ export default function CategoryCard({
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
               style={{ backgroundColor: accentHex }}
             >
-              {drillLabel}
+              {CARD_ACTION_LABEL}
             </button>
             {/* STILL DISABLED WHERE THERE IS NOTHING TO OPEN. A module
                 without a detail surface gets an obviously inert button
