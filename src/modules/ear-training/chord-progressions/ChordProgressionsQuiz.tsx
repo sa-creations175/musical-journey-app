@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { filterSize } from '../../../lib/drillFilter';
+import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt, bulkAddAttempts } from '../../../lib/practiceWrites';
@@ -91,6 +93,11 @@ type LoopCount = 1 | 2 | 3 | 4 | 99;
 
 interface Props {
   attempts: AttemptRecord[];
+  /** `id|direction`-free progression ids to open narrowed on. The gap
+   *  this closes: the state existed and nothing could set it, so a
+   *  dashboard row tap could not arm focus here the way it does in the
+   *  other three drills. */
+  initialFocusKeys?: readonly string[];
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -109,7 +116,7 @@ function songSearchUrl(service: 'spotify' | 'youtube', title: string, artist: st
     : `https://www.youtube.com/results?search_query=${q}`;
 }
 
-export default function ChordProgressionsQuiz({ attempts }: Props) {
+export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Props) {
   const [spelling] = useSpelling();
   // --- Persisted config ------------------------------------------------
   const [key, setKeyState] = useState<string>('C');
@@ -176,8 +183,12 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
   const [replayedInReveal, setReplayedInReveal] = useState(false);
 
   const [showFocusPanel, setShowFocusPanel] = useState(false);
-  const [focusActive, setFocusActive] = useState(false);
-  const [focusKeys, setFocusKeys] = useState<string[]>([]);
+  const [focusActive, setFocusActive] = useState(
+    (initialFocusKeys?.length ?? 0) > 0,
+  );
+  const [focusKeys, setFocusKeys] = useState<string[]>(
+    initialFocusKeys ? [...initialFocusKeys] : [],
+  );
 
   const persistedFocus = useLiveQuery(
     async () => getPref<string[]>(PREF_FOCUS, []),
@@ -223,11 +234,21 @@ export default function ChordProgressionsQuiz({ attempts }: Props) {
     return PROGRESSIONS.filter(p => p.tier === tierFilter);
   }, [focusActive, focusKeys, tierFilter]);
 
-  // Focus sessions with fewer than 4 items don't truly test fluency —
-  // the user knows what's coming. Attempts still log so the calendar
-  // and daily goal keep working, but the rolling-window tier math
-  // ignores them.
-  const focusProtected = focusActive && focusKeys.length < 4;
+  /**
+   * Focus sessions below the pool minimum don't truly test fluency —
+   * the reader knows what is coming. Attempts still log so the calendar
+   * and daily goal keep working; only the rolling-window tier math
+   * ignores them.
+   *
+   * COUNTED THROUGH `filterSize`, WHICH DEDUPES, and against the shared
+   * `FLUENCY_POOL_MINIMUM` rather than a literal 4. Both were wrong
+   * here and right everywhere else: `focusKeys.length` counts a key
+   * twice if it appears twice, so two keys naming one progression read
+   * as a pool of two — the exact defect chord recognition's own comment
+   * says it fixed by sizing the resolved pool instead.
+   */
+  const focusPoolSize = filterSize({ keys: focusKeys, source: 'panel' });
+  const focusProtected = focusActive && focusPoolSize < FLUENCY_POOL_MINIMUM;
 
   const tierForProg = (id: string): ReturnType<typeof computeTier> => {
     const keyed = groupedAttempts.get(id) ?? [];

@@ -7,6 +7,7 @@ import DailyGoalBar from '../../../components/DailyGoalBar';
 import { getPref, setPref } from '../../../lib/userPrefs';
 import { useUrlTabSync } from '../../../lib/useUrlTabSync';
 import ChordProgressionsQuiz from './ChordProgressionsQuiz';
+import { isNarrowed, useDrillFilter } from '../../../lib/drillFilter';
 import KeyDetectionTab from './KeyDetectionTab';
 import ChordMotionTab from './ChordMotionTab';
 import ProgressionFluencyTracker from './ProgressionFluencyTracker';
@@ -41,6 +42,7 @@ const TABS: Array<{ id: TabId; label: string; hint: string }> = [
 const DEFAULT_TAB: TabId = 'full-progression';
 
 export default function ChordProgressions() {
+  const filter = useDrillFilter(MODULE_ID);
   const [params] = useSearchParams();
   /** A tab named in the URL, if one is. */
   const urlTab = useMemo(() => {
@@ -48,15 +50,15 @@ export default function ChordProgressions() {
     return raw && isTabId(raw) ? raw : null;
   }, [params]);
   /** `?focus=motion:1-b2-asc,…` — a dashboard row tap on a chord
-   *  motion row. Only Chord Motion reads a pool, which is why the tap
-   *  sends the tab as well: a pool that lands on another tab is a drill
-   *  silently ignoring what it was asked for. */
-  const focusKeys = useMemo(() => {
-    const raw = params.get('focus');
-    if (!raw) return undefined;
-    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
-    return keys.length > 0 ? keys : undefined;
-  }, [params]);
+   *  motion row. The tap sends the tab as well: a pool that lands on
+   *  another tab is a drill silently ignoring what it was asked for.
+   *
+   *  THE SAME FILTER FEEDS BOTH TABS. This page carried its own parse
+   *  for Chord Motion — the SIXTH copy, not the fifth — while the full
+   *  progression quiz had focus state nothing could set. One hook now
+   *  serves both, which is what makes them agree about what `?focus=`
+   *  means on this route. */
+  const focusKeys = isNarrowed(filter) ? filter.keys : undefined;
 
   const [tab, setTab] = useState<TabId>(urlTab ?? DEFAULT_TAB);
   const [tabHydrated, setTabHydrated] = useState(false);
@@ -139,7 +141,12 @@ export default function ChordProgressions() {
           {...(focusKeys ? { initialFocusKeys: focusKeys } : {})}
         />
       )}
-      {tab === 'full-progression' && <ChordProgressionsQuiz attempts={attempts} />}
+      {tab === 'full-progression' && (
+        <ChordProgressionsQuiz
+          attempts={attempts}
+          {...(isNarrowed(filter) ? { initialFocusKeys: filter.keys } : {})}
+        />
+      )}
 
       <ProgressionFluencyTracker attempts={attempts} />
 

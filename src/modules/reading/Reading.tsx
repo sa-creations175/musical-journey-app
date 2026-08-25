@@ -20,8 +20,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { isNarrowed, useDrillFilter } from '../../lib/drillFilter';
 import ReadingDrill from './ReadingDrill';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ProgressDetail from '../../components/moduleHome/ProgressDetail';
@@ -37,19 +37,22 @@ import { READING_MODULE_ID, isReadingCardKey, readingCards } from './homeCards';
 import type { ReadingDrillSkill } from './pickCard';
 
 export default function Reading() {
-  const [params] = useSearchParams();
   /**
    * `?focus=ref,ref` — the dashboard sending you here from a tapped
    * row. The skill opens on whichever one those refs belong to, so
    * tapping "conceptual knowledge" for D major lands in the signatures
    * drill rather than on the default note tab.
    */
-  const focusRefs = useMemo(() => {
-    const raw = params.get('focus');
-    if (!raw) return undefined;
-    const refs = raw.split(',').map(r => r.trim()).filter(Boolean);
-    return refs.length > 0 ? refs : undefined;
-  }, [params]);
+  /**
+   * `?focus=ref,ref` — the dashboard sending you here from a tapped
+   * row. The skill opens on whichever one those refs belong to, so
+   * tapping "conceptual knowledge" for D major lands in the signatures
+   * drill rather than on the default note tab.
+   *
+   * ONE HOOK — see lib/drillFilter.ts.
+   */
+  const filter = useDrillFilter(READING_MODULE_ID);
+  const focusRefs = isNarrowed(filter) ? filter.keys : undefined;
   const focusSkill = focusRefs
     ? readingSkillForItemRef(focusRefs[0]) ?? undefined
     : undefined;

@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { isNarrowed, useDrillFilter } from '../../../lib/drillFilter';
 import { db } from '../../../lib/db';
 import { seedIntervals } from './seed';
 import IntervalsQuiz from './IntervalsQuiz';
@@ -11,15 +12,10 @@ import DailyGoalBar from '../../../components/DailyGoalBar';
 const MODULE_ID = 'intervals';
 
 export default function Intervals() {
-  const [params] = useSearchParams();
-  /** `?focus=M3|asc,m7|desc` — a dashboard row tap. Opens the quiz
-   *  already in focus mode over exactly those intervals. */
-  const focusKeys = useMemo(() => {
-    const raw = params.get('focus');
-    if (!raw) return undefined;
-    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
-    return keys.length > 0 ? keys : undefined;
-  }, [params]);
+  /** `?focus=` — a dashboard row tap, opening the quiz already
+   *  narrowed. ONE HOOK, not a sixth copy of the parse: see
+   *  lib/drillFilter.ts for the five this replaced. */
+  const filter = useDrillFilter('intervals');
 
   useEffect(() => {
     seedIntervals();
@@ -54,7 +50,7 @@ export default function Intervals() {
           <IntervalsQuiz
             intervals={intervals}
             attempts={attempts}
-            {...(focusKeys ? { initialFocusKeys: focusKeys } : {})}
+            {...(isNarrowed(filter) ? { initialFocusKeys: filter.keys } : {})}
           />
           <FluencyTracker intervals={intervals} attempts={attempts} />
         </>

@@ -230,18 +230,45 @@ export default function ReadingDrill({
     return own.length > 0 ? own : null;
   }, [focusRefs, skill]);
 
+  /**
+   * The pool, READ AT PICK TIME.
+   *
+   * =====================================================================
+   * A REF, BECAUSE A DEPENDENCY HERE DISCARDS THE CARD ON SCREEN.
+   *
+   * `next` used to depend on `focusPool`, and the effect below runs
+   * whenever `next` changes — so narrowing the filter replaced the
+   * question mid-answer. The remount key was never the problem: it is
+   * `skill` and nothing else. This was.
+   *
+   * It did not matter while narrowing lived behind a modal, because
+   * changing the pool and starting a new card were the same gesture.
+   * A filter strip makes it one tap during a question, and then the
+   * card you were part-way through answering vanishes for no reason a
+   * reader can see.
+   *
+   * So the filter applies to the NEXT card, matching IntervalsQuiz,
+   * which reads `focusKeysRef.current` inside `buildCandidates` for the
+   * same reason.
+   * =====================================================================
+   */
+  const focusPoolRef = useRef(focusPool);
+  focusPoolRef.current = focusPool;
+
   const next = useCallback(() => {
+    const pool = focusPoolRef.current;
     setCard(
-      focusPool
-        ? optionsForItem(focusPool[Math.floor(Math.random() * focusPool.length)])
+      pool
+        ? optionsForItem(pool[Math.floor(Math.random() * pool.length)])
         : pickCard(skill),
     );
     setAnswer(EMPTY);
     setSubmitted(false);
     shownAt.current = Date.now();
-  }, [skill, focusPool]);
+  }, [skill]);
 
-  // A skill change is a new drill, not a continuation.
+  // A SKILL change is a new drill, not a continuation. A FILTER change
+  // is neither — it lands on the next card.
   useEffect(() => { next(); }, [next]);
 
   const resolved = useMemo(

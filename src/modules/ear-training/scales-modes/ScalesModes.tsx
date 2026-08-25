@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { isNarrowed, useDrillFilter } from '../../../lib/drillFilter';
 import { db } from '../../../lib/db';
 import ModuleIntro from '../../../components/ModuleIntro';
 import DailyGoalBar from '../../../components/DailyGoalBar';
@@ -46,12 +47,10 @@ export default function ScalesModes() {
    * focus set and the skill travels as the tab. A mode row covers both
    * and sends no tab, which lands on whichever was already open.
    */
-  const focusKeys = useMemo(() => {
-    const raw = params.get('focus');
-    if (!raw) return undefined;
-    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
-    return keys.length > 0 ? keys : undefined;
-  }, [params]);
+  /** `?focus=dorian,phrygian&tab=vamp` — a dashboard row tap.
+   *  ONE HOOK — see lib/drillFilter.ts. */
+  const filter = useDrillFilter('scales-modes');
+  const focusKeys = isNarrowed(filter) ? filter.keys : undefined;
 
   const [tab, setTab] = useState<Tab>(() => {
     const raw = params.get('tab');

@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { isNarrowed, useDrillFilter } from '../../../lib/drillFilter';
 import { db } from '../../../lib/db';
 import { seedChordQualities } from './seed';
 import { migrateChordRecognitionInversionItemIds } from './inversionMigration';
@@ -12,17 +13,14 @@ import DailyGoalBar from '../../../components/DailyGoalBar';
 const MODULE_ID = 'chord-recognition';
 
 export default function ChordRecognition() {
-  const [params] = useSearchParams();
   /** `?focus=maj7,min7` — a dashboard row tap. Opens the quiz already
    *  in focus mode over exactly those chords. Bare chord ids: the
    *  dashboard folds a row's inversion refs before sending, because
-   *  the pool filter matches on the chord. */
-  const focusKeys = useMemo(() => {
-    const raw = params.get('focus');
-    if (!raw) return undefined;
-    const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
-    return keys.length > 0 ? keys : undefined;
-  }, [params]);
+   *  the pool filter matches on the chord.
+   *
+   *  ONE HOOK, not a sixth copy of the parse — see lib/drillFilter.ts
+   *  for the five near-identical blocks this replaced. */
+  const filter = useDrillFilter('chord-recognition');
 
   useEffect(() => {
     seedChordQualities();
@@ -60,7 +58,7 @@ export default function ChordRecognition() {
           <ChordRecognitionQuiz
             chords={chords}
             attempts={attempts}
-            {...(focusKeys ? { initialFocusKeys: focusKeys } : {})}
+            {...(isNarrowed(filter) ? { initialFocusKeys: filter.keys } : {})}
           />
           <ChordFluencyTracker chords={chords} attempts={attempts} />
         </>
