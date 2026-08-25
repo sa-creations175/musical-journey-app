@@ -31,7 +31,6 @@ import { readSectionChips } from './sectionChips';
 import {
   STAGES,
   STAGE_LABEL,
-  evaluateAdvancement,
   deriveStage,
   freshnessFor,
   humanAgo,
@@ -260,19 +259,6 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         dueWindows: windowsFrom(spacing),
         spelling: resolveSpelling(song.spelling, globalSpelling),
       });
-      const advancement = evaluateAdvancement({
-        currentStage: derivedStage,
-        songKeys: keysBySong.get(song.id) ?? [],
-        keyRunThroughs: runsBySong.get(song.id) ?? [],
-        performanceTempo: song.tempo ?? null,
-        now: advancementNow,
-        dueByKeyId: dueMap,
-        dueWindows: windowsFrom(spacing),
-        // Per song, not per page: this is a list, so the hook cannot be
-        // called per row — `resolveSpelling` is the same rule
-        // `useSongSpelling` applies, in its pure form.
-        spelling: resolveSpelling(song.spelling, globalSpelling),
-      });
       // Rolled up from the SAME dueMap the stage rules just read, so
       // the card and the badge beside it cannot disagree about whether
       // a key is late.
@@ -293,7 +279,6 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
       return {
         song, lastPractisedAt, freshness, derivedStage, due,
         spelling: resolveSpelling(song.spelling, globalSpelling),
-        readyToAdvance: advancement.suggest,
         sectionReading,
       };
     });
@@ -314,7 +299,6 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
   const needsAttentionCount = perSong.filter(
     p => p.freshness === 'aging' || p.freshness === 'stale',
   ).length;
-  const readyToAdvanceCount = perSong.filter(p => p.readyToAdvance).length;
 
   const sortedSongs = useMemo(() => {
     const rows = [...perSong];
@@ -390,7 +374,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
   // Stage one-liner formatted for humans.
   const stageLine = STAGES.map(s => `${STAGE_LABEL[s]}: ${stageCounts[s] ?? 0}`).join(' · ');
 
-  const hasCallouts = needsAttentionCount > 0 || readyToAdvanceCount > 0;
+  const hasCallouts = needsAttentionCount > 0;
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-4">
@@ -429,15 +413,11 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
               </span>
             </div>
           )}
-          {readyToAdvanceCount > 0 && (
-            <div className="inline-flex items-center gap-2 rounded-md border border-fluent/30 bg-fluent/10 text-fluent px-3 py-1.5 ml-0 sm:ml-2">
-              <span aria-hidden>✨</span>
-              <span>
-                <span className="font-medium font-mono tabular-nums">{readyToAdvanceCount}</span>{' '}
-                ready to advance
-              </span>
-            </div>
-          )}
+          {/* NO "READY TO ADVANCE" COUNT. Advancing is not a thing you
+              do any more — `deriveStage` puts a song on the highest rung
+              its evidence earns, so meeting the criteria IS the
+              promotion. The count could only ever have been zero; see
+              the note on `readyToAdvance` in SongCard. */}
         </div>
       )}
 
@@ -477,7 +457,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
             strategy={verticalListSortingStrategy}
           >
             <div className="space-y-2">
-              {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage, due, spelling, sectionReading }) => (
+              {sortedSongs.map(({ song, lastPractisedAt, freshness, derivedStage, due, spelling, sectionReading }) => (
                 <SortableSongRow
                   key={song.id}
                   song={song}
@@ -485,7 +465,6 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
                   lastPractisedLabel={humanAgo(lastPractisedAt)}
                   addedLabel={formatAddedDate(song.addedDate)}
                   freshness={freshness}
-                  readyToAdvance={readyToAdvance}
                   stage={derivedStage}
                   due={due}
                   spelling={spelling}
@@ -498,7 +477,7 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         </DndContext>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {sortedSongs.map(({ song, lastPractisedAt, freshness, readyToAdvance, derivedStage, due, spelling, sectionReading }) => (
+          {sortedSongs.map(({ song, lastPractisedAt, freshness, derivedStage, due, spelling, sectionReading }) => (
             <SongCard
               key={song.id}
               song={song}
@@ -506,7 +485,6 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
               lastPractisedLabel={humanAgo(lastPractisedAt)}
               addedLabel={formatAddedDate(song.addedDate)}
               freshness={freshness}
-              readyToAdvance={readyToAdvance}
               stage={derivedStage}
               due={due}
               spelling={spelling}

@@ -44,7 +44,6 @@ export interface SongCardProps {
   lastPractisedLabel: string;
   addedLabel: string;
   freshness: Freshness;
-  readyToAdvance?: boolean;
   /** The DERIVED stage, passed in rather than read off the song. The
    *  song row carries a watermark of the last derivation, and a card
    *  reading that directly would show a stale rung for one paint after
@@ -76,7 +75,6 @@ export default function SongCard({
   lastPractisedLabel,
   addedLabel,
   freshness,
-  readyToAdvance,
   stage,
   due,
   spelling,
@@ -116,14 +114,17 @@ export default function SongCard({
             fact the matrix already names, and two names for one fact
             is how a reader starts wondering whether they are two. */}
         {due !== null && <DueChip due={due} spelling={spelling} />}
-        {readyToAdvance && (
-          <span
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 border border-fluent/30 bg-fluent/10 text-fluent"
-            title="meets criteria to advance — decide in song detail"
-          >
-            ✨ ready
-          </span>
-        )}
+        {/* THE "✨ ready" BADGE IS GONE, and it was never once seen.
+            It rendered when the criteria for leaving the current rung
+            were all met — but `deriveStage` returns the FIRST rung whose
+            criteria are not all met, so for the derived stage this card
+            is handed, "all met" is false by construction. Meeting the
+            criteria IS the promotion now; there has been nothing to be
+            ready for since the advance button was deleted.
+
+            Nothing replaces it. `StageCriteriaPanel` on the song page
+            already shows which criteria are outstanding, which is the
+            question this badge was gesturing at. */}
         {song.key && (
           <span className="text-neutral-500">
             key <span className="font-mono">{song.key}</span>
