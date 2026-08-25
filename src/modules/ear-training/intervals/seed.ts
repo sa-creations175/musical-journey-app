@@ -2,10 +2,30 @@ import { db, type IntervalData } from '../../../lib/db';
 
 export type PlayDirection = 'asc' | 'desc';
 
+/**
+ * How consonant an interval sounds, heard on its own.
+ *
+ * A property of the INTERVAL, not a control in a drill — which is why
+ * it lives on the catalog item rather than in a lookup table beside
+ * whatever UI happens to need it first. Direction is deliberately not
+ * part of this: a major 6th is imperfect whether it rises or falls.
+ */
+export type Consonance = 'perfect' | 'imperfect' | 'dissonant';
+
+/**
+ * How far apart the two notes are, in the coarse bands a reader
+ * actually hears — not the semitone count, which `semitones` already
+ * holds exactly.
+ */
+export type Distance = 'near' | 'middle' | 'far';
+
 export type IntervalSeed = Pick<
   IntervalData,
   'id' | 'name' | 'semitones' | 'ascAnchorDefault' | 'descAnchorDefault'
->;
+> & {
+  consonance: Consonance;
+  distance: Distance;
+};
 
 /**
  * Which directions an interval is actually drilled in.
@@ -68,19 +88,36 @@ export const INTERVAL_SEEDS: IntervalSeed[] = [
   // No `descAnchorDefault`: see `directionsFor`. The retired anchor was
   // "Same note, step down", which describes a minor 2nd rather than the
   // two identical notes the drill actually played.
-  { id: 'P1', name: 'Unison',       semitones: 0,  ascAnchorDefault: 'Same note held twice' },
-  { id: 'm2', name: 'Minor 2nd',    semitones: 1,  ascAnchorDefault: 'Jaws theme',                      descAnchorDefault: 'Joy to the World opening' },
-  { id: 'M2', name: 'Major 2nd',    semitones: 2,  ascAnchorDefault: 'Happy Birthday (first 2 notes)',  descAnchorDefault: 'Mary Had a Little Lamb' },
-  { id: 'm3', name: 'Minor 3rd',    semitones: 3,  ascAnchorDefault: 'Smoke on the Water',              descAnchorDefault: 'Hey Jude (Hey-Jude)' },
-  { id: 'M3', name: 'Major 3rd',    semitones: 4,  ascAnchorDefault: 'Oh When the Saints',              descAnchorDefault: 'Swing Low Sweet Chariot' },
-  { id: 'P4', name: 'Perfect 4th',  semitones: 5,  ascAnchorDefault: 'Here Comes the Bride',            descAnchorDefault: 'Oh Come All Ye Faithful' },
-  { id: 'TT', name: 'Tritone',      semitones: 6,  ascAnchorDefault: 'The Simpsons theme',              descAnchorDefault: 'Maria (West Side Story)' },
-  { id: 'P5', name: 'Perfect 5th',  semitones: 7,  ascAnchorDefault: 'Star Wars theme',                 descAnchorDefault: 'Flintstones theme' },
-  { id: 'm6', name: 'Minor 6th',    semitones: 8,  ascAnchorDefault: 'The Entertainer',                 descAnchorDefault: 'Love Story theme' },
-  { id: 'M6', name: 'Major 6th',    semitones: 9,  ascAnchorDefault: 'My Bonnie Lies Over the Ocean',   descAnchorDefault: 'Nobody Knows the Trouble' },
-  { id: 'm7', name: 'Minor 7th',    semitones: 10, ascAnchorDefault: 'Somewhere (West Side Story)',     descAnchorDefault: 'Watermelon Man intro' },
-  { id: 'M7', name: 'Major 7th',    semitones: 11, ascAnchorDefault: 'Take on Me (synth)',              descAnchorDefault: 'I Love You (Cole Porter)' },
-  { id: 'P8', name: 'Octave',       semitones: 12, ascAnchorDefault: 'Somewhere Over the Rainbow',      descAnchorDefault: 'Willow Weep for Me' },
+  { id: 'P1', name: 'Unison',       semitones: 0,  ascAnchorDefault: 'Same note held twice',
+    consonance: 'perfect', distance: 'near' },
+  { id: 'm2', name: 'Minor 2nd',    semitones: 1,  ascAnchorDefault: 'Jaws theme',                      descAnchorDefault: 'Joy to the World opening',
+    consonance: 'dissonant', distance: 'near' },
+  { id: 'M2', name: 'Major 2nd',    semitones: 2,  ascAnchorDefault: 'Happy Birthday (first 2 notes)',  descAnchorDefault: 'Mary Had a Little Lamb',
+    consonance: 'dissonant', distance: 'near' },
+  { id: 'm3', name: 'Minor 3rd',    semitones: 3,  ascAnchorDefault: 'Smoke on the Water',              descAnchorDefault: 'Hey Jude (Hey-Jude)',
+    consonance: 'imperfect', distance: 'near' },
+  { id: 'M3', name: 'Major 3rd',    semitones: 4,  ascAnchorDefault: 'Oh When the Saints',              descAnchorDefault: 'Swing Low Sweet Chariot',
+    consonance: 'imperfect', distance: 'near' },
+  { id: 'P4', name: 'Perfect 4th',  semitones: 5,  ascAnchorDefault: 'Here Comes the Bride',            descAnchorDefault: 'Oh Come All Ye Faithful',
+    // PERFECT, NOT DISSONANT, AND THAT IS NOT A SLIP. Counterpoint
+    // calls a 4th above the bass a dissonance; this drill plays two
+    // notes alone, so there is no bass and that condition never
+    // arises. On its own a 4th is a 4:3 ratio and consonant.
+    consonance: 'perfect', distance: 'middle' },
+  { id: 'TT', name: 'Tritone',      semitones: 6,  ascAnchorDefault: 'The Simpsons theme',              descAnchorDefault: 'Maria (West Side Story)',
+    consonance: 'dissonant', distance: 'middle' },
+  { id: 'P5', name: 'Perfect 5th',  semitones: 7,  ascAnchorDefault: 'Star Wars theme',                 descAnchorDefault: 'Flintstones theme',
+    consonance: 'perfect', distance: 'middle' },
+  { id: 'm6', name: 'Minor 6th',    semitones: 8,  ascAnchorDefault: 'The Entertainer',                 descAnchorDefault: 'Love Story theme',
+    consonance: 'imperfect', distance: 'far' },
+  { id: 'M6', name: 'Major 6th',    semitones: 9,  ascAnchorDefault: 'My Bonnie Lies Over the Ocean',   descAnchorDefault: 'Nobody Knows the Trouble',
+    consonance: 'imperfect', distance: 'far' },
+  { id: 'm7', name: 'Minor 7th',    semitones: 10, ascAnchorDefault: 'Somewhere (West Side Story)',     descAnchorDefault: 'Watermelon Man intro',
+    consonance: 'dissonant', distance: 'far' },
+  { id: 'M7', name: 'Major 7th',    semitones: 11, ascAnchorDefault: 'Take on Me (synth)',              descAnchorDefault: 'I Love You (Cole Porter)',
+    consonance: 'dissonant', distance: 'far' },
+  { id: 'P8', name: 'Octave',       semitones: 12, ascAnchorDefault: 'Somewhere Over the Rainbow',      descAnchorDefault: 'Willow Weep for Me',
+    consonance: 'perfect', distance: 'far' },
 ];
 
 /** Built from the seed list, so it cannot fall out of step with it.
@@ -99,9 +136,16 @@ export async function seedIntervals(): Promise<void> {
       // makes "unison has one case" checkable; a zero is indistinguish-
       // able from an untouched direction that still exists.
       const twoWay = directionsFor(seed.semitones).length === 2;
+      // The facets are CATALOG data, not user state, so they are held
+      // back from the stored row. Persisting them would put a second
+      // copy in every reader's database that only `seedIntervals` could
+      // refresh — and a consumer reading a stale copy would be reading
+      // last release's tagging with no way to tell.
+      const { consonance: _consonance, distance: _distance, ...stored } = seed;
+      void _consonance; void _distance;
       if (!existing) {
         await db.intervals.put({
-          ...seed,
+          ...stored,
           ascCorrect: 0,
           ascTotal: 0,
           ...(twoWay ? { descCorrect: 0, descTotal: 0 } : {}),

@@ -158,8 +158,15 @@ describe('the selector prefers the direction with fewer attempts', () => {
 });
 
 describe('the card caption counts itself', () => {
+  // The facets are required on the type but irrelevant to the caption,
+  // so the fixture supplies a fixed pair rather than pretending they
+  // vary — a synthetic catalog that tagged them differently per seed
+  // would imply the caption reads them, and it does not.
   const seed = (id: string, name: string, semitones: number): IntervalSeed =>
-    ({ id, name, semitones, ascAnchorDefault: 'x', descAnchorDefault: 'y' });
+    ({
+      id, name, semitones, ascAnchorDefault: 'x', descAnchorDefault: 'y',
+      consonance: 'perfect', distance: 'near',
+    });
 
   it('reads the approved sentence against the real catalog', () => {
     expect(intervalCountSummary()).toBe('25 · 12 both ways, plus unison');
