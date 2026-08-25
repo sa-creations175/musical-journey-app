@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getPref, setPref } from '../lib/userPrefs';
-import { moduleMetaById, CREATIVE_SESSIONS_ACCENT_HEX } from '../lib/moduleMeta';
+import { MODULE_NAME_CASE, titleCase } from '../lib/navCase';
+import { isLearningModule, moduleMetaById, CREATIVE_SESSIONS_ACCENT_HEX } from '../lib/moduleMeta';
 import ModuleGlyph from './ModuleGlyph';
 
 /** Per-group accent colour used on the group header so Creative
@@ -404,7 +405,13 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
         }
       >
         {meta && <ModuleIcon meta={meta} />}
-        <span>{item.label}</span>
+        {/* A MODULE SHOUTS; EVERYTHING ELSE IS TITLE CASE.
+            `isLearningModule`, not `meta` — Dashboard, Goals and
+            Practice Sessions all have meta so they can carry an icon,
+            and they are top-level items, not modules. */}
+        <span className={isLearningModule(item.id) ? MODULE_NAME_CASE : undefined}>
+          {isLearningModule(item.id) ? item.label : titleCase(item.label)}
+        </span>
       </NavLink>
     );
   }
@@ -426,7 +433,9 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
           }
         >
           {meta && <ModuleIcon meta={meta} />}
-          <span>{item.label}</span>
+          <span className={isLearningModule(item.id) ? MODULE_NAME_CASE : undefined}>
+            {isLearningModule(item.id) ? item.label : titleCase(item.label)}
+          </span>
         </NavLink>
         <button
           onClick={() => onToggle(item.id)}
@@ -546,7 +555,9 @@ function SubNavLink({
           : 'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200'
       }`}
     >
-      {label}
+      {/* Nested under a module — Title Case, computed from the
+          canonical label rather than typed a second time. */}
+      {titleCase(label)}
     </NavLink>
   );
 }

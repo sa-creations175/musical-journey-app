@@ -276,6 +276,18 @@ export function moduleMetaById(id: string): ModuleMeta | undefined {
   return BY_ID.get(id);
 }
 
+/**
+ * Is this id one of the six LEARNING MODULES?
+ *
+ * Narrower than `moduleMetaById`, which also resolves Dashboard, Goals
+ * and Practice Sessions — those have meta so they can carry an icon and
+ * an accent, but they are not modules, and a caller that treats "has
+ * meta" as "is a module" gets them wrong.
+ */
+export function isLearningModule(id: string): boolean {
+  return MODULE_ORDER.some(m => m.id === id);
+}
+
 /** Quick lookup: is this moduleId one of the four ear-training quizzes? */
 export function isEarTrainingSubmodule(id: string): boolean {
   return EAR_TRAINING_SUBMODULES.some(m => m.id === id);
