@@ -155,8 +155,27 @@ export default function Layout() {
     <SongTimerActivityWatcher />
     <GlobalSessionBanner />
     <div className="flex-1 flex flex-col md:flex-row">
+      {/* =================================================================
+          THE PAGE'S LEFT EDGE IS THE SIDEBAR'S RIGHT EDGE, AT EVERY WIDTH.
+
+          Two things were letting them come apart while dragging.
+
+          `shrink-0`: without it the aside is a shrinkable flex item
+          whose `min-width: auto` resolves to its widest nav row, so the
+          BOX ignored the width being dragged and stayed as wide as its
+          longest label — the page never moved.
+
+          `overflow-hidden` and `min-w-0`: content wider than the box
+          spilled to the right and painted over the cards, because
+          nothing clipped it. Nothing in the sidebar may paint outside
+          its own box, whatever the box is.
+
+          With both, the page beside it is an ordinary `flex-1` sibling
+          and follows at every width rather than at the two button
+          states.
+          ================================================================= */}
       <aside
-        className={`hidden md:block relative ${
+        className={`hidden md:block relative shrink-0 min-w-0 overflow-hidden ${
           sidebarCollapsed ? 'md:w-14' : ''
         } md:min-h-screen md:border-r border-neutral-200 dark:border-neutral-800 bg-white/50 dark:bg-neutral-900/50 backdrop-blur ${
           // No width TRANSITION while dragging — an eased width chases
