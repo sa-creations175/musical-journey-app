@@ -14,6 +14,12 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import HarmonicFluency from '../HarmonicFluency';
 import { CATEGORY_LABELS, CATEGORY_ORDER, FLASHCARDS } from '../catalog';
+import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
+import { computeHotStreak } from '../../../lib/dailyGoal';
+
+// Attempts carry client-minted ids (see db.ts), so seed rows are
+// stamped the way the production write path stamps them.
+const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -33,6 +39,7 @@ async function renderPage(): Promise<HTMLDivElement> {
 }
 
 afterEach(async () => {
+  await db.attempts.clear();
   if (root) await act(async () => root!.unmount());
   container?.remove();
   root = null; container = null;
@@ -135,5 +142,77 @@ describe('the two card actions', () => {
     const panel = el.querySelector('[data-testid="progress-detail"]');
     expect(panel).not.toBeNull();
     expect(panel!.textContent).toContain(CATEGORY_LABELS[cat]);
+  });
+});
+
+
+/**
+ * What the landing page says about the reader, and what it stopped
+ * saying.
+ *
+ * ---------------------------------------------------------------
+ * THE NUMBERS ARE DERIVED, NOT TYPED IN.
+ *
+ * The fixture below is ASYMMETRIC on purpose: its hot streak (3) and
+ * its day streak differ, so wiring the two figures into each other's
+ * slots fails here. A fixture where both came to the same number would
+ * pass either way round.
+ * ---------------------------------------------------------------
+ */
+describe('the landing statistics', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const NOW = Date.now();
+  // Wrong, then three right: hot streak 3. All today, so the day
+  // streak cannot also be 3.
+  const FIXTURE: AttemptRecord[] = [
+    { moduleId: 'harmonic-fluency', itemId: 'a', correct: false, timestamp: NOW - 4 * 1000 },
+    { moduleId: 'harmonic-fluency', itemId: 'b', correct: true, timestamp: NOW - 3 * 1000 },
+    { moduleId: 'harmonic-fluency', itemId: 'c', correct: true, timestamp: NOW - 2 * 1000 },
+    { moduleId: 'harmonic-fluency', itemId: 'd', correct: true, timestamp: NOW - 1 * 1000 },
+    // An older day, so the module has history beyond today.
+    { moduleId: 'harmonic-fluency', itemId: 'e', correct: true, timestamp: NOW - 9 * DAY_MS },
+  ];
+
+  it('does not show a Today counter before a session starts', async () => {
+    await db.attempts.bulkAdd(FIXTURE.map(a => withAttemptId({ ...a })));
+    const el = await renderPage();
+    // The cards are up — this is the module home, not some other state.
+    expect(el.querySelector('[data-testid="category-card-grid"]')).not.toBeNull();
+    expect(el.textContent).not.toMatch(/Today:/i);
+  });
+
+  it('shows both streaks with their emoji AND their words', async () => {
+    await db.attempts.bulkAdd(FIXTURE.map(a => withAttemptId({ ...a })));
+    const el = await renderPage();
+    const expected = computeHotStreak(FIXTURE).current;
+    expect(expected).toBe(3);
+
+    const row = el.querySelector('a[href="/harmonic-fluency/calendar"]')!.parentElement!;
+    const hot = row.querySelector('[data-testid="hf-streak"][data-kind="hot"]')!;
+    // The figure, read on its own so a longer number cannot contain the
+    // expected one and pass by substring.
+    expect(hot.querySelector('.tabular-nums')!.textContent).toBe(String(expected));
+    expect(hot.textContent).toContain('🔥');
+    expect(hot.textContent).toContain('correct in a row');
+
+    // BOTH, not one or the other. The glyph is what the eye finds; the
+    // words are what it means, and the flame is not a day count.
+    const day = row.querySelector('[data-kind="day"]')!;
+    expect(day.textContent).toContain('📅');
+    expect(day.textContent).toContain('at goal');
+  });
+
+  it('says "day" for one and "days" for the rest', async () => {
+    // Derived from the number beside it — the alternative is "day(s)",
+    // which is a rule the reader has to apply themselves.
+    await db.attempts.bulkAdd(FIXTURE.map(a => withAttemptId({ ...a })));
+    const el = await renderPage();
+    // The label span, read on its own: the row's spans are separated by
+    // flex gap rather than whitespace, so `textContent` runs the number
+    // into the word.
+    const day = el.querySelector('[data-testid="hf-streak"][data-kind="day"]')!;
+    const n = Number(day.querySelector('.tabular-nums')!.textContent);
+    const label = day.lastElementChild!.textContent;
+    expect(label).toBe(n === 1 ? 'day at goal' : 'days at goal');
   });
 });

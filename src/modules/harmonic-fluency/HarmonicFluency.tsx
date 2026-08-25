@@ -14,6 +14,8 @@ import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlMultiSelectSync } from '../../lib/useUrlTabSync';
 import ModuleIntro from '../../components/ModuleIntro';
 import DailyGoalBar from '../../components/DailyGoalBar';
+import { computeDayStreak, computeHotStreak, localDayKey } from '../../lib/dailyGoal';
+import { dailyGoalKey, defaultDailyGoal } from '../../lib/goalConfig';
 import HarmonicFluencySession, {
   type DisplayMode,
   type SessionStats,
@@ -35,6 +37,7 @@ function isCategory(v: string): v is FlashcardCategory {
 const MODULE_ID = 'harmonic-fluency';
 const PREF_DISPLAY_MODE = 'harmonicFluencyDisplayMode';
 const PREF_TIMER = 'harmonicFluencyTimerMode';
+const PREF_INTRO_OPEN = 'harmonicFluencyIntroOpen';
 const PREF_CATEGORIES = 'harmonicFluencyCategoryFilter';
 const SESSION_TARGET = 20;
 
@@ -157,6 +160,27 @@ export default function HarmonicFluency() {
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(MODULE_ID);
   const now = Date.now();
+
+  /**
+   * The two streak figures, computed from the same functions
+   * `DailyGoalBar` uses rather than a second reading of the attempts.
+   *
+   *   hotStreak — consecutive CORRECT ANSWERS, all time, ending at the
+   *               most recent attempt. Any wrong answer resets it. Not
+   *               a day count, which is what the flame glyph implied.
+   *   dayStreak — consecutive DAYS whose attempt count met the daily
+   *               goal, ending today or yesterday.
+   */
+  const hfGoal = useLiveQuery(
+    async () => getPref<number>(dailyGoalKey(MODULE_ID), defaultDailyGoal(MODULE_ID)),
+    [],
+  ) ?? defaultDailyGoal(MODULE_ID);
+  const hotStreak = useMemo(() => computeHotStreak(allAttempts).current, [allAttempts]);
+  const dayStreak = useMemo(
+    () => computeDayStreak(allAttempts, hfGoal, localDayKey()),
+    [allAttempts, hfGoal],
+  );
+
   /** Which category's progress detail is open, if any. */
   const [detailCategory, setDetailCategory] = useState<FlashcardCategory | null>(null);
   const axisViews = useAxisViews();
@@ -243,10 +267,46 @@ export default function HarmonicFluency() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
+      {/* The streaks share the calendar row rather than taking one of
+          their own — the row was otherwise empty, and these two numbers
+          did not earn a band of their own above the cards.
+
+          EMOJI AND WORDS, NOT ONE OR THE OTHER. The glyphs alone said
+          nothing about what they counted, and the flame is not a day
+          count at all — see `computeHotStreak`. The words carry the
+          meaning; the glyph is what the eye finds first. Both, on the
+          same line, costing no extra height. */}
+      {/* `-mt-2` eats half the shell's top padding. The shell's `py-4`
+          is app-wide (`Layout`) and stays that way — one module wanting
+          to start higher is not a reason to move every screen up. */}
+      <div className="-mt-2 flex items-center justify-end gap-2 text-xs text-neutral-500">
+        <span
+          className="inline-flex items-baseline gap-1"
+          title="consecutive correct answers, all time"
+          data-testid="hf-streak"
+          data-kind="hot"
+        >
+          <span aria-hidden>🔥</span>
+          <span className="font-mono tabular-nums font-medium">{hotStreak}</span>
+          <span>correct in a row</span>
+        </span>
+        <span aria-hidden className="text-neutral-400">·</span>
+        <span
+          className="inline-flex items-baseline gap-1"
+          title="consecutive days the daily goal was met"
+          data-testid="hf-streak"
+          data-kind="day"
+        >
+          <span aria-hidden>📅</span>
+          <span className="font-mono tabular-nums font-medium">{dayStreak}</span>
+          {/* One day is a day. Derived from the number beside it rather
+              than written as "day(s)". */}
+          <span>{dayStreak === 1 ? 'day' : 'days'} at goal</span>
+        </span>
+        <span aria-hidden className="text-neutral-400">·</span>
         <Link
           to="/harmonic-fluency/calendar"
-          className="text-xs text-neutral-500 hover:text-fluent"
+          className="hover:text-fluent"
         >
           view calendar →
         </Link>
@@ -277,12 +337,17 @@ export default function HarmonicFluency() {
         </>
       ) : (
         <>
-          {/* Order (context before action): learn-more card (collapsed) →
-              today's progress → the mixed drill → the category cards →
+          {/* Order (context before action): learn-more card (headline
+              only) → the mixed drill → the category cards →
               session settings, collapsed. The settings moved below the
               cards because they configure the mixed run, which is now
               one of sixteen ways to start from this page. */}
+          {/* And `-mt-4` against the page's `space-y-6`, so the card sits
+              just under the streak row instead of a band below it. */}
+          <div className="-mt-4">
           <ModuleIntro
+            compact
+            persistKey={PREF_INTRO_OPEN}
             accent="blue"
             headline="The mental map that makes music make sense."
             description="Build instant fluency in scale degrees, key relationships, and chord construction. When your theory is automatic, your ear is free to listen."
@@ -293,8 +358,16 @@ export default function HarmonicFluency() {
               'Fast flashcard practice with **spaced repetition**',
             ]}
           />
+          </div>
 
-          <DailyGoalBar moduleId={MODULE_ID} />
+          {/* NO "TODAY" ROW HERE. The N/10 counter and its bar told the
+              reader a number they do not act on, and cost a band of
+              vertical space directly above the cards. `DailyGoalBar`
+              still renders INSIDE a running session, where the same
+              numbers are a live progress readout rather than a landing
+              statistic — and it is the only place the daily goal can be
+              edited, so removing it from the page did not remove it
+              from the module. */}
 
           {/* THE MIXED DRILL, ABOVE THE CARDS. It is the same button it
               always was; the label now says what it covers, because a

@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { getPref, setPref } from '../lib/userPrefs';
 
 export type ModuleIntroAccent = 'green' | 'blue' | 'amber';
 
@@ -7,6 +8,22 @@ interface Props {
   description: string;
   bullets: string[];
   accent?: ModuleIntroAccent;
+  /**
+   * Hide the description behind the toggle too, leaving the headline
+   * alone when collapsed.
+   *
+   * OPT-IN so the six other modules that render this card are not
+   * changed by a request about one of them. Harmonic fluency's home now
+   * leads with fifteen category cards, and four blocks of prose above
+   * them pushed the thing the page is for below the fold.
+   */
+  compact?: boolean;
+  /**
+   * Remember the open state under this key, the way the song page's
+   * criteria panel does. Absent means the card opens closed every
+   * visit, which is the existing behaviour everywhere else.
+   */
+  persistKey?: string;
 }
 
 const accentBorder: Record<ModuleIntroAccent, string> = {
@@ -39,8 +56,27 @@ function formatInline(text: string): ReactNode[] {
   });
 }
 
-export default function ModuleIntro({ headline, description, bullets, accent = 'green' }: Props) {
+export default function ModuleIntro({
+  headline, description, bullets, accent = 'green', compact = false, persistKey,
+}: Props) {
   const [expanded, setExpanded] = useState(false);
+
+  // Hydrate once. Writes go through the toggle below, so a reader who
+  // opens the card and leaves immediately still has it remembered.
+  useEffect(() => {
+    if (persistKey === undefined) return;
+    let live = true;
+    void getPref<boolean>(persistKey, false).then(v => { if (live) setExpanded(v); });
+    return () => { live = false; };
+  }, [persistKey]);
+
+  const toggle = () => {
+    setExpanded(v => {
+      const next = !v;
+      if (persistKey !== undefined) void setPref(persistKey, next);
+      return next;
+    });
+  };
   return (
     <div
       className={`rounded-2xl border border-black/[0.07] border-l-4 ${accentBorder[accent]} bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4`}
@@ -48,10 +84,12 @@ export default function ModuleIntro({ headline, description, bullets, accent = '
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="font-medium text-sm">{formatInline(headline)}</div>
-          <div className="text-sm text-neutral-500 mt-1">{formatInline(description)}</div>
+          {(!compact || expanded) && (
+            <div className="text-sm text-neutral-500 mt-1">{formatInline(description)}</div>
+          )}
         </div>
         <button
-          onClick={() => setExpanded(v => !v)}
+          onClick={toggle}
           aria-expanded={expanded}
           className={`shrink-0 inline-flex items-center gap-1 text-xs ${accentText[accent]} hover:opacity-80`}
         >
