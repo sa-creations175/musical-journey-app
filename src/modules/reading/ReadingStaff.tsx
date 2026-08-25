@@ -32,11 +32,32 @@ type VexModule = typeof import('vexflow/bravura');
 
 let vexPromise: Promise<VexModule> | null = null;
 
-/** Load VexFlow once per session, on first card render. Exported so
- *  MnemonicStaff shares this promise rather than starting a second
- *  load of the same 330 KB font. */
+/**
+ * Load VexFlow once per session, on first card render. Exported so
+ * MnemonicStaff shares this promise rather than starting a second
+ * load of the same 330 KB font.
+ *
+ * THE PROMISE RESOLVES WHEN THE MUSIC FONT IS USABLE, not when the
+ * module has evaluated. VexFlow 5 measures every glyph with a canvas
+ * `measureText` at draw time and lays the drawing out from those
+ * widths — see the note on the key signature below for what that costs
+ * when the measurement happens too early. `vexflow/bravura` registers
+ * the face with `document.fonts` synchronously as it evaluates and
+ * kicks off the download, so waiting on `document.fonts.ready`
+ * immediately after the import cannot miss it.
+ *
+ * The wait is swallowed rather than thrown: a font that never arrives
+ * should give a drawing spaced with fallback metrics, not no drawing.
+ */
 export function loadVexFlow(): Promise<VexModule> {
-  vexPromise ??= import('vexflow/bravura');
+  vexPromise ??= import('vexflow/bravura').then(async VF => {
+    try {
+      await document.fonts?.ready;
+    } catch {
+      // Nothing to do about it here — draw with what we have.
+    }
+    return VF;
+  });
   return vexPromise;
 }
 
@@ -48,28 +69,33 @@ interface Props {
 }
 
 /**
- * WHY SIGNATURE CARDS GET A WIDER STAVE.
+ * WHY KEY-SIGNATURE ACCIDENTALS CAME OUT SPREAD, and what fixed it.
  *
- * The report was that key-signature accidentals read as "scattered
- * wide" rather than as one cluster. The gaps are not the cause and
- * cannot be: VexFlow's KeySignature.convertToGlyph places each
- * accidental at `previous.xShift + previous.getWidth() + 1`, so they
- * already sit one pixel apart at the font's own advance width. There
- * is no spacing parameter to turn down — the `+1` is hardcoded and the
- * rest is Bravura's metrics, measured at runtime.
+ * `KeySignature.convertToGlyph` places each accidental at
+ * `previous.xShift + previous.getWidth() + 1`, so the cluster is only
+ * ever as tight as the widths it is measuring. And `Element.getWidth`
+ * measures by drawing the glyph's codepoint into a scratch canvas with
+ * `context.measureText`. Bravura's accidentals live in the SMuFL
+ * private-use range, so before the face has loaded that measurement
+ * falls through to the browser's fallback font and returns its
+ * notdef advance — much wider than the real glyph. The accidentals
+ * were then drawn at those inflated offsets while painting as proper
+ * Bravura glyphs, which is exactly the "spread across the staff"
+ * silhouette: right shapes, wrong gaps.
  *
- * What was actually wrong is the RATIO. Six sharps plus a clef nearly
- * filled a 180px stave, so the cluster had no empty staff after it to
- * be a silhouette against — it read as a wall of accidentals rather
- * than as a signature at the head of a system, which is the shape
- * engraved music teaches you to recognise. Widening the stave leaves
- * the glyphs and their spacing untouched and restores that contrast.
+ * Nothing here spaces them. `loadVexFlow` now resolves only once the
+ * font is usable, so every measurement is taken against the metrics
+ * the glyphs are actually drawn in, and VexFlow's own one-pixel
+ * spacing is what lands on screen.
  *
- * MEASUREMENT CAVEAT, stated because it matters: this could not be
- * verified numerically. jsdom has no canvas, so every VexFlow glyph
- * measures as zero width in tests and the accidentals collapse to
- * x = 15,16,17,18,19,20. The ratio argument is sound but the result
- * is an eyeball check, not an asserted one.
+ * The wider stave stays, for the reason it was introduced: six sharps
+ * plus a clef nearly filled a 180px stave, and a signature reads as a
+ * signature because of the empty staff after it.
+ *
+ * MEASUREMENT CAVEAT, stated because it matters: none of this is
+ * assertable here. jsdom has no canvas, so every glyph measures as
+ * zero width and the accidentals collapse to x = 15,16,17,18,19,20
+ * whether the font loaded or not. Needs Silas's eye.
  */
 const DEFAULT_WIDTH = 200;
 const DEFAULT_HEIGHT = 130;
@@ -201,7 +227,10 @@ export default function ReadingStaff({ spec, width, height }: Props) {
   }, [spec, w, h, isGrand]);
 
   return (
-    <div>
+    // CENTRED IN WHATEVER HOLDS IT. The drawing is a fixed pixel width
+    // and the card it sits in is fluid, so left-aligning left a
+    // signature card sitting against one edge of a wide white field.
+    <div className="flex flex-col items-center">
       <div ref={hostRef} aria-hidden style={{ minHeight: h }} />
       {error && (
         <p className="text-[11px] text-needswork" role="alert">

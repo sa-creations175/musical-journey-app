@@ -568,30 +568,22 @@ export default function ReadingDrill({
             onPick={id => {
               const merged = { ...answer, count: id, sequence: [] };
               set({ count: id, sequence: [] });
-              // A wrong KIND ends the attempt here — see
-              // countStageAfterPick for why finishing it would
-              // rehearse the wrong accidental order. "none" settles
-              // too: there is nothing to name. Submitting with the
-              // MERGED answer, since state has not caught up yet.
+              // ANY wrong pick ends the attempt here — see
+              // countStageAfterPick for why finishing it would only
+              // rehearse a kind or a number the card does not have.
+              // "none" settles too: there is nothing to name.
+              // Submitting with the MERGED answer, since state has not
+              // caught up yet.
               const stage = countStageAfterPick(parsed.signature as SignatureId, id);
               if (stage.stage === 'settled') submit(merged);
             }}
             gridClassName="grid grid-cols-3 sm:grid-cols-7 gap-2"
           />
-          {/* Which ones — only after committing to a number, which is
-              the point of the ordering. The kind shown follows the
-              user's OWN answer, not the card's, so part one cannot
-              leak into part two. */}
-          {/* The number is corrected BEFORE the tapping starts. Naming
-              four flats while still believing there are three rehearses
-              the wrong count — the attempt is wrong either way, but the
-              rep should happen against the right number. */}
-          {countStage?.stage === 'sequence' && !countStage.countCorrect && (
-            <p className="text-center text-xs text-needswork">
-              not {SIGNATURES.find(s => s.id === answer.count)?.count}
-              {' — '}it&rsquo;s {countStage.actualCount}. name them in order.
-            </p>
-          )}
+          {/* Which ones — only after getting the number RIGHT. A wrong
+              number has already settled the attempt above, so nothing
+              here has to correct one; the sequence is a rehearsal of a
+              signature the reader has just identified, not a second
+              chance at it. */}
           {countStage?.stage === 'sequence' && (
             <AccidentalSequence
               kind={countStage.kind}
