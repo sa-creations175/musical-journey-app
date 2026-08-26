@@ -27,7 +27,11 @@
  * answer neither well.
  */
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { ModuleTree } from '../read/query';
+import type { TreeNode } from '../read/tree';
+import ModuleCards from './ModuleCards';
+import { categoryHref } from './categoryHref';
 import { TIER_LEGEND } from './tierLegend';
 
 export type MobileView = 'modules' | 'skills';
@@ -52,6 +56,18 @@ export default function MobileDashboard({
   now: number;
 }) {
   const [view, setView] = useState<MobileView>(DEFAULT_MOBILE_VIEW);
+  const navigate = useNavigate();
+
+  /**
+   * Where a category goes when opened, from either view.
+   *
+   * ONE ANSWER FOR BOTH. A strip cell and a skill row are the same
+   * category seen two ways, and landing on different pages depending
+   * on which you tapped would make them read as different things.
+   */
+  const openCategory = (moduleId: string, node: TreeNode) => {
+    navigate(categoryHref(moduleId, node));
+  };
 
   return (
     <div data-testid="mobile-dashboard" data-view={view} className="pb-8 px-1">
@@ -62,7 +78,7 @@ export default function MobileDashboard({
           Nothing to show yet.
         </div>
       ) : view === 'modules' ? (
-        <ModulesPlaceholder modules={modules} now={now} />
+        <ModuleCards modules={modules} now={now} onOpenCategory={openCategory} />
       ) : (
         <SkillsPlaceholder modules={modules} now={now} />
       )}
@@ -141,37 +157,6 @@ export function TierLegendStrip() {
         </li>
       ))}
     </ul>
-  );
-}
-
-/**
- * A module per row, with its name showing.
- *
- * THE MINIMUM THE TABLE FAILED TO DO. The strip of per-category cells,
- * the sub-line and the footer counts arrive next; what this establishes
- * is that the phone renders its own thing, that every row is
- * identifiable, and that nothing runs off the side.
- */
-function ModulesPlaceholder({
-  modules, now,
-}: {
-  modules: readonly ModuleTree[];
-  now: number;
-}) {
-  void now;
-  return (
-    <div className="space-y-2" data-testid="mobile-modules">
-      {modules.map(m => (
-        <section
-          key={m.moduleId}
-          data-testid="mobile-module-card"
-          data-module={m.moduleId}
-          className="rounded-xl border border-black/[0.07] bg-white dark:bg-neutral-900 p-3"
-        >
-          <div className="font-medium text-sm">{m.root.label}</div>
-        </section>
-      ))}
-    </div>
   );
 }
 
