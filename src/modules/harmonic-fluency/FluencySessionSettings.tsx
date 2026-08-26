@@ -113,7 +113,7 @@ export default function FluencySessionSettings({
             onClick={onStart}
             className="px-5 py-2.5 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
           >
-            Start drill
+            Start Drill
           </button>
           {caughtUp && (
             <p className="mt-3 text-xs text-neutral-500 italic">

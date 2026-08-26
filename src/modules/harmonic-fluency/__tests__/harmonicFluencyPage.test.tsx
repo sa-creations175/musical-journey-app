@@ -190,6 +190,9 @@ describe('the two card actions', () => {
     const cat = 'tritone-pairs';
     const supply = FLASHCARDS.filter(c => c.category === cat).length;
     const el = await renderAt(`/harmonic-fluency/${cat}`);
+    // Title Case, matching the home's own button.
+    expect(el.querySelector('[data-testid="hf-category-start"]')!.textContent)
+      .toBe('Start Drill');
     await click(el.querySelector('[data-testid="hf-category-start"]'), 'start');
     const headerRe = /card\s*1\s*\/\s*(\d+)/;
     await settle(() => headerRe.test(el.textContent ?? ''));

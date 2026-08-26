@@ -2,7 +2,7 @@
  * Scales section of the S&P module — Part 5 of the Scales
  * submodule build (src/docs/SCALES_SUBMODULE_DESIGN.md).
  *
- * Shows all 96 cells from the scaleSkills catalog, grouped by
+ * Shows every scale pattern in the scaleSkills catalog, grouped by
  * scale kind, color-coded by acquisitionStage. Pentatonic groups
  * fan out to one row per starting point (1/5/6 for major, 1/b3/b7
  * for minor) so the user can see per-sp progress at a glance.
@@ -200,9 +200,17 @@ export default function ScaleDrills() {
         <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           Scales
         </h3>
+        {/* THE COUNT IS THE CATALOG'S OWN. It was typed as `96`, which
+            is right today and silently wrong the day a scale is added.
+
+            "SCALE PATTERNS", NOT "CELLS". There are 48 scales here; the
+            other 48 are the same pitch sets entered from a different
+            starting point, which is why they are separate patterns and
+            not repeats. */}
         <p className="text-xs text-neutral-500">
-          96 cells across major, natural minor, and the two pentatonics. Color shows
-          acquisition stage. Tap a cell to drill and rate Struggled / Working on it / Clean / In flow.
+          {SCALE_CELLS.length} scale patterns across major, natural minor, and the
+          two pentatonics. Color shows acquisition stage. Tap a cell to drill and
+          rate Struggled / Working on it / Clean / In flow.
         </p>
       </header>
 
@@ -260,7 +268,7 @@ function ProgressSummary({ counts }: { counts: AcquisitionCounts }) {
         <span className="text-neutral-500 font-medium">{counts.notStarted}</span>
         <span className="text-neutral-400"> not started</span>
       </span>
-      <span className="text-neutral-400 ml-auto">{counts.total} cells</span>
+      <span className="text-neutral-400 ml-auto">{counts.total} scale patterns</span>
     </div>
   );
 }

@@ -220,7 +220,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
             data-testid="hf-category-start"
             className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
           >
-            Start drill
+            Start Drill
           </button>
 
           {/* Drilling from a card lands on the page it is already on,
