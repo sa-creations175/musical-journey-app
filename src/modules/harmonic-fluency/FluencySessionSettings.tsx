@@ -28,7 +28,7 @@ export default function FluencySessionSettings({
   return (
     <details className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur">
       <summary className="cursor-pointer select-none px-4 sm:px-5 py-3 text-sm font-medium">
-        session settings
+        Session Settings
       </summary>
       <div className="px-1 pb-1">
         <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
