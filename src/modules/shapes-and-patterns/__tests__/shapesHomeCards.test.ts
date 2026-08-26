@@ -113,6 +113,49 @@ describe('what has been touched', () => {
     expect(cards.get('voice-leading')!.acquired).toBe(1);
   });
 
+  it('draws one bar per hand the SECTION is drilled on', () => {
+    const cards = byKey();
+    // Scales and chord shapes run left, right, both.
+    expect(cards.get('scales')!.bars!.map(b => b.label))
+      .toEqual(['L', 'R', 'BOTH']);
+    expect(cards.get('chord-shapes')!.bars!.map(b => b.label))
+      .toEqual(['L', 'R', 'BOTH']);
+    // Voice leading is two-handed by nature; mental visualisation has
+    // no hands at all. One unlabelled bar each — two empty L and R
+    // bars would read as work not done rather than work that cannot
+    // exist.
+    for (const key of ['voice-leading', 'mental-viz'] as const) {
+      const bars = cards.get(key)!.bars!;
+      expect(bars, key).toHaveLength(1);
+      expect(bars[0].label, key).toBeUndefined();
+    }
+  });
+
+  it('keeps the bars stable before anything has been logged', () => {
+    // The hand list is a fact about the section, not about whatever
+    // rows happen to exist — a card must not grow two bars on first
+    // use.
+    expect(byKey().get('scales')!.bars!.map(b => b.label))
+      .toEqual(byKey([stage('scale:major:C', 'left', 'acquiring')])
+        .get('scales')!.bars!.map(b => b.label));
+  });
+
+  it('bars a hand against the section\u2019s full count', () => {
+    const cards = byKey([
+      stage('scale:major:C', 'left', 'acquired'),
+      stage('scale:major:C', 'right', 'acquiring'),
+      stage('scale:major:G', 'left', 'acquired'),
+    ]);
+    const bars = cards.get('scales')!.bars!;
+    const total = shapesCounts().scaleDrills;
+    expect(bars.find(b => b.label === 'L'))
+      .toEqual({ label: 'L', acquired: 2, inProgress: 0, total });
+    expect(bars.find(b => b.label === 'R'))
+      .toEqual({ label: 'R', acquired: 0, inProgress: 1, total });
+    expect(bars.find(b => b.label === 'BOTH'))
+      .toEqual({ label: 'BOTH', acquired: 0, inProgress: 0, total });
+  });
+
   it('keeps mental viz separate — a different moduleRef entirely', () => {
     const mv = MENTAL_VIZ_ITEMS.slice(0, 2).map(i => row(i.itemRef));
     const cards = byKey([row('scale:major:C')], mv);

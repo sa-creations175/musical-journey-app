@@ -26,7 +26,21 @@ import type { SpacingState } from '../../lib/db';
 import type { CategoryCardModel } from '../../components/moduleHome/model';
 import { shapesCounts } from '../../lib/moduleItemCounts';
 import { countsTowardShapesCoverage } from './drillModel';
-import { acquisitionIndex } from './acquisition';
+import { acquisitionIndex, handCounts, handsFor } from './acquisition';
+import type { DrillHand } from '../../lib/db';
+
+/** What a per-hand bar is called. Silas's three letters. */
+const HAND_BAR_LABEL: Readonly<Record<DrillHand, string>> = {
+  left: 'L',
+  right: 'R',
+  both: 'BOTH',
+};
+
+/** Mental visualisation has no `itemRefPrefix` — it lives under its own
+ *  moduleRef entirely — so `handsFor` is asked with a stand-in that
+ *  matches none of the hand-dimension prefixes, which is the true
+ *  answer for it. */
+const MENTAL_VIZ_PREFIX = 'mv:';
 import { MENTAL_VIZ_ITEMS, MENTAL_VIZ_MODULE_REF } from './mentalVizLibrary';
 import { daysBetween, localDayKey } from '../../lib/dailyGoal';
 
@@ -101,8 +115,48 @@ export function shapesCards(
      * numerator.
      */
     const index = acquisitionIndex(rows);
-    const acquired = [...index.touched]
+    const touched = [...index.touched];
+    const acquired = touched
       .filter(ref => index.cell(ref) === 'acquired').length;
+
+    /**
+     * ONE BAR PER HAND THE SECTION IS DRILLED ON.
+     *
+     * Which hands those are comes from the items themselves, not from
+     * this list — scales and chord shapes run three, voice leading is
+     * two-handed by nature and mental visualisation has none. Drawing
+     * L and R for the last two would put two permanently empty bars on
+     * a card and read as work not done rather than work that does not
+     * exist.
+     *
+     * The DENOMINATOR is the section's full catalog count; the
+     * numerators can only come from items with rows, so `touched` is
+     * the whole walk.
+     */
+    // ASKED OF THE SECTION, NOT OF WHATEVER HAPPENS TO BE LOGGED. The
+    // prefix is what `handsFor` matches on, and it is a fact about the
+    // section — so an empty section draws the same bars it will draw
+    // once it has rows, rather than growing two of them on first use.
+    const hands = handsFor(section.itemRefPrefix ?? MENTAL_VIZ_PREFIX);
+    const total = totalFor[section.id];
+    const bars = hands.length > 1
+      ? hands.map(hand => {
+        const counts = handCounts(index, touched, hand);
+        return {
+          label: HAND_BAR_LABEL[hand],
+          acquired: counts.acquired,
+          inProgress: counts.inProgress,
+          total,
+        };
+      })
+      // NO LABEL ON A LONE BAR. There is no other bar to tell it apart
+      // from, and naming it would invent a hand the section has not
+      // got.
+      : [{
+        acquired,
+        inProgress: touched.filter(ref => index.cell(ref) === 'in-progress').length,
+        total,
+      }];
     const latest = rows.reduce<number | null>(
       (max, r) => (r.lastEngagedAt !== null && (max === null || r.lastEngagedAt > max)
         ? r.lastEngagedAt
@@ -122,6 +176,7 @@ export function shapesCards(
       accuracy: null,
       itemsSeen,
       acquired,
+      bars,
       lastPracticedDaysAgo: latest === null
         ? null
         : daysBetween(localDayKey(new Date(latest)), localDayKey(new Date(now))),

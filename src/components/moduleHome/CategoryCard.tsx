@@ -38,7 +38,7 @@ import ProgressBar from '../ProgressBar';
 import { FALLBACK_INTERVAL_DAYS, barSegments, unratedLabel } from '../../lib/progressBar';
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
 import { titleCase } from '../../lib/labelCase';
-import type { CategoryCardModel } from './model';
+import type { CategoryCardBar, CategoryCardModel } from './model';
 
 /**
  * The floor every card stands on, wherever it is rendered.
@@ -158,8 +158,12 @@ export default function CategoryCard({
             {/* ACQUIRED WHERE THE MODULE HAS ONE, seen otherwise. The
                 two are different questions in Shapes & Patterns and
                 the same everywhere else; a module says which it means
-                by supplying the field or not. */}
-            {card.acquired ?? card.itemsSeen}/{card.itemCount}
+                by supplying the field or not — and says so in words,
+                because "12/96" alone cannot tell the reader which of
+                the two it is counting. */}
+            {card.acquired !== undefined
+              ? `${card.acquired} of ${card.itemCount} acquired`
+              : `${card.itemsSeen}/${card.itemCount}`}
           </span>
         </div>
         {card.countDetail !== null && (
@@ -183,7 +187,29 @@ export default function CategoryCard({
                   : `${card.lastPracticedDaysAgo}d ago`}
             </>
           )}
+          {/* ABSENT, NOT ZERO, where nothing has been measured — see
+              `timeInvestedSeconds`. */}
+          {card.timeInvestedSeconds !== undefined && (
+            <>
+              {(acc !== null || card.lastPracticedDaysAgo !== null) && ' · '}
+              <span data-testid="category-card-time">
+                {formatSeconds(card.timeInvestedSeconds)}
+              </span>
+            </>
+          )}
         </div>
+
+        {/* ONE BAR PER HAND, where the module drills the same item more
+            than one way. Two segments over a neutral track: acquired,
+            then under way. The tokens are the matrix's own, so a bar
+            and the grid it summarises cannot drift to two palettes. */}
+        {card.bars !== undefined && card.bars.length > 0 && (
+          <div className="mt-1.5 space-y-1" data-testid="category-card-bars">
+            {card.bars.map((bar, i) => (
+              <HandBar key={bar.label ?? i} bar={bar} />
+            ))}
+          </div>
+        )}
       </button>
 
       {/* The bar always; the twenty ticks only once expanded.
@@ -254,5 +280,36 @@ export default function CategoryCard({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Seconds as a reader would say them. Mirrors the drill modal's own
+ * formatter — minutes once past one, hours once past sixty.
+ */
+function formatSeconds(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+function HandBar({ bar }: { bar: CategoryCardBar }) {
+  const pct = (n: number) => (bar.total === 0 ? 0 : (n / bar.total) * 100);
+  return (
+    <div className="flex items-center gap-1.5" data-testid="category-card-bar" data-bar={bar.label ?? ''}>
+      {bar.label !== undefined && (
+        <span className="w-8 shrink-0 text-[9px] uppercase tracking-wide text-neutral-400">
+          {bar.label}
+        </span>
+      )}
+      <span
+        aria-hidden
+        className="flex-1 h-1 rounded-full overflow-hidden flex bg-neutral-200 dark:bg-neutral-800"
+      >
+        <span className="bg-mastered" style={{ width: `${pct(bar.acquired)}%` }} />
+        <span className="bg-developing" style={{ width: `${pct(bar.inProgress)}%` }} />
+      </span>
+    </div>
   );
 }

@@ -87,7 +87,38 @@ export interface CategoryCardStats {
    * that happens to be equal.
    */
   acquired?: number;
+  /**
+   * One bar per hand, where a module drills the same item more than one
+   * way.
+   *
+   * A LIST, NOT THREE FIELDS. Scales and chord shapes run left, right
+   * and both; voice leading is two-handed by nature and mental
+   * visualisation has no hands at all, so those carry one bar with no
+   * label. A fixed L/R/BOTH triple would draw two permanently empty
+   * bars for them and read as work not done rather than work that does
+   * not exist.
+   */
+  bars?: ReadonlyArray<CategoryCardBar>;
+  /**
+   * Seconds logged against this category, or absent where the module
+   * records no duration.
+   *
+   * ABSENT, NEVER ZERO, while a source has none to give — a nothing
+   * shown as `0s` is a measurement, and the wrong one.
+   */
+  timeInvestedSeconds?: number;
   lastPracticedDaysAgo: number | null;
+}
+
+/** One bar's worth of a group: how much of it is acquired, how much is
+ *  under way, out of how many. */
+export interface CategoryCardBar {
+  /** "L", "R", "BOTH" — or absent where the bar covers the whole
+   *  category and there is nothing to distinguish it from. */
+  label?: string;
+  acquired: number;
+  inProgress: number;
+  total: number;
 }
 
 /** A card, ready to render. */
