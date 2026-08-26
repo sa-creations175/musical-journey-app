@@ -12,6 +12,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import type { Song } from '../../../lib/db';
 import SongCard from '../SongCard';
+import { STAGE_LABEL } from '../stage';
 import type { SectionChipReading } from '../sectionChips';
 
 const SONG: Song = {
@@ -25,7 +26,12 @@ const SONG: Song = {
 let root: Root | null = null;
 let host: HTMLDivElement | null = null;
 
-function render(sections: SectionChipReading) {
+function render(sections: SectionChipReading, over: Partial<{
+  stage: Song['stage'];
+  lastPractisedLabel: string;
+  onOpen: () => void;
+  onOpenLeadSheet: () => void;
+}> = {}) {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -34,16 +40,16 @@ function render(sections: SectionChipReading) {
       <SongCard
         song={SONG}
         lastPractisedAt={null}
-        lastPractisedLabel="never"
         addedLabel="added today"
         freshness="stale"
-        stage="learning"
+        stage={over.stage ?? 'learning'}
         due={null}
         spelling="flat"
         sections={sections}
         accentHex="#a8556b"
-        onOpen={() => {}}
-        onOpenLeadSheet={() => {}}
+        lastPractisedLabel={over.lastPractisedLabel ?? 'never'}
+        onOpen={over.onOpen ?? (() => {})}
+        onOpenLeadSheet={over.onOpenLeadSheet ?? (() => {})}
       />,
     );
   });
@@ -158,5 +164,94 @@ describe('a song with no lead sheet', () => {
     expect(el.textContent).toContain('Fred Hammond');
     expect(el.textContent).toContain('not practised yet');
     expect(el.textContent).toContain('added today');
+  });
+});
+
+/**
+ * What a song card carries, item by item.
+ *
+ * Each of these is one line of the specification the card was built to.
+ * They are worth pinning separately because the card is the one place
+ * six different readings meet — a stage derived from every key, a chart
+ * tick per section, a cell test per section, a practice log, and two
+ * navigations — and any one of them could be dropped without the others
+ * noticing.
+ */
+describe('what the card carries', () => {
+  const chip = (over: Partial<SectionChipReading['chips'][number]> = {}) => ({
+    sectionId: 's1', name: 'Verse', chartComplete: true, fill: 'empty' as const, ...over,
+  });
+
+  it('names the song and its artist', () => {
+    const el = render(reading());
+    expect(el.textContent).toContain('No Weapon');
+    expect(el.querySelector('[data-testid="song-card-artist"]')?.textContent)
+      .toBe('Fred Hammond');
+  });
+
+  it('shows the stage it is handed, at the song grain', () => {
+    // THE DERIVED RUNG, not the watermark on the song row and not a
+    // section's cell state. The list derives it once from
+    // `stageCriteria` and hands it down; the card renders what it is
+    // given and computes no rung of its own.
+    const el = render(reading(), { stage: 'comfortable' });
+    expect(el.querySelector('[data-testid="song-card-stage"]')?.textContent)
+      .toBe(STAGE_LABEL.comfortable);
+  });
+
+  it('draws the two chip axes independently, all six combinations', () => {
+    // THE PAIR THAT PROVES THEY ARE NOT ONE ENUM: a section practised
+    // whose chart is not written, and a section charted but untouched.
+    const el = render(reading({
+      chips: [
+        chip({ sectionId: 'a', chartComplete: false, fill: 'practised' }),
+        chip({ sectionId: 'b', chartComplete: true, fill: 'empty' }),
+        chip({ sectionId: 'c', chartComplete: false, fill: 'passed' }),
+      ],
+      inProgress: 1, passed: 1, needChords: 2,
+    }));
+    const chips = [...el.querySelectorAll('[data-testid="song-card-section-chip"]')];
+    expect(chips.map(c => [c.getAttribute('data-chart'), c.getAttribute('data-fill')]))
+      .toEqual([
+        ['incomplete', 'practised'],
+        ['complete', 'empty'],
+        ['incomplete', 'passed'],
+      ]);
+  });
+
+  it('says when it was last practised', () => {
+    const el = render(reading(), { lastPractisedLabel: '3 days ago' });
+    expect(el.querySelector('[data-testid="song-card-last-practised"]')?.textContent)
+      .toContain('last 3 days ago');
+  });
+
+  it('says so plainly when it never has been', () => {
+    const el = render(reading());
+    expect(el.querySelector('[data-testid="song-card-last-practised"]')?.textContent)
+      .toContain('not practised yet');
+  });
+
+  it('offers Open and Lead Sheet, and each goes somewhere', () => {
+    const opened: string[] = [];
+    const el = render(reading(), {
+      onOpen: () => opened.push('open'),
+      onOpenLeadSheet: () => opened.push('lead-sheet'),
+    });
+    const open = el.querySelector('[data-testid="song-card-open"]') as HTMLButtonElement;
+    const chart = el.querySelector('[data-testid="song-card-lead-sheet"]') as HTMLButtonElement;
+    // Capital O, the label every other module home's primary carries.
+    expect(open.textContent).toBe('Open');
+    expect(chart.textContent).toBe('Lead Sheet');
+    act(() => { open.click(); });
+    act(() => { chart.click(); });
+    expect(opened).toEqual(['open', 'lead-sheet']);
+  });
+
+  it('offers no Progress Detail', () => {
+    // The matrix on the song page IS this song's progress detail. A
+    // third button here would be a second door to the page Open opens.
+    const el = render(reading());
+    expect(el.querySelector('[data-testid="category-card-progress-detail"]')).toBeNull();
+    expect(el.textContent).not.toContain('Progress Detail');
   });
 });
