@@ -4,11 +4,12 @@
 // records an SM-2 engagement under the 'mental-viz' moduleRef. The
 // session banner owns the time; the drill walks the queue until the
 // user exits or the queue is exhausted.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/Modal';
 import PianoKeyboard from '../../components/PianoKeyboard';
 import { recordEngagement } from '../../lib/spacingState';
 import { loadMentalVizQueue } from './mentalVizQueue';
+import { logMentalVizSession } from './drillModel';
 import { MENTAL_VIZ_MODULE_REF, mentalVizPrompt, type MentalVizItem } from './mentalVizLibrary';
 import { useSpelling } from '../../lib/spellingPref';
 
@@ -47,6 +48,20 @@ export default function MentalVizChordDrill({ onClose }: { onClose: () => void }
 
   const current = queue ? queue[idx] : undefined;
 
+  /**
+   * WHEN THIS CARD WENT UP.
+   *
+   * The span from the prompt appearing to the rating being given is the
+   * only one this drill observes, and it is what the session row
+   * records — see `logMentalVizSession`. A ref rather than state: it
+   * must not trigger a render, and reading it inside `rate` has to give
+   * the value set when the card appeared rather than one cycle behind.
+   */
+  const shownAt = useRef<number | null>(null);
+  useEffect(() => {
+    shownAt.current = phase === 'prompt' ? Date.now() : shownAt.current;
+  }, [phase, idx]);
+
   const rate = async (rating: Rating) => {
     if (!current || saving) return;
     setSaving(true);
@@ -56,6 +71,16 @@ export default function MentalVizChordDrill({ onClose }: { onClose: () => void }
         moduleRef: MENTAL_VIZ_MODULE_REF,
         signal: { kind: 'rating', rating },
       });
+      // OMITTED rather than measured from the epoch when no card was
+      // ever shown — unreachable while one is on screen, and the guard
+      // is what keeps that true if it ever stops being.
+      if (shownAt.current !== null) {
+        await logMentalVizSession({
+          itemRef: current.itemRef,
+          durationSeconds: Math.max(0, Math.round((Date.now() - shownAt.current) / 1000)),
+          rating,
+        });
+      }
       setReps(r => r + 1);
       const next = idx + 1;
       if (queue && next < queue.length) {

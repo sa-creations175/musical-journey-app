@@ -759,6 +759,74 @@ export async function logScaleDrillSession(
   return session;
 }
 
+/**
+ * A rated mental-visualisation card, as a session row.
+ *
+ * =====================================================================
+ * IT USED TO RECORD ONLY AN ENGAGEMENT, so the one thing the module
+ * measures everywhere else — time — did not exist for it at all. Its
+ * card could show a coverage and a last-worked and nothing about how
+ * long any of it took.
+ *
+ * MIRRORS `logScaleDrillSession`: the itemRef stands in for both
+ * `skillId` and `drillTypeId`, because the mental-viz library is a
+ * static catalog with no `DrillSkill` row behind it. That keeps the
+ * row well-formed and self-identifying — an `mv:` skillId names its
+ * own section.
+ *
+ * THE DURATION IS THE CARD'S OWN, prompt to rating, which is the only
+ * span the drill actually observes. It writes NO spacingState
+ * engagement: the drill already records one against the same itemRef,
+ * and a second would double-count the rep.
+ *
+ * KNOCK-ON, STATED BECAUSE IT IS REAL: `drillSessions` is what
+ * `getWeeklyAttempts` and `loadPracticeDays` read for this module, so
+ * mental-viz reps now count toward consistency. That matches the
+ * April 27 call — mental viz counts toward consistency, not toward
+ * breadth, depth or mastery — and those three read `spacingState`
+ * coverage, which is untouched.
+ * =====================================================================
+ */
+export interface LogMentalVizSessionInput {
+  /** Canonical mental-viz itemRef — `mv:…` from mentalVizLibrary. */
+  itemRef: string;
+  /** Seconds from the prompt appearing to the rating being given. */
+  durationSeconds: number;
+  /** The drill's own three-way rating, mapped onto the four-point
+   *  scale `DrillSession` stores. */
+  rating: 'flying' | 'cruising' | 'crawling';
+}
+
+/**
+ * The three-way rating on the four-point scale, chosen so it round
+ * trips: `feelToRating` maps each of these back to the rating given.
+ * Crawling takes 2 rather than 1 — the drill offers one "struggled"
+ * answer, and reading it as the harsher of the two would say something
+ * the reader did not.
+ */
+const MENTAL_VIZ_FEEL: Readonly<Record<
+  LogMentalVizSessionInput['rating'], DrillSession['feelRating']
+>> = { flying: 4, cruising: 3, crawling: 2 };
+
+export async function logMentalVizSession(
+  input: LogMentalVizSessionInput,
+): Promise<DrillSession> {
+  const session: DrillSession = {
+    id: uid('dses'),
+    drillTypeId: input.itemRef,
+    skillId: input.itemRef,
+    // Away from the keyboard entirely — no hand, no style. `both` and
+    // `solid` are the fields' own defaults for a row with neither.
+    hand: 'both',
+    style: 'solid',
+    durationSeconds: Math.round(input.durationSeconds),
+    feelRating: MENTAL_VIZ_FEEL[input.rating],
+    timestamp: Date.now(),
+  };
+  await addDrillSession(session);
+  return session;
+}
+
 // --- Aggregation helpers (used by heat grid + attention panel) -----
 
 /** Aggregate stats across a set of drill types belonging to one skill

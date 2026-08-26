@@ -38,6 +38,7 @@ import {
   type ShapesSectionId,
 } from './homeCards';
 import { wantsDetail } from './sectionRoutes';
+import { shapesTimeInvested } from './timeInvested';
 
 const PREF_CHORD_SCOPE = 'shapesAndPatternsChordScope';
 
@@ -87,8 +88,17 @@ function SectionPage({ section }: { section: ShapesSectionId }) {
     () => db.spacingState.where('moduleRef').equals(MENTAL_VIZ_MODULE_REF).toArray(),
     [],
   ) ?? [];
+  /**
+   * TIME INVESTED — read, never written for this. Every S&P drill has
+   * always recorded a duration; nothing added them up. Chord shapes
+   * store a `DrillSkill` id rather than an itemRef, so the skills
+   * table comes along for the join.
+   */
+  const sessions = useLiveQuery(() => db.drillSessions.toArray(), []) ?? [];
+  const drillSkills = useLiveQuery(() => db.drillSkills.toArray(), []) ?? [];
+  const timeBySection = shapesTimeInvested(sessions, drillSkills);
   const now = Date.now();
-  const cards = shapesCards(shapesRows, mentalVizRows, now)
+  const cards = shapesCards(shapesRows, mentalVizRows, now, timeBySection)
     .filter(c => c.key === section);
 
   const scrollToDetail = () => {

@@ -17,6 +17,7 @@ import {
   shapesCards,
 } from './homeCards';
 import { SCROLL_TO_DETAIL_STATE, shapesSectionPath } from './sectionRoutes';
+import { shapesTimeInvested } from './timeInvested';
 
 export default function ShapesAndPatterns() {
   const navigate = useNavigate();
@@ -58,9 +59,18 @@ export default function ShapesAndPatterns() {
     () => db.spacingState.where('moduleRef').equals(MENTAL_VIZ_MODULE_REF).toArray(),
     [],
   ) ?? [];
+  /**
+   * TIME INVESTED — read, never written for this. Every S&P drill has
+   * always recorded a duration; nothing added them up. Chord shapes
+   * store a `DrillSkill` id rather than an itemRef, so the skills
+   * table comes along for the join.
+   */
+  const sessions = useLiveQuery(() => db.drillSessions.toArray(), []) ?? [];
+  const drillSkills = useLiveQuery(() => db.drillSkills.toArray(), []) ?? [];
+  const timeBySection = shapesTimeInvested(sessions, drillSkills);
   const now = Date.now();
   const cards = useMemo(
-    () => shapesCards(shapesRows, mentalVizRows, now),
+    () => shapesCards(shapesRows, mentalVizRows, now, timeBySection),
     // `now` is deliberately not a dep — freshness moves in days.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [shapesRows, mentalVizRows],

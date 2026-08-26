@@ -83,6 +83,10 @@ export function shapesCards(
    *  separate read; merging them would let two itemRefs collide. */
   mentalVizRows: readonly SpacingState[],
   now: number,
+  /** Seconds per section, from `shapesTimeInvested`. Omitted where the
+   *  caller has not read the sessions; a section with none stays
+   *  absent rather than showing a zero it has not measured. */
+  timeBySection: ReadonlyMap<ShapesSectionId, number> = new Map(),
 ): CategoryCardModel[] {
   const counts = shapesCounts();
   const totalFor: Readonly<Record<ShapesSectionId, number>> = {
@@ -177,6 +181,9 @@ export function shapesCards(
       itemsSeen,
       acquired,
       bars,
+      ...(timeBySection.has(section.id)
+        ? { timeInvestedSeconds: timeBySection.get(section.id)! }
+        : {}),
       lastPracticedDaysAgo: latest === null
         ? null
         : daysBetween(localDayKey(new Date(latest)), localDayKey(new Date(now))),
