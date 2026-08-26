@@ -177,6 +177,42 @@ function evenlySplit(answer: string, decoys: readonly string[]): boolean {
   return altered === 2;
 }
 
+/**
+ * The 24 MOVEMENTS — one axis value per (quality, direction) pair.
+ *
+ * =====================================================================
+ * ONE LIST, BUILT FROM THE TWO THE GENERATOR ALREADY WALKS.
+ *
+ * The grid's columns and the cards' coordinates have to be the same 24
+ * values in the same order, or a column exists that no card can land
+ * in. Writing them out beside the grid is exactly how that happens, so
+ * this is the product of `INTERVAL_QUALITIES` and `DIRECTIONS` in the
+ * order `scaleDegreeQualityCards` loops them — quality outer, direction
+ * inner — and the grid reads it rather than its own copy.
+ * =====================================================================
+ *
+ * The id is `${direction}:${quality.id}`. Colon-joined so the two parts
+ * stay legible, and direction first so a column header sorts by nothing
+ * accidental — the ORDER is this list, never the string.
+ */
+export function movementId(quality: IntervalQuality, direction: Direction): string {
+  return `${direction}:${quality.id}`;
+}
+
+export interface DegreeMovement {
+  id: string;
+  /** "m2 up" — the quality's own short name and the direction word,
+   *  both taken from the data rather than written again. */
+  label: string;
+}
+
+export const DEGREE_MOVEMENTS: ReadonlyArray<DegreeMovement> =
+  INTERVAL_QUALITIES.flatMap(quality =>
+    DIRECTIONS.map(direction => ({
+      id: movementId(quality, direction),
+      label: `${quality.id} ${direction}`,
+    })));
+
 export function scaleDegreeQualityCards(): DegreeMathCard[] {
   const cards: DegreeMathCard[] = [];
   for (let startDegree = 1; startDegree <= DEGREE_COUNT; startDegree++) {
@@ -219,6 +255,12 @@ function buildCard(
     }),
     explanation: degreeMathExplanation(startDegree, quality, direction),
     skillTag: `scale-degree-quality-${direction}-${quality.id}`,
+    // WHERE THIS CARD SITS ON THE CATEGORY'S GRID — 7 start degrees
+    // down, 24 movements across. Taken from the values in scope, never
+    // parsed back out of the id: the id is a stable handle for stored
+    // SM-2 state, and parsing one for a UI coordinate would make it a
+    // schema. Same rule the six generators in `catalog.ts` follow.
+    axis: { degree: startDegree, movement: movementId(quality, direction) },
     // STRUCTURED, not only inside the question string. The category
     // detail grid is 7 degrees × 24 (twelve qualities each way) and has
     // to be buildable from data — parsing a question string back into

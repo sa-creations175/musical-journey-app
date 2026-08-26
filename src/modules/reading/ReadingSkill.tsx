@@ -18,7 +18,7 @@
  * THE DRILL COMPONENT IS UNCHANGED. `ReadingDrill` still owns the card,
  * the answer and the attempt; what moved is where it is mounted.
  */
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
@@ -30,6 +30,14 @@ import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import ReadingDrill from './ReadingDrill';
 import { readingSkillForItemRef } from './catalog';
 import PoolPicker from '../../components/moduleHome/PoolPicker';
+import CategoryDetailStack, {
+  type DetailEntry,
+} from '../../components/moduleHome/CategoryDetailStack';
+import { useAxisViews } from '../../components/moduleHome/useAxisViews';
+import { moduleMetaById } from '../../lib/moduleMeta';
+import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
+import { READING_CATEGORY_LABEL } from './skillRecords';
+import { READING_GRIDS } from './progressGrids';
 import { useLitPool } from '../../lib/useLitPool';
 import {
   READING_MODULE_ID, READING_SKILL_LABELS, READING_SKILL_ORDER,
@@ -76,18 +84,62 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
   const [drilling, setDrilling] = useState(false);
   useEndOnModuleHome(() => setDrilling(false));
 
+  /** Which detail blocks are open — this skill's to begin with. Any
+   *  number may be open at once; see `CategoryDetailStack`. */
+  const [expandedDetails, setExpandedDetails] = useState<ReadonlySet<string>>(
+    () => new Set([skill]),
+  );
+
   const attempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(READING_MODULE_ID).toArray(),
     [],
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(READING_MODULE_ID);
   const now = Date.now();
+  const axisViews = useAxisViews();
+
+  const dueByItem = useLiveQuery(async () => {
+    const rows = await db.spacingState
+      .where('moduleRef').equals(READING_MODULE_ID).toArray();
+    return new Map(rows.map(r => [r.itemRef, r.nextDueAt] as const));
+  }, []) ?? new Map<string, number | null>();
+
+  /** The registry, for the detail blocks below. A drill page always
+   *  shows at least one, so it is always needed here. */
+  const [records, setRecords] = useState<SkillRecord[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void buildSkillRegistry().then(r => { if (live) setRecords(r); });
+    return () => { live = false; };
+  }, [attempts]);
 
   // The same cards the module home draws, filtered to what is lit — so
   // the cards under the row are the pool the row describes.
   const cards = readingCards(attempts, spacingIntervals, now)
     .filter(c => lit.has(c.key));
   const pool = READING_SKILL_ORDER.filter(s => lit.has(s)) as ReadingDrillSkill[];
+
+  /** One entry per lit skill, in the chip row's order — derived from
+   *  `lit`, so the two cannot disagree. */
+  const detailEntries: DetailEntry[] = useMemo(
+    () => READING_SKILL_ORDER.filter(sk => lit.has(sk)).map(sk => ({
+      key: sk,
+      label: READING_CATEGORY_LABEL[sk],
+      grid: READING_GRIDS[READING_CATEGORY_LABEL[sk]] ?? null,
+      items: (records ?? []).filter(
+        r => r.moduleId === READING_MODULE_ID
+          && r.category === READING_CATEGORY_LABEL[sk],
+      ),
+    })),
+    [lit, records],
+  );
+
+  const toggleDetail = (key: string) => setExpandedDetails(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
 
   return (
     <div className="space-y-6" data-testid="reading-skill-page" data-skill={skill}>
@@ -133,6 +185,21 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
         autoStart={drilling}
         {...(focusRefs && focusSkill !== undefined && lit.has(focusSkill) ? { focusRefs } : {})}
       />
+
+      {/* THE DETAIL BLOCK, below the drill. This skill expanded,
+          everything else lit collapsed. */}
+      {axisViews.loaded && (
+        <CategoryDetailStack
+          entries={detailEntries}
+          expanded={expandedDetails}
+          onToggle={toggleDetail}
+          accentHex={moduleMetaById(READING_MODULE_ID)?.accentHex ?? '#6f4a2f'}
+          now={now}
+          viewFor={axisViews.viewFor}
+          onViewChange={axisViews.setView}
+          dueByItem={dueByItem}
+        />
+      )}
     </div>
   );
 }

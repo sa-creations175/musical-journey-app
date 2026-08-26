@@ -17,7 +17,7 @@
  * rules about focus protection and session defaults, and the second set
  * is always the one that falls behind.
  */
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
@@ -30,6 +30,13 @@ import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
 import FluencySessionSettings from './FluencySessionSettings';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import PoolPicker from '../../components/moduleHome/PoolPicker';
+import CategoryDetailStack, {
+  type DetailEntry,
+} from '../../components/moduleHome/CategoryDetailStack';
+import { useAxisViews } from '../../components/moduleHome/useAxisViews';
+import { moduleMetaById } from '../../lib/moduleMeta';
+import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
+import { HARMONIC_FLUENCY_GRIDS } from './progressGrids';
 import { useLitPool } from '../../lib/useLitPool';
 import { isCategory } from './categoryRoutes';
 import type { SessionStats } from './HarmonicFluencySession';
@@ -69,6 +76,18 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
    */
   const { lit, toggle } = useLitPool(category, isCategory);
   const [running, setRunning] = useState(false);
+  /**
+   * Which detail blocks are open. The page's own starts open and
+   * everything else lit starts collapsed — the chip row says what is in
+   * the pool, and this says which of them the reader is reading.
+   *
+   * Unbounded: comparing two categories is exactly what a reader lights
+   * a second chip to do, and an accordion that closed the last one
+   * would make it impossible.
+   */
+  const [expandedDetails, setExpandedDetails] = useState<ReadonlySet<string>>(
+    () => new Set([category]),
+  );
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
   const [caughtUp, setCaughtUp] = useState(false);
@@ -93,6 +112,22 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(MODULE_ID);
   const now = Date.now();
+  const axisViews = useAxisViews();
+
+  /**
+   * The registry, for the detail blocks below.
+   *
+   * It walks every module, so it is fetched once here and re-fetched
+   * when this module's attempts move — the same trade the module home
+   * makes, except that a drill page always shows at least one detail
+   * block and therefore always needs it.
+   */
+  const [records, setRecords] = useState<SkillRecord[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void buildSkillRegistry().then(r => { if (live) setRecords(r); });
+    return () => { live = false; };
+  }, [attempts]);
 
   // THE SAME CARDS THE MODULE HOME DRAWS, filtered to what is lit —
   // so the cards under the row are the pool the row describes. Built
@@ -107,6 +142,32 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
     setLastSummary(null);
     setRunning(true);
   };
+
+  /**
+   * ONE ENTRY PER LIT CATEGORY, in the chip row's order.
+   *
+   * Derived from `lit` rather than held beside it, so the detail block
+   * and the chips cannot say different things about what is in the
+   * pool — the defect this page had before the pool moved to the URL.
+   */
+  const detailEntries: DetailEntry[] = useMemo(
+    () => CATEGORY_ORDER.filter(c => lit.has(c)).map(c => ({
+      key: c,
+      label: CATEGORY_LABELS[c],
+      grid: HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS[c]] ?? null,
+      items: (records ?? []).filter(
+        r => r.moduleId === MODULE_ID && r.category === CATEGORY_LABELS[c],
+      ),
+    })),
+    [lit, records],
+  );
+
+  const toggleDetail = (key: string) => setExpandedDetails(prev => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
 
   return (
     <div className="space-y-6" data-testid="hf-category-page" data-category={category}>
@@ -164,6 +225,20 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
             lastSummary={lastSummary}
             sessionTarget={SESSION_TARGET}
           />
+
+          {/* THE DETAIL BLOCK, below the controls. The page's own
+              category expanded, everything else lit collapsed. */}
+          {axisViews.loaded && (
+            <CategoryDetailStack
+              entries={detailEntries}
+              expanded={expandedDetails}
+              onToggle={toggleDetail}
+              accentHex={moduleMetaById(MODULE_ID)?.accentHex ?? '#7a5aa8'}
+              now={now}
+              viewFor={axisViews.viewFor}
+              onViewChange={axisViews.setView}
+            />
+          )}
         </>
       )}
     </div>

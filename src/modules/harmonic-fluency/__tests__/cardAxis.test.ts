@@ -172,9 +172,14 @@ describe('absent means flat list, not broken', () => {
   it('pins how many cards carry coordinates, per category', () => {
     // A count over the whole deck, so a generator that quietly stopped
     // supplying them shows up here even if its own test was deleted.
-    // ELEVEN OF FIFTEEN CATEGORIES. The four with none — scale degree
-    // math, diatonic qualities, chord construction, ear theory — are
-    // hand-written or already carry their own `facts`.
+    //
+    // TWELVE OF FIFTEEN CATEGORIES. Scale degree math joined them: it
+    // is generated from a triple loop and always held its coordinates
+    // in `facts`, so the axis was one line rather than new structure.
+    // The three with none — diatonic qualities, chord construction,
+    // ear theory — are hand-written and vary by nothing a grid could
+    // show. They render as the flat list, which is the answer for them
+    // rather than a gap.
     const withAxis = FLASHCARDS.filter(c => Object.hasOwn(c, 'axis'));
     const byCategory = new Map<string, number>();
     for (const c of withAxis) {
@@ -182,6 +187,7 @@ describe('absent means flat list, not broken', () => {
     }
     expect(Object.fromEntries([...byCategory].sort())).toEqual({
       'enharmonic-equivalents': 35,
+      'scale-degree-math': 168,
       'functional-harmony': 33,
       'intervals': 25,
       'key-signatures': 17,
@@ -193,6 +199,46 @@ describe('absent means flat list, not broken', () => {
       'slash-chords': 44,
       'tritone-pairs': 12,
     });
+  });
+});
+
+describe('scale degree math is 7 degrees x 24 movements', () => {
+  it('offers exactly the 24 movements, in the generator\u2019s order', async () => {
+    const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
+    const { DEGREE_MOVEMENTS, movementId } = await import('../scaleDegreeQualityCards');
+    const { INTERVAL_QUALITIES, DIRECTIONS } = await import('../scaleDegreeQuality');
+
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['scale-degree-math']];
+    expect(grid.columns.views[0].values.map(String))
+      .toEqual(DEGREE_MOVEMENTS.map(m => m.id));
+    // And the list itself is the product of the two the generator
+    // walks, not a third copy of them.
+    expect(DEGREE_MOVEMENTS.map(m => m.id)).toEqual(
+      INTERVAL_QUALITIES.flatMap(q => DIRECTIONS.map(d => movementId(q, d))),
+    );
+    expect(DEGREE_MOVEMENTS).toHaveLength(24);
+    expect(grid.rows!.views[0].values).toHaveLength(7);
+  });
+
+  it('lands every one of the 168 in a cell', async () => {
+    // NOTHING IN THE TAIL. A coordinate the axis does not offer falls
+    // out of the grid silently, so the count is what says the two
+    // lists agree — and 7 x 24 = 168 says no cell holds two.
+    const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['scale-degree-math']];
+    const columns = new Set(grid.columns.views[0].values.map(String));
+    const rows = new Set(grid.rows!.views[0].values.map(String));
+
+    const cards = inCategory('scale-degree-math');
+    expect(cards).toHaveLength(168);
+    const cells = new Set<string>();
+    for (const c of cards) {
+      expect(c.axis, c.id).toBeDefined();
+      expect(columns.has(String(c.axis!.movement)), c.id).toBe(true);
+      expect(rows.has(String(c.axis!.degree)), c.id).toBe(true);
+      cells.add(`${c.axis!.degree}|${c.axis!.movement}`);
+    }
+    expect(cells.size).toBe(168);
   });
 });
 

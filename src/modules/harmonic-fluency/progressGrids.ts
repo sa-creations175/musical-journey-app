@@ -25,6 +25,7 @@ import {
   FLAT_TWELVE, MODE_BY_DEGREE, SLASH_SHAPES,
 } from './catalogExpansions';
 import { MAJOR_ROOTS, MINOR_ROOTS } from './pentatonics';
+import { DEGREE_MOVEMENTS } from './scaleDegreeQualityCards';
 
 const axis = (
   field: string,
@@ -96,7 +97,23 @@ const keyAxis: AxisSpec = {
 
 const degreeAxis = axis('degree', 'degree', SCALE_DEGREES);
 
+/**
+ * Scale degree math — 7 start degrees down, 24 movements across.
+ *
+ * The 24 are one list, exported from the generator that walks them, so
+ * the columns and the cards' coordinates cannot come from two sources
+ * that drift. `labelFor` reads the same list; nothing here spells a
+ * quality or a direction a second time.
+ */
+const MOVEMENT_LABEL = new Map(DEGREE_MOVEMENTS.map(m => [m.id, m.label] as const));
+
 export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
+  [CATEGORY_LABELS['scale-degree-math']]: {
+    columns: axis('movement', 'movement', DEGREE_MOVEMENTS.map(m => m.id),
+      v => MOVEMENT_LABEL.get(String(v)) ?? String(v)),
+    rows: degreeAxis,
+  },
+
   [CATEGORY_LABELS['named-notes']]: { columns: keyAxis, rows: degreeAxis },
   [CATEGORY_LABELS['reverse-key-pivots']]: { columns: keyAxis, rows: degreeAxis },
 

@@ -120,12 +120,53 @@ describe('the nav moves the page', () => {
   });
 });
 
+describe('the detail block mirrors the chip row', () => {
+  const detailKeys = () =>
+    [...container!.querySelectorAll('[data-testid="category-detail"]')]
+      .map(b => b.getAttribute('data-detail-key'));
+  const expandedKeys = () =>
+    [...container!.querySelectorAll('[data-testid="category-detail"]')]
+      .filter(b => b.getAttribute('data-expanded') === 'true')
+      .map(b => b.getAttribute('data-detail-key'));
+
+  it('opens the page\u2019s own category and nothing else', async () => {
+    await render('/harmonic-fluency/modes?also=intervals');
+    expect(detailKeys()!.sort()).toEqual(['intervals', 'modes']);
+    expect(expandedKeys()).toEqual(['modes']);
+  });
+
+  it('gives Scale Degree Math its 7 x 24 grid', async () => {
+    // The one Silas named. 24 movement columns, 7 degree rows — read
+    // off the generator's own lists, so this fails if either moves.
+    await render('/harmonic-fluency/scale-degree-math');
+    const own = container!.querySelector('[data-detail-key="scale-degree-math"]')!;
+    const grid = own.querySelector('[data-testid="progress-grid"]');
+    expect(grid, 'the grid rendered').not.toBeNull();
+    expect(grid!.querySelectorAll('[data-testid="grid-column"]')).toHaveLength(24);
+  });
+
+  it('renders a flat list for a category with no coordinates', async () => {
+    // Chord construction is hand-written and varies by nothing a grid
+    // could show. That is the answer for it rather than a gap.
+    await render('/harmonic-fluency/chord-construction');
+    const own = container!.querySelector('[data-detail-key="chord-construction"]')!;
+    expect(own.getAttribute('data-expanded')).toBe('true');
+    expect(own.querySelector('[data-testid="progress-grid"]')).toBeNull();
+  });
+});
+
 describe('the chip row writes the same value', () => {
-  it('lights a second category and the cards follow', async () => {
+  it('lights a second category and the cards and details follow', async () => {
     await render('/harmonic-fluency/modes');
     await click(container!.querySelector('[data-option="intervals"]')!);
     expect(litChips().sort()).toEqual(['intervals', 'modes']);
     expect(cardKeys().sort()).toEqual(['intervals', 'modes']);
+    const details = [...container!.querySelectorAll('[data-testid="category-detail"]')];
+    expect(details.map(d => d.getAttribute('data-detail-key')).sort())
+      .toEqual(['intervals', 'modes']);
+    // The new one arrives COLLAPSED — lighting is not opening.
+    expect(details.find(d => d.getAttribute('data-detail-key') === 'intervals')!
+      .getAttribute('data-expanded')).toBe('false');
     // The page is still the page — lighting is not navigating.
     expect(page().getAttribute('data-category')).toBe('modes');
   });
