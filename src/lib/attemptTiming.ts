@@ -144,7 +144,21 @@ export function contextFields(context: {
  * =====================================================================
  */
 export interface AskedContext {
-  /** When the sound is scheduled to stop, epoch ms. */
+  /**
+   * When the question becomes ANSWERABLE, epoch ms.
+   *
+   * For most drills that is the moment the sound is scheduled to stop,
+   * which is where the name comes from. It is NOT the same thing for a
+   * sustained blocked chord: every note strikes at once, so the
+   * question is complete at the onset and the seconds of ring that
+   * follow are not something the reader waits through. Chord
+   * recognition measured from the far end of that ring and recorded
+   * twenty consecutive zeros for it — see `chordBlockedAnswerableMs`.
+   *
+   * The name is kept because five modules pass it and renaming a field
+   * across twelve write sites to fix a comment is the wrong trade; what
+   * a caller must supply is written here instead.
+   */
   playbackEndsAt: number;
   playbackSpeed?: number;
   playStyle?: 'blocked' | 'broken';

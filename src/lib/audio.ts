@@ -358,35 +358,64 @@ export type BrokenChordDirection = 'asc' | 'desc' | 'both';
 //   · 'both' → ascending then descending, without re-striking the apex
 //              (e.g. C-E-G-C then G-E-C for a C major triad)
 /**
- * How long a blocked chord sounds for, in ms. All notes start
- * together, so it is one note's duration plus the scheduling lead-in.
+ * When a blocked chord becomes ANSWERABLE, in ms after the play call.
+ *
+ * =====================================================================
+ * A SUSTAINED CHORD IS ANSWERABLE AT ITS ONSET, NOT WHEN IT STOPS.
+ *
+ * This used to return how long the chord SOUNDS for — one note's full
+ * duration, 3.2s, doubled to 6.45s at the module's default half speed
+ * — and chord recognition started its measurement clock there. Every
+ * note of a blocked chord strikes at the same instant, so the whole
+ * question is present in the first moment; the seconds that follow are
+ * one chord ringing, and a reader who has already decided is not
+ * waiting for anything. Starting the clock at the far end of that ring
+ * meant every answer landed BEFORE the clock started, and
+ * `heardElapsedFields`' floor recorded each one as zero. Twenty rows,
+ * twenty zeros, and the module looked infinitely fast.
+ *
+ * So this is the scheduling lead-in and nothing else. The lead-in
+ * stays because the reader really does wait through it.
+ *
+ * NOT THE SAME QUESTION AS "HOW LONG DOES IT SOUND". Nothing needs the
+ * sound's length today, and reintroducing it under a name a
+ * measurement might reach for is how this went wrong the first time.
+ * If a UI ever needs the ring, give it its own name.
+ * =====================================================================
  */
-export function chordBlockedMs(speedMultiplier = 1.0, duration = 3.2): number {
-  return (0.05 + duration / clampSpeed(speedMultiplier)) * 1000;
+export function chordBlockedAnswerableMs(): number {
+  // NO SPEED AND NO DURATION PARAMETER, deliberately. Both stretch the
+  // ring and neither delays the answer, so a caller cannot pass
+  // something that moves this clock — the previous signature took both
+  // and that is exactly how the ring got into the measurement.
+  return 0.05 * 1000;
 }
 
 /**
- * How long a broken chord sounds for, in ms.
+ * When a broken chord becomes ANSWERABLE, in ms after the play call.
  *
- * The last note STARTS at `(n - 1) * step` and runs a full `dur`, so
- * the sound ends later than the sequence does — and `both` plays the
- * shape up and back down without restriking the apex, which is why
- * the note count is derived here rather than passed in.
+ * The LAST NOTE'S ONSET, not the end of its ring. A broken chord is
+ * only fully heard once every note has struck, so unlike the blocked
+ * case the reader genuinely waits through the sequence — but the final
+ * note names its pitch the instant it sounds, and the two seconds it
+ * then rings for add nothing to answer with. `both` plays the shape up
+ * and back down without restriking the apex, which is why the strike
+ * count is derived here rather than passed in.
  *
- * Broken chords are several times longer than blocked ones at the same
- * speed, which is the whole reason `playStyle` goes on the row: pooled
- * without it, a reader who prefers broken looks slower at everything.
+ * Broken chords become answerable much later than blocked ones at the
+ * same speed, which is the whole reason `playStyle` goes on the row:
+ * pooled without it, a reader who prefers broken looks slower at
+ * everything.
  */
-export function chordBrokenMs(
+export function chordBrokenAnswerableMs(
   noteCount: number,
   speedMultiplier = 1.0,
   direction: BrokenChordDirection = 'asc',
   stepTime = 0.4,
-  noteDuration = 2.0,
 ): number {
   const m = clampSpeed(speedMultiplier);
   const steps = direction === 'both' ? noteCount * 2 - 1 : noteCount;
-  return (0.05 + (steps - 1) * (stepTime / m) + noteDuration / m) * 1000;
+  return (0.05 + (steps - 1) * (stepTime / m)) * 1000;
 }
 
 export async function playChordBroken(

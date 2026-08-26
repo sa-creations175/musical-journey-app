@@ -113,6 +113,29 @@ describe('chord recognition records the stage, not a tab', () => {
     }
   });
 
+  it('starts its clock once per question, never on a replay', () => {
+    // TWENTY ROWS OF EXACTLY ZERO came from two clocks pointing the
+    // wrong way, and this is the second of them: `asked.current` was
+    // assigned inside the play helper, which `replay` also calls, so
+    // every replay pushed the start of the measurement forward past
+    // the answer that followed it. One assignment, on the path that
+    // presents a NEW question.
+    expect(count(chordRecognitionSource, /asked\.current\s*=[^=]/g)).toBe(1);
+    // And the assignment is not in the player. `playChord` is called by
+    // both `startNew` and `replay`; only one of them asks a question.
+    expect(chordRecognitionSource)
+      .toMatch(/asked\.current = \{[\s\S]*?\};\n\s*await playChord\(/);
+  });
+
+  it('measures from the onset of a blocked chord, not the end of its ring', () => {
+    // The first of the two clocks. A blocked chord strikes every note
+    // at once, so the 3.2s it then rings for is not time the reader
+    // spends deciding — and at the module's default half speed that
+    // put the start of the clock 6.45s after the answer.
+    expect(chordRecognitionSource).toContain('chordBlockedAnswerableMs()');
+    expect(chordRecognitionSource).not.toContain('chordBlockedMs');
+  });
+
   it('records it rather than leaving it reconstructable', () => {
     // Step two fires only when the chord is inversion-trained, not
     // excluded, AND at least two inversion positions are enabled FOR

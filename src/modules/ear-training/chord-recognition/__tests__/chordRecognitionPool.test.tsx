@@ -42,13 +42,13 @@ const played = vi.hoisted(() => ({ calls: 0 }));
 vi.mock('../../../../lib/audio', () => ({
   playChordBlocked: async () => { played.calls += 1; },
   playChordBroken: async () => { played.calls += 1; },
-  // The quiz asks how long the sound will last so it can start its
-  // measurement clock when the sound stops. Stubbed rather than
-  // omitted: an undefined export here throws inside the play handler,
-  // and the failure surfaces as "the tab cannot play", which is a long
-  // way from the cause.
-  chordBlockedMs: () => 3_200,
-  chordBrokenMs: () => 4_400,
+  // The quiz asks when the question becomes answerable so it can start
+  // its measurement clock there. Stubbed rather than omitted: an
+  // undefined export here throws inside the play handler, and the
+  // failure surfaces as "the tab cannot play", which is a long way
+  // from the cause.
+  chordBlockedAnswerableMs: () => 50,
+  chordBrokenAnswerableMs: () => 1_250,
 }));
 
 let container: HTMLDivElement | null = null;

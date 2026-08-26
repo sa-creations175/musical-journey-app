@@ -27,8 +27,8 @@ import { db, type AttemptRecord, type ChordData } from '../../../../lib/db';
 vi.mock('../../../../lib/audio', () => ({
   playChordBlocked: async () => {},
   playChordBroken: async () => {},
-  chordBlockedMs: () => 0,
-  chordBrokenMs: () => 0,
+  chordBlockedAnswerableMs: () => 0,
+  chordBrokenAnswerableMs: () => 0,
 }));
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })

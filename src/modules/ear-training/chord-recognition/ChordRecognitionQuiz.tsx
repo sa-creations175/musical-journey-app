@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
-  chordBlockedMs,
-  chordBrokenMs,
+  chordBlockedAnswerableMs,
+  chordBrokenAnswerableMs,
   playChordBlocked,
   playChordBroken,
   type BrokenChordDirection,
@@ -170,8 +170,8 @@ export default function ChordRecognitionQuiz({
   } | null>(null);
   const [hasPlayed, setHasPlayed] = useState(false);
   /**
-   * What was in force when this question was ASKED — when the sound
-   * ends, the speed, and whether it was blocked or broken.
+   * What was in force when this question was ASKED — when it becomes
+   * answerable, the speed, and whether it was blocked or broken.
    *
    * Captured at presentation, not read at write time: all three are
    * controls the reader can move while thinking, and the row has to
@@ -466,6 +466,35 @@ export default function ChordRecognitionQuiz({
     return candidates;
   };
 
+  /**
+   * How long after the play call the question can first be answered.
+   *
+   * A blocked chord strikes every note at once and is answerable
+   * immediately; a broken one is not answerable until its last note
+   * has sounded. Both numbers come from the players' own constants, so
+   * the measurement and the sound cannot drift apart.
+   */
+  const answerableInMs = (chord: ChordData, inversion: Inversion): number =>
+    playStyleRef.current === 'broken'
+      ? chordBrokenAnswerableMs(
+          rotateForInversion(chord.intervals, inversion).length,
+          speedRef.current,
+          brokenDirRef.current,
+        )
+      : chordBlockedAnswerableMs();
+
+  /**
+   * PLAYS. It does not touch the clock, and that is the point.
+   *
+   * `replay` calls this too, and a replay must NOT restart the
+   * measurement: the question became answerable the first time it
+   * sounded, and a reader who needs three replays took that long to
+   * answer. This used to set `asked.current` here, so every replay
+   * pushed the clock's start forward past the answer that followed it
+   * — the second half of why this module recorded nothing but zeros.
+   * IntervalsQuiz has said the same thing at its own call site since
+   * the day it was instrumented.
+   */
   const playChord = async (
     chord: ChordData,
     rootMidi: number,
@@ -474,16 +503,6 @@ export default function ChordRecognitionQuiz({
     const intervals = rotateForInversion(chord.intervals, inversion);
     const style = playStyleRef.current;
     const speed = speedRef.current;
-    // The clock starts when the SOUND ENDS. A broken chord runs several
-    // times longer than a blocked one at the same speed, so the two
-    // durations are computed separately from the players' own numbers.
-    asked.current = {
-      playbackEndsAt: Date.now() + (style === 'broken'
-        ? chordBrokenMs(intervals.length, speed, brokenDirRef.current)
-        : chordBlockedMs(speed)),
-      playbackSpeed: speed,
-      playStyle: style,
-    };
     if (style === 'broken') {
       await playChordBroken(rootMidi, intervals, speed, brokenDirRef.current);
     } else {
@@ -508,6 +527,15 @@ export default function ChordRecognitionQuiz({
     setSelectedInversion(null);
     setPhase('awaiting-quality');
     setHasPlayed(true);
+    // ASKED HERE AND NOWHERE ELSE — one assignment, on the one path
+    // that presents a NEW question. The three settings are read at this
+    // instant rather than at write time, because all three are controls
+    // the reader can move while thinking.
+    asked.current = {
+      playbackEndsAt: Date.now() + answerableInMs(picked.chord, picked.inversion),
+      playbackSpeed: speedRef.current,
+      playStyle: playStyleRef.current,
+    };
     await playChord(picked.chord, rootMidi, picked.inversion);
   };
 
