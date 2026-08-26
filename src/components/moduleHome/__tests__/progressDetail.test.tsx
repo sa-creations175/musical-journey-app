@@ -421,3 +421,72 @@ describe('which way up the grid is drawn', () => {
     expect(turn()!.textContent).toBe('');
   });
 });
+
+describe('a grid split by its rows', () => {
+  /**
+   * The shape reading's note grid has: the rows do not share the
+   * columns' MEANING, so each row becomes its own table with its own
+   * headers and the label function is told which group it is drawing.
+   */
+  const SPLIT: GridSpec = {
+    columns: {
+      ...columnAxis,
+      views: [columnAxis.views[0]],
+      labelFor: (v, group) => `${String(group)}-${String(v)}`,
+      // Two of the four, adjacent in the declared order — so "framed"
+      // and "every column" are distinguishable.
+      inFrame: v => v === 'a' || v === 'd',
+    },
+    rows: rowAxis,
+    splitRows: true,
+  };
+
+  const tables = (el: HTMLElement) =>
+    [...el.querySelectorAll('[data-testid="progress-grid"]')];
+
+  it('draws one table per row value, each naming its group', async () => {
+    const el = await render(ITEMS, SPLIT);
+    expect(tables(el).map(t => t.getAttribute('data-group')))
+      .toEqual(['major', 'minor']);
+    expect([...el.querySelectorAll('[data-testid="grid-caption"]')]
+      .map(c => c.textContent)).toEqual(['major', 'minor']);
+  });
+
+  it('labels the same column differently in each table', async () => {
+    // THE REASON THE SPLIT EXISTS. One header over both rows could only
+    // print the coordinate; two can each say what it means there.
+    const el = await render(ITEMS, SPLIT);
+    const headers = tables(el).map(t =>
+      [...t.querySelectorAll('[data-testid="grid-column"]')].map(c => c.textContent));
+    expect(headers[0]).toEqual(['major-c', 'major-a', 'major-d', 'major-b']);
+    expect(headers[1]).toEqual(['minor-c', 'minor-a', 'minor-d', 'minor-b']);
+  });
+
+  it('places every item it placed unsplit, and keeps the tail', async () => {
+    const el = await render(ITEMS, SPLIT);
+    const cells = [...el.querySelectorAll('[data-testid="grid-cell"]')]
+      .map(c => c.getAttribute('data-cell'));
+    expect(cells.sort()).toEqual(
+      ['a', 'b', 'c', 'd'].flatMap(k => ['major', 'minor'].map(m => `${k}|${m}`)).sort(),
+    );
+    expect(el.querySelectorAll('[data-testid="tail-item"]')).toHaveLength(3);
+  });
+
+  it('rules off the framed columns and only those', async () => {
+    const el = await render(ITEMS, SPLIT);
+    const framed = [...tables(el)[0].querySelectorAll('[data-testid="grid-frame-cell"]')]
+      .filter(c => c.getAttribute('data-framed') === 'true')
+      .map(c => c.getAttribute('data-column'));
+    expect(framed).toEqual(['a', 'd']);
+  });
+
+  it('draws no frame row where the axis declares no frame', async () => {
+    const el = await render();
+    expect(el.querySelector('[data-testid="grid-frame"]')).toBeNull();
+  });
+
+  it('cannot be turned — the rows are already separate tables', async () => {
+    const el = await render(ITEMS, SPLIT);
+    expect(el.querySelector('[data-testid="grid-orientation"]')).toBeNull();
+  });
+});

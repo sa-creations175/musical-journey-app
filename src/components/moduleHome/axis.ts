@@ -46,8 +46,27 @@ export interface AxisSpec {
    * in either view — see `viewsAgree`.
    */
   views: readonly AxisView[];
-  /** How a value reads on screen. Defaults to `String(value)`. */
-  labelFor?: (value: string | number) => string;
+  /**
+   * How a value reads on screen. Defaults to `String(value)`.
+   *
+   * `group` is the row value of the grid this label is being drawn in,
+   * and is passed only where the grid is SPLIT — see `splitRows`. It
+   * exists because one axis value can mean different things in
+   * different groups: staff position 0 is E4 in the treble clef and G2
+   * in the bass, so a label function that could not see the clef could
+   * only print the index.
+   */
+  labelFor?: (value: string | number, group?: string | number) => string;
+  /**
+   * Which values sit inside the axis's own frame.
+   *
+   * A run of staff positions covers the five lines AND the ledger
+   * positions either side of them; without a mark, the ledgers read as
+   * more staff. Where this is given, the grid draws a rule across the
+   * framed columns. Absent means the axis has no such frame, which is
+   * every other axis in the app.
+   */
+  inFrame?: (value: string | number) => boolean;
 }
 
 /** The grid for one category, or `null` where it has no axes. */
@@ -63,6 +82,20 @@ export interface GridSpec {
    * it still colours, still opens an item, and still has a tail.
    */
   rows?: AxisSpec;
+  /**
+   * ONE TABLE PER ROW VALUE INSTEAD OF ONE TABLE WITH A ROW EACH.
+   *
+   * Set where the rows do not share the columns' MEANING. Reading's
+   * note positions are the case: treble and bass ran as two rows over
+   * one axis of indices −4…12, and position 0 is E4 in one clef and G2
+   * in the other — so a single header could only ever print the index,
+   * which is a coordinate rather than a note.
+   *
+   * Split, each table gets its own headers and `labelFor` is told which
+   * group it is labelling. The cells, their tiers and the tail are
+   * unchanged: this is how the same placement is DRAWN.
+   */
+  splitRows?: boolean;
 }
 
 /** The single row a 1-D grid renders along. Its value never shows. */
@@ -89,8 +122,12 @@ export function resolveView(axis: AxisSpec, viewId: string | null): AxisView {
   return axis.views.find(v => v.id === viewId) ?? axis.views[0];
 }
 
-export function axisLabel(axis: AxisSpec, value: string | number): string {
-  return axis.labelFor ? axis.labelFor(value) : String(value);
+export function axisLabel(
+  axis: AxisSpec,
+  value: string | number,
+  group?: string | number,
+): string {
+  return axis.labelFor ? axis.labelFor(value, group) : String(value);
 }
 
 // ---------------------------------------------------------------------
@@ -130,11 +167,17 @@ export function orientationField(categoryLabel: string): string {
  * 12-tall one would be a different picture, not the same one rotated.
  */
 export function orientedGrid(grid: GridSpec, transposed: boolean): GridSpec {
-  if (!transposed || grid.rows === undefined) return grid;
-  return { columns: grid.rows, rows: grid.columns };
+  if (!transposed || !canTranspose(grid)) return grid;
+  return { columns: grid.rows!, rows: grid.columns };
 }
 
-/** Whether this grid can be turned at all. */
+/**
+ * Whether this grid can be turned at all.
+ *
+ * A SPLIT GRID CANNOT. Its rows are already separate tables, and the
+ * columns are labelled per group — swapping the two would ask each
+ * clef's note names to become the thing the tables are split BY.
+ */
 export function canTranspose(grid: GridSpec | null): boolean {
-  return grid !== null && grid.rows !== undefined;
+  return grid !== null && grid.rows !== undefined && grid.splitRows !== true;
 }

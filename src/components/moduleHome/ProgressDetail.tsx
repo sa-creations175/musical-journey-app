@@ -30,7 +30,7 @@ import {
   AS_DECLARED, SINGLE_ROW, TRANSPOSED, axisLabel, canTranspose, orientationField,
   orientedGrid, resolveView, type AxisSpec, type GridSpec,
 } from './axis';
-import { placeItems } from './placeItems';
+import { placeItems, type PlacedGrid } from './placeItems';
 
 export interface ProgressDetailProps {
   categoryLabel: string;
@@ -135,66 +135,31 @@ export default function ProgressDetail({
             )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="border-collapse text-[11px]" data-testid="progress-grid">
-              <thead>
-                <tr>
-                  <th className="sticky left-0 bg-white dark:bg-neutral-900 z-10" />
-                  {g.columns.map(c => (
-                    <th
-                      key={String(c)}
-                      data-testid="grid-column"
-                      data-column={String(c)}
-                      className="px-1.5 py-1 font-medium text-neutral-500 whitespace-nowrap"
-                    >
-                      {axisLabel(shown.columns, c)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {g.rows.map(r => (
-                  <tr key={String(r)} data-testid="grid-row" data-row={String(r)}>
-                    <th className="sticky left-0 bg-white dark:bg-neutral-900 z-10 pr-2 py-1 text-right font-medium text-neutral-500 whitespace-nowrap">
-                      {shown.rows ? axisLabel(shown.rows, r) : ''}
-                    </th>
-                    {g.columns.map(c => {
-                      const cell = g.cells.get(String(c))?.get(String(r)) ?? [];
-                      const item = cell[0];
-                      return (
-                        <td key={String(c)} className="p-0.5">
-                          {item ? (
-                            <button
-                              type="button"
-                              data-testid="grid-cell"
-                              data-cell={`${c}|${r}`}
-                              onClick={() => setOpenItem(item)}
-                              title={item.name}
-                              className={`w-7 h-7 rounded ${
-                                // A null tier is a module that cannot
-                                // compute one — no data, which is what
-                                // NOT STARTED means. Read off the same
-                                // map rather than repeating its colour.
-                                TIER_BAR_CLASS[item.currentTier ?? 'untouched']
-                              }`}
-                            />
-                          ) : (
-                            // An empty cell is a coordinate the catalog
-                            // has no item for. Drawn, not omitted, so
-                            // the grid keeps its shape.
-                            <div
-                              data-testid="grid-gap"
-                              className="w-7 h-7 rounded border border-dashed border-neutral-200 dark:border-neutral-800"
-                            />
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {/* ONE TABLE, OR ONE PER ROW. Split, each table draws its own
+              headers and is told which group it is labelling, because
+              the columns mean a different thing in each — see
+              `splitRows`. Unsplit is the same single table as before. */}
+          {shown.splitRows ? (
+            g.rows.map(r => (
+              <GridTable
+                key={String(r)}
+                grid={g}
+                columns={shown.columns}
+                rows={[r]}
+                group={r}
+                caption={shown.rows ? axisLabel(shown.rows, r) : ''}
+                onOpen={setOpenItem}
+              />
+            ))
+          ) : (
+            <GridTable
+              grid={g}
+              columns={shown.columns}
+              rows={g.rows}
+              {...(shown.rows ? { rowAxis: shown.rows } : {})}
+              onOpen={setOpenItem}
+            />
+          )}
 
           <TierLegend />
         </>
@@ -244,6 +209,127 @@ export default function ProgressDetail({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * The table itself — one of them, or one per group when split.
+ *
+ * Pulled out of the body unchanged in behaviour: same cells, same tier
+ * colours, same click-to-open. What it gained is a GROUP, which the
+ * column labels are told about, and the frame rule.
+ */
+function GridTable({
+  grid, columns, rows, rowAxis, group, caption, onOpen,
+}: {
+  grid: PlacedGrid;
+  columns: AxisSpec;
+  /** The row values this table draws — every row, or the one group. */
+  rows: readonly (string | number)[];
+  /** Present where a row header column is drawn. A split table names
+   *  its group in the caption instead. */
+  rowAxis?: AxisSpec;
+  group?: string | number;
+  caption?: string;
+  onOpen: (item: SkillRecord) => void;
+}) {
+  const framed = columns.inFrame;
+  return (
+    <div className="overflow-x-auto" data-testid="progress-grid-scroll">
+      {caption !== undefined && caption !== '' && (
+        <div
+          data-testid="grid-caption"
+          data-group={String(group)}
+          className="text-[11px] uppercase tracking-wide text-neutral-500 mb-1"
+        >
+          {caption}
+        </div>
+      )}
+      <table
+        className="border-collapse text-[11px]"
+        data-testid="progress-grid"
+        {...(group !== undefined ? { 'data-group': String(group) } : {})}
+      >
+        <thead>
+          {/* WHERE THE STAFF ITSELF SITS. A rule over the framed
+              columns, so the positions outside it read as ledger
+              rather than as more staff. Drawn only where the axis
+              declares a frame; every other axis has none. */}
+          {framed && (
+            <tr data-testid="grid-frame">
+              {rowAxis && <th className="sticky left-0 bg-white dark:bg-neutral-900 z-10" />}
+              {grid.columns.map(c => (
+                <th
+                  key={String(c)}
+                  data-testid="grid-frame-cell"
+                  data-column={String(c)}
+                  data-framed={framed(c) ? 'true' : 'false'}
+                  className={`h-1.5 p-0 ${
+                    framed(c) ? 'border-t-2 border-neutral-400 dark:border-neutral-500' : ''
+                  }`}
+                />
+              ))}
+            </tr>
+          )}
+          <tr>
+            {rowAxis && <th className="sticky left-0 bg-white dark:bg-neutral-900 z-10" />}
+            {grid.columns.map(c => (
+              <th
+                key={String(c)}
+                data-testid="grid-column"
+                data-column={String(c)}
+                className="px-1.5 py-1 font-medium text-neutral-500 whitespace-nowrap"
+              >
+                {axisLabel(columns, c, group)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={String(r)} data-testid="grid-row" data-row={String(r)}>
+              {rowAxis && (
+                <th className="sticky left-0 bg-white dark:bg-neutral-900 z-10 pr-2 py-1 text-right font-medium text-neutral-500 whitespace-nowrap">
+                  {axisLabel(rowAxis, r)}
+                </th>
+              )}
+              {grid.columns.map(c => {
+                const cell = grid.cells.get(String(c))?.get(String(r)) ?? [];
+                const item = cell[0];
+                return (
+                  <td key={String(c)} className="p-0.5">
+                    {item ? (
+                      <button
+                        type="button"
+                        data-testid="grid-cell"
+                        data-cell={`${c}|${r}`}
+                        onClick={() => onOpen(item)}
+                        title={item.name}
+                        className={`w-7 h-7 rounded ${
+                          // A null tier is a module that cannot
+                          // compute one — no data, which is what
+                          // NOT STARTED means. Read off the same
+                          // map rather than repeating its colour.
+                          TIER_BAR_CLASS[item.currentTier ?? 'untouched']
+                        }`}
+                      />
+                    ) : (
+                      // An empty cell is a coordinate the catalog
+                      // has no item for. Drawn, not omitted, so
+                      // the grid keeps its shape.
+                      <div
+                        data-testid="grid-gap"
+                        className="w-7 h-7 rounded border border-dashed border-neutral-200 dark:border-neutral-800"
+                      />
+                    )}
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
