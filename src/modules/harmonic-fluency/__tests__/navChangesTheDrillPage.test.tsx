@@ -135,14 +135,18 @@ describe('the detail block mirrors the chip row', () => {
     expect(expandedKeys()).toEqual(['modes']);
   });
 
-  it('gives Scale Degree Math its 7 x 24 grid', async () => {
-    // The one Silas named. 24 movement columns, 7 degree rows — read
-    // off the generator's own lists, so this fails if either moves.
+  it('gives Scale Degree Math its 7 x 24 grid, the tall way up', async () => {
+    // The one Silas named. SEVEN degree columns and 24 movement rows —
+    // the long axis runs down, so the page scrolls the way a page
+    // scrolls instead of hiding two thirds of the movements behind a
+    // horizontal scrollbar. Both counts asserted: checking only the
+    // columns passes on a grid that lost rows.
     await render('/harmonic-fluency/scale-degree-math');
     const own = container!.querySelector('[data-detail-key="scale-degree-math"]')!;
     const grid = own.querySelector('[data-testid="progress-grid"]');
     expect(grid, 'the grid rendered').not.toBeNull();
-    expect(grid!.querySelectorAll('[data-testid="grid-column"]')).toHaveLength(24);
+    expect(grid!.querySelectorAll('[data-testid="grid-column"]')).toHaveLength(7);
+    expect(grid!.querySelectorAll('[data-testid="grid-row"]')).toHaveLength(24);
   });
 
   it('renders a flat list for a category with no coordinates', async () => {

@@ -98,20 +98,33 @@ const keyAxis: AxisSpec = {
 const degreeAxis = axis('degree', 'degree', SCALE_DEGREES);
 
 /**
- * Scale degree math — 7 start degrees down, 24 movements across.
+ * Scale degree math — 7 start degrees ACROSS, 24 movements DOWN.
+ *
+ * THE LONG AXIS IS THE VERTICAL ONE, and that is the whole reason this
+ * category's grid is shaped the other way round from its neighbours.
+ * Twenty-four columns do not fit a page: the table scrolled sideways,
+ * so two thirds of the movements sat off-screen behind a horizontal
+ * scrollbar nobody thinks to drag. Seven columns fit, and a reader
+ * already knows how to scroll down.
+ *
+ * The movement labels ride the left-hand header column, where a phrase
+ * like "major 3rd up" has room to be read; as column headings they
+ * were rotated-or-truncated either way.
  *
  * The 24 are one list, exported from the generator that walks them, so
- * the columns and the cards' coordinates cannot come from two sources
+ * the axis and the cards' coordinates cannot come from two sources
  * that drift. `labelFor` reads the same list; nothing here spells a
  * quality or a direction a second time.
  */
 const MOVEMENT_LABEL = new Map(DEGREE_MOVEMENTS.map(m => [m.id, m.label] as const));
 
+const movementAxis = axis('movement', 'movement', DEGREE_MOVEMENTS.map(m => m.id),
+  v => MOVEMENT_LABEL.get(String(v)) ?? String(v));
+
 export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   [CATEGORY_LABELS['scale-degree-math']]: {
-    columns: axis('movement', 'movement', DEGREE_MOVEMENTS.map(m => m.id),
-      v => MOVEMENT_LABEL.get(String(v)) ?? String(v)),
-    rows: degreeAxis,
+    columns: degreeAxis,
+    rows: movementAxis,
   },
 
   [CATEGORY_LABELS['named-notes']]: { columns: keyAxis, rows: degreeAxis },
