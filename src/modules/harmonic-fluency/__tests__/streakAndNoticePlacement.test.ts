@@ -105,8 +105,10 @@ describe('the streak row', () => {
 
   it('the Today bar is still there, and still editable', () => {
     // What survives the removal, and why it survives mid-session: the
-    // goal can be changed nowhere else.
-    const page = read('HarmonicFluency.tsx');
+    // goal can be changed nowhere else. It moved with the drill it
+    // sits inside — `FluencyDrill` is what every start path mounts now,
+    // so that is where a bar shown during a run has to be.
+    const page = read('FluencyDrill.tsx');
     expect(page).toContain('<DailyGoalBar');
     const bar = read('DailyGoalBar.tsx');
     expect(bar).toContain('setPref');
@@ -116,7 +118,7 @@ describe('the streak row', () => {
 
 describe('the practice-ahead notice is visible, in a colour the app owns', () => {
   const noticeBlock = () => {
-    const page = read('HarmonicFluency.tsx');
+    const page = read('FluencyDrill.tsx');
     const at = page.indexOf('data-testid="hf-practice-ahead"');
     expect(at).toBeGreaterThan(-1);
     return page.slice(at, at + 400);

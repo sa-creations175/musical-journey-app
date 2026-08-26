@@ -11,8 +11,9 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import HarmonicFluency from '../HarmonicFluency';
+import HarmonicFluencyCategory from '../HarmonicFluencyCategory';
 import { CATEGORY_LABELS, CATEGORY_ORDER, FLASHCARDS } from '../catalog';
 import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
 
@@ -26,16 +27,41 @@ const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId()
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-async function renderPage(): Promise<HTMLDivElement> {
+/**
+ * The module home and a category page, mounted together.
+ *
+ * BOTH ROUTES, ALWAYS. "Drill category goes to the category's page" is
+ * a claim about a journey, and a harness holding only the home could
+ * not tell a navigation from a no-op.
+ */
+function Probe() {
+  const location = useLocation();
+  return <span data-testid="at" data-path={location.pathname} />;
+}
+
+async function renderAt(path: string): Promise<HTMLDivElement> {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root!.render(<MemoryRouter initialEntries={['/harmonic-fluency']}><HarmonicFluency /></MemoryRouter>);
+    root!.render(
+      <MemoryRouter initialEntries={[path]}>
+        <Probe />
+        <Routes>
+          <Route path="/harmonic-fluency" element={<HarmonicFluency />} />
+          <Route path="/harmonic-fluency/:category" element={<HarmonicFluencyCategory />} />
+        </Routes>
+      </MemoryRouter>,
+    );
   });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
   return container;
 }
+
+const renderPage = () => renderAt('/harmonic-fluency');
+
+const at = () =>
+  container!.querySelector('[data-testid="at"]')!.getAttribute('data-path');
 
 /**
  * Flush until `ready` holds, or give up.
@@ -140,25 +166,50 @@ describe('nothing is served on mount', () => {
 });
 
 describe('the two card actions', () => {
-  it('enters the drill from Drill Category', async () => {
+  it('goes to the category\u2019s own page from Drill Category', async () => {
+    // IT USED TO START A RUN HERE, which meant a category had no page
+    // and the nav's sub-item pointing at one had nowhere to land.
     const el = await renderPage();
     const cat = 'tritone-pairs';
     await click(card(cat)!.querySelector('[data-testid="category-card-toggle"]'), 'expand');
     await click(card(cat)!.querySelector('[data-testid="category-card-drill"]'), 'drill');
-    // The session replaces the module home: the cards and the mixed
-    // start button are both gone.
-    expect(el.querySelector('[data-testid="category-card-grid"]')).toBeNull();
-    expect(byText(/all categories mixed/i)).toBeUndefined();
+    expect(at()).toBe(`/harmonic-fluency/${cat}`);
+    // And the page that arrives is that category's, carrying its card.
+    const page = el.querySelector('[data-testid="hf-category-page"]');
+    expect(page?.getAttribute('data-category')).toBe(cat);
+    expect(byText(/all categories mixed/i), 'the mixed drill is not here')
+      .toBeUndefined();
+  });
+
+  it('starts only that category from its page', async () => {
+    const cat = 'tritone-pairs';
+    const supply = FLASHCARDS.filter(c => c.category === cat).length;
+    const el = await renderAt(`/harmonic-fluency/${cat}`);
+    await click(el.querySelector('[data-testid="hf-category-start"]'), 'start');
+    const headerRe = /card\s*1\s*\/\s*(\d+)/;
+    await settle(() => headerRe.test(el.textContent ?? ''));
+    // The queue cannot be longer than the category holds. Derived from
+    // the catalog, so it stays a real bound as the deck grows.
+    expect(Number(headerRe.exec(el.textContent ?? '')?.[1]))
+      .toBeLessThanOrEqual(supply);
+  });
+
+  it('sends a slug that names no category back to the module home', async () => {
+    await renderAt('/harmonic-fluency/plagal-cadences');
+    expect(at()).toBe('/harmonic-fluency');
   });
 
   it('leaves a saved category filter behind when the MIXED drill starts', async () => {
     /**
      * The defect this pins: "all categories mixed" used to start with
      * whatever `harmonicFluencyCategoryFilter` held, and a card's
-     * "drill category" writes that pref. Drilling one category once
-     * left every later mixed run serving only that category, in this
-     * visit and in every visit afterwards, with nothing on screen
-     * saying so.
+     * "drill category" wrote that pref. Drilling one category once left
+     * every later mixed run serving only that category, in this visit
+     * and in every visit afterwards, with nothing on screen saying so.
+     *
+     * The pref is retired and nothing reads it now; it is still seeded
+     * here, because "nothing reads it" is the thing that has to keep
+     * being true.
      *
      * MEASURED BY QUEUE LENGTH, and the fixture is what makes that
      * mean something. `tritone-pairs` holds fewer cards than a session

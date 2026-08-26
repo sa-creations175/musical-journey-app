@@ -1,5 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+/**
+ * Harmonic fluency — module home.
+ *
+ * THE CARDS AND THE MIXED DRILL. A category's own page is where a
+ * narrowed drill is started now; this page starts the whole deck and
+ * links to the fifteen.
+ */
+import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ProgressDetail from '../../components/moduleHome/ProgressDetail';
 import { useAxisViews } from '../../components/moduleHome/useAxisViews';
@@ -8,64 +16,47 @@ import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import { HARMONIC_FLUENCY_GRIDS } from './progressGrids';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { harmonicFluencyCards } from './homeCards';
-import { useSearchParams } from 'react-router-dom';
 import { db } from '../../lib/db';
-import { getPref, setPref } from '../../lib/userPrefs';
-import { useUrlMultiSelectSync } from '../../lib/useUrlTabSync';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
-import DailyGoalBar from '../../components/DailyGoalBar';
-import HarmonicFluencySession, {
-  type DisplayMode,
-  type SessionStats,
-  type TimerMode,
-} from './HarmonicFluencySession';
+import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
+import FluencySessionSettings from './FluencySessionSettings';
+import { useFluencyPrefs } from './useFluencyPrefs';
+import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
+import { categoryPath, isCategory } from './categoryRoutes';
+import type { SessionStats } from './HarmonicFluencySession';
 import {
   CATEGORY_LABELS,
-  CATEGORY_ORDER,
   FLASHCARDS,
   type FlashcardCategory,
 } from './catalog';
-import { buildSession, practiceAheadNotice } from './spacedRepetition';
 import { setReviewFlag } from '../../lib/flashcards/spacedRepetition';
 
-function isCategory(v: string): v is FlashcardCategory {
-  return (CATEGORY_ORDER as readonly string[]).includes(v);
+/** What a running drill was started with. Null when none is running. */
+interface RunningDrill {
+  categories: FlashcardCategory[];
+  autoStarted: boolean;
 }
 
-const MODULE_ID = 'harmonic-fluency';
-const PREF_DISPLAY_MODE = 'harmonicFluencyDisplayMode';
-const PREF_TIMER = 'harmonicFluencyTimerMode';
-const PREF_CATEGORIES = 'harmonicFluencyCategoryFilter';
-const SESSION_TARGET = 20;
-
 export default function HarmonicFluency() {
-  const [displayMode, setDisplayMode] = useState<DisplayMode>('number-grid');
-  const [timerMode, setTimerMode] = useState<TimerMode>('off');
-  const [selectedCategories, setSelectedCategories] = useState<Set<FlashcardCategory>>(new Set());
+  const navigate = useNavigate();
   const [flaggedOnly, setFlaggedOnly] = useState(false);
-  /**
-   * The categories the RUNNING session was built from. Empty means the
-   * whole deck.
-   *
-   * Separate from `selectedCategories` on purpose. That one is a
-   * persisted landing filter — a sub-item link or a card's drill writes
-   * it, and it survives a reload — so reading it to describe a session
-   * already in progress answers a question about the page rather than
-   * about the run. That is exactly how the mixed drill came to serve
-   * one category; see `handleStart`.
-   */
-  const [sessionCategories, setSessionCategories] = useState<FlashcardCategory[]>([]);
-  const [sessionQueue, setSessionQueue] = useState<ReturnType<typeof buildSession> extends Promise<infer R> ? R | null : null>(null);
-  const [sessionActive, setSessionActive] = useState(false);
+  const [running, setRunning] = useState<RunningDrill | null>(null);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
   const [caughtUp, setCaughtUp] = useState(false);
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
-  // True while the active session was auto-started from a practice
-  // session (Level 3). Forces session defaults (timer off, full pool)
-  // for that run only, without touching the user's saved prefs.
-  const [autoStarted, setAutoStarted] = useState(false);
-  const autoStartRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
+  const autoStartRef = useRef(false);
+
+  // PRESSING THE MODULE NAME LANDS ON THE MODULE HOME, MID-DRILL OR
+  // NOT. The drill is component state rather than a route, so arriving
+  // here from the nav while one is running would otherwise change
+  // nothing at all — the URL was already this one. See the hook.
+  useEndOnModuleHome(() => setRunning(null));
+
+  const totalAttempts = useLiveQuery(
+    () => db.attempts.where('moduleId').equals(MODULE_ID).count(),
+    [],
+  ) ?? 0;
+  const prefs = useFluencyPrefs(totalAttempts);
 
   // Live count of flagged cards across the user's per-card state.
   const flaggedCount = useLiveQuery(
@@ -73,95 +64,27 @@ export default function HarmonicFluency() {
     [],
   ) ?? 0;
 
-  // Total attempts across the module — drives the initial default for
-  // users who haven't picked a display mode yet (<100 → number-grid,
-  // 100+ → text).
-  const totalAttempts = useLiveQuery(
-    () => db.attempts.where('moduleId').equals(MODULE_ID).count(),
-    [],
-  ) ?? 0;
-
-  // Hydrate prefs on mount.
+  /**
+   * Level 3 auto-start: a practice session lands here as
+   * `/harmonic-fluency?session=1`. Whole deck, session defaults, no
+   * setup screen. Consumed once — the ref guards re-runs within this
+   * mount and the param is stripped so a refresh will not relaunch.
+   */
   useEffect(() => {
-    (async () => {
-      const stored = await getPref<DisplayMode | null>(PREF_DISPLAY_MODE, null);
-      const timer = await getPref<TimerMode>(PREF_TIMER, 'off');
-      const cats = await getPref<FlashcardCategory[]>(PREF_CATEGORIES, []);
-      if (stored) {
-        setDisplayMode(stored);
-      } else {
-        // Auto-default based on attempt count.
-        setDisplayMode(totalAttempts < 100 ? 'number-grid' : 'text');
-      }
-      setTimerMode(timer);
-      setSelectedCategories(new Set(cats));
-      setPrefsLoaded(true);
-    })();
-    // totalAttempts intentionally not a dep — we only use it on first load.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Sidebar sub-items land here as /harmonic-fluency?category=<id>.
-  // Mirrors the multi-select filter UI — click a sub-item, land with
-  // that category checked. Replaces (not merges) so the sub-item
-  // navigation always produces a predictable single-category view.
-  useUrlMultiSelectSync<FlashcardCategory>(
-    'category',
-    isCategory,
-    cats => setSelectedCategories(new Set(cats)),
-  );
-
-  // Persist when user changes anything (after hydration so we don't
-  // overwrite the saved value with our transient defaults).
-  useEffect(() => {
-    if (!prefsLoaded) return;
-    setPref(PREF_DISPLAY_MODE, displayMode);
-  }, [displayMode, prefsLoaded]);
-  useEffect(() => {
-    if (!prefsLoaded) return;
-    setPref(PREF_TIMER, timerMode);
-  }, [timerMode, prefsLoaded]);
-  useEffect(() => {
-    if (!prefsLoaded) return;
-    setPref(PREF_CATEGORIES, [...selectedCategories]);
-  }, [selectedCategories, prefsLoaded]);
-
-  // Level 3 auto-start: a practice session lands here as
-  // /harmonic-fluency?session=1. Build with session defaults (all
-  // categories, not flagged-only, timer off via `autoStarted`) and skip
-  // the setup screen — saved prefs are left untouched. Consumed once: the
-  // ref guards re-runs within this mount (finishing → returning to setup
-  // won't relaunch) and the param is stripped so a refresh won't either.
-  useEffect(() => {
-    if (!prefsLoaded || autoStartRef.current) return;
+    if (autoStartRef.current) return;
     if (searchParams.get('session') !== '1') return;
     autoStartRef.current = true;
-    void (async () => {
-      const session = await buildSession({
-        categories: [],
-        target: SESSION_TARGET,
-        flaggedOnly: false,
-      });
-      setSearchParams(
-        prev => {
-          const next = new URLSearchParams(prev);
-          next.delete('session');
-          return next;
-        },
-        { replace: true },
-      );
-      if (session.allCaughtUp) {
-        setCaughtUp(true);
-        setTimeout(() => setCaughtUp(false), 4000);
-        return;
-      }
-      setSessionQueue(session);
-      setSessionActive(true);
-      setSessionCategories([]);
-      setAutoStarted(true);
-      setLastSummary(null);
-    })();
-  }, [prefsLoaded, searchParams, setSearchParams]);
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev);
+        next.delete('session');
+        return next;
+      },
+      { replace: true },
+    );
+    setRunning({ categories: [], autoStarted: true });
+    setLastSummary(null);
+  }, [searchParams, setSearchParams]);
 
   // --- The category cards -----------------------------------------
   const allAttempts = useLiveQuery(
@@ -170,11 +93,6 @@ export default function HarmonicFluency() {
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(MODULE_ID);
   const now = Date.now();
-
-  // The two streak figures moved into `ModuleHomeHeader` with the row
-  // that shows them — the goal read, the hot streak and the day streak
-  // are one rule, and it now lives in one place for all three module
-  // homes rather than being re-derived per page.
 
   /** Which category's progress detail is open, if any. */
   const [detailCategory, setDetailCategory] = useState<FlashcardCategory | null>(null);
@@ -191,101 +109,24 @@ export default function HarmonicFluency() {
     void buildSkillRegistry().then(r => { if (live) setRecords(r); });
     return () => { live = false; };
   }, [detailCategory, allAttempts]);
-  const cards = useMemo(
-    () => harmonicFluencyCards(allAttempts, spacingIntervals, now),
-    // `now` is deliberately not a dep — it changes every render and
-    // would rebuild fifteen cards each time. Freshness moves in days.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [allAttempts, spacingIntervals],
-  );
-
-
-
-  /**
-   * Start a drill over an explicit category list.
-   *
-   * Takes the categories rather than reading `selectedCategories`,
-   * because a card's "drill category" sets the filter and starts in the
-   * same tap — and `setSelectedCategories` has not committed by the
-   * time the session is built. Reading state here would drill the
-   * PREVIOUS selection, which is the kind of bug that looks like a
-   * race and is really a stale read.
-   */
-  /**
-   * Start, including when nothing here is due.
-   *
-   * `allCaughtUp` now means the queue is EMPTY, not "nothing is due" —
-   * see `buildSession`. A finished category returns a practice-ahead
-   * queue and starts like any other; the notice above the session says
-   * so. The early return survives for the case it was always meant
-   * for: a selection with no cards behind it.
-   */
-  const startWith = async (categories: FlashcardCategory[]) => {
-    const session = await buildSession({
-      categories,
-      target: SESSION_TARGET,
-      flaggedOnly,
-    });
-    if (session.allCaughtUp) {
-      setCaughtUp(true);
-      setTimeout(() => setCaughtUp(false), 4000);
-      return;
-    }
-    setSessionQueue(session);
-    setSessionActive(true);
-    setSessionCategories(categories);
-    setAutoStarted(false);
-    setLastSummary(null);
-  };
+  const cards = harmonicFluencyCards(allAttempts, spacingIntervals, now);
 
   /**
    * THE MIXED DRILL IS ALWAYS THE WHOLE DECK, and passes that
    * explicitly.
    *
-   * It used to start with `[...selectedCategories]`, and that is what
-   * made a button labelled "all categories mixed" serve one category.
-   * `selectedCategories` is written by a card's drill and by a sub-item
-   * link, and it is PERSISTED under `harmonicFluencyCategoryFilter` —
-   * so drilling Scale Degree Math once from its card left the filter
-   * set to that one category in the user's prefs, and every mixed run
-   * afterwards, in that session and in every later one, quietly served
-   * Scale Degree Math. Nothing on the page said so, because the
-   * category picker that used to display the filter is gone.
+   * It used to start with a persisted landing filter that a card's
+   * "drill category" wrote, so drilling one category once quietly
+   * narrowed every mixed run afterwards — in that visit and in every
+   * later one — with nothing on screen saying so.
    *
    * `buildSession` reads an empty list as "every category", so this is
-   * the whole deck by the same route the Level-3 auto-start already
-   * takes.
+   * the whole deck by the same route the Level-3 auto-start takes.
    */
-  const handleStart = () => startWith([]);
-
-  /**
-   * A card's "drill category": narrow to that one category and start.
-   *
-   * Writes `?category=` as well as setting state, so this goes through
-   * the SAME path the sidebar sub-items and the skills catalogue
-   * already use (`useUrlMultiSelectSync` above). One way in, so a
-   * category drill started from a card and one arrived at by link
-   * cannot diverge.
-   */
-  const drillCategory = (key: string) => {
-    if (!isCategory(key)) return;
-    setSelectedCategories(new Set([key]));
-    setSearchParams(
-      prev => {
-        const next = new URLSearchParams(prev);
-        next.set('category', key);
-        return next;
-      },
-      { replace: true },
-    );
-    void startWith([key]);
-  };
-
-  const handleExit = (stats: SessionStats) => {
-    setSessionActive(false);
-    setSessionQueue(null);
-    setAutoStarted(false);
-    setLastSummary(stats);
+  const handleStart = () => {
+    setCaughtUp(false);
+    setLastSummary(null);
+    setRunning({ categories: [], autoStarted: false });
   };
 
   return (
@@ -300,56 +141,20 @@ export default function HarmonicFluency() {
         moduleIds={[MODULE_ID]}
         moduleId={MODULE_ID}
         calendarTo="/harmonic-fluency/calendar"
-        showIntro={!sessionActive}
+        showIntro={running === null}
         intro={{
           description: "Know your way around every key — degrees up, down and around, diatonic and chromatic, chord building, tritones and modes.",
         }}
       />
 
-      {sessionActive && sessionQueue ? (
-        <>
-          {/* WHERE YOU ARE, said once, at the top of the run it applies
-              to. Not a toast: the fact holds for the whole session, and
-              a message that expires after four seconds is how the old
-              caught-up notice managed to be invisible to the person who
-              had just tapped a card. */}
-          {/* THE SAME TREATMENT `FluencyProtectionNotice` USES, down to
-              the ⓘ. Both are the app explaining why a drill just behaved
-              in a way the reader did not ask for, which is the one thing
-              a muted grey aside cannot do — it read as decoration and
-              got skipped. `developing` is the token already behind the
-              DEVELOPING badge and the wrong-answer segment of every
-              progress bar; no new colour enters here. */}
-          {sessionQueue.practiceAhead && (
-            <div
-              data-testid="hf-practice-ahead"
-              className="rounded-lg border border-developing/40 bg-developing/5 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200"
-            >
-              <span aria-hidden className="mr-1.5">ⓘ</span>
-              {practiceAheadNotice(sessionQueue.dueElsewhere ?? 0)}
-            </div>
-          )}
-          <DailyGoalBar moduleId={MODULE_ID} />
-          <HarmonicFluencySession
-            queue={sessionQueue.cards}
-            displayMode={displayMode}
-            // Auto-started sessions force timer off (session default) without
-            // overwriting the user's saved timer pref.
-            timerMode={autoStarted ? 'off' : timerMode}
-            onExit={handleExit}
-            onDisplayModeChange={setDisplayMode}
-            focusProtected={
-              // User has explicitly narrowed the pool (flagged-only drill
-              // or a hand-picked category set) AND the resulting queue is
-              // small enough that they're cued into what's coming next —
-              // so correct answers shouldn't count toward fluency tiers.
-              // Auto-started runs use the full pool, so never focus-protect.
-              !autoStarted &&
-              (flaggedOnly || sessionCategories.length > 0) &&
-              sessionQueue.cards.length < 4
-            }
-          />
-        </>
+      {running !== null ? (
+        <FluencyDrill
+          categories={running.categories}
+          flaggedOnly={flaggedOnly}
+          autoStarted={running.autoStarted}
+          onCaughtUp={() => { setRunning(null); setCaughtUp(true); }}
+          onExit={stats => { setRunning(null); setLastSummary(stats); }}
+        />
       ) : (
         <>
           {/* Order (context before action): the learn-more card, which
@@ -380,11 +185,15 @@ export default function HarmonicFluency() {
 
           {/* The fifteen category cards, one per CATEGORY_ORDER entry —
               derived, never listed. Same component Ear Training and
-              Reading use. */}
+              Reading use.
+
+              DRILL CATEGORY IS A LINK NOW. It used to narrow the pool
+              and start a run on this page; a category has its own page,
+              and that is where its drills are started. */}
           <CategoryCardGrid
             cards={cards}
             moduleId={MODULE_ID}
-            onDrill={drillCategory}
+            onDrill={key => { if (isCategory(key)) navigate(categoryPath(key)); }}
             onProgressDetail={key => { if (isCategory(key)) setDetailCategory(key); }}
             now={now}
           />
@@ -410,117 +219,24 @@ export default function HarmonicFluency() {
               ways to start from this page now — so they stopped being
               the thing the page is about and became the thing you open
               when you want to change how the mixed run behaves. */}
-          <details className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur">
-            <summary className="cursor-pointer select-none px-4 sm:px-5 py-3 text-sm font-medium">
-              session settings
-            </summary>
-            <div className="px-1 pb-1">
-        <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
-          <div>
-            {/* The heading lives on the <summary> now — repeating it
-                here would name the panel twice on one screen. */}
-            <p className="text-xs text-neutral-500 mt-0.5">
-              {SESSION_TARGET} cards per session · spaced repetition picks what's due
-            </p>
-          </div>
-
-          {/* Display mode */}
-          <div>
-            <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1.5">display mode</div>
-            <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
-              {([
-                { id: 'text', label: 'text only' },
-                { id: 'number-grid', label: 'number grid' },
-                { id: 'keyboard', label: 'keyboard' },
-              ] as const).map(opt => (
-                <button
-                  key={opt.id}
-                  onClick={() => setDisplayMode(opt.id)}
-                  className={`px-3 py-1.5 rounded-md transition ${
-                    displayMode === opt.id
-                      ? 'bg-fluent text-white'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Timer */}
-          <div>
-            <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1.5">timer per card</div>
-            <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
-              {(['off', '5', '10', '15'] as const).map(opt => (
-                <button
-                  key={opt}
-                  onClick={() => setTimerMode(opt)}
-                  className={`px-3 py-1.5 rounded-md transition ${
-                    timerMode === opt
-                      ? 'bg-fluent text-white'
-                      : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-                  }`}
-                >
-                  {opt === 'off' ? 'off' : `${opt}s`}
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-neutral-400 mt-1">
-              timer forces answering speed — feedback still stays visible after you answer.
-            </p>
-          </div>
-
-          {/* Flagged-only */}
-          <div>
-            <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={flaggedOnly}
-                onChange={e => setFlaggedOnly(e.target.checked)}
-                disabled={flaggedCount === 0}
-                className="h-4 w-4 rounded border-neutral-300 text-fluent focus:ring-fluent"
-              />
-              <span className={flaggedCount === 0 ? 'text-neutral-400' : ''}>
-                flagged cards only
-              </span>
-              <span className="text-[11px] text-neutral-400">
-                {flaggedCount === 0
-                  ? '(flag a card during a session with ★ to enable)'
-                  : `· ${flaggedCount} flagged`}
-              </span>
-            </label>
-          </div>
-
-          <div>
-            <button
-              onClick={handleStart}
-              className="px-5 py-2.5 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
-            >
-              Start drill
-            </button>
-            {caughtUp && (
-              <p className="mt-3 text-xs text-neutral-500 italic">
-                you're all caught up in that selection! everything you've seen is scheduled further out — come back tomorrow for more reviews, or widen the categories to pick up new material.
-              </p>
-            )}
-            {lastSummary && (
-              <p className="mt-3 text-xs text-neutral-500">
-                last session: <span className="font-mono text-fluent">{lastSummary.correct}/{lastSummary.total}</span> correct
-              </p>
-            )}
-          </div>
-        </section>
-            </div>
-          </details>
-
+          <FluencySessionSettings
+            prefs={prefs}
+            flaggedOnly={flaggedOnly}
+            onFlaggedOnlyChange={setFlaggedOnly}
+            flaggedCount={flaggedCount}
+            onStart={handleStart}
+            caughtUp={caughtUp}
+            lastSummary={lastSummary}
+            sessionTarget={SESSION_TARGET}
+          />
         </>
       )}
 
-      {!sessionActive && <FlaggedForReviewPanel />}
+      {running === null && <FlaggedForReviewPanel />}
     </div>
   );
 }
+
 
 // ---------------------------------------------------------------------
 // Flagged-for-review panel — a parking pile separate from the ★

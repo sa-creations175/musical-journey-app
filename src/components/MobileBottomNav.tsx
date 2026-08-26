@@ -10,6 +10,7 @@ import {
   type ModuleMeta,
 } from '../lib/moduleMeta';
 import ModuleGlyph from './ModuleGlyph';
+import { MODULE_HOME_STATE } from '../lib/useEndOnModuleHome';
 
 /**
  * Mobile-only bottom tab bar — Goals · Dashboard · Practice · Modules.
@@ -233,7 +234,10 @@ function ModulesSheet({
 
   const handleSelect = (to: string) => {
     onClose();
-    navigate(to);
+    // Same contract as the sidebar's module names: this is a request
+    // for the module HOME, so a page mid-drill ends the run rather
+    // than sitting through a navigation to the URL it is already on.
+    navigate(to, { state: MODULE_HOME_STATE });
   };
 
   return createPortal(

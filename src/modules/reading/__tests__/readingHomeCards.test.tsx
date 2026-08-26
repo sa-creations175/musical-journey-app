@@ -12,8 +12,9 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Reading from '../Reading';
+import ReadingSkill from '../ReadingSkill';
 import { readingCards, READING_SKILL_ORDER } from '../homeCards';
 import { readingCounts } from '../../../lib/moduleItemCounts';
 import {
@@ -28,16 +29,42 @@ import type { AttemptRecord } from '../../../lib/db';
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-async function renderPage(): Promise<HTMLDivElement> {
+/**
+ * The module and its four skill pages, mounted together.
+ *
+ * BOTH ROUTES, ALWAYS. "Open goes to the skill's page" is a claim about
+ * a journey between two pages, and a harness that mounted only one of
+ * them could not tell a navigation from a no-op — which is exactly the
+ * defect being fixed: Open used to leave the reader where they were.
+ */
+function Probe() {
+  const location = useLocation();
+  return <span data-testid="at" data-path={location.pathname} />;
+}
+
+async function renderAt(path: string): Promise<HTMLDivElement> {
   container = document.createElement('div');
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root!.render(<MemoryRouter initialEntries={['/reading']}><Reading /></MemoryRouter>);
+    root!.render(
+      <MemoryRouter initialEntries={[path]}>
+        <Probe />
+        <Routes>
+          <Route path="/reading" element={<Reading />} />
+          <Route path="/reading/:skill" element={<ReadingSkill />} />
+        </Routes>
+      </MemoryRouter>,
+    );
   });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
   return container;
 }
+
+const renderPage = () => renderAt('/reading');
+
+const at = () =>
+  container!.querySelector('[data-testid="at"]')!.getAttribute('data-path');
 
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
@@ -131,21 +158,29 @@ describe('the page', () => {
       .toEqual([(n >> 16) & 255, (n >> 8) & 255, n & 255]);
   });
 
-  it('serves nothing until a card drills, then serves that skill', async () => {
+  it('sends Open to the skill\u2019s own page, and goes nowhere before that', async () => {
+    // OPEN USED TO STAY PUT. The drill lived under the cards on this
+    // page, so pressing Open on a card set a variable and started a
+    // question further down the page the reader was already on.
     const el = await renderPage();
-    const served = () => el.querySelector('[data-item-ref]')?.getAttribute('data-item-ref') ?? '';
-    // Nothing on arrival — the page is its cards.
-    expect(el.querySelector('[data-item-ref]')).toBeNull();
+    expect(at()).toBe('/reading');
 
-    // Expanding is not drilling.
+    // Expanding is not opening.
     await click(card(el, 'sig').querySelector('[data-testid="category-card-toggle"]')!);
-    expect(el.querySelector('[data-item-ref]')).toBeNull();
+    expect(at()).toBe('/reading');
 
     await click(card(el, 'sig').querySelector('[data-testid="category-card-drill"]')!);
-    expect(readingSkillForItemRef(served())).toBe('sig');
+    expect(at()).toBe('/reading/signatures');
   });
 
-  it('opens as cards only — no card served and no clock running', async () => {
+  it('carries no drill of its own at all', async () => {
+    // The home is its cards. Not an un-started drill under them — none.
+    const el = await renderPage();
+    expect(el.querySelector('[data-item-ref]')).toBeNull();
+    expect(el.querySelector('[data-testid="reading-drill"]')).toBeNull();
+  });
+
+  it('opens the SKILL PAGE as cards only — no card served, no clock running', async () => {
     // THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is the
     // point. It pinned "the drill is always mounted and serves a card
     // on arrival" as deliberate, which was a fair reading of what the
@@ -155,7 +190,7 @@ describe('the page', () => {
     //
     // BOTH FACTS, SEPARATELY. A card with no clock and a clock with no
     // card are different bugs, and one marker cannot tell them apart.
-    const el = await renderPage();
+    const el = await renderAt('/reading/signatures');
     expect(el.querySelector('[data-item-ref]'), 'a card was served').toBeNull();
     const drill = el.querySelector('[data-testid="reading-drill"]');
     expect(drill, 'the drill did not render its un-started marker').not.toBeNull();
@@ -167,17 +202,22 @@ describe('the page', () => {
     expect(labels.some(t => t.includes('start'))).toBe(false);
   });
 
-  it('does not auto-start the new skill when the skill changes', async () => {
-    // The un-started state SURVIVES a remount. `key={skill}` makes a
-    // skill change a fresh mount, and a fresh mount used to be a fresh
-    // auto-start — so anything that moved the skill would quietly begin
-    // a drill the reader never asked for.
-    const el = await renderPage();
-    await click(card(el, 'sig').querySelector('[data-testid="category-card-toggle"]')!);
-    await click(card(el, 'chord').querySelector('[data-testid="category-card-toggle"]')!);
+  it('starts on the skill page only when the card asks', async () => {
+    // ARRIVING IS NOT STARTING, and it is the nav's four sub-items that
+    // make that worth pinning: they land here directly, and a page that
+    // began a drill on mount would put a clock on the reader before
+    // they had read anything.
+    const el = await renderAt('/reading/signatures');
     expect(el.querySelector('[data-item-ref]')).toBeNull();
-    expect(
-      el.querySelector('[data-testid="reading-drill"]')!.getAttribute('data-timer-started'),
-    ).toBe('false');
+
+    await click(card(el, 'sig').querySelector('[data-testid="category-card-toggle"]')!);
+    await click(card(el, 'sig').querySelector('[data-testid="category-card-drill"]')!);
+    const served = el.querySelector('[data-item-ref]')?.getAttribute('data-item-ref') ?? '';
+    expect(readingSkillForItemRef(served)).toBe('sig');
+  });
+
+  it('sends a slug that names no skill back to the module home', async () => {
+    await renderAt('/reading/tablature');
+    expect(at()).toBe('/reading');
   });
 });

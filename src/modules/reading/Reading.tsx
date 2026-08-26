@@ -20,11 +20,8 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { isNarrowed, useDrillFilter } from '../../lib/drillFilter';
-import { useUrlTabSync } from '../../lib/useUrlTabSync';
-import ReadingDrill from './ReadingDrill';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import ProgressDetail from '../../components/moduleHome/ProgressDetail';
@@ -35,64 +32,26 @@ import { READING_CATEGORY_LABEL } from './skillRecords';
 import { READING_GRIDS } from './progressGrids';
 import { db } from '../../lib/db';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
-import { readingSkillForItemRef } from './catalog';
 import { READING_MODULE_ID, isReadingCardKey, readingCards } from './homeCards';
+import { readingSkillPath } from './skillRoutes';
 import type { ReadingDrillSkill } from './pickCard';
 
 export default function Reading() {
-  /**
-   * `?focus=ref,ref` — the dashboard sending you here from a tapped
-   * row. The skill opens on whichever one those refs belong to, so
-   * tapping "conceptual knowledge" for D major lands in the signatures
-   * drill rather than on the default note tab.
-   */
-  /**
-   * `?focus=ref,ref` — the dashboard sending you here from a tapped
-   * row. The skill opens on whichever one those refs belong to, so
-   * tapping "conceptual knowledge" for D major lands in the signatures
-   * drill rather than on the default note tab.
-   *
-   * ONE HOOK — see lib/drillFilter.ts.
-   */
-  const filter = useDrillFilter(READING_MODULE_ID);
-  const focusRefs = isNarrowed(filter) ? filter.keys : undefined;
-  const focusSkill = focusRefs
-    ? readingSkillForItemRef(focusRefs[0]) ?? undefined
-    : undefined;
+  const navigate = useNavigate();
 
-  const [skill, setSkill] = useState<ReadingDrillSkill>(focusSkill ?? 'note');
   /**
-   * Whether a drill has been started.
+   * THE DRILL LEFT THIS PAGE.
    *
-   * =====================================================================
-   * OPENING THE MODULE IS NOT STARTING A DRILL.
+   * It used to render under the cards, so "Open" on the Notes card
+   * started a question three screenfuls down the page you were already
+   * on, and the nav's four sub-items only chose which skill that drill
+   * would be on. Each skill is a page now — see `ReadingSkill` — and
+   * both routes lead to it.
    *
-   * The page used to serve a card the moment it mounted: the category
-   * cards rendered, and underneath them a question was already on
-   * screen with its clock running. Beyond the surprise, it fed
-   * `elapsedMs` the time the reader spent looking at the cards before
-   * noticing — the one measurement that field exists to make.
-   *
-   * SET ONLY BY "drill category", never by a skill change. A skill
-   * switch while un-started leaves it un-started, so nothing can start
-   * a drill except asking for one. That matches the pattern 2a and 2b
-   * set: cards first, then an explicit choice.
-   * =====================================================================
+   * The `?focus=` and `?skill=` handling went with it. A focus link
+   * carries the refs, and the skill they belong to is read off them
+   * there rather than being resolved here and passed down.
    */
-  const [drilling, setDrilling] = useState(false);
-  /**
-   * `?skill=note|shape|sig|chord` — the sidebar's four sub-items.
-   *
-   * SELECTS, NEVER STARTS. It sets which skill the drill area is on and
-   * leaves `drilling` alone, so arriving from the nav lands on the
-   * cards with that skill chosen rather than on a question with its
-   * clock already running.
-   *
-   * The same hook every other module uses for its `?tab=`, and the same
-   * guard the cards use for their keys — one definition of what a
-   * reading skill id is.
-   */
-  useUrlTabSync<ReadingDrillSkill>('skill', isReadingCardKey, setSkill);
 
   /** Which skill's progress detail is open, if any. */
   const [detailSkill, setDetailSkill] = useState<ReadingDrillSkill | null>(null);
@@ -158,11 +117,7 @@ export default function Reading() {
       <CategoryCardGrid
         cards={cards}
         moduleId={READING_MODULE_ID}
-        onDrill={key => {
-          if (!isReadingCardKey(key)) return;
-          setSkill(key);
-          setDrilling(true);
-        }}
+        onDrill={key => { if (isReadingCardKey(key)) navigate(readingSkillPath(key)); }}
         onProgressDetail={key => { if (isReadingCardKey(key)) setDetailSkill(key); }}
         now={now}
       />
@@ -183,19 +138,6 @@ export default function Reading() {
           onClose={() => setDetailSkill(null)}
         />
       )}
-
-      {/* Remounting per skill resets the drill's local state without
-          the drill needing to know a skill can change under it.
-
-          THE KEY IS THE SKILL AND NOTHING ELSE. Adding anything the
-          cards can change — a filter, an expansion — would discard the
-          card mid-answer on every tap. 2c has to keep this true. */}
-      <ReadingDrill
-        key={skill}
-        skill={skill}
-        autoStart={drilling}
-        {...(focusRefs && skill === focusSkill ? { focusRefs } : {})}
-      />
     </div>
   );
 }

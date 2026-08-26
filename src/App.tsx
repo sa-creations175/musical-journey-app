@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Dashboard from './modules/dashboard/Dashboard';
 import HarmonicFluency from './modules/harmonic-fluency/HarmonicFluency';
 import HarmonicFluencyCalendar from './modules/harmonic-fluency/HarmonicFluencyCalendar';
+import HarmonicFluencyCategory from './modules/harmonic-fluency/HarmonicFluencyCategory';
 import EarTraining from './modules/ear-training/EarTraining';
 import Intervals from './modules/ear-training/intervals/Intervals';
 import IntervalsCalendar from './modules/ear-training/intervals/IntervalsCalendar';
@@ -36,6 +37,7 @@ const ReadingReference = lazy(() => import('./modules/reading/ReadingReference')
 const EarTrainingCalendar = lazy(() => import('./modules/ear-training/EarTrainingCalendar'));
 const ProductionCalendar = lazy(() => import('./modules/production/ProductionCalendar'));
 const ReadingPreview = lazy(() => import('./modules/reading/ReadingPreview'));
+const ReadingSkill = lazy(() => import('./modules/reading/ReadingSkill'));
 import DashboardScreen from './modules/dashboard/DashboardScreen';
 import Goals from './modules/goals/Goals';
 import PracticeSessions from './modules/practice/PracticeSessions';
@@ -87,6 +89,12 @@ export default function App() {
             <Route path="practice-sessions/active" element={<ActiveSessionScreen />} />
             <Route path="harmonic-fluency" element={<HarmonicFluency />} />
             <Route path="harmonic-fluency/calendar" element={<HarmonicFluencyCalendar />} />
+            {/* THE DYNAMIC SEGMENT COMES LAST, and would be safe
+                anywhere: react-router ranks a static segment above a
+                dynamic one, so `calendar` cannot be read as a category.
+                A slug that names no category redirects to the module
+                home from inside the page. */}
+            <Route path="harmonic-fluency/:category" element={<HarmonicFluencyCategory />} />
             <Route path="ear-training" element={<EarTraining />} />
             <Route path="ear-training/calendar" element={<EarTrainingCalendar />} />
             <Route path="ear-training/intervals" element={<Intervals />} />
@@ -132,6 +140,17 @@ export default function App() {
               element={
                 <Suspense fallback={<div className="p-6 text-sm text-neutral-500">Loading notation…</div>}>
                   <ReadingCalendar />
+                </Suspense>
+              }
+            />
+            {/* The four skills, each its own page. Static siblings —
+                reference, calendar, preview — outrank this, so none of
+                them can be mistaken for a skill slug. */}
+            <Route
+              path="reading/:skill"
+              element={
+                <Suspense fallback={<div className="p-6 text-sm text-neutral-500">Loading notation…</div>}>
+                  <ReadingSkill />
                 </Suspense>
               }
             />

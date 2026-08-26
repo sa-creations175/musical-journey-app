@@ -4,6 +4,7 @@ import { getPref, setPref } from '../lib/userPrefs';
 import { MODULE_NAME_CASE, titleCase } from '../lib/labelCase';
 import { isLearningModule, moduleMetaById, CREATIVE_SESSIONS_ACCENT_HEX } from '../lib/moduleMeta';
 import ModuleGlyph from './ModuleGlyph';
+import { MODULE_HOME_STATE } from '../lib/useEndOnModuleHome';
 
 /** Per-group accent colour used on the group header so Creative
  *  Sessions (gold) reads distinctly from the neutral learning groups. */
@@ -96,18 +97,18 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'harmonic fluency',
         to: '/harmonic-fluency',
         children: [
-          { label: 'scale degree math',        to: '/harmonic-fluency?category=scale-degree-math' },
-          { label: 'named notes',              to: '/harmonic-fluency?category=named-notes' },
-          { label: 'diatonic chord qualities', to: '/harmonic-fluency?category=diatonic-qualities' },
-          { label: 'functional harmony',       to: '/harmonic-fluency?category=functional-harmony' },
-          { label: 'key signatures',           to: '/harmonic-fluency?category=key-signatures' },
-          { label: 'reverse key pivots',       to: '/harmonic-fluency?category=reverse-key-pivots' },
-          { label: 'modes',                    to: '/harmonic-fluency?category=modes' },
-          { label: 'intervals',                to: '/harmonic-fluency?category=intervals' },
-          { label: 'chord construction',       to: '/harmonic-fluency?category=chord-construction' },
-          { label: 'progression vocabulary',   to: '/harmonic-fluency?category=progressions' },
-          { label: 'slash chords',             to: '/harmonic-fluency?category=slash-chords' },
-          { label: 'ear-theory crossover',     to: '/harmonic-fluency?category=ear-theory' },
+          { label: 'scale degree math',        to: '/harmonic-fluency/scale-degree-math' },
+          { label: 'named notes',              to: '/harmonic-fluency/named-notes' },
+          { label: 'diatonic chord qualities', to: '/harmonic-fluency/diatonic-qualities' },
+          { label: 'functional harmony',       to: '/harmonic-fluency/functional-harmony' },
+          { label: 'key signatures',           to: '/harmonic-fluency/key-signatures' },
+          { label: 'reverse key pivots',       to: '/harmonic-fluency/reverse-key-pivots' },
+          { label: 'modes',                    to: '/harmonic-fluency/modes' },
+          { label: 'intervals',                to: '/harmonic-fluency/intervals' },
+          { label: 'chord construction',       to: '/harmonic-fluency/chord-construction' },
+          { label: 'progression vocabulary',   to: '/harmonic-fluency/progressions' },
+          { label: 'slash chords',             to: '/harmonic-fluency/slash-chords' },
+          { label: 'ear-theory crossover',     to: '/harmonic-fluency/ear-theory' },
           // NO HARMONIC DIARY HERE. It was dual-homed — listed under
           // harmonic fluency as well as under Creative Sessions — and
           // one page in two places in one nav makes the reader work out
@@ -148,10 +149,10 @@ const NAV_GROUPS: NavGroup[] = [
         // was the one module whose sections could not be reached from
         // the nav at all, because it had no expand control.
         children: [
-          { label: 'notes',      to: '/reading?skill=note' },
-          { label: 'shapes',     to: '/reading?skill=shape' },
-          { label: 'signatures', to: '/reading?skill=sig' },
-          { label: 'chords',     to: '/reading?skill=chord' },
+          { label: 'notes',      to: '/reading/notes' },
+          { label: 'shapes',     to: '/reading/shapes' },
+          { label: 'signatures', to: '/reading/signatures' },
+          { label: 'chords',     to: '/reading/chords' },
         ],
       },
       {
@@ -335,6 +336,7 @@ function CompactNavLink({ item }: { item: NavItem }) {
     <NavLink
       to={item.to}
       end={item.end}
+      state={MODULE_HOME_STATE}
       title={item.label}
       aria-label={item.label}
       className={({ isActive }) =>
@@ -418,6 +420,7 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
       <NavLink
         to={item.to}
         end={item.end}
+        state={MODULE_HOME_STATE}
         className={({ isActive }) =>
           `px-3 py-2 rounded-lg text-sm transition inline-flex items-center gap-2 min-w-0 ${
             isActive
@@ -448,6 +451,13 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
         <NavLink
           to={item.to}
           end={item.end}
+          /* THE NAME MEANS "TAKE ME TO THE MODULE HOME", and says so.
+             A module home that is mid-drill reads this and ends the
+             run — see `useEndOnModuleHome`. It has to be carried
+             rather than inferred, because a link to the URL already on
+             screen is a replace and there is no route change to
+             notice. */
+          state={MODULE_HOME_STATE}
           onClick={() => onToggle(item.id)}
           aria-expanded={isOpen}
           data-testid="module-nav-name"

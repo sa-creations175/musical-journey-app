@@ -71,7 +71,7 @@ describe('the hook', () => {
  * whole app's type surface. `?raw` is already typed by `vite/client`.
  */
 const SOURCES = import.meta.glob(
-  '/src/modules/**/{Intervals,ChordRecognition,ScalesModes,ChordProgressions,Reading}.tsx',
+  '/src/modules/**/{Intervals,ChordRecognition,ScalesModes,ChordProgressions,ReadingSkill}.tsx',
   { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>;
 
@@ -79,6 +79,8 @@ describe('all four drills read the hook, not their own parse', () => {
   // A test per drill passes while the duplication survives, so this
   // asserts the ABSENCE of the block across every page at once.
   it('finds all five pages, so the sweep is not vacuously empty', () => {
+    // Reading's entry is `ReadingSkill` now: the focus link lands on a
+    // skill's own page, and the module home carries no drill to narrow.
     expect(Object.keys(SOURCES)).toHaveLength(5);
   });
 
@@ -116,7 +118,7 @@ const QUIZ_SOURCE = Object.values(import.meta.glob(
 ) as Record<string, string>)[0];
 
 const READING_SOURCE = Object.values(import.meta.glob(
-  '/src/modules/reading/Reading.tsx',
+  '/src/modules/reading/ReadingSkill.tsx',
   { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>)[0];
 
