@@ -21,9 +21,20 @@
  * happening.
  * =====================================================================
  */
+import type { ReactNode } from 'react';
 import {
   resolveFacets, type Facet, type FacetSelection,
 } from '../lib/facetSelection';
+
+/**
+ * Something to hang off a chip, on the chip's own row.
+ *
+ * A SLOT, because only the caller knows what a value's own settings
+ * are. The strip supplies the GROUND — one bordered group holding the
+ * chip and whatever this returns — so the two read as one control
+ * rather than as a chip and some loose buttons beside it.
+ */
+export type ChipTrailing = (facetId: string, valueId: string) => ReactNode;
 
 export interface FilterStripProps {
   facets: readonly Facet[];
@@ -46,10 +57,12 @@ export interface FilterStripProps {
    * narrowed anything yet.
    */
   servingSize?: number;
+  /** Optional content for a value's own row — see `ChipTrailing`. */
+  trailingFor?: ChipTrailing;
 }
 
 export default function FilterStrip({
-  facets, selection, onToggle, accentHex, poolSize, servingSize,
+  facets, selection, onToggle, accentHex, poolSize, servingSize, trailingFor,
 }: FilterStripProps) {
   const serving = servingSize ?? poolSize;
   const resolution = resolveFacets(facets, selection);
@@ -63,13 +76,14 @@ export default function FilterStrip({
       {facets.map(facet => {
         const chosen = new Set(selection[facet.id] ?? []);
         return (
-          <div key={facet.id} className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[11px] uppercase tracking-wide text-neutral-500 w-20 shrink-0">
+          <div key={facet.id} className="flex items-start gap-1.5 flex-wrap">
+            <span className="text-[11px] uppercase tracking-wide text-neutral-500 w-20 shrink-0 pt-1">
               {facet.label}
             </span>
             {facet.values.map(value => {
               const on = chosen.has(value.id);
-              return (
+              const trailing = trailingFor?.(facet.id, value.id) ?? null;
+              const chip = (
                 <button
                   key={value.id}
                   type="button"
@@ -87,6 +101,23 @@ export default function FilterStrip({
                 >
                   {value.label}
                 </button>
+              );
+              // NO GROUND WITHOUT SOMETHING TO GROUND. A value with no
+              // trailing content renders exactly the bare chip it
+              // always did, so a strip that uses none of this is
+              // unchanged.
+              if (trailing === null) return chip;
+              return (
+                <span
+                  key={value.id}
+                  data-testid="facet-chip-group"
+                  data-facet={facet.id}
+                  data-value={value.id}
+                  className="inline-flex items-center gap-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800/50 pl-0.5 pr-1 py-0.5"
+                >
+                  {chip}
+                  {trailing}
+                </span>
               );
             })}
           </div>

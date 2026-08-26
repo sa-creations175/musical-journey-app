@@ -38,18 +38,24 @@ import {
   NO_SELECTION, allSelected, appliedKeys, resolveFacets, toggleFacetValue,
   type FacetSelection,
 } from '../../../lib/facetSelection';
-import { chordIdsFromRefs, chordRecognitionFacets, servedRefsFor } from './facets';
 import {
-  DEFAULT_INVERSION_POSITIONS,
+  chordIdsFromRefs, chordRecognitionFacets, inversionChoicesForTier, servedRefsFor,
+} from './facets';
+import {
+  DEFAULT_INVERSION_SETTINGS,
   INVERSION_EXCLUDED_CHORD_IDS,
   INVERSION_TRAINED_TIERS,
   INVERSION_LABEL,
   attemptItemId,
   inversionsForIntervalCount,
+  positionsForTier,
   reachableInversions,
   rotateForInversion,
+  sanitizeInversionSettings,
+  sanitizePositions,
   rotateFormula,
   type Inversion,
+  type InversionSettings,
 } from './inversionUtils';
 import {
   isTrackedItem,
@@ -191,9 +197,10 @@ export default function ChordRecognitionQuiz({
     initialFocusKeys ? [...initialFocusKeys] : [],
   );
   const [showLifetime, setShowLifetime] = useState(false);
-  const [showInversionSettings, setShowInversionSettings] = useState(false);
-  const [inversionPositions, setInversionPositions] = useState<Inversion[]>(
-    DEFAULT_INVERSION_POSITIONS,
+  /** PER TIER now — see `InversionSettings`. Triads and sevenths are
+   *  not at the same stage for the same reader. */
+  const [inversionSettings, setInversionSettings] = useState<InversionSettings>(
+    DEFAULT_INVERSION_SETTINGS,
   );
 
 
@@ -202,8 +209,8 @@ export default function ChordRecognitionQuiz({
   const focusActiveRef = useRef(focusActive); focusActiveRef.current = focusActive;
   const focusKeysRef = useRef(focusKeys); focusKeysRef.current = focusKeys;
   const chordsRef = useRef(chords); chordsRef.current = chords;
-  const inversionPositionsRef = useRef(inversionPositions);
-  inversionPositionsRef.current = inversionPositions;
+  const inversionSettingsRef = useRef(inversionSettings);
+  inversionSettingsRef.current = inversionSettings;
 
   const persistedFocus = useLiveQuery(
     async () => getPref<string[]>(PREF_FOCUS, []),
@@ -216,24 +223,22 @@ export default function ChordRecognitionQuiz({
       const stored = await getPref<BrokenChordDirection>(PREF_BROKEN_DIRECTION, 'asc');
       setBrokenDir(stored === 'desc' || stored === 'both' ? stored : 'asc');
 
-      const positions = await getPref<number[]>(
+      // ACCEPTS THE OLD SHAPE. The preference used to be one list for
+      // every tier; a reader upgrading has that stored, and
+      // `sanitizeInversionSettings` applies it to both — exactly what
+      // the app was doing with that value the moment before.
+      const storedInversions = await getPref<unknown>(
         PREF_INVERSION_POSITIONS,
-        DEFAULT_INVERSION_POSITIONS,
+        DEFAULT_INVERSION_SETTINGS,
       );
-      // Defensively coerce: any stored entry not in 0–3 is dropped, dedupe,
-      // and clamp empty to root-only.
-      const sanitized = (Array.from(new Set(positions))
-        .filter((n): n is Inversion => n === 0 || n === 1 || n === 2 || n === 3)
-        .sort() as Inversion[]);
-      setInversionPositions(sanitized.length > 0 ? sanitized : [0]);
+      setInversionSettings(sanitizeInversionSettings(storedInversions));
     })();
   }, []);
 
-  const saveInversionPositions = async (next: Inversion[]) => {
-    const sanitized = (Array.from(new Set(next)).sort() as Inversion[]);
-    const final: Inversion[] = sanitized.length > 0 ? sanitized : [0];
-    setInversionPositions(final);
-    await setPref(PREF_INVERSION_POSITIONS, final);
+  const saveInversionPositionsForTier = async (tier: string, next: Inversion[]) => {
+    const merged = { ...inversionSettingsRef.current, [tier]: sanitizePositions(next) };
+    setInversionSettings(merged);
+    await setPref(PREF_INVERSION_POSITIONS, merged);
   };
 
   const saveBrokenDir = async (d: BrokenChordDirection) => {
@@ -388,7 +393,7 @@ export default function ChordRecognitionQuiz({
     inversion: Inversion;
   }>[] => {
     const today = localDayKey();
-    const positions = inversionPositionsRef.current;
+    const settings = inversionSettingsRef.current;
     const candidates: AdaptiveCandidate<{ chord: ChordData; inversion: Inversion }>[] = [];
 
     for (const c of poolChordsRef.current) {
@@ -412,6 +417,10 @@ export default function ChordRecognitionQuiz({
       // the reader has two positions enabled — stays here, because a
       // coverage total must not move when a setting does.
       const reachable = reachableInversions(c);
+      // THIS CHORD'S TIER, not one setting for the whole drill: a
+      // reader steadying their triads at root while running the
+      // sevenths through every inversion is asking for exactly this.
+      const positions = positionsForTier(settings, c.tier);
       const stepTwoEligible = reachable.length > 1 && positions.length >= 2;
       const inversionsForCard: Inversion[] = stepTwoEligible
         ? positions.filter(p => reachable.includes(p))
@@ -516,7 +525,7 @@ export default function ChordRecognitionQuiz({
   const stepTwoFiresFor = (chord: ChordData): boolean =>
     INVERSION_TRAINED_TIERS.has(chord.tier) &&
     !INVERSION_EXCLUDED_CHORD_IDS.has(chord.id) &&
-    inversionPositionsRef.current.length >= 2;
+    positionsForTier(inversionSettingsRef.current, chord.tier).length >= 2;
 
   const submitAnswer = async (chosen: ChordData) => {
     if (!current || phase !== 'awaiting-quality') return;
@@ -608,8 +617,8 @@ export default function ChordRecognitionQuiz({
    * nothing is filtering it goes wrong the next time something does.
    */
   const facets = useMemo(
-    () => chordRecognitionFacets(chords, inversionPositions),
-    [chords, inversionPositions],
+    () => chordRecognitionFacets(chords, inversionSettings),
+    [chords, inversionSettings],
   );
   // The lit-everything default, applied once the facets exist. A stored
   // selection would win here; chord recognition has none today.
@@ -625,8 +634,8 @@ export default function ChordRecognitionQuiz({
    * however many inversions were enabled.
    */
   const fullPoolSize = useMemo(
-    () => chords.reduce((n, c) => n + servedRefsFor(c, inversionPositions).length, 0),
-    [chords, inversionPositions],
+    () => chords.reduce((n, c) => n + servedRefsFor(c, inversionSettings).length, 0),
+    [chords, inversionSettings],
   );
   /** The refs the strip currently applies, or null for the whole pool. */
   const appliedRefs = useMemo(() => appliedKeys(resolution), [resolution]);
@@ -736,7 +745,7 @@ export default function ChordRecognitionQuiz({
     current !== null &&
     INVERSION_TRAINED_TIERS.has(current.chord.tier) &&
     !INVERSION_EXCLUDED_CHORD_IDS.has(current.chord.id) &&
-    inversionPositions.length >= 2;
+    positionsForTier(inversionSettings, current.chord.tier).length >= 2;
 
   // Inline inversion label for the wrong-quality reveal. Surfaces the
   // inversion alongside chord identity so the user can learn what they
@@ -882,18 +891,28 @@ export default function ChordRecognitionQuiz({
               accentHex={ACCENT}
               poolSize={fullPoolSize}
               servingSize={appliedRefs?.length ?? fullPoolSize}
+              trailingFor={(facetId, valueId) => {
+                if (facetId !== 'tier') return null;
+                const choices = inversionChoicesForTier(chords, valueId);
+                if (choices.length === 0) return null;
+                return (
+                  <TierInversionChips
+                    tier={valueId}
+                    choices={choices}
+                    enabled={positionsForTier(inversionSettings, valueId)}
+                    onToggle={(inv: Inversion) => {
+                      const current = positionsForTier(inversionSettings, valueId);
+                      void saveInversionPositionsForTier(
+                        valueId,
+                        current.includes(inv)
+                          ? current.filter(p => p !== inv)
+                          : [...current, inv],
+                      );
+                    }}
+                  />
+                );
+              }}
             />
-            <div className="flex justify-end">
-              <button
-                type="button"
-                aria-label="inversion training settings"
-                title="inversion training settings"
-                onClick={() => setShowInversionSettings(v => !v)}
-                className="text-[12px] leading-none text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
-              >
-                ⚙ inversions
-              </button>
-            </div>
           </div>
         )}
 
@@ -926,13 +945,6 @@ export default function ChordRecognitionQuiz({
           </div>
         )}
 
-        {showInversionSettings && (
-          <InversionSettingsDrawer
-            positions={inversionPositions}
-            onSave={saveInversionPositions}
-            onClose={() => setShowInversionSettings(false)}
-          />
-        )}
         <button
           onClick={() => setShowFocusPanel(true)}
           className="text-xs text-neutral-500 hover:text-fluent"
@@ -1127,7 +1139,7 @@ export default function ChordRecognitionQuiz({
           scrolling past the (now-locked) quality options. */}
       {current && (phase === 'quality-correct-awaiting-inversion' || (phase === 'fully-revealed' && stepTwoFiresFor(current.chord) && selectedInversion !== null)) && (
         <InversionPicker
-          enabled={inversionPositions.filter(p =>
+          enabled={positionsForTier(inversionSettings, current.chord.tier).filter(p =>
             inversionsForIntervalCount(current.chord.intervals.length).includes(p),
           )}
           correctInversion={current.inversion}
@@ -1295,95 +1307,75 @@ function InversionPicker({
 }
 
 // ---------------------------------------------------------------------
-// Inversion settings drawer — inline below tab strip. Opens from the
-// gear icon on either tab inversion training applies to. Multi-select;
-// saves on every toggle so there's no separate save button. Click the
-// close button to dismiss.
+// Inversion chips, on their tier's own row.
 //
-// ONE SETTING FOR BOTH CHORD SIZES. A triad has three positions and a
-// seventh has four, and the drawer does not branch on that: it offers
-// all four, and every consumer already filters by chord —
-// `buildCandidates` and `InversionPicker` both intersect with
-// `inversionsForIntervalCount`, so enabling 3rd inversion simply has
-// no effect on a triad. Making the drawer chord-aware would have meant
-// a setting whose contents changed depending on which tab was open,
-// which is a worse thing to explain than a row that quietly does not
-// apply.
+// THE SETTING USED TO BE ONE VALUE FOR EVERYTHING, in a drawer behind a
+// gear. That shape could not say the thing readers actually want:
+// root-position triads while the sevenths run through their inversions.
+// Turning the 3rd inversion on for the sevenths turned it on for chords
+// that do not have one, and turning everything off to steady the triads
+// took the sevenths' inversions with it.
+//
+// So each tier holds its own, and its chips sit on its own row sharing
+// one ground with the tier chip — see `FilterStrip`'s `trailingFor`.
+// Attached rather than beside: a row of loose buttons under a strip is
+// a setting that belongs to nothing in particular, which is exactly how
+// the one-value version came to be read as global.
+//
+// WHICH CHIPS A TIER OFFERS IS DERIVED, never listed — triads get three
+// and sevenths four because that is what their widest inversion-trained
+// chord can be asked in. See `inversionChoicesForTier`.
+//
+// SAVES ON EVERY TOGGLE, so there is no separate save button and no
+// state that can be abandoned half-changed.
 // ---------------------------------------------------------------------
 
-interface InversionSettingsDrawerProps {
-  positions: Inversion[];
-  onSave: (next: Inversion[]) => void | Promise<void>;
-  onClose: () => void;
-}
+/** The short form, for a chip with a tier chip already beside it. */
+const INVERSION_CHIP_LABEL: Record<Inversion, string> = {
+  0: 'R',
+  1: '1st',
+  2: '2nd',
+  3: '3rd',
+};
 
-function InversionSettingsDrawer({
-  positions,
-  onSave,
-  onClose,
-}: InversionSettingsDrawerProps) {
-  const isEnabled = (inv: Inversion) => positions.includes(inv);
-  const toggle = async (inv: Inversion) => {
-    const next = isEnabled(inv)
-      ? positions.filter(p => p !== inv)
-      : [...positions, inv];
-    await onSave(next);
-  };
-
-  const stepTwoActive = positions.length >= 2;
-
+function TierInversionChips({
+  tier, choices, enabled, onToggle,
+}: {
+  tier: string;
+  choices: readonly Inversion[];
+  enabled: readonly Inversion[];
+  onToggle: (inv: Inversion) => void;
+}) {
   return (
-    <div className="w-full max-w-md rounded-2xl border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 backdrop-blur p-4 space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="text-sm font-medium tracking-tight">
-            Inversion training — triads and sevenths
-          </h3>
-          <p className="text-[11px] text-neutral-500 mt-0.5">
-            {stepTwoActive
-              ? 'After each correct chord answer, you’ll be asked to identify the inversion.'
-              : 'Enable two or more positions to turn on inversion training.'}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="close"
-          className="text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 text-lg leading-none"
-        >
-          ×
-        </button>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {([0, 1, 2, 3] as Inversion[]).map(inv => {
-          const enabled = isEnabled(inv);
-          return (
-            <button
-              key={inv}
-              type="button"
-              onClick={() => void toggle(inv)}
-              className={`px-3 py-2 rounded-lg border text-xs font-medium transition ${
-                enabled
-                  ? 'border-fluent bg-fluent/10 text-fluent'
-                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
-              }`}
-              aria-pressed={enabled}
-            >
-              {INVERSION_LABEL[inv]}
-            </button>
-          );
-        })}
-      </div>
-      <p className="text-[11px] text-neutral-500">
-        A triad has no 3rd inversion, so that setting applies to seventh
-        chords only — enabling it changes nothing about the triads.
-      </p>
-      <p className="text-[11px] text-neutral-500">
-        Per-inversion accuracy feeds tier ratings separately — your{' '}
-        <span className="font-medium">C major root</span> tier and{' '}
-        <span className="font-medium">C major 1st inversion</span> tier are tracked
-        independently.
-      </p>
-    </div>
+    <span
+      className="inline-flex items-center gap-0.5"
+      data-testid="tier-inversion-chips"
+      data-tier={tier}
+    >
+      {choices.map(inv => {
+        const on = enabled.includes(inv);
+        return (
+          <button
+            key={inv}
+            type="button"
+            aria-pressed={on}
+            aria-label={`${tier} ${INVERSION_LABEL[inv]}`}
+            title={INVERSION_LABEL[inv]}
+            data-testid="tier-inversion-chip"
+            data-tier={tier}
+            data-inversion={inv}
+            data-on={on ? 'true' : 'false'}
+            onClick={() => onToggle(inv)}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition ${
+              on
+                ? 'bg-fluent/15 text-fluent'
+                : 'text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200'
+            }`}
+          >
+            {INVERSION_CHIP_LABEL[inv]}
+          </button>
+        );
+      })}
+    </span>
   );
 }

@@ -14,7 +14,7 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import ChordRecognitionQuiz from '../ChordRecognitionQuiz';
 import { CHORD_SEEDS } from '../seed';
-import { DEFAULT_INVERSION_POSITIONS } from '../inversionUtils';
+import { DEFAULT_INVERSION_SETTINGS } from '../inversionUtils';
 import { servedRefsFor } from '../facets';
 import { db, type AttemptRecord, type ChordData } from '../../../../lib/db';
 
@@ -147,13 +147,13 @@ describe('a tier change lands on the next question', () => {
     // does not witness is the draw itself.
     const servedInTier = chords
       .filter(c => c.tier === target)
-      .reduce((n, c) => n + servedRefsFor(c, DEFAULT_INVERSION_POSITIONS).length, 0);
+      .reduce((n, c) => n + servedRefsFor(c, DEFAULT_INVERSION_SETTINGS).length, 0);
     const count = container!.querySelector('[data-testid="filter-count"]')!.textContent ?? '';
     expect(count).toContain(`${servedInTier} of `);
     // ASYMMETRIC: one tier is smaller than the catalog, so this would
     // not pass on a strip that failed to narrow.
     const servedAll = chords
-      .reduce((n, c) => n + servedRefsFor(c, DEFAULT_INVERSION_POSITIONS).length, 0);
+      .reduce((n, c) => n + servedRefsFor(c, DEFAULT_INVERSION_SETTINGS).length, 0);
     expect(servedInTier).toBeLessThan(servedAll);
     // And the question on screen still belongs to the OLD tier — half
     // one restated where it cannot be mistaken for half two.

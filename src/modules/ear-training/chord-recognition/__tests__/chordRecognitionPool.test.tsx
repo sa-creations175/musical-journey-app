@@ -23,7 +23,7 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import ChordRecognitionQuiz from '../ChordRecognitionQuiz';
 import { CHORD_SEEDS } from '../seed';
-import { DEFAULT_INVERSION_POSITIONS } from '../inversionUtils';
+import { DEFAULT_INVERSION_SETTINGS } from '../inversionUtils';
 import { servedRefsFor } from '../facets';
 import { UNLOCK_MIN_ATTEMPTS } from '../tierUnlock';
 import type { AttemptRecord, ChordData } from '../../../../lib/db';
@@ -228,7 +228,7 @@ describe('the count reads the pool', () => {
     )?.[1]);
     const served = chords
       .filter(c => c.tier === 'seventh')
-      .reduce((n, c) => n + servedRefsFor(c, DEFAULT_INVERSION_POSITIONS).length, 0);
+      .reduce((n, c) => n + servedRefsFor(c, DEFAULT_INVERSION_SETTINGS).length, 0);
     expect(stated).toBe(served);
     // The grid still offers one button per quality, and there are more
     // refs than qualities — which is the understatement being fixed.

@@ -224,3 +224,94 @@ export function rotateFormula(formula: string, inversion: number): string {
   }
   return out.join(', ');
 }
+
+// =====================================================================
+// PER-TIER INVERSION SETTINGS
+// =====================================================================
+
+/**
+ * Which inversions the reader wants asked, PER TIER.
+ *
+ * =====================================================================
+ * ONE SETTING FOR EVERYTHING WAS THE WRONG SHAPE.
+ *
+ * Triads and sevenths are not at the same stage for the same reader.
+ * Root-position triads while the sevenths run through all four
+ * inversions is a real and common place to be, and a single list could
+ * not express it — turning the third inversion on for the sevenths
+ * turned it on for chords that do not have one, and turning everything
+ * off to steady the triads took the sevenths' inversions away too.
+ *
+ * So the setting is keyed by tier, and only the tiers that are
+ * inversion-trained at all appear in it.
+ * =====================================================================
+ *
+ * IT IS STILL A PREFERENCE, AND PREFERENCES DO NOT REACH DENOMINATORS.
+ * `reachableInversions` above is the structural answer and knows
+ * nothing about this type; the coverage total is built from that and
+ * must stay built from that. What moves with this setting is the strip
+ * count — what you are about to drill — and nothing else. See the
+ * header on `reachableInversions`.
+ */
+export type InversionSettings = Readonly<Record<string, readonly Inversion[]>>;
+
+/** Every trained tier at the shipped default. */
+export const DEFAULT_INVERSION_SETTINGS: InversionSettings = Object.freeze(
+  Object.fromEntries(
+    [...INVERSION_TRAINED_TIERS].map(tier => [tier, DEFAULT_INVERSION_POSITIONS]),
+  ),
+);
+
+/**
+ * What this tier is set to.
+ *
+ * An untrained tier answers root-only rather than the default: it has
+ * no inversion training to configure, and handing back four positions
+ * would invite a caller to serve inversions the ladder never asks for.
+ */
+export function positionsForTier(
+  settings: InversionSettings,
+  tier: string,
+): readonly Inversion[] {
+  if (!INVERSION_TRAINED_TIERS.has(tier)) return [0];
+  const stored = settings[tier];
+  return stored === undefined || stored.length === 0
+    ? DEFAULT_INVERSION_POSITIONS
+    : stored;
+}
+
+/** Drop anything not an inversion, dedupe, order. Empty clamps to root
+ *  — a tier set to nothing would serve nothing at all. */
+export function sanitizePositions(raw: unknown): Inversion[] {
+  const list = Array.isArray(raw) ? raw : [];
+  const clean = [...new Set(list)]
+    .filter((n): n is Inversion => n === 0 || n === 1 || n === 2 || n === 3)
+    .sort((a, b) => a - b);
+  return clean.length > 0 ? clean : [0];
+}
+
+/**
+ * Read a stored value back, whatever shape it is in.
+ *
+ * ACCEPTS THE OLD ARRAY. The preference used to be one list for every
+ * tier, and a reader upgrading has that stored. Applying it to both
+ * tiers is the honest migration: it is exactly what the app was doing
+ * with that value the moment before.
+ */
+export function sanitizeInversionSettings(raw: unknown): InversionSettings {
+  const tiers = [...INVERSION_TRAINED_TIERS];
+  if (Array.isArray(raw)) {
+    const shared = sanitizePositions(raw);
+    return Object.fromEntries(tiers.map(tier => [tier, shared]));
+  }
+  if (raw !== null && typeof raw === 'object') {
+    const record = raw as Record<string, unknown>;
+    return Object.fromEntries(tiers.map(tier => [
+      tier,
+      tier in record
+        ? sanitizePositions(record[tier])
+        : DEFAULT_INVERSION_POSITIONS,
+    ]));
+  }
+  return DEFAULT_INVERSION_SETTINGS;
+}

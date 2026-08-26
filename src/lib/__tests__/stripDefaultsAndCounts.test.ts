@@ -33,7 +33,9 @@ import { CHORD_SEEDS } from '../../modules/ear-training/chord-recognition/seed';
 import { PROGRESSIONS } from '../../modules/ear-training/chord-progressions/catalog';
 import { earTrainingCounts } from '../moduleItemCounts';
 import type { ChordData } from '../db';
-import type { Inversion } from '../../modules/ear-training/chord-recognition/inversionUtils';
+import type {
+  Inversion, InversionSettings,
+} from '../../modules/ear-training/chord-recognition/inversionUtils';
 
 const chords = CHORD_SEEDS.map(s => ({ ...s, correct: 0, total: 0 })) as ChordData[];
 
@@ -42,7 +44,9 @@ describe('the fresh-load state lights every chip', () => {
   // pool sizes, so a helper that happened to work for one is not enough.
   const cases = [
     ['intervals', intervalFacetList(), allIntervalKeys().length],
-    ['chord recognition', chordRecognitionFacets(chords, [0, 1, 2, 3]), null],
+    ['chord recognition', chordRecognitionFacets(chords, {
+      foundational: [0, 1, 2, 3], seventh: [0, 1, 2, 3],
+    }), null],
     ['chord progressions', chordProgressionFacets(), PROGRESSIONS.length],
   ] as const;
 
@@ -101,8 +105,13 @@ describe('a stored selection beats the lit-everything default', () => {
 });
 
 describe('the strip count and the coverage total are different numbers', () => {
-  const narrow: Inversion[] = [0];
-  const wide: Inversion[] = [0, 1, 2, 3];
+  const every = (positions: Inversion[]): InversionSettings =>
+    ({ foundational: positions, seventh: positions });
+  const narrow = every([0]);
+  const wide = every([0, 1, 2, 3]);
+  /** Root-only triads while the sevenths run their inversions — the
+   *  arrangement a single shared setting could not express at all. */
+  const split: InversionSettings = { foundational: [0], seventh: [0, 1, 2, 3] };
 
   it('moves the strip count when the inversion setting changes', () => {
     const servedNarrow = chords.reduce((n, c) => n + servedRefsFor(c, narrow).length, 0);
@@ -124,6 +133,27 @@ describe('the strip count and the coverage total are different numbers', () => {
     // And it equals neither, because it answers a third question:
     // everything reachable, whatever the drawer says.
     expect(before).not.toBe(servedNarrow);
+  });
+
+  it('does NOT move the coverage total when the two tiers DIFFER', () => {
+    // THE SAME RULE, ONE STEP HARDER. The setting is per tier now, so
+    // there are more ways for a preference to leak into a total than
+    // there were — and a split setting is the arrangement that would
+    // have to be special-cased to leak.
+    const before = earTrainingCounts().chordRecognition;
+    const servedSplit = chords.reduce((n, c) => n + servedRefsFor(c, split).length, 0);
+    const servedWide = chords.reduce((n, c) => n + servedRefsFor(c, wide).length, 0);
+    expect(servedSplit).not.toBe(servedWide);
+    expect(earTrainingCounts().chordRecognition).toBe(before);
+  });
+
+  it('lets the two tiers differ, which is the point of the change', () => {
+    const triad = chords.find(c => c.tier === 'foundational' && c.intervals.length === 3
+      && !['sus2', 'sus4', 'aug'].includes(c.id))!;
+    const seventh = chords.find(c => c.tier === 'seventh' && c.id !== 'dim7')!;
+    // Root-only triads: one ref. Sevenths through their inversions: four.
+    expect(servedRefsFor(triad, split)).toHaveLength(1);
+    expect(servedRefsFor(seventh, split)).toHaveLength(4);
   });
 
   it('counts chord x inversion, never chord qualities', () => {

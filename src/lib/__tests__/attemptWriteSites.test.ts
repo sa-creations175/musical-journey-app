@@ -115,10 +115,18 @@ describe('chord recognition records the stage, not a tab', () => {
 
   it('records it rather than leaving it reconstructable', () => {
     // Step two fires only when the chord is inversion-trained, not
-    // excluded, AND at least two inversion positions are enabled. That
-    // last condition is a mutable setting that appears nowhere on the
-    // row, so nothing downstream could recover the split.
-    expect(chordRecognitionSource).toContain('inversionPositionsRef.current.length >= 2');
+    // excluded, AND at least two inversion positions are enabled FOR
+    // THAT CHORD'S TIER. That last condition is a mutable setting that
+    // appears nowhere on the row, so nothing downstream could recover
+    // the split — which is why the stage is written rather than
+    // inferred.
+    //
+    // The setting became per-tier on 26 Aug 2026, so the gate reads
+    // `positionsForTier(...)` where it read one shared list. The rule
+    // is unchanged and is now harder to satisfy by accident: there are
+    // two settings that can move it rather than one.
+    expect(chordRecognitionSource)
+      .toContain('positionsForTier(inversionSettingsRef.current, chord.tier).length >= 2');
     expect(chordRecognitionSource).not.toContain('inversionPositions: ');
   });
 });

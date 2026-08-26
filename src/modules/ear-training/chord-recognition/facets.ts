@@ -17,8 +17,8 @@
 import type { Facet, FacetValue } from '../../../lib/facetSelection';
 import type { ChordData } from '../../../lib/db';
 import {
-  attemptItemId, inversionsForIntervalCount, reachableInversions,
-  type Inversion,
+  attemptItemId, inversionsForIntervalCount, positionsForTier, reachableInversions,
+  type Inversion, type InversionSettings,
 } from './inversionUtils';
 
 /** Tier ids in ladder order — foundational first, extensions last. */
@@ -52,8 +52,12 @@ const TIER_LABEL: Readonly<Record<ChordData['tier'], string>> = {
  */
 export function servedRefsFor(
   chord: Pick<ChordData, 'id' | 'tier' | 'intervals'>,
-  positions: readonly Inversion[],
+  settings: InversionSettings,
 ): string[] {
+  // PER TIER, because triads and sevenths are not at the same stage for
+  // the same reader. `positionsForTier` answers root-only for a tier
+  // that is not inversion-trained at all.
+  const positions = positionsForTier(settings, chord.tier);
   const reachable = reachableInversions(chord);
   // The drill's own composition: step two fires only when the chord has
   // more than one reachable inversion AND the reader has at least two
@@ -71,7 +75,7 @@ export function servedRefsFor(
 
 export function chordRecognitionFacets(
   chords: ReadonlyArray<ChordData>,
-  positions: readonly Inversion[],
+  settings: InversionSettings,
 ): Facet[] {
   const values: FacetValue[] = CHORD_TIER_ORDER
     .map(tier => ({
@@ -79,7 +83,7 @@ export function chordRecognitionFacets(
       label: TIER_LABEL[tier],
       keys: chords
         .filter(c => c.tier === tier)
-        .flatMap(c => servedRefsFor(c, positions)),
+        .flatMap(c => servedRefsFor(c, settings)),
     }))
     // A tier the seed list does not populate is not offered. Rendering
     // an empty chip would invite a tap that resolves to nothing.
@@ -98,4 +102,38 @@ export function chordIdsFromRefs(refs: readonly string[]): string[] {
     if (!out.includes(id)) out.push(id);
   }
   return out;
+}
+
+/**
+ * The inversion chips a tier's own row should offer.
+ *
+ * =====================================================================
+ * DERIVED FROM THE CHORDS, NOT WRITTEN PER TIER.
+ *
+ * Triads get Root / 1st / 2nd and sevenths get those plus 3rd — not
+ * because a table here says so, but because that is what
+ * `inversionsForIntervalCount` returns for the widest chord the tier
+ * actually holds. A tier of six-note chords would offer what its
+ * chords have without anyone editing this.
+ *
+ * READS THE WIDEST REACHABLE CHORD, not the widest chord. `dim7` is a
+ * four-note seventh excluded from inversion training entirely, so
+ * counting it would offer a chip for a position no chord in the tier
+ * can be asked in.
+ * =====================================================================
+ *
+ * Empty for a tier with no inversion training at all, which is how a
+ * caller knows to draw no chips rather than a row of dead ones.
+ */
+export function inversionChoicesForTier(
+  chords: ReadonlyArray<ChordData>,
+  tier: string,
+): Inversion[] {
+  let widest: Inversion[] = [];
+  for (const chord of chords) {
+    if (chord.tier !== tier) continue;
+    const reachable = reachableInversions(chord);
+    if (reachable.length > widest.length) widest = reachable;
+  }
+  return widest.length > 1 ? widest : [];
 }
