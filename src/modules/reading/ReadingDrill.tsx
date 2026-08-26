@@ -29,10 +29,11 @@ import {
   type ReadingDrillSkill,
   type PickedCard,
 } from './pickCard';
-import { readingSkillForItemRef } from './catalog';
 import {
   SIGNATURES,
+  isDrawableReadingItem,
   parseReadingItemRef,
+  readingSkillForItemRef,
   type ChordPosition,
   type Clef,
   type SignatureId,
@@ -139,15 +140,9 @@ function evaluate(
         countStage,
       };
     }
-    if (parsed.direction === 'which') {
-      const expected = correctAccidentalSequence(parsed.signature as SignatureId);
-      return {
-        ready: answer.sequence.length > 0 || expected.length === 0,
-        correct: answer.sequence.length === expected.length
-          && expected.every((a, i) => answer.sequence[i] === a),
-        countStage: null,
-      };
-    }
+    // `name`, and nothing else reaches here: `which` is the second half
+    // of a `count` card and is never drawn on its own — see
+    // SIGNATURE_DIRECTIONS.
     return {
       ready: answer.keyName !== null,
       correct: answer.keyName === parsed.signature,
@@ -211,13 +206,14 @@ export default function ReadingDrill({
    * Restrict the drill to these stored item refs.
    *
    * Set when the dashboard sends you here from a tapped row: "drill
-   * this key's conceptual knowledge" is two refs, "drill key signature
-   * recognition" is seventy-eight. Absent means the normal spaced
-   * selection over the whole skill.
+   * this key's conceptual knowledge" is one ref, "drill key signature
+   * recognition" is fifty-two. Absent means the normal spaced selection
+   * over the whole skill.
    *
    * Refs that do not belong to `skill` are ignored rather than served -
    * a stale link must not put a chord card inside a key-signature
-   * drill. An empty result falls back to the unfiltered pick, because a
+   * drill — and neither must it put half a card there; see the filter
+   * below. An empty result falls back to the unfiltered pick, because a
    * drill that serves nothing is worse than one that serves the module.
    */
   focusRefs?: readonly string[];
@@ -264,7 +260,10 @@ export default function ReadingDrill({
     if (!focusRefs || focusRefs.length === 0) return null;
     const own = focusRefs.filter(ref => {
       const s = readingSkillForItemRef(ref);
-      return s !== null && skills.includes(s);
+      // DRAWABLE, not merely parseable. A stale link can carry
+      // `sig:…:which`, which is the second half of a card and not a
+      // card — see `isDrawableReadingItem`.
+      return s !== null && skills.includes(s) && isDrawableReadingItem(ref);
     });
     return own.length > 0 ? own : null;
     // The pool is a fresh array each render; its CONTENT is what
@@ -642,16 +641,6 @@ export default function ReadingDrill({
         </div>
       )}
 
-      {parsed.skill === 'sig' && parsed.direction === 'which' && sig && (
-        <AccidentalSequence
-          kind={sig.accidental ?? 'sharp'}
-          sequence={answer.sequence}
-          onChange={seq => set({ sequence: seq })}
-          locked={submitted}
-          expected={correctAccidentalSequence(parsed.signature as SignatureId)}
-        />
-      )}
-
       {parsed.skill === 'chord' && (
         <ChordPanel
           parsed={parsed}
@@ -705,7 +694,9 @@ function AccidentalSequence({
   const label = (id: string) => options.find(o => o.id === id)?.label ?? id;
 
   return (
-    <div className="space-y-2">
+    /* `data-testid` names part two of a signature card, so a test can
+       assert that it follows part one rather than standing alone. */
+    <div className="space-y-2" data-testid="accidental-sequence">
       <div className="text-[10px] uppercase tracking-wide text-neutral-500 text-center">
         which ones, in order
       </div>

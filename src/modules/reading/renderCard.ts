@@ -24,9 +24,7 @@
 
 import {
   CHORD_QUALITIES,
-  FLAT_ORDER,
   SHAPE_FAMILY_LABEL,
-  SHARP_ORDER,
   SIGNATURES,
   parseReadingItemRef,
   positionsForFamily,
@@ -147,27 +145,15 @@ function vexKeySignature(sig: SignatureDef): string {
   return sig.major;
 }
 
-function accidentalListFor(sig: SignatureDef): string[] {
-  if (sig.accidental === null) return [];
-  const order = sig.accidental === 'sharp' ? SHARP_ORDER : FLAT_ORDER;
-  const mark = sig.accidental === 'sharp' ? '♯' : '♭';
-  return order.slice(0, sig.count).map(l => `${l}${mark}`);
-}
-
 function signatureCaption(
   sig: SignatureDef,
   mode: 'major' | 'minor',
-  direction: 'name' | 'count' | 'which',
 ): string {
   // SIGNATURES stores tonics as ASCII ('Gb', 'F#') because they are
   // data, not display. The glyph swap happens here, at the caption,
   // so the staff and the label use the same notation vocabulary.
   const tonic = withAccidentalGlyphs(mode === 'major' ? sig.major : sig.minor);
   const key = `${tonic} ${mode}`;
-  if (direction === 'which') {
-    const list = accidentalListFor(sig);
-    return list.length === 0 ? `${key}, no accidentals` : `${key}: ${list.join(' ')}`;
-  }
   if (sig.count === 0) return `${key}, no accidentals`;
   const noun = sig.accidental === 'sharp' ? 'sharp' : 'flat';
   return `${key}, ${sig.count} ${noun}${sig.count === 1 ? '' : 's'}`;
@@ -304,7 +290,7 @@ export function resolveReadingCard(
         keys: [],
         keySignature: vexKeySignature(sig),
       },
-      caption: signatureCaption(sig, parsed.mode, parsed.direction),
+      caption: signatureCaption(sig, parsed.mode),
     };
   }
 

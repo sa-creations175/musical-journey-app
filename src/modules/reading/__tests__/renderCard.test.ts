@@ -352,13 +352,15 @@ describe('captions', () => {
     expect(major.caption).toContain('major');
   });
 
-  it('the `which` direction lists the accidentals in written order', () => {
+  it('names the key and its accidental count', () => {
+    // The `which` direction had a caption of its own here, listing the
+    // accidentals in written order. It was the caption of a card that
+    // no longer exists: `which` is the second half of a `count` card
+    // and is never drawn alone, so nothing captions it.
     expect(resolveReadingCard('sig:3s:major:name')!.caption)
       .toBe('A major, 3 sharps');
-    expect(resolveReadingCard('sig:3s:major:which')!.caption)
-      .toBe('A major: F♯ C♯ G♯');
-    expect(resolveReadingCard('sig:2f:major:which')!.caption)
-      .toBe('B♭ major: B♭ E♭');
+    expect(resolveReadingCard('sig:2f:major:count')!.caption)
+      .toBe('B♭ major, 2 flats');
   });
 
   it('a chord caption names the supplied root, position, and quality', () => {
@@ -568,7 +570,7 @@ describe('grand staff framing', () => {
   it('framing changes no itemRef and no count', () => {
     // The settled rule: render-time variation never touches identity.
     const before = enumerateAllReadingItems();
-    expect(before).toHaveLength(188);
+    expect(before).toHaveLength(162);
     for (const ref of before) {
       expect(resolveReadingCard(ref, { frame: 'grand' })!.itemRef).toBe(ref);
     }

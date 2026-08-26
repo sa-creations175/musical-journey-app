@@ -19,7 +19,7 @@
  */
 import {
   CHORD_QUALITIES, CLEFS, NOTE_POSITIONS, SHAPE_FAMILIES, SHAPE_FAMILY_LABEL,
-  SIGNATURES, TRIAD_POSITIONS, SEVENTH_POSITIONS,
+  SIGNATURES, SIGNATURE_DIRECTIONS, TRIAD_POSITIONS, SEVENTH_POSITIONS,
   type Clef,
 } from './catalog';
 import { ledgerLinesFor, pitchAtStaffPosition, scientificPitch } from './pitch';
@@ -139,8 +139,11 @@ const NOTE_GRID: GridSpec = {
 export const READING_GRIDS: Readonly<Record<string, GridSpec | null>> = {
   [READING_CATEGORY_LABEL.sig]: {
     columns: signatureAxis,
-    rows: oneView('direction', 'question', ['name', 'count', 'which'], v => ({
-      name: 'name the key', count: 'count', which: 'which',
+    // TWO QUESTIONS, NOT THREE. `which` was a row here while it was an
+    // item; it is the second half of a `count` card now, so a row for
+    // it would be a row that can never fill.
+    rows: oneView('direction', 'question', SIGNATURE_DIRECTIONS, v => ({
+      name: 'name the key', count: 'count',
     }[String(v)] ?? String(v))),
   },
   [READING_CATEGORY_LABEL.note]: NOTE_GRID,

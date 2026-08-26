@@ -20,11 +20,12 @@
  *
  * A `CatalogItem` is one ROW of the tree and carries the `itemRefs` it
  * aggregates — usually one, sometimes more. Reading's key signatures
- * are the case that forced this: 78 stored items over three question
- * directions, shown as two rows per key because `count` and `which` are
- * two steps of one skill. Both counts are true and the doc states both,
- * so the model has to hold both. `catalogItemCount` is the denominator;
- * `catalog.items.length` is the row count.
+ * forced this: `count` and `which` were two stored items for two steps
+ * of one skill, shown as one row. They are one item now — the card asks
+ * both halves itself — so no row aggregates today, and the distinction
+ * stays because the next module to need it will need it for the same
+ * reason. `catalogItemCount` is the denominator; `catalog.items.length`
+ * is the row count.
  *
  * ─── Pure ────────────────────────────────────────────────────────────
  *
@@ -69,8 +70,9 @@ export interface CatalogItem {
   path: readonly string[];
   /**
    * The stored refs this row aggregates. Length > 1 only where two
-   * stored items are two steps of one skill — see Reading's
-   * conceptual-knowledge row.
+   * stored items are two steps of one skill; nothing needs that today,
+   * and the denominator has to keep counting refs rather than rows for
+   * when something does.
    */
   itemRefs: readonly string[];
   /**
@@ -431,19 +433,21 @@ export const harmonicFluencyCatalog: ModuleCatalog = {
 };
 
 // =====================================================================
-// Reading — 188 items, and fewer rows than items
+// Reading — one row per question, and fewer rows than items
 // =====================================================================
 
 const SIGNATURE_ROOT = ['reading', 'Key Signature Recognition'] as const;
 
 /**
- * 78 stored items over three directions, shown as two rows per key.
+ * Two rows per key: what the notation looks like, and what the key
+ * contains.
  *
  * `count` ("how many accidentals in D major?") and `which` ("name them,
  * in written order") are two steps of ONE skill — you cannot name them
- * in order without knowing how many there are — so they merge into a
- * single conceptual-knowledge row that aggregates both refs. The module
- * denominator stays 78; only the row count differs, at 26 keys × 2.
+ * in order without knowing how many there are. They used to be two
+ * stored items merged into this one row; they are one item now, asked
+ * as a pair inside a single card, so the row carries one ref and the
+ * merge is gone rather than moved. See SIGNATURE_DIRECTIONS.
  */
 function signatureRows(): CatalogItem[] {
   const rows: CatalogItem[] = [];
@@ -461,11 +465,10 @@ function signatureRows(): CatalogItem[] {
         id: `${sig.id}:${mode}:conceptual`,
         label: 'Conceptual Knowledge',
         path,
-        // TWO refs, one row. The count is 78 either way.
-        itemRefs: [
-          signatureItemRef(sig.id, mode, 'count'),
-          signatureItemRef(sig.id, mode, 'which'),
-        ],
+        // ONE REF NOW. The count card asks both halves itself, in
+        // order, and `which` is no longer an item to aggregate — see
+        // SIGNATURE_DIRECTIONS.
+        itemRefs: [signatureItemRef(sig.id, mode, 'count')],
         // The minor is the second of the pair, so its last row closes
         // the group. KEY_MODES orders major then minor.
         ...(mode === KEY_MODES[KEY_MODES.length - 1] ? { endsGroup: true } : {}),

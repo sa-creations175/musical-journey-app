@@ -86,15 +86,17 @@ describe('reading — refs pass through as they are', () => {
     expect(target.route).toBe('/reading');
   });
 
-  it('a merged row hands over BOTH of its stored refs', () => {
-    // Conceptual knowledge aggregates count and which. Drilling it must
-    // serve both, not just the one the row id happens to resemble.
+  it('hands over the one ref a conceptual row now carries', () => {
+    // IT USED TO CARRY TWO — count and which — and drilling it had to
+    // serve both. The card asks both halves itself now, so the row is
+    // one ref, and `which` must not be among them: served on its own it
+    // is "which ones, in order" with nothing before it.
     const conceptual = leavesOf(tree).find(n => n.label === 'Conceptual Knowledge')!;
     const target = drillTargetFor(conceptual, 'reading');
     if (target.kind !== 'filtered') throw new Error('expected filtered');
-    expect(target.itemRefs).toHaveLength(2);
+    expect(target.itemRefs).toHaveLength(1);
     expect(target.itemRefs.some(r => r.endsWith(':count'))).toBe(true);
-    expect(target.itemRefs.some(r => r.endsWith(':which'))).toBe(true);
+    expect(target.itemRefs.some(r => r.endsWith(':which'))).toBe(false);
   });
 });
 

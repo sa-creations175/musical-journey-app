@@ -60,17 +60,27 @@ async function servedRefs(
 
 describe('the focus pool', () => {
   it('serves only the refs it was given', async () => {
-    const pool = ['sig:2s:major:count', 'sig:2s:major:which'];
+    const pool = ['sig:2s:major:count', 'sig:3f:minor:count'];
     const served = await servedRefs(pool, 'sig');
     expect(served.size).toBeGreaterThan(0);
     for (const ref of served) expect(pool).toContain(ref);
+  });
+
+  it('never serves half a card, however the link was built', async () => {
+    // A LINK MADE BEFORE THE PAIR BECAME ATOMIC. `sig:…:which` parses,
+    // so the skill filter lets it through; it is the second half of a
+    // count card and asking it alone is "which ones, in order" with
+    // nothing before it. The pool drops it and serves the other.
+    const pool = ['sig:2s:major:count', 'sig:2s:major:which'];
+    const served = await servedRefs(pool, 'sig', 30);
+    expect([...served]).toEqual(['sig:2s:major:count']);
   });
 
   it('serves more than one when given more than one', async () => {
     // A pool that always returns its first entry would pass the test
     // above and be useless.
     const pool = [
-      'sig:2s:major:count', 'sig:2s:major:which',
+      'sig:2s:major:count', 'sig:2s:major:name',
       'sig:3f:minor:count', 'sig:1s:major:name',
     ];
     const served = await servedRefs(pool, 'sig', 40);

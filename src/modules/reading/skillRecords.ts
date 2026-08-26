@@ -43,10 +43,11 @@ export const READING_CATEGORY_LABEL: Readonly<Record<string, string>> = {
   chord: 'Chord identification',
 };
 
+/** `which` is not here: it is the second half of a `count` card and
+ *  never an item of its own — see SIGNATURE_DIRECTIONS. */
 const DIRECTION_LABEL: Readonly<Record<string, string>> = {
   name: 'name the key',
   count: 'count the accidentals',
-  which: 'which accidentals',
 };
 
 const POSITION_LABEL: Readonly<Record<string, string>> = {

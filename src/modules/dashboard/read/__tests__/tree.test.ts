@@ -17,6 +17,7 @@ import {
 import type { CatalogItem, ModuleCatalog } from '../catalogs';
 import { readingCatalog, scalesModesCatalog } from '../catalogs';
 import { statsForAttemptCatalog } from '../adapters';
+import { enumerateAllReadingItems } from '../../../reading/catalog';
 import { emptyItemStats, type ItemStats } from '../itemStats';
 import type { AttemptRecord } from '../../../../lib/db';
 
@@ -263,29 +264,33 @@ describe('against the real catalogs', () => {
     expect(tree.coveredItems).toBe(0);
   });
 
-  it('reading keeps 188 items across fewer rows', () => {
+  it('reading counts every item, across fewer rows', () => {
     const tree = buildModuleTree(
       readingCatalog, statsForAttemptCatalog(readingCatalog, []),
     );
-    expect(tree.totalItems).toBe(188);
-    expect(leavesOf(tree).length).toBeLessThan(188);
+    // DERIVED, not written: the catalog is the denominator, and this
+    // number moved when `which` stopped being an item.
+    expect(tree.totalItems).toBe(enumerateAllReadingItems().length);
+    expect(tree.totalItems).toBe(162);
+    // ONE LEAF PER ITEM NOW. It was fewer while the conceptual row
+    // merged two refs; nothing merges, so the two counts meet.
+    expect(leavesOf(tree).length).toBe(162);
   });
 
-  it('a covered merged row contributes both of its items', () => {
-    // Reading's conceptual-knowledge row aggregates count and which.
-    // Covering it covers two of the 78, not one.
-    const refs = ['sig:2s:major:count', 'sig:2s:major:which'];
-    const attempts = refs.flatMap((ref, r) =>
-      Array.from({ length: 2 }, (_, i) => attempt({
-        moduleId: 'reading', itemId: ref, timestamp: NOW - (r * 10 + i) * 1000,
-      })));
+  it('covers the conceptual row on the one ref it carries', () => {
+    // IT USED TO CARRY TWO — count and which — and covering it covered
+    // two items. The card asks both halves itself now, so the row is
+    // one item and attempts on it are attempts on `count`.
+    const attempts = Array.from({ length: 4 }, (_, i) => attempt({
+      moduleId: 'reading', itemId: 'sig:2s:major:count', timestamp: NOW - i * 1000,
+    }));
     const tree = buildModuleTree(
       readingCatalog, statsForAttemptCatalog(readingCatalog, attempts),
     );
     const row = flatten(tree).find(n => n.id.endsWith('2s:major:conceptual'))!;
     expect(row.stats!.engagementCount).toBe(4);
-    expect(row.totalItems).toBe(2);
-    expect(row.coveredItems).toBe(2);
+    expect(row.totalItems).toBe(1);
+    expect(row.coveredItems).toBe(1);
   });
 });
 

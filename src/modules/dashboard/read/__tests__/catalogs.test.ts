@@ -107,38 +107,39 @@ describe('catalog sizes — the denominators', () => {
   });
 });
 
-describe('reading — 78 signature items over 52 rows', () => {
+describe('reading — 52 signature items over 52 rows', () => {
   it('counts every stored item, matching the reading catalog', () => {
     expect(catalogItemCount(readingCatalog)).toBe(enumerateAllReadingItems().length);
-    expect(catalogItemCount(readingCatalog)).toBe(188);
+    expect(catalogItemCount(readingCatalog)).toBe(162);
   });
 
-  it('merges count and which into one conceptual-knowledge row', () => {
+  it('gives each key a visual row and a conceptual one, of one ref each', () => {
+    // THE CONCEPTUAL ROW USED TO MERGE TWO REFS — `count` and `which`,
+    // two steps of one skill. The card asks both halves itself now, so
+    // there is one item and nothing to merge.
     const conceptual = readingCatalog.items.filter(i => i.label === 'Conceptual Knowledge');
     const visual = readingCatalog.items.filter(i => i.label === 'Visual Recognition');
     // 13 signatures × 2 modes = 26 keys, two rows each.
     expect(conceptual).toHaveLength(26);
     expect(visual).toHaveLength(26);
-    // The merged row carries BOTH stored refs; the denominator still
-    // counts them separately.
-    expect(conceptual.every(i => i.itemRefs.length === 2)).toBe(true);
+    expect(conceptual.every(i => i.itemRefs.length === 1)).toBe(true);
     expect(visual.every(i => i.itemRefs.length === 1)).toBe(true);
   });
 
-  it('keeps 78 items while showing 52 rows', () => {
+  it('shows 52 rows over 52 items', () => {
     const sigRows = readingCatalog.items.filter(
       i => i.path[1] === 'Key Signature Recognition',
     );
     expect(sigRows).toHaveLength(52);
-    expect(sigRows.reduce((n, i) => n + i.itemRefs.length, 0)).toBe(78);
+    expect(sigRows.reduce((n, i) => n + i.itemRefs.length, 0)).toBe(52);
   });
 
-  it('covers all three stored directions exactly once', () => {
+  it('covers both drawable directions, and offers no `which` row', () => {
     const refs = catalogRefSet(readingCatalog);
     const dirs = [...refs].filter(r => r.startsWith('sig:'));
     expect(dirs.filter(r => r.endsWith(':name'))).toHaveLength(26);
     expect(dirs.filter(r => r.endsWith(':count'))).toHaveLength(26);
-    expect(dirs.filter(r => r.endsWith(':which'))).toHaveLength(26);
+    expect(dirs.filter(r => r.endsWith(':which'))).toHaveLength(0);
   });
 });
 
@@ -226,13 +227,12 @@ describe('catalog invariants', () => {
     }
   });
 
-  it('rows and items agree except where a row deliberately merges', () => {
+  it('rows and items agree, since nothing merges any more', () => {
+    // Reading was the exception while its conceptual row carried two
+    // refs. The distinction between the two counts stays in the model
+    // — the denominator counts refs — but no catalog exercises it.
     for (const catalog of STATIC_CATALOGS) {
-      if (catalog.sourceId === 'reading') {
-        expect(catalogRowCount(catalog)).toBeLessThan(catalogItemCount(catalog));
-      } else {
-        expect(catalogRowCount(catalog)).toBe(catalogItemCount(catalog));
-      }
+      expect(catalogRowCount(catalog)).toBe(catalogItemCount(catalog));
     }
   });
 

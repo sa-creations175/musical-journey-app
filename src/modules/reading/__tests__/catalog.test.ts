@@ -98,10 +98,21 @@ describe('catalog shape', () => {
 });
 
 describe('derived counts match the design', () => {
-  it('key signatures: 78 = 13 x 2 modes x 3 directions', () => {
-    expect(enumerateSignatureItems()).toHaveLength(78);
+  it('key signatures: 52 = 13 x 2 modes x 2 drawable directions', () => {
+    // WAS 78 OVER THREE. `which` is the second half of a `count` card
+    // and never a card of its own, so it is not an item — see
+    // SIGNATURE_DIRECTIONS.
+    expect(enumerateSignatureItems()).toHaveLength(52);
+    expect(SIGNATURE_DIRECTIONS).toEqual(['name', 'count']);
     expect(SIGNATURES.length * KEY_MODES.length * SIGNATURE_DIRECTIONS.length)
-      .toBe(78);
+      .toBe(52);
+  });
+
+  it('enumerates no `which` item, in any pool', () => {
+    // The defect in one line: a mixed pool drew from this list and
+    // could serve "which ones, in order" on its own.
+    expect(enumerateAllReadingItems().filter(r => r.endsWith(':which')))
+      .toEqual([]);
   });
 
   it('note recognition: 34 = 17 positions x 2 clefs', () => {
@@ -141,8 +152,8 @@ describe('derived counts match the design', () => {
   it('every itemRef is unique across the whole module', () => {
     const all = enumerateAllReadingItems();
     expect(new Set(all).size).toBe(all.length);
-    expect(all).toHaveLength(78 + 34 + 69 + 7);
-    expect(all).toHaveLength(188);
+    expect(all).toHaveLength(52 + 34 + 69 + 7);
+    expect(all).toHaveLength(162);
   });
 
   it('readingCounts derives from the catalog, not from literals', () => {
@@ -325,7 +336,7 @@ describe('coverage groups', () => {
 
   it('group denominators are derived, and match the design split', () => {
     const c = readingCounts();
-    expect(c.byGroup['key-signatures']).toBe(78);
+    expect(c.byGroup['key-signatures']).toBe(52);
     expect(c.byGroup['note-recognition']).toBe(34);
     expect(c.byGroup['notation-shapes']).toBe(7);
     expect(c.byGroup['chord-triads']).toBe(24);

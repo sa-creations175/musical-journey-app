@@ -9,7 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AttemptRecord } from '../../../../lib/db';
 import { STALE_DAYS, MIN_ATTEMPTS_FOR_TIER } from '../../../../lib/tier';
-import { readingCatalog, scalesModesCatalog } from '../catalogs';
+import { scalesModesCatalog, type ModuleCatalog } from '../catalogs';
 import { statsForAttemptCatalog } from '../adapters';
 import {
   bucketAttemptsForCatalog,
@@ -237,17 +237,30 @@ describe('tierCountsForCatalog — the denominator fix', () => {
   });
 
   it('tiers a merged row on its refs combined', () => {
-    // Reading's conceptual-knowledge row aggregates `count` and
-    // `which`. Three attempts on each is six engagements for one row —
-    // enough to clear the tier minimum, which neither ref would manage
+    // THE RULE, ON A CATALOG BUILT HERE TO CARRY IT. Reading's
+    // conceptual-knowledge row used to aggregate `count` and `which`;
+    // those are one item now, so no shipped catalog merges — and the
+    // aggregation is still what `catalogItemCount` and the adapters
+    // are built around, so it is still asserted.
+    //
+    // Three attempts on each ref is six engagements for one row —
+    // enough to clear the tier minimum, which neither would manage
     // alone.
-    const refs = ['sig:2s:major:count', 'sig:2s:major:which'];
+    const refs = ['made-up:a', 'made-up:b'];
+    const merged: ModuleCatalog = {
+      sourceId: 'reading',
+      moduleId: 'reading',
+      label: 'reading',
+      accuracyKind: 'measured',
+      items: [{ id: 'merged-row', label: 'Merged', path: ['reading'], itemRefs: refs }],
+    };
     const attempts = refs.flatMap((ref, r) =>
       Array.from({ length: 3 }, (_, i) =>
         attempt({ moduleId: 'reading', itemId: ref, timestamp: NOW - (r * 10 + i) * 1000 })));
-    const stats = statsForAttemptCatalog(readingCatalog, attempts)
-      .find(row => row.itemRef === '2s:major:conceptual')!;
+    const stats = statsForAttemptCatalog(merged, attempts)
+      .find(row => row.itemRef === 'merged-row')!;
     expect(stats.engagementCount).toBe(6);
+    expect(MIN_ATTEMPTS_FOR_TIER).toBeLessThanOrEqual(6);
     expect(tierFromItemStats(stats, NOW)).not.toBe('untouched');
   });
 });

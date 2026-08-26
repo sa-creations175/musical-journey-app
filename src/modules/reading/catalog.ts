@@ -84,11 +84,13 @@ export const SIGNATURES: ReadonlyArray<SignatureDef> = [
 ];
 
 /**
- * The three question directions.
+ * The question directions.
  *
  *   name  — notation → key name        ("this signature is … ?")
- *   count — key name → accidental count ("how many in D major?")
- *   which — notation → which accidentals ("name them, in order")
+ *   count — key name → accidental count ("how many in D major?"),
+ *           and then which ones in written order
+ *   which — the second half of `count`, and never a card of its own.
+ *           See `SIGNATURE_DIRECTIONS`.
  *
  * MAJOR AND MINOR ARE SEPARATE ITEMS AND THIS IS NOT DOUBLE-COUNTING.
  * The question defines the item: "two sharps → which major?" (D) and
@@ -99,8 +101,32 @@ export const SIGNATURES: ReadonlyArray<SignatureDef> = [
  */
 export type SignatureDirection = 'name' | 'count' | 'which';
 
+/**
+ * THE DIRECTIONS THAT ARE DRAWABLE ITEMS — and `which` is not one.
+ *
+ * =====================================================================
+ * A SIGNATURE CARD IS AN ATOMIC PAIR, SO ITS HALVES ARE NOT TWO ITEMS.
+ *
+ * `count` asks how many, and then — only on a right answer — asks which
+ * ones in written order. That second half WAS also enumerated as its
+ * own item, so a mixed pool could serve it alone: "which ones, in
+ * order" with no count before it and no key named. An unanswerable
+ * question, and one the reader had no way to recognise as half of
+ * something.
+ *
+ * Listing only the drawable directions is the fix at its source: the
+ * pool, the registry, the coverage denominators and the goal picker all
+ * derive from this list, so none of them can offer part two on its own.
+ * Drawing the card means part one then part two, in that order, in
+ * every pool including the mixed one.
+ *
+ * THE TYPE AND THE PARSER STILL ADMIT IT. Attempts recorded before the
+ * pair became atomic carry `:which` refs, and a parser that refused
+ * them would drop that history out of the module's own totals.
+ * =====================================================================
+ */
 export const SIGNATURE_DIRECTIONS: ReadonlyArray<SignatureDirection> =
-  ['name', 'count', 'which'];
+  ['name', 'count'];
 
 export const KEY_MODES: ReadonlyArray<KeyMode> = ['major', 'minor'];
 
@@ -389,6 +415,23 @@ export function enumerateAllReadingItems(): string[] {
     ...enumerateChordItems(),
     ...enumerateShapeItems(),
   ];
+}
+
+/**
+ * Whether a ref is a card the drill can actually serve.
+ *
+ * PARSING IS NOT ENOUGH. `sig:2s:major:which` parses — it has to, so
+ * attempts recorded before the pair became atomic still read — and it
+ * is not a card: it is the second half of one. A focus link built
+ * before the change, or shared, would otherwise put an unanswerable
+ * question in front of the reader, which is the whole defect.
+ *
+ * Membership of the enumeration, so this cannot drift from the deck.
+ */
+const DRAWABLE = new Set(enumerateAllReadingItems());
+
+export function isDrawableReadingItem(ref: string): boolean {
+  return DRAWABLE.has(ref);
 }
 
 // =====================================================================

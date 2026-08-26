@@ -38,7 +38,11 @@ describe('reading is in the registry', () => {
   it('emits one row per catalog item, and none the parser refuses', () => {
     const rows = readingSkillRows();
     expect(rows).toHaveLength(enumerateReading().length);
-    expect(rows.length).toBeGreaterThan(180);
+    // A LOWER BOUND, not the count — the count belongs to the catalog
+    // and the line above takes it from there. It moved from 188 to 162
+    // when `which` stopped being an item; what this guards is that the
+    // builder emits the module rather than a handful.
+    expect(rows.length).toBeGreaterThan(150);
     // Every ref round-trips: no row carries an id as its label, which is
     // the §1.8b defect this would otherwise reintroduce at scale.
     for (const r of rows) expect(r.name).not.toContain(r.itemRef);
