@@ -32,6 +32,16 @@ function row(itemRef: string, lastEngagedAt: number | null = NOW): SpacingState 
   } as SpacingState;
 }
 
+/** A row with an explicit hand and stage — what the acquisition rule
+ *  actually reads. */
+function stage(
+  itemRef: string,
+  hand: SpacingState['hand'],
+  acquisitionStage: SpacingState['acquisitionStage'],
+): SpacingState {
+  return { ...row(itemRef), id: `ss-${itemRef}-${hand}`, hand, acquisitionStage };
+}
+
 const byKey = (rows: SpacingState[] = [], mv: SpacingState[] = []) =>
   new Map(shapesCards(rows, mv, NOW).map(c => [c.key, c]));
 
@@ -73,6 +83,34 @@ describe('what has been touched', () => {
     expect(cards.get('scales')!.itemsSeen).toBe(2);
     expect(cards.get('chord-shapes')!.itemsSeen).toBe(1);
     expect(cards.get('voice-leading')!.itemsSeen).toBe(1);
+  });
+
+  it('counts ACQUIRED by the module\u2019s one rule, not by touched', () => {
+    /**
+     * The card used to show `itemsSeen` — a cell counted the moment any
+     * hand was touched — while the matrix under it counted all three
+     * hands. Same cell, two numbers. The card carries `acquired` now
+     * and `itemsSeen` still means what it says.
+     */
+    const cards = byKey([
+      // Fully acquired: all three hands.
+      stage('scale:major:C', 'left', 'acquired'),
+      stage('scale:major:C', 'right', 'acquired'),
+      stage('scale:major:C', 'both', 'mastered'),
+      // Two hands in and never played together — NOT acquired.
+      stage('scale:major:G', 'left', 'acquired'),
+      stage('scale:major:G', 'right', 'acquired'),
+    ]);
+    const scales = cards.get('scales')!;
+    expect(scales.itemsSeen, 'both cells have been touched').toBe(2);
+    expect(scales.acquired, 'only one is acquired').toBe(1);
+  });
+
+  it('acquires a voice-leading cell from its one hand', () => {
+    // VL is two-handed by nature and only ever writes `both`; waiting
+    // on left and right would leave every cell unacquirable forever.
+    const cards = byKey([stage('vl:aba-251:Bb', 'both', 'acquired')]);
+    expect(cards.get('voice-leading')!.acquired).toBe(1);
   });
 
   it('keeps mental viz separate — a different moduleRef entirely', () => {

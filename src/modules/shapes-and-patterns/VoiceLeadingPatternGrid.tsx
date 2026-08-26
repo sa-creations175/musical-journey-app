@@ -27,6 +27,7 @@ import {
 } from './catalog';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
+import { bucketForStage, type AcquisitionBucket } from './acquisition';
 
 interface Props {
   /** Pattern id — built-in or custom. Custom ids aren't in the
@@ -38,30 +39,19 @@ interface Props {
   onCellOpen?: (itemRef: string) => void;
 }
 
-/** Three-bucket stage palette, matching ScaleDrills.tsx so the
- *  S&P submodule visuals stay consistent. `consolidated` and
- *  `mastered` collapse into `acquired` — heat-grid color reflects
- *  acquisition state, not longer-term decay. */
-type StageBucket = 'new' | 'acquiring' | 'acquired';
-
-function bucketFor(stage: AcquisitionStage | undefined): StageBucket {
-  if (stage === 'acquired' || stage === 'consolidated' || stage === 'mastered') {
-    return 'acquired';
-  }
-  if (stage === 'acquiring') return 'acquiring';
-  return 'new';
-}
-
-const STAGE_BG: Readonly<Record<StageBucket, string>> = {
-  acquired:  'bg-mastered/35 hover:bg-mastered/50 border-mastered/40',
-  acquiring: 'bg-developing/25 hover:bg-developing/40 border-developing/40',
-  new:       'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
+/** The palette every S&P grid paints with. The collapse itself lives
+ *  in `acquisition.ts` — this file used to carry its own copy, one of
+ *  four saying the same thing in slightly different words. */
+const STAGE_BG: Readonly<Record<AcquisitionBucket, string>> = {
+  'acquired':    'bg-mastered/35 hover:bg-mastered/50 border-mastered/40',
+  'in-progress': 'bg-developing/25 hover:bg-developing/40 border-developing/40',
+  'not-started': 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
 };
 
-const STAGE_LEGEND_LABEL: Readonly<Record<StageBucket, string>> = {
-  acquired:  'acquired',
-  acquiring: 'in progress',
-  new:       'not started',
+const STAGE_LEGEND_LABEL: Readonly<Record<AcquisitionBucket, string>> = {
+  'acquired':    'acquired',
+  'in-progress': 'in progress',
+  'not-started': 'not started',
 };
 
 export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props) {
@@ -142,7 +132,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             </div>
             {KEYS_CIRCLE_OF_FOURTHS.map(k => {
               const itemRef = row.itemRefForKey(k);
-              const bucket = bucketFor(stageByItemRef.get(itemRef));
+              const bucket = bucketForStage(stageByItemRef.get(itemRef));
               const title = `${row.label} in ${spellKey(k, spelling)} — ${STAGE_LEGEND_LABEL[bucket]}`;
               return (
                 <button

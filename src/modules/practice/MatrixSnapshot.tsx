@@ -23,6 +23,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SpacingState, type AcquisitionStage } from '../../lib/db';
 import { CIRCLE_OF_FOURTHS } from '../shapes-and-patterns/spTiers';
 import ThreeBandCell, { type BandStage } from '../shapes-and-patterns/ThreeBandCell';
+import { bucketForStage } from '../shapes-and-patterns/acquisition';
 import {
   parseScaleItemRef,
   itemRefForScale,
@@ -148,9 +149,9 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
 
   // --- Per-cell stage resolution -----------------------------------
   const bandFor = (itemRef: string): BandTriple => ({
-    left: stageByRefHand.get(`${itemRef} left`) ?? null,
-    right: stageByRefHand.get(`${itemRef} right`) ?? null,
-    both: stageByRefHand.get(`${itemRef} both`) ?? null,
+    left: bucketForStage(stageByRefHand.get(`${itemRef} left`)),
+    right: bucketForStage(stageByRefHand.get(`${itemRef} right`)),
+    both: bucketForStage(stageByRefHand.get(`${itemRef} both`)),
   });
 
   /** Chord-shape band: aggregate across the cell's inversion rows, per
@@ -477,11 +478,8 @@ function aggregateHand(
   style: SpacingState['style'],
 ): BandStage {
   const forSlot = rows.filter(r => r.hand === hand && r.style === style);
-  if (forSlot.length === 0) return null;
-  const allAcquired = forSlot.every(
-    r => r.acquisitionStage === 'acquired'
-      || r.acquisitionStage === 'consolidated'
-      || r.acquisitionStage === 'mastered',
-  );
-  return allAcquired ? 'acquired' : 'acquiring';
+  if (forSlot.length === 0) return 'not-started';
+  return forSlot.every(r => bucketForStage(r.acquisitionStage) === 'acquired')
+    ? 'acquired'
+    : 'in-progress';
 }

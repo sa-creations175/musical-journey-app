@@ -26,6 +26,7 @@ import type { SpacingState } from '../../lib/db';
 import type { CategoryCardModel } from '../../components/moduleHome/model';
 import { shapesCounts } from '../../lib/moduleItemCounts';
 import { countsTowardShapesCoverage } from './drillModel';
+import { acquisitionIndex } from './acquisition';
 import { MENTAL_VIZ_ITEMS, MENTAL_VIZ_MODULE_REF } from './mentalVizLibrary';
 import { daysBetween, localDayKey } from '../../lib/dailyGoal';
 
@@ -89,6 +90,19 @@ export function shapesCards(
     // Distinct items touched — a row exists once a cell has been
     // engaged with at all, which is this module's "seen".
     const itemsSeen = new Set(rows.map(r => r.itemRef)).size;
+    /**
+     * ACQUIRED BY THE MODULE'S ONE RULE — see `acquisition.ts`.
+     *
+     * The card used to show `itemsSeen`, which counted a cell the
+     * moment any hand was touched. The matrix under it counted all
+     * three hands and the Progress line counted only `both`, so the
+     * three surfaces described the same cell three ways. Only items
+     * with rows can be acquired, so walking `touched` is the whole
+     * numerator.
+     */
+    const index = acquisitionIndex(rows);
+    const acquired = [...index.touched]
+      .filter(ref => index.cell(ref) === 'acquired').length;
     const latest = rows.reduce<number | null>(
       (max, r) => (r.lastEngagedAt !== null && (max === null || r.lastEngagedAt > max)
         ? r.lastEngagedAt
@@ -107,6 +121,7 @@ export function shapesCards(
       // Duration and a self-rating, never right/wrong — see the header.
       accuracy: null,
       itemsSeen,
+      acquired,
       lastPracticedDaysAgo: latest === null
         ? null
         : daysBetween(localDayKey(new Date(latest)), localDayKey(new Date(now))),

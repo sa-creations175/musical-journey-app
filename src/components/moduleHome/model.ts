@@ -75,6 +75,18 @@ export interface CategoryCardStats {
   /** Distinct items with at least one attempt, or with any practice
    *  recorded at all where the module has no attempts. */
   itemsSeen: number;
+  /**
+   * Items fully ACQUIRED, where the module has a rule for that which
+   * is not the same question as "seen".
+   *
+   * Shapes & Patterns is the case: a cell is drilled left, right and
+   * both, so "touched" and "acquired" are genuinely different counts
+   * and the card was showing the first while the matrix beneath it
+   * showed the second. Absent elsewhere — a module whose card means
+   * "seen" says so by leaving this off rather than by passing a number
+   * that happens to be equal.
+   */
+  acquired?: number;
   lastPracticedDaysAgo: number | null;
 }
 

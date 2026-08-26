@@ -20,7 +20,7 @@
  */
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SpacingState, type AcquisitionStage } from '../../lib/db';
+import { db, type SpacingState } from '../../lib/db';
 import {
   SCALE_CELLS,
   MAJOR_PENT_STARTING_POINTS,
@@ -34,32 +34,27 @@ import { CIRCLE_OF_FOURTHS } from './spTiers';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 import ScalesDrillModal from './ScalesDrillModal';
-import ThreeBandCell, { type BandStage } from './ThreeBandCell';
+import ThreeBandCell from './ThreeBandCell';
+import {
+  acquisitionIndex,
+  type AcquisitionBucket,
+  type AcquisitionCounts,
+  type AcquisitionIndex,
+} from './acquisition';
 
-type StageBucket = 'new' | 'acquiring' | 'acquired';
-
-/** Collapse the spacingState ladder into the three-bucket palette
- *  the design doc asks for. `acquired+` (consolidated, mastered)
- *  all read as "acquired" since the heat-grid cell color reflects
- *  acquisition state, not longer-term decay. */
-function bucketFor(stage: AcquisitionStage | undefined): StageBucket {
-  if (stage === 'acquired' || stage === 'consolidated' || stage === 'mastered') {
-    return 'acquired';
-  }
-  if (stage === 'acquiring') return 'acquiring';
-  return 'new';
-}
-
-const STAGE_BG: Readonly<Record<StageBucket, string>> = {
-  acquired:  'bg-mastered/35 hover:bg-mastered/50 border-mastered/40',
-  acquiring: 'bg-developing/25 hover:bg-developing/40 border-developing/40',
-  new:       'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
+/** THE BUCKETS COME FROM `acquisition.ts` NOW. This file used to carry
+ *  its own `bucketFor` and its own idea of what a cell's state was —
+ *  one of the three answers the module gave about the same cell. */
+const STAGE_BG: Readonly<Record<AcquisitionBucket, string>> = {
+  'acquired':    'bg-mastered/35 hover:bg-mastered/50 border-mastered/40',
+  'in-progress': 'bg-developing/25 hover:bg-developing/40 border-developing/40',
+  'not-started': 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
 };
 
-const STAGE_LEGEND_LABEL: Readonly<Record<StageBucket, string>> = {
-  acquired:  'acquired',
-  acquiring: 'in progress',
-  new:       'not started',
+const STAGE_LEGEND_LABEL: Readonly<Record<AcquisitionBucket, string>> = {
+  'acquired':    'acquired',
+  'in-progress': 'in progress',
+  'not-started': 'not started',
 };
 
 interface ScaleRow {
@@ -141,20 +136,11 @@ function sortByCircleOfFourths(cells: ScaleCell[]): ScaleCell[] {
 // Progress summary
 // ---------------------------------------------------------------------
 
-interface ProgressCounts {
-  total: number;
-  acquired: number;
-  acquiring: number;
-  new: number;
-}
-
-function countCells(cells: ScaleCell[], stageOf: (itemRef: string) => StageBucket): ProgressCounts {
-  const counts: ProgressCounts = { total: cells.length, acquired: 0, acquiring: 0, new: 0 };
-  for (const c of cells) {
-    const bucket = stageOf(c.itemRef);
-    counts[bucket] += 1;
-  }
-  return counts;
+/** COUNTED BY THE SHARED RULE. This file used to walk the cells with a
+ *  `stageOf` that read only the `both` row, which is what made the
+ *  Progress line disagree with the grid under it. */
+function countCells(cells: ScaleCell[], index: AcquisitionIndex): AcquisitionCounts {
+  return index.count(cells.map(c => c.itemRef));
 }
 
 // ---------------------------------------------------------------------
@@ -171,39 +157,25 @@ export default function ScaleDrills() {
     [],
   ) ?? [];
 
-  // Per-(itemRef, hand) acquisition stage — scales are drilled left /
-  // right / both as separate skills, so a cell has up to three rows.
-  const handStageByKey = useMemo(() => {
-    const m = new Map<string, AcquisitionStage>();
-    for (const r of spacingRows) m.set(`${r.itemRef}\u0000${r.hand}`, r.acquisitionStage);
-    return m;
-  }, [spacingRows]);
+  /**
+   * ONE INDEX, READ BY THE CELL, THE HEADING AND THE PROGRESS LINE.
+   *
+   * The three used to compute their own answer from the same rows and
+   * arrive at different ones — see `acquisition.ts`.
+   */
+  const index = useMemo(() => acquisitionIndex(spacingRows), [spacingRows]);
 
   const handStagesOf = (itemRef: string) => ({
-    left: handStageByKey.get(`${itemRef}\u0000left`) ?? null,
-    right: handStageByKey.get(`${itemRef}\u0000right`) ?? null,
-    both: handStageByKey.get(`${itemRef}\u0000both`) ?? null,
+    left: index.hand(itemRef, 'left'),
+    right: index.hand(itemRef, 'right'),
+    both: index.hand(itemRef, 'both'),
   });
-
-  // Progress counts track the integrated "both hands" skill as the
-  // representative state for a cell.
-  const stageByItemRef = useMemo(() => {
-    const m = new Map<string, AcquisitionStage>();
-    for (const r of spacingRows) {
-      if (r.hand === 'both') m.set(r.itemRef, r.acquisitionStage);
-    }
-    return m;
-  }, [spacingRows]);
-
-  const stageOf = (itemRef: string): StageBucket =>
-    bucketFor(stageByItemRef.get(itemRef));
 
   const groups = useMemo(buildGroups, []);
 
   const totals = useMemo(
-    () => countCells(SCALE_CELLS as ScaleCell[], stageOf),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [stageByItemRef],
+    () => countCells(SCALE_CELLS as ScaleCell[], index),
+    [index],
   );
 
   return (
@@ -225,7 +197,7 @@ export default function ScaleDrills() {
           <ScaleGroupBlock
             key={group.kind}
             group={group}
-            stageOf={stageOf}
+            index={index}
             handStagesOf={handStagesOf}
             onCellClick={setOpenCell}
           />
@@ -244,7 +216,7 @@ export default function ScaleDrills() {
   );
 }
 
-function ProgressSummary({ counts }: { counts: ProgressCounts }) {
+function ProgressSummary({ counts }: { counts: AcquisitionCounts }) {
   return (
     <div className="rounded-md border border-black/[0.07] p-2.5 flex items-baseline gap-3 flex-wrap text-xs">
       <span className="text-neutral-500">Progress</span>
@@ -252,10 +224,10 @@ function ProgressSummary({ counts }: { counts: ProgressCounts }) {
         <span className="text-mastered font-medium">{counts.acquired}</span>
         <span className="text-neutral-400"> acquired</span>
         {' · '}
-        <span className="text-developing font-medium">{counts.acquiring}</span>
+        <span className="text-developing font-medium">{counts.inProgress}</span>
         <span className="text-neutral-400"> in progress</span>
         {' · '}
-        <span className="text-neutral-500 font-medium">{counts.new}</span>
+        <span className="text-neutral-500 font-medium">{counts.notStarted}</span>
         <span className="text-neutral-400"> not started</span>
       </span>
       <span className="text-neutral-400 ml-auto">{counts.total} cells</span>
@@ -265,18 +237,20 @@ function ProgressSummary({ counts }: { counts: ProgressCounts }) {
 
 function ScaleGroupBlock({
   group,
-  stageOf,
+  index,
   handStagesOf,
   onCellClick,
 }: {
   group: ScaleGroup;
-  stageOf: (itemRef: string) => StageBucket;
-  handStagesOf: (itemRef: string) => { left: BandStage; right: BandStage; both: BandStage };
+  index: AcquisitionIndex;
+  handStagesOf: (itemRef: string) => {
+    left: AcquisitionBucket; right: AcquisitionBucket; both: AcquisitionBucket;
+  };
   onCellClick: (cell: ScaleCell) => void;
 }) {
   const [spelling] = useSpelling();
   const groupCells = group.rows.flatMap(r => r.cells);
-  const counts = countCells(groupCells, stageOf);
+  const counts = countCells(groupCells, index);
 
   return (
     <div className="space-y-2">
@@ -348,14 +322,14 @@ function Legend() {
   return (
     <div className="flex items-center gap-3 flex-wrap text-[11px] text-neutral-500">
       <span>Legend</span>
-      <LegendChip bucket="new" />
-      <LegendChip bucket="acquiring" />
+      <LegendChip bucket="not-started" />
+      <LegendChip bucket="in-progress" />
       <LegendChip bucket="acquired" />
     </div>
   );
 }
 
-function LegendChip({ bucket }: { bucket: StageBucket }) {
+function LegendChip({ bucket }: { bucket: AcquisitionBucket }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       <span className={`inline-block w-3 h-3 rounded-sm border ${STAGE_BG[bucket]}`} aria-hidden />

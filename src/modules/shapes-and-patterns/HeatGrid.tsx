@@ -16,6 +16,7 @@ import {
 import DrillListModal from './DrillListModal';
 import InversionBreakdownPanel from './InversionBreakdownPanel';
 import ThreeBandCell, { type BandStage } from './ThreeBandCell';
+import { bucketForStage } from './acquisition';
 import { KEYS_CIRCLE_OF_FOURTHS } from './catalog';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
@@ -96,8 +97,9 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
     return m;
   }, [allSpacing]);
   // A cell slot (hand × style) band reads `acquired` only when every
-  // drilled inversion for that slot is acquired+, `acquiring` if any is
-  // started, and null (not started) when the slot has no rows.
+  // drilled inversion for that slot is acquired+, in progress if any is
+  // started, not started when the slot has no rows. The collapse itself
+  // is `bucketForStage` — one rule, one place.
   const chordBandStage = (
     quality: string,
     keyName: string,
@@ -105,11 +107,10 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
     style: string,
   ): BandStage => {
     const stages = chordStagesByCellSlot.get(`${quality} ${keyName} ${hand} ${style}`);
-    if (!stages || stages.length === 0) return null;
-    const allAcquired = stages.every(
-      s => s === 'acquired' || s === 'consolidated' || s === 'mastered',
-    );
-    return allAcquired ? 'acquired' : 'acquiring';
+    if (!stages || stages.length === 0) return 'not-started';
+    return stages.every(s => bucketForStage(s) === 'acquired')
+      ? 'acquired'
+      : 'in-progress';
   };
 
   const openCell = async (desc: SkillDescriptor) => {

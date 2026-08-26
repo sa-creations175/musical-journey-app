@@ -22,45 +22,38 @@
  * Voice-leading cells do NOT use this — VL is two-handed by nature and
  * keeps its single-fill cell.
  */
-import type { AcquisitionStage } from '../../lib/db';
+import type { AcquisitionBucket } from './acquisition';
 
-/** Per-hand band state. `null` = that hand has no spacing row yet
- *  (not drilled). */
-export type BandStage = AcquisitionStage | null;
+/**
+ * Per-hand band state.
+ *
+ * A BUCKET, NOT A STAGE. This file used to hold its own `bucketFor`,
+ * one of three copies of the same collapse — and a hand with more than
+ * one row (chord shapes are drilled solid AND arpeggiated) cannot be
+ * described by a single stage at all. The caller resolves it through
+ * `acquisition.ts` and hands over the answer.
+ */
+export type BandStage = AcquisitionBucket;
 
-/** Collapse the spacing ladder into the three-bucket palette. Mirrors
- *  ScaleDrills.bucketFor: acquired+ (consolidated, mastered) all read as
- *  "acquired"; a missing row reads as "not started". */
-type Bucket = 'empty' | 'acquiring' | 'acquired';
-
-function bucketFor(stage: BandStage): Bucket {
-  if (stage === 'acquired' || stage === 'consolidated' || stage === 'mastered') {
-    return 'acquired';
-  }
-  if (stage === 'acquiring') return 'acquiring';
-  return 'empty';
-}
-
-/** Background classes per bucket. `empty` matches the legacy
- *  not-started neutral so a fresh cell looks unchanged. */
-const BUCKET_BG: Readonly<Record<Bucket, string>> = {
-  acquired:  'bg-mastered/35',
-  acquiring: 'bg-developing/25',
-  empty:     'bg-neutral-100 dark:bg-neutral-800',
+/** Background classes per bucket. `not-started` matches the legacy
+ *  neutral so a fresh cell looks unchanged. */
+const BUCKET_BG: Readonly<Record<AcquisitionBucket, string>> = {
+  'acquired':    'bg-mastered/35',
+  'in-progress': 'bg-developing/25',
+  'not-started': 'bg-neutral-100 dark:bg-neutral-800',
 };
 
 const NOT_STARTED_CELL =
   'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700';
 
 export interface ThreeBandCellProps {
-  /** Solid-style stage for left / right / both hands; null when
-   *  un-drilled. In default (non-split) mode this is the band's only
-   *  fill. */
+  /** Solid-style bucket for left / right / both hands. In default
+   *  (non-split) mode this is the band's only fill. */
   left: BandStage;
   right: BandStage;
   both: BandStage;
-  /** Arpeggiated-style stage for left / right / both hands. Only read
-   *  when `split` is true (chord shapes); null when un-drilled. */
+  /** Arpeggiated-style bucket for left / right / both hands. Only read
+   *  when `split` is true (chord shapes). */
   leftArp?: BandStage;
   rightArp?: BandStage;
   bothArp?: BandStage;
@@ -76,9 +69,9 @@ export default function ThreeBandCell({
   left,
   right,
   both,
-  leftArp = null,
-  rightArp = null,
-  bothArp = null,
+  leftArp = 'not-started',
+  rightArp = 'not-started',
+  bothArp = 'not-started',
   split = false,
   title,
   onClick,
@@ -90,12 +83,14 @@ export default function ThreeBandCell({
   if (split) {
     // Chord shapes: three bands, each split solid (top) / arpeggiated
     // (bottom) — 6 slots, each coloured independently.
-    const bands: Array<{ solid: Bucket; arp: Bucket }> = [
-      { solid: bucketFor(left), arp: bucketFor(leftArp) },
-      { solid: bucketFor(right), arp: bucketFor(rightArp) },
-      { solid: bucketFor(both), arp: bucketFor(bothArp) },
+    const bands: Array<{ solid: AcquisitionBucket; arp: AcquisitionBucket }> = [
+      { solid: left, arp: leftArp },
+      { solid: right, arp: rightArp },
+      { solid: both, arp: bothArp },
     ];
-    const anyStarted = bands.some(b => b.solid !== 'empty' || b.arp !== 'empty');
+    const anyStarted = bands.some(
+      b => b.solid !== 'not-started' || b.arp !== 'not-started',
+    );
     if (!anyStarted) {
       return (
         <button onClick={onClick} title={title} className={`${base} ${NOT_STARTED_CELL}`} />
@@ -114,8 +109,8 @@ export default function ThreeBandCell({
   }
 
   // Scales: three single-fill vertical bands (LH · RH · Both).
-  const buckets: Bucket[] = [bucketFor(left), bucketFor(right), bucketFor(both)];
-  const anyStarted = buckets.some(b => b !== 'empty');
+  const buckets: AcquisitionBucket[] = [left, right, both];
+  const anyStarted = buckets.some(b => b !== 'not-started');
 
   // No hand drilled yet → single plain square (legacy not-started look).
   if (!anyStarted) {

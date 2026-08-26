@@ -155,7 +155,11 @@ export default function CategoryCard({
             className="ml-auto text-[11px] text-neutral-500 tabular-nums"
             data-testid="category-card-count"
           >
-            {card.itemsSeen}/{card.itemCount}
+            {/* ACQUIRED WHERE THE MODULE HAS ONE, seen otherwise. The
+                two are different questions in Shapes & Patterns and
+                the same everywhere else; a module says which it means
+                by supplying the field or not. */}
+            {card.acquired ?? card.itemsSeen}/{card.itemCount}
           </span>
         </div>
         {card.countDetail !== null && (
