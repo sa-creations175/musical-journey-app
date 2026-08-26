@@ -56,6 +56,15 @@ export interface FreshnessRung {
   label: string;
   /** How full the bar is on this rung, 0–1. */
   fraction: number;
+  /**
+   * The most days-since that still lands on this rung, or null for the
+   * two open ends — "over a month" has no upper bound and "never" is
+   * not a number of days at all.
+   *
+   * Carried so the printed scale can say what the words are worth once
+   * the step has been changed from its default.
+   */
+  upToDays: number | null;
 }
 
 /**
@@ -67,6 +76,7 @@ export interface FreshnessRung {
  * "week" is worth on this scale and knows they did.
  */
 export function freshnessRungs(stepDays: number): FreshnessRung[] {
+  const step = Math.max(1, Math.round(stepDays));
   const labels = [
     'today',
     'within 1 week',
@@ -76,13 +86,16 @@ export function freshnessRungs(stepDays: number): FreshnessRung[] {
     'over a month',
     'never',
   ];
-  void stepDays;
   const last = labels.length - 1;
   return labels.map((label, i) => ({
     label,
     // Even steps from full to empty. `1 - i/last` rather than a written
     // list, so adding a rung re-spaces every one of them.
     fraction: 1 - i / last,
+    // `today` is 0 days; the four middle rungs are 1x-4x the step; the
+    // last two are open-ended and say so with null rather than a number
+    // nobody could act on.
+    upToDays: i === 0 ? 0 : i <= FRESHNESS_STEPS ? i * step : null,
   }));
 }
 

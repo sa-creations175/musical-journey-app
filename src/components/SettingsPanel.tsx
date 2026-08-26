@@ -25,6 +25,7 @@ import SyncDiagnosticsSection from './SyncDiagnosticsSection';
 import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
 import SpacingSettingsSection from '../modules/repertoire/SpacingSettingsSection';
 import PracticeWindowSettingsSection from '../modules/repertoire/PracticeWindowSettingsSection';
+import FreshnessSettingsSection from '../modules/dashboard/mobile/FreshnessSettingsSection';
 import SeededKeyRowsPanel from '../modules/repertoire/SeededKeyRowsPanel';
 import {
   PREF_LAST_EXPORTED_AT,
@@ -493,6 +494,11 @@ export default function SettingsPanel({ open, onClose }: Props) {
               has to be re-proven — a different question with a
               different answer. */}
           <PracticeWindowSettingsSection />
+
+          {/* Beside the other two "how long before this counts as
+              neglected" numbers, which is the question it answers for
+              the dashboard rather than for a song. */}
+          <FreshnessSettingsSection />
 
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">

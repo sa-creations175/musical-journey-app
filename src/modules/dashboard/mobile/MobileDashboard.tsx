@@ -26,7 +26,7 @@
  * order, with the numbers legible. One screen answering both would
  * answer neither well.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ModuleTree } from '../read/query';
 import type { TreeNode } from '../read/tree';
@@ -34,6 +34,8 @@ import ModuleCards from './ModuleCards';
 import SkillsList, { MeasureSwitch, type SkillRow } from './SkillsList';
 import { DEFAULT_MEASURE, type Measure } from './measures';
 import { FRESHNESS_STEP_DEFAULT_DAYS } from './freshnessScale';
+import { getFreshnessStepDays } from './freshnessPrefs';
+import FreshnessScaleStrip from './FreshnessScaleStrip';
 import { categoryHref } from './categoryHref';
 import { TIER_LEGEND } from './tierLegend';
 
@@ -61,6 +63,20 @@ export default function MobileDashboard({
   const [view, setView] = useState<MobileView>(DEFAULT_MOBILE_VIEW);
   const [measure, setMeasure] = useState<Measure>(DEFAULT_MEASURE);
   const navigate = useNavigate();
+
+  /**
+   * How long a freshness step is, from settings.
+   *
+   * Defaulted to the shipped value rather than held null: the bars are
+   * drawn on first paint either way, and a reader who has never touched
+   * the setting sees exactly what the default draws.
+   */
+  const [stepDays, setStepDays] = useState(FRESHNESS_STEP_DEFAULT_DAYS);
+  useEffect(() => {
+    let live = true;
+    void getFreshnessStepDays().then(v => { if (live) setStepDays(v); });
+    return () => { live = false; };
+  }, []);
 
   /**
    * Every category on the phone, flattened once.
@@ -105,10 +121,14 @@ export default function MobileDashboard({
             rows={rows}
             measure={measure}
             now={now}
-            stepDays={FRESHNESS_STEP_DEFAULT_DAYS}
+            stepDays={stepDays}
             showModule
             onOpen={row => openCategory(row.moduleId, row.node)}
           />
+          {/* UNDER THE BARS IT EXPLAINS, and only on this tab. A
+              percentage explains itself; a position on a seven-rung
+              scale does not. */}
+          {measure === 'freshness' && <FreshnessScaleStrip stepDays={stepDays} />}
         </div>
       )}
 
