@@ -3,6 +3,7 @@ import {
 } from '../reading/pitch';
 import type { Flashcard } from './catalog';
 import { chooseDecoys } from './decoyGuard';
+import { PRACTICAL_NAME as PRACTICAL_SPELLINGS } from '../../lib/theoreticalSpellings';
 
 /**
  * The twelve keys, generated rather than hand-written.
@@ -65,10 +66,13 @@ const GLYPH: Readonly<Record<string, string>> = {
  * one is about a note that is mis-said, the other about a scale that
  * is double-named. Each of the three files points at the other two.
  * ---------------------------------------------------------------
+ *
+ * THE TABLE ITSELF LIVES IN `lib/theoreticalSpellings.ts`, which is
+ * also what glosses the rendered options. Two copies of four notes
+ * would be cheap to keep; a rule applied to options from one copy and
+ * to explanations from another would not be.
  */
-const PRACTICAL_NAME: Readonly<Record<string, string>> = {
-  'Cb': 'B', 'Fb': 'E', 'B#': 'C', 'E#': 'F',
-};
+const PRACTICAL_NAME = PRACTICAL_SPELLINGS;
 
 function parse(name: string): Pitch {
   return {
@@ -87,31 +91,26 @@ export function degreeAscii(root: string, degree: string): string {
 }
 
 /**
- * Display form with real glyphs and NO gloss. What an answer option
- * and a decoy always use.
+ * Display form with real glyphs and no gloss. What a card STORES for
+ * an answer and a decoy.
  *
  * ---------------------------------------------------------------
- * THE GLOSS NEVER TOUCHES AN ANSWER OPTION. THIS IS A LEAK GUARD.
+ * THE STRING STAYS PLAIN; THE SCREEN DOES NOT.
  *
- * The first build of these cards put it everywhere, and produced:
+ * An option string is identity — the shell compares the tapped option
+ * against `correctAnswer` and writes it into the attempt — so it can
+ * carry no bracket. The gloss is applied on the way to the button by
+ * `lib/theoreticalSpellings.ts`, and it is applied to every option
+ * naming one of the four, decoys included.
  *
- *     A: B♭m/C♭ (B)
- *     D: B♭m/A♭   B♭m/F   B♭m/C
- *
- * The correct answer was the only option with brackets in it. You stop
- * reading the music and start picking the bracketed one — scoring well
- * while learning nothing, which is the same defect as a decoy that is
- * the only flat on screen.
- *
- * GLOSSING THE DECOYS DOES NOT FIX IT. A decoy earns a gloss only if
- * its own notes need one, and mostly they do not; forcing it yields
- * "A♭ (G♯)", which teaches something false. G♯ is a legitimate,
- * commonly-written spelling of that pitch. C♭ is not. The gloss means
- * "correct but never spoken", and it cannot be applied to notes where
- * that is untrue.
- *
- * So the gloss lives in QUESTION TEXT and EXPLANATIONS, where it can
- * teach without being a tell.
+ * That last part is what makes it safe, and it is worth stating
+ * because the earlier build of these cards got it wrong in the other
+ * direction. Forcing a gloss onto every decoy yields "A♭ (G♯)", which
+ * teaches something false: G♯ is an ordinary, commonly-written name
+ * for that pitch, and C♭ is not. So the gloss keys on the SPELLING,
+ * not on the option's role — a decoy spelt C♭ gets it, a decoy spelt
+ * A♭ does not, and the bracket therefore says "this letter is not the
+ * one you would say" rather than "this one is correct".
  * ---------------------------------------------------------------
  */
 export function noteLabel(ascii: string): string {
@@ -120,8 +119,9 @@ export function noteLabel(ascii: string): string {
   return acc === '' ? letter : `${letter}${GLYPH[acc] ?? acc}`;
 }
 
-/** Display form WITH the practical name. Question text and
- *  explanations only — never an answer or a decoy. */
+/** Display form WITH the practical name, spaced for prose. Question
+ *  text and explanations; options are glossed at render instead, and
+ *  more tightly. */
 export function noteLabelGlossed(ascii: string): string {
   const practical = PRACTICAL_NAME[ascii];
   return practical === undefined

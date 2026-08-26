@@ -26,6 +26,7 @@ import {
   type SignatureId,
 } from './catalog';
 import { LETTERS, pitchAtStaffPosition, withAccidentalGlyphs } from './pitch';
+import { glossTheoreticalSpellings } from '../../lib/theoreticalSpellings';
 import type { PickerOption } from '../../components/FullSetPicker';
 
 // =====================================================================
@@ -153,12 +154,22 @@ export function accidentalCountOptions(): PickerOption[] {
   }));
 }
 
-/** The seven names of one accidental kind, in written order. The
- *  answer to "which ones" is the ordered PREFIX of length `count`. */
+/**
+ * The seven names of one accidental kind, in written order. The answer
+ * to "which ones" is the ordered PREFIX of length `count`.
+ *
+ * Both orders end on a spelling of a white key — E♯ and B♯ close the
+ * sharps, C♭ and F♭ close the flats — so those four buttons carry the
+ * key they name in brackets. The id is untouched: it is what the
+ * answer is judged against.
+ */
 export function accidentalNameOptions(kind: 'sharp' | 'flat'): PickerOption[] {
   const order = kind === 'sharp' ? SHARP_ORDER : FLAT_ORDER;
   const mark = kind === 'sharp' ? '♯' : '♭';
-  return order.map(l => ({ id: `${l}${kind === 'sharp' ? '#' : 'b'}`, label: `${l}${mark}` }));
+  return order.map(l => ({
+    id: `${l}${kind === 'sharp' ? '#' : 'b'}`,
+    label: glossTheoreticalSpellings(`${l}${mark}`),
+  }));
 }
 
 export function correctAccidentalSequence(id: SignatureId): string[] {

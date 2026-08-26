@@ -24,6 +24,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import FluencyProtectionNotice from '../../components/FluencyProtectionNotice';
 import AnswerVerdict from '../../components/AnswerVerdict';
 import { renderedOptions } from './optionOrder';
+import { glossTheoreticalSpellings } from '../theoreticalSpellings';
 
 export type TimerMode = 'off' | '5' | '10' | '15';
 
@@ -605,7 +606,11 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               <span className="font-mono text-[10px] text-neutral-400 w-3 text-right shrink-0">
                 {i + 1}
               </span>
-              <span>{opt}</span>
+              {/* GLOSSED ON THE WAY TO THE SCREEN, never in `opt`.
+                  The string is identity here — it is compared against
+                  `correctAnswer` above and written to the attempt — so
+                  the bracket may only ever exist in the text node. */}
+              <span>{glossTheoreticalSpellings(opt)}</span>
             </button>
           );
         })}
@@ -624,7 +629,10 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
             )}
             {chosen !== card.correctAnswer && (
               <span className="text-xs text-neutral-500">
-                correct answer: <span className="font-mono text-fluent">{card.correctAnswer}</span>
+                correct answer:{' '}
+                <span className="font-mono text-fluent">
+                  {glossTheoreticalSpellings(card.correctAnswer)}
+                </span>
               </span>
             )}
             {/* `whitespace-pre-wrap` below is load-bearing. Most

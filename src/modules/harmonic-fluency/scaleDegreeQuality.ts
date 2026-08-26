@@ -178,9 +178,10 @@ function ascii(p: Pitch): string {
  *       because the parenthesis is a footnote to a name you can read.
  *
  *   `catalogExpansions.ts` C♭ (B)
- *       The same rule, plus a leak guard: it appears in question text
- *       and explanations and NEVER on an answer option, because the
- *       only bracketed option is the answer.
+ *       The same rule, in prose. The option buttons say the same
+ *       thing more tightly — C♭(B) — glossed at render by
+ *       `lib/theoreticalSpellings.ts`, on every option that names one
+ *       of the four rather than only on the answer.
  *
  *   `pentatonics.ts`       G♯ (A♭) minor pentatonic
  *       A SCALE NAME that is genuinely double-named. Both labels are
