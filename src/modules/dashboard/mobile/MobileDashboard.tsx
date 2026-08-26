@@ -31,6 +31,9 @@ import { useNavigate } from 'react-router-dom';
 import type { ModuleTree } from '../read/query';
 import type { TreeNode } from '../read/tree';
 import ModuleCards from './ModuleCards';
+import SkillsList, { MeasureSwitch, type SkillRow } from './SkillsList';
+import { DEFAULT_MEASURE, type Measure } from './measures';
+import { FRESHNESS_STEP_DEFAULT_DAYS } from './freshnessScale';
 import { categoryHref } from './categoryHref';
 import { TIER_LEGEND } from './tierLegend';
 
@@ -56,7 +59,23 @@ export default function MobileDashboard({
   now: number;
 }) {
   const [view, setView] = useState<MobileView>(DEFAULT_MOBILE_VIEW);
+  const [measure, setMeasure] = useState<Measure>(DEFAULT_MEASURE);
   const navigate = useNavigate();
+
+  /**
+   * Every category on the phone, flattened once.
+   *
+   * The SAME depth-1 nodes the Modules strip draws a square for — one
+   * list, two shapes, so a category cannot appear in one view and not
+   * the other.
+   */
+  const rows: SkillRow[] = modules.flatMap(module =>
+    module.root.children.map(node => ({
+      moduleId: module.moduleId,
+      moduleLabel: module.root.label,
+      label: node.label,
+      node,
+    })));
 
   /**
    * Where a category goes when opened, from either view.
@@ -80,7 +99,17 @@ export default function MobileDashboard({
       ) : view === 'modules' ? (
         <ModuleCards modules={modules} now={now} onOpenCategory={openCategory} />
       ) : (
-        <SkillsPlaceholder modules={modules} now={now} />
+        <div className="space-y-2">
+          <MeasureSwitch measure={measure} onChange={setMeasure} />
+          <SkillsList
+            rows={rows}
+            measure={measure}
+            now={now}
+            stepDays={FRESHNESS_STEP_DEFAULT_DAYS}
+            showModule
+            onOpen={row => openCategory(row.moduleId, row.node)}
+          />
+        </div>
       )}
 
       <TierLegendStrip />
@@ -157,27 +186,5 @@ export function TierLegendStrip() {
         </li>
       ))}
     </ul>
-  );
-}
-
-function SkillsPlaceholder({
-  modules, now,
-}: {
-  modules: readonly ModuleTree[];
-  now: number;
-}) {
-  void now;
-  return (
-    <div className="space-y-1" data-testid="mobile-skills">
-      {modules.flatMap(m => m.root.children.map(child => (
-        <div
-          key={`${m.moduleId}:${child.id}`}
-          data-testid="mobile-skill-row"
-          className="rounded-lg border border-black/[0.07] bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-        >
-          {child.label}
-        </div>
-      )))}
-    </div>
   );
 }
