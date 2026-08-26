@@ -155,6 +155,26 @@ describe('the detail block mirrors the chip row', () => {
   });
 });
 
+describe('Progress Detail on a card', () => {
+  it('expands that category\u2019s block', async () => {
+    // IT USED TO DO NOTHING HERE. The page had no detail block to open
+    // and the button was wired to nothing.
+    await render('/harmonic-fluency/modes?also=intervals');
+    const block = () =>
+      container!.querySelector('[data-detail-key="intervals"]')!;
+    expect(block().getAttribute('data-expanded')).toBe('false');
+
+    const card = container!.querySelector('[data-card-key="intervals"]')!;
+    await click(card.querySelector('[data-testid="category-card-toggle"]')!);
+    await click(card.querySelector('[data-testid="category-card-progress-detail"]')!);
+
+    expect(block().getAttribute('data-expanded')).toBe('true');
+    // The page's own stays open too — expanding is per category.
+    expect(container!.querySelector('[data-detail-key="modes"]')!
+      .getAttribute('data-expanded')).toBe('true');
+  });
+});
+
 describe('the chip row writes the same value', () => {
   it('lights a second category and the cards and details follow', async () => {
     await render('/harmonic-fluency/modes');

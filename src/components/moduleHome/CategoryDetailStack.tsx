@@ -26,6 +26,7 @@
  * for it rather than a gap — see `progressGrids.ts`. `ProgressDetail`
  * already does this when `grid` is null; nothing here special-cases it.
  */
+import { useEffect, useRef } from 'react';
 import ProgressDetail from './ProgressDetail';
 import type { GridSpec } from './axis';
 import type { SkillRecord } from '../../modules/skills/registry';
@@ -39,15 +40,16 @@ export interface DetailEntry {
   items: readonly SkillRecord[];
 }
 
-/** The DOM id a detail block answers to. One function, so a writer and
- *  a reader cannot disagree about the name. */
+/** The DOM id a detail block answers to, so a card's Progress Detail
+ *  button can scroll to it. One function, so the writer and the reader
+ *  cannot disagree about the name. */
 export function detailAnchorId(key: string): string {
   return `category-detail-${key}`;
 }
 
 export default function CategoryDetailStack({
   entries, expanded, onToggle, accentHex, now, viewFor, onViewChange,
-  dueByItem,
+  dueByItem, scrollTo, onScrolled,
 }: {
   /** In the order the chip row shows them. */
   entries: readonly DetailEntry[];
@@ -58,9 +60,39 @@ export default function CategoryDetailStack({
   viewFor: (field: string) => string | null;
   onViewChange: (field: string, viewId: string) => void;
   dueByItem?: ReadonlyMap<string, number | null>;
+  /**
+   * A category to bring into view — set by a card's Progress Detail
+   * button.
+   *
+   * READ AFTER THE RENDER THAT EXPANDS IT. The button expands and
+   * scrolls in one press, and scrolling to a block that is still
+   * collapsed would land on a header rather than on the grid the
+   * reader asked for. An effect runs after the DOM has the expanded
+   * block in it, so the two happen in the right order without the
+   * caller sequencing them.
+   */
+  scrollTo?: string | null;
+  /** Cleared once the scroll has been asked for, so the same category
+   *  can be asked for again. */
+  onScrolled?: () => void;
 }) {
+  const hostRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!scrollTo) return;
+    // FOUND BY ATTRIBUTE, NOT BY `#id`. An id selector has to be
+    // escaped and `CSS.escape` does not exist in jsdom; the key is a
+    // validated slug either way, so matching the attribute is both
+    // simpler and portable. The id stays for anchor links.
+    const el = hostRef.current?.querySelector(`[data-detail-key="${scrollTo}"]`);
+    // `scrollIntoView` does not exist in jsdom, so the call is guarded
+    // rather than assumed. What a test can check is which block was
+    // asked for, which is the part that can be wrong.
+    (el as HTMLElement | null)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    onScrolled?.();
+  }, [scrollTo, onScrolled]);
   return (
-    <div className="space-y-3" data-testid="category-detail-stack">
+    <div className="space-y-3" ref={hostRef} data-testid="category-detail-stack">
       {entries.map(entry => {
         const open = expanded.has(entry.key);
         return (

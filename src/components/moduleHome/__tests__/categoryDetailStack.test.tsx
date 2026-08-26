@@ -8,8 +8,11 @@
  * category with no coordinates renders its flat list rather than an
  * invented grid.
  *
- * WHAT IT CANNOT: how a twenty-four-column table reads on a phone.
- * jsdom has no layout engine — that needs Silas's eye.
+ * WHAT IT CANNOT: how a twenty-four-column table reads on a phone, or
+ * whether a scroll lands somewhere useful. jsdom has no layout engine
+ * and no `scrollIntoView` — both need Silas's eye. What is asserted
+ * here is WHICH block was asked for, which is the part that can be
+ * wrong.
  * =====================================================================
  */
 import { afterEach, describe, expect, it } from 'vitest';
@@ -62,8 +65,9 @@ afterEach(() => {
   root = null; host = null;
 });
 
-function render(expanded: Set<string>) {
+function render(expanded: Set<string>, scrollTo: string | null = null) {
   const toggled: string[] = [];
+  const scrolled: string[] = [];
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
@@ -78,12 +82,14 @@ function render(expanded: Set<string>) {
           now={Date.now()}
           viewFor={() => null}
           onViewChange={() => {}}
+          scrollTo={scrollTo}
+          onScrolled={() => { scrolled.push(scrollTo!); }}
         />,
       );
     });
   };
   draw(expanded);
-  return { toggled, draw };
+  return { toggled, scrolled, draw };
 }
 
 const blocks = () =>
@@ -137,6 +143,19 @@ describe('the stack', () => {
     const flat = host!.querySelector('[data-detail-key="b"]')!;
     expect(flat.querySelector('[data-testid="progress-grid"]')).toBeNull();
     expect(flat.textContent).toContain('Beta');
+  });
+
+  it('asks for the block it was pointed at, once', () => {
+    // The button expands AND scrolls in one press; the scroll runs
+    // after the render that expanded it, so what it reaches for is the
+    // grid rather than a collapsed header.
+    const { scrolled } = render(new Set(['a', 'c']), 'c');
+    expect(scrolled).toEqual(['c']);
+  });
+
+  it('asks for nothing when it is pointed at nothing', () => {
+    const { scrolled } = render(new Set(['a']));
+    expect(scrolled).toEqual([]);
   });
 
   it('anchors every block by a name both sides compute', () => {

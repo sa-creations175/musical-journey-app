@@ -88,6 +88,8 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
   const [expandedDetails, setExpandedDetails] = useState<ReadonlySet<string>>(
     () => new Set([category]),
   );
+  /** A category to bring into view, set by a card's Progress Detail. */
+  const [scrollTo, setScrollTo] = useState<string | null>(null);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
   const [caughtUp, setCaughtUp] = useState(false);
@@ -168,6 +170,21 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
     return next;
   });
 
+  /**
+   * A card's Progress Detail button: open that category's block and
+   * bring it into view.
+   *
+   * EXPANDING FIRST IS THE POINT. The button did nothing at all here,
+   * and scrolling to a collapsed header would be barely better — what
+   * the reader pressed for is the grid, so the grid has to be there
+   * when they arrive.
+   */
+  const openDetail = (key: string) => {
+    if (!isCategory(key)) return;
+    setExpandedDetails(prev => new Set(prev).add(key));
+    setScrollTo(key);
+  };
+
 
   return (
     <div className="space-y-6" data-testid="hf-category-page" data-category={category}>
@@ -212,6 +229,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
             cards={cards}
             moduleId={MODULE_ID}
             onDrill={() => start()}
+            onProgressDetail={openDetail}
             now={now}
           />
 
@@ -237,6 +255,8 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
               now={now}
               viewFor={axisViews.viewFor}
               onViewChange={axisViews.setView}
+              scrollTo={scrollTo}
+              onScrolled={() => setScrollTo(null)}
             />
           )}
         </>

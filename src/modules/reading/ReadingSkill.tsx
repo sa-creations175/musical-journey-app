@@ -89,6 +89,8 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
   const [expandedDetails, setExpandedDetails] = useState<ReadonlySet<string>>(
     () => new Set([skill]),
   );
+  /** A skill to bring into view, set by a card's Progress Detail. */
+  const [scrollTo, setScrollTo] = useState<string | null>(null);
 
   const attempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(READING_MODULE_ID).toArray(),
@@ -140,6 +142,15 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
     return next;
   });
 
+  /** A card's Progress Detail: open that skill's block, then bring it
+   *  into view. Expanding first — scrolling to a collapsed header would
+   *  be barely better than the nothing this button used to do. */
+  const openDetail = (key: string) => {
+    if (!isReadingCardKey(key)) return;
+    setExpandedDetails(prev => new Set(prev).add(key));
+    setScrollTo(key);
+  };
+
 
   return (
     <div className="space-y-6" data-testid="reading-skill-page" data-skill={skill}>
@@ -170,6 +181,7 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
         cards={cards}
         moduleId={READING_MODULE_ID}
         onDrill={() => setDrilling(true)}
+        onProgressDetail={openDetail}
         now={now}
       />
 
@@ -198,6 +210,8 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
           viewFor={axisViews.viewFor}
           onViewChange={axisViews.setView}
           dueByItem={dueByItem}
+          scrollTo={scrollTo}
+          onScrolled={() => setScrollTo(null)}
         />
       )}
     </div>
