@@ -44,8 +44,32 @@
 // surface that renders the canonical garden vocabulary — see
 // src/modules/goals/GoalFormModal.tsx::LevelSelect.
 
-export type Tier = 'mastered' | 'fluent' | 'developing' | 'needsWork' | 'stale' | 'untouched';
+export type Tier =
+  | 'mastered' | 'fluent' | 'developing' | 'needsWork'
+  | 'stale' | 'started' | 'untouched';
 
+/**
+ * `untouched` IS ZERO. `started` IS THE WORK BELOW THE GRADE LINE.
+ *
+ * These were one band until now, and that band was a lie on every
+ * grid that drew it: a card answered four times painted the same
+ * pixels as one never seen, so a page of real practice read as a page
+ * of nothing. The threshold has not moved — five attempts is still
+ * what it takes to be graded — but the space beneath it is no longer
+ * one colour.
+ *
+ *   untouched   0 attempts            nothing has happened
+ *   started     1 .. MIN-1 attempts   work done, not enough to grade
+ *   graded      MIN+ attempts         needsWork / developing / fluent / mastered
+ *
+ * A null tier (an item whose module cannot compute one) folds onto
+ * `untouched` AT THE RENDER SITE, for the same reason: no data is the
+ * one thing that may look like no data.
+ *
+ * `started` deliberately carries the SAME adaptive weight `untouched`
+ * carries. Splitting the band is a change to what the user can see,
+ * not to what the scheduler picks.
+ */
 export const MIN_ATTEMPTS_FOR_TIER = 5;
 export const MASTERY_WINDOW = 20;
 export const STALE_DAYS = 30;
@@ -58,9 +82,10 @@ export interface TierInput {
 
 export function computeTier(input: TierInput): Tier {
   const { windowCorrect, windowTotal, daysSinceLastAttempt } = input;
-  if (windowTotal < MIN_ATTEMPTS_FOR_TIER) return 'untouched';
+  if (windowTotal === 0) return 'untouched';
+  if (windowTotal < MIN_ATTEMPTS_FOR_TIER) return 'started';
   const pct = windowCorrect / windowTotal;
-  let base: Exclude<Tier, 'stale' | 'untouched'>;
+  let base: Exclude<Tier, 'stale' | 'started' | 'untouched'>;
   if (windowTotal >= MASTERY_WINDOW && windowCorrect === windowTotal) base = 'mastered';
   else if (pct >= 0.8) base = 'fluent';
   else if (pct >= 0.5) base = 'developing';
@@ -72,6 +97,17 @@ export function computeTier(input: TierInput): Tier {
   return base;
 }
 
+/**
+ * Every tier, best first — the one order the surfaces that list them
+ * all should walk. Three files kept their own copy of this list and a
+ * new band had to be remembered in each; now it is remembered here.
+ * `started` sits below `stale` and above `untouched`: less is known
+ * about it than a decayed grade, more than nothing.
+ */
+export const TIER_ORDER: ReadonlyArray<Tier> = [
+  'mastered', 'fluent', 'developing', 'needsWork', 'stale', 'started', 'untouched',
+];
+
 // Adaptive-selection base weight per tier. Caller feeds this into
 // AdaptiveCandidate.baseWeight; the recent-history multiplier is applied
 // separately inside adaptiveSelection.ts.
@@ -81,6 +117,8 @@ export const TIER_WEIGHT: Record<Tier, number> = {
   developing: 1.5,
   needsWork: 2.5,
   stale: 1.8,
+  // Same as `untouched` on purpose — see the note on MIN_ATTEMPTS_FOR_TIER.
+  started: 1.0,
   untouched: 1.0,
 };
 
@@ -90,7 +128,8 @@ export const TIER_LABEL: Record<Tier, string> = {
   developing: 'developing',
   needsWork: 'needs work',
   stale: 'stale',
-  untouched: 'untouched',
+  started: 'started',
+  untouched: 'not started',
 };
 
 export const TIER_DESCRIPTION: Record<Tier, string> = {
@@ -99,7 +138,8 @@ export const TIER_DESCRIPTION: Record<Tier, string> = {
   developing: '50–79% over the last 20 attempts',
   needsWork: 'below 50% over the last 20 attempts',
   stale: 'was fluent or mastered, no attempts in 30+ days',
-  untouched: 'fewer than 5 attempts',
+  started: 'fewer than 5 attempts',
+  untouched: 'no attempts yet',
 };
 
 // Tailwind class literals — written out fully so JIT picks them up.
@@ -109,6 +149,10 @@ export const TIER_BAR_CLASS: Record<Tier, string> = {
   developing: 'bg-developing',
   needsWork: 'bg-needswork',
   stale: 'bg-neutral-400 dark:bg-neutral-500',
+  // Tinted, not grey. The whole point of the band is that it cannot be
+  // mistaken for the empty one — and `info` carries no accuracy meaning,
+  // so it cannot be mistaken for a grade either.
+  started: 'bg-info/40 dark:bg-info/50',
   untouched: 'bg-neutral-200 dark:bg-neutral-700',
 };
 
@@ -118,6 +162,7 @@ export const TIER_TEXT_CLASS: Record<Tier, string> = {
   developing: 'text-developing',
   needsWork: 'text-needswork',
   stale: 'text-neutral-500',
+  started: 'text-info',
   untouched: 'text-neutral-400',
 };
 
@@ -127,5 +172,6 @@ export const TIER_BADGE_CLASS: Record<Tier, string> = {
   developing: 'bg-developing/10 text-developing border-developing/30',
   needsWork: 'bg-needswork/10 text-needswork border-needswork/30',
   stale: 'bg-neutral-200/40 text-neutral-500 border-neutral-300 dark:bg-neutral-700/40 dark:border-neutral-600',
+  started: 'bg-info/10 text-info border-info/30',
   untouched: 'bg-neutral-100/50 text-neutral-500 border-neutral-200 dark:bg-neutral-800/50 dark:border-neutral-700',
 };

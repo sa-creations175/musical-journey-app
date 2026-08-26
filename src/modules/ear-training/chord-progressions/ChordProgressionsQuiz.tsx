@@ -647,7 +647,8 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
     const keys: string[] = [];
     for (const p of PROGRESSIONS) {
       const t = tierForProg(p.id);
-      if (t === 'developing' || t === 'needsWork' || t === 'untouched') {
+      if (t === 'developing' || t === 'needsWork'
+        || t === 'started' || t === 'untouched') {
         keys.push(p.id);
       }
     }

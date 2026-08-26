@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import ModuleGlyph from '../../components/ModuleGlyph';
-import type { SkillRecord } from './registry';
+import { tierDistribution, type SkillRecord } from './registry';
 import TierDistributionBar from './TierDistributionBar';
 
 interface Props {
@@ -269,15 +269,9 @@ function CategorySection({
   onSelectSkill: (skill: SkillRecord) => void;
   compact?: boolean;
 }) {
-  const dist = useMemo(() => ({
-    mastered: group.items.filter(r => r.currentTier === 'mastered').length,
-    fluent: group.items.filter(r => r.currentTier === 'fluent').length,
-    developing: group.items.filter(r => r.currentTier === 'developing').length,
-    needsWork: group.items.filter(r => r.currentTier === 'needsWork').length,
-    stale: group.items.filter(r => r.currentTier === 'stale').length,
-    untouched: group.items.filter(r => r.currentTier === 'untouched').length,
-    total: group.items.length,
-  }), [group.items]);
+  // `tierDistribution` is the same tally, and it already knows every
+  // band. The hand-rolled copy that stood here counted six of them.
+  const dist = useMemo(() => tierDistribution(group.items), [group.items]);
 
   return (
     <section

@@ -10,6 +10,7 @@ import {
   summariseByModule,
   tierDistribution,
   type SkillRecord,
+  type TierDistribution,
 } from './registry';
 import SkillsGrid from './SkillsGrid';
 import ModuleGroupedView from './ModuleGroupedView';
@@ -277,7 +278,7 @@ function SummaryView({
           )}
           {distribution.stale > 0 && distribution.untouched > 0 && <span className="mx-2">·</span>}
           {distribution.untouched > 0 && (
-            <span><span className="text-neutral-500 font-medium">{distribution.untouched}</span> untouched</span>
+            <span><span className="text-neutral-500 font-medium">{distribution.untouched}</span> {TIER_LABEL.untouched}</span>
           )}
         </div>
       </section>
@@ -424,21 +425,17 @@ function collapseEarTraining(byModule: ReturnType<typeof summariseByModule>): Re
     moduleLabel: 'ear training',
     moduleRoute: '/ear-training',
     count: 0,
-    distribution: {
-      mastered: 0, fluent: 0, developing: 0, needsWork: 0,
-      stale: 0, untouched: 0, total: 0,
-    },
+    // Zeroed by the function that owns the shape, so a new band
+    // arrives here already initialised.
+    distribution: tierDistribution([]),
     lastPracticed: null,
   };
   for (const m of ear) {
     merged.count += m.count;
-    merged.distribution.mastered   += m.distribution.mastered;
-    merged.distribution.fluent     += m.distribution.fluent;
-    merged.distribution.developing += m.distribution.developing;
-    merged.distribution.needsWork  += m.distribution.needsWork;
-    merged.distribution.stale      += m.distribution.stale;
-    merged.distribution.untouched  += m.distribution.untouched;
-    merged.distribution.total      += m.distribution.total;
+    // Every band, by walking the shape rather than naming six of them.
+    for (const band of Object.keys(merged.distribution) as Array<keyof TierDistribution>) {
+      merged.distribution[band] += m.distribution[band];
+    }
     if (m.lastPracticed !== null && (merged.lastPracticed === null || m.lastPracticed > merged.lastPracticed)) {
       merged.lastPracticed = m.lastPracticed;
     }

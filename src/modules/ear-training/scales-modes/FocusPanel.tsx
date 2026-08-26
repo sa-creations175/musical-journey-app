@@ -63,7 +63,8 @@ export default function FocusPanel({
         windowTotal: recent.length,
         daysSinceLastAttempt: daysSince,
       });
-      if (tier === 'developing' || tier === 'needsWork' || tier === 'untouched' || tier === 'stale') {
+      if (tier === 'developing' || tier === 'needsWork'
+        || tier === 'started' || tier === 'untouched' || tier === 'stale') {
         weak.push(mode.id);
       }
     }

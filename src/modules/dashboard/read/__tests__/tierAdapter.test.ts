@@ -140,7 +140,10 @@ describe('tierCountsFromAttempts', () => {
     const counts = tierCountsFromAttempts(
       correctRun(MIN_ATTEMPTS_FOR_TIER - 1, 0), NOW,
     );
-    expect(counts.untouched).toBe(1);
+    // Under the minimum is `started`, not `untouched` — work was done.
+    // The rule the assertion guards is unchanged: it is not fluent.
+    expect(counts.started).toBe(1);
+    expect(counts.untouched).toBe(0);
     expect(counts.fluent).toBe(0);
   });
 });
@@ -198,7 +201,10 @@ describe('tierCountsForCatalog — the denominator fix', () => {
       NOW,
     );
     expect(counts.total).toBe(18);
-    expect(counts.untouched).toBe(18);
+    // The one practised mode is `started`; the seventeen never touched
+    // are `untouched`. The denominator is still the catalog's 18.
+    expect(counts.started).toBe(1);
+    expect(counts.untouched).toBe(17);
   });
 
   it('does not move when nothing has been practised', () => {

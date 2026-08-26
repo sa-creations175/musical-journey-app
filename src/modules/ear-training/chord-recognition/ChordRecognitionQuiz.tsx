@@ -816,7 +816,8 @@ export default function ChordRecognitionQuiz({
           : [0];
       const isWeak = inversionsToCheck.some(inv => {
         const t = tierForChordInversion(c.id, inv, today);
-        return t === 'developing' || t === 'needsWork' || t === 'untouched';
+        return t === 'developing' || t === 'needsWork'
+          || t === 'started' || t === 'untouched';
       });
       if (isWeak) keys.push(c.id);
     }

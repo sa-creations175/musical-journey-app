@@ -987,13 +987,15 @@ export interface TierDistribution {
   developing: number;
   needsWork: number;
   stale: number;
+  started: number;
   untouched: number;
   total: number;
 }
 
 export function tierDistribution(records: SkillRecord[]): TierDistribution {
   const d: TierDistribution = {
-    mastered: 0, fluent: 0, developing: 0, needsWork: 0, stale: 0, untouched: 0, total: 0,
+    mastered: 0, fluent: 0, developing: 0, needsWork: 0, stale: 0, started: 0,
+    untouched: 0, total: 0,
   };
   for (const r of records) {
     d.total += 1;
@@ -1005,6 +1007,7 @@ export function tierDistribution(records: SkillRecord[]): TierDistribution {
       case 'developing':d.developing += 1; break;
       case 'needsWork': d.needsWork += 1; break;
       case 'stale':     d.stale += 1; break;
+      case 'started':   d.started += 1; break;
       case 'untouched': d.untouched += 1; break;
     }
   }

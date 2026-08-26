@@ -1,13 +1,14 @@
+import { TIER_BAR_CLASS, TIER_LABEL, TIER_ORDER } from '../../lib/tier';
 import type { TierDistribution } from './registry';
 
-const TIERS: Array<{ key: keyof Omit<TierDistribution, 'total'>; label: string; cls: string }> = [
-  { key: 'mastered',  label: 'mastered',   cls: 'bg-mastered' },
-  { key: 'fluent',    label: 'fluent',     cls: 'bg-fluent' },
-  { key: 'developing',label: 'developing', cls: 'bg-developing' },
-  { key: 'needsWork', label: 'needs work', cls: 'bg-needswork' },
-  { key: 'stale',     label: 'stale',      cls: 'bg-neutral-400 dark:bg-neutral-500' },
-  { key: 'untouched', label: 'untouched',  cls: 'bg-neutral-200 dark:bg-neutral-700' },
-];
+/**
+ * READ OFF `tier.ts`, NOT RETYPED. This list held its own copy of the
+ * six colours and its own copy of the six names, which is how a bar
+ * comes to disagree with the grid it sits under. The order, the swatch
+ * and the word all come from the one file that defines a tier.
+ */
+const TIERS: Array<{ key: keyof Omit<TierDistribution, 'total'>; label: string; cls: string }> =
+  TIER_ORDER.map(t => ({ key: t, label: TIER_LABEL[t], cls: TIER_BAR_CLASS[t] }));
 
 /**
  * Horizontal stacked bar that visualises the breakdown of a skill

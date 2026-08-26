@@ -38,6 +38,7 @@ export interface TierCounts {
   developing: number;
   needsWork: number;
   stale: number;
+  started: number;
   untouched: number;
   total: number;
 }
@@ -45,7 +46,7 @@ export interface TierCounts {
 export function emptyTierCounts(): TierCounts {
   return {
     mastered: 0, fluent: 0, developing: 0,
-    needsWork: 0, stale: 0, untouched: 0, total: 0,
+    needsWork: 0, stale: 0, started: 0, untouched: 0, total: 0,
   };
 }
 
@@ -57,6 +58,7 @@ export function bumpTier(counts: TierCounts, tier: Tier): void {
     case 'developing': counts.developing += 1; break;
     case 'needsWork':  counts.needsWork += 1;  break;
     case 'stale':      counts.stale += 1;      break;
+    case 'started':    counts.started += 1;    break;
     case 'untouched':  counts.untouched += 1;  break;
   }
 }

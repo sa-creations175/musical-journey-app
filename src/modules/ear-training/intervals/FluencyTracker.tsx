@@ -20,6 +20,7 @@ import {
   TIER_BAR_CLASS,
   TIER_DESCRIPTION,
   TIER_LABEL,
+  TIER_ORDER,
   TIER_TEXT_CLASS,
   computeTier,
   type Tier,
@@ -240,8 +241,6 @@ function AnchorRow({ iv, direction }: AnchorEditorProps) {
     </div>
   );
 }
-
-const TIER_ORDER: Tier[] = ['mastered', 'fluent', 'developing', 'needsWork', 'stale', 'untouched'];
 
 function TierLegend() {
   const [open, setOpen] = useState(false);

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { TIER_BADGE_CLASS, TIER_LABEL, type Tier } from '../../lib/tier';
+import { TIER_BADGE_CLASS, TIER_LABEL, TIER_ORDER, type Tier } from '../../lib/tier';
 import type { FreshnessTier } from '../shapes-and-patterns/drillModel';
 import type { SkillRecord } from './registry';
 import type { SkillPriority, SkillType } from '../../lib/db';
@@ -21,14 +21,10 @@ type SortOption =
   | 'priority'
   | 'total-time';
 
-const TIER_SORT_ORDER: Record<Tier, number> = {
-  mastered: 0,
-  fluent: 1,
-  developing: 2,
-  needsWork: 3,
-  stale: 4,
-  untouched: 5,
-};
+// Best first, from the one list that knows the ladder.
+const TIER_SORT_ORDER: Record<Tier, number> = Object.fromEntries(
+  TIER_ORDER.map((t, i) => [t, i]),
+) as Record<Tier, number>;
 
 const PRIORITY_SORT_ORDER: Record<SkillPriority | 'unset', number> = {
   deep: 0,
@@ -202,7 +198,7 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
       {/* Filter chip rows */}
       <div className="rounded-md border border-black/[0.07] p-3 space-y-2">
         <FilterRow label="tier">
-          {(['mastered', 'fluent', 'developing', 'needsWork', 'stale', 'untouched'] as Tier[]).map(t => (
+          {TIER_ORDER.map(t => (
             <Chip
               key={t}
               active={tierFilter.has(t)}

@@ -136,9 +136,11 @@ export default function ProgressDetail({
                               onClick={() => setOpenItem(item)}
                               title={item.name}
                               className={`w-7 h-7 rounded ${
-                                item.currentTier
-                                  ? TIER_BAR_CLASS[item.currentTier]
-                                  : 'bg-neutral-200 dark:bg-neutral-700'
+                                // A null tier is a module that cannot
+                                // compute one — no data, which is what
+                                // NOT STARTED means. Read off the same
+                                // map rather than repeating its colour.
+                                TIER_BAR_CLASS[item.currentTier ?? 'untouched']
                               }`}
                             />
                           ) : (
