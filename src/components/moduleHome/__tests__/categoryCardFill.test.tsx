@@ -155,3 +155,103 @@ describe('why two cards in a row differ at all', () => {
     expect(grid.querySelectorAll('[data-testid="category-card"]')).toHaveLength(2);
   });
 });
+
+/**
+ * The tint boundary sits at one height, whatever the header says.
+ *
+ * SAME CAVEAT AS ABOVE: jsdom has no layout engine, so none of this
+ * measures a rendered pixel. What it pins is the MECHANISM — that the
+ * header's height is written down rather than produced by its content,
+ * and that the count is out of the flow that counts lines. Whether the
+ * bars actually line up across a row is Silas's eye.
+ */
+describe('the header cannot be grown by its own content', () => {
+  const titleBlock = (el: HTMLElement) =>
+    el.querySelector('[data-testid="category-card-title-block"]') as HTMLElement;
+  const count = (el: HTMLElement) =>
+    el.querySelector('[data-testid="category-card-count"]') as HTMLElement;
+
+  const SHORT = 'tritone pairs';
+  const LONG = 'named notes across keys and then some more words still';
+
+  it('gives the title block the same written height, short name or long', () => {
+    const short = mount(
+      <CategoryCard card={model({ label: SHORT })} accentHex="#5a8752" expanded={false}
+        onToggle={() => {}} onDrill={() => {}} now={0} />,
+    );
+    const shortHeight = titleBlock(short).style.height;
+    act(() => root?.unmount());
+    container?.remove();
+
+    const long = mount(
+      <CategoryCard card={model({ label: LONG })} accentHex="#5a8752" expanded={false}
+        onToggle={() => {}} onDrill={() => {}} now={0} />,
+    );
+    expect(titleBlock(long).style.height).toBe(shortHeight);
+    // WRITTEN, not produced: an empty string would mean the content is
+    // still sizing it and this test would pass on the old markup.
+    expect(shortHeight).not.toBe('');
+  });
+
+  it('clips a third line rather than letting it push the boundary', () => {
+    const el = mount(
+      <CategoryCard card={model({ label: LONG })} accentHex="#5a8752" expanded={false}
+        onToggle={() => {}} onDrill={() => {}} now={0} />,
+    );
+    expect(titleBlock(el).className).toContain('overflow-hidden');
+  });
+
+  it('takes the count out of the line flow, at the top right', () => {
+    // FLOATED, so a long name wraps UNDER it instead of pushing it to a
+    // line of its own. `ml-auto` in a flex row — what was here — is the
+    // implementation that wraps.
+    const el = mount(
+      <CategoryCard card={model({ label: LONG })} accentHex="#5a8752" expanded={false}
+        onToggle={() => {}} onDrill={() => {}} now={0} />,
+    );
+    expect(count(el).className).toContain('float-right');
+    expect(count(el).className).not.toContain('ml-auto');
+    // And it is inside the block whose height is fixed, so it cannot
+    // add to any height at all.
+    expect(titleBlock(el).contains(count(el))).toBe(true);
+  });
+
+  it('reserves the countDetail line on a card that has none', () => {
+    // The asymmetry that made ear training's two top cards differ.
+    const withDetail = mount(
+      <CategoryCard card={model({ countDetail: '12 due' })} accentHex="#5a8752" expanded={false}
+        onToggle={() => {}} onDrill={() => {}} now={0} />,
+    );
+    const lines = (el: HTMLElement) =>
+      [...card(el).querySelectorAll('[style*="min-height"]')].map(
+        n => (n as HTMLElement).style.minHeight,
+      );
+    const a = lines(withDetail);
+    act(() => root?.unmount());
+    container?.remove();
+
+    const without = mount(
+      <CategoryCard card={model({ countDetail: null })} accentHex="#5a8752" expanded={false}
+        onToggle={() => {}} onDrill={() => {}} now={0} />,
+    );
+    expect(lines(without)).toEqual(a);
+    expect(a.length).toBeGreaterThan(0);
+  });
+
+  it('does not read its height from the module it is drawn for', () => {
+    // NO PER-MODULE VALUE. Two different accents, one written height.
+    const a = mount(
+      <CategoryCard card={model()} accentHex="#5a8752" expanded={false}
+        onToggle={() => {}} onDrill={() => {}} now={0} />,
+    );
+    const h = titleBlock(a).style.height;
+    act(() => root?.unmount());
+    container?.remove();
+
+    const b = mount(
+      <CategoryCard card={model()} accentHex="#7a5aa8" expanded={false}
+        onToggle={() => {}} onDrill={() => {}} now={0} />,
+    );
+    expect(titleBlock(b).style.height).toBe(h);
+  });
+});

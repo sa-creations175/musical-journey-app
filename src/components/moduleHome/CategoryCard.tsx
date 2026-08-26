@@ -56,6 +56,52 @@ import type { CategoryCardBar, CategoryCardModel } from './model';
 const CARD_MIN_HEIGHT = 'min-h-[6.5rem]';
 
 /**
+ * =====================================================================
+ * THE TINT BOUNDARY IS AT ONE HEIGHT, AND CONTENT CANNOT MOVE IT.
+ *
+ * Two cards in a row split at different heights, and the reason was
+ * wrapping: a long name pushed the count onto a second line, the header
+ * grew by a line, and the bar and the buttons went down with it.
+ * "Named Notes Across Keys" and "Tritone Pairs" sat side by side with
+ * their bars at different y.
+ *
+ * So the header's text does not size the header. Two things do it:
+ *
+ *   1. THE COUNT IS FLOATED, so it never occupies a line of its own.
+ *      A short name sits beside it; a long one wraps UNDER it. Either
+ *      way the count is at the top right and has added nothing.
+ *   2. THE TITLE BLOCK IS A FIXED TWO LINES. One-line names leave the
+ *      second line empty inside the tint rather than shrinking it, and
+ *      a name that would take three is clipped rather than allowed to
+ *      push the boundary down.
+ *
+ * The two sub-lines below it — the optional `countDetail` and the
+ * stats line, either of which can be absent — reserve their line the
+ * same way, so a card carrying one matches a card that does not.
+ * That was the OTHER half of the same complaint: ear training's
+ * intervals card has a `countDetail` and chord recognition does not.
+ *
+ * DERIVED ONCE, HERE. Every number below is this component's own and
+ * no page or module can set one — a per-module height is how six
+ * module homes come to be six slightly different components.
+ *
+ * WHAT THIS DOES NOT COVER: the per-hand bars, which only Shapes &
+ * Patterns draws and which vary one to three WITHIN that module.
+ * Reserving three bar rows on every card in the app would buy S&P's
+ * alignment with a band of empty tint on five other modules. Named
+ * rather than silently left — see the report.
+ * =====================================================================
+ */
+/** The title's own leading — `leading-5`, in rem. */
+const TITLE_LEADING_REM = 1.25;
+/** The tallest case a name can produce. Beyond this it clips. */
+const TITLE_LINES = 2;
+const TITLE_BLOCK_HEIGHT = `${TITLE_LINES * TITLE_LEADING_REM}rem`;
+/** The sub-lines' leading — `leading-4`, in rem. Reserved whether the
+ *  line has anything in it or not. */
+const SUB_LINE_HEIGHT = '1rem';
+
+/**
  * What a card's action says, on every module home.
  *
  * ONE LABEL, DEFINED ONCE. It was per module — "drill category", "open
@@ -132,27 +178,17 @@ export default function CategoryCard({
         className="w-full text-left px-3 pt-3 pb-2 transition-colors"
         style={{ backgroundColor: `${accentHex}0f` }}
       >
-        <div className="flex items-baseline gap-2 flex-wrap">
-          {/* TITLE CASE HERE, not in six adapters. The adapters hand
-              over the canonical label — the catalog's own words — and
-              the style is applied where the title is drawn, the same
-              rule the sidebar follows. Production's path titles are
-              already capitalised and pass through unchanged. */}
-          <span className="font-medium text-sm">{titleCase(card.label)}</span>
-          {/* NO BADGE WITHOUT A MEASUREMENT. A module that records
-              duration and a self-rating has no tier; the alternative is
-              `computeTier` on an empty window, which says `untouched`
-              forever and looks like a reading. */}
-          {acc !== null && (
-            <span
-              className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${TIER_BADGE_CLASS[acc.tier]}`}
-              data-testid="category-card-tier"
-            >
-              {TIER_LABEL[acc.tier]}
-            </span>
-          )}
+        {/* A BLOCK, NOT A FLEX ROW — floats do nothing inside a flex
+            container, and the float is what keeps the count out of the
+            line count. `overflow-hidden` is the ceiling: a third line
+            is clipped rather than allowed to move the boundary. */}
+        <div
+          className="overflow-hidden"
+          style={{ height: TITLE_BLOCK_HEIGHT }}
+          data-testid="category-card-title-block"
+        >
           <span
-            className="ml-auto text-[11px] text-neutral-500 tabular-nums"
+            className="float-right ml-2 text-[11px] leading-5 text-neutral-500 tabular-nums whitespace-nowrap"
             data-testid="category-card-count"
           >
             {/* ACQUIRED WHERE THE MODULE HAS ONE, seen otherwise. The
@@ -165,13 +201,37 @@ export default function CategoryCard({
               ? `${card.acquired} of ${card.itemCount} acquired`
               : `${card.itemsSeen}/${card.itemCount}`}
           </span>
+          {/* TITLE CASE HERE, not in six adapters. The adapters hand
+              over the canonical label — the catalog's own words — and
+              the style is applied where the title is drawn, the same
+              rule the sidebar follows. Production's path titles are
+              already capitalised and pass through unchanged. */}
+          <span className="font-medium text-sm leading-5">{titleCase(card.label)}</span>
+          {/* NO BADGE WITHOUT A MEASUREMENT. A module that records
+              duration and a self-rating has no tier; the alternative is
+              `computeTier` on an empty window, which says `untouched`
+              forever and looks like a reading. */}
+          {acc !== null && (
+            <span
+              className={`ml-2 inline-block align-baseline text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${TIER_BADGE_CLASS[acc.tier]}`}
+              data-testid="category-card-tier"
+            >
+              {TIER_LABEL[acc.tier]}
+            </span>
+          )}
         </div>
-        {card.countDetail !== null && (
-          <div className="mt-0.5 text-[11px] text-neutral-400 tabular-nums">
-            {card.countDetail}
-          </div>
-        )}
-        <div className="mt-0.5 text-[11px] text-neutral-500 tabular-nums">
+        {/* RESERVED WHETHER IT HAS ANYTHING IN IT OR NOT. A card with a
+            countDetail and one without must split at the same height. */}
+        <div
+          className="mt-0.5 text-[11px] leading-4 text-neutral-400 tabular-nums"
+          style={{ minHeight: SUB_LINE_HEIGHT }}
+        >
+          {card.countDetail}
+        </div>
+        <div
+          className="mt-0.5 text-[11px] leading-4 text-neutral-500 tabular-nums"
+          style={{ minHeight: SUB_LINE_HEIGHT }}
+        >
           {acc !== null && (
             pending !== null
               ? <span className="text-neutral-400">{pending}</span>

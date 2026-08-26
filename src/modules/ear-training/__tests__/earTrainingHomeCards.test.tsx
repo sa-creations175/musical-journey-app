@@ -86,7 +86,12 @@ describe('the page runs no drill', () => {
     const labels = [...el.querySelectorAll('button')]
       .map(b => (b.textContent ?? '').toLowerCase());
     expect(labels.length).toBeGreaterThan(0);
-    expect(labels.some(t => t.includes('start'))).toBe(false);
+    // MATCHED AT THE FRONT, not anywhere in the string. A card carries
+    // its tier, and one of the tiers is called "not started" — a bare
+    // `includes('start')` reads that badge as a Start button and fails
+    // on a page that has none. The rule is unchanged: no button here
+    // OFFERS to start something.
+    expect(labels.some(t => t.trimStart().startsWith('start'))).toBe(false);
   });
 
   it('calls the action what every other card calls it', async () => {
