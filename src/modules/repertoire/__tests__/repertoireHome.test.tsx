@@ -96,6 +96,47 @@ describe('the repertoire home', () => {
     expect(el.textContent).toContain('songs');
   });
 
+  it('offers exactly two ways to add a song', async () => {
+    // "Want to Learn" stopped being a tab; the backlog is where a song
+    // comes FROM, so it is offered at the moment one is being added.
+    const el = await render();
+    expect(el.querySelector('[data-testid="add-song-menu"]'), 'closed on arrival')
+      .toBeNull();
+
+    await act(async () => {
+      (el.querySelector('[data-testid="add-song"]') as HTMLElement).click();
+    });
+
+    const menu = el.querySelector('[data-testid="add-song-menu"]')!;
+    const items = [...menu.querySelectorAll('[role="menuitem"]')]
+      .map(b => (b.textContent ?? '').trim());
+    expect(items).toEqual(['Add from Want to Learn List', 'Add New Song']);
+  });
+
+  it('reaches the want-to-learn list through that button, and comes back', async () => {
+    // The list is not deleted, only re-homed — and a page reached from
+    // a button needs a way out now that the ribbon is gone.
+    const el = await render();
+    await act(async () => {
+      (el.querySelector('[data-testid="add-song"]') as HTMLElement).click();
+    });
+    await act(async () => {
+      (el.querySelector('[data-testid="add-song-from-backlog"]') as HTMLElement).click();
+    });
+    for (let i = 0; i < 10; i++) {
+      await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+    }
+    const back = el.querySelector('[data-testid="want-to-learn-back"]');
+    expect(back, 'the backlog opened').not.toBeNull();
+
+    await act(async () => { (back as HTMLElement).click(); });
+    for (let i = 0; i < 10; i++) {
+      await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+    }
+    expect(el.querySelector('[data-testid="add-song"]'), 'the cards are back')
+      .not.toBeNull();
+  });
+
   it('opens a song from its card', async () => {
     const el = await render();
     const card = [...el.querySelectorAll('article')]

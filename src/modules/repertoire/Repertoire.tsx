@@ -173,6 +173,7 @@ export default function Repertoire() {
         <ActiveRepertoireView
           songs={songs}
           onOpenSong={openSong}
+          onOpenWantToLearn={() => setTab('want-to-learn')}
         />
       )}
       {tab === 'detail' && (
@@ -185,6 +186,7 @@ export default function Repertoire() {
       )}
       {tab === 'want-to-learn' && (
         <WantToLearnView
+          onBack={() => setTab('active')}
           onPromoted={(songId) => {
             setSelectedSongId(songId);
             setTab('detail');

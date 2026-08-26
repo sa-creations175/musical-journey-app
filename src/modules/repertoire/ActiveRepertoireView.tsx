@@ -52,6 +52,9 @@ import { useSpelling } from '../../lib/spellingPref';
 interface Props {
   songs: Song[];
   onOpenSong: (songId: string) => void;
+  /** Opens the want-to-learn backlog. It stopped being a tab when the
+   *  ribbon went; Add Song is how it is reached now. */
+  onOpenWantToLearn: () => void;
 }
 
 type SortMode =
@@ -89,9 +92,13 @@ const FRESHNESS_RANK: Record<ReturnType<typeof freshnessFor>, number> = {
   fresh: 3,
 };
 
-export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
+export default function ActiveRepertoireView({
+  songs, onOpenSong, onOpenWantToLearn,
+}: Props) {
   const [globalSpelling] = useSpelling();
   const [showAdd, setShowAdd] = useState(false);
+  /** The Add Song menu, open or not. */
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>('learning-order');
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
@@ -495,13 +502,56 @@ export default function ActiveRepertoireView({ songs, onOpenSong }: Props) {
         </div>
       )}
 
+      {/* =================================================================
+          ADD SONG, AND THE TWO WAYS A SONG ARRIVES.
+
+          The want-to-learn backlog used to be a tab, which put "the
+          songs I might learn" beside "the songs I am learning" as
+          though they were two views of one thing. They are not: the
+          backlog is where a song comes FROM. So it is offered here,
+          beside the other way one arrives, at the moment the reader is
+          adding one.
+
+          Both options do what they already did — the modal is
+          unchanged and the backlog view is unchanged. Only the way in
+          moved.
+          ================================================================= */}
       <div className="flex justify-center">
-        <button
-          onClick={() => setShowAdd(true)}
-          className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
-        >
-          + add song to repertoire
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setAddMenuOpen(o => !o)}
+            aria-expanded={addMenuOpen}
+            aria-haspopup="menu"
+            data-testid="add-song"
+            className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
+          >
+            Add Song
+          </button>
+          {addMenuOpen && (
+            <div
+              role="menu"
+              data-testid="add-song-menu"
+              className="absolute left-1/2 -translate-x-1/2 mt-1 z-20 min-w-[15rem] rounded-lg border border-black/[0.07] bg-white dark:bg-neutral-900 shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-1"
+            >
+              <button
+                role="menuitem"
+                data-testid="add-song-from-backlog"
+                onClick={() => { setAddMenuOpen(false); onOpenWantToLearn(); }}
+                className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                Add from Want to Learn List
+              </button>
+              <button
+                role="menuitem"
+                data-testid="add-song-new"
+                onClick={() => { setAddMenuOpen(false); setShowAdd(true); }}
+                className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                Add New Song
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {showAdd && (

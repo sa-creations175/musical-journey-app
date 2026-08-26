@@ -12,6 +12,10 @@ import { useToast } from '../../components/Toaster';
 import ConfirmDialog from '../../components/ConfirmDialog';
 
 interface Props {
+  /** Back to the song cards. The backlog was a tab and the ribbon is
+   *  gone, so the way out has to be on the page. The wording is the
+   *  song page's own — one sentence for one journey, not two. */
+  onBack: () => void;
   onPromoted: (songId: string) => void;
 }
 
@@ -37,7 +41,7 @@ function uid(prefix: string): string {
  * user lands in a Song Detail view with enough structure to begin
  * learning.
  */
-export default function WantToLearnView({ onPromoted }: Props) {
+export default function WantToLearnView({ onBack, onPromoted }: Props) {
   const entries = useLiveQuery<WantToLearnEntry[]>(
     () => db.wantToLearn.toArray(),
     [],
@@ -109,6 +113,14 @@ export default function WantToLearnView({ onPromoted }: Props) {
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">
+      <button
+        onClick={onBack}
+        data-testid="want-to-learn-back"
+        className="text-xs text-neutral-500 hover:text-fluent"
+      >
+        ← back to active repertoire
+      </button>
+
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-base sm:text-lg font-medium tracking-tight">want to learn</h2>
