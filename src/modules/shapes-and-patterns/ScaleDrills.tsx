@@ -34,6 +34,7 @@ import { CIRCLE_OF_FOURTHS } from './spTiers';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 import ScalesDrillModal from './ScalesDrillModal';
+import HandChooser from './HandChooser';
 import ThreeBandCell from './ThreeBandCell';
 import {
   acquisitionIndex,
@@ -41,6 +42,7 @@ import {
   type AcquisitionCounts,
   type AcquisitionIndex,
 } from './acquisition';
+import type { DrillHand } from '../../lib/db';
 
 /** THE BUCKETS COME FROM `acquisition.ts` NOW. This file used to carry
  *  its own `bucketFor` and its own idea of what a cell's state was —
@@ -148,7 +150,18 @@ function countCells(cells: ScaleCell[], index: AcquisitionIndex): AcquisitionCou
 // ---------------------------------------------------------------------
 
 export default function ScaleDrills() {
-  const [openCell, setOpenCell] = useState<ScaleCell | null>(null);
+  /**
+   * WHICH HAND FIRST, ASKED BEFORE THE DRILL OPENS.
+   *
+   * A tap used to open the modal at the start of its left → right →
+   * both walk. `choosing` is the cell whose chooser is up; `openCell`
+   * is the drill that was actually asked for, with the hands it will
+   * run.
+   */
+  const [choosing, setChoosing] = useState<ScaleCell | null>(null);
+  const [openCell, setOpenCell] = useState<
+    { cell: ScaleCell; hands: readonly DrillHand[] } | null
+  >(null);
 
   const spacingRows = useLiveQuery<SpacingState[]>(
     () => db.spacingState
@@ -164,6 +177,9 @@ export default function ScaleDrills() {
    * arrive at different ones — see `acquisition.ts`.
    */
   const index = useMemo(() => acquisitionIndex(spacingRows), [spacingRows]);
+  // The chooser names the cell it is about, so this page needs the
+  // spelling the group blocks already read.
+  const [spelling] = useSpelling();
 
   const handStagesOf = (itemRef: string) => ({
     left: index.hand(itemRef, 'left'),
@@ -199,16 +215,30 @@ export default function ScaleDrills() {
             group={group}
             index={index}
             handStagesOf={handStagesOf}
-            onCellClick={setOpenCell}
+            onCellClick={setChoosing}
           />
         ))}
       </div>
 
       <Legend />
 
+      {choosing && (
+        <HandChooser
+          title={scaleCellLabel(choosing, spelling)}
+          hands={handStagesOf(choosing.itemRef)}
+          cell={index.cell(choosing.itemRef)}
+          onClose={() => setChoosing(null)}
+          onChoose={hands => {
+            setOpenCell({ cell: choosing, hands });
+            setChoosing(null);
+          }}
+        />
+      )}
+
       {openCell && (
         <ScalesDrillModal
-          cell={openCell}
+          cell={openCell.cell}
+          hands={openCell.hands}
           onClose={() => setOpenCell(null)}
         />
       )}

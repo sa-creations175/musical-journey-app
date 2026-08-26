@@ -49,7 +49,7 @@ import { relativeMajorOf } from './spTiers';
 import type { ScaleCell } from './scaleSkills';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
-import type { DrillSession } from '../../lib/db';
+import type { DrillHand, DrillSession } from '../../lib/db';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
 import DrillAssessment from './DrillAssessment';
 
@@ -81,15 +81,24 @@ interface Props {
   /** In-session runner only: false on the last scale — disables the
    *  "Next scale" control. */
   canGoNext?: boolean;
+  /** The hands to drill, in order. Defaults to all three — what the
+   *  in-session runner has always run and what "All Three" asks for. */
+  hands?: readonly DrillHand[];
 }
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
 
-// Every scale item is drilled left → right → both, each its own timer +
-// rating + spacing state. The modal walks these in order, advancing on
-// each "Save rating"; only after Both does it hand back to the runner.
-const HANDS = ['left', 'right', 'both'] as const;
-const HAND_LABEL: Record<(typeof HANDS)[number], string> = {
+// Every scale item is drilled left, then right, then both, each its own
+// timer + rating + spacing state. The modal walks the hands it is given
+// in order, advancing on each "Save rating"; after the last one it
+// hands back to the caller.
+//
+// THE WALK IS A PROP NOW. A matrix tap asks which hand first — see
+// `HandChooser` — and a reader whose left hand is already solid can
+// start on the one they came for. The in-session runner passes nothing
+// and gets all three, which is what it has always run.
+const ALL_HANDS: ReadonlyArray<DrillHand> = ['left', 'right', 'both'];
+const HAND_LABEL: Record<DrillHand, string> = {
   left: 'Left hand',
   right: 'Right hand',
   both: 'Both hands',
@@ -132,6 +141,7 @@ export default function ScalesDrillModal({
   onPrevious,
   canGoPrevious,
   canGoNext,
+  hands = ALL_HANDS,
 }: Props) {
   const [spelling] = useSpelling();
   const metroState = useMetronomeState();
@@ -154,7 +164,7 @@ export default function ScalesDrillModal({
   const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
   // Which hand of the left → right → both walk we're on for this item.
   const [handIndex, setHandIndex] = useState(0);
-  const currentHand = HANDS[handIndex];
+  const currentHand = hands[handIndex] ?? hands[0];
   const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -323,7 +333,7 @@ export default function ScalesDrillModal({
         hand: currentHand,
         signal: { kind: 'rating', rating: feelToRating(feel) },
       });
-      if (handIndex < HANDS.length - 1) {
+      if (handIndex < hands.length - 1) {
         // More hands to drill — refresh in place for the next hand.
         advanceToHand(handIndex + 1);
       } else {
