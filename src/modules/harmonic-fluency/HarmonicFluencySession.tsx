@@ -24,7 +24,7 @@ import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import LydianChordRows from './LydianChordRows';
 import DegreeGroundedRows from './DegreeGroundedRows';
 import DegreePlayback from './DegreePlayback';
-import DegreeKeyboard from './DegreeKeyboard';
+import DegreeKeyboard, { degreeKeyboardSpec } from './DegreeKeyboard';
 import { qualityOfCardId } from './scaleDegreeQualityCards';
 import FlashcardSession, {
   type CardAnsweredArgs,
@@ -213,13 +213,10 @@ function VisualAid({
   // this is one branch rather than one per category — a category whose
   // aid is a compass has nothing different to say on a keyboard.
   if (mode === 'keyboard') {
-    return (
-      <DegreeKeyboard
-        card={card}
-        answered={answered}
-        correct={chosen === card.correctAnswer}
-      />
-    );
+    const spec = degreeKeyboardSpec(card, answered, chosen === card.correctAnswer);
+    return spec === null
+      ? null
+      : <DegreeKeyboard spec={spec} keyLabel={hint.key} />;
   }
 
   switch (card.category) {

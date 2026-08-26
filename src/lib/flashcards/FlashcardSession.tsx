@@ -24,6 +24,19 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import FluencyProtectionNotice from '../../components/FluencyProtectionNotice';
 import AnswerVerdict from '../../components/AnswerVerdict';
 import { renderedOptions } from './optionOrder';
+
+/**
+ * Whether a display mode draws a visual aid at all.
+ *
+ * `text` is the mode that does not, and that is the whole of its
+ * definition. Written once because the mode preview has to apply the
+ * SAME rule the session applies — a preview that drew a strip for a
+ * mode the session leaves blank would be advertising a mode that does
+ * not exist.
+ */
+const drawsVisualAid = (mode: string | undefined): boolean =>
+  (mode ?? 'text') !== 'text';
+
 import { glossTheoreticalSpellings } from '../theoreticalSpellings';
 
 export type TimerMode = 'off' | '5' | '10' | '15';
@@ -189,6 +202,9 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [done, setDone] = useState(false);
   const [flagEditorOpen, setFlagEditorOpen] = useState(false);
+  /** The mode preview, open or not. Per-session, not persisted — it is
+   *  a thing you look at once. */
+  const [modePreviewOpen, setModePreviewOpen] = useState(false);
   const [flagNoteDraft, setFlagNoteDraft] = useState('');
 
   const timerRef = useRef<number | null>(null);
@@ -454,8 +470,26 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   }
 
   const isFaded = fadedCategories.has(card.category);
-  const showVisual =
-    !!renderVisualAid && !isFaded && (visualMode ?? 'text') !== 'text';
+  const showVisual = !!renderVisualAid && !isFaded && drawsVisualAid(visualMode);
+
+  /**
+   * Every mode's rendering of THIS card, whether the preview is open or
+   * not — building an element is cheap and nothing is mounted until the
+   * panel is.
+   *
+   * The `text` cell is empty by construction rather than by omission,
+   * because empty is what `text` draws. The others are null when the
+   * card has nothing to draw in that mode at all, and a card where all
+   * of them are null gets no preview control: three empty boxes would
+   * be a worse answer than no button.
+   */
+  const modePreviews = (visualModes ?? []).map(opt => ({
+    opt,
+    node: renderVisualAid && drawsVisualAid(opt.id)
+      ? renderVisualAid({ card, mode: opt.id, answered: hasAnswered, chosen })
+      : null,
+  }));
+  const modePreviewAvailable = modePreviews.some(p => p.node !== null && p.node !== undefined && p.node !== false);
   const visualAidNode = showVisual && visualMode
     ? renderVisualAid?.({ card, mode: visualMode, answered: hasAnswered, chosen })
     : null;
@@ -526,6 +560,25 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
                   {opt.label}
                 </button>
               ))}
+              {/* WHAT THE THREE MODES ACTUALLY DO, shown rather than
+                  described. The three labels name themselves and
+                  nothing else; the only honest way to say what one
+                  draws is to draw it. */}
+              {modePreviewAvailable && (
+                <button
+                  onClick={() => setModePreviewOpen(o => !o)}
+                  aria-label="preview display modes"
+                  aria-expanded={modePreviewOpen}
+                  data-testid="visual-mode-preview-toggle"
+                  className={`px-1.5 py-0.5 rounded-md leading-none ${
+                    modePreviewOpen
+                      ? 'text-fluent'
+                      : 'text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
+                  }`}
+                >
+                  &#9432;
+                </button>
+              )}
             </div>
           )}
           <button onClick={handleEnd} className="text-neutral-500 hover:text-fluent">
@@ -571,6 +624,43 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               {reviewFlagged ? 'save changes' : 'flag for review'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------------------
+          THE MODE PREVIEW — THE REAL RENDERING, NOT A PICTURE OF ONE.
+          Each cell calls the same `renderVisualAid` the session calls,
+          for its own mode and for the card on screen, so a mode cannot
+          be advertised as drawing something it does not draw. `text`
+          comes out empty, because empty is what `text` renders — that
+          is the fact the reader is missing, and it is one the fade
+          gate is deliberately not allowed to confuse: this shows what
+          the MODE does, not what this card does right now.
+          --------------------------------------------------------------- */}
+      {modePreviewOpen && modePreviewAvailable && (
+        <div
+          data-testid="visual-mode-preview"
+          className="grid gap-2 sm:grid-cols-3"
+        >
+          {modePreviews.map(({ opt, node }) => (
+            <div
+              key={opt.id}
+              data-testid="visual-mode-preview-cell"
+              data-mode={opt.id}
+              className={`rounded-lg border p-2 flex flex-col items-center justify-between gap-2 ${
+                visualMode === opt.id
+                  ? 'border-fluent'
+                  : 'border-neutral-200 dark:border-neutral-700'
+              }`}
+            >
+              <div className="flex-1 flex items-center justify-center w-full overflow-x-auto">
+                {node}
+              </div>
+              <span className="text-[10px] uppercase tracking-wide text-neutral-400">
+                {opt.label}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -651,7 +741,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
         </div>
       )}
 
-      {isFaded && (visualMode ?? 'text') !== 'text' && (
+      {isFaded && drawsVisualAid(visualMode) && (
         <p className="text-[11px] text-neutral-400 italic text-center">
           visuals faded — you're on a streak in this category. miss one and they'll return.
         </p>

@@ -95,20 +95,24 @@ export function degreeKeyboardSpec(
   return { keyRoot: null, notes };
 }
 
+/**
+ * TAKES A SPEC, NOT A CARD, and the caller decides whether there is
+ * one. A component that swallowed "nothing to draw" by returning null
+ * from inside would still be a non-null element to whoever rendered it
+ * — and the mode preview asks exactly that question of each mode
+ * before offering itself.
+ */
 export default function DegreeKeyboard({
-  card, answered, correct,
+  spec, keyLabel,
 }: {
-  card: Flashcard;
-  answered: boolean;
-  correct: boolean;
+  spec: DegreeKeyboardSpec;
+  keyLabel?: string;
 }) {
-  const spec = degreeKeyboardSpec(card, answered, correct);
-  if (spec === null) return null;
   return (
     <div className="flex justify-center" data-testid="degree-keyboard">
       <KeyboardVisual
         keySignature={spec.keyRoot === null ? undefined : `${spec.keyRoot} major`}
-        keyLabel={card.visualHint?.key}
+        keyLabel={keyLabel}
         highlightedNotes={spec.notes}
         octaves={1}
         startOctave={4}

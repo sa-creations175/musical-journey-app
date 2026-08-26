@@ -173,9 +173,14 @@ describe('the two card actions', () => {
 
     const el = await renderPage();
     await click(byText(/all categories mixed/i), 'mixed drill');
+    // The queue is built through Dexie, so wait for the header rather
+    // than for a fixed number of ticks — under a loaded machine the
+    // fixed count is a race, and a race that reads NaN out of a header
+    // that has not arrived yet fails for the wrong reason.
+    const headerRe = /card\s*1\s*\/\s*(\d+)/;
+    await settle(() => headerRe.test(el.textContent ?? ''));
 
-    const header = el.textContent ?? '';
-    const queueLength = Number(/card\s*1\s*\/\s*(\d+)/.exec(header)?.[1]);
+    const queueLength = Number(headerRe.exec(el.textContent ?? '')?.[1]);
     expect(queueLength, 'a session is running').toBeGreaterThan(0);
     expect(supply, 'the fixture category is smaller than a session')
       .toBeLessThan(queueLength);
