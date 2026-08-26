@@ -8,8 +8,7 @@ import {
   cardTint,
 } from '../../components/moduleHome/cardShell';
 import type { Song } from '../../lib/db';
-import type { SongDueReading } from './songDueState';
-import { spellKey, type Spelling } from '../../lib/spelling';
+import { retestSuffix, type SongRetestState } from './songRetestState';
 import {
   FRESHNESS_DOT_CLASS,
   STAGE_BADGE_CLASS,
@@ -59,13 +58,12 @@ export interface SongCardProps {
    *  a key lapsed. One derivation per list, shared. */
   stage: RepertoireStage;
   /**
-   * Re-proving still available on this song, or null when there is
-   * none. Rolled up once per list by `songDueReading` — see its header
-   * for why an OVERDUE key is not in here.
+   * What the badge adds to the rung — due, overdue, or nothing.
+   *
+   * Rolled up once per list by `songRetestState`, which is where the
+   * rule that a LEARNING song never shows one lives.
    */
-  due: SongDueReading | null;
-  /** How the due keys are named back. Per song, resolved by the list. */
-  spelling: Spelling;
+  retest: SongRetestState | null;
   /**
    * The section chips and their counts, read once per list by
    * `readSectionChips`.
@@ -100,8 +98,7 @@ export default function SongCard({
   addedLabel,
   freshness,
   stage,
-  due,
-  spelling,
+  retest,
   sections,
   onOpen,
   onOpenLeadSheet,
@@ -110,6 +107,7 @@ export default function SongCard({
 }: SongCardProps) {
   void lastPractisedAt;
 
+  const suffix = retestSuffix(retest);
   const footer = sectionFooterLine(sections);
   const needChords = needsChordsLine(sections);
 
@@ -141,18 +139,37 @@ export default function SongCard({
           card rather than as a pale strip beneath it. */}
       <div className="px-3 pb-2 pt-2 grow flex flex-col gap-2">
       <div className="flex items-center gap-2 flex-wrap text-[11px]">
+        {/* THE RUNG AND ITS CURRENCY, IN ONE BADGE. A rung is a claim
+            that needs re-proving, and "Comfortable" alone reads as a
+            settled fact. It used to be two pills — the rung, then a
+            separate chip naming the key that was due — which let a
+            reader take the rung in without taking in whether it still
+            stood. One pill cannot be half-read. */}
         <span
           data-testid="song-card-stage"
+          data-retest={retest?.state ?? 'held'}
+          // THE RUNG'S OWN COLOUR, in every state. The suffix carries
+          // what is different; recolouring the badge would be a second
+          // encoding of the same fact, and the one colour the app
+          // already means "due" by (#E88943, DemotionNotice's) sits so
+          // close to `developing` that a Comfortable badge would barely
+          // move. If this should shout louder, that is a call to make
+          // looking at it.
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${STAGE_BADGE_CLASS[stage]}`}
+          title={retest === null
+            ? undefined
+            : retest.state === 'due'
+              ? 'due to be proven again'
+              : 'past grace — this rung has dropped'}
         >
           {STAGE_LABEL[stage]}
+          {suffix !== null && (
+            <>
+              <span aria-hidden className="opacity-50">·</span>
+              <span data-testid="song-card-retest">{suffix}</span>
+            </>
+          )}
         </span>
-        {/* THE GRID'S OWN WORDS. `KeyRow` has rendered `due` and
-            `soon` against these states since 3d-0a, in these colours.
-            A card saying "needs a retest" would be a second name for a
-            fact the matrix already names, and two names for one fact
-            is how a reader starts wondering whether they are two. */}
-        {due !== null && <DueChip due={due} spelling={spelling} />}
         {/* THE "✨ ready" BADGE IS GONE, and it was never once seen.
             It rendered when the criteria for leaving the current rung
             were all met — but `deriveStage` returns the FIRST rung whose
@@ -278,35 +295,6 @@ function SectionChipView({ chip }: { chip: SectionChip }) {
       } ${fillClass} text-neutral-600 dark:text-neutral-300`}
     >
       {chip.name}
-    </span>
-  );
-}
-
-/**
- * What is due, and in which key.
- *
- * Names the KEY, not just the fact. "due" alone sends you to the song
- * page to find out which row to tap; the key name is the thing you act
- * on, and it is one word. With more than one, the count carries the
- * rest rather than a list that would not fit a card.
- */
-function DueChip({ due, spelling }: { due: SongDueReading; spelling: Spelling }) {
-  const keys = due.state === 'due' ? due.dueKeys : due.soonKeys;
-  const first = spellKey(keys[0].key.keyName, spelling);
-  const extra = keys.length - 1;
-  const label = due.state === 'due' ? 'due' : 'soon';
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${
-        due.state === 'due'
-          ? 'border-[#E88943]/40 bg-[#E88943]/10 text-[#E88943]'
-          : 'border-neutral-200 dark:border-neutral-700 text-neutral-500'
-      }`}
-      title={due.state === 'due'
-        ? 'due to be proven again'
-        : 'due soon'}
-    >
-      {label} · key of {first}{extra > 0 ? ` +${extra}` : ''}
     </span>
   );
 }

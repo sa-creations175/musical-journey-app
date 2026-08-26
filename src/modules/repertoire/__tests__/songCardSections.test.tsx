@@ -13,6 +13,7 @@ import { act } from 'react';
 import type { Song } from '../../../lib/db';
 import SongCard from '../SongCard';
 import { STAGE_LABEL } from '../stage';
+import type { SongRetestState } from '../songRetestState';
 import type { SectionChipReading } from '../sectionChips';
 
 const SONG: Song = {
@@ -29,6 +30,7 @@ let host: HTMLDivElement | null = null;
 function render(sections: SectionChipReading, over: Partial<{
   stage: Song['stage'];
   lastPractisedLabel: string;
+  retest: SongRetestState | null;
   onOpen: () => void;
   onOpenLeadSheet: () => void;
 }> = {}) {
@@ -43,8 +45,7 @@ function render(sections: SectionChipReading, over: Partial<{
         addedLabel="added today"
         freshness="stale"
         stage={over.stage ?? 'learning'}
-        due={null}
-        spelling="flat"
+        retest={over.retest ?? null}
         sections={sections}
         accentHex="#a8556b"
         lastPractisedLabel={over.lastPractisedLabel ?? 'never'}
@@ -253,5 +254,44 @@ describe('what the card carries', () => {
     const el = render(reading());
     expect(el.querySelector('[data-testid="category-card-progress-detail"]')).toBeNull();
     expect(el.textContent).not.toContain('Progress Detail');
+  });
+});
+
+describe('the badge carries the retest state', () => {
+  const badge = (el: HTMLElement) =>
+    el.querySelector('[data-testid="song-card-stage"]') as HTMLElement;
+
+  it('says the rung and stops when there is nothing to add', () => {
+    const el = render(reading(), { stage: 'comfortable', retest: null });
+    expect(badge(el).textContent).toBe(STAGE_LABEL.comfortable);
+    expect(badge(el).getAttribute('data-retest')).toBe('held');
+    expect(el.querySelector('[data-testid="song-card-retest"]')).toBeNull();
+  });
+
+  it('appends due to the rung, in the same pill', () => {
+    // ONE PILL, not two. The rung and whether it still stands cannot be
+    // half-read when they are the same badge.
+    const el = render(reading(), { stage: 'comfortable', retest: { state: 'due' } });
+    expect(badge(el).textContent).toContain(STAGE_LABEL.comfortable);
+    expect(el.querySelector('[data-testid="song-card-retest"]')?.textContent).toBe('due');
+    expect(el.querySelectorAll('[data-testid="song-card-stage"]')).toHaveLength(1);
+  });
+
+  it('appends overdue with the days past grace', () => {
+    const el = render(reading(), {
+      stage: 'internalized', retest: { state: 'overdue', days: 9 },
+    });
+    expect(badge(el).textContent).toContain(STAGE_LABEL.internalized);
+    expect(el.querySelector('[data-testid="song-card-retest"]')?.textContent)
+      .toBe('overdue 9d');
+    expect(badge(el).getAttribute('data-retest')).toBe('overdue');
+  });
+
+  it('has no separate due chip left beside it', () => {
+    // It used to be a second pill naming the key that was due. The key
+    // is on the matrix row the reader acts on; the card says whether
+    // there is anything to act on at all.
+    const el = render(reading(), { stage: 'comfortable', retest: { state: 'due' } });
+    expect(el.textContent).not.toContain('key of');
   });
 });

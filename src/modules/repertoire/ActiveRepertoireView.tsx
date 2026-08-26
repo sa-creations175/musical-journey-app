@@ -40,7 +40,7 @@ import SongCard, { formatAddedDate, type SongCardProps } from './SongCard';
 import AddSongModal from './AddSongModal';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { dueByKeyId } from './matrix/proveKey';
-import { songDueReading } from './songDueState';
+import { songRetestState } from './songRetestState';
 import {
   SPACING_DEFAULTS,
   getSpacingSettings,
@@ -276,9 +276,10 @@ export default function ActiveRepertoireView({
         spelling: resolveSpelling(song.spelling, globalSpelling),
       });
       // Rolled up from the SAME dueMap the stage rules just read, so
-      // the card and the badge beside it cannot disagree about whether
-      // a key is late.
-      const due = songDueReading(
+      // the rung and the state appended to it cannot disagree about
+      // whether a key is late.
+      const retest = songRetestState(
+        derivedStage,
         keysBySong.get(song.id) ?? [],
         dueMap,
         advancementNow,
@@ -293,7 +294,7 @@ export default function ActiveRepertoireView({
         songKeys: keysBySong.get(song.id) ?? [],
       });
       return {
-        song, lastPractisedAt, freshness, derivedStage, due,
+        song, lastPractisedAt, freshness, derivedStage, retest,
         spelling: resolveSpelling(song.spelling, globalSpelling),
         sectionReading,
       };
@@ -362,8 +363,7 @@ export default function ActiveRepertoireView({
     addedLabel: formatAddedDate(row.song.addedDate),
     freshness: row.freshness,
     stage: row.derivedStage,
-    due: row.due,
-    spelling: row.spelling,
+    retest: row.retest,
     sections: row.sectionReading,
     accentHex,
     onOpen: () => onOpenSong(row.song.id),
