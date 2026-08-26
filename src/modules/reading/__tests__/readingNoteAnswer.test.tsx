@@ -44,7 +44,7 @@ async function renderNote(focusRef: string): Promise<HTMLDivElement> {
   document.body.appendChild(container);
   root = createRoot(container);
   await act(async () => {
-    root!.render(<ReadingDrill skills={['note']} focusRefs={[focusRef]} autoStart />);
+    root!.render(<ReadingDrill skills={['note']} focusRefs={[focusRef]} onEnd={() => {}} autoStart />);
   });
   await act(async () => { await new Promise(r => setTimeout(r, 0)); });
   return container;

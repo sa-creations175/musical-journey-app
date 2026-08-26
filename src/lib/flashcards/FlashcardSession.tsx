@@ -23,6 +23,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import FluencyProtectionNotice from '../../components/FluencyProtectionNotice';
 import AnswerVerdict from '../../components/AnswerVerdict';
+import EndSessionButton from '../../components/EndSessionButton';
 import { renderedOptions } from './optionOrder';
 
 /**
@@ -581,9 +582,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               )}
             </div>
           )}
-          <button onClick={handleEnd} className="text-neutral-500 hover:text-fluent">
-            end session
-          </button>
+          <EndSessionButton onEnd={handleEnd} />
         </div>
       </div>
 

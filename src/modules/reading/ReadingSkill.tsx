@@ -194,6 +194,7 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
         <ReadingDrill
           key={pool.join(',')}
           skills={pool}
+          onEnd={() => setDrilling(false)}
           autoStart
           {...(focusRefs && focusSkill !== undefined && lit.has(focusSkill) ? { focusRefs } : {})}
         />

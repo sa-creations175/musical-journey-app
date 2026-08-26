@@ -19,6 +19,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReadingStaff from './ReadingStaff';
+import EndSessionButton from '../../components/EndSessionButton';
 import FullSetPicker from '../../components/FullSetPicker';
 import AnswerVerdict from '../../components/AnswerVerdict';
 import { resolveReadingCard } from './renderCard';
@@ -194,6 +195,7 @@ function staffRangeBracket(clef: Clef): KeyboardBracket {
 export default function ReadingDrill({
   skills,
   focusRefs,
+  onEnd,
   autoStart = false,
 }: {
   /**
@@ -219,6 +221,14 @@ export default function ReadingDrill({
    * drill that serves nothing is worse than one that serves the module.
    */
   focusRefs?: readonly string[];
+  /**
+   * Leave the run — REQUIRED, because a drill with no way out is the
+   * defect this prop exists to close. The page that started the drill
+   * is the only thing that can stop it, so it hands the handler down
+   * and `EndSessionButton` calls it. Same control harmonic fluency's
+   * drill carries; see that component.
+   */
+  onEnd: () => void;
   /** Serve a card on mount. False until the reader starts a drill from
    *  a category card — see the effect below. */
   autoStart?: boolean;
@@ -418,6 +428,12 @@ export default function ReadingDrill({
        be checked to have started the run it says it started without a
        test having to answer its way through a queue to find out. */
     <div className="space-y-5" data-item-ref={card.itemRef} data-pool={poolKey}>
+      {/* THE WAY OUT, top-right, where the flashcard shell puts it.
+          Not a second control: the same component both drills render. */}
+      <div className="flex justify-end text-xs">
+        <EndSessionButton onEnd={onEnd} />
+      </div>
+
       {/* ---------------------------------------------------------
           The prompt. Key-signature COUNT cards show no staff — the
           prompt is a key name, and drawing the signature would be

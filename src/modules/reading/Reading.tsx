@@ -124,6 +124,7 @@ export default function Reading() {
       {drilling ? (
         <ReadingDrill
           skills={READING_SKILL_ORDER}
+          onEnd={() => setDrilling(false)}
           autoStart
         />
       ) : (
