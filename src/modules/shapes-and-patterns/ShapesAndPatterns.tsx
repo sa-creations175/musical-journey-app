@@ -1,16 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { getPref, setPref } from '../../lib/userPrefs';
-import { useUrlTabSync } from '../../lib/useUrlTabSync';
+import { useEffect, useMemo } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import TodayAndAttention from './TodayAndAttention';
-import ChordShapeDrills from './ChordShapeDrills';
-import ScaleDrills from './ScaleDrills';
-import VoiceLeadingDrills from './VoiceLeadingDrills';
-import MentalVizDrills from './MentalVizDrills';
 import {
   cleanupGhostKeyboardIfNeeded,
   cleanupScaleDirectionalDrillsIfNeeded,
 } from './cleanup';
-import type { QualityKind } from './catalog';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -22,38 +16,14 @@ import {
   isShapesSectionId,
   shapesCards,
 } from './homeCards';
-
-type TabId = 'chord-shapes' | 'scales' | 'voice-leading' | 'mental-viz';
-
-function isTabId(v: string): v is TabId {
-  return v === 'chord-shapes' || v === 'scales' || v === 'voice-leading' || v === 'mental-viz';
-}
-
-const PREF_ACTIVE_TAB = 'shapesAndPatternsActiveTab';
-const PREF_CHORD_SCOPE = 'shapesAndPatternsChordScope';
-
-// The tab strip's order and labels now live in `SHAPES_SECTIONS`,
-// which the cards read — scales first as the parent structure chords
-// derive from, mental viz last as the away-from-keyboard capstone.
-
-const DEFAULT_TAB: TabId = 'scales';
+import { SCROLL_TO_DETAIL_STATE, shapesSectionPath } from './sectionRoutes';
 
 export default function ShapesAndPatterns() {
-  const [tab, setTab] = useState<TabId>(DEFAULT_TAB);
-  const [chordScope, setChordScope] = useState<QualityKind | 'all'>('all');
-  const [prefsLoaded, setPrefsLoaded] = useState(false);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    (async () => {
-      const t = await getPref<TabId>(PREF_ACTIVE_TAB, DEFAULT_TAB);
-      if (isTabId(t)) {
-        setTab(t);
-      }
-      const s = await getPref<QualityKind | 'all'>(PREF_CHORD_SCOPE, 'all');
-      if (s === 'all' || s === 'triad' || s === 'seventh' || s === 'extension' || s === 'special') {
-        setChordScope(s);
-      }
-      setPrefsLoaded(true);
+    void (async () => {
       // Retire any ghost-keyboard orphan drill rows from legacy data.
       await cleanupGhostKeyboardIfNeeded();
       // Collapse legacy ascending/descending scale drills into the
@@ -62,11 +32,23 @@ export default function ShapesAndPatterns() {
     })();
   }, []);
 
-  // Sidebar sub-items land here as /shapes-and-patterns?tab=<id>.
-  useUrlTabSync<TabId>('tab', isTabId, setTab);
-
-  useEffect(() => { if (prefsLoaded) void setPref(PREF_ACTIVE_TAB, tab); }, [tab, prefsLoaded]);
-  useEffect(() => { if (prefsLoaded) void setPref(PREF_CHORD_SCOPE, chordScope); }, [chordScope, prefsLoaded]);
+  /**
+   * `?tab=<id>` STILL LANDS, and now it lands on the section's page.
+   *
+   * The skills catalogue's jump and the session generator's
+   * quick-launch both build one, and both are stored as strings in
+   * places this module does not own. Rewriting them would be a
+   * migration; redirecting is a line, and the redirect is where the
+   * old address is turned into the new one exactly once.
+   *
+   * DECIDED HERE, RETURNED BELOW — after every hook has run. An early
+   * return above them would make the hook list depend on the URL,
+   * which is the one thing React will not have.
+   */
+  const tabParam = searchParams.get('tab');
+  const redirectTo = tabParam !== null && isShapesSectionId(tabParam)
+    ? shapesSectionPath(tabParam)
+    : null;
 
   const shapesRows = useLiveQuery(
     () => db.spacingState.where('moduleRef').equals(SHAPES_MODULE_REF).toArray(),
@@ -83,6 +65,8 @@ export default function ShapesAndPatterns() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [shapesRows, mentalVizRows],
   );
+
+  if (redirectTo !== null) return <Navigate to={redirectTo} replace />;
 
   return (
     <div className="space-y-6">
@@ -107,24 +91,24 @@ export default function ShapesAndPatterns() {
           passes `accuracy: null` and the card omits both rather than
           drawing an empty one.
 
-          `?tab=` STILL LANDS. The sidebar's sub-items, the skills
-          catalogue's jump and the session generator's quick-launch all
-          arrive with one, and `useUrlTabSync` above still reads it — a
-          card tap is a second way in, not a replacement for the URL. */}
+          THE MATRICES LEFT THIS PAGE. Each sub-module is a route now —
+          see `ShapesAndPatternsSection` — so Open goes to it rather
+          than switching a section underneath the cards. `?tab=` still
+          lands: the redirect above turns it into the same address. */}
       <CategoryCardGrid
         cards={cards}
         moduleId={SHAPES_MODULE_ID}
-        onDrill={key => { if (isShapesSectionId(key)) setTab(key); }}
+        onDrill={key => {
+          if (isShapesSectionId(key)) navigate(shapesSectionPath(key));
+        }}
+        onProgressDetail={key => {
+          if (!isShapesSectionId(key)) return;
+          // The detail this asks about is that page's matrix, so the
+          // press is a navigation carrying the request with it.
+          navigate(shapesSectionPath(key), { state: SCROLL_TO_DETAIL_STATE });
+        }}
         now={now}
       />
-
-      {tab === 'chord-shapes' && (
-        <ChordShapeDrills scope={chordScope} onScopeChange={setChordScope} />
-      )}
-      {tab === 'scales' && <ScaleDrills />}
-      {tab === 'voice-leading' && <VoiceLeadingDrills />}
-      {tab === 'mental-viz' && <MentalVizDrills />}
-
     </div>
   );
 }

@@ -160,10 +160,10 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'shapes & patterns',
         to: '/shapes-and-patterns',
         children: [
-          { label: 'scale drills',        to: '/shapes-and-patterns?tab=scales' },
-          { label: 'chord shape drills',  to: '/shapes-and-patterns?tab=chord-shapes' },
-          { label: 'voice-leading drills',to: '/shapes-and-patterns?tab=voice-leading' },
-          { label: 'mental visualisation',to: '/shapes-and-patterns?tab=mental-viz' },
+          { label: 'scale drills',        to: '/shapes-and-patterns/scales' },
+          { label: 'chord shape drills',  to: '/shapes-and-patterns/chord-shapes' },
+          { label: 'voice-leading drills',to: '/shapes-and-patterns/voice-leading' },
+          { label: 'mental visualisation',to: '/shapes-and-patterns/mental-viz' },
         ],
       },
       {

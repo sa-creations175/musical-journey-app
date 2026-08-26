@@ -17,6 +17,7 @@
 import { CATEGORY_LABELS } from '../modules/harmonic-fluency/catalog';
 import { isCategory } from '../modules/harmonic-fluency/categoryRoutes';
 import { READING_SKILL_LABELS } from '../modules/reading/homeCards';
+import { SHAPES_SECTIONS } from '../modules/shapes-and-patterns/homeCards';
 import { readingSkillForSlug } from '../modules/reading/skillRoutes';
 import { titleCase } from './labelCase';
 
@@ -84,6 +85,13 @@ const DYNAMIC_TITLES: ReadonlyArray<{
     prefix: '/harmonic-fluency/',
     labelFor: slug =>
       (isCategory(slug) ? CATEGORY_LABELS[slug] : null),
+  },
+  {
+    prefix: '/shapes-and-patterns/',
+    labelFor: slug => {
+      const section = SHAPES_SECTIONS.find(x => x.id === slug);
+      return section === undefined ? null : titleCase(section.label);
+    },
   },
   {
     prefix: '/reading/',

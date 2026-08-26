@@ -17,6 +17,7 @@ import { MODULE_ORDER } from '../moduleMeta';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../modules/harmonic-fluency/catalog';
 import { READING_SKILL_LABELS, READING_SKILL_ORDER } from '../../modules/reading/homeCards';
 import { readingSkillPath } from '../../modules/reading/skillRoutes';
+import { SHAPES_SECTIONS } from '../../modules/shapes-and-patterns/homeCards';
 
 describe('titleForPath', () => {
   it('names every live module route', () => {
@@ -51,6 +52,11 @@ describe('titleForPath', () => {
       expect(titleForPath(`/harmonic-fluency/${category}`), category)
         .toBe(CATEGORY_LABELS[category]);
     }
+    for (const section of SHAPES_SECTIONS) {
+      const title = titleForPath(`/shapes-and-patterns/${section.id}`);
+      expect(title, section.id).not.toBe('Musical Journey');
+      expect(title.toLowerCase(), section.id).toBe(section.label);
+    }
     for (const skill of READING_SKILL_ORDER) {
       const title = titleForPath(readingSkillPath(skill));
       expect(title, skill).not.toBe('Musical Journey');
@@ -63,6 +69,7 @@ describe('titleForPath', () => {
     // must not invent a name for it on the way.
     expect(titleForPath('/harmonic-fluency/plagal-cadences')).toBe('Musical Journey');
     expect(titleForPath('/reading/tablature')).toBe('Musical Journey');
+    expect(titleForPath('/shapes-and-patterns/arpeggios')).toBe('Musical Journey');
   });
 
   it('does not swallow the static siblings of a drill route', () => {
@@ -71,6 +78,8 @@ describe('titleForPath', () => {
     expect(titleForPath('/reading/calendar')).toBe('Reading · Calendar');
     expect(titleForPath('/harmonic-fluency/calendar'))
       .toBe('Harmonic Fluency · Calendar');
+    expect(titleForPath('/shapes-and-patterns/calendar'))
+      .toBe('Shapes & Patterns · Calendar');
   });
 });
 

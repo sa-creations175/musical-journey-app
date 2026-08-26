@@ -19,6 +19,7 @@ import ScalesModesCalendar from './modules/ear-training/scales-modes/ScalesModes
 import Repertoire from './modules/repertoire/Repertoire';
 import SongPracticeCalendar from './modules/repertoire/SongPracticeCalendar';
 import ShapesAndPatterns from './modules/shapes-and-patterns/ShapesAndPatterns';
+import ShapesAndPatternsSection from './modules/shapes-and-patterns/ShapesAndPatternsSection';
 import ShapesAndPatternsCalendar from './modules/shapes-and-patterns/ShapesAndPatternsCalendar';
 import Production from './modules/production/Production';
 import SessionLog from './modules/session-log/SessionLog';
@@ -113,6 +114,13 @@ export default function App() {
                 first. */}
             <Route path="repertoire/calendar" element={<SongPracticeCalendar />} />
             <Route path="shapes-and-patterns" element={<ShapesAndPatterns />} />
+            {/* The dynamic segment is ranked below `calendar` by
+                react-router, so a static sibling cannot be read as a
+                section. An unknown slug redirects from inside. */}
+            <Route
+              path="shapes-and-patterns/:section"
+              element={<ShapesAndPatternsSection />}
+            />
             <Route path="shapes-and-patterns/calendar" element={<ShapesAndPatternsCalendar />} />
             <Route path="production" element={<Production />} />
             <Route path="production/calendar" element={<ProductionCalendar />} />
