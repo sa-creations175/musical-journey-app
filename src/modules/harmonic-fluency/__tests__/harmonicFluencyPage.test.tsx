@@ -57,6 +57,9 @@ async function settle(ready: () => boolean): Promise<void> {
 
 afterEach(async () => {
   await db.attempts.clear();
+  // The page persists its filter and its display prefs, so a test that
+  // seeds one must not leave it for the next.
+  await db.userPrefs.clear();
   if (root) await act(async () => root!.unmount());
   container?.remove();
   root = null; container = null;
@@ -146,6 +149,36 @@ describe('the two card actions', () => {
     // start button are both gone.
     expect(el.querySelector('[data-testid="category-card-grid"]')).toBeNull();
     expect(byText(/all categories mixed/i)).toBeUndefined();
+  });
+
+  it('leaves a saved category filter behind when the MIXED drill starts', async () => {
+    /**
+     * The defect this pins: "all categories mixed" used to start with
+     * whatever `harmonicFluencyCategoryFilter` held, and a card's
+     * "drill category" writes that pref. Drilling one category once
+     * left every later mixed run serving only that category, in this
+     * visit and in every visit afterwards, with nothing on screen
+     * saying so.
+     *
+     * MEASURED BY QUEUE LENGTH, and the fixture is what makes that
+     * mean something. `tritone-pairs` holds fewer cards than a session
+     * targets, so a run drawn from it alone CANNOT reach the target —
+     * a full-length queue is proof the pool was not the saved filter.
+     * Both numbers come off the catalog, so the day either of them
+     * changes this fails rather than quietly stops testing anything.
+     */
+    const POISON = 'tritone-pairs';
+    const supply = FLASHCARDS.filter(c => c.category === POISON).length;
+    await db.userPrefs.put({ key: 'harmonicFluencyCategoryFilter', value: [POISON] });
+
+    const el = await renderPage();
+    await click(byText(/all categories mixed/i), 'mixed drill');
+
+    const header = el.textContent ?? '';
+    const queueLength = Number(/card\s*1\s*\/\s*(\d+)/.exec(header)?.[1]);
+    expect(queueLength, 'a session is running').toBeGreaterThan(0);
+    expect(supply, 'the fixture category is smaller than a session')
+      .toBeLessThan(queueLength);
   });
 
   it('opens progress detail from Progress Detail', async () => {

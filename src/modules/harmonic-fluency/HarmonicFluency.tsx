@@ -43,6 +43,18 @@ export default function HarmonicFluency() {
   const [timerMode, setTimerMode] = useState<TimerMode>('off');
   const [selectedCategories, setSelectedCategories] = useState<Set<FlashcardCategory>>(new Set());
   const [flaggedOnly, setFlaggedOnly] = useState(false);
+  /**
+   * The categories the RUNNING session was built from. Empty means the
+   * whole deck.
+   *
+   * Separate from `selectedCategories` on purpose. That one is a
+   * persisted landing filter — a sub-item link or a card's drill writes
+   * it, and it survives a reload — so reading it to describe a session
+   * already in progress answers a question about the page rather than
+   * about the run. That is exactly how the mixed drill came to serve
+   * one category; see `handleStart`.
+   */
+  const [sessionCategories, setSessionCategories] = useState<FlashcardCategory[]>([]);
   const [sessionQueue, setSessionQueue] = useState<ReturnType<typeof buildSession> extends Promise<infer R> ? R | null : null>(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
@@ -145,6 +157,7 @@ export default function HarmonicFluency() {
       }
       setSessionQueue(session);
       setSessionActive(true);
+      setSessionCategories([]);
       setAutoStarted(true);
       setLastSummary(null);
     })();
@@ -220,11 +233,30 @@ export default function HarmonicFluency() {
     }
     setSessionQueue(session);
     setSessionActive(true);
+    setSessionCategories(categories);
     setAutoStarted(false);
     setLastSummary(null);
   };
 
-  const handleStart = () => startWith([...selectedCategories]);
+  /**
+   * THE MIXED DRILL IS ALWAYS THE WHOLE DECK, and passes that
+   * explicitly.
+   *
+   * It used to start with `[...selectedCategories]`, and that is what
+   * made a button labelled "all categories mixed" serve one category.
+   * `selectedCategories` is written by a card's drill and by a sub-item
+   * link, and it is PERSISTED under `harmonicFluencyCategoryFilter` —
+   * so drilling Scale Degree Math once from its card left the filter
+   * set to that one category in the user's prefs, and every mixed run
+   * afterwards, in that session and in every later one, quietly served
+   * Scale Degree Math. Nothing on the page said so, because the
+   * category picker that used to display the filter is gone.
+   *
+   * `buildSession` reads an empty list as "every category", so this is
+   * the whole deck by the same route the Level-3 auto-start already
+   * takes.
+   */
+  const handleStart = () => startWith([]);
 
   /**
    * A card's "drill category": narrow to that one category and start.
@@ -313,7 +345,7 @@ export default function HarmonicFluency() {
               // so correct answers shouldn't count toward fluency tiers.
               // Auto-started runs use the full pool, so never focus-protect.
               !autoStarted &&
-              (flaggedOnly || selectedCategories.size > 0) &&
+              (flaggedOnly || sessionCategories.length > 0) &&
               sessionQueue.cards.length < 4
             }
           />
