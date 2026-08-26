@@ -24,6 +24,7 @@ import type { Spelling } from '../lib/spelling';
 import SyncDiagnosticsSection from './SyncDiagnosticsSection';
 import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
 import SpacingSettingsSection from '../modules/repertoire/SpacingSettingsSection';
+import PracticeWindowSettingsSection from '../modules/repertoire/PracticeWindowSettingsSection';
 import SeededKeyRowsPanel from '../modules/repertoire/SeededKeyRowsPanel';
 import {
   PREF_LAST_EXPORTED_AT,
@@ -485,6 +486,13 @@ export default function SettingsPanel({ open, onClose }: Props) {
               this is them. The rest of what it promised is still to
               come, so the note keeps the rest. */}
           <DailyGoalsSection />
+
+          {/* BESIDE THE DAILY GOALS, because it is the same kind of
+              setting: how much practice the reader asks of themselves.
+              Not beside the spacing numbers, which decide when a CLAIM
+              has to be re-proven — a different question with a
+              different answer. */}
+          <PracticeWindowSettingsSection />
 
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">

@@ -73,6 +73,12 @@ export interface SongCardProps {
    * that is for one function to produce both.
    */
   sections: SectionChipReading;
+  /**
+   * Past this song's practice window for its rung — see
+   * `practiceWindowPrefs`. Separate from `retest`: a song can be
+   * neglected without any claim having decayed.
+   */
+  practiceStale: boolean;
   onOpen: () => void;
   /** Opens this song's chart. The same page as `onOpen`, arriving at
    *  the lead sheet rather than at the top. */
@@ -100,6 +106,7 @@ export default function SongCard({
   stage,
   retest,
   sections,
+  practiceStale,
   onOpen,
   onOpenLeadSheet,
   accentHex,
@@ -224,8 +231,17 @@ export default function SongCard({
         <CardSubLine testId="song-card-section-footer">
           {footer}
         </CardSubLine>
-        <CardSubLine testId="song-card-last-practised">
-          {lastPractisedLabel === 'never' ? 'not practised yet' : `last ${lastPractisedLabel}`}
+        {/* AMBER MEANS NEGLECTED, and only ever that. The badge above
+            carries whether the RUNG still stands; this line carries
+            whether the song has been played. Two facts, two places, so
+            "needs attention" cannot come to mean both at once. */}
+        <CardSubLine
+          testId="song-card-last-practised"
+          className={practiceStale ? 'text-developing' : 'text-neutral-500'}
+        >
+          <span data-stale={practiceStale ? 'true' : 'false'}>
+            {lastPractisedLabel === 'never' ? 'not practised yet' : `last ${lastPractisedLabel}`}
+          </span>
           <span className="text-neutral-400 mx-1">·</span>
           {addedLabel}
         </CardSubLine>

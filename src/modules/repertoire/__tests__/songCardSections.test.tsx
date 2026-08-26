@@ -31,6 +31,7 @@ function render(sections: SectionChipReading, over: Partial<{
   stage: Song['stage'];
   lastPractisedLabel: string;
   retest: SongRetestState | null;
+  practiceStale: boolean;
   onOpen: () => void;
   onOpenLeadSheet: () => void;
 }> = {}) {
@@ -46,6 +47,7 @@ function render(sections: SectionChipReading, over: Partial<{
         freshness="stale"
         stage={over.stage ?? 'learning'}
         retest={over.retest ?? null}
+        practiceStale={over.practiceStale ?? false}
         sections={sections}
         accentHex="#a8556b"
         lastPractisedLabel={over.lastPractisedLabel ?? 'never'}
@@ -293,5 +295,40 @@ describe('the badge carries the retest state', () => {
     // there is anything to act on at all.
     const el = render(reading(), { stage: 'comfortable', retest: { state: 'due' } });
     expect(el.textContent).not.toContain('key of');
+  });
+});
+
+describe('the last practised line carries neglect', () => {
+  const line = (el: HTMLElement) =>
+    el.querySelector('[data-testid="song-card-last-practised"]') as HTMLElement;
+
+  it('is plain while the song is inside its window', () => {
+    const el = render(reading(), {
+      lastPractisedLabel: '3 days ago', practiceStale: false,
+    });
+    expect(line(el).className).toContain('text-neutral-500');
+    expect(line(el).className).not.toContain('text-developing');
+    expect(line(el).querySelector('[data-stale]')?.getAttribute('data-stale'))
+      .toBe('false');
+  });
+
+  it('goes amber once it is past', () => {
+    const el = render(reading(), {
+      lastPractisedLabel: '30 days ago', practiceStale: true,
+    });
+    expect(line(el).className).toContain('text-developing');
+    expect(line(el).querySelector('[data-stale]')?.getAttribute('data-stale'))
+      .toBe('true');
+  });
+
+  it('is the line that goes amber, not the badge', () => {
+    // TWO FACTS, TWO PLACES. The badge says whether the RUNG still
+    // stands; this line says whether the song has been played. A card
+    // showing one must not be read as showing the other.
+    const el = render(reading(), { stage: 'comfortable', retest: null, practiceStale: true });
+    const badge = el.querySelector('[data-testid="song-card-stage"]') as HTMLElement;
+    expect(badge.getAttribute('data-retest')).toBe('held');
+    expect(el.querySelector('[data-testid="song-card-retest"]')).toBeNull();
+    expect(line(el).className).toContain('text-developing');
   });
 });

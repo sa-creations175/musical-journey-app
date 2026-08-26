@@ -42,6 +42,12 @@ import { getPref, setPref } from '../../lib/userPrefs';
 import { dueByKeyId } from './matrix/proveKey';
 import { songRetestState } from './songRetestState';
 import {
+  PRACTICE_WINDOW_DEFAULTS,
+  getPracticeWindows,
+  practiceIsStale,
+  type PracticeWindows,
+} from './practiceWindowPrefs';
+import {
   SPACING_DEFAULTS,
   getSpacingSettings,
   windowsFrom,
@@ -180,6 +186,17 @@ export default function ActiveRepertoireView({
     void getSpacingSettings().then(s => { if (live) setSpacing(s); });
     return () => { live = false; };
   }, []);
+  // How long each rung may go untouched. Read the same way the spacing
+  // settings beside it are, and defaulting to the shipped values so the
+  // first paint says what a reader who has never opened settings would
+  // see anyway.
+  const [practiceWindows, setPracticeWindows] =
+    useState<PracticeWindows>(PRACTICE_WINDOW_DEFAULTS);
+  useEffect(() => {
+    let live = true;
+    void getPracticeWindows().then(w => { if (live) setPracticeWindows(w); });
+    return () => { live = false; };
+  }, []);
   const allKeyIds = useMemo(() => matrixKeys.map(k => k.id).join(','), [matrixKeys]);
   useEffect(() => {
     let live = true;
@@ -293,15 +310,22 @@ export default function ActiveRepertoireView({
         cells: cellsBySong.get(song.id) ?? [],
         songKeys: keysBySong.get(song.id) ?? [],
       });
+      // NEGLECT, NOT DECAY — see `practiceWindowPrefs`. Derived beside
+      // `retest` and deliberately not from it: a song whose keys are
+      // all comfortably inside their intervals can still have been left
+      // alone for a month.
+      const practiceStale = practiceIsStale(
+        lastPractisedAt, derivedStage, advancementNow, practiceWindows,
+      );
       return {
-        song, lastPractisedAt, freshness, derivedStage, retest,
+        song, lastPractisedAt, freshness, derivedStage, retest, practiceStale,
         spelling: resolveSpelling(song.spelling, globalSpelling),
         sectionReading,
       };
     });
   }, [
     songs, logsBySong, keysBySong, runsBySong, advancementNow, globalSpelling,
-    sectionsBySong, matrixSectionsBySong, cellsBySong,
+    sectionsBySong, matrixSectionsBySong, cellsBySong, practiceWindows,
   ]);
 
   const sortedSongs = useMemo(() => {
@@ -364,6 +388,7 @@ export default function ActiveRepertoireView({
     freshness: row.freshness,
     stage: row.derivedStage,
     retest: row.retest,
+    practiceStale: row.practiceStale,
     sections: row.sectionReading,
     accentHex,
     onOpen: () => onOpenSong(row.song.id),
