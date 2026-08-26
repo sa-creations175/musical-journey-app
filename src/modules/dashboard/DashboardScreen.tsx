@@ -52,6 +52,8 @@ import {
   type Comparison,
 } from './compare';
 import ColumnLegend, { ColumnHelpButton } from './ColumnLegend';
+import MobileDashboard from './mobile/MobileDashboard';
+import { useIsMobile } from '../../lib/useIsMobile';
 import type { ColumnTopic } from './bands';
 import type { RowNoteContext } from './read/affordances';
 
@@ -182,6 +184,10 @@ export default function DashboardScreen({
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const { dashboard, loading } = useDashboardData(now);
+  // A DIFFERENT SCREEN, not this one restyled — see `MobileDashboard`.
+  // Six columns do not fit a phone, and the honest response to that is
+  // a different shape rather than the same shape squeezed.
+  const isMobile = useIsMobile();
   const [comparison, setComparison] = useState<Comparison | null>(null);
   /**
    * Which column's rules are open, if any.
@@ -383,6 +389,14 @@ export default function DashboardScreen({
         Loading…
       </div>
     );
+  }
+
+  // AFTER the hooks and after loading, so the two layouts read the same
+  // data through the same path and cannot disagree about it. Returned
+  // rather than rendered alongside: shipping both with one hidden ships
+  // two subscriptions to every query behind them.
+  if (isMobile) {
+    return <MobileDashboard modules={modules} now={now} />;
   }
 
   return (

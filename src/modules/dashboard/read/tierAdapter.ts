@@ -18,6 +18,8 @@
  * Pure — no Dexie, no clock of its own.
  */
 import type { AttemptRecord } from '../../../lib/db';
+import { MASTERY_WINDOW, MIN_ATTEMPTS_FOR_TIER } from '../../../lib/tier';
+import type { TreeNode } from './tree';
 import { computeTier, type Tier } from '../../../lib/tier';
 import { catalogRollupKey } from './canonicalItemId';
 import type { ModuleCatalog } from './catalogs';
@@ -184,4 +186,58 @@ export function tierCountsForCatalog(
     bumpTier(counts, tierFromItemStats(stats, now));
   }
   return counts;
+}
+
+
+// =====================================================================
+// A TREE ROW'S TIER
+// =====================================================================
+
+/**
+ * The tier a NODE reads as — a whole category, not one item.
+ *
+ * =====================================================================
+ * AN APPROXIMATION, AND IT SAYS SO.
+ *
+ * `tierFromItemStats` above is exact: it has the real rolling window
+ * for one item. A category has no such window — it has the MEAN of its
+ * leaves' scores and a count of every engagement beneath it. So this
+ * projects the mean back onto a window: the count stands in for
+ * `windowTotal` and the mean decides how much of it was right.
+ *
+ * That is the same approximation `aggregation.ts` has made for the
+ * dashboard's own tier counts since it shipped, and the same one
+ * `registry.ts` makes from a flashcard's lifetime totals. Named here so
+ * a third copy does not appear.
+ *
+ * WHAT IT GETS RIGHT is the thing the colour is for: the band. What it
+ * cannot get right is `mastered`, which needs a full window of twenty
+ * with nothing wrong — over a category that is a claim about every item
+ * at once, and the mean cannot tell twenty perfect items from forty
+ * items averaging perfect. It is reachable, and it means what it says.
+ *
+ * SELF-RATED SCORES ARE NOT PERCENTAGES. Shapes & Patterns and the
+ * production lessons rate on a four-rung feel scale projected onto
+ * 0–100, where 75 is "comfortable" rather than "three quarters right".
+ * The thresholds still separate the rungs in the same order, so the
+ * band is honest; what would not be honest is calling a self-rated
+ * category `mastered`, which would mean twenty clean run-throughs
+ * nobody counted. Self-rated tops out at `fluent`.
+ * =====================================================================
+ */
+export function tierForNode(node: TreeNode, now: number): Tier {
+  if (node.score === null || node.engagementCount === 0) return 'untouched';
+  if (node.engagementCount < MIN_ATTEMPTS_FOR_TIER) return 'started';
+
+  const windowTotal = Math.min(MASTERY_WINDOW, node.engagementCount);
+  const windowCorrect = Math.round((node.score / 100) * windowTotal);
+  const daysSince = node.recency.mostRecentAt === null
+    ? null
+    : Math.floor((now - node.recency.mostRecentAt) / DAY_MS);
+  const tier = computeTier({ windowCorrect, windowTotal, daysSinceLastAttempt: daysSince });
+
+  // See the header: a rating scale cannot earn a perfect measured
+  // window, so it stops one rung below rather than claiming one.
+  if (node.accuracyKind === 'self-rated' && tier === 'mastered') return 'fluent';
+  return tier;
 }
