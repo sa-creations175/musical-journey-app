@@ -180,7 +180,7 @@ describe('the two card actions', () => {
     await click(card(cat)!.querySelector('[data-testid="category-card-toggle"]'), 'expand');
     await click(card(cat)!.querySelector('[data-testid="category-card-drill"]'), 'drill');
     expect(at()).toBe(`/harmonic-fluency/${cat}`);
-    // And the page that arrives is that category's, carrying its card.
+    // And the page that arrives is that category's.
     const page = el.querySelector('[data-testid="hf-category-page"]');
     expect(page?.getAttribute('data-category')).toBe(cat);
     expect(mixedDrill(), 'the mixed drill is not here').toBeNull();

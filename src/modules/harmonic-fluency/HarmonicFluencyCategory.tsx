@@ -20,12 +20,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { db } from '../../lib/db';
-import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
-import { harmonicFluencyCards } from './homeCards';
 import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
 import FluencySessionSettings from './FluencySessionSettings';
 import { useFluencyPrefs } from './useFluencyPrefs';
@@ -88,8 +85,6 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
   const [expandedDetails, setExpandedDetails] = useState<ReadonlySet<string>>(
     () => new Set([category]),
   );
-  /** A category to bring into view, set by a card's Progress Detail. */
-  const [scrollTo, setScrollTo] = useState<string | null>(null);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
   const [caughtUp, setCaughtUp] = useState(false);
@@ -112,7 +107,6 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
     () => db.attempts.where('moduleId').equals(MODULE_ID).toArray(),
     [],
   ) ?? [];
-  const spacingIntervals = useSpacingIntervals(MODULE_ID);
   const now = Date.now();
   const axisViews = useAxisViews();
 
@@ -131,12 +125,6 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
     return () => { live = false; };
   }, [attempts]);
 
-  // THE SAME CARDS THE MODULE HOME DRAWS, filtered to what is lit —
-  // so the cards under the row are the pool the row describes. Built
-  // from the same adapter, so the count, the freshness and the tier all
-  // say here exactly what they say there.
-  const cards = harmonicFluencyCards(attempts, spacingIntervals, now)
-    .filter(c => lit.has(c.key));
   const pool = CATEGORY_ORDER.filter(c => lit.has(c)) as FlashcardCategory[];
 
   const start = () => {
@@ -169,22 +157,6 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
-
-  /**
-   * A card's Progress Detail button: open that category's block and
-   * bring it into view.
-   *
-   * EXPANDING FIRST IS THE POINT. The button did nothing at all here,
-   * and scrolling to a collapsed header would be barely better — what
-   * the reader pressed for is the grid, so the grid has to be there
-   * when they arrive.
-   */
-  const openDetail = (key: string) => {
-    if (!isCategory(key)) return;
-    setExpandedDetails(prev => new Set(prev).add(key));
-    setScrollTo(key);
-  };
-
 
   return (
     <div className="space-y-6" data-testid="hf-category-page" data-category={category}>
@@ -224,16 +196,6 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
             Start Drill
           </button>
 
-          {/* Drilling from a card lands on the page it is already on,
-              so it starts rather than navigating. */}
-          <CategoryCardGrid
-            cards={cards}
-            moduleId={MODULE_ID}
-            onDrill={() => start()}
-            onProgressDetail={openDetail}
-            now={now}
-          />
-
           <FluencySessionSettings
             prefs={prefs}
             flaggedOnly={flaggedOnly}
@@ -245,8 +207,16 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
             sessionTarget={SESSION_TARGET}
           />
 
-          {/* THE DETAIL BLOCK, below the controls. The page's own
-              category expanded, everything else lit collapsed. */}
+          {/* THE DETAIL BLOCK IS THE PAGE'S ACCOUNT OF ITSELF.
+              A summary card used to sit above it, saying in a count and
+              a bar what the grid below says cell by cell — about the
+              one category the reader is already on, named by the lit
+              chip at the top. Two summaries of one thing, and the
+              smaller one first. The card is gone; this is what is left,
+              and it is the more honest of the two.
+
+              The page's own category expanded, everything else lit
+              collapsed. */}
           {axisViews.loaded && (
             <CategoryDetailStack
               entries={detailEntries}
@@ -256,8 +226,6 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
               now={now}
               viewFor={axisViews.viewFor}
               onViewChange={axisViews.setView}
-              scrollTo={scrollTo}
-              onScrolled={() => setScrollTo(null)}
             />
           )}
         </>

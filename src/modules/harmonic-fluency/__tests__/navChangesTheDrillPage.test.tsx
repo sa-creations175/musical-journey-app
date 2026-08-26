@@ -78,9 +78,11 @@ const allChips = () =>
   [...container!.querySelectorAll('[data-testid="pool-option"]')]
     .map(b => b.getAttribute('data-option'));
 
-const cardKeys = () =>
-  [...container!.querySelectorAll('[data-card-key]')]
-    .map(c => c.getAttribute('data-card-key'));
+/** No card grid on this page — the detail blocks ARE what the pool
+ *  renders as. Sorted where a test compares sets rather than order. */
+const detailBlockKeys = () =>
+  [...container!.querySelectorAll('[data-testid="category-detail"]')]
+    .map(d => d.getAttribute('data-detail-key'));
 
 /**
  * A sub-item by where it GOES, not by what it reads.
@@ -100,17 +102,20 @@ const click = async (el: Element | undefined) => {
 };
 
 describe('the nav moves the page', () => {
-  it('takes the chip row and the card with it', async () => {
+  it('takes the chip row and the detail block with it', async () => {
+    // THE RULE IS UNCHANGED: every surface on this page is derived from
+    // the one value in the URL, so they cannot disagree. The summary
+    // card used to be the third of them; the detail block is now.
     await render('/harmonic-fluency/modes');
     expect(page().getAttribute('data-category')).toBe('modes');
     expect(litChips()).toEqual(['modes']);
-    expect(cardKeys()).toEqual(['modes']);
+    expect(detailBlockKeys()).toEqual(['modes']);
 
     await click(navItem('intervals'));
 
     expect(page().getAttribute('data-category'), 'the page').toBe('intervals');
     expect(litChips(), 'the chip row').toEqual(['intervals']);
-    expect(cardKeys(), 'the cards').toEqual(['intervals']);
+    expect(detailBlockKeys(), 'the detail blocks').toEqual(['intervals']);
   });
 
   it('drops what was lit beside the old category', async () => {
@@ -162,32 +167,17 @@ describe('the detail block mirrors the chip row', () => {
   });
 });
 
-describe('Progress Detail on a card', () => {
-  it('expands that category\u2019s block', async () => {
-    // IT USED TO DO NOTHING HERE. The page had no detail block to open
-    // and the button was wired to nothing.
-    await render('/harmonic-fluency/modes?also=intervals');
-    const block = () =>
-      container!.querySelector('[data-detail-key="intervals"]')!;
-    expect(block().getAttribute('data-expanded')).toBe('false');
-
-    const card = container!.querySelector('[data-card-key="intervals"]')!;
-    await click(card.querySelector('[data-testid="category-card-toggle"]')!);
-    await click(card.querySelector('[data-testid="category-card-progress-detail"]')!);
-
-    expect(block().getAttribute('data-expanded')).toBe('true');
-    // The page's own stays open too — expanding is per category.
-    expect(container!.querySelector('[data-detail-key="modes"]')!
-      .getAttribute('data-expanded')).toBe('true');
-  });
-});
+// The card's Progress Detail button was tested here. There is no card
+// on this page any more, and the button's own rule is pinned where it
+// still exists — on the module home (`harmonicFluencyPage.test.tsx`)
+// and at the component seam (`categoryDetailStack.test.tsx`), which
+// asserts that the block asked for is the block scrolled to.
 
 describe('the chip row writes the same value', () => {
-  it('lights a second category and the cards and details follow', async () => {
+  it('lights a second category and the details follow', async () => {
     await render('/harmonic-fluency/modes');
     await click(container!.querySelector('[data-option="intervals"]')!);
     expect(litChips().sort()).toEqual(['intervals', 'modes']);
-    expect(cardKeys().sort()).toEqual(['intervals', 'modes']);
     const details = [...container!.querySelectorAll('[data-testid="category-detail"]')];
     expect(details.map(d => d.getAttribute('data-detail-key')).sort())
       .toEqual(['intervals', 'modes']);
@@ -221,8 +211,8 @@ describe('Select All on the chip row', () => {
     // that lit some fixed subset the catalogue has since outgrown.
     expect(litChips()).toEqual(allChips());
     expect(litChips().length).toBeGreaterThan(1);
-    // The cards are derived from the same value, so they move with it.
-    expect(cardKeys()).toEqual(allChips());
+    // The detail blocks are derived from the same value, so they follow.
+    expect(detailBlockKeys()).toEqual(allChips());
   });
 
   it('has nothing left to do afterwards', async () => {
@@ -231,5 +221,25 @@ describe('Select All on the chip row', () => {
     const control = container!
       .querySelector('[data-testid="pool-select-all"]') as HTMLButtonElement;
     expect(control.disabled).toBe(true);
+  });
+});
+
+describe('the page carries no summary card', () => {
+  it('renders no category card at all', async () => {
+    // DELETED, not hidden. The lit chip names the category and the grid
+    // below reports it cell by cell; a card between them was a third
+    // account of the same one thing.
+    await render('/harmonic-fluency/scale-degree-math');
+    expect(container!.querySelector('[data-testid="category-card-grid"]')).toBeNull();
+    expect(container!.querySelectorAll('[data-card-key]')).toHaveLength(0);
+  });
+
+  it('still opens its own detail block, with no button to press', async () => {
+    // The card's Progress Detail button was the only way to open one
+    // here. The page's own arrives expanded, so nothing was lost.
+    await render('/harmonic-fluency/scale-degree-math');
+    const own = container!.querySelector('[data-detail-key="scale-degree-math"]')!;
+    expect(own.getAttribute('data-expanded')).toBe('true');
+    expect(own.querySelector('[data-testid="progress-grid"]')).not.toBeNull();
   });
 });
