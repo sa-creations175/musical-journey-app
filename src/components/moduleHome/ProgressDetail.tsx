@@ -27,7 +27,8 @@ import { FALLBACK_INTERVAL_DAYS } from '../../lib/progressBar';
 import { TIER_BADGE_CLASS, TIER_BAR_CLASS, TIER_LABEL, type Tier } from '../../lib/tier';
 import type { SkillRecord } from '../../modules/skills/registry';
 import {
-  AS_DECLARED, SINGLE_ROW, TRANSPOSED, axisLabel, canTranspose, orientationField,
+  AS_DECLARED, HORIZONTAL, SINGLE_ROW, TRANSPOSED, VERTICAL, axisLabel,
+  canTranspose, layoutField, orientationField,
   orientedGrid, resolveView, type AxisSpec, type GridSpec,
 } from './axis';
 import { placeItems, type PlacedGrid } from './placeItems';
@@ -64,6 +65,16 @@ export default function ProgressDetail({
     () => (grid === null ? null : orientedGrid(grid, transposed)),
     [grid, transposed],
   );
+
+  /**
+   * WHICH DRAWING IS SHOWN. Horizontal the first time — nothing is
+   * remembered, and the table is what every other category shows —
+   * and thereafter whatever was last chosen. `Vertical` is the
+   * category's own component; a category with none has no toggle.
+   */
+  const Vertical = shown?.vertical;
+  const layoutKey = layoutField(categoryLabel);
+  const vertical = Vertical !== undefined && viewFor(layoutKey) === VERTICAL;
 
   const columnView = shown ? resolveView(shown.columns, viewFor(shown.columns.field)) : null;
   const rowView = shown
@@ -116,6 +127,37 @@ export default function ProgressDetail({
               />
             )}
 
+            {/* THE OTHER DRAWING, where the category has one. Not a
+                transpose: a table and a staff are two pictures of the
+                same items, not one picture turned — so it is its own
+                control and it does not disable that one. */}
+            {Vertical && (
+              <div
+                className="ml-auto inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5"
+                data-testid="grid-layout"
+                data-layout={vertical ? VERTICAL : HORIZONTAL}
+              >
+                {[HORIZONTAL, VERTICAL].map(id => {
+                  const on = (id === VERTICAL) === vertical;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      data-testid={`grid-layout-${id}`}
+                      aria-pressed={on}
+                      onClick={() => onViewChange(layoutKey, id)}
+                      className={`px-2 py-0.5 rounded-md text-[11px] ${
+                        on ? 'text-white' : 'text-neutral-500'
+                      }`}
+                      style={on ? { backgroundColor: accentHex } : undefined}
+                    >
+                      {LAYOUT_LABEL[id]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {turnable && (
               <button
                 type="button"
@@ -139,7 +181,9 @@ export default function ProgressDetail({
               headers and is told which group it is labelling, because
               the columns mean a different thing in each — see
               `splitRows`. Unsplit is the same single table as before. */}
-          {shown.splitRows ? (
+          {vertical && Vertical ? (
+            <Vertical items={items} onOpen={setOpenItem} />
+          ) : shown.splitRows ? (
             g.rows.map(r => (
               <GridTable
                 key={String(r)}
@@ -342,6 +386,20 @@ function GridTable({
  * the grid, it remembers, it is keyed per category.
  */
 const ORIENTATION_LABEL = '';
+
+/**
+ * The two sides of the layout toggle.
+ *
+ * These are Silas's own words for them — "a toggle between horizontal
+ * and vertical" — kept as constants rather than inlined so that
+ * renaming them is one edit. Unlike the orientation control above,
+ * this one cannot ship nameless: two blank buttons would be a choice
+ * with nothing to choose between.
+ */
+const LAYOUT_LABEL: Readonly<Record<string, string>> = {
+  [HORIZONTAL]: 'horizontal',
+  [VERTICAL]: 'vertical',
+};
 
 /**
  * One axis's orderings, as a row of buttons. Nothing when the axis has

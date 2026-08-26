@@ -33,7 +33,7 @@
  * (the amber already behind every progress bar's wrong answers) and
  * `fluent` for middle C. The staff itself is ink.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { buildLadder, type StaffPosition } from './staffLadder';
 import { useMnemonics } from './mnemonics';
 
@@ -87,10 +87,29 @@ export interface StaffReferenceProps {
   showOctavesInitially?: boolean;
   /** Whether a mnemonic can be edited here. The panel is for reading. */
   editable?: boolean;
+  /**
+   * WHAT SITS BESIDE EACH LETTER INSTEAD OF ITS MNEMONIC.
+   *
+   * =================================================================
+   * ONE COMPONENT, TWO PURPOSES.
+   *
+   * The progress detail wanted this exact drawing — the ladder, both
+   * staves, the dotted ledgers, middle C — with each position carrying
+   * its tier rather than its words. Drawing a second staff to do that
+   * would be a second answer to where every note sits.
+   *
+   * A slot rather than a `mode`, so this file never learns what a tier
+   * is. Given, the mnemonic column is that caller's; absent, it is the
+   * mnemonics, which is what the reference page and the reveal panel
+   * both want.
+   * =================================================================
+   */
+  renderAside?: (pos: StaffPosition) => ReactNode;
 }
 
 export default function StaffReference({
   highlight = null, showOctavesInitially = true, editable = false,
+  renderAside,
 }: StaffReferenceProps) {
   const ladder = buildLadder();
   const { mnemonics, set } = useMnemonics();
@@ -283,18 +302,25 @@ export default function StaffReference({
               mnemonic={mnemonics[pos.id] ?? ''}
               editable={editable}
               onCommit={value => set(pos.id, value)}
+              {...(renderAside ? { aside: renderAside(pos) } : {})}
             />
           ))}
         </div>
       </div>
 
-      {/* The legend, beneath the card. Three facts the colours carry. */}
+      {/* The legend, beneath the card. Three facts the colours carry.
+
+          THE LEDGER LINE IS ABOUT MNEMONICS, so it goes where the
+          mnemonic column has been taken — it tells the reader to write
+          words in a column that is not there. Its colour then goes
+          unexplained in that view, which is a word Silas has yet to
+          write rather than something to invent here. */}
       <div className="flex gap-5 flex-wrap mt-4 text-xs text-neutral-500" data-testid="staff-legend">
         {[
-          { swatch: 'bg-neutral-700 dark:bg-neutral-300', text: 'staff line' },
-          { swatch: 'bg-developing', text: 'ledger — no mnemonic yet, write your own' },
-          { swatch: 'bg-fluent', text: 'middle C, shared by both clefs' },
-        ].map(item => (
+          { swatch: 'bg-neutral-700 dark:bg-neutral-300', text: 'staff line', aboutMnemonics: false },
+          { swatch: 'bg-developing', text: 'ledger — no mnemonic yet, write your own', aboutMnemonics: true },
+          { swatch: 'bg-fluent', text: 'middle C, shared by both clefs', aboutMnemonics: false },
+        ].filter(item => renderAside === undefined || !item.aboutMnemonics).map(item => (
           <span key={item.text} className="inline-flex items-center gap-1.5">
             <span aria-hidden className={`inline-block w-4 h-0.5 ${item.swatch}`} />
             {item.text}
@@ -314,10 +340,12 @@ interface RowProps {
   mnemonic: string;
   editable: boolean;
   onCommit: (value: string) => void;
+  /** Present when a caller has taken the mnemonic column. */
+  aside?: ReactNode;
 }
 
 function Row({
-  pos, top, left, showOctave, highlighted, mnemonic, editable, onCommit,
+  pos, top, left, showOctave, highlighted, mnemonic, editable, onCommit, aside,
 }: RowProps) {
   const isLine = pos.kind === 'line';
 
@@ -359,7 +387,12 @@ function Row({
         )}
       </span>
 
-      {pos.spellsFace ? (
+      {aside !== undefined ? (
+        // THE COLUMN IS THE CALLER'S. `spellsFace` is a fact about
+        // mnemonics — the four treble spaces need none — and it has
+        // nothing to say about whatever is in this column instead.
+        <span data-testid="staff-aside" className="min-w-[128px]">{aside}</span>
+      ) : pos.spellsFace ? (
         // NOTHING IN THIS COLUMN, and nothing said about it either. The
         // four spaces are their own mnemonic; a prompt here would ask
         // for a mnemonic for the mnemonic, and a tag beside them would

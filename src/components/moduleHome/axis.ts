@@ -24,6 +24,8 @@
  * of whatever turned up.
  * =====================================================================
  */
+import type { ComponentType } from 'react';
+import type { SkillRecord } from '../../modules/skills/registry';
 
 /** One ordering of an axis. A view is DISPLAY ONLY. */
 export interface AxisView {
@@ -96,6 +98,23 @@ export interface GridSpec {
    * unchanged: this is how the same placement is DRAWN.
    */
   splitRows?: boolean;
+  /**
+   * THE SAME ITEMS, DRAWN THE OTHER WAY UP — supplied as a component,
+   * because the second drawing is not a table and cannot be described
+   * by axes.
+   *
+   * Reading's is the notation reference it already teaches from, with
+   * each position coloured by its tier. A category that supplies one
+   * gets a toggle; every other has only the table, and no toggle.
+   */
+  vertical?: ComponentType<VerticalViewProps>;
+}
+
+/** What a vertical view is handed: the category's items, and the way
+ *  to open one — the same two things a cell press carries. */
+export interface VerticalViewProps {
+  items: readonly SkillRecord[];
+  onOpen: (item: SkillRecord) => void;
 }
 
 /** The single row a 1-D grid renders along. Its value never shows. */
@@ -157,6 +176,30 @@ export const AS_DECLARED = 'as-declared';
 
 export function orientationField(categoryLabel: string): string {
   return `${ORIENTATION_FIELD_PREFIX}${categoryLabel}`;
+}
+
+// ---------------------------------------------------------------------
+// Layout — the table, or the category's own vertical drawing
+// ---------------------------------------------------------------------
+
+/**
+ * WHICH DRAWING IS SHOWN, remembered exactly as the orientation is.
+ *
+ * A different kind of choice from transposing: the two are not the same
+ * picture turned, they are a table and a staff. But it is remembered
+ * for the same reason and through the same store — re-choosing a view
+ * on every visit is the friction that makes a view stop being used.
+ *
+ * HORIZONTAL IS THE DEFAULT because it is what every other category
+ * shows; absent means the table.
+ */
+export const LAYOUT_FIELD_PREFIX = 'grid-layout:';
+
+export const HORIZONTAL = 'horizontal';
+export const VERTICAL = 'vertical';
+
+export function layoutField(categoryLabel: string): string {
+  return `${LAYOUT_FIELD_PREFIX}${categoryLabel}`;
 }
 
 /**

@@ -23,6 +23,7 @@ import {
   type Clef,
 } from './catalog';
 import { ledgerLinesFor, pitchAtStaffPosition, scientificPitch } from './pitch';
+import NoteLadder from './NoteLadder';
 import { CIRCLE_OF_FOURTHS_KEYS } from '../repertoire/matrix/keys';
 import type { AxisSpec, GridSpec } from '../../components/moduleHome/axis';
 import { READING_CATEGORY_LABEL } from './skillRecords';
@@ -130,6 +131,9 @@ const NOTE_GRID: GridSpec = {
   },
   rows: oneView('clef', 'clef', CLEFS),
   splitRows: true,
+  // THE OTHER WAY UP IS THE NOTATION REFERENCE — the same drawing the
+  // reveal panel teaches from, coloured by tier. See `NoteLadder`.
+  vertical: NoteLadder,
 };
 
 export const READING_GRIDS: Readonly<Record<string, GridSpec | null>> = {

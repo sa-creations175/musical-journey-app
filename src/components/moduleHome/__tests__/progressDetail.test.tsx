@@ -14,7 +14,9 @@ import ProgressDetail from '../ProgressDetail';
 import { TIER_BAR_CLASS, TIER_LABEL, type Tier } from '../../../lib/tier';
 import { placeItems, columnItems } from '../placeItems';
 import {
-  AS_DECLARED, TRANSPOSED, orientationField, viewsAgree,
+  AS_DECLARED, HORIZONTAL, TRANSPOSED, VERTICAL, layoutField, orientationField,
+  viewsAgree,
+  type VerticalViewProps,
   type AxisSpec, type GridSpec,
 } from '../axis';
 import type { SkillRecord } from '../../../modules/skills/registry';
@@ -488,5 +490,79 @@ describe('a grid split by its rows', () => {
   it('cannot be turned — the rows are already separate tables', async () => {
     const el = await render(ITEMS, SPLIT);
     expect(el.querySelector('[data-testid="grid-orientation"]')).toBeNull();
+  });
+});
+
+describe('the layout toggle', () => {
+  /** A stand-in for reading's ladder: any component the category
+   *  supplies, handed the items and the way to open one. */
+  function Alt({ items, onOpen }: VerticalViewProps) {
+    return (
+      <button
+        type="button"
+        data-testid="alt-view"
+        data-count={items.length}
+        onClick={() => onOpen(items[0])}
+      />
+    );
+  }
+
+  const WITH_ALT: GridSpec = { ...GRID, vertical: Alt };
+
+  it('is not offered by a category with no second drawing', async () => {
+    const el = await render();
+    expect(el.querySelector('[data-testid="grid-layout"]')).toBeNull();
+  });
+
+  it('opens horizontal the first time, with nothing remembered', async () => {
+    const el = await render(ITEMS, WITH_ALT);
+    expect(el.querySelector('[data-testid="grid-layout"]')!.getAttribute('data-layout'))
+      .toBe(HORIZONTAL);
+    expect(el.querySelector('[data-testid="progress-grid"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="alt-view"]')).toBeNull();
+  });
+
+  it('opens on what was last used', async () => {
+    const { el } = await renderRemembering(
+      { [layoutField('Key signatures')]: VERTICAL }, WITH_ALT,
+    );
+    expect(el.querySelector('[data-testid="alt-view"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="progress-grid"]')).toBeNull();
+  });
+
+  it('remembers per category, under a key no axis can collide with', async () => {
+    const { el, wrote } = await renderRemembering({}, WITH_ALT);
+    await act(async () => {
+      el.querySelector<HTMLButtonElement>('[data-testid="grid-layout-vertical"]')!.click();
+    });
+    expect(wrote).toEqual([[layoutField('Key signatures'), VERTICAL]]);
+    expect(layoutField('Key signatures')).toContain('Key signatures');
+    expect(el.querySelector('[data-testid="alt-view"]')).not.toBeNull();
+
+    await act(async () => {
+      el.querySelector<HTMLButtonElement>('[data-testid="grid-layout-horizontal"]')!.click();
+    });
+    expect(wrote[1]).toEqual([layoutField('Key signatures'), HORIZONTAL]);
+    expect(el.querySelector('[data-testid="progress-grid"]')).not.toBeNull();
+  });
+
+  it('hands the vertical view every item in the category', async () => {
+    // The tail included — a second drawing is not a second placement,
+    // and what it can show is its own business.
+    const { el } = await renderRemembering(
+      { [layoutField('Key signatures')]: VERTICAL }, WITH_ALT,
+    );
+    expect(el.querySelector('[data-testid="alt-view"]')!.getAttribute('data-count'))
+      .toBe(String(ITEMS.length));
+  });
+
+  it('opens an item from the vertical view, as a cell does', async () => {
+    const { el } = await renderRemembering(
+      { [layoutField('Key signatures')]: VERTICAL }, WITH_ALT,
+    );
+    await act(async () => {
+      el.querySelector<HTMLButtonElement>('[data-testid="alt-view"]')!.click();
+    });
+    expect(el.querySelector('[data-testid="item-detail"]')).not.toBeNull();
   });
 });
