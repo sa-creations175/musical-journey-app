@@ -299,7 +299,12 @@ describe('the two card actions', () => {
       .toBeLessThan(queueLength);
   });
 
-  it('opens progress detail from Progress Detail', async () => {
+  it('goes to the category page for Progress Detail, not a panel here', async () => {
+    // IT USED TO OPEN A SECOND COPY OF THE CHART on this page, below
+    // every card — a screen down from the button pressed, and a second
+    // render of a block the category page already has. Asserting the
+    // ROUTE is what makes this fail on that implementation: a panel
+    // opened in place would still satisfy the two lines below it.
     const el = await renderPage();
     const cat = 'tritone-pairs';
     await click(card(cat)!.querySelector('[data-testid="category-card-toggle"]'), 'expand');
@@ -307,9 +312,18 @@ describe('the two card actions', () => {
     // Enabled here, unlike a module with no detail surface wired.
     expect((detail as HTMLButtonElement).disabled).toBe(false);
     await click(detail, 'progress detail');
+
+    expect(at(), 'the category page').toBe(`/harmonic-fluency/${cat}`);
     const panel = el.querySelector('[data-testid="progress-detail"]');
-    expect(panel).not.toBeNull();
+    expect(panel, 'its detail block').not.toBeNull();
     expect(panel!.textContent).toContain(CATEGORY_LABELS[cat]);
+    // And the module home is gone — one block, on one page.
+    expect(el.querySelector('[data-testid="mixed-drill-start"]')).toBeNull();
+  });
+
+  it('leaves no detail block on the module home at all', async () => {
+    const el = await renderPage();
+    expect(el.querySelector('[data-testid="progress-detail"]')).toBeNull();
   });
 });
 

@@ -9,11 +9,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
-import ProgressDetail from '../../components/moduleHome/ProgressDetail';
-import { useAxisViews } from '../../components/moduleHome/useAxisViews';
-import { moduleMetaById } from '../../lib/moduleMeta';
-import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
-import { HARMONIC_FLUENCY_GRIDS } from './progressGrids';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { harmonicFluencyCards } from './homeCards';
 import { db } from '../../lib/db';
@@ -24,9 +19,9 @@ import { mixedDrillLabel } from '../../components/moduleHome/mixedDrillLabel';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import { categoryPath, isCategory } from './categoryRoutes';
+import { detailHref } from '../../lib/detailLanding';
 import type { SessionStats } from './HarmonicFluencySession';
 import {
-  CATEGORY_LABELS,
   CATEGORY_ORDER,
   FLASHCARDS,
   type FlashcardCategory,
@@ -97,21 +92,6 @@ export default function HarmonicFluency() {
   const spacingIntervals = useSpacingIntervals(MODULE_ID);
   const now = Date.now();
 
-  /** Which category's progress detail is open, if any. */
-  const [detailCategory, setDetailCategory] = useState<FlashcardCategory | null>(null);
-  const axisViews = useAxisViews();
-  /**
-   * The registry, built only while a detail panel is open. It walks
-   * every module, so paying for it on arrival would slow the module
-   * home for the visits that never open one.
-   */
-  const [records, setRecords] = useState<SkillRecord[] | null>(null);
-  useEffect(() => {
-    if (detailCategory === null) return;
-    let live = true;
-    void buildSkillRegistry().then(r => { if (live) setRecords(r); });
-    return () => { live = false; };
-  }, [detailCategory, allAttempts]);
   const cards = harmonicFluencyCards(allAttempts, spacingIntervals, now);
 
   /**
@@ -218,29 +198,22 @@ export default function HarmonicFluency() {
               DRILL CATEGORY IS A LINK NOW. It used to narrow the pool
               and start a run on this page; a category has its own page,
               and that is where its drills are started. */}
+          {/* PROGRESS DETAIL GOES TO THE CATEGORY'S PAGE, landing on
+              its chart. It used to open a second copy of that chart
+              below every card here — a full screen down from the button
+              that opened it, which read as doing nothing, and a second
+              render of a block that already exists on the category
+              page. Open and Progress Detail now go to the same page and
+              differ only in where they land. */}
           <CategoryCardGrid
             cards={cards}
             moduleId={MODULE_ID}
             onDrill={key => { if (isCategory(key)) navigate(categoryPath(key)); }}
-            onProgressDetail={key => { if (isCategory(key)) setDetailCategory(key); }}
+            onProgressDetail={key => {
+              if (isCategory(key)) navigate(detailHref(categoryPath(key)));
+            }}
             now={now}
           />
-
-          {detailCategory !== null && axisViews.loaded && (
-            <ProgressDetail
-              categoryLabel={CATEGORY_LABELS[detailCategory]}
-              items={(records ?? []).filter(
-                r => r.moduleId === MODULE_ID
-                  && r.category === CATEGORY_LABELS[detailCategory],
-              )}
-              grid={HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS[detailCategory]] ?? null}
-              accentHex={moduleMetaById(MODULE_ID)?.accentHex ?? '#7a5aa8'}
-              now={now}
-              viewFor={axisViews.viewFor}
-              onViewChange={axisViews.setView}
-              onClose={() => setDetailCategory(null)}
-            />
-          )}
 
           {/* SESSION SETTINGS, REACHED FROM THE STREAK ROW. They
               configure the mixed drill above, which is one of sixteen

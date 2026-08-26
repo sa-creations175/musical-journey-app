@@ -19,17 +19,11 @@
  * Nothing here writes an attempt; see ReadingDrill.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
-import ProgressDetail from '../../components/moduleHome/ProgressDetail';
-import { useAxisViews } from '../../components/moduleHome/useAxisViews';
-import { moduleMetaById } from '../../lib/moduleMeta';
-import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
-import { READING_CATEGORY_LABEL } from './skillRecords';
-import { READING_GRIDS } from './progressGrids';
 import { db } from '../../lib/db';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import ReadingDrill from './ReadingDrill';
@@ -39,7 +33,7 @@ import {
   READING_MODULE_ID, READING_SKILL_ORDER, isReadingCardKey, readingCards,
 } from './homeCards';
 import { readingSkillPath } from './skillRoutes';
-import type { ReadingDrillSkill } from './pickCard';
+import { detailHref } from '../../lib/detailLanding';
 
 export default function Reading() {
   const navigate = useNavigate();
@@ -63,33 +57,12 @@ export default function Reading() {
   // is no route change to notice, because this page IS that route.
   useEndOnModuleHome(() => setDrilling(false));
 
-  /** Which skill's progress detail is open, if any. */
-  const [detailSkill, setDetailSkill] = useState<ReadingDrillSkill | null>(null);
-  const axisViews = useAxisViews();
-
   const attempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(READING_MODULE_ID).toArray(),
     [],
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(READING_MODULE_ID);
   const now = Date.now();
-  // The registry, only while a detail panel is open. It walks every
-  // module, so paying for it on arrival would make the module home
-  // slower for a surface most visits never open.
-  const [records, setRecords] = useState<SkillRecord[] | null>(null);
-  useEffect(() => {
-    if (detailSkill === null) return;
-    let live = true;
-    void buildSkillRegistry().then(r => { if (live) setRecords(r); });
-    return () => { live = false; };
-  }, [detailSkill, attempts]);
-
-  const dueByItem = useLiveQuery(async () => {
-    const rows = await db.spacingState
-      .where('moduleRef').equals(READING_MODULE_ID).toArray();
-    return new Map(rows.map(r => [r.itemRef, r.nextDueAt] as const));
-  }, []) ?? new Map<string, number | null>();
-
   const cards = useMemo(
     () => readingCards(attempts, spacingIntervals, now),
     // `now` is deliberately not a dep — it changes every render and
@@ -139,11 +112,18 @@ export default function Reading() {
         </button>
       )}
 
+      {/* PROGRESS DETAIL GOES TO THE SKILL'S PAGE, landing on its
+          chart — the same page Open goes to, differing only in where it
+          lands. It used to open a second copy of that chart below the
+          cards here, which is both a long way from the button pressed
+          and a second render of a block the skill page already has. */}
       <CategoryCardGrid
         cards={cards}
         moduleId={READING_MODULE_ID}
         onDrill={key => { if (isReadingCardKey(key)) navigate(readingSkillPath(key)); }}
-        onProgressDetail={key => { if (isReadingCardKey(key)) setDetailSkill(key); }}
+        onProgressDetail={key => {
+          if (isReadingCardKey(key)) navigate(detailHref(readingSkillPath(key)));
+        }}
         now={now}
       />
 
@@ -156,22 +136,6 @@ export default function Reading() {
         />
       )}
 
-      {detailSkill !== null && axisViews.loaded && (
-        <ProgressDetail
-          categoryLabel={READING_CATEGORY_LABEL[detailSkill]}
-          items={(records ?? []).filter(
-            r => r.moduleId === READING_MODULE_ID
-              && r.category === READING_CATEGORY_LABEL[detailSkill],
-          )}
-          grid={READING_GRIDS[READING_CATEGORY_LABEL[detailSkill]] ?? null}
-          accentHex={moduleMetaById(READING_MODULE_ID)?.accentHex ?? '#6f4a2f'}
-          now={now}
-          viewFor={axisViews.viewFor}
-          onViewChange={axisViews.setView}
-          dueByItem={dueByItem}
-          onClose={() => setDetailSkill(null)}
-        />
-      )}
     </div>
   );
 }

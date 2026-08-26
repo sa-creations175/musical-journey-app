@@ -35,6 +35,7 @@ import { moduleMetaById } from '../../lib/moduleMeta';
 import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import { HARMONIC_FLUENCY_GRIDS } from './progressGrids';
 import { useLitPool } from '../../lib/useLitPool';
+import { useDetailLanding } from '../../lib/detailLanding';
 import { isCategory } from './categoryRoutes';
 import type { SessionStats } from './HarmonicFluencySession';
 import { CATEGORY_LABELS, CATEGORY_ORDER, type FlashcardCategory } from './catalog';
@@ -110,6 +111,13 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
   ) ?? [];
   const now = Date.now();
   const axisViews = useAxisViews();
+  /**
+   * A card on the module home asked to land on this page's chart.
+   *
+   * The block is already expanded — it is the page's own category — so
+   * all that is left is to bring it into view. See `detailLanding`.
+   */
+  const landing = useDetailLanding(category);
 
   /**
    * The registry, for the detail blocks below.
@@ -245,6 +253,8 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
               now={now}
               viewFor={axisViews.viewFor}
               onViewChange={axisViews.setView}
+              scrollTo={landing.scrollTo}
+              onScrolled={landing.onScrolled}
             />
           )}
         </>

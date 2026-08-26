@@ -39,6 +39,7 @@ import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import { READING_CATEGORY_LABEL } from './skillRecords';
 import { READING_GRIDS } from './progressGrids';
 import { useLitPool } from '../../lib/useLitPool';
+import { useDetailLanding } from '../../lib/detailLanding';
 import {
   READING_MODULE_ID, READING_SKILL_LABELS, READING_SKILL_ORDER,
   isReadingCardKey, readingCards,
@@ -89,7 +90,13 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
   const [expandedDetails, setExpandedDetails] = useState<ReadonlySet<string>>(
     () => new Set([skill]),
   );
-  /** A skill to bring into view, set by a card's Progress Detail. */
+  /**
+   * A skill to bring into view — asked for by a card's Progress Detail,
+   * here or on the module home. One mechanism for both: the module home
+   * writes it into the URL, this page's own cards set it directly, and
+   * `CategoryDetailStack` does the scrolling either way.
+   */
+  const landing = useDetailLanding(skill);
   const [scrollTo, setScrollTo] = useState<string | null>(null);
 
   const attempts = useLiveQuery(
@@ -211,8 +218,8 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
           viewFor={axisViews.viewFor}
           onViewChange={axisViews.setView}
           dueByItem={dueByItem}
-          scrollTo={scrollTo}
-          onScrolled={() => setScrollTo(null)}
+          scrollTo={scrollTo ?? landing.scrollTo}
+          onScrolled={() => { setScrollTo(null); landing.onScrolled(); }}
         />
       )}
     </div>
