@@ -41,7 +41,9 @@ function render(sections: SectionChipReading) {
         due={null}
         spelling="flat"
         sections={sections}
+        accentHex="#a8556b"
         onOpen={() => {}}
+        onOpenLeadSheet={() => {}}
       />,
     );
   });
@@ -140,7 +142,11 @@ describe('a song with no lead sheet', () => {
     expect(el.querySelector('[data-testid="song-card-no-sections"]')?.textContent)
       .toBe('No sections in this lead sheet');
     expect(el.querySelector('[data-testid="song-card-section-chips"]')).toBeNull();
-    expect(el.querySelector('[data-testid="song-card-section-footer"]')).toBeNull();
+    // THE LINE IS RESERVED, AND SAYS NOTHING. It holds its height so a
+    // song with no sections and one with six split at the same place;
+    // what matters is that it makes no claim, not that it is absent.
+    expect(el.querySelector('[data-testid="song-card-section-footer"]')?.textContent)
+      .toBe('');
     // And nothing anywhere claims a zero.
     expect(el.textContent).not.toContain('0 of 0');
     expect(el.textContent).not.toContain('0 sections');

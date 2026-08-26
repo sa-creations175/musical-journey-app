@@ -1,6 +1,12 @@
 /**
  * The module-home card. One component, three modules.
  *
+ * THE SHELL IS `cardShell.tsx`, NOT THIS FILE. Size, tint, the header's
+ * written height, the reserved sub-lines and the button row moved there
+ * when the song card needed the same ones — a second card matching this
+ * one by hand is how two cards come to be nearly the same. What is left
+ * here is what a CATEGORY card says.
+ *
  * =====================================================================
  * EXPANDING AND DRILLING ARE SEPARATE TAPS.
  *
@@ -38,79 +44,17 @@ import ProgressBar from '../ProgressBar';
 import { FALLBACK_INTERVAL_DAYS, barSegments, unratedLabel } from '../../lib/progressBar';
 import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
 import { titleCase } from '../../lib/labelCase';
+import {
+  CARD_ACTION_LABEL,
+  CardActions,
+  CardShell,
+  CardSubLine,
+  CardTitleBlock,
+  cardTint,
+} from './cardShell';
 import type { CategoryCardBar, CategoryCardModel } from './model';
 
-/**
- * The floor every card stands on, wherever it is rendered.
- *
- * A FLOOR, NOT A HEIGHT. The tallest card in a row still sets that
- * row's height — grid stretch has always done that, and nothing here
- * writes a fixed one. This stops a card with the fewest lines from
- * being markedly shorter than the same card on another module home,
- * which is what made reading's grid read as a different component from
- * ear training's.
- *
- * It lives on the card rather than on a page for the same reason the
- * width does: a page that could set it would set a different one.
- */
-const CARD_MIN_HEIGHT = 'min-h-[6.5rem]';
-
-/**
- * =====================================================================
- * THE TINT BOUNDARY IS AT ONE HEIGHT, AND CONTENT CANNOT MOVE IT.
- *
- * Two cards in a row split at different heights, and the reason was
- * wrapping: a long name pushed the count onto a second line, the header
- * grew by a line, and the bar and the buttons went down with it.
- * "Named Notes Across Keys" and "Tritone Pairs" sat side by side with
- * their bars at different y.
- *
- * So the header's text does not size the header. Two things do it:
- *
- *   1. THE COUNT IS FLOATED, so it never occupies a line of its own.
- *      A short name sits beside it; a long one wraps UNDER it. Either
- *      way the count is at the top right and has added nothing.
- *   2. THE TITLE BLOCK IS A FIXED TWO LINES. One-line names leave the
- *      second line empty inside the tint rather than shrinking it, and
- *      a name that would take three is clipped rather than allowed to
- *      push the boundary down.
- *
- * The two sub-lines below it — the optional `countDetail` and the
- * stats line, either of which can be absent — reserve their line the
- * same way, so a card carrying one matches a card that does not.
- * That was the OTHER half of the same complaint: ear training's
- * intervals card has a `countDetail` and chord recognition does not.
- *
- * DERIVED ONCE, HERE. Every number below is this component's own and
- * no page or module can set one — a per-module height is how six
- * module homes come to be six slightly different components.
- *
- * WHAT THIS DOES NOT COVER: the per-hand bars, which only Shapes &
- * Patterns draws and which vary one to three WITHIN that module.
- * Reserving three bar rows on every card in the app would buy S&P's
- * alignment with a band of empty tint on five other modules. Named
- * rather than silently left — see the report.
- * =====================================================================
- */
-/** The title's own leading — `leading-5`, in rem. */
-const TITLE_LEADING_REM = 1.25;
-/** The tallest case a name can produce. Beyond this it clips. */
-const TITLE_LINES = 2;
-const TITLE_BLOCK_HEIGHT = `${TITLE_LINES * TITLE_LEADING_REM}rem`;
-/** The sub-lines' leading — `leading-4`, in rem. Reserved whether the
- *  line has anything in it or not. */
-const SUB_LINE_HEIGHT = '1rem';
-
-/**
- * What a card's action says, on every module home.
- *
- * ONE LABEL, DEFINED ONCE. It was per module — "drill category", "open
- * module", "open drills" — on the reasoning that each module's action
- * differed. It does not: every one of them opens the thing the card is
- * about. Three wordings for one action just made the reader check
- * whether they were three actions.
- */
-export const CARD_ACTION_LABEL = 'Open';
+export { CARD_ACTION_LABEL };
 
 export interface CategoryCardProps {
   card: CategoryCardModel;
@@ -163,12 +107,10 @@ export default function CategoryCard({
    * =================================================================
    */
   return (
-    <section
-      data-testid="category-card"
+    <CardShell
+      accentHex={accentHex}
       data-card-key={card.key}
       data-expanded={expanded ? 'true' : 'false'}
-      className={`rounded-xl border overflow-hidden bg-white dark:bg-neutral-900 flex flex-col ${CARD_MIN_HEIGHT}`}
-      style={{ borderColor: `${accentHex}33` }}
     >
       <button
         type="button"
@@ -176,31 +118,26 @@ export default function CategoryCard({
         aria-expanded={expanded}
         data-testid="category-card-toggle"
         className="w-full text-left px-3 pt-3 pb-2 transition-colors"
-        style={{ backgroundColor: `${accentHex}0f` }}
+        style={{ backgroundColor: cardTint(accentHex) }}
       >
-        {/* A BLOCK, NOT A FLEX ROW — floats do nothing inside a flex
-            container, and the float is what keeps the count out of the
-            line count. `overflow-hidden` is the ceiling: a third line
-            is clipped rather than allowed to move the boundary. */}
-        <div
-          className="overflow-hidden"
-          style={{ height: TITLE_BLOCK_HEIGHT }}
-          data-testid="category-card-title-block"
-        >
-          <span
-            className="float-right ml-2 text-[11px] leading-5 text-neutral-500 tabular-nums whitespace-nowrap"
-            data-testid="category-card-count"
-          >
+        <CardTitleBlock
+          trailing={(
+            <span
+              className="float-right ml-2 text-[11px] leading-5 text-neutral-500 tabular-nums whitespace-nowrap"
+              data-testid="category-card-count"
+            >
             {/* ACQUIRED WHERE THE MODULE HAS ONE, seen otherwise. The
                 two are different questions in Shapes & Patterns and
                 the same everywhere else; a module says which it means
                 by supplying the field or not — and says so in words,
                 because "12/96" alone cannot tell the reader which of
                 the two it is counting. */}
-            {card.acquired !== undefined
-              ? `${card.acquired} of ${card.itemCount} acquired`
-              : `${card.itemsSeen}/${card.itemCount}`}
-          </span>
+              {card.acquired !== undefined
+                ? `${card.acquired} of ${card.itemCount} acquired`
+                : `${card.itemsSeen}/${card.itemCount}`}
+            </span>
+          )}
+        >
           {/* TITLE CASE HERE, not in six adapters. The adapters hand
               over the canonical label — the catalog's own words — and
               the style is applied where the title is drawn, the same
@@ -219,19 +156,11 @@ export default function CategoryCard({
               {TIER_LABEL[acc.tier]}
             </span>
           )}
-        </div>
+        </CardTitleBlock>
         {/* RESERVED WHETHER IT HAS ANYTHING IN IT OR NOT. A card with a
             countDetail and one without must split at the same height. */}
-        <div
-          className="mt-0.5 text-[11px] leading-4 text-neutral-400 tabular-nums"
-          style={{ minHeight: SUB_LINE_HEIGHT }}
-        >
-          {card.countDetail}
-        </div>
-        <div
-          className="mt-0.5 text-[11px] leading-4 text-neutral-500 tabular-nums"
-          style={{ minHeight: SUB_LINE_HEIGHT }}
-        >
+        <CardSubLine className="text-neutral-400">{card.countDetail}</CardSubLine>
+        <CardSubLine>
           {acc !== null && (
             pending !== null
               ? <span className="text-neutral-400">{pending}</span>
@@ -257,7 +186,7 @@ export default function CategoryCard({
               </span>
             </>
           )}
-        </div>
+        </CardSubLine>
 
         {/* ONE BAR PER HAND, where the module drills the same item more
             than one way. Two segments over a neutral track: acquired,
@@ -285,7 +214,7 @@ export default function CategoryCard({
           — it just has nothing to draw inside it. */}
       <div
         className="px-3 pb-2 grow"
-        style={{ backgroundColor: expanded ? undefined : `${accentHex}0f` }}
+        style={{ backgroundColor: expanded ? undefined : cardTint(accentHex) }}
       >
         {acc !== null && (
           <ProgressBar
@@ -306,40 +235,26 @@ export default function CategoryCard({
             </p>
           )}
 
-          <div className="flex gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={onDrill}
-              data-testid="category-card-drill"
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-white"
-              style={{ backgroundColor: accentHex }}
-            >
-              {CARD_ACTION_LABEL}
-            </button>
-            {/* STILL DISABLED WHERE THERE IS NOTHING TO OPEN. A module
-                without a detail surface gets an obviously inert button
-                rather than one that opens an empty page — a control
-                that looks live and is not is the defect this avoids. */}
-            <button
-              type="button"
-              disabled={onProgressDetail === undefined}
-              onClick={onProgressDetail}
-              data-testid="category-card-progress-detail"
-              {...(onProgressDetail === undefined
-                ? { title: 'Progress detail is not built for this module yet.' }
-                : {})}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${
-                onProgressDetail === undefined
-                  ? 'border-neutral-200 dark:border-neutral-700 text-neutral-400 cursor-not-allowed'
-                  : 'border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300 hover:border-neutral-500'
-              }`}
-            >
-              Progress Detail
-            </button>
-          </div>
+          <CardActions
+            accentHex={accentHex}
+            primary={{
+              label: CARD_ACTION_LABEL,
+              onClick: onDrill,
+              testId: 'category-card-drill',
+            }}
+            secondary={{
+              label: 'Progress Detail',
+              onClick: onProgressDetail,
+              testId: 'category-card-progress-detail',
+              // STILL DISABLED WHERE THERE IS NOTHING TO OPEN.
+              ...(onProgressDetail === undefined
+                ? { disabledReason: 'Progress detail is not built for this module yet.' }
+                : {}),
+            }}
+          />
         </div>
       )}
-    </section>
+    </CardShell>
   );
 }
 

@@ -12,9 +12,9 @@ import {
 import {
   SortableContext,
   arrayMove,
+  rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
@@ -30,11 +30,12 @@ import {
 import { readSectionChips } from './sectionChips';
 import {
   STAGES,
-  STAGE_LABEL,
   deriveStage,
   freshnessFor,
   humanAgo,
 } from './stage';
+import { CardGrid, NO_MODULE_ACCENT } from '../../components/moduleHome/cardShell';
+import { moduleMetaById } from '../../lib/moduleMeta';
 import SongCard, { formatAddedDate, type SongCardProps } from './SongCard';
 import AddSongModal from './AddSongModal';
 import { getPref, setPref } from '../../lib/userPrefs';
@@ -52,6 +53,8 @@ import { useSpelling } from '../../lib/spellingPref';
 interface Props {
   songs: Song[];
   onOpenSong: (songId: string) => void;
+  /** Opens the song page at its chart rather than at the top. */
+  onOpenLeadSheet: (songId: string) => void;
   /** Opens the want-to-learn backlog. It stopped being a tab when the
    *  ribbon went; Add Song is how it is reached now. */
   onOpenWantToLearn: () => void;
@@ -77,6 +80,9 @@ const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
   { id: 'by-freshness',     label: 'by freshness (stalest first)' },
 ];
 
+/** The module this home belongs to — its accent tints the cards. */
+const MODULE_ID = 'repertoire';
+
 const PREF_SORT_MODE = 'repertoireSortMode';
 // One-time flag — flipped true the first time we land an existing user
 // in learning-order mode after the v21 introduction. Without this, an
@@ -93,8 +99,11 @@ const FRESHNESS_RANK: Record<ReturnType<typeof freshnessFor>, number> = {
 };
 
 export default function ActiveRepertoireView({
-  songs, onOpenSong, onOpenWantToLearn,
+  songs, onOpenSong, onOpenLeadSheet, onOpenWantToLearn,
 }: Props) {
+  // THE MODULE'S OWN ACCENT, read the way every other module home reads
+  // it. A song card is tinted by repertoire, not by a hex written here.
+  const accentHex = moduleMetaById(MODULE_ID)?.accentHex ?? NO_MODULE_ACCENT;
   const [globalSpelling] = useSpelling();
   const [showAdd, setShowAdd] = useState(false);
   /** The Add Song menu, open or not. */
@@ -294,19 +303,6 @@ export default function ActiveRepertoireView({
     sectionsBySong, matrixSectionsBySong, cellsBySong,
   ]);
 
-  const stageCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const s of STAGES) counts[s] = 0;
-    for (const { derivedStage } of perSong) {
-      counts[derivedStage] = (counts[derivedStage] ?? 0) + 1;
-    }
-    return counts;
-  }, [perSong]);
-
-  const needsAttentionCount = perSong.filter(
-    p => p.freshness === 'aging' || p.freshness === 'stale',
-  ).length;
-
   const sortedSongs = useMemo(() => {
     const rows = [...perSong];
     const byDateAdded = (a: Song, b: Song) => a.addedDate - b.addedDate;
@@ -352,6 +348,28 @@ export default function ActiveRepertoireView({
     return rows;
   }, [perSong, sortMode]);
 
+  /**
+   * One card's props, built in ONE place.
+   *
+   * Both branches below render the same card from the same row; two
+   * hand-written prop lists is how the sortable one comes to be missing
+   * the field the other just gained.
+   */
+  const cardProps = (row: typeof perSong[number]): SongCardProps => ({
+    song: row.song,
+    lastPractisedAt: row.lastPractisedAt,
+    lastPractisedLabel: humanAgo(row.lastPractisedAt),
+    addedLabel: formatAddedDate(row.song.addedDate),
+    freshness: row.freshness,
+    stage: row.derivedStage,
+    due: row.due,
+    spelling: row.spelling,
+    sections: row.sectionReading,
+    accentHex,
+    onOpen: () => onOpenSong(row.song.id),
+    onOpenLeadSheet: () => onOpenLeadSheet(row.song.id),
+  });
+
   // Drag-to-reorder — only active in learning-order mode. dnd-kit
   // sensors: pointer (5px activation distance prevents accidental
   // drags from intentional taps) + keyboard (accessibility — Space
@@ -378,56 +396,18 @@ export default function ActiveRepertoireView({
     });
   };
 
-  // Stage one-liner formatted for humans.
-  const stageLine = STAGES.map(s => `${STAGE_LABEL[s]}: ${stageCounts[s] ?? 0}`).join(' · ');
-
-  const hasCallouts = needsAttentionCount > 0;
-
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-4">
-      {/* Top-of-page: big count + subtitle + stage line + optional
-          callouts. Scales from big hero number down to muted details. */}
-      <div className="space-y-1">
-        <div className="flex items-baseline gap-3 flex-wrap">
-          <span className="font-medium tabular-nums leading-none text-[2.5rem] sm:text-[3rem]">
-            {songs.length}
-          </span>
-          <span className="text-lg sm:text-xl text-neutral-700 dark:text-neutral-200">
-            {songs.length === 1 ? 'song' : 'songs'}
-          </span>
-        </div>
-        <p className="text-sm text-neutral-500">
-          {songs.length === 0
-            ? 'your active repertoire is empty — click "+ add song" to start one.'
-            : 'in your active repertoire'}
-        </p>
-      </div>
+      {/* THE COUNT BLOCK IS GONE, and with it the stage tally and the
+          "N songs need attention" callout.
 
-      {songs.length > 0 && (
-        <p className="text-xs text-neutral-500">
-          {stageLine}
-        </p>
-      )}
-
-      {hasCallouts && (
-        <div className="space-y-1.5 text-sm">
-          {needsAttentionCount > 0 && (
-            <div className="inline-flex items-center gap-2 rounded-md border border-developing/30 bg-developing/10 text-developing px-3 py-1.5">
-              <span aria-hidden>🟠</span>
-              <span>
-                <span className="font-medium font-mono tabular-nums">{needsAttentionCount}</span>{' '}
-                {needsAttentionCount === 1 ? 'song needs' : 'songs need'} attention
-              </span>
-            </div>
-          )}
-          {/* NO "READY TO ADVANCE" COUNT. Advancing is not a thing you
-              do any more — `deriveStage` puts a song on the highest rung
-              its evidence earns, so meeting the criteria IS the
-              promotion. The count could only ever have been zero; see
-              the note on `readyToAdvance` in SongCard. */}
-        </div>
-      )}
-
+          It was a summary of the list directly beneath it: a hero
+          number that counted the cards you could see, a stage line that
+          re-totalled the badges on them, and an attention count that
+          re-read the freshness dot each card already wears. Three
+          answers to questions the cards answer per song, costing a band
+          of vertical space above the thing the page is for. The stage
+          counts live on the cards now, and due lives on the badges. */}
       <hr className="border-neutral-200 dark:border-neutral-800" />
 
       {/* Sort control */}
@@ -446,8 +426,17 @@ export default function ActiveRepertoireView({
         </label>
       </div>
 
-      {/* Song cards — vertical sortable list in learning-order mode,
-          3-col grid in every other sort mode. */}
+      {/* ONE GRID, EVERY SORT MODE. It used to be a full-width vertical
+          list in learning-order and a hand-written 3-column grid in
+          every other mode — two layouts for one list, and neither the
+          one the other module homes use. `CardGrid` is that one, so a
+          song card is the same object as a category card and the sort
+          control no longer changes what the page looks like, only what
+          order it is in.
+
+          Reordering still belongs to learning-order alone; what changed
+          is that the grip rides the card rather than a rail beside it,
+          because a grid has no left-hand gutter to put one in. */}
       {sortedSongs.length === 0 ? (
         <div className="rounded-lg border border-dashed border-neutral-200 dark:border-neutral-800 p-8 text-center text-sm text-neutral-500">
           no songs yet. starter songs seed automatically — if you've cleared your data, click
@@ -461,45 +450,21 @@ export default function ActiveRepertoireView({
         >
           <SortableContext
             items={sortedSongs.map(s => s.song.id)}
-            strategy={verticalListSortingStrategy}
+            strategy={rectSortingStrategy}
           >
-            <div className="space-y-2">
-              {sortedSongs.map(({ song, lastPractisedAt, freshness, derivedStage, due, spelling, sectionReading }) => (
-                <SortableSongRow
-                  key={song.id}
-                  song={song}
-                  lastPractisedAt={lastPractisedAt}
-                  lastPractisedLabel={humanAgo(lastPractisedAt)}
-                  addedLabel={formatAddedDate(song.addedDate)}
-                  freshness={freshness}
-                  stage={derivedStage}
-                  due={due}
-                  spelling={spelling}
-                  sections={sectionReading}
-                  onOpen={() => onOpenSong(song.id)}
-                />
+            <CardGrid>
+              {sortedSongs.map(row => (
+                <SortableSongCard key={row.song.id} {...cardProps(row)} />
               ))}
-            </div>
+            </CardGrid>
           </SortableContext>
         </DndContext>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {sortedSongs.map(({ song, lastPractisedAt, freshness, derivedStage, due, spelling, sectionReading }) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              lastPractisedAt={lastPractisedAt}
-              lastPractisedLabel={humanAgo(lastPractisedAt)}
-              addedLabel={formatAddedDate(song.addedDate)}
-              freshness={freshness}
-              stage={derivedStage}
-              due={due}
-              spelling={spelling}
-              sections={sectionReading}
-              onOpen={() => onOpenSong(song.id)}
-            />
+        <CardGrid>
+          {sortedSongs.map(row => (
+            <SongCard key={row.song.id} {...cardProps(row)} />
           ))}
-        </div>
+        </CardGrid>
       )}
 
       {/* =================================================================
@@ -565,23 +530,19 @@ export default function ActiveRepertoireView({
 }
 
 /**
- * Exactly `SongCard`'s props, derived rather than restated.
+ * A song card that can be dragged, in the grid it already sits in.
  *
- * It used to be a hand-copied list of the same eight fields, which
- * meant adding one to the card broke this in a second place and could
- * as easily have gone unnoticed until the wrapper silently stopped
- * forwarding it. The wrapper adds a drag handle and forwards
- * everything else; the type should say only that.
+ * THE GRIP RIDES THE CARD. It used to be a rail to the left of a
+ * full-width row, which a grid has no room for — so the handle is
+ * handed to `SongCard` as its title line's leading element, where it
+ * reads as part of the card rather than as furniture around it.
+ *
+ * Props are `SongCardProps` exactly, derived rather than restated: a
+ * hand-copied list meant adding a field to the card broke this in a
+ * second place, and could as easily have gone unnoticed until the
+ * wrapper silently stopped forwarding it.
  */
-type SortableSongRowProps = SongCardProps;
-
-/**
- * SongCard with a left-side drag handle, registered with dnd-kit's
- * useSortable so the parent SortableContext can reorder it. Only used
- * in learning-order mode — other sort modes render the plain SongCard
- * in a 3-col grid.
- */
-function SortableSongRow(props: SortableSongRowProps) {
+function SortableSongCard(props: SongCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: props.song.id });
   const style: CSSProperties = {
@@ -590,18 +551,22 @@ function SortableSongRow(props: SortableSongRowProps) {
     opacity: isDragging ? 0.5 : 1,
   };
   return (
-    <div ref={setNodeRef} style={style} className="flex items-stretch gap-2">
-      <button
-        type="button"
-        aria-label={`drag to reorder ${props.song.title}`}
-        {...attributes}
-        {...listeners}
-        className="shrink-0 px-2 flex items-center justify-center rounded-md border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900 text-neutral-400 hover:text-neutral-700 hover:border-fluent/40 cursor-grab active:cursor-grabbing touch-none"
-      >
-        <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
-      </button>
+    <div ref={setNodeRef} style={style} className="flex">
       <div className="flex-1 min-w-0">
-        <SongCard {...props} />
+        <SongCard
+          {...props}
+          dragHandle={(
+            <button
+              type="button"
+              aria-label={`drag to reorder ${props.song.title}`}
+              {...attributes}
+              {...listeners}
+              className="float-left mr-1.5 mt-0.5 px-1 rounded text-neutral-400 hover:text-neutral-700 cursor-grab active:cursor-grabbing touch-none"
+            >
+              <span aria-hidden className="font-mono text-xs leading-none">⋮⋮</span>
+            </button>
+          )}
+        />
       </div>
     </div>
   );

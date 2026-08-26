@@ -199,6 +199,14 @@ interface Props {
   songs: Song[];
   onSelectSong: (songId: string) => void;
   onBackToActive: () => void;
+  /**
+   * Arrive at the chart rather than at the top of the page.
+   *
+   * A COUNTER, NOT A BOOLEAN. Pressing Lead Sheet on the same song
+   * twice must scroll twice, and a flag already true the second time
+   * would do nothing. The caller bumps it; this scrolls when it moves.
+   */
+  focusLeadSheet?: number;
 }
 
 function uid(prefix: string): string {
@@ -210,6 +218,7 @@ export default function SongDetailView({
   songs,
   onSelectSong,
   onBackToActive,
+  focusLeadSheet = 0,
 }: Props) {
   if (!songId || songs.find(s => s.id === songId) === undefined) {
     return (
@@ -247,6 +256,7 @@ export default function SongDetailView({
       songs={songs}
       onSelectSong={onSelectSong}
       onBackToActive={onBackToActive}
+      focusLeadSheet={focusLeadSheet}
     />
   );
 }
@@ -256,9 +266,12 @@ interface InnerProps {
   songs: Song[];
   onSelectSong: (songId: string) => void;
   onBackToActive: () => void;
+  focusLeadSheet: number;
 }
 
-function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerProps) {
+function SongDetailInner({
+  songId, songs, onSelectSong, onBackToActive, focusLeadSheet,
+}: InnerProps) {
   const song = useLiveQuery<Song | undefined>(() => db.songs.get(songId), [songId]);
   // `songSpelling` is what this page RENDERS with; `globalSpelling` is
   // what the "follow global" option has to NAME, so the user can see
@@ -653,6 +666,19 @@ function SongDetailInner({ songId, songs, onSelectSong, onBackToActive }: InnerP
     if (panelLayout !== 'bar') return;
     leadSheetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [panelLayout]);
+
+  // ARRIVED FROM A CARD'S LEAD SHEET BUTTON. The same scroll the line
+  // above performs, asked for from outside — the button opens this page
+  // and the page lands on the chart. Zero is "not asked", so a normal
+  // Open does nothing here.
+  //
+  // `scrollIntoView` does not exist in jsdom, so the call is optional
+  // rather than assumed; what a test can check is that it was asked
+  // for, which is the part that can be wrong.
+  useEffect(() => {
+    if (focusLeadSheet === 0) return;
+    leadSheetRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, [focusLeadSheet]);
 
   // Every rung's criteria, grouped by the rung each earns — not just
   // the current one. What you have earned stays on the screen that

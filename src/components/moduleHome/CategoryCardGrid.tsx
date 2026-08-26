@@ -16,30 +16,17 @@
  */
 import { useState } from 'react';
 import CategoryCard from './CategoryCard';
+import { CardGrid, NO_MODULE_ACCENT } from './cardShell';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import type { CategoryCardModel } from './model';
 
 /**
- * The narrowest a card may be before the grid drops a column.
- *
- * Declared here rather than at a call site because it is the ONE input
- * to how many columns appear — see the note in the render.
+ * Re-exported from `cardShell`, which owns them now that the song card
+ * lays out through the same grid at the same width. Kept as exports
+ * here so the callers that already import them are not made to know
+ * which file the constant moved to.
  */
-export const CARD_MIN_WIDTH = '17rem';
-
-/**
- * The column rule, derived from `CARD_MIN_WIDTH`.
- *
- * AN INLINE STYLE, NOT A TAILWIND CLASS, and deliberately: Tailwind
- * finds classes by scanning source text for complete strings, so an
- * interpolated `grid-cols-[...]` would compile to nothing and the grid
- * would silently fall back to one column. A style built from the
- * constant cannot drift from it.
- */
-const CARD_COLUMNS = `repeat(auto-fill, minmax(${CARD_MIN_WIDTH}, 1fr))`;
-
-/** One gap for every module home. */
-const CARD_GAP = 'gap-3';
+export { CARD_MIN_WIDTH, NO_MODULE_ACCENT } from './cardShell';
 
 export interface CategoryCardGridProps {
   cards: readonly CategoryCardModel[];
@@ -69,28 +56,13 @@ export default function CategoryCardGrid({
   const accentHex = moduleMetaById(moduleId)?.accentHex ?? NO_MODULE_ACCENT;
 
   return (
-    /* =================================================================
-       THE GRID OWNS THE SIZE. A PAGE CANNOT SET ITS OWN.
-
-       Reading's cards came out smaller than ear training's and both
-       differed from harmonic fluency's, because the size was never
-       here: reading wrapped this in `max-w-2xl mx-auto px-4`, the other
-       two let the shell's width through, and `sm:grid-cols-2` then cut
-       whatever it was given into two. Three pages, three widths, one
-       component that never knew.
-
-       `CARD_MIN_WIDTH` is the one number, and the column COUNT falls
-       out of it: `auto-fill` fits as many tracks of at least that width
-       as the container allows. So a narrow shell gets one column and a
-       wide one gets three, without a breakpoint guessing on behalf of a
-       container it cannot measure — and every module home lands on the
-       same card, because the card is what is specified.
-       ================================================================= */
-    <div
-      className={`grid ${CARD_GAP}`}
-      style={{ gridTemplateColumns: CARD_COLUMNS }}
-      data-testid="category-card-grid"
-    >
+    /* THE GRID OWNS THE SIZE, and `cardShell` owns the grid — a page
+       cannot set its own. Reading's cards came out smaller than ear
+       training's and both differed from harmonic fluency's, because the
+       size was never here: reading wrapped this in `max-w-2xl mx-auto
+       px-4`, the other two let the shell's width through. Three pages,
+       three widths, one component that never knew. */
+    <CardGrid>
       {cards.map(card => (
         <CategoryCard
           key={card.key}
@@ -109,15 +81,6 @@ export default function CategoryCardGrid({
           now={now}
         />
       ))}
-    </div>
+    </CardGrid>
   );
 }
-
-/**
- * The tint for a module id `moduleMeta` does not know.
- *
- * A neutral grey rather than a guess at the module's colour: a wrong
- * accent looks deliberate and would ship, where an unmistakably
- * un-branded card is a visible "this module is not registered".
- */
-export const NO_MODULE_ACCENT = '#6b7280';

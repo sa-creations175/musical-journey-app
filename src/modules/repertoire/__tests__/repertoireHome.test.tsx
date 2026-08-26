@@ -59,15 +59,21 @@ async function render() {
   return container!;
 }
 
+/** A song card. The SAME handle every module home's cards answer to,
+ *  because it is now the same shell drawing them. */
+const songCards = () =>
+  [...container!.querySelectorAll('[data-song-id]')];
+
 const titles = () =>
-  [...container!.querySelectorAll('article')]
-    .map(a => a.querySelector('.font-medium')?.textContent);
+  songCards().map(a => a.querySelector('.font-medium')?.textContent);
 
 describe('the repertoire home', () => {
   it('opens on a card per song', async () => {
     const el = await render();
-    const cards = el.querySelectorAll('article');
-    expect(cards.length).toBeGreaterThanOrEqual(SONGS.length);
+    expect(songCards().length).toBeGreaterThanOrEqual(SONGS.length);
+    // AND IN THE SHARED GRID, not a list of its own — the same
+    // container harmonic fluency and reading lay their cards out in.
+    expect(el.querySelector('[data-testid="category-card-grid"]')).not.toBeNull();
     for (const song of SONGS) {
       expect(titles(), song.title).toContain(song.title);
     }
@@ -90,11 +96,11 @@ describe('the repertoire home', () => {
     expect(el.querySelectorAll('[data-card-key]')).toHaveLength(0);
   });
 
-  it('carries the song count in the header', async () => {
-    const el = await render();
-    expect(el.textContent).toContain(String(SONGS.length));
-    expect(el.textContent).toContain('songs');
-  });
+  // THE SONG COUNT IN THE HEADER WAS TESTED HERE. The block it read —
+  // the hero number, the stage tally and the attention callout — is
+  // deleted, so the rule went with it rather than being re-pointed:
+  // the stage counts live on the cards now and due lives on the badges,
+  // and "a card per song" above is what says how many there are.
 
   it('offers exactly two ways to add a song', async () => {
     // "Want to Learn" stopped being a tab; the backlog is where a song
@@ -139,17 +145,52 @@ describe('the repertoire home', () => {
 
   it('opens a song from its card', async () => {
     const el = await render();
-    const card = [...el.querySelectorAll('article')]
+    const card = songCards()
       .find(a => (a.textContent ?? '').includes('No Weapon'))!;
-    const open = [...card.querySelectorAll('button')]
-      .find(b => (b.textContent ?? '').trim() === 'open')!;
+    const open = card.querySelector('[data-testid="song-card-open"]') as HTMLButtonElement;
     await act(async () => { open.click(); });
     for (let i = 0; i < 10; i++) {
       await act(async () => { await new Promise(r => setTimeout(r, 5)); });
     }
     // The cards are replaced by the song's own page.
     expect(el.textContent).toContain('No Weapon');
-    expect([...el.querySelectorAll('article')]
+    expect(songCards()
       .some(a => (a.textContent ?? '').includes('Never Would Have Made It'))).toBe(false);
+  });
+
+  it('carries the two buttons every other card carries', async () => {
+    const el = await render();
+    const card = songCards()
+      .find(a => (a.textContent ?? '').includes('No Weapon'))!;
+    expect(card.querySelector('[data-testid="song-card-open"]')?.textContent).toBe('Open');
+    expect(card.querySelector('[data-testid="song-card-lead-sheet"]')?.textContent)
+      .toBe('Lead Sheet');
+    // NO PROGRESS DETAIL. The matrix on the song page is this song's
+    // progress detail; a button here would be a second door to it.
+    expect(card.querySelector('[data-testid="category-card-progress-detail"]')).toBeNull();
+    void el;
+  });
+
+  it('opens the song page from Lead Sheet too', async () => {
+    const el = await render();
+    const card = songCards()
+      .find(a => (a.textContent ?? '').includes('No Weapon'))!;
+    const chart = card.querySelector('[data-testid="song-card-lead-sheet"]') as HTMLButtonElement;
+    await act(async () => { chart.click(); });
+    for (let i = 0; i < 10; i++) {
+      await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+    }
+    // WHERE it lands on that page is a scroll, which jsdom cannot run —
+    // what is asserted is that it is that song's page.
+    expect(el.textContent).toContain('No Weapon');
+    expect(songCards()).toHaveLength(0);
+  });
+
+  it('drops the count block, the stage tally and the attention callout', async () => {
+    const el = await render();
+    const text = (el.textContent ?? '').toLowerCase();
+    expect(text).not.toContain('in your active repertoire');
+    expect(text).not.toContain('need attention');
+    expect(text).not.toContain('needs attention');
   });
 });

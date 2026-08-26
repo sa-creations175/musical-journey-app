@@ -158,6 +158,18 @@ export default function Repertoire() {
     setTab('detail');
   };
 
+  /**
+   * A card's Lead Sheet button: the same page, arriving at the chart.
+   *
+   * A COUNTER rather than a flag, so pressing it twice on the same song
+   * scrolls twice — see `focusLeadSheet` on SongDetailView.
+   */
+  const [focusLeadSheet, setFocusLeadSheet] = useState(0);
+  const openLeadSheet = (songId: string) => {
+    openSong(songId);
+    setFocusLeadSheet(n => n + 1);
+  };
+
   return (
     <div className="space-y-3">
       <ModuleHomeHeader
@@ -173,6 +185,7 @@ export default function Repertoire() {
         <ActiveRepertoireView
           songs={songs}
           onOpenSong={openSong}
+          onOpenLeadSheet={openLeadSheet}
           onOpenWantToLearn={() => setTab('want-to-learn')}
         />
       )}
@@ -182,6 +195,7 @@ export default function Repertoire() {
           songs={songs}
           onSelectSong={setSelectedSongId}
           onBackToActive={() => setTab('active')}
+          focusLeadSheet={focusLeadSheet}
         />
       )}
       {tab === 'want-to-learn' && (

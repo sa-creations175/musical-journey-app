@@ -1,3 +1,12 @@
+import type { ReactNode } from 'react';
+import {
+  CARD_ACTION_LABEL,
+  CardActions,
+  CardShell,
+  CardSubLine,
+  CardTitleBlock,
+  cardTint,
+} from '../../components/moduleHome/cardShell';
 import type { Song } from '../../lib/db';
 import type { SongDueReading } from './songDueState';
 import { spellKey, type Spelling } from '../../lib/spelling';
@@ -67,6 +76,21 @@ export interface SongCardProps {
    */
   sections: SectionChipReading;
   onOpen: () => void;
+  /** Opens this song's chart. The same page as `onOpen`, arriving at
+   *  the lead sheet rather than at the top. */
+  onOpenLeadSheet: () => void;
+  /** The module accent, so a song card is tinted the way every other
+   *  module's cards are. Resolved by the list from `moduleMeta`. */
+  accentHex: string;
+  /**
+   * The grip that reorders the list, or nothing.
+   *
+   * A SLOT, because only learning-order mode can be reordered and only
+   * the list knows which mode it is in. It rides the title line rather
+   * than a rail beside the card: in a grid there is no left-hand gutter
+   * to put one in.
+   */
+  dragHandle?: ReactNode;
 }
 
 export default function SongCard({
@@ -80,6 +104,9 @@ export default function SongCard({
   spelling,
   sections,
   onOpen,
+  onOpenLeadSheet,
+  accentHex,
+  dragHandle,
 }: SongCardProps) {
   void lastPractisedAt;
 
@@ -87,23 +114,35 @@ export default function SongCard({
   const needChords = needsChordsLine(sections);
 
   return (
-    <article
-      className="rounded-lg border border-black/[0.07] bg-white/80 dark:bg-neutral-900/80 p-3 flex flex-col gap-2 hover:border-fluent/40 transition"
-    >
-      <div className="flex items-start gap-2">
-        <span
-          aria-hidden
-          className={`inline-block w-2 h-2 rounded-full mt-2 shrink-0 ${FRESHNESS_DOT_CLASS[freshness]}`}
-          title={`last practised ${lastPractisedLabel}`}
-        />
-        <div className="min-w-0 flex-1">
-          <div className="font-medium leading-tight truncate">{song.title}</div>
-          <div className="text-xs text-neutral-500 truncate">{song.artist}</div>
-        </div>
+    <CardShell accentHex={accentHex} data-song-id={song.id}>
+      {/* THE TINTED HEADER, the same one every module home draws — the
+          title block is a written two lines, so a long song title
+          cannot move the boundary under it. */}
+      <div
+        className="px-3 pt-3 pb-2"
+        style={{ backgroundColor: cardTint(accentHex) }}
+      >
+        <CardTitleBlock
+          trailing={(
+            <span
+              aria-hidden
+              className={`float-right ml-2 mt-1.5 inline-block w-2 h-2 rounded-full ${FRESHNESS_DOT_CLASS[freshness]}`}
+              title={`last practised ${lastPractisedLabel}`}
+            />
+          )}
+        >
+          {dragHandle}
+          <span className="font-medium text-sm leading-5">{song.title}</span>
+        </CardTitleBlock>
+        <CardSubLine testId="song-card-artist">{song.artist}</CardSubLine>
       </div>
 
+      {/* The body grows, so a stretched row's slack lands inside the
+          card rather than as a pale strip beneath it. */}
+      <div className="px-3 pb-2 pt-2 grow flex flex-col gap-2">
       <div className="flex items-center gap-2 flex-wrap text-[11px]">
         <span
+          data-testid="song-card-stage"
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 border ${STAGE_BADGE_CLASS[stage]}`}
         >
           {STAGE_LABEL[stage]}
@@ -160,26 +199,42 @@ export default function SongCard({
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <span className="text-[11px] text-neutral-500 min-w-0 truncate">
-          {footer !== null && (
-            <>
-              <span data-testid="song-card-section-footer">{footer}</span>
-              <span className="text-neutral-400 mx-1">·</span>
-            </>
-          )}
+      {/* THE FOOTER, AND THE LINE THAT SAYS WHEN. Kept as two reserved
+          sub-lines so a song with no sections and a song with six split
+          at the same height — the same rule the category card follows
+          for its own optional line. */}
+      <div className="mt-auto">
+        <CardSubLine testId="song-card-section-footer">
+          {footer}
+        </CardSubLine>
+        <CardSubLine testId="song-card-last-practised">
           {lastPractisedLabel === 'never' ? 'not practised yet' : `last ${lastPractisedLabel}`}
           <span className="text-neutral-400 mx-1">·</span>
           {addedLabel}
-        </span>
-        <button
-          onClick={onOpen}
-          className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent"
-        >
-          open
-        </button>
+        </CardSubLine>
       </div>
-    </article>
+      </div>
+
+      {/* THE SAME TWO BUTTONS EVERY CARD CARRIES. No Progress Detail:
+          the matrix on the song page IS this song's progress detail,
+          and the button beside Open is the one place a reader would
+          look for the chart. */}
+      <div className="px-3 pb-3">
+        <CardActions
+          accentHex={accentHex}
+          primary={{
+            label: CARD_ACTION_LABEL,
+            onClick: onOpen,
+            testId: 'song-card-open',
+          }}
+          secondary={{
+            label: 'Lead Sheet',
+            onClick: onOpenLeadSheet,
+            testId: 'song-card-lead-sheet',
+          }}
+        />
+      </div>
+    </CardShell>
   );
 }
 
