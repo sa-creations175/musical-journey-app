@@ -23,7 +23,9 @@ export const READING_MODULE_ID = 'reading';
 export const READING_SKILL_ORDER: ReadonlyArray<ReadingDrillSkill> =
   ['note', 'shape', 'sig', 'chord'];
 
-const LABELS: Readonly<Record<ReadingDrillSkill, string>> = {
+/** What each skill is called on screen. Exported so a pool row and a
+ *  card cannot label the same skill two different ways. */
+export const READING_SKILL_LABELS: Readonly<Record<ReadingDrillSkill, string>> = {
   note: 'notes',
   shape: 'shapes',
   sig: 'signatures',
@@ -51,7 +53,7 @@ export function readingCards(
 
   return READING_SKILL_ORDER.map(skill => ({
     key: skill,
-    label: LABELS[skill],
+    label: READING_SKILL_LABELS[skill],
     itemCount: countFor[skill],
     // The bare count is honest here: one card, one item apiece.
     countDetail: null,

@@ -194,6 +194,35 @@ describe('the two card actions', () => {
       .toBeLessThanOrEqual(supply);
   });
 
+  it('spans every lit category, not just its own', async () => {
+    /**
+     * THE POOL IS WHAT IS LIT. `tritone-pairs` holds fewer cards than a
+     * session targets, so a run drawn from it alone cannot reach the
+     * target — lighting a category big enough to close the gap and
+     * getting a full-length queue is proof the second one joined the
+     * pool. Both numbers come off the catalog.
+     */
+    const own = 'tritone-pairs';
+    const added = 'scale-degree-math';
+    const supply = FLASHCARDS.filter(c => c.category === own).length;
+    const el = await renderAt(`/harmonic-fluency/${own}`);
+
+    // It starts lit, alone.
+    const lit = () => [...el.querySelectorAll('[data-testid="pool-option"]')]
+      .filter(b => b.getAttribute('data-lit') === 'true')
+      .map(b => b.getAttribute('data-option'));
+    expect(lit()).toEqual([own]);
+
+    await click(el.querySelector(`[data-option="${added}"]`), 'light a second category');
+    expect(lit().sort()).toEqual([own, added].sort());
+
+    await click(el.querySelector('[data-testid="hf-category-start"]'), 'start');
+    const headerRe = /card\s*1\s*\/\s*(\d+)/;
+    await settle(() => headerRe.test(el.textContent ?? ''));
+    expect(Number(headerRe.exec(el.textContent ?? '')?.[1]))
+      .toBeGreaterThan(supply);
+  });
+
   it('sends a slug that names no category back to the module home', async () => {
     await renderAt('/harmonic-fluency/plagal-cadences');
     expect(at()).toBe('/harmonic-fluency');

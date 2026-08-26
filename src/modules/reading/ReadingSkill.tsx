@@ -29,12 +29,23 @@ import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import ReadingDrill from './ReadingDrill';
 import { readingSkillForItemRef } from './catalog';
-import { READING_MODULE_ID, readingCards } from './homeCards';
+import PoolPicker, { togglePool } from '../../components/moduleHome/PoolPicker';
+import {
+  READING_MODULE_ID, READING_SKILL_LABELS, READING_SKILL_ORDER, readingCards,
+} from './homeCards';
 import { readingSkillForSlug } from './skillRoutes';
+import type { ReadingDrillSkill } from './pickCard';
 
 export default function ReadingSkill() {
   const { skill: slug } = useParams<{ skill: string }>();
   const skill = slug === undefined ? null : readingSkillForSlug(slug);
+
+  /**
+   * WHAT THE DRILL WILL DRAW FROM. This skill alone to begin with, and
+   * any combination the reader lights on top of it. Nothing is
+   * persisted: arriving at a skill's page means arriving at that skill.
+   */
+  const [lit, setLit] = useState<ReadonlySet<string>>(() => new Set([skill ?? '']));
 
   /**
    * `?focus=ref,ref` — the dashboard sending you here from a tapped
@@ -59,9 +70,11 @@ export default function ReadingSkill() {
 
   if (skill === null) return <Navigate to="/reading" replace />;
 
-  // The same card the module home draws, filtered to this one.
+  // The same cards the module home draws, filtered to what is lit — so
+  // the cards under the row are the pool the row describes.
   const cards = readingCards(attempts, spacingIntervals, now)
-    .filter(c => c.key === skill);
+    .filter(c => lit.has(c.key));
+  const pool = READING_SKILL_ORDER.filter(s => lit.has(s)) as ReadingDrillSkill[];
 
   return (
     <div className="space-y-6" data-testid="reading-skill-page" data-skill={skill}>
@@ -72,6 +85,21 @@ export default function ReadingSkill() {
         showIntro={false}
       />
 
+      {/* THE POOL, ACROSS THE TOP. This skill is lit; lighting others
+          adds them, so one page can launch any combination.
+
+          DISABLED ONCE A DRILL IS RUNNING. The pool is decided when the
+          run starts — the drill below keys its selection on it, and a
+          row that could still be pressed would promise a change the
+          card on screen will not make. */}
+      <PoolPicker
+        options={READING_SKILL_ORDER.map(s => ({ id: s, label: READING_SKILL_LABELS[s] }))}
+        lit={lit}
+        onToggle={id => setLit(prev => togglePool(prev, id))}
+        moduleId={READING_MODULE_ID}
+        disabled={drilling}
+      />
+
       <CategoryCardGrid
         cards={cards}
         moduleId={READING_MODULE_ID}
@@ -79,15 +107,17 @@ export default function ReadingSkill() {
         now={now}
       />
 
-      {/* Remounting per skill resets the drill's local state without
-          the drill needing to know a skill can change under it. The key
-          is the skill and nothing else — anything the cards can change
-          would discard the card mid-answer on every tap. */}
+      {/* Remounting per POOL resets the drill's local state without the
+          drill needing to know the pool can change under it. The key is
+          the pool and nothing else — anything the cards can change
+          would discard the card mid-answer on every tap, and the pool
+          itself cannot change while a drill runs because the row above
+          is disabled then. */}
       <ReadingDrill
-        key={skill}
-        skill={skill}
+        key={pool.join(',')}
+        skills={pool}
         autoStart={drilling}
-        {...(focusRefs && skill === focusSkill ? { focusRefs } : {})}
+        {...(focusRefs && focusSkill !== undefined && lit.has(focusSkill) ? { focusRefs } : {})}
       />
     </div>
   );

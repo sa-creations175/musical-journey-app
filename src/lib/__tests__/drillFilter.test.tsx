@@ -123,15 +123,20 @@ const READING_SOURCE = Object.values(import.meta.glob(
 ) as Record<string, string>)[0];
 
 describe("reading's remount key is independent of the filter", () => {
-  it('keys the drill on the skill and nothing else', () => {
+  it('keys the drill on the POOL and nothing else', () => {
     // THE CONSTRAINT THAT MAKES THE STRIP SAFE HERE. A key that grew to
     // include the filter would discard the card mid-answer on every
     // tap — the drill would appear to "reset" for no reason a reader
     // could see.
+    //
+    // The pool became a set when a skill page gained its category row,
+    // so the key is what the pool CONTAINS. The row is disabled while a
+    // drill runs, so the pool cannot move under a card on screen.
     const src = READING_SOURCE;
-    expect(src).toContain('key={skill}');
-    for (const bad of ['key={`${skill}', 'key={skill + ', 'key={[skill']) {
-      expect(src).not.toContain(bad);
+    expect(src).toContain("key={pool.join(',')}");
+    for (const bad of ['key={`${pool', 'key={pool + ', 'key={[pool', 'filter']) {
+      expect(src.includes(`key={${bad}`), bad).toBe(false);
     }
+    expect(src).toContain('disabled={drilling}');
   });
 });

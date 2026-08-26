@@ -40,13 +40,13 @@ afterEach(async () => {
  *  two must never produce a third. */
 async function servedRefs(
   focusRefs: string[] | undefined,
-  skill: Parameters<typeof ReadingDrill>[0]['skill'],
+  skill: Parameters<typeof ReadingDrill>[0]['skills'][number],
   runs = 25,
 ): Promise<Set<string>> {
   const seen = new Set<string>();
   for (let i = 0; i < runs; i++) {
     const el = await render(
-      <ReadingDrill skill={skill} autoStart {...(focusRefs ? { focusRefs } : {})} />,
+      <ReadingDrill skills={[skill]} autoStart {...(focusRefs ? { focusRefs } : {})} />,
     );
     const staff = el.querySelector('[data-item-ref]');
     if (staff) seen.add(staff.getAttribute('data-item-ref')!);

@@ -29,7 +29,7 @@ import DailyGoalBar from '../../components/DailyGoalBar';
 import HarmonicFluencySession, { type SessionStats } from './HarmonicFluencySession';
 import { buildSession, practiceAheadNotice } from './spacedRepetition';
 import { useFluencyPrefs } from './useFluencyPrefs';
-import type { FlashcardCategory } from './catalog';
+import { CATEGORY_ORDER, type FlashcardCategory } from './catalog';
 
 export const MODULE_ID = 'harmonic-fluency';
 export const SESSION_TARGET = 20;
@@ -98,6 +98,9 @@ export default function FluencyDrill({
 
   if (queue === null) return null;
 
+  const narrowed = categories.length > 0
+    && categories.length < CATEGORY_ORDER.length;
+
   return (
     <>
       {/* WHERE YOU ARE, said once, at the top of the run it applies
@@ -133,10 +136,13 @@ export default function FluencyDrill({
         onDisplayModeChange={prefs.setDisplayMode}
         focusProtected={
           // The pool this run was BUILT from, never a filter the page
-          // is holding. Auto-started runs take the whole deck, so they
-          // never focus-protect.
+          // is holding — and NARROWED measured against the whole deck
+          // rather than against zero. A module home lights every
+          // category rather than passing an empty list, so "the reader
+          // picked some" cannot be `length > 0` any more. Auto-started
+          // runs take the whole deck and never focus-protect.
           !autoStarted
-          && (flaggedOnly || categories.length > 0)
+          && (flaggedOnly || narrowed)
           && queue.cards.length < FOCUS_PROTECT_BELOW
         }
       />

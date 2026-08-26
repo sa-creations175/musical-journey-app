@@ -32,7 +32,11 @@ import { READING_CATEGORY_LABEL } from './skillRecords';
 import { READING_GRIDS } from './progressGrids';
 import { db } from '../../lib/db';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
-import { READING_MODULE_ID, isReadingCardKey, readingCards } from './homeCards';
+import ReadingDrill from './ReadingDrill';
+import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
+import {
+  READING_MODULE_ID, READING_SKILL_ORDER, isReadingCardKey, readingCards,
+} from './homeCards';
 import { readingSkillPath } from './skillRoutes';
 import type { ReadingDrillSkill } from './pickCard';
 
@@ -40,18 +44,23 @@ export default function Reading() {
   const navigate = useNavigate();
 
   /**
-   * THE DRILL LEFT THIS PAGE.
+   * A DRILL ACROSS ALL FOUR SKILLS, started explicitly.
    *
-   * It used to render under the cards, so "Open" on the Notes card
-   * started a question three screenfuls down the page you were already
-   * on, and the nav's four sub-items only chose which skill that drill
-   * would be on. Each skill is a page now — see `ReadingSkill` — and
-   * both routes lead to it.
+   * The page used to carry a drill on ONE skill, chosen by a card or by
+   * a nav sub-item, rendered under the cards — so "Open" on the Notes
+   * card started a question three screenfuls down the page you were
+   * already on. A skill is a page now (see `ReadingSkill`), and what a
+   * card opens is that page.
    *
-   * The `?focus=` and `?skill=` handling went with it. A focus link
-   * carries the refs, and the skill they belong to is read off them
-   * there rather than being resolved here and passed down.
+   * What is left here is the whole-module run: the same machine a skill
+   * page starts, with every skill lit. `?focus=` went with the drill —
+   * a focus link carries the refs and lands on the page for the skill
+   * they belong to.
    */
+  const [drilling, setDrilling] = useState(false);
+  // Pressing the module name is the way out of a running drill; there
+  // is no route change to notice, because this page IS that route.
+  useEndOnModuleHome(() => setDrilling(false));
 
   /** Which skill's progress detail is open, if any. */
   const [detailSkill, setDetailSkill] = useState<ReadingDrillSkill | null>(null);
@@ -114,6 +123,19 @@ export default function Reading() {
         }}
       />
 
+      {/* THE WHOLE-MODULE DRILL, ABOVE THE CARDS — the same shape and
+          the same place harmonic fluency's mixed drill takes. Every
+          skill lit; a single skill is what a card opens. */}
+      {!drilling && (
+        <button
+          onClick={() => setDrilling(true)}
+          data-testid="reading-start-all"
+          className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
+        >
+          Start drill · all four mixed
+        </button>
+      )}
+
       <CategoryCardGrid
         cards={cards}
         moduleId={READING_MODULE_ID}
@@ -121,6 +143,15 @@ export default function Reading() {
         onProgressDetail={key => { if (isReadingCardKey(key)) setDetailSkill(key); }}
         now={now}
       />
+
+      {/* Mounted only while running, so the home stays its cards
+          otherwise — nothing served, no clock started. */}
+      {drilling && (
+        <ReadingDrill
+          skills={READING_SKILL_ORDER}
+          autoStart
+        />
+      )}
 
       {detailSkill !== null && axisViews.loaded && (
         <ProgressDetail

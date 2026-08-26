@@ -24,7 +24,7 @@ import AnswerVerdict from '../../components/AnswerVerdict';
 import { resolveReadingCard } from './renderCard';
 import {
   optionsForItem,
-  pickCard,
+  pickCardFromSkills,
   type ReadingDrillSkill,
   type PickedCard,
 } from './pickCard';
@@ -192,11 +192,19 @@ function staffRangeBracket(clef: Clef): KeyboardBracket {
 }
 
 export default function ReadingDrill({
-  skill,
+  skills,
   focusRefs,
   autoStart = false,
 }: {
-  skill: ReadingDrillSkill;
+  /**
+   * The pool this drill draws from — one skill, or any combination.
+   *
+   * A LIST RATHER THAN ONE SKILL, because a module home now starts a
+   * run across all four and a skill page can light its neighbours. Only
+   * selection reads it: every other decision on screen is made from the
+   * card's own itemRef, so a mixed queue needs nothing else here.
+   */
+  skills: readonly ReadingDrillSkill[];
   /**
    * Restrict the drill to these stored item refs.
    *
@@ -244,9 +252,15 @@ export default function ReadingDrill({
 
   const focusPool = useMemo(() => {
     if (!focusRefs || focusRefs.length === 0) return null;
-    const own = focusRefs.filter(ref => readingSkillForItemRef(ref) === skill);
+    const own = focusRefs.filter(ref => {
+      const s = readingSkillForItemRef(ref);
+      return s !== null && skills.includes(s);
+    });
     return own.length > 0 ? own : null;
-  }, [focusRefs, skill]);
+    // The pool is a fresh array each render; its CONTENT is what
+    // matters, so it is joined rather than compared by identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRefs, skills.join(',')]);
 
   /**
    * The pool, READ AT PICK TIME.
@@ -273,17 +287,23 @@ export default function ReadingDrill({
   const focusPoolRef = useRef(focusPool);
   focusPoolRef.current = focusPool;
 
+  const poolKey = skills.join(',');
   const next = useCallback(() => {
     const pool = focusPoolRef.current;
     setCard(
       pool
         ? optionsForItem(pool[Math.floor(Math.random() * pool.length)])
-        : pickCard(skill),
+        : pickCardFromSkills(skills),
     );
     setAnswer(EMPTY);
     setSubmitted(false);
     shownAt.current = Date.now();
-  }, [skill]);
+    // Keyed on the pool's CONTENT. Depending on the array itself would
+    // rebuild `next` every render, and the effect below re-fires when
+    // `next` changes — which is how this once replaced the question
+    // mid-answer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poolKey]);
 
   /**
    * NOTHING IS SERVED UNTIL THE READER ASKS FOR IT.
@@ -332,6 +352,7 @@ export default function ReadingDrill({
       <div
         data-testid="reading-drill"
         data-card="none"
+        data-pool={poolKey}
         data-timer-started={shownAt.current === null ? 'false' : 'true'}
       />
     );
@@ -393,7 +414,10 @@ export default function ReadingDrill({
        and the only alternative was inferring the item from rendered
        glyphs — which would pass on the wrong card whenever two items
        happen to look alike. */
-    <div className="space-y-5" data-item-ref={card.itemRef}>
+    /* `data-pool` names what selection is drawing from, so a page can
+       be checked to have started the run it says it started without a
+       test having to answer its way through a queue to find out. */
+    <div className="space-y-5" data-item-ref={card.itemRef} data-pool={poolKey}>
       {/* ---------------------------------------------------------
           The prompt. Key-signature COUNT cards show no staff — the
           prompt is a key name, and drawing the signature would be

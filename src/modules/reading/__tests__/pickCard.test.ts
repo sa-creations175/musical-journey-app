@@ -10,7 +10,10 @@
  * confident prompt, which is the worst failure this module has.
  */
 import { describe, expect, it } from 'vitest';
-import { itemsForSkill, optionsForItem, pickCard, type Rng } from '../pickCard';
+import {
+  itemsForSkill, optionsForItem, pickCard, pickCardFromSkills,
+  type ReadingDrillSkill, type Rng,
+} from '../pickCard';
 import { resolveReadingCard } from '../renderCard';
 import {
   CHORD_ROOTS,
@@ -23,6 +26,7 @@ import {
   enumerateShapeItems,
   enumerateSignatureItems,
   parseReadingItemRef,
+  readingSkillForItemRef,
 } from '../catalog';
 import type { Letter } from '../pitch';
 
@@ -194,5 +198,50 @@ describe('itemsForSkill routes to the right catalog walk', () => {
     expect(pickCard('shape', () => 0).itemRef).toBe(enumerateShapeItems()[0]);
     const last = enumerateShapeItems()[enumerateShapeItems().length - 1];
     expect(pickCard('shape', () => 0.9999999).itemRef).toBe(last);
+  });
+});
+
+describe('a pool of skills', () => {
+  const SKILLS: ReadingDrillSkill[] = ['note', 'shape', 'sig', 'chord'];
+
+  /**
+   * UNIFORM OVER ITEMS, NOT OVER SKILLS — the same rule `pickCard`
+   * applies inside one skill, with a longer list.
+   *
+   * Choosing a skill first and then an item inside it would give the
+   * four equal airtime whatever their size, so the thirteen key
+   * signatures would come up as often as the whole note range. What
+   * separates the two rules is WHERE a given roll lands: the first roll
+   * indexes the concatenated pool, so a roll two-thirds of the way
+   * along must produce whichever skill occupies that third of the list.
+   *
+   * Every block is checked at its own midpoint, so the sizes decide the
+   * expectations and nothing here is written down twice.
+   */
+  it('indexes the concatenated pool, so bigger skills come up more', () => {
+    const sizes = SKILLS.map(s => itemsForSkill(s).length);
+    const total = sizes.reduce((a, b) => a + b, 0);
+    // The blocks are genuinely different sizes, or the test proves
+    // nothing about which rule is in force.
+    expect(new Set(sizes).size).toBeGreaterThan(1);
+
+    let start = 0;
+    for (const [i, skill] of SKILLS.entries()) {
+      for (const at of [start, start + Math.floor(sizes[i] / 2), start + sizes[i] - 1]) {
+        const f = (at + 0.5) / total;
+        const ref = pickCardFromSkills(SKILLS, () => f).itemRef;
+        expect(readingSkillForItemRef(ref), `${skill} at ${at}`).toBe(skill);
+      }
+      start += sizes[i];
+    }
+  });
+
+  it('draws from one skill only when one is lit', () => {
+    for (const skill of SKILLS) {
+      for (const f of [0, 0.25, 0.5, 0.99]) {
+        const ref = pickCardFromSkills([skill], () => f).itemRef;
+        expect(readingSkillForItemRef(ref), `${skill} at ${f}`).toBe(skill);
+      }
+    }
   });
 });

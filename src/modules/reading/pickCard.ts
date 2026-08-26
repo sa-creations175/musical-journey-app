@@ -138,6 +138,25 @@ export function pickCard(
   return optionsFor(choice(itemsForSkill(skill), rng), rng);
 }
 
+/**
+ * One card from a POOL of skills.
+ *
+ * UNIFORM OVER ITEMS, NOT OVER SKILLS, which is the same rule
+ * `pickCard` already applies inside one skill — the pool is just a
+ * longer list. Choosing a skill first and then an item inside it would
+ * give the four skills equal airtime regardless of size, so the
+ * thirteen key signatures would come up as often as the whole note
+ * range, and a reader who lit everything would meet the smallest set
+ * most often per item.
+ */
+export function pickCardFromSkills(
+  skills: readonly ReadingDrillSkill[],
+  rng: Rng = Math.random,
+): PickedCard {
+  const pool = skills.flatMap(itemsForSkill);
+  return optionsFor(choice(pool, rng), rng);
+}
+
 /** Options for a KNOWN item — used when the caller already chose what
  *  to ask (a repeat, or a fixed sequence in a test). */
 export function optionsForItem(itemRef: string, rng: Rng = Math.random): PickedCard {

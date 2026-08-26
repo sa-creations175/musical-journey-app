@@ -29,12 +29,27 @@ import { harmonicFluencyCards } from './homeCards';
 import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
 import FluencySessionSettings from './FluencySessionSettings';
 import { useFluencyPrefs } from './useFluencyPrefs';
+import PoolPicker, { togglePool } from '../../components/moduleHome/PoolPicker';
 import { isCategory } from './categoryRoutes';
 import type { SessionStats } from './HarmonicFluencySession';
-import { CATEGORY_LABELS } from './catalog';
+import { CATEGORY_LABELS, CATEGORY_ORDER, type FlashcardCategory } from './catalog';
+
+/** The row's options — one per category, in the order the module
+ *  teaches them. Derived, never listed. */
+const POOL_OPTIONS = CATEGORY_ORDER.map(id => ({ id, label: CATEGORY_LABELS[id] }));
 
 export default function HarmonicFluencyCategory() {
   const { category } = useParams<{ category: string }>();
+  /**
+   * WHAT THE DRILL WILL DRAW FROM. This category alone to begin with,
+   * and any combination the reader lights on top of it.
+   *
+   * Keyed on the route param through the component's identity: a
+   * different category is a different `:category`, which remounts this
+   * and re-seeds the set. Nothing is persisted — arriving at a
+   * category's page means arriving at that category.
+   */
+  const [lit, setLit] = useState<ReadonlySet<string>>(() => new Set([category ?? '']));
   const [running, setRunning] = useState(false);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
@@ -67,11 +82,13 @@ export default function HarmonicFluencyCategory() {
     return <Navigate to="/harmonic-fluency" replace />;
   }
 
-  // THE SAME CARD THE MODULE HOME DRAWS, filtered to this one. Built
+  // THE SAME CARDS THE MODULE HOME DRAWS, filtered to what is lit —
+  // so the cards under the row are the pool the row describes. Built
   // from the same adapter, so the count, the freshness and the tier all
   // say here exactly what they say there.
   const cards = harmonicFluencyCards(attempts, spacingIntervals, now)
-    .filter(c => c.key === category);
+    .filter(c => lit.has(c.key));
+  const pool = CATEGORY_ORDER.filter(c => lit.has(c)) as FlashcardCategory[];
 
   const start = () => {
     setCaughtUp(false);
@@ -90,22 +107,32 @@ export default function HarmonicFluencyCategory() {
 
       {running ? (
         <FluencyDrill
-          categories={[category]}
+          categories={pool}
           flaggedOnly={flaggedOnly}
           onCaughtUp={() => { setRunning(false); setCaughtUp(true); }}
           onExit={stats => { setRunning(false); setLastSummary(stats); }}
         />
       ) : (
         <>
+          {/* THE POOL, ACROSS THE TOP. This category is lit; lighting
+              others adds them, so one page can launch any combination
+              and the reader can see which. */}
+          <PoolPicker
+            options={POOL_OPTIONS}
+            lit={lit}
+            onToggle={id => setLit(prev => togglePool(prev, id))}
+            moduleId={MODULE_ID}
+          />
+
           <button
             onClick={start}
             data-testid="hf-category-start"
             className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
           >
-            Start drill · {CATEGORY_LABELS[category]}
+            Start drill
           </button>
 
-          {/* Drilling from the card lands on the page it is already on,
+          {/* Drilling from a card lands on the page it is already on,
               so it starts rather than navigating. */}
           <CategoryCardGrid
             cards={cards}

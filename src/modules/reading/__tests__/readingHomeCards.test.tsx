@@ -220,4 +220,30 @@ describe('the page', () => {
     await renderAt('/reading/tablature');
     expect(at()).toBe('/reading');
   });
+
+  it('starts the home\u2019s drill across all four skills', async () => {
+    // THE HOME RUN IS THE WHOLE MODULE, asserted at the seam rather
+    // than by answering a queue: `data-pool` is what selection actually
+    // draws from, and a run over one skill would name one skill here.
+    const el = await renderPage();
+    expect(el.querySelector('[data-testid="reading-start-all"]')).not.toBeNull();
+    await click(el.querySelector('[data-testid="reading-start-all"]')!);
+    expect(el.querySelector('[data-pool]')?.getAttribute('data-pool'))
+      .toBe(READING_SKILL_ORDER.join(','));
+    // And it is actually running — a card is on screen.
+    expect(el.querySelector('[data-item-ref]')).not.toBeNull();
+  });
+
+  it('lights the neighbours of a skill from its own page', async () => {
+    const el = await renderAt('/reading/notes');
+    const lit = () => [...el.querySelectorAll('[data-testid="pool-option"]')]
+      .filter(b => b.getAttribute('data-lit') === 'true')
+      .map(b => b.getAttribute('data-option'));
+    expect(lit()).toEqual(['note']);
+    await click(el.querySelector('[data-option="sig"]')!);
+    expect(lit().sort()).toEqual(['note', 'sig']);
+    // And the cards under the row follow the pool, so the row and the
+    // cards cannot disagree about what a drill would serve.
+    expect(cardKeys(el).sort()).toEqual(['note', 'sig']);
+  });
 });

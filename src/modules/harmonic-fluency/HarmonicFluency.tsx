@@ -26,6 +26,7 @@ import { categoryPath, isCategory } from './categoryRoutes';
 import type { SessionStats } from './HarmonicFluencySession';
 import {
   CATEGORY_LABELS,
+  CATEGORY_ORDER,
   FLASHCARDS,
   type FlashcardCategory,
 } from './catalog';
@@ -82,7 +83,7 @@ export default function HarmonicFluency() {
       },
       { replace: true },
     );
-    setRunning({ categories: [], autoStarted: true });
+    setRunning({ categories: [...CATEGORY_ORDER], autoStarted: true });
     setLastSummary(null);
   }, [searchParams, setSearchParams]);
 
@@ -112,21 +113,21 @@ export default function HarmonicFluency() {
   const cards = harmonicFluencyCards(allAttempts, spacingIntervals, now);
 
   /**
-   * THE MIXED DRILL IS ALWAYS THE WHOLE DECK, and passes that
-   * explicitly.
+   * THE MIXED DRILL IS THE CATEGORY PAGES' MACHINE WITH EVERYTHING
+   * LIT, and it says so by passing every category rather than the empty
+   * list that also means "all".
    *
-   * It used to start with a persisted landing filter that a card's
-   * "drill category" wrote, so drilling one category once quietly
-   * narrowed every mixed run afterwards — in that visit and in every
-   * later one — with nothing on screen saying so.
-   *
-   * `buildSession` reads an empty list as "every category", so this is
-   * the whole deck by the same route the Level-3 auto-start takes.
+   * Not a second code path, and the difference is not cosmetic. It used
+   * to start with a persisted landing filter that a card's "drill
+   * category" wrote, so drilling one category once quietly narrowed
+   * every mixed run afterwards — in that visit and in every later one —
+   * with nothing on screen saying so. A pool that is stated is a pool
+   * that can be checked.
    */
   const handleStart = () => {
     setCaughtUp(false);
     setLastSummary(null);
-    setRunning({ categories: [], autoStarted: false });
+    setRunning({ categories: [...CATEGORY_ORDER], autoStarted: false });
   };
 
   return (
