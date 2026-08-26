@@ -228,9 +228,13 @@ function chordPitches(
  * What a shape card draws when the caller names no quality.
  *
  * A DEFAULT, not a canon. These two are the plainest members of each
- * family — fewest accidentals, so the silhouette is least cluttered —
- * which makes them the right thing to fall back to and the wrong
- * thing to leave a whole drill sitting on. See `shapeQuality`.
+ * family, which makes them the right thing to fall back to and the
+ * wrong thing to leave a whole drill sitting on. See `shapeQuality`.
+ *
+ * It used to be chosen for having the fewest accidentals. Shape cards
+ * print none now — see the resolver — so what the choice buys is a
+ * quality name a reader recognises, and the reason to vary it is
+ * unchanged: leave it fixed and the drill teaches one picture.
  */
 const DEFAULT_SHAPE_QUALITY: Readonly<Record<ShapeFamily, string>> = {
   triad: 'maj',
@@ -340,11 +344,39 @@ export function resolveReadingCard(
         // about, and the silhouette would appear twice.
         frame: 'single',
         clef,
-        keys: pitches.map(toVexKey),
-        // No overlay, same as chord cards — and here it matters more:
-        // a signature would move accidentals off the noteheads, and
-        // accidentals are the only thing distinguishing the qualities
-        // this card is deliberately NOT asking about.
+        /**
+         * NO ACCIDENTALS ON A SHAPE CARD.
+         *
+         * ===========================================================
+         * AN ACCIDENTAL BESIDE A NOTE MEANS A DEPARTURE FROM THE KEY.
+         *
+         * That is what the glyph says in real notation; a note that
+         * belongs to the key carries no sign, because the signature
+         * already carries it. These cards establish no key at all, so
+         * every accidental they printed was making a claim about a
+         * key that was never stated.
+         *
+         * And the card asks WHICH SHAPE — triad root position,
+         * seventh first inversion. A stack of thirds is the same
+         * silhouette in every key, so the accidental could not be
+         * part of the answer either. It was ink that meant nothing
+         * and implied something.
+         *
+         * Stripped at the pitch, so the noteheads keep the diatonic
+         * places `chordPitches` put them in and only the signs go.
+         * ===========================================================
+         */
+        keys: pitches.map(p => toVexKey({ ...p, accidental: null })),
+        /**
+         * AND NO KEY SIGNATURE IN THEIR PLACE.
+         *
+         * The obvious repair for a stray accidental is to move it into
+         * a signature. It would be wrong here for the same reason: a
+         * signature names a key, the card is silent about key, and the
+         * silhouette it asks about is identical in all of them. It
+         * would be a fact added to the picture that the question does
+         * not use.
+         */
         keySignature: null,
       },
       caption: shapeCaption(parsed.family, parsed.position),

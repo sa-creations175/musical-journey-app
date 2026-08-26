@@ -24,6 +24,7 @@ import {
   resolveReadingCard,
 } from '../renderCard';
 import { ALL_SAMPLES, PREVIEW_SECTIONS } from '../previewSamples';
+import { CHORD_ROOTS } from '../answerModels';
 import {
   enumerateAllReadingItems,
   CHORD_QUALITIES,
@@ -186,6 +187,63 @@ describe('chord spelling', () => {
 // =====================================================================
 
 describe('notation shapes', () => {
+  /** Every way a shape card can be drawn: each item, on each clef, as
+   *  each quality of its own family, on each root the drill can pick. */
+  function everyShapeCard() {
+    const out: Array<{ ref: string; card: NonNullable<ReturnType<typeof resolveReadingCard>> }> = [];
+    for (const ref of enumerateAllReadingItems()) {
+      if (!ref.startsWith('shape:')) continue;
+      const family = ref.split(':')[1];
+      for (const clef of ['treble', 'bass'] as const) {
+        for (const q of CHORD_QUALITIES.filter(x => x.family === family)) {
+          for (const r of CHORD_ROOTS) {
+            const card = resolveReadingCard(ref, {
+              clef,
+              shapeQuality: q.id,
+              root: { letter: r.letter as 'C', accidental: r.accidental, octave: 4 },
+            });
+            if (card) out.push({ ref, card });
+          }
+        }
+      }
+    }
+    return out;
+  }
+
+  it('prints no accidental beside any note, on any of them', () => {
+    // AN ACCIDENTAL MEANS A DEPARTURE FROM THE KEY, and these cards
+    // establish no key. Asserted across every root the drill can pick,
+    // because the accidental came from the ROOT — a card drawn on C
+    // never had one and would pass a narrower test.
+    const cards = everyShapeCard();
+    expect(cards.length).toBeGreaterThan(100);
+    for (const { ref, card } of cards) {
+      for (const k of card.staff.keys) {
+        expect(k.split('/')[0], `${ref} — ${k}`).toMatch(/^[a-g]$/);
+      }
+    }
+  });
+
+  it('puts no key signature in their place', () => {
+    // The obvious repair, and the wrong one: a signature names a key
+    // the card is silent about.
+    for (const { ref, card } of everyShapeCard()) {
+      expect(card.staff.keySignature, ref).toBeNull();
+    }
+  });
+
+  it('names the SHAPE on the reveal, never the chord', () => {
+    // With no key established, naming a chord would silently assume C
+    // major. The caption carries the family and the position and
+    // nothing else, and there is no note list under it.
+    for (const { card } of everyShapeCard()) {
+      for (const q of CHORD_QUALITIES) {
+        expect(card.caption.toLowerCase()).not.toContain(q.label.toLowerCase());
+      }
+      expect(card.notes).toBeUndefined();
+    }
+  });
+
   it('every shape resolves on both clefs and every legal quality', () => {
     // A shape card is meant to be drawn many different ways. If any
     // combination fails to spell, the drill silently narrows to the
@@ -229,8 +287,11 @@ describe('notation shapes', () => {
   });
 
   it('major and minor really are the same silhouette', () => {
-    // The claim the seven-item count rests on. Same diatonic span and
-    // the same line/space pattern; only the accidentals differ.
+    // The claim the seven-item count rests on. It used to hold up to
+    // the accidentals — same span, same lines and spaces, different
+    // signs — and now it holds all the way: the two draw the SAME ink,
+    // because the sign was the only thing that ever differed and a
+    // shape card prints none.
     for (const position of ['root', 'inv1', 'inv2'] as const) {
       const maj = resolveReadingCard(`shape:triad:${position}`, {
         shapeQuality: 'maj', root: { letter: 'C', octave: 4 },
@@ -240,10 +301,7 @@ describe('notation shapes', () => {
       })!;
       expect(diatonicSpan(min.staff.keys), position)
         .toBe(diatonicSpan(maj.staff.keys));
-      const letters = (c: typeof maj) =>
-        c.staff.keys.map(k => `${k[0]}${k.split('/')[1]}`);
-      expect(letters(min), position).toEqual(letters(maj));
-      expect(min.staff.keys).not.toEqual(maj.staff.keys); // accidentals
+      expect(min.staff.keys, position).toEqual(maj.staff.keys);
     }
   });
 
