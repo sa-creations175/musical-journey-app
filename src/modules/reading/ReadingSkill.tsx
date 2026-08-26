@@ -68,7 +68,7 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
    * whatever else is lit beside it. The nav writes the first, the chip
    * row writes the second. See `useLitPool`.
    */
-  const { lit, toggle } = useLitPool(skill, isReadingCardKey);
+  const { lit, toggle, lightAll } = useLitPool(skill, isReadingCardKey);
 
   /**
    * `?focus=ref,ref` — the dashboard sending you here from a tapped
@@ -172,6 +172,7 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
         options={READING_SKILL_ORDER.map(s => ({ id: s, label: READING_SKILL_LABELS[s] }))}
         lit={lit}
         onToggle={toggle}
+        onSelectAll={lightAll}
         locked={skill}
         moduleId={READING_MODULE_ID}
         disabled={drilling}

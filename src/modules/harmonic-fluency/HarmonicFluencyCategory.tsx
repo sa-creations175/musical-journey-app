@@ -74,7 +74,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
    * first, the chip row writes the second, and both are the same value
    * this reads. See `useLitPool`.
    */
-  const { lit, toggle } = useLitPool(category, isCategory);
+  const { lit, toggle, lightAll } = useLitPool(category, isCategory);
   const [running, setRunning] = useState(false);
   /**
    * Which detail blocks are open. The page's own starts open and
@@ -211,6 +211,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
             options={POOL_OPTIONS}
             lit={lit}
             onToggle={toggle}
+            onSelectAll={lightAll}
             locked={category}
             moduleId={MODULE_ID}
           />

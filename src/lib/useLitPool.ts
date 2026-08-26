@@ -42,6 +42,12 @@ export interface LitPool {
    * the reader on a page for a category they had just excluded.
    */
   toggle: (id: string) => void;
+  /**
+   * Light every id given. The page's own is already lit by
+   * construction, so it is simply skipped rather than special-cased —
+   * passing the whole row is the caller's simplest correct move.
+   */
+  lightAll: (ids: readonly string[]) => void;
 }
 
 /** Split the parameter, dropping blanks a stray comma would leave. */
@@ -91,5 +97,17 @@ export function useLitPool(own: string, isValid: (id: string) => boolean): LitPo
     }, { replace: true });
   }, [own, raw, isValid, setSearchParams]);
 
-  return { lit, toggle };
+  const lightAll = useCallback((ids: readonly string[]) => {
+    const next = ids.filter(id => id !== own && isValid(id));
+    setSearchParams(prev => {
+      const params = new URLSearchParams(prev);
+      if (next.length === 0) params.delete(ALSO_PARAM);
+      else params.set(ALSO_PARAM, next.join(','));
+      return params;
+      // REPLACE, for the same reason `toggle` does: this is adjusting
+      // the page you are on, not travelling to a new one.
+    }, { replace: true });
+  }, [own, isValid, setSearchParams]);
+
+  return { lit, toggle, lightAll };
 }

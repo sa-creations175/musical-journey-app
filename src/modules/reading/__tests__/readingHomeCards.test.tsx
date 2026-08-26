@@ -199,8 +199,14 @@ describe('the page', () => {
 
     // Still no Start button of its own: starting is what a category
     // card's "drill category" does.
+    //
+    // MATCHED AT THE FRONT, not anywhere in the string. A card carries
+    // its tier, and one of the tiers is called "not started" — a bare
+    // `includes('start')` reads that badge as a Start button and fails
+    // on a page that has none. The rule is unchanged: no button here
+    // OFFERS to start something.
     const labels = [...el.querySelectorAll('button')].map(b => (b.textContent ?? '').toLowerCase());
-    expect(labels.some(t => t.includes('start'))).toBe(false);
+    expect(labels.some(t => t.trimStart().startsWith('start'))).toBe(false);
   });
 
   it('starts on the skill page only when the card asks', async () => {

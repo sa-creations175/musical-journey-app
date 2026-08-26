@@ -74,6 +74,10 @@ const litChips = () =>
     .filter(b => b.getAttribute('data-lit') === 'true')
     .map(b => b.getAttribute('data-option'));
 
+const allChips = () =>
+  [...container!.querySelectorAll('[data-testid="pool-option"]')]
+    .map(b => b.getAttribute('data-option'));
+
 const cardKeys = () =>
   [...container!.querySelectorAll('[data-card-key]')]
     .map(c => c.getAttribute('data-card-key'));
@@ -201,5 +205,32 @@ describe('the chip row writes the same value', () => {
     expect(own.disabled).toBe(true);
     await act(async () => { own.click(); });
     expect(litChips()).toContain('modes');
+  });
+});
+
+describe('Select All on the chip row', () => {
+  it('lights every chip, and the cards follow', async () => {
+    await render('/harmonic-fluency/scale-degree-math');
+    // Only the page's own to begin with — a nav link carries no ?also.
+    expect(litChips()).toEqual(['scale-degree-math']);
+
+    const control = container!.querySelector('[data-testid="pool-select-all"]');
+    await click(control!);
+
+    // EVERY chip, compared against the row itself rather than a list
+    // written here — a hard-coded expectation would pass on a control
+    // that lit some fixed subset the catalogue has since outgrown.
+    expect(litChips()).toEqual(allChips());
+    expect(litChips().length).toBeGreaterThan(1);
+    // The cards are derived from the same value, so they move with it.
+    expect(cardKeys()).toEqual(allChips());
+  });
+
+  it('has nothing left to do afterwards', async () => {
+    await render('/harmonic-fluency/scale-degree-math');
+    await click(container!.querySelector('[data-testid="pool-select-all"]')!);
+    const control = container!
+      .querySelector('[data-testid="pool-select-all"]') as HTMLButtonElement;
+    expect(control.disabled).toBe(true);
   });
 });

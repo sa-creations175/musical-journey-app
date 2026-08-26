@@ -51,6 +51,32 @@ function render(lit: ReadonlySet<string>, disabled = false, locked?: string) {
   return seen;
 }
 
+/** As `render`, with the Select All control wired. Returns what the
+ *  control handed back. */
+function renderWithSelectAll(lit: ReadonlySet<string>, disabled = false) {
+  const asked: string[][] = [];
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  act(() => {
+    root!.render(
+      <PoolPicker
+        options={OPTIONS}
+        lit={lit}
+        onToggle={() => {}}
+        onSelectAll={ids => asked.push(ids)}
+        moduleId="reading"
+        locked="a"
+        disabled={disabled}
+      />,
+    );
+  });
+  return asked;
+}
+
+const selectAll = () =>
+  host!.querySelector('[data-testid="pool-select-all"]') as HTMLButtonElement | null;
+
 const opt = (id: string) =>
   host!.querySelector(`[data-option="${id}"]`) as HTMLButtonElement;
 
@@ -103,5 +129,47 @@ describe('the row', () => {
     const seen = render(new Set(['a']));
     act(() => { opt('c').click(); });
     expect(seen).toEqual(['c']);
+  });
+});
+
+describe('Select All', () => {
+  it('is not drawn for a row that did not ask for it', () => {
+    render(new Set(['a']));
+    expect(selectAll()).toBeNull();
+  });
+
+  it('sits WITH the chips, in the same row', () => {
+    // Not above them: it is one more thing you press to change what is
+    // lit. A sibling of the chips, sharing their parent.
+    renderWithSelectAll(new Set(['a']));
+    const row = host!.querySelector('[data-testid="pool-picker"]')!;
+    expect(selectAll()!.parentElement).toBe(row);
+  });
+
+  it('comes last, so it does not shift a chip a reader knows', () => {
+    renderWithSelectAll(new Set(['a']));
+    const row = host!.querySelector('[data-testid="pool-picker"]')!;
+    expect(row.lastElementChild).toBe(selectAll());
+  });
+
+  it('hands back EVERY chip in the row, not just the unlit ones', () => {
+    // The whole row, so the caller cannot light a subset by accident.
+    const asked = renderWithSelectAll(new Set(['a', 'b']));
+    act(() => { selectAll()!.click(); });
+    expect(asked).toEqual([['a', 'b', 'c']]);
+  });
+
+  it('goes quiet once every chip is already lit', () => {
+    const asked = renderWithSelectAll(new Set(['a', 'b', 'c']));
+    expect(selectAll()!.disabled).toBe(true);
+    act(() => { selectAll()!.click(); });
+    expect(asked).toEqual([]);
+  });
+
+  it('is disabled while a drill runs, like the chips beside it', () => {
+    const asked = renderWithSelectAll(new Set(['a']), true);
+    expect(selectAll()!.disabled).toBe(true);
+    act(() => { selectAll()!.click(); });
+    expect(asked).toEqual([]);
   });
 });

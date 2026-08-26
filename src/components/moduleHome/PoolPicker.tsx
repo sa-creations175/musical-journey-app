@@ -23,6 +23,15 @@
  * DISABLED WHILE A DRILL RUNS, where a caller keeps it on screen. The
  * pool is decided when the run starts, and a row that could still be
  * pressed would promise a change the drill on screen will not make.
+ *
+ * SELECT ALL SITS IN THE ROW, not above it. It is one more thing you
+ * can press to change what is lit, which is what every other item in
+ * this row is — lifting it out would make it read as a heading for the
+ * chips rather than a sibling of them. It goes LAST so that adding it
+ * does not shift the chip a reader already knows the position of.
+ *
+ * It hands back the ids it actually drew, so "every chip" cannot come
+ * to mean a list the caller keeps separately and forgets to update.
  */
 import { moduleMetaById } from '../../lib/moduleMeta';
 
@@ -32,12 +41,15 @@ export interface PoolOption {
 }
 
 export default function PoolPicker({
-  options, lit, onToggle, moduleId, locked, disabled = false,
+  options, lit, onToggle, onSelectAll, moduleId, locked, disabled = false,
 }: {
   options: readonly PoolOption[];
   lit: ReadonlySet<string>;
   /** Called with the option pressed. The caller owns the set. */
   onToggle: (id: string) => void;
+  /** Called with EVERY option id in the row. Omit for a row that
+   *  should not offer it. */
+  onSelectAll?: (ids: string[]) => void;
   /** An option that is always lit and cannot be pressed out. */
   locked?: string;
   /** The module whose accent lights a button — the id, never a hex, so
@@ -46,6 +58,7 @@ export default function PoolPicker({
   disabled?: boolean;
 }) {
   const accentHex = moduleMetaById(moduleId)?.accentHex;
+  const allLit = options.every(o => lit.has(o.id));
 
   return (
     <div
@@ -78,6 +91,24 @@ export default function PoolPicker({
           </button>
         );
       })}
+
+      {onSelectAll && (
+        <button
+          type="button"
+          data-testid="pool-select-all"
+          // Nothing to do once everything is lit, and a button that
+          // does nothing when pressed is worse than one that says so.
+          disabled={disabled || allLit}
+          onClick={() => onSelectAll(options.map(o => o.id))}
+          className={`px-2.5 py-1 rounded-lg border border-dashed text-xs transition ${
+            disabled || allLit
+              ? 'border-neutral-200 dark:border-neutral-800 text-neutral-300 dark:text-neutral-600 cursor-default'
+              : 'border-neutral-300 dark:border-neutral-600 text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
+          }`}
+        >
+          Select All
+        </button>
+      )}
     </div>
   );
 }
