@@ -14,6 +14,9 @@
 import { describe, expect, it } from 'vitest';
 import { taglineForPath, titleForPath } from '../pageTitle';
 import { MODULE_ORDER } from '../moduleMeta';
+import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../modules/harmonic-fluency/catalog';
+import { READING_SKILL_LABELS, READING_SKILL_ORDER } from '../../modules/reading/homeCards';
+import { readingSkillPath } from '../../modules/reading/skillRoutes';
 
 describe('titleForPath', () => {
   it('names every live module route', () => {
@@ -38,6 +41,36 @@ describe('titleForPath', () => {
 
   it('falls back rather than blanking, so a gap is visible', () => {
     expect(titleForPath('/no-such-route')).toBe('Musical Journey');
+  });
+
+  it('names the category a drill page is on', () => {
+    // The one shape the exact-match map cannot hold: one route, fifteen
+    // and four destinations. Read off the modules' own labels, so a
+    // renamed category cannot leave a second name here.
+    for (const category of CATEGORY_ORDER) {
+      expect(titleForPath(`/harmonic-fluency/${category}`), category)
+        .toBe(CATEGORY_LABELS[category]);
+    }
+    for (const skill of READING_SKILL_ORDER) {
+      const title = titleForPath(readingSkillPath(skill));
+      expect(title, skill).not.toBe('Musical Journey');
+      expect(title.toLowerCase(), skill).toBe(READING_SKILL_LABELS[skill]);
+    }
+  });
+
+  it('still falls back on a slug that names nothing', () => {
+    // A bad link is a bad link; the pages redirect it, and the header
+    // must not invent a name for it on the way.
+    expect(titleForPath('/harmonic-fluency/plagal-cadences')).toBe('Musical Journey');
+    expect(titleForPath('/reading/tablature')).toBe('Musical Journey');
+  });
+
+  it('does not swallow the static siblings of a drill route', () => {
+    // `/reading/calendar` and `/harmonic-fluency/calendar` share the
+    // prefix the dynamic resolver claims, and the exact map wins.
+    expect(titleForPath('/reading/calendar')).toBe('Reading · Calendar');
+    expect(titleForPath('/harmonic-fluency/calendar'))
+      .toBe('Harmonic Fluency · Calendar');
   });
 });
 

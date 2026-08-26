@@ -14,6 +14,12 @@
  * context stays visible (e.g. "Intervals · Calendar").
  */
 
+import { CATEGORY_LABELS } from '../modules/harmonic-fluency/catalog';
+import { isCategory } from '../modules/harmonic-fluency/categoryRoutes';
+import { READING_SKILL_LABELS } from '../modules/reading/homeCards';
+import { readingSkillForSlug } from '../modules/reading/skillRoutes';
+import { titleCase } from './labelCase';
+
 const PAGE_TITLES: Record<string, string> = {
   '/':                                            'Dashboard',
   // Temporary, alongside the swap. Goes with the old screen.
@@ -48,8 +54,60 @@ const PAGE_TITLES: Record<string, string> = {
   '/harmonic-diary':                              'Harmonic Diary',
 };
 
+/**
+ * Titles for routes whose last segment is a VALUE rather than a page.
+ *
+ * =====================================================================
+ * A DRILL PAGE SAID "MUSICAL JOURNEY", WHICH IS THE FALLBACK WORKING.
+ *
+ * `/harmonic-fluency/modes` and `/reading/notes` are one route each
+ * with fifteen and four destinations behind them, so no exact-match
+ * entry can name them — the map has no row to write. The fallback did
+ * exactly what its comment promises and made the gap visible; this is
+ * the gap being closed rather than the fallback being distrusted.
+ *
+ * THE LABEL COMES FROM THE MODULE THAT OWNS THE CATEGORY, never from a
+ * table beside the resolver. A second list of the fifteen category
+ * names is how a renamed category comes to have two names.
+ * =====================================================================
+ *
+ * Ordered, and first match wins. Each entry claims one prefix and
+ * resolves the segment after it, returning null when the segment names
+ * nothing — an unknown slug falls through to the fallback, which is
+ * what the pages themselves do with it.
+ */
+const DYNAMIC_TITLES: ReadonlyArray<{
+  prefix: string;
+  labelFor: (segment: string) => string | null;
+}> = [
+  {
+    prefix: '/harmonic-fluency/',
+    labelFor: slug =>
+      (isCategory(slug) ? CATEGORY_LABELS[slug] : null),
+  },
+  {
+    prefix: '/reading/',
+    labelFor: slug => {
+      const skill = readingSkillForSlug(slug);
+      return skill === null ? null : titleCase(READING_SKILL_LABELS[skill]);
+    },
+  },
+];
+
 export function titleForPath(pathname: string): string {
-  return PAGE_TITLES[pathname] ?? 'Musical Journey';
+  const exact = PAGE_TITLES[pathname];
+  if (exact !== undefined) return exact;
+
+  for (const { prefix, labelFor } of DYNAMIC_TITLES) {
+    if (!pathname.startsWith(prefix)) continue;
+    const segment = pathname.slice(prefix.length);
+    // One segment only. `/reading/notes/anything` is not a drill page.
+    if (segment === '' || segment.includes('/')) continue;
+    const label = labelFor(segment);
+    if (label !== null) return label;
+  }
+
+  return 'Musical Journey';
 }
 
 /**
