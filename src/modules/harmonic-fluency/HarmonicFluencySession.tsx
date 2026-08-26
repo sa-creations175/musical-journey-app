@@ -24,6 +24,7 @@ import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import LydianChordRows from './LydianChordRows';
 import DegreeGroundedRows from './DegreeGroundedRows';
 import DegreePlayback from './DegreePlayback';
+import DegreeKeyboard from './DegreeKeyboard';
 import { qualityOfCardId } from './scaleDegreeQualityCards';
 import FlashcardSession, {
   type CardAnsweredArgs,
@@ -161,8 +162,8 @@ export default function HarmonicFluencySession({
       visualMode={displayMode}
       visualModes={VISUAL_MODES}
       onVisualModeChange={mode => onDisplayModeChange(mode as DisplayMode)}
-      renderVisualAid={({ card, answered, chosen }) => (
-        <VisualAid card={card} answered={answered} chosen={chosen} />
+      renderVisualAid={({ card, mode, answered, chosen }) => (
+        <VisualAid card={card} mode={mode} answered={answered} chosen={chosen} />
       )}
       renderExplanation={text => <ModeLinkify text={text} />}
       renderFooter={(card, { answered }) => (
@@ -174,27 +175,52 @@ export default function HarmonicFluencySession({
 }
 
 // ---------------------------------------------------------------------
-// Visual aid dispatcher — keyed on card.category so each question type
-// gets the visualization that actually teaches its skill:
+// Visual aid dispatcher — TWO AXES, and it used to read only one.
+//
+// Down the page, the CATEGORY chooses which visualization teaches the
+// skill:
 //   · scale-degree-math / named-notes / reverse-key-pivots → linear
 //     strip with stepwise counting (interval labels revealed after
 //     answer so users count in their head first).
 //   · diatonic-qualities / modes → plain compass, no arc — just a
 //     reference layout of the 7 degrees.
 //   · everything else → text-only (no visual).
+//
+// Across it, the MODE chooses what those are drawn on. `keyboard` draws
+// them on keys; `number-grid` draws them on the strip or the compass.
+// The mode was handed in from the start and never read, which is why
+// the keyboard toggle switched on and changed nothing — see
+// `DegreeKeyboard.tsx`. `text` never gets here: `FlashcardSession`
+// drops the visual aid entirely in that mode.
 // ---------------------------------------------------------------------
 
 function VisualAid({
   card,
+  mode,
   answered,
   chosen,
 }: {
   card: Flashcard;
+  mode: string;
   answered: boolean;
   chosen: string | null;
 }) {
   const hint = card.visualHint;
   if (!hint) return null;
+
+  // ON KEYS, for every category that has a visual aid at all. The
+  // keyboard reads the same hint the strip and the compass read, so
+  // this is one branch rather than one per category — a category whose
+  // aid is a compass has nothing different to say on a keyboard.
+  if (mode === 'keyboard') {
+    return (
+      <DegreeKeyboard
+        card={card}
+        answered={answered}
+        correct={chosen === card.correctAnswer}
+      />
+    );
+  }
 
   switch (card.category) {
     case 'scale-degree-math':
