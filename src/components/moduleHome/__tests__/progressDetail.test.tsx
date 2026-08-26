@@ -13,7 +13,10 @@ import { act } from 'react';
 import ProgressDetail from '../ProgressDetail';
 import { TIER_BAR_CLASS, TIER_LABEL, type Tier } from '../../../lib/tier';
 import { placeItems, columnItems } from '../placeItems';
-import { viewsAgree, type AxisSpec, type GridSpec } from '../axis';
+import {
+  AS_DECLARED, TRANSPOSED, orientationField, viewsAgree,
+  type AxisSpec, type GridSpec,
+} from '../axis';
 import type { SkillRecord } from '../../../modules/skills/registry';
 
 const NOW = Date.UTC(2026, 7, 24, 12);
@@ -112,6 +115,41 @@ async function render(
     );
   });
   return container;
+}
+
+/**
+ * As `render`, but with the remembered store WIRED — reads come out of
+ * a map the test owns and writes go back into it, which is what the
+ * page's `useAxisViews` does. A stub that only records writes cannot
+ * show the grid actually turning.
+ */
+async function renderRemembering(
+  remembered: Record<string, string>,
+  grid: GridSpec | null = GRID,
+): Promise<{ el: HTMLDivElement; wrote: Array<[string, string]> }> {
+  const wrote: Array<[string, string]> = [];
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  const draw = () =>
+    root!.render(
+      <ProgressDetail
+        categoryLabel="Key signatures"
+        items={ITEMS}
+        grid={grid}
+        accentHex="#6f4a2f"
+        now={NOW}
+        viewFor={f => remembered[f] ?? null}
+        onViewChange={(f, v) => {
+          wrote.push([f, v]);
+          remembered[f] = v;
+          act(() => { draw(); });
+        }}
+        onClose={() => {}}
+      />,
+    );
+  await act(async () => { draw(); });
+  return { el: container, wrote };
 }
 
 afterEach(async () => {
@@ -297,5 +335,89 @@ describe('the legend under the grid', () => {
   it('is not drawn for a category with no grid to explain', async () => {
     const el = await render(ITEMS, null);
     expect(el.querySelector('[data-testid="tier-legend"]')).toBeNull();
+  });
+});
+
+describe('which way up the grid is drawn', () => {
+  const turn = () =>
+    container!.querySelector('[data-testid="grid-orientation"]') as HTMLButtonElement | null;
+  const rows = (el: HTMLElement) =>
+    [...el.querySelectorAll('[data-testid="grid-row"]')].map(r => r.getAttribute('data-row'));
+
+  it('draws the declared orientation when nothing is remembered', async () => {
+    const el = await render();
+    expect(columns(el)).toEqual([...ODD_COLUMNS]);
+    expect(rows(el)).toEqual(['major', 'minor']);
+    expect(turn()!.getAttribute('data-transposed')).toBe('false');
+  });
+
+  it('swaps the axes when the choice is remembered', async () => {
+    const { el } = await renderRemembering({
+      [orientationField('Key signatures')]: TRANSPOSED,
+    });
+    // The SAME two lists, each on the other axis. Not a re-sort.
+    expect(columns(el)).toEqual(['major', 'minor']);
+    expect(rows(el)).toEqual([...ODD_COLUMNS]);
+  });
+
+  it('turns on a press and turns back on the next one', async () => {
+    const { el, wrote } = await renderRemembering({});
+    await act(async () => { turn()!.click(); });
+    expect(columns(el)).toEqual(['major', 'minor']);
+
+    await act(async () => { turn()!.click(); });
+    expect(columns(el)).toEqual([...ODD_COLUMNS]);
+
+    // Written under this category's own key, so another category's
+    // grid does not turn with it.
+    expect(wrote.map(([f]) => f))
+      .toEqual([orientationField('Key signatures'), orientationField('Key signatures')]);
+    expect(wrote.map(([, v]) => v)).toEqual([TRANSPOSED, AS_DECLARED]);
+  });
+
+  it('places every item it placed before, on either orientation', async () => {
+    // THE PROPERTY THAT MAKES IT DISPLAY-ONLY. A turn that dropped an
+    // item into the tail would be a filter wearing a rotation's coat.
+    const flat = await render();
+    const before = flat.querySelectorAll('[data-testid="grid-cell"]').length;
+    const tailBefore = flat.querySelectorAll('[data-testid="tail-item"]').length;
+    if (root) await act(async () => root!.unmount());
+    container?.remove();
+
+    const { el } = await renderRemembering({
+      [orientationField('Key signatures')]: TRANSPOSED,
+    });
+    expect(el.querySelectorAll('[data-testid="grid-cell"]').length).toBe(before);
+    expect(el.querySelectorAll('[data-testid="tail-item"]').length).toBe(tailBefore);
+  });
+
+  it('keeps the axis-view toggle with its axis when the grid turns', async () => {
+    // The key axis carries two orderings. Turning the grid used to take
+    // the toggle off screen with the axis it belonged to.
+    const { el } = await renderRemembering({
+      [orientationField('Key signatures')]: TRANSPOSED,
+    });
+    expect(el.querySelector('[data-testid="axis-view-odd"]')).not.toBeNull();
+    expect(el.querySelector('[data-testid="axis-view-reversed"]')).not.toBeNull();
+  });
+
+  it('is not offered where there is nothing to swap', async () => {
+    // One axis, so no second one to trade places with. A 12-wide strip
+    // turned 12-tall would be a different picture, not the same one.
+    await render(ITEMS, { columns: columnAxis });
+    expect(turn()).toBeNull();
+  });
+
+  it('is not offered for a category with no grid at all', async () => {
+    await render(ITEMS, null);
+    expect(turn()).toBeNull();
+  });
+
+  it('has no name yet — Silas writes it', async () => {
+    // Pinned so a placeholder cannot arrive by accident: the control is
+    // there and pressable, and the word is his.
+    const el = await render();
+    expect(el.querySelector('[data-testid="grid-orientation"]')).not.toBeNull();
+    expect(turn()!.textContent).toBe('');
   });
 });

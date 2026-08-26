@@ -9,6 +9,12 @@
  * a fact about how the reader reads keys, so a second category with a
  * key axis inherits the choice rather than asking again.
  *
+ * IT ALSO HOLDS WHICH WAY UP EACH GRID IS DRAWN, under keys no axis
+ * field can collide with — see `orientationField` in `axis.ts`. That is
+ * the same kind of value: a remembered, display-only choice about one
+ * grid, loaded once per page. A second store would be a second thing to
+ * wait for and a second thing to go stale.
+ *
  * The stored value is only ever a HINT. `resolveView` falls back to the
  * first view when the remembered id no longer exists, so renaming or
  * removing a view cannot leave a grid unable to render.

@@ -92,3 +92,49 @@ export function resolveView(axis: AxisSpec, viewId: string | null): AxisView {
 export function axisLabel(axis: AxisSpec, value: string | number): string {
   return axis.labelFor ? axis.labelFor(value) : String(value);
 }
+
+// ---------------------------------------------------------------------
+// Orientation
+// ---------------------------------------------------------------------
+
+/**
+ * WHICH WAY UP A GRID IS DRAWN, remembered the way an axis view is.
+ *
+ * Transposing is display only, exactly like choosing chromatic over
+ * fourths: the same cells, the same coordinates, the same items — the
+ * table is simply drawn on its side. So it rides the SAME remembered
+ * store an axis view rides, under a field name no axis can collide
+ * with, rather than a second preference with its own loading and its
+ * own chance to be stale.
+ *
+ * KEYED PER CATEGORY, not per module and not globally. Which way up a
+ * 7 x 24 grid reads is a fact about that grid's shape; a 12 x 7 one has
+ * no reason to inherit the answer.
+ */
+export const ORIENTATION_FIELD_PREFIX = 'grid-orientation:';
+
+/** The stored value meaning "drawn on its side". Anything else, absent
+ *  included, means the orientation the category declared. */
+export const TRANSPOSED = 'transposed';
+export const AS_DECLARED = 'as-declared';
+
+export function orientationField(categoryLabel: string): string {
+  return `${ORIENTATION_FIELD_PREFIX}${categoryLabel}`;
+}
+
+/**
+ * The grid as it should be drawn, given the remembered choice.
+ *
+ * A one-dimensional grid is returned untouched: it has no second axis
+ * to swap with, and inventing one to turn a 12-wide strip into a
+ * 12-tall one would be a different picture, not the same one rotated.
+ */
+export function orientedGrid(grid: GridSpec, transposed: boolean): GridSpec {
+  if (!transposed || grid.rows === undefined) return grid;
+  return { columns: grid.rows, rows: grid.columns };
+}
+
+/** Whether this grid can be turned at all. */
+export function canTranspose(grid: GridSpec | null): boolean {
+  return grid !== null && grid.rows !== undefined;
+}

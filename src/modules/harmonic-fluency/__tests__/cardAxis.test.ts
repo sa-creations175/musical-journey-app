@@ -209,7 +209,7 @@ describe('scale degree math is 7 degrees x 24 movements', () => {
     const { INTERVAL_QUALITIES, DIRECTIONS } = await import('../scaleDegreeQuality');
 
     const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['scale-degree-math']];
-    expect(grid.rows!.views[0].values.map(String))
+    expect(grid.columns.views[0].values.map(String))
       .toEqual(DEGREE_MOVEMENTS.map(m => m.id));
     // And the list itself is the product of the two the generator
     // walks, not a third copy of them.
@@ -217,31 +217,26 @@ describe('scale degree math is 7 degrees x 24 movements', () => {
       INTERVAL_QUALITIES.flatMap(q => DIRECTIONS.map(d => movementId(q, d))),
     );
     expect(DEGREE_MOVEMENTS).toHaveLength(24);
-    expect(grid.columns.views[0].values).toHaveLength(7);
+    expect(grid.rows!.views[0].values).toHaveLength(7);
   });
 
-  it('puts the SHORT axis across and the long one down', async () => {
-    // The page scrolls down, never sideways: 24 columns did not fit, so
-    // two thirds of the movements sat behind a horizontal scrollbar.
-    // Named by field rather than by length, so a 25th movement cannot
-    // flip the grid back by accident.
+  it('lays the movements ACROSS and the degrees down', async () => {
+    // The stored orientation. Transposing it is the reader's call at
+    // render time, not a fact about the catalogue — see ProgressDetail.
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
     const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['scale-degree-math']];
-    expect(grid.columns.field).toBe('degree');
-    expect(grid.rows!.field).toBe('movement');
-    expect(grid.columns.views[0].values.length)
-      .toBeLessThan(grid.rows!.views[0].values.length);
+    expect(grid.columns.field).toBe('movement');
+    expect(grid.rows!.field).toBe('degree');
   });
 
   it('keeps the movement labels the generator wrote', async () => {
-    // They moved from column headings to the left-hand header column;
-    // they are still the generator's words, not re-spelled here.
+    // The generator's words, not re-spelled beside the grid.
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
     const { DEGREE_MOVEMENTS } = await import('../scaleDegreeQualityCards');
     const { axisLabel } = await import('../../../components/moduleHome/axis');
     const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['scale-degree-math']];
     for (const m of DEGREE_MOVEMENTS) {
-      expect(axisLabel(grid.rows!, m.id)).toBe(m.label);
+      expect(axisLabel(grid.columns, m.id)).toBe(m.label);
     }
   });
 
@@ -259,8 +254,8 @@ describe('scale degree math is 7 degrees x 24 movements', () => {
     const cells = new Set<string>();
     for (const c of cards) {
       expect(c.axis, c.id).toBeDefined();
-      expect(columns.has(String(c.axis!.degree)), c.id).toBe(true);
-      expect(rows.has(String(c.axis!.movement)), c.id).toBe(true);
+      expect(columns.has(String(c.axis!.movement)), c.id).toBe(true);
+      expect(rows.has(String(c.axis!.degree)), c.id).toBe(true);
       cells.add(`${c.axis!.degree}|${c.axis!.movement}`);
     }
     expect(cells.size).toBe(168);

@@ -12,13 +12,24 @@
  * the same twelve values; a column means the same thing either way. The
  * choice is remembered between visits, like the criteria panel's open
  * state.
+ *
+ * SO IS THE ORIENTATION TOGGLE, for the same reason and through the
+ * same remembered store — see `orientationField` in `axis.ts`. Which
+ * way up a grid reads is the reader's call, not the catalogue's: a
+ * 7 x 24 is a sideways scroll one way up and a downward one the other,
+ * and which of those is better depends on the screen and the reader,
+ * neither of which this file can see. A category with no second axis
+ * does not offer it — there is nothing to swap.
  */
 import { useMemo, useState } from 'react';
 import ProgressBar from '../ProgressBar';
 import { FALLBACK_INTERVAL_DAYS } from '../../lib/progressBar';
 import { TIER_BADGE_CLASS, TIER_BAR_CLASS, TIER_LABEL, type Tier } from '../../lib/tier';
 import type { SkillRecord } from '../../modules/skills/registry';
-import { SINGLE_ROW, axisLabel, resolveView, type GridSpec } from './axis';
+import {
+  AS_DECLARED, SINGLE_ROW, TRANSPOSED, axisLabel, canTranspose, orientationField,
+  orientedGrid, resolveView, type AxisSpec, type GridSpec,
+} from './axis';
 import { placeItems } from './placeItems';
 
 export interface ProgressDetailProps {
@@ -42,15 +53,27 @@ export default function ProgressDetail({
 }: ProgressDetailProps) {
   const [openItem, setOpenItem] = useState<SkillRecord | null>(null);
 
-  const columnView = grid ? resolveView(grid.columns, viewFor(grid.columns.field)) : null;
-  const rowView = grid
-    ? (grid.rows ? resolveView(grid.rows, viewFor(grid.rows.field)) : SINGLE_ROW)
+  // WHAT IS DRAWN, which is the declared grid turned or not turned. The
+  // declared one is read only to decide that; everything downstream —
+  // headers, placement, the tail's sentence — reads `shown`, so there
+  // is no second place that can hold the old orientation.
+  const turnable = canTranspose(grid);
+  const orientKey = orientationField(categoryLabel);
+  const transposed = turnable && viewFor(orientKey) === TRANSPOSED;
+  const shown = useMemo(
+    () => (grid === null ? null : orientedGrid(grid, transposed)),
+    [grid, transposed],
+  );
+
+  const columnView = shown ? resolveView(shown.columns, viewFor(shown.columns.field)) : null;
+  const rowView = shown
+    ? (shown.rows ? resolveView(shown.rows, viewFor(shown.rows.field)) : SINGLE_ROW)
     : null;
 
   const placed = useMemo(
-    () => placeItems(items, grid, columnView ?? { id: '', label: '', values: [] },
+    () => placeItems(items, shown, columnView ?? { id: '', label: '', values: [] },
       rowView ?? { id: '', label: '', values: [] }),
-    [items, grid, columnView, rowView],
+    [items, shown, columnView, rowView],
   );
 
   return (
@@ -69,36 +92,48 @@ export default function ProgressDetail({
         </button>
       </div>
 
-      {grid && columnView && rowView && placed.grid !== null && (() => {
+      {shown && columnView && rowView && placed.grid !== null && (() => {
         const g = placed.grid;
         return (
         <>
-          {grid.columns.views.length > 1 && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[11px] text-neutral-500 uppercase tracking-wide">
-                {grid.columns.label}:
-              </span>
-              {grid.columns.views.map(v => {
-                const on = v.id === columnView.id;
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    data-testid={`axis-view-${v.id}`}
-                    aria-pressed={on}
-                    onClick={() => onViewChange(grid.columns.field, v.id)}
-                    className={`px-2 py-1 rounded-md text-[11px] border ${
-                      on ? 'text-white border-transparent'
-                        : 'border-neutral-200 dark:border-neutral-700 text-neutral-500'
-                    }`}
-                    style={on ? { backgroundColor: accentHex } : undefined}
-                  >
-                    {v.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap">
+            {/* ONE TOGGLE PER AXIS THAT HAS ORDERINGS, whichever way up
+                the grid is drawn. Offering it for the columns only meant
+                that turning the grid took the key toggle off screen with
+                the axis it belonged to. */}
+            <AxisViewToggle
+              axis={shown.columns}
+              current={columnView.id}
+              accentHex={accentHex}
+              onChange={onViewChange}
+            />
+            {shown.rows && (
+              <AxisViewToggle
+                axis={shown.rows}
+                current={rowView.id}
+                accentHex={accentHex}
+                onChange={onViewChange}
+              />
+            )}
+
+            {turnable && (
+              <button
+                type="button"
+                data-testid="grid-orientation"
+                data-transposed={transposed ? 'true' : 'false'}
+                aria-pressed={transposed}
+                onClick={() => onViewChange(orientKey, transposed ? AS_DECLARED : TRANSPOSED)}
+                className={`ml-auto px-2 py-1 rounded-md text-[11px] border ${
+                  transposed
+                    ? 'text-white border-transparent'
+                    : 'border-neutral-200 dark:border-neutral-700 text-neutral-500'
+                }`}
+                style={transposed ? { backgroundColor: accentHex } : undefined}
+              >
+                {ORIENTATION_LABEL}
+              </button>
+            )}
+          </div>
 
           <div className="overflow-x-auto">
             <table className="border-collapse text-[11px]" data-testid="progress-grid">
@@ -112,7 +147,7 @@ export default function ProgressDetail({
                       data-column={String(c)}
                       className="px-1.5 py-1 font-medium text-neutral-500 whitespace-nowrap"
                     >
-                      {axisLabel(grid.columns, c)}
+                      {axisLabel(shown.columns, c)}
                     </th>
                   ))}
                 </tr>
@@ -121,7 +156,7 @@ export default function ProgressDetail({
                 {g.rows.map(r => (
                   <tr key={String(r)} data-testid="grid-row" data-row={String(r)}>
                     <th className="sticky left-0 bg-white dark:bg-neutral-900 z-10 pr-2 py-1 text-right font-medium text-neutral-500 whitespace-nowrap">
-                      {grid.rows ? axisLabel(grid.rows, r) : ''}
+                      {shown.rows ? axisLabel(shown.rows, r) : ''}
                     </th>
                     {g.columns.map(c => {
                       const cell = g.cells.get(String(c))?.get(String(r)) ?? [];
@@ -174,7 +209,7 @@ export default function ProgressDetail({
             // does not vary by the grid's axes.
             <p className="text-[11px] text-neutral-500 mb-1.5">
               {placed.tail.length} item{placed.tail.length === 1 ? '' : 's'} with no
-              {' '}{grid?.columns.label}{grid?.rows ? ` / ${grid.rows.label}` : ''} coordinates
+              {' '}{shown?.columns.label}{shown?.rows ? ` / ${shown.rows.label}` : ''} coordinates
             </p>
           )}
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800 border border-black/[0.07] rounded-lg overflow-hidden">
@@ -209,6 +244,57 @@ export default function ProgressDetail({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * THE ORIENTATION CONTROL HAS NO NAME YET, and that is deliberate.
+ *
+ * Silas names it. A placeholder word would ship as copy and would then
+ * have to be un-shipped; an empty string renders a control that is
+ * plainly waiting for one. Everything else about it works — it turns
+ * the grid, it remembers, it is keyed per category.
+ */
+const ORIENTATION_LABEL = '';
+
+/**
+ * One axis's orderings, as a row of buttons. Nothing when the axis has
+ * only one — a toggle between a thing and itself is decoration.
+ */
+function AxisViewToggle({
+  axis, current, accentHex, onChange,
+}: {
+  axis: AxisSpec;
+  current: string;
+  accentHex: string;
+  onChange: (field: string, viewId: string) => void;
+}) {
+  if (axis.views.length < 2) return null;
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap" data-testid="axis-view-toggle">
+      <span className="text-[11px] text-neutral-500 uppercase tracking-wide">
+        {axis.label}:
+      </span>
+      {axis.views.map(v => {
+        const on = v.id === current;
+        return (
+          <button
+            key={v.id}
+            type="button"
+            data-testid={`axis-view-${v.id}`}
+            aria-pressed={on}
+            onClick={() => onChange(axis.field, v.id)}
+            className={`px-2 py-1 rounded-md text-[11px] border ${
+              on ? 'text-white border-transparent'
+                : 'border-neutral-200 dark:border-neutral-700 text-neutral-500'
+            }`}
+            style={on ? { backgroundColor: accentHex } : undefined}
+          >
+            {v.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
