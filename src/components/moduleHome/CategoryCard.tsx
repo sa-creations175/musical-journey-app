@@ -46,6 +46,7 @@ import { TIER_BADGE_CLASS, TIER_LABEL } from '../../lib/tier';
 import { titleCase } from '../../lib/labelCase';
 import {
   CARD_ACTION_LABEL,
+  PROGRESS_DETAIL_LABEL,
   CardActions,
   CardShell,
   CardSubLine,
@@ -54,7 +55,7 @@ import {
 } from './cardShell';
 import type { CategoryCardBar, CategoryCardModel } from './model';
 
-export { CARD_ACTION_LABEL };
+export { CARD_ACTION_LABEL, PROGRESS_DETAIL_LABEL };
 
 export interface CategoryCardProps {
   card: CategoryCardModel;
@@ -243,7 +244,7 @@ export default function CategoryCard({
               testId: 'category-card-drill',
             }}
             secondary={{
-              label: 'Progress Detail',
+              label: PROGRESS_DETAIL_LABEL,
               onClick: onProgressDetail,
               testId: 'category-card-progress-detail',
               // STILL DISABLED WHERE THERE IS NOTHING TO OPEN.

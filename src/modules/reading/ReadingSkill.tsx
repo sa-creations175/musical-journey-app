@@ -18,7 +18,7 @@
  * THE DRILL COMPONENT IS UNCHANGED. `ReadingDrill` still owns the card,
  * the answer and the attempt; what moved is where it is mounted.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
@@ -31,6 +31,7 @@ import PoolPicker from '../../components/moduleHome/PoolPicker';
 import CategoryDetailStack, {
   type DetailEntry,
 } from '../../components/moduleHome/CategoryDetailStack';
+import { PROGRESS_DETAIL_LABEL } from '../../components/moduleHome/cardShell';
 import { useAxisViews } from '../../components/moduleHome/useAxisViews';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
@@ -141,6 +142,29 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
     return next;
   });
 
+  /**
+   * WHAT A "PROGRESS DETAIL" PRESS LANDS ON.
+   *
+   * It used to be the first detail block, which meant landing part-way
+   * into the page with no indication that the drill above had ended
+   * and the charts had begun. The section header is the boundary, so
+   * it is what the landing scrolls to: the reader arrives at the top
+   * of the detail area rather than inside it.
+   *
+   * `CategoryDetailStack` still owns block-level scrolling for the
+   * pages that ask for it; this page asks for the header instead, so
+   * `scrollTo` is not passed down.
+   */
+  const detailHeaderRef = useRef<HTMLDivElement>(null);
+  const { scrollTo, onScrolled } = landing;
+  useEffect(() => {
+    if (!scrollTo || !axisViews.loaded) return;
+    // Guarded: jsdom has no `scrollIntoView`. What a test can check is
+    // that the landing was consumed, not that anything moved.
+    detailHeaderRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    onScrolled();
+  }, [scrollTo, onScrolled, axisViews.loaded]);
+
 
   return (
     <div className="space-y-6" data-testid="reading-skill-page" data-skill={skill}>
@@ -201,20 +225,39 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
       )}
 
       {/* THE DETAIL BLOCK, below the drill. This skill expanded,
-          everything else lit collapsed. */}
+          everything else lit collapsed.
+
+          THE RULED HEADER IS THE BOUNDARY. Drill above it, charts
+          below — the page ran the two together, so a reader scrolling
+          down met a grid with no announcement that the questions had
+          stopped. It is also what Progress Detail lands on; see the
+          effect above. */}
       {axisViews.loaded && (
-        <CategoryDetailStack
-          entries={detailEntries}
-          expanded={expandedDetails}
-          onToggle={toggleDetail}
-          accentHex={moduleMetaById(READING_MODULE_ID)?.accentHex ?? '#6f4a2f'}
-          now={now}
-          viewFor={axisViews.viewFor}
-          onViewChange={axisViews.setView}
-          dueByItem={dueByItem}
-          scrollTo={landing.scrollTo}
-          onScrolled={landing.onScrolled}
-        />
+        <div className="space-y-3">
+          <div
+            ref={detailHeaderRef}
+            data-testid="reading-detail-header"
+            className="flex items-center gap-3 pt-2 scroll-mt-4"
+          >
+            <h2 className="text-[11px] uppercase tracking-wide text-neutral-500">
+              {PROGRESS_DETAIL_LABEL}
+            </h2>
+            <span
+              aria-hidden
+              className="flex-1 border-t border-neutral-200 dark:border-neutral-700"
+            />
+          </div>
+          <CategoryDetailStack
+            entries={detailEntries}
+            expanded={expandedDetails}
+            onToggle={toggleDetail}
+            accentHex={moduleMetaById(READING_MODULE_ID)?.accentHex ?? '#6f4a2f'}
+            now={now}
+            viewFor={axisViews.viewFor}
+            onViewChange={axisViews.setView}
+            dueByItem={dueByItem}
+          />
+        </div>
       )}
     </div>
   );

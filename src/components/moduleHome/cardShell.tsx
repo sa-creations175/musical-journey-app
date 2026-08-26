@@ -269,5 +269,15 @@ export function CardActions({
  */
 export const CARD_ACTION_LABEL = 'Open';
 
+/**
+ * What a card's secondary action says — and what the section it lands
+ * on is titled.
+ *
+ * Defined once for the same reason: the button and the heading it
+ * scrolls to are the same promise, and two literals could drift into
+ * naming two different things.
+ */
+export const PROGRESS_DETAIL_LABEL = 'Progress Detail';
+
 /** Shared so a caller cannot hand `CardShell` a style of its own. */
 export type CardShellStyle = CSSProperties;

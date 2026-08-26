@@ -22,6 +22,8 @@ import {
   SIGNATURES, noteItemRef, readingSkillForItemRef, signatureItemRef,
 } from '../catalog';
 import { moduleMetaById } from '../../../lib/moduleMeta';
+import { detailHref } from '../../../lib/detailLanding';
+import { PROGRESS_DETAIL_LABEL } from '../../../components/moduleHome/cardShell';
 import type { AttemptRecord } from '../../../lib/db';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -40,7 +42,13 @@ let root: Root | null = null;
  */
 function Probe() {
   const location = useLocation();
-  return <span data-testid="at" data-path={location.pathname} />;
+  return (
+    <span
+      data-testid="at"
+      data-path={location.pathname}
+      data-search={location.search}
+    />
+  );
 }
 
 async function renderAt(path: string): Promise<HTMLDivElement> {
@@ -84,6 +92,11 @@ const detailKeys = (el: HTMLElement) =>
 
 const at = () =>
   container!.querySelector('[data-testid="at"]')!.getAttribute('data-path');
+
+/** The query string as the router currently holds it — how a landing
+ *  request can be seen to have been consumed. */
+const search = () =>
+  container!.querySelector('[data-testid="at"]')!.getAttribute('data-search');
 
 afterEach(async () => {
   if (root) await act(async () => root!.unmount());
@@ -268,6 +281,25 @@ describe('the page', () => {
       .toBe(READING_SKILL_ORDER.join(','));
     // And it is actually running — a card is on screen.
     expect(el.querySelector('[data-item-ref]')).not.toBeNull();
+  });
+
+  it('rules off the detail area, and lands a Progress Detail press on it', async () => {
+    // WHAT IS ASSERTED IS THE ORDER AND THE TARGET, not the rule.
+    // jsdom draws nothing and has no `scrollIntoView`; what it can say
+    // is that the header comes before the blocks in the document and
+    // that arriving with `?detail=1` consumed the request rather than
+    // leaving it in the URL to re-fire on every later render.
+    const el = await renderAt(detailHref('/reading/signatures'));
+    await settle(() => el.querySelector('[data-detail-key="sig"]') !== null);
+    const header = el.querySelector('[data-testid="reading-detail-header"]');
+    const stack = el.querySelector('[data-testid="category-detail-stack"]');
+    expect(header).not.toBeNull();
+    expect(header!.textContent).toBe(PROGRESS_DETAIL_LABEL);
+    expect(
+      header!.compareDocumentPosition(stack!) & Node.DOCUMENT_POSITION_FOLLOWING,
+      'the blocks sit below the header',
+    ).toBeTruthy();
+    expect(search(), 'the landing request is cleared once acted on').toBe('');
   });
 
   it('lights the neighbours of a skill from its own page', async () => {
