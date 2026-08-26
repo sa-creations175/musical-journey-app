@@ -85,6 +85,92 @@ export function MeasureSwitch({
   );
 }
 
+/**
+ * Grouped by module, or one list mixed across all of them.
+ *
+ * =====================================================================
+ * TWO QUESTIONS, AND THE GROUPING IS WHICH ONE IS BEING ASKED.
+ *
+ * GROUPED answers "how is each module doing" — the rows sit under their
+ * module and the comparison is within it, so a weak row reads as weak
+ * FOR THAT MODULE.
+ *
+ * FLAT answers "what is weakest anywhere" — every category in the app in
+ * one order, so the worst thing is at the top regardless of which
+ * module it belongs to. That question cannot be asked of a grouped
+ * list at all: six separate orderings have no single worst row.
+ *
+ * GROUPED IS THE DEFAULT because it is the safer thing to land on. A
+ * flat list opens on whichever category happens to be worst, which on a
+ * new install is an arbitrary untouched one — true, and no use. Grouped
+ * opens on structure.
+ * =====================================================================
+ */
+export function GroupToggle({
+  grouped, onChange,
+}: {
+  grouped: boolean;
+  onChange: (grouped: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid="mobile-group-toggle"
+      data-grouped={grouped ? 'true' : 'false'}
+      aria-pressed={grouped}
+      onClick={() => onChange(!grouped)}
+      className="text-[11px] text-neutral-500 hover:text-fluent underline"
+    >
+      {grouped ? 'Mixed' : 'By module'}
+    </button>
+  );
+}
+
+/**
+ * The rows under their module headings.
+ *
+ * MODULE ORDER IS THE ORDER THEY ARRIVED IN, never the measure. Sorting
+ * the groups as well as the rows would make the whole page rearrange on
+ * every tab change, and the point of grouping is that the structure
+ * holds still while the rows inside it move.
+ */
+export function GroupedSkills({
+  rows, measure, now, stepDays, onOpen,
+}: {
+  rows: readonly SkillRow[];
+  measure: Measure;
+  now: number;
+  stepDays: number;
+  onOpen: (row: SkillRow) => void;
+}) {
+  const byModule = new Map<string, SkillRow[]>();
+  for (const row of rows) {
+    const list = byModule.get(row.moduleId) ?? [];
+    list.push(row);
+    byModule.set(row.moduleId, list);
+  }
+  return (
+    <div className="space-y-3" data-testid="mobile-skills-grouped">
+      {[...byModule.entries()].map(([moduleId, group]) => (
+        <section key={moduleId} data-testid="mobile-skill-group" data-module={moduleId}>
+          <h3 className="text-[11px] uppercase tracking-wide text-neutral-500 mb-1">
+            {group[0].moduleLabel}
+          </h3>
+          <SkillsList
+            rows={group}
+            measure={measure}
+            now={now}
+            stepDays={stepDays}
+            // The heading above already says which module this is.
+            showModule={false}
+            onOpen={onOpen}
+          />
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export default function SkillsList({
   rows, measure, now, stepDays, showModule, onOpen,
 }: {

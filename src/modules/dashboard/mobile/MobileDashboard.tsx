@@ -31,7 +31,9 @@ import { useNavigate } from 'react-router-dom';
 import type { ModuleTree } from '../read/query';
 import type { TreeNode } from '../read/tree';
 import ModuleCards from './ModuleCards';
-import SkillsList, { MeasureSwitch, type SkillRow } from './SkillsList';
+import SkillsList, {
+  GroupToggle, GroupedSkills, MeasureSwitch, type SkillRow,
+} from './SkillsList';
 import { DEFAULT_MEASURE, type Measure } from './measures';
 import { FRESHNESS_STEP_DEFAULT_DAYS } from './freshnessScale';
 import { getFreshnessStepDays } from './freshnessPrefs';
@@ -62,6 +64,8 @@ export default function MobileDashboard({
 }) {
   const [view, setView] = useState<MobileView>(DEFAULT_MOBILE_VIEW);
   const [measure, setMeasure] = useState<Measure>(DEFAULT_MEASURE);
+  /** Grouped by module on arrival — see `GroupToggle`. */
+  const [grouped, setGrouped] = useState(true);
   const navigate = useNavigate();
 
   /**
@@ -117,14 +121,30 @@ export default function MobileDashboard({
       ) : (
         <div className="space-y-2">
           <MeasureSwitch measure={measure} onChange={setMeasure} />
-          <SkillsList
-            rows={rows}
-            measure={measure}
-            now={now}
-            stepDays={stepDays}
-            showModule
-            onOpen={row => openCategory(row.moduleId, row.node)}
-          />
+          <div className="flex justify-end">
+            <GroupToggle grouped={grouped} onChange={setGrouped} />
+          </div>
+          {grouped ? (
+            <GroupedSkills
+              rows={rows}
+              measure={measure}
+              now={now}
+              stepDays={stepDays}
+              onOpen={row => openCategory(row.moduleId, row.node)}
+            />
+          ) : (
+            <SkillsList
+              rows={rows}
+              measure={measure}
+              now={now}
+              stepDays={stepDays}
+              // Mixed across modules, so each row has to say which one
+              // it came from — the heading that would have said so is
+              // exactly what this view drops.
+              showModule
+              onOpen={row => openCategory(row.moduleId, row.node)}
+            />
+          )}
           {/* UNDER THE BARS IT EXPLAINS, and only on this tab. A
               percentage explains itself; a position on a seven-rung
               scale does not. */}
