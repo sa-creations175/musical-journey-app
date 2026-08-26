@@ -567,7 +567,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               {modePreviewAvailable && (
                 <button
                   onClick={() => setModePreviewOpen(o => !o)}
-                  aria-label="preview display modes"
+                  aria-label="What each display mode looks like"
                   aria-expanded={modePreviewOpen}
                   data-testid="visual-mode-preview-toggle"
                   className={`px-1.5 py-0.5 rounded-md leading-none ${

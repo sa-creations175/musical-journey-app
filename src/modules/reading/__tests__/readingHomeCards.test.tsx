@@ -16,6 +16,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Reading from '../Reading';
 import ReadingSkill from '../ReadingSkill';
 import { readingCards, READING_SKILL_ORDER } from '../homeCards';
+import { mixedDrillLabel } from '../../../components/moduleHome/mixedDrillLabel';
 import { readingCounts } from '../../../lib/moduleItemCounts';
 import {
   SIGNATURES, noteItemRef, readingSkillForItemRef, signatureItemRef,
@@ -226,7 +227,12 @@ describe('the page', () => {
     // than by answering a queue: `data-pool` is what selection actually
     // draws from, and a run over one skill would name one skill here.
     const el = await renderPage();
-    expect(el.querySelector('[data-testid="reading-start-all"]')).not.toBeNull();
+    const start = el.querySelector('[data-testid="reading-start-all"]');
+    expect(start).not.toBeNull();
+    // ONE LABEL, BOTH HOMES, and its count derived from the pool the
+    // button starts — so a skill added to the module moves the number
+    // rather than leaving "all four" behind.
+    expect(start!.textContent).toBe(mixedDrillLabel(READING_SKILL_ORDER.length));
     await click(el.querySelector('[data-testid="reading-start-all"]')!);
     expect(el.querySelector('[data-pool]')?.getAttribute('data-pool'))
       .toBe(READING_SKILL_ORDER.join(','));

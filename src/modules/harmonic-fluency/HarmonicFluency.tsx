@@ -20,6 +20,7 @@ import { db } from '../../lib/db';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
 import FluencySessionSettings from './FluencySessionSettings';
+import { mixedDrillLabel } from '../../components/moduleHome/mixedDrillLabel';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import { categoryPath, isCategory } from './categoryRoutes';
@@ -174,14 +175,19 @@ export default function HarmonicFluency() {
               from the module. */}
 
           {/* THE MIXED DRILL, ABOVE THE CARDS. It is the same button it
-              always was; the label now says what it covers, because a
-              grid of fifteen categories underneath makes "Start drill"
-              ambiguous about which of them it means. */}
+              always was; the label says what it covers, because a grid
+              of category cards underneath makes a bare "Start Drill"
+              ambiguous about which of them it means.
+
+              THE COUNT COMES OFF THE POOL THE BUTTON STARTS. Same
+              array, so the number cannot describe a different set from
+              the one the run draws. */}
           <button
             onClick={handleStart}
+            data-testid="mixed-drill-start"
             className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
           >
-            Start drill · all categories mixed
+            {mixedDrillLabel(CATEGORY_ORDER.length)}
           </button>
 
           {/* The fifteen category cards, one per CATEGORY_ORDER entry —

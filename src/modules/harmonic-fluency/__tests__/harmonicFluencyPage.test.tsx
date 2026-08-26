@@ -15,6 +15,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import HarmonicFluency from '../HarmonicFluency';
 import HarmonicFluencyCategory from '../HarmonicFluencyCategory';
 import { CATEGORY_LABELS, CATEGORY_ORDER, FLASHCARDS } from '../catalog';
+import { mixedDrillLabel } from '../../../components/moduleHome/mixedDrillLabel';
 import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
 
 // Attempts carry client-minted ids (see db.ts), so seed rows are
@@ -94,9 +95,10 @@ afterEach(async () => {
 const card = (key: string) =>
   container!.querySelector(`[data-card-key="${key}"]`) as HTMLElement | null;
 
-const byText = (re: RegExp) =>
-  [...container!.querySelectorAll('button')]
-    .find(b => re.test((b.textContent ?? '').trim()));
+/** The mixed drill by its SEAM, not by its copy. Its wording is
+ *  Silas's to change; what it does is not. */
+const mixedDrill = () =>
+  container!.querySelector('[data-testid="mixed-drill-start"]') as HTMLElement | null;
 
 async function click(el: Element | null | undefined, what: string) {
   expect(el, `no element for ${what}`).toBeTruthy();
@@ -134,8 +136,12 @@ describe('the page opens as cards', () => {
 
   it('offers the mixed drill above the cards, saying what it covers', async () => {
     const el = await renderPage();
-    const mixed = byText(/all categories mixed/i);
+    const mixed = mixedDrill();
     expect(mixed).toBeTruthy();
+    // THE COUNT IS DERIVED, so this fails the day a category is added
+    // rather than leaving a stale number on the button.
+    expect(mixed!.textContent).toBe(mixedDrillLabel(CATEGORY_ORDER.length));
+    expect(mixed!.textContent).toContain(String(CATEGORY_ORDER.length));
     const grid = el.querySelector('[data-testid="category-card-grid"]')!;
     // Precedes the grid in document order.
     expect(mixed!.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING)
@@ -158,7 +164,7 @@ describe('nothing is served on mount', () => {
     // HF has never auto-started; this pins that the cards did not
     // introduce one, which is exactly what went wrong in Reading.
     const el = await renderPage();
-    expect(byText(/all categories mixed/i), 'the start button is gone').toBeTruthy();
+    expect(mixedDrill(), 'the start button is gone').toBeTruthy();
     // A session replaces the start button with the flashcard shell, so
     // its presence is the absence of a session.
     expect(el.querySelector('[data-testid="category-card-grid"]')).not.toBeNull();
@@ -177,8 +183,7 @@ describe('the two card actions', () => {
     // And the page that arrives is that category's, carrying its card.
     const page = el.querySelector('[data-testid="hf-category-page"]');
     expect(page?.getAttribute('data-category')).toBe(cat);
-    expect(byText(/all categories mixed/i), 'the mixed drill is not here')
-      .toBeUndefined();
+    expect(mixedDrill(), 'the mixed drill is not here').toBeNull();
   });
 
   it('starts only that category from its page', async () => {
@@ -252,7 +257,7 @@ describe('the two card actions', () => {
     await db.userPrefs.put({ key: 'harmonicFluencyCategoryFilter', value: [POISON] });
 
     const el = await renderPage();
-    await click(byText(/all categories mixed/i), 'mixed drill');
+    await click(mixedDrill(), 'mixed drill');
     // The queue is built through Dexie, so wait for the header rather
     // than for a fixed number of ticks — under a loaded machine the
     // fixed count is a race, and a race that reads NaN out of a header

@@ -33,6 +33,7 @@ import { READING_GRIDS } from './progressGrids';
 import { db } from '../../lib/db';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import ReadingDrill from './ReadingDrill';
+import { mixedDrillLabel } from '../../components/moduleHome/mixedDrillLabel';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import {
   READING_MODULE_ID, READING_SKILL_ORDER, isReadingCardKey, readingCards,
@@ -123,16 +124,18 @@ export default function Reading() {
         }}
       />
 
-      {/* THE WHOLE-MODULE DRILL, ABOVE THE CARDS — the same shape and
-          the same place harmonic fluency's mixed drill takes. Every
-          skill lit; a single skill is what a card opens. */}
+      {/* THE WHOLE-MODULE DRILL, ABOVE THE CARDS — the same shape, the
+          same place and now the same LABEL harmonic fluency's mixed
+          drill uses. Every skill lit; a single skill is what a card
+          opens. The count comes off the pool the button starts, so it
+          cannot describe a different set from the run. */}
       {!drilling && (
         <button
           onClick={() => setDrilling(true)}
           data-testid="reading-start-all"
           className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
         >
-          Start drill · all four mixed
+          {mixedDrillLabel(READING_SKILL_ORDER.length)}
         </button>
       )}
 

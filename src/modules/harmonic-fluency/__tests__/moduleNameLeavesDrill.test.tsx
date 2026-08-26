@@ -67,9 +67,9 @@ async function render() {
   return container!;
 }
 
-const byText = (re: RegExp) =>
-  [...container!.querySelectorAll('button')]
-    .find(b => re.test((b.textContent ?? '').trim()));
+/** The mixed drill by its SEAM, not by its copy. */
+const mixedDrill = () =>
+  container!.querySelector('[data-testid="mixed-drill-start"]') as HTMLElement | null;
 
 const moduleName = () =>
   container!.querySelector(
@@ -82,7 +82,7 @@ const drilling = () => container!.textContent?.match(/card\s*1\s*\//) !== null
 describe('the module name is the way out', () => {
   it('ends a running drill and leaves the cards up', async () => {
     const el = await render();
-    await act(async () => { byText(/all categories mixed/i)!.click(); });
+    await act(async () => { mixedDrill()!.click(); });
     await settle(drilling);
     expect(drilling(), 'a drill is running').toBe(true);
     expect(el.querySelector('[data-testid="category-card-grid"]')).toBeNull();
@@ -95,6 +95,6 @@ describe('the module name is the way out', () => {
     // No warning, no staying put: the run is over and the home is back.
     expect(drilling(), 'the drill survived the nav').toBe(false);
     expect(el.querySelector('[data-testid="category-card-grid"]')).not.toBeNull();
-    expect(byText(/all categories mixed/i)).toBeTruthy();
+    expect(mixedDrill()).toBeTruthy();
   });
 });
