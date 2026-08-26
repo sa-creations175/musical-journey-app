@@ -1,20 +1,40 @@
 /**
- * The collapsed settings a drill runs under, plus the plain Start
- * button beside them.
+ * The settings a drill runs under, plus the plain Start button beside
+ * them — now in a modal.
  *
- * LIFTED OUT OF THE MODULE HOME UNCHANGED. The markup and every string
- * are the ones that were there; what moved is that a category page can
- * now show the same panel, so the display mode, the timer and the
- * flagged-only drill are configured the same way wherever a drill is
- * started rather than only on the way through the home.
+ * =====================================================================
+ * THE SETTINGS DID NOT CHANGE. WHERE THEY LIVE DID.
+ *
+ * Every control, every string and every arrangement below is the one
+ * that was here. What is gone is the full-width collapsed card they sat
+ * in, halfway down the page, spending a band of vertical space on a
+ * heading for something the reader opens rarely and closes at once.
+ * It is reached from a text link in the streak row instead, and opens
+ * over the page rather than pushing it down.
+ *
+ * OPEN/CLOSE IS THE CALLER'S, not held here. Both pages that show this
+ * panel unmount it the moment a drill starts, so a Start pressed inside
+ * the modal closes it by the page changing underneath — there is no
+ * second closing rule to keep in step with the first.
+ * =====================================================================
  */
+import Modal from '../../components/Modal';
 import type { FluencyPrefs } from './useFluencyPrefs';
 import type { SessionStats } from './HarmonicFluencySession';
 
+/**
+ * The panel's name, exported so the link that opens it and the modal
+ * that is it read from one string rather than two that can drift. Not
+ * new copy — it is the word that was on the collapsed card.
+ */
+export const SESSION_SETTINGS_LABEL = 'Session Settings';
+
 export default function FluencySessionSettings({
-  prefs, flaggedOnly, onFlaggedOnlyChange, flaggedCount,
+  open, onClose, prefs, flaggedOnly, onFlaggedOnlyChange, flaggedCount,
   onStart, caughtUp, lastSummary, sessionTarget,
 }: {
+  open: boolean;
+  onClose: () => void;
   prefs: FluencyPrefs;
   flaggedOnly: boolean;
   onFlaggedOnlyChange: (on: boolean) => void;
@@ -26,15 +46,11 @@ export default function FluencySessionSettings({
 }) {
   const { displayMode, setDisplayMode, timerMode, setTimerMode } = prefs;
   return (
-    <details className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur">
-      <summary className="cursor-pointer select-none px-4 sm:px-5 py-3 text-sm font-medium">
-        Session Settings
-      </summary>
-      <div className="px-1 pb-1">
-        <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
+    <Modal open={open} onClose={onClose} title={SESSION_SETTINGS_LABEL}>
+      <div className="space-y-5" data-testid="fluency-session-settings">
         <div>
-          {/* The heading lives on the <summary> now — repeating it
-              here would name the panel twice on one screen. */}
+          {/* The heading is the modal's own — repeating it here would
+              name the panel twice on one screen. */}
           <p className="text-xs text-neutral-500 mt-0.5">
             {sessionTarget} cards per session · spaced repetition picks what's due
           </p>
@@ -126,8 +142,7 @@ export default function FluencySessionSettings({
             </p>
           )}
         </div>
-        </section>
       </div>
-    </details>
+    </Modal>
   );
 }

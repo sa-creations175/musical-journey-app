@@ -148,14 +148,39 @@ describe('the page opens as cards', () => {
       .toBeTruthy();
   });
 
-  it('puts session settings below the cards, collapsed', async () => {
+  it('reaches session settings from the streak row, not from a card on the page', async () => {
+    // THE RULE IS THE SAME ONE THE COLLAPSED CARD ASSERTED: the panel
+    // is not on the page until it is asked for. It used to say that by
+    // being a shut <details> below the cards; it says it now by not
+    // being rendered at all, and by the link that opens it costing no
+    // vertical space.
     const el = await renderPage();
-    const settings = el.querySelector('details')!;
-    expect(settings).toBeTruthy();
-    expect(settings.hasAttribute('open')).toBe(false);
-    const grid = el.querySelector('[data-testid="category-card-grid"]')!;
-    expect(grid.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(el.querySelector('[data-testid="fluency-session-settings"]')).toBeNull();
+    expect(document.querySelector('[data-testid="fluency-session-settings"]')).toBeNull();
+
+    const link = el.querySelector('[data-testid="session-settings-link"]');
+    expect(link, 'the link that opens them').toBeTruthy();
+    await click(link, 'session settings');
+
+    // Portalled, so it is found on the document rather than in the page.
+    const panel = document.querySelector('[data-testid="fluency-session-settings"]');
+    expect(panel, 'the settings opened').not.toBeNull();
+    // Every control that was in the card is in the modal.
+    expect(panel!.textContent).toContain('display mode');
+    expect(panel!.textContent).toContain('timer per card');
+    expect(panel!.textContent).toContain('flagged cards only');
+  });
+
+  it('puts the settings link LEFT of the streak and the calendar', async () => {
+    const el = await renderPage();
+    const link = el.querySelector('[data-testid="session-settings-link"]')!;
+    const streak = el.querySelector('[data-testid="hf-streak"]')!;
+    // Document order within the one row. Where it lands on screen is
+    // Silas's eye — jsdom has no layout.
+    expect(link.compareDocumentPosition(streak) & Node.DOCUMENT_POSITION_FOLLOWING)
       .toBeTruthy();
+    expect(link.parentElement!.parentElement)
+      .toBe(streak.parentElement);
   });
 });
 

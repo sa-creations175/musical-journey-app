@@ -24,7 +24,7 @@ import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { db } from '../../lib/db';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
-import FluencySessionSettings from './FluencySessionSettings';
+import FluencySessionSettings, { SESSION_SETTINGS_LABEL } from './FluencySessionSettings';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import PoolPicker from '../../components/moduleHome/PoolPicker';
 import CategoryDetailStack, {
@@ -85,6 +85,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
   const [expandedDetails, setExpandedDetails] = useState<ReadonlySet<string>>(
     () => new Set([category]),
   );
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
   const [caughtUp, setCaughtUp] = useState(false);
@@ -160,7 +161,23 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
 
   return (
     <div className="space-y-6" data-testid="hf-category-page" data-category={category}>
+      {/* SESSION SETTINGS AS A LINK, at the left end of the streak
+              row. It used to be a full-width collapsed card halfway
+              down the page — a band of vertical space spent on a
+              heading for a panel that is opened rarely and closed at
+              once. The row it moves into is right-aligned and its left
+              half was empty, so this costs no height at all. */}
       <ModuleHomeHeader
+        leading={(
+          <button
+            type="button"
+            data-testid="session-settings-link"
+            onClick={() => setSettingsOpen(true)}
+            className="hover:text-fluent"
+          >
+            {SESSION_SETTINGS_LABEL}
+          </button>
+        )}
         moduleIds={[MODULE_ID]}
         moduleId={MODULE_ID}
         calendarTo="/harmonic-fluency/calendar"
@@ -197,6 +214,8 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
           </button>
 
           <FluencySessionSettings
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
             prefs={prefs}
             flaggedOnly={flaggedOnly}
             onFlaggedOnlyChange={setFlaggedOnly}

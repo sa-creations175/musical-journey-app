@@ -243,3 +243,29 @@ describe('the page carries no summary card', () => {
     expect(own.querySelector('[data-testid="progress-grid"]')).not.toBeNull();
   });
 });
+
+describe('session settings are a link, not a card', () => {
+  it('renders nothing until the link is pressed', async () => {
+    await render('/harmonic-fluency/scale-degree-math');
+    expect(document.querySelector('[data-testid="fluency-session-settings"]')).toBeNull();
+
+    await click(container!.querySelector('[data-testid="session-settings-link"]')!);
+
+    // Portalled out of the page, so it is found on the document.
+    const panel = document.querySelector('[data-testid="fluency-session-settings"]');
+    expect(panel, 'the settings opened').not.toBeNull();
+    // The same controls, unchanged — only where they live moved.
+    expect(panel!.textContent).toContain('display mode');
+    expect(panel!.textContent).toContain('timer per card');
+    expect(panel!.textContent).toContain('flagged cards only');
+  });
+
+  it('sits LEFT of the streak in the same row', async () => {
+    await render('/harmonic-fluency/scale-degree-math');
+    const link = container!.querySelector('[data-testid="session-settings-link"]')!;
+    const streak = container!.querySelector('[data-testid="hf-streak"]')!;
+    expect(link.compareDocumentPosition(streak) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+    expect(link.parentElement!.parentElement).toBe(streak.parentElement);
+  });
+});

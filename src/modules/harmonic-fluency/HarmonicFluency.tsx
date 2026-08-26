@@ -19,7 +19,7 @@ import { harmonicFluencyCards } from './homeCards';
 import { db } from '../../lib/db';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
-import FluencySessionSettings from './FluencySessionSettings';
+import FluencySessionSettings, { SESSION_SETTINGS_LABEL } from './FluencySessionSettings';
 import { mixedDrillLabel } from '../../components/moduleHome/mixedDrillLabel';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
@@ -41,6 +41,7 @@ interface RunningDrill {
 
 export default function HarmonicFluency() {
   const navigate = useNavigate();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [running, setRunning] = useState<RunningDrill | null>(null);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
@@ -140,6 +141,26 @@ export default function HarmonicFluency() {
           copy of it. `showIntro` keeps the mid-session behaviour: the
           copy still exists, the moment is just wrong for it. */}
       <ModuleHomeHeader
+        {...(running === null
+          ? {
+            /* SESSION SETTINGS AS A LINK, at the left end of the streak
+               row — the same place, the same word and the same panel
+               the category page reaches it by. Absent mid-session,
+               where the settings themselves are absent: a link to
+               something not on the page is the defect this row already
+               refuses for "view calendar". */
+            leading: (
+              <button
+                type="button"
+                data-testid="session-settings-link"
+                onClick={() => setSettingsOpen(true)}
+                className="hover:text-fluent"
+              >
+                {SESSION_SETTINGS_LABEL}
+              </button>
+            ),
+          }
+          : {})}
         moduleIds={[MODULE_ID]}
         moduleId={MODULE_ID}
         calendarTo="/harmonic-fluency/calendar"
@@ -221,12 +242,16 @@ export default function HarmonicFluency() {
             />
           )}
 
-          {/* SESSION SETTINGS BELOW THE CARDS, AND COLLAPSED. They
+          {/* SESSION SETTINGS, REACHED FROM THE STREAK ROW. They
               configure the mixed drill above, which is one of sixteen
               ways to start from this page now — so they stopped being
               the thing the page is about and became the thing you open
-              when you want to change how the mixed run behaves. */}
+              when you want to change how the mixed run behaves. The
+              card they used to sit in is gone; this renders a modal
+              and nothing until it is opened. */}
           <FluencySessionSettings
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
             prefs={prefs}
             flaggedOnly={flaggedOnly}
             onFlaggedOnlyChange={setFlaggedOnly}
