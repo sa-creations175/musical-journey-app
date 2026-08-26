@@ -13,10 +13,12 @@
  * that.
  * =====================================================================
  *
- * THE LAST LIT OPTION CANNOT BE PUT OUT. An empty pool has no honest
- * meaning here — it would either be "nothing", which no drill can
- * serve, or "everything", which is the opposite of what unlighting
- * looks like. So the row always names a real pool.
+ * ONE OPTION MAY BE LOCKED LIT. On a category page that is the page's
+ * own category: it is what the page IS, and a chip that could put it
+ * out would leave the reader on a page for a category they had just
+ * excluded. It also means an empty pool is unreachable without a rule
+ * about the last chip — the row always names a real pool because one
+ * of its options cannot leave it.
  *
  * DISABLED WHILE A DRILL RUNS, where a caller keeps it on screen. The
  * pool is decided when the run starts, and a row that could still be
@@ -30,13 +32,14 @@ export interface PoolOption {
 }
 
 export default function PoolPicker({
-  options, lit, onToggle, moduleId, disabled = false,
+  options, lit, onToggle, moduleId, locked, disabled = false,
 }: {
   options: readonly PoolOption[];
   lit: ReadonlySet<string>;
-  /** Called with the option pressed. The caller owns the set; this
-   *  never toggles the last lit one. */
+  /** Called with the option pressed. The caller owns the set. */
   onToggle: (id: string) => void;
+  /** An option that is always lit and cannot be pressed out. */
+  locked?: string;
   /** The module whose accent lights a button — the id, never a hex, so
    *  a page cannot introduce a second hue for its own row. */
   moduleId: string;
@@ -52,7 +55,7 @@ export default function PoolPicker({
     >
       {options.map(opt => {
         const on = lit.has(opt.id);
-        const last = on && lit.size === 1;
+        const isLocked = opt.id === locked;
         return (
           <button
             key={opt.id}
@@ -60,8 +63,9 @@ export default function PoolPicker({
             data-testid="pool-option"
             data-option={opt.id}
             data-lit={on ? 'true' : 'false'}
+            data-locked={isLocked ? 'true' : undefined}
             aria-pressed={on}
-            disabled={disabled || last}
+            disabled={disabled || isLocked}
             onClick={() => onToggle(opt.id)}
             className={`px-2.5 py-1 rounded-lg border text-xs transition ${
               on
@@ -76,24 +80,4 @@ export default function PoolPicker({
       })}
     </div>
   );
-}
-
-/**
- * Toggle one option, refusing to leave the pool empty.
- *
- * A pure function so the rule is stated once and every page that owns a
- * lit set applies the same one.
- */
-export function togglePool(
-  lit: ReadonlySet<string>,
-  id: string,
-): ReadonlySet<string> {
-  const next = new Set(lit);
-  if (next.has(id)) {
-    if (next.size === 1) return lit;
-    next.delete(id);
-  } else {
-    next.add(id);
-  }
-  return next;
 }

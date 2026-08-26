@@ -29,7 +29,8 @@ import { harmonicFluencyCards } from './homeCards';
 import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
 import FluencySessionSettings from './FluencySessionSettings';
 import { useFluencyPrefs } from './useFluencyPrefs';
-import PoolPicker, { togglePool } from '../../components/moduleHome/PoolPicker';
+import PoolPicker from '../../components/moduleHome/PoolPicker';
+import { useLitPool } from '../../lib/useLitPool';
 import { isCategory } from './categoryRoutes';
 import type { SessionStats } from './HarmonicFluencySession';
 import { CATEGORY_LABELS, CATEGORY_ORDER, type FlashcardCategory } from './catalog';
@@ -38,18 +39,35 @@ import { CATEGORY_LABELS, CATEGORY_ORDER, type FlashcardCategory } from './catal
  *  teaches them. Derived, never listed. */
 const POOL_OPTIONS = CATEGORY_ORDER.map(id => ({ id, label: CATEGORY_LABELS[id] }));
 
+/**
+ * THE PARAM IS THE PAGE'S IDENTITY, so it keys the body.
+ *
+ * React Router reuses one instance across a param change, which means
+ * every `useState` on this page survives a nav press to a different
+ * category — a drill kept running, a summary kept showing, all of it
+ * about the category the reader had just left. Keying on the category
+ * makes a different category a different page, which is what it is.
+ */
 export default function HarmonicFluencyCategory() {
   const { category } = useParams<{ category: string }>();
+
+  // A slug that is not a category is a bad link, not a page. Home,
+  // rather than an empty drill over nothing.
+  if (category === undefined || !isCategory(category)) {
+    return <Navigate to="/harmonic-fluency" replace />;
+  }
+  return <CategoryPage key={category} category={category} />;
+}
+
+function CategoryPage({ category }: { category: FlashcardCategory }) {
   /**
-   * WHAT THE DRILL WILL DRAW FROM. This category alone to begin with,
-   * and any combination the reader lights on top of it.
-   *
-   * Keyed on the route param through the component's identity: a
-   * different category is a different `:category`, which remounts this
-   * and re-seeds the set. Nothing is persisted — arriving at a
-   * category's page means arriving at that category.
+   * WHAT THE DRILL WILL DRAW FROM — read from the URL, not held here.
+   * This category is always lit because it is the page; `?also=` holds
+   * whatever else the reader has lit beside it. The nav writes the
+   * first, the chip row writes the second, and both are the same value
+   * this reads. See `useLitPool`.
    */
-  const [lit, setLit] = useState<ReadonlySet<string>>(() => new Set([category ?? '']));
+  const { lit, toggle } = useLitPool(category, isCategory);
   const [running, setRunning] = useState(false);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [lastSummary, setLastSummary] = useState<SessionStats | null>(null);
@@ -75,12 +93,6 @@ export default function HarmonicFluencyCategory() {
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(MODULE_ID);
   const now = Date.now();
-
-  // A slug that is not a category is a bad link, not a page. Home,
-  // rather than an empty drill over nothing.
-  if (category === undefined || !isCategory(category)) {
-    return <Navigate to="/harmonic-fluency" replace />;
-  }
 
   // THE SAME CARDS THE MODULE HOME DRAWS, filtered to what is lit —
   // so the cards under the row are the pool the row describes. Built
@@ -120,7 +132,8 @@ export default function HarmonicFluencyCategory() {
           <PoolPicker
             options={POOL_OPTIONS}
             lit={lit}
-            onToggle={id => setLit(prev => togglePool(prev, id))}
+            onToggle={toggle}
+            locked={category}
             moduleId={MODULE_ID}
           />
 

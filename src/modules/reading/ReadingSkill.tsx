@@ -29,23 +29,38 @@ import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import ReadingDrill from './ReadingDrill';
 import { readingSkillForItemRef } from './catalog';
-import PoolPicker, { togglePool } from '../../components/moduleHome/PoolPicker';
+import PoolPicker from '../../components/moduleHome/PoolPicker';
+import { useLitPool } from '../../lib/useLitPool';
 import {
-  READING_MODULE_ID, READING_SKILL_LABELS, READING_SKILL_ORDER, readingCards,
+  READING_MODULE_ID, READING_SKILL_LABELS, READING_SKILL_ORDER,
+  isReadingCardKey, readingCards,
 } from './homeCards';
 import { readingSkillForSlug } from './skillRoutes';
 import type { ReadingDrillSkill } from './pickCard';
 
+/**
+ * THE SLUG IS THE PAGE'S IDENTITY, so it keys the body.
+ *
+ * React Router reuses one instance across a param change, so every
+ * `useState` here would survive a nav press to a different skill —
+ * leaving a drill running on the skill the reader had just left.
+ * Keying on the skill makes a different skill a different page.
+ */
 export default function ReadingSkill() {
   const { skill: slug } = useParams<{ skill: string }>();
   const skill = slug === undefined ? null : readingSkillForSlug(slug);
+  if (skill === null) return <Navigate to="/reading" replace />;
+  return <SkillPage key={skill} skill={skill} />;
+}
 
+function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
   /**
-   * WHAT THE DRILL WILL DRAW FROM. This skill alone to begin with, and
-   * any combination the reader lights on top of it. Nothing is
-   * persisted: arriving at a skill's page means arriving at that skill.
+   * WHAT THE DRILL WILL DRAW FROM — read from the URL, not held here.
+   * This skill is always lit because it is the page; `?also=` holds
+   * whatever else is lit beside it. The nav writes the first, the chip
+   * row writes the second. See `useLitPool`.
    */
-  const [lit, setLit] = useState<ReadonlySet<string>>(() => new Set([skill ?? '']));
+  const { lit, toggle } = useLitPool(skill, isReadingCardKey);
 
   /**
    * `?focus=ref,ref` — the dashboard sending you here from a tapped
@@ -67,8 +82,6 @@ export default function ReadingSkill() {
   ) ?? [];
   const spacingIntervals = useSpacingIntervals(READING_MODULE_ID);
   const now = Date.now();
-
-  if (skill === null) return <Navigate to="/reading" replace />;
 
   // The same cards the module home draws, filtered to what is lit — so
   // the cards under the row are the pool the row describes.
@@ -95,7 +108,8 @@ export default function ReadingSkill() {
       <PoolPicker
         options={READING_SKILL_ORDER.map(s => ({ id: s, label: READING_SKILL_LABELS[s] }))}
         lit={lit}
-        onToggle={id => setLit(prev => togglePool(prev, id))}
+        onToggle={toggle}
+        locked={skill}
         moduleId={READING_MODULE_ID}
         disabled={drilling}
       />

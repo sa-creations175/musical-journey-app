@@ -10,7 +10,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
-import PoolPicker, { togglePool } from '../PoolPicker';
+import PoolPicker from '../PoolPicker';
 import { moduleMetaById } from '../../../lib/moduleMeta';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -31,7 +31,7 @@ afterEach(() => {
   root = null; host = null;
 });
 
-function render(lit: ReadonlySet<string>, disabled = false) {
+function render(lit: ReadonlySet<string>, disabled = false, locked?: string) {
   const seen: string[] = [];
   host = document.createElement('div');
   document.body.appendChild(host);
@@ -43,6 +43,7 @@ function render(lit: ReadonlySet<string>, disabled = false) {
         lit={lit}
         onToggle={id => seen.push(id)}
         moduleId="reading"
+        {...(locked !== undefined ? { locked } : {})}
         disabled={disabled}
       />,
     );
@@ -52,20 +53,6 @@ function render(lit: ReadonlySet<string>, disabled = false) {
 
 const opt = (id: string) =>
   host!.querySelector(`[data-option="${id}"]`) as HTMLButtonElement;
-
-describe('the toggle rule', () => {
-  it('adds an unlit option and removes a lit one', () => {
-    expect([...togglePool(new Set(['a']), 'b')].sort()).toEqual(['a', 'b']);
-    expect([...togglePool(new Set(['a', 'b']), 'b')]).toEqual(['a']);
-  });
-
-  it('refuses to leave the pool empty', () => {
-    // An empty pool has no honest meaning — "nothing" cannot be served
-    // and "everything" is the opposite of what unlighting looks like.
-    const one = new Set(['a']);
-    expect(togglePool(one, 'a')).toBe(one);
-  });
-});
 
 describe('the row', () => {
   it('marks exactly what is lit', () => {
@@ -87,9 +74,20 @@ describe('the row', () => {
     expect(opt('b').style.backgroundColor).toBe('');
   });
 
-  it('will not let the last lit option be pressed out', () => {
-    render(new Set(['b']));
+  it('will not let the locked option be pressed out', () => {
+    // THE POOL CANNOT GO EMPTY, and this is why: on a category page the
+    // locked option is the page's own category. A chip that could put
+    // it out would leave the reader on a page for a category they had
+    // just excluded.
+    render(new Set(['b', 'c']), false, 'b');
     expect(opt('b').disabled).toBe(true);
+    expect(opt('b').getAttribute('data-locked')).toBe('true');
+    expect(opt('c').disabled).toBe(false);
+    expect(opt('c').getAttribute('data-locked')).toBeNull();
+  });
+
+  it('locks nothing when no option is locked', () => {
+    render(new Set(['a']));
     expect(opt('a').disabled).toBe(false);
   });
 

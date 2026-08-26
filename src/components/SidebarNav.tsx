@@ -580,6 +580,13 @@ function NestedNavRow({
  * active state since NavLink alone can't compare the search part.
  * `currentPathCompare` controls whether we match on exact path+search
  * ('equal') or just the pathname prefix ('prefix').
+ *
+ * A LINK WITH NO SEARCH PART COMPARES PATHNAMES ONLY, and that follows
+ * from the link rather than from a flag anyone has to remember. The
+ * category and skill sub-items are plain paths now, and the page they
+ * land on writes `?also=` as the reader lights chips — compared against
+ * path+search, the item for the page you are looking at would go dark
+ * the moment you lit a second category.
  */
 function SubNavLink({
   to,
@@ -600,7 +607,9 @@ function SubNavLink({
 }) {
   const active = currentPathCompare === 'prefix'
     ? currentPath.startsWith(to.split('?')[0])
-    : currentPath === to;
+    : to.includes('?')
+      ? currentPath === to
+      : currentPath.split('?')[0] === to;
   return (
     <NavLink
       to={to}

@@ -37,8 +37,14 @@ afterEach(async () => {
   root = null; container = null;
 });
 
+/**
+ * Wait for a condition rather than for a fixed number of ticks. The
+ * queue is built through Dexie, and a fixed count is a race that fails
+ * for the wrong reason on a loaded machine. Bounded, so a value that
+ * never arrives still fails rather than hanging.
+ */
 async function settle(ready: () => boolean) {
-  for (let i = 0; i < 25 && !ready(); i++) {
+  for (let i = 0; i < 200 && !ready(); i++) {
     await act(async () => { await new Promise(r => setTimeout(r, 5)); });
   }
 }
