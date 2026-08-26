@@ -19,8 +19,24 @@ import './devInspectSongKeys';
 import './devInspectChordDurations';
 import './devInspectSlotPositions';
 import './devInspectBarTiling';
-import SubTabs from '../../components/SubTabs';
 
+/**
+ * =====================================================================
+ * THE TAB STRIP IS GONE. THE SONG CARDS DO ITS WORK.
+ *
+ * It named three things — active repertoire, song detail, want to
+ * learn — and only one of them was a place. "Song detail" was a tab
+ * that meant nothing until you had already opened a song from another
+ * tab, and "active repertoire" named the page you were looking at. The
+ * module home opens on its songs now, one card each, the way every
+ * other module home opens on its categories.
+ *
+ * THE THREE STATES SURVIVE; only the ribbon is deleted. A card opens a
+ * song, the song page comes back, and the want-to-learn list is reached
+ * from Add Song. The nav's `?tab=` sub-items still land where they
+ * always did, because `useUrlTabSync` still reads them.
+ * =====================================================================
+ */
 type TabId = 'active' | 'detail' | 'want-to-learn';
 
 function isTabId(v: string): v is TabId {
@@ -29,12 +45,6 @@ function isTabId(v: string): v is TabId {
 
 const PREF_ACTIVE_TAB = 'repertoireActiveTab';
 const PREF_SELECTED_SONG = 'repertoireSelectedSongId';
-
-const TABS: Array<{ id: TabId; label: string; hint: string }> = [
-  { id: 'active',        label: 'active repertoire',  hint: 'songs you\'re working on' },
-  { id: 'detail',        label: 'song detail',         hint: 'open a single song' },
-  { id: 'want-to-learn', label: 'want to learn',       hint: 'your backlog of future songs' },
-];
 
 export default function Repertoire() {
   const [tab, setTab] = useState<TabId>('active');
@@ -157,13 +167,6 @@ export default function Repertoire() {
         intro={{
           description: 'Bring songs to life by mastering each song, section by section, key by key.',
         }}
-      />
-
-      <SubTabs
-        tabs={TABS}
-        active={tab}
-        onChange={setTab}
-        label="repertoire view"
       />
 
       {tab === 'active' && (
