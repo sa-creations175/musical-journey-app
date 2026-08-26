@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import ProgressDetail from '../ProgressDetail';
+import { TIER_BAR_CLASS, TIER_LABEL, type Tier } from '../../../lib/tier';
 import { placeItems, columnItems } from '../placeItems';
 import { viewsAgree, type AxisSpec, type GridSpec } from '../axis';
 import type { SkillRecord } from '../../../modules/skills/registry';
@@ -257,5 +258,44 @@ describe('an item opens onto its real reps', () => {
     });
     expect(el.querySelector('[data-testid="item-detail"]')!.getAttribute('data-item'))
       .toBe('formula-1');
+  });
+});
+
+describe('the legend under the grid', () => {
+  const legendEntries = (el: HTMLElement) =>
+    [...el.querySelectorAll('[data-legend-tier]')];
+
+  it('names the six states plus stale, in reading order', async () => {
+    const el = await render();
+    expect(legendEntries(el).map(li => li.getAttribute('data-legend-tier'))).toEqual([
+      'untouched', 'started', 'needsWork', 'developing', 'fluent', 'mastered', 'stale',
+    ]);
+  });
+
+  it('shows each tier its OWN name, not a word of its own', async () => {
+    const el = await render();
+    for (const li of legendEntries(el)) {
+      const t = li.getAttribute('data-legend-tier') as Tier;
+      expect(li.textContent).toContain(TIER_LABEL[t]);
+    }
+  });
+
+  it('paints each swatch with the class its cells paint with', async () => {
+    // THE RULE. A legend that spelled its own colours would pass a test
+    // that only checked the swatch was coloured; this compares it to
+    // the map the grid cell reads, so the two cannot drift.
+    const el = await render();
+    for (const li of legendEntries(el)) {
+      const t = li.getAttribute('data-legend-tier') as Tier;
+      const swatch = li.querySelector('span[aria-hidden]')!;
+      for (const cls of TIER_BAR_CLASS[t].split(' ')) {
+        expect(swatch.className).toContain(cls);
+      }
+    }
+  });
+
+  it('is not drawn for a category with no grid to explain', async () => {
+    const el = await render(ITEMS, null);
+    expect(el.querySelector('[data-testid="tier-legend"]')).toBeNull();
   });
 });

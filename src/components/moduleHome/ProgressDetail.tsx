@@ -16,7 +16,7 @@
 import { useMemo, useState } from 'react';
 import ProgressBar from '../ProgressBar';
 import { FALLBACK_INTERVAL_DAYS } from '../../lib/progressBar';
-import { TIER_BADGE_CLASS, TIER_BAR_CLASS, TIER_LABEL } from '../../lib/tier';
+import { TIER_BADGE_CLASS, TIER_BAR_CLASS, TIER_LABEL, type Tier } from '../../lib/tier';
 import type { SkillRecord } from '../../modules/skills/registry';
 import { SINGLE_ROW, axisLabel, resolveView, type GridSpec } from './axis';
 import { placeItems } from './placeItems';
@@ -160,6 +160,8 @@ export default function ProgressDetail({
               </tbody>
             </table>
           </div>
+
+          <TierLegend />
         </>
         );
       })()}
@@ -207,6 +209,43 @@ export default function ProgressDetail({
         />
       )}
     </section>
+  );
+}
+
+/**
+ * What a cell's colour means, under the cells it explains.
+ *
+ * NOT A COPY OF THE PALETTE. The swatch is the class the cell itself
+ * paints with and the word is the tier's own name, both read out of
+ * `tier.ts`. A legend that spelled its own colours would be a second
+ * answer to "what is fluent green" and would go stale the first time
+ * one moved.
+ *
+ * The ORDER is the only thing decided here, and it is a reading order
+ * rather than the catalogue's: the ladder from nothing to mastered,
+ * with `stale` last because it is not a rung on that ladder — it is
+ * what happens to a rung left alone.
+ */
+const LEGEND_TIERS: ReadonlyArray<Tier> = [
+  'untouched', 'started', 'needsWork', 'developing', 'fluent', 'mastered', 'stale',
+];
+
+function TierLegend() {
+  return (
+    <ul
+      className="flex items-center gap-x-3 gap-y-1.5 flex-wrap text-[10px] text-neutral-500"
+      data-testid="tier-legend"
+    >
+      {LEGEND_TIERS.map(t => (
+        <li key={t} className="inline-flex items-center gap-1.5" data-legend-tier={t}>
+          <span
+            className={`w-3 h-3 rounded-sm shrink-0 ${TIER_BAR_CLASS[t]}`}
+            aria-hidden
+          />
+          <span>{TIER_LABEL[t]}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
