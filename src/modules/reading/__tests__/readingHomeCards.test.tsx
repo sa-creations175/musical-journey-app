@@ -64,6 +64,24 @@ async function renderAt(path: string): Promise<HTMLDivElement> {
 
 const renderPage = () => renderAt('/reading');
 
+/**
+ * Wait for something the page cannot produce in one tick.
+ *
+ * The detail stack is gated on TWO async reads — the remembered axis
+ * views and a registry walk over every module — so a single
+ * `setTimeout(0)` is enough only when nothing else is competing for the
+ * event loop. Asserting on it after one tick passes alone and fails in
+ * a full run, which is the worst kind of test.
+ */
+async function settle(until: () => boolean, tries = 20): Promise<void> {
+  for (let i = 0; i < tries && !until(); i += 1) {
+    await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+  }
+}
+
+const detailKeys = (el: HTMLElement) =>
+  [...el.querySelectorAll('[data-detail-key]')].map(d => d.getAttribute('data-detail-key'));
+
 const at = () =>
   container!.querySelector('[data-testid="at"]')!.getAttribute('data-path');
 
@@ -181,44 +199,50 @@ describe('the page', () => {
     expect(el.querySelector('[data-testid="reading-drill"]')).toBeNull();
   });
 
-  it('opens the SKILL PAGE as cards only — no card served, no clock running', async () => {
-    // THIS TEST USED TO ASSERT THE OPPOSITE, and the reversal is the
-    // point. It pinned "the drill is always mounted and serves a card
-    // on arrival" as deliberate, which was a fair reading of what the
-    // module did — but serving on mount started `elapsedMs` while the
-    // reader was still looking at the category cards, so the first
-    // timing of every visit measured browsing rather than answering.
+  it('opens the SKILL PAGE with nothing served and no clock running', async () => {
+    // ARRIVING IS NOT STARTING — the rule this has always pinned, and
+    // the reason it matters is unchanged: serving on mount would start
+    // `elapsedMs` while the reader was still reading, so the first
+    // timing of every visit would measure browsing rather than
+    // answering.
     //
-    // BOTH FACTS, SEPARATELY. A card with no clock and a clock with no
-    // card are different bugs, and one marker cannot tell them apart.
+    // WHAT MOVED is how strongly the page says it. The drill used to be
+    // mounted here always, rendering an invisible marker so that "no
+    // card" and "no clock" could be told apart as the separate facts
+    // they are. It is no longer mounted at all, which says both at once
+    // and leaves nothing to assert them on.
     const el = await renderAt('/reading/signatures');
     expect(el.querySelector('[data-item-ref]'), 'a card was served').toBeNull();
-    const drill = el.querySelector('[data-testid="reading-drill"]');
-    expect(drill, 'the drill did not render its un-started marker').not.toBeNull();
-    expect(drill!.getAttribute('data-timer-started'), 'the clock started').toBe('false');
-
-    // Still no Start button of its own: starting is what a category
-    // card's "drill category" does.
-    //
-    // MATCHED AT THE FRONT, not anywhere in the string. A card carries
-    // its tier, and one of the tiers is called "not started" — a bare
-    // `includes('start')` reads that badge as a Start button and fails
-    // on a page that has none. The rule is unchanged: no button here
-    // OFFERS to start something.
-    const labels = [...el.querySelectorAll('button')].map(b => (b.textContent ?? '').toLowerCase());
-    expect(labels.some(t => t.trimStart().startsWith('start'))).toBe(false);
+    expect(el.querySelector('[data-testid="reading-drill"]'), 'a drill was mounted')
+      .toBeNull();
   });
 
-  it('starts on the skill page only when the card asks', async () => {
-    // ARRIVING IS NOT STARTING, and it is the nav's four sub-items that
-    // make that worth pinning: they land here directly, and a page that
-    // began a drill on mount would put a clock on the reader before
-    // they had read anything.
+  it('shows the three things a category page shows, and no cards', async () => {
+    // SHAPED LIKE HARMONIC FLUENCY'S CATEGORY PAGE: the chip row, Start
+    // Drill, and this skill's detail block. The four summary cards that
+    // stood between them are gone — they described the pool the row
+    // above already shows, and Open on one unfolded a drill instead of
+    // opening anything.
+    const el = await renderAt('/reading/signatures');
+    expect(el.querySelector('[data-testid="pool-picker"]'), 'the chip row').not.toBeNull();
+    expect(el.querySelector('[data-testid="reading-skill-start"]'), 'Start Drill')
+      .not.toBeNull();
+    await settle(() => el.querySelector('[data-detail-key="sig"]') !== null);
+    expect(
+      el.querySelector('[data-detail-key="sig"]')?.getAttribute('data-expanded'),
+      'its own detail block, expanded',
+    ).toBe('true');
+    expect(el.querySelectorAll('[data-card-key]'), 'no summary cards').toHaveLength(0);
+  });
+
+  it('starts on the skill page only when Start Drill is pressed', async () => {
+    // The asker used to be a card's Open. It is the page's own Start
+    // Drill now — the same button harmonic fluency's category page
+    // carries — and it serves this skill, not the whole module.
     const el = await renderAt('/reading/signatures');
     expect(el.querySelector('[data-item-ref]')).toBeNull();
 
-    await click(card(el, 'sig').querySelector('[data-testid="category-card-toggle"]')!);
-    await click(card(el, 'sig').querySelector('[data-testid="category-card-drill"]')!);
+    await click(el.querySelector('[data-testid="reading-skill-start"]')!);
     const served = el.querySelector('[data-item-ref]')?.getAttribute('data-item-ref') ?? '';
     expect(readingSkillForItemRef(served)).toBe('sig');
   });
@@ -254,8 +278,11 @@ describe('the page', () => {
     expect(lit()).toEqual(['note']);
     await click(el.querySelector('[data-option="sig"]')!);
     expect(lit().sort()).toEqual(['note', 'sig']);
-    // And the cards under the row follow the pool, so the row and the
-    // cards cannot disagree about what a drill would serve.
-    expect(cardKeys(el).sort()).toEqual(['note', 'sig']);
+    // And the DETAIL BLOCKS under the row follow the pool, so the row
+    // and what the page shows cannot disagree about the drill's set.
+    // (It was the cards that followed it before; they are gone, and the
+    // blocks are what is derived from `lit` now.)
+    await settle(() => detailKeys(el).length === 2);
+    expect(detailKeys(el).sort()).toEqual(['note', 'sig']);
   });
 });

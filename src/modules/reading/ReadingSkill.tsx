@@ -21,11 +21,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { db } from '../../lib/db';
 import { isNarrowed, useDrillFilter } from '../../lib/drillFilter';
-import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import ReadingDrill from './ReadingDrill';
 import { readingSkillForItemRef } from './catalog';
@@ -42,7 +40,7 @@ import { useLitPool } from '../../lib/useLitPool';
 import { useDetailLanding } from '../../lib/detailLanding';
 import {
   READING_MODULE_ID, READING_SKILL_LABELS, READING_SKILL_ORDER,
-  isReadingCardKey, readingCards,
+  isReadingCardKey,
 } from './homeCards';
 import { readingSkillForSlug } from './skillRoutes';
 import type { ReadingDrillSkill } from './pickCard';
@@ -97,13 +95,11 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
    * `CategoryDetailStack` does the scrolling either way.
    */
   const landing = useDetailLanding(skill);
-  const [scrollTo, setScrollTo] = useState<string | null>(null);
 
   const attempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(READING_MODULE_ID).toArray(),
     [],
   ) ?? [];
-  const spacingIntervals = useSpacingIntervals(READING_MODULE_ID);
   const now = Date.now();
   const axisViews = useAxisViews();
 
@@ -122,10 +118,6 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
     return () => { live = false; };
   }, [attempts]);
 
-  // The same cards the module home draws, filtered to what is lit — so
-  // the cards under the row are the pool the row describes.
-  const cards = readingCards(attempts, spacingIntervals, now)
-    .filter(c => lit.has(c.key));
   const pool = READING_SKILL_ORDER.filter(s => lit.has(s)) as ReadingDrillSkill[];
 
   /** One entry per lit skill, in the chip row's order — derived from
@@ -148,15 +140,6 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
-
-  /** A card's Progress Detail: open that skill's block, then bring it
-   *  into view. Expanding first — scrolling to a collapsed header would
-   *  be barely better than the nothing this button used to do. */
-  const openDetail = (key: string) => {
-    if (!isReadingCardKey(key)) return;
-    setExpandedDetails(prev => new Set(prev).add(key));
-    setScrollTo(key);
-  };
 
 
   return (
@@ -185,26 +168,36 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
         disabled={drilling}
       />
 
-      <CategoryCardGrid
-        cards={cards}
-        moduleId={READING_MODULE_ID}
-        onDrill={() => setDrilling(true)}
-        onProgressDetail={openDetail}
-        now={now}
-      />
+      {/* START DRILL, where harmonic fluency's category page has it and
+          saying the same thing. The four summary cards that stood here
+          are gone: they described the pool the row above already shows,
+          and pressing Open on one unfolded a drill beneath them rather
+          than doing what Open does everywhere else in the app. */}
+      <button
+        onClick={() => setDrilling(true)}
+        data-testid="reading-skill-start"
+        className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
+      >
+        Start Drill
+      </button>
 
       {/* Remounting per POOL resets the drill's local state without the
           drill needing to know the pool can change under it. The key is
-          the pool and nothing else — anything the cards can change
-          would discard the card mid-answer on every tap, and the pool
-          itself cannot change while a drill runs because the row above
-          is disabled then. */}
-      <ReadingDrill
-        key={pool.join(',')}
-        skills={pool}
-        autoStart={drilling}
-        {...(focusRefs && focusSkill !== undefined && lit.has(focusSkill) ? { focusRefs } : {})}
-      />
+          the pool and nothing else — and the pool cannot change while a
+          drill runs, because the row above is disabled then.
+
+          MOUNTED ONLY WHILE RUNNING. It used to sit here always,
+          rendering an invisible marker, so that "no card served" and
+          "no clock started" could be told apart. Not mounting it says
+          both at once and more strongly. */}
+      {drilling && (
+        <ReadingDrill
+          key={pool.join(',')}
+          skills={pool}
+          autoStart
+          {...(focusRefs && focusSkill !== undefined && lit.has(focusSkill) ? { focusRefs } : {})}
+        />
+      )}
 
       {/* THE DETAIL BLOCK, below the drill. This skill expanded,
           everything else lit collapsed. */}
@@ -218,8 +211,8 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
           viewFor={axisViews.viewFor}
           onViewChange={axisViews.setView}
           dueByItem={dueByItem}
-          scrollTo={scrollTo ?? landing.scrollTo}
-          onScrolled={() => { setScrollTo(null); landing.onScrolled(); }}
+          scrollTo={landing.scrollTo}
+          onScrolled={landing.onScrolled}
         />
       )}
     </div>

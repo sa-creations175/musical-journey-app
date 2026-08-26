@@ -112,27 +112,29 @@ export default function Reading() {
         </button>
       )}
 
-      {/* PROGRESS DETAIL GOES TO THE SKILL'S PAGE, landing on its
-          chart — the same page Open goes to, differing only in where it
-          lands. It used to open a second copy of that chart below the
-          cards here, which is both a long way from the button pressed
-          and a second render of a block the skill page already has. */}
-      <CategoryCardGrid
-        cards={cards}
-        moduleId={READING_MODULE_ID}
-        onDrill={key => { if (isReadingCardKey(key)) navigate(readingSkillPath(key)); }}
-        onProgressDetail={key => {
-          if (isReadingCardKey(key)) navigate(detailHref(readingSkillPath(key)));
-        }}
-        now={now}
-      />
 
-      {/* Mounted only while running, so the home stays its cards
-          otherwise — nothing served, no clock started. */}
-      {drilling && (
+      {/* THE MIXED DRILL REPLACES THE CARDS, the way harmonic fluency's
+          does. It used to unfold BENEATH them, which left the reader
+          scrolling past four summaries of a module they had just told
+          the app they were done summarising.
+
+          PROGRESS DETAIL GOES TO THE SKILL'S PAGE, landing on its
+          chart — the same page Open goes to, differing only in where it
+          lands. */}
+      {drilling ? (
         <ReadingDrill
           skills={READING_SKILL_ORDER}
           autoStart
+        />
+      ) : (
+        <CategoryCardGrid
+          cards={cards}
+          moduleId={READING_MODULE_ID}
+          onDrill={key => { if (isReadingCardKey(key)) navigate(readingSkillPath(key)); }}
+          onProgressDetail={key => {
+            if (isReadingCardKey(key)) navigate(detailHref(readingSkillPath(key)));
+          }}
+          now={now}
         />
       )}
 
