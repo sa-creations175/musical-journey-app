@@ -733,9 +733,9 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
             onChange={e => setComplexity(e.target.value as Complexity)}
             className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
           >
-            <option value="triad">triads</option>
-            <option value="seventh">seventh chords</option>
-            <option value="jazz">jazz voicings</option>
+            <option value="triad">Triads</option>
+            <option value="seventh">Seventh Chords</option>
+            <option value="jazz">Jazz Voicings</option>
           </select>
         </label>
         <label className="flex flex-col gap-1">
@@ -745,9 +745,9 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
             onChange={e => setListening(e.target.value as ListeningMode)}
             className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
           >
-            <option value="bass-chords">bass + chords</option>
-            <option value="chords">chords only</option>
-            <option value="bass">bass only</option>
+            <option value="bass-chords">Bass + Chords</option>
+            <option value="chords">Chords Only</option>
+            <option value="bass">Bass Only</option>
           </select>
         </label>
         <label className="flex flex-col gap-1">
@@ -789,7 +789,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               <option value={2}>2</option>
               <option value={3}>3</option>
               <option value={4}>4</option>
-              <option value={99}>until stopped</option>
+              <option value={99}>Until Stopped</option>
             </select>
           </label>
           {active && isLoopable && (
@@ -803,8 +803,8 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-0.5"
               title="reference note played before the progression"
             >
-              <option value="singleNote">single note</option>
-              <option value="none">none</option>
+              <option value="singleNote">Single Note</option>
+              <option value="none">None</option>
             </select>
           </label>
         </div>

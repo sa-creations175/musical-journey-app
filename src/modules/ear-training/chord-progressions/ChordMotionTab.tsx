@@ -1074,7 +1074,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 }}
                 className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
               >
-                <option value="all">all distances</option>
+                <option value="all">All Distances</option>
                 {([2, 3, 4, 5, 6, 7] as const).map(d => (
                   <option key={d} value={d}>{INTERVAL_NAME[d]}s only</option>
                 ))}
@@ -1089,9 +1089,9 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 onChange={e => setDirection(e.target.value as DirectionFilter)}
                 className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
               >
-                <option value="both">both directions</option>
-                <option value="asc">ascending only</option>
-                <option value="desc">descending only</option>
+                <option value="both">Both Directions</option>
+                <option value="asc">Ascending Only</option>
+                <option value="desc">Descending Only</option>
               </select>
 
               <label htmlFor="motion-notes" className="text-neutral-500 justify-self-end">
@@ -1106,7 +1106,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                   ? 'only motions between scale degrees 1–7 of the major scale'
                   : 'allow any of the 12 chromatic positions (b2, b3, #4, b6, b7 included)'}
               >
-                <option value="diatonic">diatonic only</option>
+                <option value="diatonic">Diatonic Only</option>
                 <option value="chromatic">all motions (incl. chromatic)</option>
               </select>
 
@@ -1120,9 +1120,9 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
                 title="which layers to sound: just the bass roots, full chord voicings, or both layered"
               >
-                <option value="bass">bass only</option>
-                <option value="chords">chords only</option>
-                <option value="bass-chords">bass + chords</option>
+                <option value="bass">Bass Only</option>
+                <option value="chords">Chords Only</option>
+                <option value="bass-chords">Bass + Chords</option>
               </select>
             </div>
           </section>

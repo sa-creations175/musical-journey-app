@@ -2701,7 +2701,7 @@ function ShapesProficiencyCard({
             onChange={e => setKey(e.target.value)}
             className={inputClass()}
           >
-            <option value="all">All 12 keys</option>
+            <option value="all">All 12 Keys</option>
             {SHAPES_KEYS.map(k => (
               <option key={k} value={k}>{k}</option>
             ))}

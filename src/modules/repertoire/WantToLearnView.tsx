@@ -144,9 +144,9 @@ export default function WantToLearnView({ onBack, onPromoted }: Props) {
             onChange={e => setSort(e.target.value as SortMode)}
             className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
           >
-            <option value="priority">priority</option>
-            <option value="recent">recently added</option>
-            <option value="title">title A–Z</option>
+            <option value="priority">Priority</option>
+            <option value="recent">Recently Added</option>
+            <option value="title">Title A–Z</option>
           </select>
         </label>
         {tags.length > 0 && (
@@ -157,7 +157,7 @@ export default function WantToLearnView({ onBack, onPromoted }: Props) {
               onChange={e => setFilterTag(e.target.value)}
               className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5"
             >
-              <option value="">any</option>
+              <option value="">Any</option>
               {tags.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>

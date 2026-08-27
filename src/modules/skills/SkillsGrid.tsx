@@ -177,12 +177,12 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
             onChange={e => setSort(e.target.value as SortOption)}
             className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1"
           >
-            <option value="recent">most recent</option>
-            <option value="least-recent">least recent</option>
-            <option value="name">name a→z</option>
-            <option value="tier-desc">tier (highest first)</option>
-            <option value="priority">priority</option>
-            <option value="total-time">total time invested</option>
+            <option value="recent">Most Recent</option>
+            <option value="least-recent">Least Recent</option>
+            <option value="name">Name A→Z</option>
+            <option value="tier-desc">Tier (Highest First)</option>
+            <option value="priority">Priority</option>
+            <option value="total-time">Total Time Invested</option>
           </select>
         </label>
         {hasActiveFilters && (

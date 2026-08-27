@@ -660,7 +660,7 @@ export default function GoalFormModal({
                 }))}
                 className={inputClass()}
               >
-                <option value="">No specific context</option>
+                <option value="">No Specific Context</option>
                 {CONTEXT_OPTIONS.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
@@ -753,7 +753,7 @@ export default function GoalFormModal({
               }))}
               className={inputClass()}
             >
-              <option value="">No parent</option>
+              <option value="">No Parent</option>
               {parentCandidates.map(g => (
                 <option key={g.id} value={g.id}>
                   [{SCOPE_LABEL[g.scope]}] {g.description.slice(0, 60)}

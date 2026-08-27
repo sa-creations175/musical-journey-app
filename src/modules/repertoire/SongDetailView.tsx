@@ -1807,7 +1807,7 @@ function SongDetailInner({
                   onChange={e => setKeyDraft(e.target.value)}
                   className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
                 >
-                  <option value="">(not set)</option>
+                  <option value="">(Not Set)</option>
                   {keyDraft !== '' && !isCanonicalSongKey(keyDraft) && (
                     <option value={keyDraft} disabled>
                       {keyDraft} — not a recognised key
@@ -1979,8 +1979,8 @@ function SongDetailInner({
                   <option value="inherit">
                     follow global ({globalSpelling === 'flat' ? 'flats' : 'sharps'})
                   </option>
-                  <option value="flat">always flats</option>
-                  <option value="sharp">always sharps</option>
+                  <option value="flat">Always Flats</option>
+                  <option value="sharp">Always Sharps</option>
                 </select>
                 {song.spelling && (
                   <span

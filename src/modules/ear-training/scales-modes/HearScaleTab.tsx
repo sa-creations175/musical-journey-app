@@ -256,7 +256,7 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
             }}
             className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
           >
-            <option value="random">random each round</option>
+            <option value="random">Random Each Round</option>
             {ROOT_NOTES.map(n => (
               // The VALUE is the midi number — the identity — and the text
               // is the spelling. Unlike the key pickers, this one could

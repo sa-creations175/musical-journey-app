@@ -302,7 +302,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
                 onChange={e => setKey(e.target.value)}
                 className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
               >
-                <option value="">(not set)</option>
+                <option value="">(Not Set)</option>
                 {SONG_KEY_OPTIONS.map(k => (
                   // `value` is the identity that gets stored; the visible
                   // text is the spelling. A picker that stored what it
