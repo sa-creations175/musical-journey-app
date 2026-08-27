@@ -97,12 +97,12 @@ export default function SongTargetSection({
       <Field label="Goal granularity">
         <div className="flex gap-1.5" role="tablist" aria-label="Song goal granularity">
           <GranularityButton
-            label="Whole song"
+            label="Whole Song"
             active={selection.granularity === 'whole'}
             onClick={() => setGranularity('whole')}
           />
           <GranularityButton
-            label="Song section"
+            label="Song Section"
             active={selection.granularity === 'section'}
             disabled={!sectionAvailable || !sectionWeeklyEligible}
             tooltip={

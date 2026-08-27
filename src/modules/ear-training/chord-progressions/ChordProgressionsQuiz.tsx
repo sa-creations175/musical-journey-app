@@ -1127,7 +1127,7 @@ function RevealCard({
           <AnswerVerdict
             state={patternCorrect ? 'correct' : 'incorrect'}
             size="sm"
-            label="pattern"
+            label="Pattern"
           />
         )}
       </div>

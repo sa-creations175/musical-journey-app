@@ -172,9 +172,9 @@ function PlayButtonSingle({ onPlay }: { onPlay: () => void }) {
 function PlayButtonGroup({ onPlay }: { onPlay: (mode: DiaryPlayMode) => void }) {
   return (
     <div className="shrink-0 flex items-center gap-0.5 sm:gap-1">
-      <ModeButton onClick={() => onPlay('asc')} label="play ascending" glyph="↑" />
-      <ModeButton onClick={() => onPlay('blocked')} label="play blocked" glyph="▤" />
-      <ModeButton onClick={() => onPlay('desc')} label="play descending" glyph="↓" />
+      <ModeButton onClick={() => onPlay('asc')} label="Play Ascending" glyph="↑" />
+      <ModeButton onClick={() => onPlay('blocked')} label="Play Blocked" glyph="▤" />
+      <ModeButton onClick={() => onPlay('desc')} label="Play Descending" glyph="↓" />
     </div>
   );
 }

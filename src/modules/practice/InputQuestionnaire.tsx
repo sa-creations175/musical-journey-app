@@ -790,17 +790,17 @@ function Q5Energy({
       </div>
       <div className="space-y-1.5">
         <ScaleRow
-          label="focus"
+          label="Focus"
           value={value.focus}
           onChange={n => onChange({ ...value, focus: n })}
         />
         <ScaleRow
-          label="motivation"
+          label="Motivation"
           value={value.motivation}
           onChange={n => onChange({ ...value, motivation: n })}
         />
         <ScaleRow
-          label="inspiration"
+          label="Inspiration"
           value={value.inspiration}
           onChange={n => onChange({ ...value, inspiration: n })}
         />

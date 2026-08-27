@@ -53,7 +53,7 @@ export default function EtItemCurationButton({
       }
     },
     'aria-label': `curate ${itemKindLabel.toLowerCase()} ${defaultLabel}`,
-    title: 'edit / flag / hide',
+    title: 'Edit / Flag / Hide',
     className: className ?? DEFAULT_CLASS,
   };
   const trigger = as === 'button'
