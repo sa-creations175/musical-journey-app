@@ -241,7 +241,7 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
             role="button"
             tabIndex={0}
             aria-label={`Remove ${label} block`}
-            title="Remove this block from the proposal"
+            title="Remove This Block from the Proposal"
             onClick={e => {
               e.stopPropagation();
               onDelete(block.id);

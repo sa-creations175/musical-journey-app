@@ -270,7 +270,7 @@ export function GlobalSessionBanner() {
           }}
           aria-pressed={metro.playing}
           aria-label={metro.playing ? 'stop metronome' : 'start metronome'}
-          title={metro.playing ? 'stop metronome' : 'start metronome'}
+          title={metro.playing ? 'Stop Metronome' : 'Start Metronome'}
           className={`h-7 px-2 inline-flex items-center gap-1 rounded-md border text-xs font-mono tabular-nums leading-none ${
             metro.playing
               ? 'border-fluent bg-fluent/10 text-fluent'
@@ -288,7 +288,7 @@ export function GlobalSessionBanner() {
           }}
           aria-expanded={audioPanelOpen}
           aria-label={audioPanelOpen ? 'hide audio controls' : 'show audio controls'}
-          title={audioPanelOpen ? 'hide audio controls' : 'show audio controls'}
+          title={audioPanelOpen ? 'Hide Audio Controls' : 'Show Audio Controls'}
           className="text-sm leading-none w-7 h-7 inline-flex items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
         >
           <span aria-hidden>🎛</span>
@@ -297,7 +297,7 @@ export function GlobalSessionBanner() {
           type="button"
           onClick={handlePauseResumeClick}
           aria-label={isPaused ? 'resume session' : 'pause session'}
-          title={isPaused ? 'resume' : 'pause'}
+          title={isPaused ? 'Resume' : 'Pause'}
           className="text-sm leading-none w-7 h-7 inline-flex items-center justify-center rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
         >
           {isPaused ? '▶' : '⏸'}

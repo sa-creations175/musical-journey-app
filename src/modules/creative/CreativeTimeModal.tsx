@@ -466,7 +466,7 @@ function PromptPicker({
         <button
           onClick={onRefresh}
           className="text-xs text-neutral-500 hover:text-fluent"
-          title="re-draft the whole list"
+          title="Re-Draft the Whole List"
         >
           Re-Draft All
         </button>

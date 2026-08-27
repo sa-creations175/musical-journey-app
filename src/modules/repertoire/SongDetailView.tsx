@@ -1870,7 +1870,7 @@ function SongDetailInner({
                           type="button"
                           onClick={() => removeReferenceVideoDraft(video.id)}
                           aria-label="remove video"
-                          title="remove this video"
+                          title="Remove This Video"
                           className="px-2 py-1 text-neutral-400 hover:text-needswork shrink-0"
                         >
                           ✕
@@ -1939,7 +1939,7 @@ function SongDetailInner({
               {song.key && (
                 <span>
                   key: <span className="font-mono text-neutral-700 dark:text-neutral-200">{spellKey(song.key, songSpelling)}</span>
-                  {song.keyNeedsVerification && <span className="ml-1 text-developing" title="estimated — verify with recording">?</span>}
+                  {song.keyNeedsVerification && <span className="ml-1 text-developing" title="Estimated — Verify with Recording">?</span>}
                 </span>
               )}
               {song.tempoLabel && <span>tempo: {song.tempoLabel}</span>}

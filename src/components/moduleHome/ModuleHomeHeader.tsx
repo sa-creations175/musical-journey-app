@@ -163,7 +163,7 @@ export default function ModuleHomeHeader({
         {leading !== undefined && <span className="mr-auto">{leading}</span>}
         <span
           className="inline-flex items-baseline gap-1"
-          title="consecutive days practised"
+          title="Consecutive Days Practised"
           data-testid="hf-streak"
           data-kind="day"
         >

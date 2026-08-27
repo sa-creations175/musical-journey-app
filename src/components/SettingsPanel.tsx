@@ -367,7 +367,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
   return (
     <>
-      <Modal open={open} onClose={onClose} title="settings">
+      <Modal open={open} onClose={onClose} title="Settings">
         <div className="space-y-6">
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">

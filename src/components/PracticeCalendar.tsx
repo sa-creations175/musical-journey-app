@@ -137,7 +137,7 @@ export default function PracticeCalendar({ moduleId, alsoModuleIds }: Props) {
             onClick={goPrev}
             disabled={isEarliestMonth}
             aria-label="previous month"
-            title={isEarliestMonth ? 'earliest data shown' : 'previous month'}
+            title={isEarliestMonth ? 'Earliest Data Shown' : 'Previous Month'}
             className="w-8 h-8 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent disabled:opacity-40 disabled:hover:border-neutral-200 dark:disabled:hover:border-neutral-700 disabled:hover:text-inherit disabled:cursor-not-allowed"
           >
             ←
@@ -149,7 +149,7 @@ export default function PracticeCalendar({ moduleId, alsoModuleIds }: Props) {
             onClick={goNext}
             disabled={isCurrentMonth}
             aria-label="next month"
-            title={isCurrentMonth ? 'no future data to display' : 'next month'}
+            title={isCurrentMonth ? 'No Future Data to Display' : 'Next Month'}
             className="w-8 h-8 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent disabled:opacity-40 disabled:hover:border-neutral-200 dark:disabled:hover:border-neutral-700 disabled:hover:text-inherit disabled:cursor-not-allowed"
           >
             →

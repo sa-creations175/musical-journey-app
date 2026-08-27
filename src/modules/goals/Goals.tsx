@@ -584,7 +584,7 @@ export default function Goals() {
             onClick={() => setCustomizeOpen(true)}
             className="text-xs px-2.5 py-1.5 rounded-md text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 inline-flex items-center gap-1.5"
             aria-label="customize layers"
-            title="customize layers"
+            title="Customize Layers"
           >
             <GearIcon />
             <span className="hidden sm:inline">Customize</span>

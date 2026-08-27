@@ -168,7 +168,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
     <Modal
       open
       onClose={onClose}
-      title="add a song to your repertoire"
+      title="Add a Song to Your Repertoire"
       description={hasBacklog
         ? 'pick something from your want-to-learn list, or add a brand-new song.'
         : 'fill in a title and artist — you can complete everything else in song detail.'}

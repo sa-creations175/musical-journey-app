@@ -214,7 +214,7 @@ export default function DrillListModal({ skill, onClose }: Props) {
                     <button
                       onClick={() => setConfirmDelete(d)}
                       className="text-neutral-400 hover:text-needswork text-[11px]"
-                      title="delete drill"
+                      title="Delete Drill"
                     >
                       ✕
                     </button>

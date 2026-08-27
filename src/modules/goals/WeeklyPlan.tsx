@@ -1478,7 +1478,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
     <Modal
       open={open}
       onClose={onClose}
-      title="Weekly plan"
+      title="Weekly Plan"
       description="Sun → Sat — plan this week"
       footer={actionRow}
     >

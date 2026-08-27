@@ -622,7 +622,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
       {showLifetime && <LifetimeStatsModal onClose={() => setShowLifetime(false)} />}
       {showFocusPanel && (
         <ItemSelectionPanel
-          title="focus on specific intervals"
+          title="Focus on Specific Intervals"
           description="drill only the intervals and directions you pick. adaptive weighting still applies inside your selection."
           note={focusActive ? (
             <div className="rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">

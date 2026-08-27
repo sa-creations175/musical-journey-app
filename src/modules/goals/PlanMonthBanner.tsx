@@ -176,7 +176,7 @@ export default function PlanMonthBanner({ onPlanMonth }: Props) {
         </button>
         <button
           onClick={snooze}
-          title="Hide until tomorrow"
+          title="Hide Until Tomorrow"
           className="inline-flex items-center justify-center gap-1 px-3 py-1 text-xs rounded-md text-emerald-800/80 dark:text-emerald-300/80 hover:underline"
         >
           <span aria-hidden>🕒</span> remind me tomorrow

@@ -321,7 +321,7 @@ function FlaggedForReviewPanel() {
                 <button
                   onClick={() => void setReviewFlag(cardId, false)}
                   className="text-[11px] text-neutral-500 hover:text-needswork shrink-0"
-                  title="remove review flag"
+                  title="Remove Review Flag"
                 >
                   Unflag
                 </button>

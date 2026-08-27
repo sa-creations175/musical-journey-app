@@ -199,7 +199,7 @@ export default function WholeSongTestModal({
     <Modal
       open={open}
       onClose={handleClose}
-      title={`${isRetest ? 'Whole-song retest' : 'Whole-song test'} · ${spellKey(songKey.keyName, spelling)} · ${song.title}`}
+      title={`${isRetest ? 'Whole-Song Retest' : 'Whole-Song Test'} · ${spellKey(songKey.keyName, spelling)} · ${song.title}`}
       footer={
         <div className="flex items-center justify-between gap-2">
           <button
@@ -740,7 +740,7 @@ function SittingRow({ sitting }: { sitting: SittingSummary }) {
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : 'text-needswork',
             ].join(' ')}
-            title={r.wasClean ? 'clean' : 'not clean'}
+            title={r.wasClean ? 'Clean' : 'Not Clean'}
           >
             {r.wasClean ? '✓' : '✗'}
             <span className="text-neutral-500 dark:text-neutral-400">

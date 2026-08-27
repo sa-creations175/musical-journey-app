@@ -161,7 +161,7 @@ export default function DailyGoalBar({ moduleId }: Props) {
 
           <span
             className="inline-flex items-center gap-1 text-fluent"
-            title="correct today"
+            title="Correct Today"
           >
             <span aria-hidden>✓</span>
             <span className="font-mono tabular-nums">{correct}</span>
@@ -169,7 +169,7 @@ export default function DailyGoalBar({ moduleId }: Props) {
 
           <span
             className="inline-flex items-center gap-1 text-developing"
-            title="wrong today"
+            title="Wrong Today"
           >
             <span aria-hidden>✗</span>
             <span className="font-mono tabular-nums">{wrong}</span>
@@ -177,7 +177,7 @@ export default function DailyGoalBar({ moduleId }: Props) {
 
           <span
             className="text-neutral-500 font-mono tabular-nums"
-            title="accuracy today"
+            title="Accuracy Today"
           >
             {attempted === 0 ? '—' : `${accuracy}%`}
           </span>

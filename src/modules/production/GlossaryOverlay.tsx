@@ -39,7 +39,7 @@ export default function GlossaryOverlay({ termId, onClose, onOpenLesson }: Props
 
   if (!content) {
     return (
-      <Modal open onClose={onClose} title="term not found">
+      <Modal open onClose={onClose} title="Term Not Found">
         <p className="text-sm text-neutral-600 dark:text-neutral-300">
           The glossary term "{termId}" isn't in the catalogue yet.
         </p>

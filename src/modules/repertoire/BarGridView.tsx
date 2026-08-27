@@ -880,7 +880,7 @@ function BarGridHeader({
             onClick={() => void onUndo()}
             disabled={!canUndo}
             aria-label="Undo last edit"
-            title={canUndo ? 'Undo last edit' : 'Nothing to undo'}
+            title={canUndo ? 'Undo Last Edit' : 'Nothing to Undo'}
             className="text-[14px] leading-none px-1 text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
           >
             ↩
@@ -892,7 +892,7 @@ function BarGridHeader({
             onClick={() => void onRedo()}
             disabled={!canRedo}
             aria-label="Redo last undo"
-            title={canRedo ? 'Redo last undo' : 'Nothing to redo'}
+            title={canRedo ? 'Redo Last Undo' : 'Nothing to Redo'}
             className="text-[14px] leading-none px-1 text-neutral-500 hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
           >
             ↪
@@ -1201,7 +1201,7 @@ function BarBox({
           type="button"
           onClick={() => onDeleteBar(bar.index)}
           aria-label={`delete bar ${bar.index + 1}`}
-          title="delete this bar"
+          title="Delete This Bar"
           className="absolute top-0.5 right-1 text-[10px] leading-none text-neutral-400 hover:text-needswork px-0.5"
         >
           ×
@@ -2887,7 +2887,7 @@ function ChordCellBox({
       {hasVoicing && !ghosted && (
         <span
           aria-label="voicing set"
-          title="Voicing set"
+          title="Voicing Set"
           className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-fluent"
         />
       )}

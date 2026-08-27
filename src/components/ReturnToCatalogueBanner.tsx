@@ -38,7 +38,7 @@ export default function ReturnToCatalogueBanner() {
       <button
         onClick={dismiss}
         aria-label="dismiss"
-        title="dismiss this banner"
+        title="Dismiss This Banner"
         className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 text-sm leading-none"
       >
         ×

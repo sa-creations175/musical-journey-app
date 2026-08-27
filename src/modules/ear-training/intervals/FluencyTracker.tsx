@@ -212,7 +212,7 @@ function AnchorRow({ iv, direction }: AnchorEditorProps) {
               onClick={openEditor}
               aria-label={`edit ${direction} anchor`}
               className="text-neutral-400 hover:text-fluent shrink-0"
-              title="edit anchor"
+              title="Edit Anchor"
             >
               ✎
             </button>

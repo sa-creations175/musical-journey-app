@@ -816,7 +816,7 @@ function HfAccuracySection({
 
   return (
     <ToggleCard
-      title="Accuracy target"
+      title="Accuracy Target"
       hint="Reach a target accuracy percentage."
       enabled={target.accuracyEnabled}
       onToggle={toggle}
@@ -1371,7 +1371,7 @@ function EtAccuracySection({
 
   return (
     <ToggleCard
-      title="Accuracy target"
+      title="Accuracy Target"
       hint="Reach a target accuracy percentage."
       enabled={target.accuracyEnabled}
       onToggle={toggle}

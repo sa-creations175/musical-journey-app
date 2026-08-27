@@ -536,7 +536,7 @@ export default function ReadingDrill({
            on separate schedules; they simply share an answer. */
         <div className="space-y-3" data-testid="note-question">
           <FullSetPicker
-            title="letter"
+            title="Letter"
             options={letterOptions()}
             correctId={resolved.caption[0]}
             selectedId={answer.letter}
@@ -774,7 +774,7 @@ function ChordPanel({
           that appeared or disappeared would announce which kind of card
           this is before the staff had been read. */}
       <FullSetPicker
-        title="inversion"
+        title="Inversion"
         options={inversionOptions()}
         correctId={inversionAnswerFor(parsed.qualityId, parsed.position)}
         selectedId={answer.inversion}
@@ -782,7 +782,7 @@ function ChordPanel({
         onPick={id => set({ inversion: id })}
       />
       <FullSetPicker
-        title="root"
+        title="Root"
         options={rootOptions()}
         correctId={correctRootId}
         selectedId={answer.root}
@@ -791,7 +791,7 @@ function ChordPanel({
         gridClassName="grid grid-cols-4 sm:grid-cols-6 gap-2"
       />
       <FullSetPicker
-        title="quality"
+        title="Quality"
         options={qualityOptions()}
         correctId={parsed.qualityId}
         selectedId={answer.quality}

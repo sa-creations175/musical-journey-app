@@ -372,7 +372,7 @@ function SelfAssessmentPrompt({
       </div>
       <div className="grid gap-2">
         <SelfAssessmentOption
-          title="Not started"
+          title="Not Started"
           hint="I haven't practiced this. Start from scratch."
           disabled={disabled}
           onClick={() => onPick('not_started')}

@@ -133,7 +133,7 @@ function ProgRow({ progression, attempts, curation, selection }: ProgRowProps) {
           {hasSlash && (
             <span
               className="text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border border-info/40 bg-info/10 text-info"
-              title="contains slash chords / inversions"
+              title="Contains Slash Chords / Inversions"
             >
               inv
             </span>

@@ -166,7 +166,7 @@ function SongComfortablePathChoice({
         accent={accent}
         onClick={() => void handlePick('expand-keys')}
         disabled={disabled || processing || !nextKey}
-        title="Expand keys"
+        title="Expand Keys"
         label="Take it to new keys"
         subtext={expandSubtext}
       />

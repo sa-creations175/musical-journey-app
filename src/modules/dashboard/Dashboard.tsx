@@ -158,7 +158,7 @@ export default function Dashboard() {
               <button
                 onClick={beginEditName}
                 className="italic underline-offset-4 decoration-fluent/30 hover:decoration-fluent hover:underline"
-                title="rename — also settable in settings"
+                title="Rename — Also Settable in Settings"
               >
                 {displayName}
               </button>
@@ -249,15 +249,15 @@ export default function Dashboard() {
 
           {/* Sections 7-9 placeholders */}
           <PlaceholderSection
-            title="this week"
+            title="This Week"
             description="weekly practice rhythm, breakthrough moments, what shifted. coming soon."
           />
           <PlaceholderSection
-            title="your journey"
+            title="Your Journey"
             description="long-arc progress: when you first picked up each module, how your vocabulary has grown. coming soon."
           />
           <PlaceholderSection
-            title="goals"
+            title="Goals"
             description="short-term intentions and longer arcs — coming soon."
           />
 

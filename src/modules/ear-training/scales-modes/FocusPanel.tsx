@@ -83,7 +83,7 @@ export default function FocusPanel({
 
   return (
     <ItemSelectionPanel
-      title="focus on specific modes"
+      title="Focus on Specific Modes"
       description="drill only the modes you pick. adaptive weighting still applies inside your selection."
       note={focusActive ? (
         <div className="rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">

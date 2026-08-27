@@ -152,7 +152,7 @@ function DescriptionEditor({ chord }: DescriptionEditorProps) {
           onClick={open}
           aria-label="edit sound description"
           className="text-neutral-400 hover:text-fluent shrink-0"
-          title="edit sound description"
+          title="Edit Sound Description"
         >
           ✎
         </button>

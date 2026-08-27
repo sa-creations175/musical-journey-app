@@ -78,7 +78,7 @@ describe('the question asks for a letter and nothing else', () => {
   it('renders the letter picker and NO octave picker', async () => {
     const el = await renderNote(CARD);
     expect(el.querySelector('[data-testid="note-question"]')).not.toBeNull();
-    expect(pickers(el)).toEqual(['letter']);
+    expect(pickers(el)).toEqual(['Letter']);
   });
 
   it('stays one picker after the letter is chosen', async () => {
@@ -87,7 +87,7 @@ describe('the question asks for a letter and nothing else', () => {
     // the staged version.
     const el = await renderNote(CARD);
     await pick(el, 'G');
-    expect(pickers(el)).toEqual(['letter']);
+    expect(pickers(el)).toEqual(['Letter']);
   });
 
   it('is submittable on the letter alone', async () => {

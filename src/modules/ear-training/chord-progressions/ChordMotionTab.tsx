@@ -1193,7 +1193,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
       {showFocusPanel && (
         <ItemSelectionPanel
-          title="focus on specific motions"
+          title="Focus on Specific Motions"
           description="drill only the scale-degree motions you pick. scope filters still apply inside your selection."
           note={focusActive ? (
             <div className="rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">

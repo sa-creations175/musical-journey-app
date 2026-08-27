@@ -251,14 +251,14 @@ function Cell({ descriptor, skill, types, onOpen }: CellProps) {
         <span
           aria-hidden
           className="absolute top-0.5 left-0.5 w-1.5 h-1.5 rounded-full bg-developing"
-          title="incomplete — some drill types under-practised"
+          title="Incomplete — Some Drill Types Under-Practised"
         />
       )}
       {attentionFlag && agg.totalSeconds > 0 && (
         <span
           aria-hidden
           className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-needswork/80"
-          title="going stale — time for a refresh"
+          title="Going Stale — Time for a Refresh"
         />
       )}
     </button>

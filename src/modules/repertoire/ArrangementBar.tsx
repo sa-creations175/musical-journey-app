@@ -190,14 +190,14 @@ export default function ArrangementBar({
               <button
                 onClick={() => openRename(activeArrangement)}
                 className="text-neutral-500 hover:text-fluent"
-                title="rename this arrangement"
+                title="Rename This Arrangement"
               >
                 Rename
               </button>
               <button
                 onClick={duplicateActive}
                 className="text-neutral-500 hover:text-fluent"
-                title="duplicate this arrangement"
+                title="Duplicate This Arrangement"
               >
                 Duplicate
               </button>
@@ -205,7 +205,7 @@ export default function ArrangementBar({
                 <button
                   onClick={() => setConfirmDelete(activeArrangement)}
                   className="text-neutral-500 hover:text-needswork"
-                  title="delete this arrangement"
+                  title="Delete This Arrangement"
                 >
                   Delete
                 </button>
@@ -315,7 +315,7 @@ function NewArrangementModal({
     <Modal
       open
       onClose={onCancel}
-      title="new arrangement"
+      title="New Arrangement"
       description="create a second set of chord placements over the same beat structure."
       footer={(
         <div className="flex items-center justify-end gap-2">

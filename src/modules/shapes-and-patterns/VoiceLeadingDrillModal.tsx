@@ -319,14 +319,14 @@ export default function VoiceLeadingDrillModal({
                 onClick={handlePrevious}
                 disabled={!canGoPrevious}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Go back to the previous pattern"
+                title="Go Back to the Previous Pattern"
               >
                 Previous
               </button>
               <button
                 onClick={handleCancel}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-                title={canGoNext ? 'Move on to the next pattern' : 'Finish — end the drills and rate this block'}
+                title={canGoNext ? 'Move on to the Next Pattern' : 'Finish — end the drills and rate this block'}
               >
                 {canGoNext ? 'Next' : 'Finish'}
               </button>
@@ -365,7 +365,7 @@ export default function VoiceLeadingDrillModal({
               onClick={handlePrevious}
               disabled={!canGoPrevious}
               className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Go back to the previous pattern"
+              title="Go Back to the Previous Pattern"
             >
               Previous
             </button>

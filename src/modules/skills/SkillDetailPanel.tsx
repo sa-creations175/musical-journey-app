@@ -244,7 +244,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
                     <button
                       onClick={() => setEditingStarter(true)}
                       aria-label="edit description"
-                      title="edit"
+                      title="Edit"
                       className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] text-amber-700 dark:text-amber-300 hover:bg-amber-200/50 dark:hover:bg-amber-900/30"
                     >
                       ✎
@@ -252,7 +252,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
                     <button
                       onClick={deleteStarter}
                       aria-label="delete description"
-                      title="delete"
+                      title="Delete"
                       className="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] text-neutral-500 hover:text-needswork hover:bg-needswork/10"
                     >
                       ×

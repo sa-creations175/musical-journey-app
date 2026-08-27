@@ -125,7 +125,7 @@ export default function SongTargetSection({
       {selection.granularity === 'whole' && (
         <div className="flex flex-col gap-2">
           <WholeTargetRow
-            title="Solid in original key"
+            title="Solid in Original Key"
             hint={`Prove the whole song end-to-end in ${song?.key ?? 'the original key'}`}
             tag={wholeTags.solid}
             selected={selection.wholeOption === 'solid'}
@@ -137,7 +137,7 @@ export default function SongTargetSection({
           />
 
           <WholeTargetRow
-            title="Cross-key %"
+            title="Cross-Key %"
             hint="Reach a target % of sections comfortable across non-original keys"
             tag={wholeTags.crossKey}
             selected={selection.wholeOption === 'cross_key'}

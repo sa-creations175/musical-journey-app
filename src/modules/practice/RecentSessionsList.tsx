@@ -160,7 +160,7 @@ function SessionRow({
           type="button"
           onClick={onDelete}
           aria-label="Delete session"
-          title="Delete session"
+          title="Delete Session"
           className="shrink-0 -mr-1 -mt-0.5 p-1.5 rounded text-neutral-400 hover:text-needswork hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <TrashIcon />

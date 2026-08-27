@@ -420,7 +420,7 @@ export default function ProgressionDrawer({
                                 })
                               }
                               aria-label="edit this line break"
-                              title="line break — convert or remove"
+                              title="Line Break — Convert or Remove"
                               className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
                             >
                               ⏎

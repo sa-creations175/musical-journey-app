@@ -151,7 +151,7 @@ export default function PhraseNote({
             void commit('');
           }}
           aria-label="delete note"
-          title="delete this note"
+          title="Delete This Note"
           className="text-[10px] leading-none px-1 pt-1 text-neutral-400 hover:text-needswork"
         >
           ×

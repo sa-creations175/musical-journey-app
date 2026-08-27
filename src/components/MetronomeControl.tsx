@@ -75,7 +75,7 @@ export default function MetronomeControl() {
         <button
           onClick={() => metronome.toggle()}
           aria-label={state.playing ? 'stop metronome' : 'start metronome'}
-          title={state.playing ? 'stop metronome' : 'start metronome'}
+          title={state.playing ? 'Stop Metronome' : 'Start Metronome'}
           className={`px-2 py-1 text-xs transition ${
             state.playing ? 'bg-fluent text-white' : 'text-neutral-500 hover:text-fluent'
           }`}
@@ -86,7 +86,7 @@ export default function MetronomeControl() {
           onClick={() => setExpanded(v => !v)}
           className="px-2 py-1 text-xs font-mono tabular-nums text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 border-l border-neutral-200 dark:border-neutral-700"
           aria-expanded={expanded}
-          title="metronome settings"
+          title="Metronome Settings"
         >
           {state.bpm}
           <span className="text-neutral-400 ml-1">bpm</span>
@@ -124,7 +124,7 @@ export default function MetronomeControl() {
               <button
                 onClick={() => metronome.update({ bpm: clamp(state.bpm - 1, 40, 220) })}
                 aria-label="decrease bpm by 1"
-                title="decrease bpm"
+                title="Decrease bpm"
                 className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent text-[10px] font-mono"
               >
                 −
@@ -132,7 +132,7 @@ export default function MetronomeControl() {
               <button
                 onClick={() => metronome.update({ bpm: clamp(state.bpm + 1, 40, 220) })}
                 aria-label="increase bpm by 1"
-                title="increase bpm"
+                title="Increase bpm"
                 className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent text-[10px] font-mono"
               >
                 +

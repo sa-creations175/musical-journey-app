@@ -522,7 +522,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
             <button
               onClick={() => void handleToggleFlag()}
               aria-label={flagged ? 'unflag card' : 'flag card for later'}
-              title={flagged ? 'flagged — click to remove' : 'flag for later (F)'}
+              title={flagged ? 'Flagged — Click to Remove' : 'Flag for Later (F)'}
               className={`text-lg leading-none ${
                 flagged ? 'text-developing' : 'text-neutral-300 hover:text-developing'
               }`}
@@ -754,7 +754,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
           onClick={handlePrev}
           disabled={index === 0}
           className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent disabled:opacity-40 disabled:cursor-not-allowed"
-          title="previous card (←)"
+          title="Previous Card (←)"
         >
           ← Previous
         </button>
@@ -776,7 +776,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               ? 'bg-fluent text-white hover:opacity-90'
               : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
           }`}
-          title={isLast ? 'finish session (space / →)' : 'next card (space / →)'}
+          title={isLast ? 'Finish Session (Space / →)' : 'Next Card (Space / →)'}
         >
           {isLast ? 'finish →' : 'next →'}
         </button>

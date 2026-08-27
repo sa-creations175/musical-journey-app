@@ -1878,7 +1878,7 @@ function EarTrainingCoverageCard({
 
   return (
     <ToggleCard
-      title="Coverage target"
+      title="Coverage Target"
       hint="Reach the acquired stage on every item in the module — or one or more chosen groups."
       enabled={target.coverageEnabled}
       onToggle={toggle}
@@ -1952,7 +1952,7 @@ function AccuracyTargetCard({
 
   return (
     <ToggleCard
-      title="Accuracy target"
+      title="Accuracy Target"
       hint="Reach a target accuracy percentage."
       enabled={target.accuracyEnabled}
       onToggle={toggle}
@@ -2235,7 +2235,7 @@ function HarmonicFluencyCoverageCard({
 
   return (
     <ToggleCard
-      title="Coverage target"
+      title="Coverage Target"
       hint="Reach the acquired stage on every flashcard in the module — or one or more chosen groups."
       enabled={target.coverageEnabled}
       onToggle={toggle}
@@ -2299,7 +2299,7 @@ function HarmonicFluencyAccuracyCard({
 
   return (
     <ToggleCard
-      title="Accuracy target"
+      title="Accuracy Target"
       hint="Reach a target accuracy percentage."
       enabled={target.accuracyEnabled}
       onToggle={toggle}
@@ -2577,7 +2577,7 @@ function ShapesPatternsCoverageCard({
 
   return (
     <ToggleCard
-      title="Coverage target"
+      title="Coverage Target"
       hint="Reach the acquired stage on every shape × key combination in the module — or one or more chosen areas. Mental Visualization is excluded from coverage; it counts toward consistency only."
       enabled={target.coverageEnabled}
       onToggle={toggle}
@@ -2651,7 +2651,7 @@ function ShapesProficiencyCard({
 
   return (
     <ToggleCard
-      title="Proficiency target"
+      title="Proficiency Target"
       hint="Reach a target level on a shape — or across an activity area."
       enabled={target.proficiencyEnabled}
       onToggle={toggle}
@@ -2938,7 +2938,7 @@ function ProductionCoverageCard({
 
   return (
     <ToggleCard
-      title="Coverage target"
+      title="Coverage Target"
       hint="Reach the acquired stage on every lesson in the module — or one or more chosen paths."
       enabled={target.coverageEnabled}
       onToggle={toggle}
@@ -3019,7 +3019,7 @@ function ProductionCompletionCard({
 
   return (
     <ToggleCard
-      title="Completion target"
+      title="Completion Target"
       hint="Finish a path, or rack up new lessons."
       enabled={target.completionEnabled}
       onToggle={toggle}
@@ -3424,7 +3424,7 @@ function Step3HalfView({
       </p>
 
       <ParentChoiceCard
-        title="No parent goal"
+        title="No Parent Goal"
         subtitle="Default · standalone"
         active={noneSelected}
         onClick={setNone}

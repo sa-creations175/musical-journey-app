@@ -230,7 +230,7 @@ export default function Layout() {
             onClick={toggleSidebar}
             aria-label={sidebarCollapsed ? 'expand sidebar' : 'collapse sidebar'}
             aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? 'expand' : 'collapse'}
+            title={sidebarCollapsed ? 'Expand' : 'Collapse'}
             className="inline-flex w-8 h-8 items-center justify-center rounded-md text-neutral-400 hover:text-fluent hover:bg-neutral-100 dark:hover:bg-neutral-800 shrink-0"
           >
             {/* Hamburger on phone (compact bar at top) → chevron on md+
@@ -340,7 +340,7 @@ export default function Layout() {
             <button
               onClick={() => setCreativeOpen(true)}
               aria-label="just play — log creative time"
-              title="just play — log creative time"
+              title="Just Play — Log Creative Time"
               className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/30 text-white hover:bg-white/10 hover:border-white/60 text-xs font-medium transition-colors"
             >
               <span aria-hidden className="text-sm leading-none">♪✧</span>
@@ -349,7 +349,7 @@ export default function Layout() {
             <button
               onClick={() => setSettingsOpen(true)}
               aria-label="settings"
-              title="settings"
+              title="Settings"
               className="w-8 h-8 rounded-md border border-white/30 text-white hover:bg-white/10 hover:border-white/60 text-base leading-none"
             >
               ⚙

@@ -2170,7 +2170,7 @@ export default function LeadSheetSection({
               <button
                 onClick={onMoveUp}
                 disabled={!canMoveUp || !onMoveUp}
-                title="move section up"
+                title="Move Section Up"
                 className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-base rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 ↑
@@ -2178,7 +2178,7 @@ export default function LeadSheetSection({
               <button
                 onClick={onMoveDown}
                 disabled={!canMoveDown || !onMoveDown}
-                title="move section down"
+                title="Move Section Down"
                 className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-base rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 ↓
@@ -2188,7 +2188,7 @@ export default function LeadSheetSection({
           <button
             onClick={() => commit({ hidden: !section.hidden })}
             className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent"
-            title={section.hidden ? 'unhide section' : 'hide section'}
+            title={section.hidden ? 'Unhide Section' : 'Hide Section'}
           >
             {section.hidden ? 'unhide' : 'hide'}
           </button>
@@ -2196,7 +2196,7 @@ export default function LeadSheetSection({
             <button
               onClick={onDelete}
               className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-needswork hover:border-needswork"
-              title="delete section"
+              title="Delete Section"
             >
               Delete
             </button>
@@ -2616,7 +2616,7 @@ export default function LeadSheetSection({
                               })
                             }
                             aria-label="edit this line break"
-                            title="line break — convert or remove"
+                            title="Line Break — Convert or Remove"
                             className="px-1 rounded border border-fluent/40 text-fluent hover:bg-fluent/10"
                           >
                             ⏎
@@ -2681,7 +2681,7 @@ export default function LeadSheetSection({
                           (isAdded ? (
                             <span
                               aria-label="In your ET practice"
-                              title="In your ET practice"
+                              title="In Your ET Practice"
                               className="text-fluent font-semibold"
                             >
                               ✓
@@ -2690,7 +2690,7 @@ export default function LeadSheetSection({
                             <button
                               type="button"
                               onClick={() => beginAddProgression(m)}
-                              title="Add to ET practice"
+                              title="Add to ET Practice"
                               aria-label="Add to ET practice"
                               className="text-fluent hover:underline leading-none"
                             >

@@ -434,7 +434,7 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
     <Modal
       open
       onClose={onClose}
-      title={existing ? 'Edit reference track' : 'Add reference track'}
+      title={existing ? 'Edit Reference Track' : 'Add Reference Track'}
       description={existing ? 'update notes, genre, tags, producer, or links' : 'a new song to study'}
       footer={(
         <div className="flex items-center justify-end gap-2">

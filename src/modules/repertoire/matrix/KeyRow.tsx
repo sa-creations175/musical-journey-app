@@ -119,12 +119,12 @@ export default function KeyRow({
             </span>
           )}
           {due === 'due' && (
-            <span className="text-[8px] uppercase tracking-wide text-[#E88943]" title="due to be proven again">
+            <span className="text-[8px] uppercase tracking-wide text-[#E88943]" title="Due to Be Proven Again">
               due
             </span>
           )}
           {due === 'due-soon' && (
-            <span className="text-[8px] uppercase tracking-wide text-neutral-400" title="due soon">
+            <span className="text-[8px] uppercase tracking-wide text-neutral-400" title="Due Soon">
               soon
             </span>
           )}

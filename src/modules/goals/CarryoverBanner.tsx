@@ -224,7 +224,7 @@ function CarryoverReviewModal({
     <Modal
       open
       onClose={onClose}
-      title="Carry over from last month"
+      title="Carry Over from Last Month"
       description="Decide per module — items you Decline stay surfaced via the spacing system but don't get added to this month's goal."
       footer={(
         <div className="flex items-center justify-end gap-2">

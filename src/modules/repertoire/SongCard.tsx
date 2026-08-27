@@ -166,7 +166,7 @@ export default function SongCard({
           title={retest === null
             ? undefined
             : retest.state === 'due'
-              ? 'due to be proven again'
+              ? 'Due to Be Proven Again'
               : 'past grace — this rung has dropped'}
         >
           {STAGE_LABEL[stage]}

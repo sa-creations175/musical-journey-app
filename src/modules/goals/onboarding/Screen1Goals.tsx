@@ -56,7 +56,7 @@ export default function Screen1Goals({ monthlyGoals }: Props) {
 
       <div className="flex flex-col gap-2">
         <PromptCard
-          title="Improve a specific area"
+          title="Improve a Specific Area"
           description="Set a monthly hour target for one or more modules — e.g., 8 hours on ear training."
           expanded={expanded === 'improve'}
           onToggle={() => setExpanded(expanded === 'improve' ? null : 'improve')}
@@ -65,7 +65,7 @@ export default function Screen1Goals({ monthlyGoals }: Props) {
         </PromptCard>
 
         <PromptCard
-          title="Set a custom goal"
+          title="Set a Custom Goal"
           description="Anything else — level targets, song goals, count completed, custom metrics."
           onToggle={() => setCustomOpen(true)}
         />

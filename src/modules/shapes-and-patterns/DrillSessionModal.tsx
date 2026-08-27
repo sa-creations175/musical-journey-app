@@ -435,14 +435,14 @@ export default function DrillSessionModal({
                 onClick={handlePrevious}
                 disabled={!canGoPrevious}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Go back to the previous cell"
+                title="Go Back to the Previous Cell"
               >
                 Previous
               </button>
               <button
                 onClick={cancelWithoutLogging}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-                title={canGoNext ? 'Move on to the next cell' : 'Finish — end the drills and rate this block'}
+                title={canGoNext ? 'Move on to the Next Cell' : 'Finish — end the drills and rate this block'}
               >
                 {canGoNext ? 'Next' : 'Finish'}
               </button>
@@ -481,7 +481,7 @@ export default function DrillSessionModal({
               onClick={handlePrevious}
               disabled={!canGoPrevious}
               className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Go back to the previous cell"
+              title="Go Back to the Previous Cell"
             >
               Previous
             </button>

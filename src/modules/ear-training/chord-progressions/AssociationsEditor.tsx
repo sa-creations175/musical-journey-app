@@ -89,7 +89,7 @@ export default function AssociationsEditor({ progressionId, alwaysEditing = fals
               type="button"
               onClick={() => setExpanded(true)}
               aria-label="edit associations"
-              title="edit associations"
+              title="Edit Associations"
               className="text-neutral-400 hover:text-fluent shrink-0"
             >
               ✎

@@ -29,7 +29,7 @@ export default function CustomizeLayersModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Customize layers"
+      title="Customize Layers"
       description="Hide layers you don't use. They stay reachable here if you change your mind."
     >
       <ul className="flex flex-col divide-y divide-neutral-200 dark:divide-neutral-800">

@@ -107,7 +107,7 @@ export default function IntervalDescriptionEditor({ intervalKey, defaultText }: 
           type="button"
           onClick={() => setExpanded(true)}
           aria-label="edit description"
-          title="edit description"
+          title="Edit Description"
           className="text-neutral-400 hover:text-fluent shrink-0"
         >
           ✎

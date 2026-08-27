@@ -443,7 +443,7 @@ export default function ProposalCard({
             <div className="space-y-1">
               {onAddDeeperOnExisting && (
                 <AddBlockOption
-                  title="Go deeper on something here"
+                  title="Go Deeper on Something Here"
                   subtitle="Pick a block in the session and add more time on it."
                   onClick={() => {
                     setAddOpen(false);
@@ -453,7 +453,7 @@ export default function ProposalCard({
               )}
               {onAddNextPriority && (
                 <AddBlockOption
-                  title="Next priority"
+                  title="Next Priority"
                   subtitle="Algorithm picks the next best use of your time."
                   onClick={() => {
                     setAddOpen(false);

@@ -177,7 +177,7 @@ export default function LyricLineRow({
           title={
             status.placed > 0
               ? 'delete this line — it has placed words, so it will confirm first'
-              : 'delete this line'
+              : 'Delete This Line'
           }
           className="text-neutral-400 hover:text-needswork text-xs leading-none px-1 shrink-0"
         >

@@ -496,7 +496,7 @@ export default function GoalFormModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? 'Edit goal' : 'Set a goal'}
+      title={isEdit ? 'Edit Goal' : 'Set a Goal'}
       footer={
         <div className="flex items-center justify-between gap-2">
           {isEdit ? (

@@ -2200,7 +2200,7 @@ function Screen1PracticeConsistency({
   return (
     <div className="flex flex-col gap-5">
       <DimensionSection
-        title="Weekly floor"
+        title="Weekly Floor"
         id="weeklyFloor"
         question="What's the minimum number of days per week you want to practice?"
       >
@@ -2215,7 +2215,7 @@ function Screen1PracticeConsistency({
       </DimensionSection>
 
       <DimensionSection
-        title="Monthly floor"
+        title="Monthly Floor"
         id="monthlyFloor"
         question="What's the minimum days per month you want to practice? (Safety net for bad weeks and vacations.)"
       >

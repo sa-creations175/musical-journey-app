@@ -57,7 +57,7 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
             <button
               onClick={onEdit}
               aria-label="edit entry"
-              title="edit"
+              title="Edit"
               className="shrink-0 inline-flex items-center justify-center w-5 h-5 -mb-0.5 text-[10px] rounded-full align-middle transition"
               style={{
                 color: 'var(--diary-text-dim)',
@@ -145,7 +145,7 @@ function PlayButtonSingle({ onPlay }: { onPlay: () => void }) {
     <button
       onClick={onPlay}
       aria-label="hear this element"
-      title="hear this element"
+      title="Hear This Element"
       className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] transition"
       style={{
         color: 'var(--diary-text-muted)',

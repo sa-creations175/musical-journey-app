@@ -76,7 +76,7 @@ export default function DiaryEntryEditor({ entry, skill, skillId, starter, onClo
     <Modal
       open
       onClose={onClose}
-      title={entry ? 'edit association' : 'add association'}
+      title={entry ? 'Edit Association' : 'Add Association'}
       description={skillLabel}
       footer={
         <div className="flex items-center justify-between gap-2 flex-wrap">

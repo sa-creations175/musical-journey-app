@@ -801,7 +801,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               value={tonicContext}
               onChange={e => setTonicContext(e.target.value as TonicContext)}
               className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-0.5"
-              title="reference note played before the progression"
+              title="Reference Note Played Before the Progression"
             >
               <option value="singleNote">Single Note</option>
               <option value="none">None</option>
@@ -1037,7 +1037,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
 
       {showFocusPanel && (
         <ItemSelectionPanel
-          title="focus on specific progressions"
+          title="Focus on Specific Progressions"
           description="drill only the progressions you pick. adaptive weighting still applies inside your selection."
           filter={focusFilter}
           sections={focusSections}

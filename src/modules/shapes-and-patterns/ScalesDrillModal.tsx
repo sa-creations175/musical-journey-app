@@ -385,14 +385,14 @@ export default function ScalesDrillModal({
                 onClick={handlePrevious}
                 disabled={!canGoPrevious}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Go back to the previous scale"
+                title="Go Back to the Previous Scale"
               >
                 Previous Scale
               </button>
               <button
                 onClick={handleCancel}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
-                title={canGoNext ? 'Move on to the next scale' : 'Finish — end the drills and rate this block'}
+                title={canGoNext ? 'Move on to the Next Scale' : 'Finish — end the drills and rate this block'}
               >
                 {canGoNext ? 'Next scale' : 'Finish'}
               </button>
@@ -431,7 +431,7 @@ export default function ScalesDrillModal({
               onClick={handlePrevious}
               disabled={!canGoPrevious}
               className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Go back to the previous scale"
+              title="Go Back to the Previous Scale"
             >
               Previous Scale
             </button>

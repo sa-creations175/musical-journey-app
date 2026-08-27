@@ -32,7 +32,7 @@ export default function EtItemStatus({ curation }: Props) {
       {curation.hidden && (
         <span
           className="text-[10px] uppercase tracking-wide rounded-full px-1.5 py-0.5 border border-neutral-400/50 bg-neutral-200/40 text-neutral-500 dark:bg-neutral-700/40 dark:text-neutral-400 inline-flex items-center gap-1"
-          title="hidden from sessions and quiz pools"
+          title="Hidden from Sessions and Quiz Pools"
         >
           <span aria-hidden>⊘</span> hidden
         </span>
