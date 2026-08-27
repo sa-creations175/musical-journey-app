@@ -433,7 +433,7 @@ export default function VocabularySession({ onBack }: Props) {
             </p>
           </div>
 
-          {/* Flagged-only */}
+          {/* Drill-again pool only */}
           <div>
             <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
               <input
@@ -444,12 +444,12 @@ export default function VocabularySession({ onBack }: Props) {
                 className="h-4 w-4 rounded border-neutral-300 text-production focus:ring-production"
               />
               <span className={flaggedCount === 0 ? 'text-neutral-400' : ''}>
-                Flagged Cards Only
+                Drill-Again Cards Only
               </span>
               <span className="text-[11px] text-neutral-400">
                 {flaggedCount === 0
-                  ? '(flag a card during a session with ★ to enable)'
-                  : `· ${flaggedCount} flagged`}
+                  ? '(press ★ on a card during a session to add it)'
+                  : `· ${flaggedCount} in the pool`}
               </span>
             </label>
           </div>

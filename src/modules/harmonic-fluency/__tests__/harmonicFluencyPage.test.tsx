@@ -168,7 +168,7 @@ describe('the page opens as cards', () => {
     // Every control that was in the card is in the modal.
     expect(panel!.textContent).toContain('display mode');
     expect(panel!.textContent).toContain('timer per card');
-    expect(panel!.textContent).toContain('Flagged Cards Only');
+    expect(panel!.textContent).toContain('Drill-Again Cards Only');
   });
 
   it('puts the settings link LEFT of the streak and the calendar', async () => {

@@ -128,9 +128,12 @@ interface Props<TCard extends BaseFlashcard> {
    *  The shell does not care about the return value. */
   onCardAnswered: (args: CardAnsweredArgs<TCard>) => Promise<void> | void;
 
-  /** Currently flagged cards (set of ids). Driven by caller's live
-   *  query against its own SR-state table. Optional — when absent the
-   *  flag star + F shortcut are hidden. */
+  /** The DRILL-AGAIN POOL (set of card ids) — cards the user wants to
+   *  come round again this session. Nothing to do with the review pile
+   *  below; the ★ and the 🚩 are two different piles and the copy on
+   *  both now says so. Driven by caller's live query against its own
+   *  SR-state table. Optional — when absent the ★ and its F shortcut
+   *  are hidden. */
   flaggedIds?: Set<string>;
   onToggleFlag?: (cardId: string) => Promise<void> | void;
 
@@ -521,8 +524,16 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
           {onToggleFlag && (
             <button
               onClick={() => void handleToggleFlag()}
-              aria-label={flagged ? 'unflag card' : 'flag card for later'}
-              title={flagged ? 'Flagged — Click to Remove' : 'Flag for Later (F)'}
+              aria-label={
+                flagged
+                  ? 'remove card from your drill-again pool'
+                  : 'add card to your drill-again pool'
+              }
+              title={
+                flagged
+                  ? 'In Your Drill-Again Pool — click to remove (F)'
+                  : 'Drill This Again — adds it to the "drill again" pool (F)'
+              }
               className={`text-lg leading-none ${
                 flagged ? 'text-developing' : 'text-neutral-300 hover:text-developing'
               }`}
@@ -533,11 +544,13 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
           {onSetReviewFlag && (
             <button
               onClick={handleOpenFlagEditor}
-              aria-label={reviewFlagged ? 'edit review flag' : 'flag for review'}
+              aria-label={
+                reviewFlagged ? 'edit review flag' : 'note a problem with this card'
+              }
               title={
                 reviewFlagged
-                  ? `review-flagged${reviewFlagNote ? ` — ${reviewFlagNote}` : ''}`
-                  : 'flag for review (add note)'
+                  ? `Flagged For Review — click to edit${reviewFlagNote ? `\n${reviewFlagNote}` : ''}`
+                  : "Note A Problem With This Card — doesn't change what you practise"
               }
               className={`text-base leading-none ${
                 reviewFlagged ? '' : 'opacity-40 hover:opacity-100'
@@ -620,7 +633,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               onClick={() => void handleSaveReviewFlag()}
               className="px-3 py-1 rounded-md bg-developing text-white hover:opacity-90"
             >
-              {reviewFlagged ? 'save changes' : 'flag for review'}
+              {reviewFlagged ? 'Save Changes' : 'Flag for Review'}
             </button>
           </div>
         </div>

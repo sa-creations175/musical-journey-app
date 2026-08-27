@@ -257,7 +257,7 @@ describe('session settings are a link, not a card', () => {
     // The same controls, unchanged — only where they live moved.
     expect(panel!.textContent).toContain('display mode');
     expect(panel!.textContent).toContain('timer per card');
-    expect(panel!.textContent).toContain('Flagged Cards Only');
+    expect(panel!.textContent).toContain('Drill-Again Cards Only');
   });
 
   it('sits LEFT of the streak in the same row', async () => {
