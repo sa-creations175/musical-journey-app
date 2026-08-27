@@ -22,3 +22,26 @@ Where the same step appears on more than one surface, it is one component. Anyth
 differ between surfaces is written down with a reason, and anything not on that list cannot
 differ. Do not build a second implementation of a step that already exists somewhere in the
 app — extract the first one instead.
+
+## Say what kind of word it is
+
+Two kinds of word in this app look like ordinary English and are not. Both get marked every
+time they appear in prose — in the UI, in info panels, in warnings, anywhere a sentence is
+written.
+
+**A status or rating word is bolded, or followed by "status" or "rating".** That covers Needs
+Work, Developing, Fluent, Mastered, Started, Not Started, and the song's own ladder —
+Learning, Comfortable, Cross-key, Internalized.
+
+```
+"take this section to Fluent"             — ambiguous, reads as encouragement
+"take this section to **Fluent**"         — clear
+"take this section to the Fluent rating"  — also clear
+```
+
+**A key name gets the same treatment.** Never "A has three sharps" — a bare capital letter
+mid-sentence reads as a stray word rather than a key. Write "the key of **A**", or bold the
+letter. Same for D♭, B♭, F♯ and the rest.
+
+This is not a style preference. Both have caused real confusion reading the app's own copy,
+more than once.
