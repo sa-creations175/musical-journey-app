@@ -2131,7 +2131,7 @@ export default function LeadSheetSection({
               data-testid="section-chart-complete"
               className="accent-fluent"
             />
-            chords added
+            Chords Added
           </label>
           <label className="text-[11px] text-neutral-500 flex items-center gap-1">
             stage:

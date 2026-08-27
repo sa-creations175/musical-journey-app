@@ -291,7 +291,7 @@ function GoalAccumulator({
                 className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
               >
                 <div className="text-sm text-neutral-700 dark:text-neutral-200">
-                  {g.description || <span className="italic text-neutral-500">(untitled goal)</span>}
+                  {g.description || <span className="italic text-neutral-500">(Untitled Goal)</span>}
                 </div>
                 {target && (
                   <div className="text-xs text-neutral-500 mt-0.5">{target}</div>
@@ -380,7 +380,7 @@ function Field({
       <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
         {label}
         {required && <span className="text-needswork"> *</span>}
-        {optional && <span className="text-neutral-400 font-normal"> (optional)</span>}
+        {optional && <span className="text-neutral-400 font-normal"> (Optional)</span>}
       </span>
       {children}
     </label>

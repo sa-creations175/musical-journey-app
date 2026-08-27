@@ -270,11 +270,11 @@ function SummaryView({
         <TierDistributionBar distribution={distribution} />
         <div className="text-xs text-neutral-500 leading-relaxed">
           {distribution.mastered > 0 && (
-            <span><span className="text-mastered font-medium">{distribution.mastered}</span> at mastered</span>
+            <span><span className="text-mastered font-medium">{distribution.mastered}</span> At Mastered</span>
           )}
           {distribution.mastered > 0 && (distribution.stale > 0 || distribution.untouched > 0) && <span className="mx-2">·</span>}
           {distribution.stale > 0 && (
-            <span><span className="text-neutral-500 font-medium">{distribution.stale}</span> going stale</span>
+            <span><span className="text-neutral-500 font-medium">{distribution.stale}</span> Going Stale</span>
           )}
           {distribution.stale > 0 && distribution.untouched > 0 && <span className="mx-2">·</span>}
           {distribution.untouched > 0 && (
@@ -403,7 +403,7 @@ function SummaryView({
                   >
                     Open Module →
                   </Link>
-                  <span className="text-[10px] text-neutral-400">view skills</span>
+                  <span className="text-[10px] text-neutral-400">View Skills</span>
                 </div>
               </button>
             );

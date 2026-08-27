@@ -44,7 +44,7 @@ export default function FreshnessSettingsSection() {
       </p>
 
       <label className="flex items-center gap-2 text-sm mb-3">
-        <span className="text-neutral-700 dark:text-neutral-200">step</span>
+        <span className="text-neutral-700 dark:text-neutral-200">Step</span>
         <input
           type="number"
           min={1}
@@ -55,7 +55,7 @@ export default function FreshnessSettingsSection() {
           data-testid="freshness-step-input"
           className="w-16 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm tabular-nums"
         />
-        <span className="text-neutral-500 text-xs">days</span>
+        <span className="text-neutral-500 text-xs">Days</span>
       </label>
 
       <FreshnessScaleStrip stepDays={stepDays} />

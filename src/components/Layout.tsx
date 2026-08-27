@@ -344,7 +344,7 @@ export default function Layout() {
               className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-white/30 text-white hover:bg-white/10 hover:border-white/60 text-xs font-medium transition-colors"
             >
               <span aria-hidden className="text-sm leading-none">♪✧</span>
-              <span className="hidden sm:inline">just play</span>
+              <span className="hidden sm:inline">Just Play</span>
             </button>
             <button
               onClick={() => setSettingsOpen(true)}

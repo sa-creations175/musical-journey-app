@@ -206,7 +206,7 @@ function ProficiencyBadge({ tier }: { tier: SkillRecord['currentTier'] }) {
   if (tier === null || tier === 'untouched') {
     return (
       <span className="text-[10px] text-neutral-400 italic shrink-0">
-        Not yet started
+        Not Yet Started
       </span>
     );
   }

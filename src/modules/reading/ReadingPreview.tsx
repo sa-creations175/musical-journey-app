@@ -106,7 +106,7 @@ export default function ReadingPreview() {
               checked={grand}
               onChange={e => setGrand(e.target.checked)}
             />
-            Grand staff
+            Grand Staff
           </label>
         </div>
       </header>

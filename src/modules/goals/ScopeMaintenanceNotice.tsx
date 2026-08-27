@@ -89,14 +89,14 @@ export default function ScopeMaintenanceNotice({ view, onChanged }: Props) {
           <>
             Everything in <strong>{view.label}</strong> is learned and
             holding steady. Move it to{' '}
-            <strong>scope-level maintenance</strong>? It keeps a smaller
+            <strong>Scope-Level Maintenance</strong>? It keeps a smaller
             slot in your sessions instead of dropping out of them.
           </>
         ) : (
           <>
             <strong>{view.label}</strong> has slipped below the
             maintenance bar. Take it out of{' '}
-            <strong>scope-level maintenance</strong> so it gets full
+            <strong>Scope-Level Maintenance</strong> so it gets full
             practice time again?
           </>
         )}

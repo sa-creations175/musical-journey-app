@@ -60,7 +60,7 @@ export default function DrillMetronomeSetup() {
       {/* BPM slider + readout + ± steppers + presets */}
       <div className="space-y-1">
         <div className="flex items-baseline justify-between">
-          <span className="text-neutral-500 text-[11px]">tempo</span>
+          <span className="text-neutral-500 text-[11px]">Tempo</span>
           <span className="font-mono tabular-nums text-sm">
             {state.bpm}<span className="text-neutral-400 ml-1 text-[10px] uppercase">bpm</span>
           </span>
@@ -110,7 +110,7 @@ export default function DrillMetronomeSetup() {
 
       {/* Groove selector */}
       <label className="flex items-center justify-between gap-2 text-xs">
-        <span className="text-neutral-500">groove</span>
+        <span className="text-neutral-500">Groove</span>
         <select
           value={state.groove}
           onChange={e => metronome.update({ groove: e.target.value as GrooveId })}

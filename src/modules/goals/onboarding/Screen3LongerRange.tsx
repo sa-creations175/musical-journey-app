@@ -91,7 +91,7 @@ export default function Screen3LongerRange({ allGoals }: Props) {
                           className="w-full text-left px-2 py-1.5 -mx-2 rounded hover:bg-neutral-50 dark:hover:bg-neutral-900/40 transition"
                         >
                           <div className="text-sm text-neutral-700 dark:text-neutral-200">
-                            {g.description || <span className="italic text-neutral-500">(untitled goal)</span>}
+                            {g.description || <span className="italic text-neutral-500">(Untitled Goal)</span>}
                           </div>
                           {target && (
                             <div className="text-xs text-neutral-500 mt-0.5">{target}</div>

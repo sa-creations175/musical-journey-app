@@ -1986,7 +1986,7 @@ function SongDetailInner({
                     className="text-[10px] text-neutral-400"
                     title="this song does not follow the global setting"
                   >
-                    overridden
+                    Overridden
                   </span>
                 )}
               </label>

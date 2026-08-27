@@ -247,7 +247,7 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
       {focusProtected && <FluencyProtectionNotice />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <label className="flex flex-col gap-1">
-          <span className="text-neutral-500">root note</span>
+          <span className="text-neutral-500">Root Note</span>
           <select
             value={rootLock === 'random' ? 'random' : String(rootLock)}
             onChange={e => {

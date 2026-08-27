@@ -147,7 +147,7 @@ describe('PhraseNote — a failed write is not dressed up as a save', () => {
     const el = render(<PhraseNote note="old" editing onChange={rejecting()} />);
     await typeAndBlur(el, 'new');
     expect(failure(el)).not.toBeNull();
-    expect(el.textContent).toContain('not saved');
+    expect(el.textContent).toContain('Not Saved');
   });
 
   it('does NOT let the failure fade the way a tick does', async () => {

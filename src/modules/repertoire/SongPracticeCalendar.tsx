@@ -118,7 +118,7 @@ export default function SongPracticeCalendar() {
 
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-3">
         <div className="flex items-baseline justify-between flex-wrap gap-2 text-sm">
-          <span className="text-neutral-500">last 26 weeks</span>
+          <span className="text-neutral-500">Last 26 Weeks</span>
           <span>
             <span className="font-mono tabular-nums font-medium">{totalMinutes}</span> total minutes
             <span className="text-neutral-400 mx-1.5">·</span>

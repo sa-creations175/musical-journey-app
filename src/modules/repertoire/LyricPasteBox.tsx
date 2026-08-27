@@ -137,7 +137,7 @@ export default function LyricPasteBox({
           Clear
         </button>
         <span className="text-[10px] text-neutral-400 hidden sm:inline">
-          cmd/ctrl + enter
+          Cmd/Ctrl + Enter
         </span>
       </div>
     </div>

@@ -822,7 +822,7 @@ function QuickActionsSection({
           className="text-left rounded-lg border border-fluent/40 bg-fluent/5 p-3 hover:border-fluent transition-colors"
         >
           <div className="text-sm font-medium text-fluent">Log Creative Time</div>
-          <div className="text-xs text-neutral-500 mt-0.5">just play / just produce</div>
+          <div className="text-xs text-neutral-500 mt-0.5">Just Play / Just Produce</div>
         </button>
         {data.repertoire.performanceReady.length > 0 ? (
           <Link

@@ -169,7 +169,7 @@ export default function ModuleHomeHeader({
         >
           <span aria-hidden>📅</span>
           <span className="font-mono tabular-nums font-medium">{dayStreak}</span>
-          <span>day streak</span>
+          <span>Day Streak</span>
         </span>
         {calendarTo !== undefined && (
           <>

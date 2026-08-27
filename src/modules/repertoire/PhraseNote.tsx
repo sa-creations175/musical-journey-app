@@ -166,7 +166,7 @@ export default function PhraseNote({
         )}
         {state === 'error' && (
           <span className="text-needswork not-italic" role="alert">
-            not saved
+            Not Saved
           </span>
         )}
       </span>

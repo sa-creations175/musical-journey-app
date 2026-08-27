@@ -168,7 +168,7 @@ describe('the page opens as cards', () => {
     // Every control that was in the card is in the modal.
     expect(panel!.textContent).toContain('display mode');
     expect(panel!.textContent).toContain('timer per card');
-    expect(panel!.textContent).toContain('flagged cards only');
+    expect(panel!.textContent).toContain('Flagged Cards Only');
   });
 
   it('puts the settings link LEFT of the streak and the calendar', async () => {
@@ -378,7 +378,7 @@ describe('the landing statistics', () => {
 
     const day = row.querySelector('[data-kind="day"]')!;
     expect(day.textContent).toContain('📅');
-    expect(day.textContent).toContain('day streak');
+    expect(day.textContent).toContain('Day Streak');
   });
 
   it('counts days practised, not days that met a number', async () => {
@@ -388,6 +388,6 @@ describe('the landing statistics', () => {
     await db.attempts.bulkAdd(FIXTURE.map(a => withAttemptId({ ...a })));
     const el = await renderPage();
     const day = el.querySelector('[data-testid="hf-streak"][data-kind="day"]')!;
-    expect(day.lastElementChild!.textContent).toBe('day streak');
+    expect(day.lastElementChild!.textContent).toBe('Day Streak');
   });
 });

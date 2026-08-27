@@ -70,7 +70,7 @@ export default function SessionFeelPicker({
     <div>
       <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
         {label}{' '}
-        <span className="text-neutral-400 font-normal">(optional)</span>
+        <span className="text-neutral-400 font-normal">(Optional)</span>
       </div>
       <div className="flex items-stretch gap-2">
         {FEEL_OPTIONS.map(opt => {

@@ -1654,7 +1654,7 @@ function MonthlyLayerBody({
                 same indent + accent border as the by-module view. */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-2">
-                <SubSectionLabel>This month</SubSectionLabel>
+                <SubSectionLabel>This Month</SubSectionLabel>
                 {monthlyGoals.length > 0 && (
                   <button
                     type="button"
@@ -1875,7 +1875,7 @@ function GoalRow({
           )}
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100">
-              {goal.description || <span className="italic text-neutral-500">(untitled goal)</span>}
+              {goal.description || <span className="italic text-neutral-500">(Untitled Goal)</span>}
             </div>
             {metaLine && (
               <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1948,7 +1948,7 @@ function GoalRow({
                 </>
               )}
               {slotState.kind === 'not-started' && (
-                <div className="text-xs text-neutral-500 italic">Not started</div>
+                <div className="text-xs text-neutral-500 italic">Not Started</div>
               )}
               {slotState.kind === 'umbrella' && (
                 <div className="text-xs text-neutral-500 italic">
@@ -2414,7 +2414,7 @@ function UmbrellaRow({
               ("cards reviewed" / "minutes practiced") makes the
               data shape self-evident. */}
           <div className="text-[11px] text-neutral-500 italic mt-1">
-            Activity toward this goal
+            Activity Toward This Goal
           </div>
           <div data-activity-area>
             {isCrossModule ? (
@@ -2902,7 +2902,7 @@ function ByModuleSection({
         {showMonthlySection && (
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between gap-2">
-              <SubSectionLabel>This month</SubSectionLabel>
+              <SubSectionLabel>This Month</SubSectionLabel>
               {monthlyGoals.length > 0 && (
                 <button
                   type="button"
@@ -2948,7 +2948,7 @@ function ByModuleSection({
         {/* THIS WEEK */}
         {showWeeklySection && (
           <div className="flex flex-col gap-1.5">
-            <SubSectionLabel>This week</SubSectionLabel>
+            <SubSectionLabel>This Week</SubSectionLabel>
             <ul className="flex flex-col gap-1.5">
               {weeklyGoals.map(g => (
                 <WeeklyGoalRow
@@ -3124,7 +3124,7 @@ function WeeklyGoalRow({
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100 truncate">
             {goal.description || (
-              <span className="italic text-neutral-500">(untitled goal)</span>
+              <span className="italic text-neutral-500">(Untitled Goal)</span>
             )}
           </div>
           {metaLine && (

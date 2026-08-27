@@ -110,7 +110,7 @@ export default function TestStep({
 
       <div className="space-y-1.5">
         <label className="block text-[11px] text-neutral-600 dark:text-neutral-300">
-          Tempo for the next run <span className="text-neutral-400">(optional)</span>
+          Tempo for the next run <span className="text-neutral-400">(Optional)</span>
         </label>
         <div className="flex items-center gap-2">
           <input
@@ -264,7 +264,7 @@ function AttemptList({
                 className="text-[10px] text-neutral-400"
                 title="Below the tempo floor, so it neither advances the count nor resets it."
               >
-                below floor
+                Below Floor
               </span>
             )}
             <button

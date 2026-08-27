@@ -68,7 +68,7 @@ export default function PracticeWindowSettingsSection() {
               data-stage={stage}
               className="w-16 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 text-sm tabular-nums"
             />
-            <span className="text-neutral-500 text-xs">days</span>
+            <span className="text-neutral-500 text-xs">Days</span>
           </label>
         ))}
       </div>

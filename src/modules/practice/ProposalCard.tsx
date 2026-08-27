@@ -436,7 +436,7 @@ export default function ProposalCard({
             className="text-[11px] text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
           >
             <span aria-hidden>+</span>
-            <span>Add block</span>
+            <span>Add Block</span>
             <span aria-hidden>{addOpen ? '↑' : '↓'}</span>
           </button>
           {addOpen && (

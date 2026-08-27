@@ -522,7 +522,7 @@ function TrackEditorModal({ existing, genres, onClose }: EditorProps) {
                 checked={customiseLinks}
                 onChange={e => setCustomiseLinks(e.target.checked)}
               />
-              customise
+              Customise
             </label>
           </div>
           {customiseLinks ? (

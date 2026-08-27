@@ -533,17 +533,17 @@ function ItemDetail({
       )}
 
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-        <dt className="text-neutral-500">proven</dt>
+        <dt className="text-neutral-500">Proven</dt>
         <dd className="tabular-nums" data-testid="item-proven">
           {proven} of {item.window.length}
         </dd>
-        <dt className="text-neutral-500">last practised</dt>
+        <dt className="text-neutral-500">Last Practised</dt>
         <dd className="tabular-nums">
           {item.daysSince === null ? 'never'
             : item.daysSince === 0 ? 'today'
               : `${item.daysSince}d ago`}
         </dd>
-        <dt className="text-neutral-500">next due</dt>
+        <dt className="text-neutral-500">Next Due</dt>
         <dd className="tabular-nums" data-testid="item-due">
           {dueAt === null ? '—'
             : dueAt <= now ? 'now'

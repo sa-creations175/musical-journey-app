@@ -173,7 +173,7 @@ export default function TagPicker({ existing, onAdd, seed = [], placeholder }: P
                 onClick={() => commit(normalized)}
                 className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-fluent/5"
               >
-                <span className="text-neutral-500">+ create new tag:</span>
+                <span className="text-neutral-500">+ Create New Tag:</span>
                 <span className="font-medium text-fluent">{normalized}</span>
               </button>
             </>

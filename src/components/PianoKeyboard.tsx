@@ -295,7 +295,7 @@ export default function PianoKeyboard({
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-1 text-[10px]">
-        <span className="text-neutral-400 mr-0.5">hand:</span>
+        <span className="text-neutral-400 mr-0.5">Hand:</span>
         {(['L', 'R'] as VoicingHand[]).map(h => (
           <button
             key={h}

@@ -835,7 +835,7 @@ function BarGridHeader({
 }) {
   return (
     <div className="relative flex items-center justify-between text-[10px] uppercase tracking-wide text-neutral-500">
-      <span>bar grid</span>
+      <span>Bar Grid</span>
       <div className="flex items-center gap-2">
         <span>
           {barCount} bar{barCount === 1 ? '' : 's'} ·{' '}
@@ -939,7 +939,7 @@ function TimeSignaturePicker({
       onClick={e => e.stopPropagation()}
     >
       <div className="flex items-center justify-between mb-1">
-        <span className="text-neutral-500">time signature</span>
+        <span className="text-neutral-500">Time Signature</span>
         <button
           type="button"
           onClick={onClose}
@@ -1666,7 +1666,7 @@ function SyllableEditPopover({
       onClick={e => e.stopPropagation()}
     >
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-neutral-500">syllable:</span>
+        <span className="text-neutral-500">Syllable:</span>
         <span className="font-mono text-neutral-700 dark:text-neutral-200">{text}</span>
         <button
           type="button"
@@ -2399,7 +2399,7 @@ function WordEditPopover({
       onClick={e => e.stopPropagation()}
     >
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-neutral-500">word:</span>
+        <span className="text-neutral-500">Word:</span>
         <span className="font-mono text-neutral-700 dark:text-neutral-200">{wordText}</span>
         <button
           type="button"
@@ -3305,14 +3305,14 @@ function ChordEditorPopover({
       {onTagChange && (
         <div className="px-2 py-1.5">
           <div className="flex items-center gap-2 text-[11px]">
-            <span className="text-neutral-500">tag:</span>
+            <span className="text-neutral-500">Tag:</span>
             {effectiveTag ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200">
                 {labelForTag(effectiveTag)}
                 {autoOnly && <span className="text-neutral-400">· auto</span>}
               </span>
             ) : (
-              <span className="text-neutral-400 italic">none</span>
+              <span className="text-neutral-400 italic">None</span>
             )}
             <button
               type="button"
@@ -3387,7 +3387,7 @@ function ChordEditorPopover({
       {onVoicingChange && (
         <div className="px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-800 space-y-1.5">
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-neutral-500">voicing</span>
+            <span className="text-neutral-500">Voicing</span>
             {canVoice ? (
               editingVoicing ? (
                 <div className="flex items-center gap-2">
@@ -3490,7 +3490,7 @@ function ChordEditorPopover({
                       </button>
                     )}
                     {currentIsApplied ? (
-                      <span className="text-fluent">✓ applied</span>
+                      <span className="text-fluent">✓ Applied</span>
                     ) : (
                       <button type="button" onClick={applyCurrent} className="text-fluent hover:underline">
                         Use this voicing

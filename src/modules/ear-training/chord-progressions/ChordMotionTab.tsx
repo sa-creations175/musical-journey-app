@@ -847,7 +847,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                   play tonic
                 </button>
                 <span className="text-[0.85rem] italic text-neutral-500">
-                  your reference note
+                  Your Reference Note
                 </span>
               </div>
             )}
@@ -969,7 +969,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
             <div className="rounded-lg border border-black/[0.07] p-4 space-y-3 text-sm">
               {round.isPracticeRep && (
                 <div className="text-[11px] italic text-neutral-500">
-                  practice rep — not tracked
+                  Practice Rep — Not Tracked
                 </div>
               )}
               <AnswerVerdict
@@ -1168,7 +1168,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
           ⊞ Focus on Specific Motions
         </button>
         <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2 flex-wrap justify-center">
-          <span className="text-neutral-500">current scope:</span>
+          <span className="text-neutral-500">Current Scope:</span>
           <span>
             {focusActive
               ? `focused practice — ${focusPoolSize} motion${focusPoolSize === 1 ? '' : 's'} selected`

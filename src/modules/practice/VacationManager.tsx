@@ -357,7 +357,7 @@ function Field({
       <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
         {label}
         {required && <span className="text-needswork"> *</span>}
-        {optional && <span className="text-neutral-400 font-normal"> (optional)</span>}
+        {optional && <span className="text-neutral-400 font-normal"> (Optional)</span>}
       </span>
       {children}
     </label>

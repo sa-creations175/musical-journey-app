@@ -123,7 +123,7 @@ export default function MobileBottomNav() {
             style={modulesActive ? activeStyle(MODULES_ACCENT_HEX) : undefined}
           >
             <ModulesGlyph active={modulesActive} />
-            <span className="text-[10px] mt-0.5 leading-none">modules</span>
+            <span className="text-[10px] mt-0.5 leading-none">Modules</span>
           </button>
         </div>
       </nav>

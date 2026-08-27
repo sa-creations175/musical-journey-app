@@ -274,7 +274,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
       {focusProtected && <FluencyProtectionNotice />}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
         <label className="flex flex-col gap-1">
-          <span className="text-neutral-500">root note</span>
+          <span className="text-neutral-500">Root Note</span>
           <select
             value={rootLock === 'random' ? 'random' : String(rootLock)}
             onChange={e => {
@@ -293,7 +293,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-neutral-500">loop count</span>
+          <span className="text-neutral-500">Loop Count</span>
           <select
             value={String(loopCount)}
             onChange={e => setLoopCount(Number(e.target.value) as LoopCount)}

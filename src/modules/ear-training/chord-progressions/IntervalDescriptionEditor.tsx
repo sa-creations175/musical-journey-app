@@ -100,7 +100,7 @@ export default function IntervalDescriptionEditor({ intervalKey, defaultText }: 
         <span className="flex-1 whitespace-pre-wrap text-neutral-700 dark:text-neutral-200">
           {effective}
           {!hasUserText && (
-            <span className="ml-1 text-neutral-400 italic">(claude's default)</span>
+            <span className="ml-1 text-neutral-400 italic">(Claude's Default)</span>
           )}
         </span>
         <button

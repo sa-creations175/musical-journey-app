@@ -1595,7 +1595,7 @@ function SongPicker({
       <div className="mt-1.5 flex flex-col rounded-md border border-black/[0.07] max-h-72 overflow-y-auto">
         {filteredSongs.length > 0 && (
           <>
-            <SongPickerSectionHeader>Active repertoire</SongPickerSectionHeader>
+            <SongPickerSectionHeader>Active Repertoire</SongPickerSectionHeader>
             {filteredSongs.map(song => (
               <SongPickerRow
                 key={song.id}
@@ -1608,7 +1608,7 @@ function SongPicker({
         )}
         {filteredWants.length > 0 && (
           <>
-            <SongPickerSectionHeader>Want to learn</SongPickerSectionHeader>
+            <SongPickerSectionHeader>Want to Learn</SongPickerSectionHeader>
             {filteredWants.map(entry => (
               <SongPickerRow
                 key={entry.id}
@@ -4352,7 +4352,7 @@ function Step4View({ draft }: { draft: Draft }) {
         {draft.targetDate !== null && <ReviewPill>{formatTargetDate(draft.targetDate)}</ReviewPill>}
         {parentLabel && <ReviewPill>Parent: {parentLabel}</ReviewPill>}
         {draft.parentGoal.kind === 'none' && <ReviewPill>Standalone</ReviewPill>}
-        {isMultiTarget(draft) && <ReviewPill>Multi-target</ReviewPill>}
+        {isMultiTarget(draft) && <ReviewPill>Multi-Target</ReviewPill>}
       </div>
     </div>
   );

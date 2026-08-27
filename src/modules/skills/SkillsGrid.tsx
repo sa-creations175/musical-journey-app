@@ -294,11 +294,11 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
         <div className="rounded-md border border-black/[0.07] overflow-hidden">
           <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] uppercase tracking-wide text-neutral-500 font-medium border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/40 dark:bg-neutral-900/40">
             <div className="col-span-4">name</div>
-            <div className="col-span-2">module</div>
-            <div className="col-span-2">tier</div>
-            <div className="col-span-2">freshness · last</div>
-            <div className="col-span-1">priority</div>
-            <div className="col-span-1 text-right">total</div>
+            <div className="col-span-2">Module</div>
+            <div className="col-span-2">Tier</div>
+            <div className="col-span-2">Freshness · Last</div>
+            <div className="col-span-1">Priority</div>
+            <div className="col-span-1 text-right">Total</div>
           </div>
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
             {filtered.map(r => (

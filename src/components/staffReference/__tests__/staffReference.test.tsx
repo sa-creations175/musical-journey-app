@@ -206,7 +206,7 @@ describe('the octave toggle', () => {
     // higher — a different thing entirely.
     const el = await mount();
     const box = el.querySelector('[data-testid="staff-reference-octaves"]') as HTMLInputElement;
-    expect(box.parentElement!.textContent).toContain('show octave numbers');
+    expect(box.parentElement!.textContent).toContain('Show Octave Numbers');
     expect(el.textContent).not.toContain('8va');
     expect(row(el, 'F5').querySelector('[data-testid="staff-octave"]')!.textContent).toBe('5');
   });

@@ -146,7 +146,7 @@ function DescriptionEditor({ chord }: DescriptionEditorProps) {
       <div className="flex items-start gap-2 text-xs">
         <span className={`text-neutral-600 dark:text-neutral-300 ${isCustom ? 'italic' : ''}`}>
           {active}
-          {isCustom && <span className="ml-1 not-italic text-neutral-500">(your note)</span>}
+          {isCustom && <span className="ml-1 not-italic text-neutral-500">(Your Note)</span>}
         </span>
         <button
           onClick={open}
@@ -246,7 +246,7 @@ function ChordRow({
         <div className="min-w-0">
           <div className="flex items-baseline justify-between text-xs text-neutral-500 mb-1 gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1">
-              <span>rolling window</span>
+              <span>Rolling Window</span>
               {supportsDrillDown && (
                 <button
                   type="button"

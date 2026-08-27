@@ -140,7 +140,7 @@ export default function ProposalScreen({
               className="hover:text-fluent inline-flex items-center gap-1"
             >
               <span aria-hidden>←</span>
-              <span>back to options</span>
+              <span>Back to Options</span>
             </button>
           ) : (
             <span />

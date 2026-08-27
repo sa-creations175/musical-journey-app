@@ -248,13 +248,13 @@ function DayDetail({ dateKey, todayKey, summary }: DayDetailProps) {
       <div className="space-y-1 text-sm">
         <div>
           <span className="font-mono">{attempts}</span>
-          <span className="text-neutral-500"> attempts</span>
+          <span className="text-neutral-500"> Attempts</span>
         </div>
         <div>
           <span className="font-mono">{summary.correctCount}</span>
-          <span className="text-neutral-500"> correct · </span>
+          <span className="text-neutral-500"> Correct · </span>
           <span className="font-mono">{accuracy}%</span>
-          <span className="text-neutral-500"> accuracy</span>
+          <span className="text-neutral-500"> Accuracy</span>
         </div>
         <div>
           <span className={goalReached ? 'text-fluent font-medium' : 'text-neutral-500'}>

@@ -47,7 +47,7 @@ export default function SpeedControl({ moduleId, prefKeyOverride, fallbackOverri
   return (
     <div className="w-full max-w-[360px] text-xs">
       <div className="flex items-center justify-between mb-1 gap-2">
-        <span className="text-neutral-500">playback speed</span>
+        <span className="text-neutral-500">Playback Speed</span>
         <div className="flex items-center gap-1">
           <span className="font-mono tabular-nums text-neutral-900 dark:text-neutral-100">
             {speed.toFixed(2)}×

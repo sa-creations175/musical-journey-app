@@ -114,7 +114,7 @@ export default function FluencySessionSettings({
               className="h-4 w-4 rounded border-neutral-300 text-fluent focus:ring-fluent"
             />
             <span className={flaggedCount === 0 ? 'text-neutral-400' : ''}>
-              flagged cards only
+              Flagged Cards Only
             </span>
             <span className="text-[11px] text-neutral-400">
               {flaggedCount === 0

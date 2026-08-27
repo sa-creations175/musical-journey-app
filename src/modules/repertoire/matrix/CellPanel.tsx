@@ -355,7 +355,7 @@ export default function CellPanel({
           <span className="text-[11px] uppercase tracking-wide text-neutral-500 truncate">
             {section.name} · key of {keyLabel}
           </span>
-          <span aria-hidden className="ml-auto text-neutral-400 text-xs">▾ panel</span>
+          <span aria-hidden className="ml-auto text-neutral-400 text-xs">▾ Panel</span>
         </button>
         <div className="px-3 pb-2 flex items-center gap-2 flex-wrap">
           <MetronomeControl />

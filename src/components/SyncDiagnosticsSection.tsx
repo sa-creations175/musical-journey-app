@@ -172,7 +172,7 @@ export default function SyncDiagnosticsSection() {
             </table>
           </div>
           <p className="text-[11px] text-neutral-500 mt-1.5">
-            re-run until <span className="font-mono">pushed</span> is 0 everywhere.
+            re-run until <span className="font-mono">Pushed</span> is 0 everywhere.
             safe to run as many times as you like.
           </p>
         </div>
@@ -189,7 +189,7 @@ export default function SyncDiagnosticsSection() {
               queue depth <span className="font-mono tabular-nums">{status.queueDepth}</span>
               {status.queueDepth === 0 ? ' — everything uploaded' : ' — waiting to upload'}
               {status.maxAttempts > 0 && (
-                <> · <span className="font-mono tabular-nums">{status.maxAttempts}</span> retries</>
+                <> · <span className="font-mono tabular-nums">{status.maxAttempts}</span> Retries</>
               )}
             </p>
             {!status.signedIn && <p className="text-needswork">not signed in — cloud counts unavailable</p>}

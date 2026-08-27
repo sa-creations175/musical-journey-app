@@ -845,7 +845,7 @@ describe('sticky column headers', () => {
   it('names every column the rows actually have', async () => {
     const el = await renderScreen();
     const text = el.querySelector('[data-testid="column-headers"]')!.textContent!;
-    for (const name of ['skill', 'accuracy / fluency', 'coverage', 'recency', 'drill']) {
+    for (const name of ['Skill', 'accuracy / fluency', 'coverage', 'recency', 'Drill']) {
       expect(text).toContain(name);
     }
   });

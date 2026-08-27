@@ -68,7 +68,7 @@ export default function ModeAssociationsEditor({ modeId, alwaysEditing = false }
           <div className="flex items-start gap-2">
             <span className="italic text-neutral-700 dark:text-neutral-200 flex-1 whitespace-pre-wrap">
               {savedText}
-              <span className="not-italic text-neutral-400 ml-1">(your notes)</span>
+              <span className="not-italic text-neutral-400 ml-1">(Your Notes)</span>
             </span>
             <button
               type="button"
@@ -87,7 +87,7 @@ export default function ModeAssociationsEditor({ modeId, alwaysEditing = false }
             className="text-neutral-400 hover:text-fluent inline-flex items-center gap-1"
           >
             <span>✎</span>
-            <span>add my associations</span>
+            <span>Add My Associations</span>
           </button>
         )}
       </div>
@@ -107,7 +107,7 @@ export default function ModeAssociationsEditor({ modeId, alwaysEditing = false }
       {alwaysEditing && hasSaved && !dirty && (
         <div className="text-xs italic text-neutral-700 dark:text-neutral-200 whitespace-pre-wrap">
           {savedText}
-          <span className="not-italic text-neutral-400 ml-1">(your notes)</span>
+          <span className="not-italic text-neutral-400 ml-1">(Your Notes)</span>
         </div>
       )}
       <textarea

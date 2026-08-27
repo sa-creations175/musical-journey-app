@@ -648,7 +648,7 @@ function Q4Intent({
           {songStepVisible && (
             <div>
               <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">
-                Add a song? <span className="text-neutral-400 normal-case">(optional)</span>
+                Add a song? <span className="text-neutral-400 normal-case">(Optional)</span>
               </div>
               {songOptions.length === 0 ? (
                 <p className="text-[11px] italic text-neutral-500">
@@ -786,7 +786,7 @@ function Q5Energy({
   return (
     <section>
       <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
-        Energy <span className="text-neutral-400 normal-case">(skippable)</span>
+        Energy <span className="text-neutral-400 normal-case">(Skippable)</span>
       </div>
       <div className="space-y-1.5">
         <ScaleRow

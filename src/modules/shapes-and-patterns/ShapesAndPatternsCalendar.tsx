@@ -94,13 +94,13 @@ export default function ShapesAndPatternsCalendar() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 text-[10px] text-neutral-500">
-          <span>less</span>
+          <span>Less</span>
           <span className="w-3.5 h-3.5 rounded-sm bg-neutral-100 dark:bg-neutral-800" aria-hidden />
           <span className="w-3.5 h-3.5 rounded-sm bg-fluent/20" aria-hidden />
           <span className="w-3.5 h-3.5 rounded-sm bg-fluent/40" aria-hidden />
           <span className="w-3.5 h-3.5 rounded-sm bg-fluent/70" aria-hidden />
           <span className="w-3.5 h-3.5 rounded-sm bg-fluent" aria-hidden />
-          <span>more</span>
+          <span>More</span>
         </div>
       </section>
 

@@ -717,7 +717,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
       {/* Config grid: key + complexity + listening + loop */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-xs">
         <label className="flex flex-col gap-1">
-          <span className="text-neutral-500">key</span>
+          <span className="text-neutral-500">Key</span>
           <select
             value={key}
             onChange={e => setKeyState(e.target.value)}
@@ -727,7 +727,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-neutral-500">chord complexity</span>
+          <span className="text-neutral-500">Chord Complexity</span>
           <select
             value={complexity}
             onChange={e => setComplexity(e.target.value as Complexity)}
@@ -739,7 +739,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
           </select>
         </label>
         <label className="flex flex-col gap-1">
-          <span className="text-neutral-500">listening mode</span>
+          <span className="text-neutral-500">Listening Mode</span>
           <select
             value={listening}
             onChange={e => setListening(e.target.value as ListeningMode)}
@@ -775,7 +775,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               onChange={e => setLoopOn(e.target.checked)}
               className="h-4 w-4 rounded border-neutral-300 text-fluent focus:ring-fluent"
             />
-            <span>loop</span>
+            <span>Loop</span>
           </label>
           <label className="inline-flex items-center gap-1.5">
             <span className="text-neutral-500">plays</span>
@@ -793,10 +793,10 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
             </select>
           </label>
           {active && isLoopable && (
-            <span className="text-[10px] text-neutral-400">(default for this progression)</span>
+            <span className="text-[10px] text-neutral-400">(Default for This Progression)</span>
           )}
           <label className="inline-flex items-center gap-1.5">
-            <span className="text-neutral-500">tonic</span>
+            <span className="text-neutral-500">Tonic</span>
             <select
               value={tonicContext}
               onChange={e => setTonicContext(e.target.value as TonicContext)}
@@ -1114,12 +1114,12 @@ function RevealCard({
 
       <div className="flex items-center gap-3 text-xs flex-wrap">
         <span>
-          <span className="text-neutral-500">chord accuracy:</span>{' '}
+          <span className="text-neutral-500">Chord Accuracy:</span>{' '}
           <span className="font-mono">{chordCorrectCount}/{totalSlots}</span>
         </span>
         {hasSlash && (
           <span>
-            <span className="text-neutral-500">inversion accuracy:</span>{' '}
+            <span className="text-neutral-500">Inversion Accuracy:</span>{' '}
             <span className="font-mono">{inversionCorrectCount}/{totalSlots}</span>
           </span>
         )}

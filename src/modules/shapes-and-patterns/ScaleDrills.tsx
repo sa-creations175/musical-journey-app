@@ -260,13 +260,13 @@ function ProgressSummary({ counts }: { counts: AcquisitionCounts }) {
       <span className="text-neutral-500">Progress</span>
       <span className="font-mono">
         <span className="text-mastered font-medium">{counts.acquired}</span>
-        <span className="text-neutral-400"> acquired</span>
+        <span className="text-neutral-400"> Acquired</span>
         {' · '}
         <span className="text-developing font-medium">{counts.inProgress}</span>
-        <span className="text-neutral-400"> in progress</span>
+        <span className="text-neutral-400"> In Progress</span>
         {' · '}
         <span className="text-neutral-500 font-medium">{counts.notStarted}</span>
-        <span className="text-neutral-400"> not started</span>
+        <span className="text-neutral-400"> Not Started</span>
       </span>
       <span className="text-neutral-400 ml-auto">{counts.total} scale patterns</span>
     </div>

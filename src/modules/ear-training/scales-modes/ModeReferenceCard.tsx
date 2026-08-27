@@ -62,7 +62,7 @@ export default function ModeReferenceCard({ mode }: Props) {
           <div>
             <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">scale formula</div>
             <div className="font-mono text-xs text-neutral-700 dark:text-neutral-300">
-              {mode.scaleIntervals.map(st => st).join(' - ')} <span className="text-neutral-400">semitones from tonic</span>
+              {mode.scaleIntervals.map(st => st).join(' - ')} <span className="text-neutral-400">Semitones from Tonic</span>
             </div>
           </div>
 

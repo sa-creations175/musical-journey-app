@@ -103,7 +103,7 @@ function ColumnHeaders({
     >
       {/* Matches the row's 3px accent edge so the columns line up. */}
       <span aria-hidden="true" className="w-[3px] shrink-0" />
-      <span className="flex-1 min-w-0">skill</span>
+      <span className="flex-1 min-w-0">Skill</span>
       <span className={`${COLUMN_RULE_CLASS} ${COLUMN_WIDTHS.score} shrink-0
         flex items-center justify-end`}>
         accuracy / fluency{help('score')}
@@ -117,7 +117,7 @@ function ColumnHeaders({
         recency{help('recency')}
       </span>
       <span className={`${COLUMN_WIDTHS.compare} shrink-0`} aria-hidden="true" />
-      <span className={`${COLUMN_WIDTHS.drill} shrink-0 text-right`}>drill</span>
+      <span className={`${COLUMN_WIDTHS.drill} shrink-0 text-right`}>Drill</span>
     </div>
   );
 }

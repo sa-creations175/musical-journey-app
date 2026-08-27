@@ -74,7 +74,7 @@ export default function SequenceChoices({
               Converting keeps the note: setBreak overrides `kind` on
               the existing break and nothing else. */}
           {existingKind === 'separator' ? (
-            <span className={current}>separator</span>
+            <span className={current}>Separator</span>
           ) : (
             <button
               type="button"
@@ -90,7 +90,7 @@ export default function SequenceChoices({
             </button>
           )}
           {existingKind === 'row' ? (
-            <span className={current}>new row</span>
+            <span className={current}>New Row</span>
           ) : (
             <button
               type="button"

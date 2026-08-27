@@ -158,7 +158,7 @@ function DeveloperSection() {
       >
         <span className="min-w-0">
           <span className="block text-sm text-neutral-700 dark:text-neutral-200">
-            Dev Mode — suppress practice data writes
+            Dev Mode — Suppress Practice Data Writes
           </span>
           <span className="block text-[11px] text-neutral-500 mt-0.5">
             skips attempts, spacing, and drill-session writes. resets to off

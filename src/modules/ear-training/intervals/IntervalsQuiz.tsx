@@ -570,7 +570,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
             <div className={anchorIsCustom ? 'italic' : ''}>
               <span className="text-neutral-500 text-xs uppercase tracking-wide mr-2">anchor</span>
               {activeAnchor}
-              {anchorIsCustom && <span className="ml-2 text-xs text-neutral-500 not-italic">(your reference)</span>}
+              {anchorIsCustom && <span className="ml-2 text-xs text-neutral-500 not-italic">(Your Reference)</span>}
             </div>
             {wasWrong && (
               <p className="italic text-xs text-neutral-500">
@@ -676,10 +676,10 @@ function LifetimeStatsModal({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" aria-label="close">×</button>
         </div>
         <dl className="text-sm space-y-1.5">
-          <div className="flex justify-between"><dt className="text-neutral-500">total correct</dt><dd className="font-mono">{correct}</dd></div>
-          <div className="flex justify-between"><dt className="text-neutral-500">total wrong</dt><dd className="font-mono">{wrong}</dd></div>
-          <div className="flex justify-between"><dt className="text-neutral-500">overall accuracy</dt><dd className="font-mono">{total === 0 ? '—' : `${accuracy}%`}</dd></div>
-          <div className="flex justify-between"><dt className="text-neutral-500">first session</dt><dd className="font-mono">{first ? first.toLocaleDateString() : '—'}</dd></div>
+          <div className="flex justify-between"><dt className="text-neutral-500">Total Correct</dt><dd className="font-mono">{correct}</dd></div>
+          <div className="flex justify-between"><dt className="text-neutral-500">Total Wrong</dt><dd className="font-mono">{wrong}</dd></div>
+          <div className="flex justify-between"><dt className="text-neutral-500">Overall Accuracy</dt><dd className="font-mono">{total === 0 ? '—' : `${accuracy}%`}</dd></div>
+          <div className="flex justify-between"><dt className="text-neutral-500">First Session</dt><dd className="font-mono">{first ? first.toLocaleDateString() : '—'}</dd></div>
         </dl>
       </div>
     </div>

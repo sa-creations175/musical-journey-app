@@ -80,7 +80,7 @@ describe('the day streak', () => {
 
   it('uses the settled wording', async () => {
     const el = await mount({ moduleIds: ['reading'], moduleId: 'reading' });
-    expect(day(el)!.textContent).toContain('day streak');
+    expect(day(el)!.textContent).toContain('Day Streak');
     // The old label counted days against a target; this one counts days.
     expect(el.textContent).not.toContain('at goal');
   });

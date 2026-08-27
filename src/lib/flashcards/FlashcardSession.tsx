@@ -760,7 +760,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
         </button>
         <div className="text-[10px] text-neutral-400 hidden sm:block">
           shortcuts: <span className="font-mono">1–4</span> answer ·
-          <span className="font-mono ml-1">space</span>/<span className="font-mono">→</span> next ·
+          <span className="font-mono ml-1">Space</span>/<span className="font-mono">→</span> next ·
           <span className="font-mono ml-1">←</span> previous
           {onToggleFlag && (
             <>
@@ -816,15 +816,15 @@ function SummaryCard<TCard extends BaseFlashcard>({
       <h2 className="text-lg font-medium tracking-tight">Session Complete</h2>
       <div className="flex items-baseline gap-4 text-sm flex-wrap">
         <span>
-          <span className="text-neutral-500">answered: </span>
+          <span className="text-neutral-500">Answered: </span>
           <span className="font-mono">{total}</span>
         </span>
         <span>
-          <span className="text-neutral-500">correct: </span>
+          <span className="text-neutral-500">Correct: </span>
           <span className="font-mono text-fluent">{correct}</span>
         </span>
         <span>
-          <span className="text-neutral-500">accuracy: </span>
+          <span className="text-neutral-500">Accuracy: </span>
           <span className="font-mono">{acc}%</span>
         </span>
       </div>

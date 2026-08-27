@@ -190,7 +190,7 @@ export default function RepertoireKeyDiagnostics() {
                     <td className="px-2 py-1.5 font-mono">{r.songKey ?? '—'}</td>
                     <td className="px-2 py-1.5">
                       {r.rows.length === 0 ? (
-                        <span className="font-mono">none</span>
+                        <span className="font-mono">None</span>
                       ) : (
                         <div className="space-y-0.5">
                           {r.rows.map(k => (
@@ -232,7 +232,7 @@ export default function RepertoireKeyDiagnostics() {
                                     </span>
                                   ))}
                                   {k.deletable && (
-                                    <span className="ml-1 opacity-70">[safe to delete]</span>
+                                    <span className="ml-1 opacity-70">[Safe to Delete]</span>
                                   )}
                                 </span>
                               )}

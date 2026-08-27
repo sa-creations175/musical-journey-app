@@ -135,7 +135,7 @@ function DirectionStats({
       />
       <div className="mt-2 text-[11px] text-neutral-500">
         <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-neutral-400">manual log</span>
+          <span className="text-neutral-400">Manual Log</span>
           <span className="font-mono mr-1">{manualCorrect}/{manualTotal}</span>
           <button
             onClick={() => bumpManual(iv.id, direction, 'correct', -1)}
@@ -206,7 +206,7 @@ function AnchorRow({ iv, direction }: AnchorEditorProps) {
           <div className="flex-1 min-w-0 flex items-start gap-2">
             <span className={customText ? 'italic' : ''}>
               {active}
-              {customText && <span className="ml-1 not-italic text-neutral-500">(your reference)</span>}
+              {customText && <span className="ml-1 not-italic text-neutral-500">(Your Reference)</span>}
             </span>
             <button
               onClick={openEditor}

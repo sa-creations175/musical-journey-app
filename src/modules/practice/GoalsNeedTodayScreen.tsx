@@ -264,7 +264,7 @@ function EntryRow({ entry }: { entry: GoalsNeedTodayEntry }) {
           )}
           {entry.isTargetMet && (
             <span className="text-[11px] text-fluent">
-              weekly target met — over-practice
+              Weekly Target Met — Over-Practice
             </span>
           )}
         </span>

@@ -140,7 +140,7 @@ export default function StaffReference({
           data-testid="staff-reference-octaves"
           className="accent-fluent"
         />
-        show octave numbers
+        Show Octave Numbers
       </label>
 
       <div className="rounded-xl border border-black/[0.07] bg-white dark:bg-neutral-900 overflow-x-auto py-2">
