@@ -81,12 +81,12 @@ describe('catalog sizes — the denominators', () => {
     expect(productionLessonsCatalog.accuracyKind).toBe('self-rated');
   });
 
-  it('shapes & patterns: 720 chord shapes + 96 scales + 372 VL = 1188', () => {
-    expect(catalogItemCount(shapesCatalog)).toBe(1188);
+  it('shapes & patterns: 720 chord shapes + 96 scales + 408 VL = 1224', () => {
+    expect(catalogItemCount(shapesCatalog)).toBe(1224);
     const refs = catalogRefSet(shapesCatalog);
     expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(720);
     expect([...refs].filter(r => r.startsWith('scale:'))).toHaveLength(96);
-    expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(372);
+    expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(408);
   });
 
   it('INCLUDES the 72 supplementary rows — 720, not 648', () => {
@@ -366,13 +366,13 @@ describe('the capitalisation convention, across every catalog', () => {
     }
 
     // EXCEPTION ONE, and it is a known gap rather than a decision. The
-    // 96 scale cells and 372 voice-leading cells still render their
+    // 96 scale cells and 408 voice-leading cells still render their
     // stored itemRef as their label (`major:C`) — RULE_LEGIBILITY
     // §1.8b's predicted recurrence, and not a capitalisation problem,
     // because casing a raw ref would not make it a label. Pinned at its
     // exact size so it cannot grow quietly, and so closing it fails here
     // and asks for this number to go rather than passing silently.
-    expect(lower.get('shapes-and-patterns')).toHaveLength(468);
+    expect(lower.get('shapes-and-patterns')).toHaveLength(504);
 
     // EXCEPTION TWO, and it is correct as it stands. Harmonic fluency's
     // leaf label is the card's whole QUESTION, left as written — and two

@@ -62,7 +62,7 @@ const ACQUISITION_PATH_STATES_PER_KIND: Record<QualityKind, number> = {
  * the pickers — see GoalCreationFlow / GoalSuggestionFlow, which both
  * filter on `denominator > 0`.
  *   scale_drills           — 4 scales × 12 keys = 48
- *   voice_leading          — 31 sub-cells × 12 keys = 372
+ *   voice_leading          — 34 sub-cells × 12 keys = 408
  *                            (7 patterns; see voiceLeadingTotalCellCount)
  *
  * `chord_shape_drills` (the legacy single bucket) is intentionally

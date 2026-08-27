@@ -59,27 +59,35 @@ describe('VOICE_LEADING_PATTERNS catalog', () => {
 // ---------------------------------------------------------------------
 
 describe('enumerateVoiceLeadingCells', () => {
-  it('five-one → 6 cells per key (3 types × 2 positions)', () => {
+  it('five-one → 7 cells per key (2 + 3 + 2 — seventh chords has three)', () => {
     const pat = VOICE_LEADING_PATTERN_BY_ID.get('five-one')!;
     const cells = enumerateVoiceLeadingCells(pat, 'C');
-    expect(cells).toHaveLength(6);
+    expect(cells).toHaveLength(7);
     expect(cells).toContain('vl:five-one:guide-tones:A:C');
     expect(cells).toContain('vl:five-one:full-voicing:B:C');
+    // The third position, and only on the rootless 3-5-7 row.
+    expect(cells).toContain('vl:five-one:seventh-chords:C:C');
+    expect(cells).not.toContain('vl:five-one:guide-tones:C:C');
+    expect(cells).not.toContain('vl:five-one:full-voicing:C:C');
   });
 
-  it('major-251 → 6 cells per key (guide-tones, seventh-chords, aba-structure × A/B)', () => {
+  it('major-251 → 7 cells per key (seventh-chords carries the third position)', () => {
     const pat = VOICE_LEADING_PATTERN_BY_ID.get('major-251')!;
     const cells = enumerateVoiceLeadingCells(pat, 'C');
-    expect(cells).toHaveLength(6);
+    expect(cells).toHaveLength(7);
     expect(cells).toContain('vl:major-251:guide-tones:A:C');
     expect(cells).toContain('vl:major-251:aba-structure:B:C');
+    expect(cells).toContain('vl:major-251:seventh-chords:C:C');
+    expect(cells).not.toContain('vl:major-251:aba-structure:C:C');
   });
 
-  it('minor-251 → 6 cells per key (guide-tones, seventh-chords, full-voicing × A/B)', () => {
+  it('minor-251 → 7 cells per key (seventh-chords carries the third position)', () => {
     const pat = VOICE_LEADING_PATTERN_BY_ID.get('minor-251')!;
     const cells = enumerateVoiceLeadingCells(pat, 'C');
-    expect(cells).toHaveLength(6);
+    expect(cells).toHaveLength(7);
     expect(cells).toContain('vl:minor-251:full-voicing:A:C');
+    expect(cells).toContain('vl:minor-251:seventh-chords:C:C');
+    expect(cells).not.toContain('vl:minor-251:full-voicing:C:C');
   });
 
   it('diatonic-cycle → 3 cells per key (3 starting positions)', () => {
@@ -123,22 +131,22 @@ describe('enumerateVoiceLeadingCells', () => {
     ]);
   });
 
-  it('total catalog cell count = 31 × 12 keys = 372', () => {
+  it('total catalog cell count = 34 × 12 keys = 408', () => {
     let total = 0;
     for (const p of VOICE_LEADING_PATTERNS) {
       for (const k of KEYS) {
         total += enumerateVoiceLeadingCells(p, k).length;
       }
     }
-    expect(total).toBe(372);
+    expect(total).toBe(408);
   });
 
-  it('per-key cell totals: 6 + 6 + 6 + 3 + 2 + 4 + 4 = 31', () => {
+  it('per-key cell totals: 7 + 7 + 7 + 3 + 2 + 4 + 4 = 34', () => {
     let perKey = 0;
     for (const p of VOICE_LEADING_PATTERNS) {
       perKey += enumerateVoiceLeadingCells(p, 'C').length;
     }
-    expect(perKey).toBe(31);
+    expect(perKey).toBe(34);
   });
 });
 
@@ -280,13 +288,22 @@ describe('parseVoiceLeadingItemRef', () => {
 // ---------------------------------------------------------------------
 
 describe('voiceLeadingSubCellLabel', () => {
-  it('type-position reads as "<type> · Pos <position>"', () => {
+  it('numbers the position, except on Extended Voicings where A/B is the convention', () => {
     const major = parseVoiceLeadingItemRef('vl:major-251:aba-structure:B:C')!;
     expect(voiceLeadingSubCellLabel(major)).toBe('Extended Voicings · Pos B');
     const five = parseVoiceLeadingItemRef('vl:five-one:guide-tones:A:F')!;
-    expect(voiceLeadingSubCellLabel(five)).toBe('Guide tones · Pos A');
+    expect(voiceLeadingSubCellLabel(five)).toBe('Guide Tones · Position 1');
     const minor = parseVoiceLeadingItemRef('vl:minor-251:full-voicing:B:G')!;
     expect(voiceLeadingSubCellLabel(minor)).toBe('Extended Voicings · Pos B');
+    const third = parseVoiceLeadingItemRef('vl:minor-251:seventh-chords:C:G')!;
+    expect(voiceLeadingSubCellLabel(third)).toBe('Seventh Chords · Position 3');
+  });
+
+  it('rejects a position the type does not have', () => {
+    // C exists as a tag, but only Seventh Chords has a third position.
+    expect(parseVoiceLeadingItemRef('vl:five-one:guide-tones:C:C')).toBeNull();
+    expect(parseVoiceLeadingItemRef('vl:major-251:aba-structure:C:C')).toBeNull();
+    expect(parseVoiceLeadingItemRef('vl:five-one:seventh-chords:C:C')).not.toBeNull();
   });
 
   it('diatonic-cycle reads as "Starting position N"', () => {
@@ -375,11 +392,20 @@ describe('voiceLeadingCellSeconds', () => {
 // ---------------------------------------------------------------------
 
 describe('voiceLeadingGridRows', () => {
-  it('type-position patterns return 6 rows (3 types × 2 positions)', () => {
+  it('type-position patterns return 7 rows (2 + 3 + 2)', () => {
     for (const id of ['five-one', 'major-251', 'minor-251'] as const) {
       const pat = VOICE_LEADING_PATTERN_BY_ID.get(id)!;
       const rows = voiceLeadingGridRows(pat);
-      expect(rows, id).toHaveLength(6);
+      expect(rows, id).toHaveLength(7);
+      // The middle row group is the seventh chords, and it is the
+      // only one with three.
+      const seventh = rows.filter(r => r.rowId.startsWith('seventh-chords:'));
+      expect(seventh, id).toHaveLength(3);
+      expect(seventh.map(r => r.label), id).toEqual([
+        'Seventh Chords · Position 1',
+        'Seventh Chords · Position 2',
+        'Seventh Chords · Position 3',
+      ]);
     }
   });
 
@@ -406,8 +432,8 @@ describe('voiceLeadingGridRows', () => {
 
   it('row labels are human-friendly for the gutter', () => {
     const major = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!);
-    expect(major[0].label).toBe('Guide tones · Pos A');
-    expect(major[5].label).toBe('Extended Voicings · Pos B');
+    expect(major[0].label).toBe('Guide Tones · Position 1');
+    expect(major[6].label).toBe('Extended Voicings · Pos B');
 
     const cycle = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!);
     expect(cycle[0].label).toBe('Starting position 1');
@@ -425,7 +451,7 @@ describe('voiceLeadingGridRows', () => {
   it('itemRefForKey produces the canonical sub-cell itemRef', () => {
     const major = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!);
     expect(major[0].itemRefForKey('C')).toBe('vl:major-251:guide-tones:A:C');
-    expect(major[5].itemRefForKey('Bb')).toBe('vl:major-251:aba-structure:B:Bb');
+    expect(major[6].itemRefForKey('Bb')).toBe('vl:major-251:aba-structure:B:Bb');
 
     const cycle = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!);
     expect(cycle[1].itemRefForKey('F')).toBe('vl:diatonic-cycle:pos2:F');

@@ -839,10 +839,10 @@ function vlSubIndexes(
   switch (desc.kind) {
     case 'type-position': {
       if (pattern.kind !== 'type-position') return { typeIndex: 0, positionIndex: 0 };
-      const types: readonly string[] = pattern.types;
-      const positions: readonly string[] = pattern.positions;
+      const typeIndex = pattern.types.findIndex(t => t.type === desc.type);
+      const positions: readonly string[] = pattern.types[typeIndex]?.positions ?? [];
       return {
-        typeIndex: types.indexOf(desc.type),
+        typeIndex,
         positionIndex: positions.indexOf(desc.position),
       };
     }
@@ -881,12 +881,15 @@ function vlIsEligible(
   if (desc.kind !== 'type-position') return true;
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
   if (!pattern || pattern.kind !== 'type-position') return true;
-  const types: readonly string[] = pattern.types;
-  const typeIdx = types.indexOf(desc.type);
+  const typeIdx = pattern.types.findIndex(t => t.type === desc.type);
   if (typeIdx <= 0) return true;
-  const prereqType = types[typeIdx - 1];
-  for (const pos of pattern.positions) {
-    const prereqRef = `vl:${pattern.id}:${prereqType}:${pos}:${desc.keyName}`;
+  // The PREREQUISITE type's own positions, not the pattern's — since
+  // Seventh Chords gained a third, "all of the previous type" means
+  // three cells when the previous type is Seventh Chords and two when
+  // it is Guide Tones.
+  const prereq = pattern.types[typeIdx - 1];
+  for (const pos of prereq.positions) {
+    const prereqRef = `vl:${pattern.id}:${prereq.type}:${pos}:${desc.keyName}`;
     const row = rowsByItemRef.get(prereqRef);
     const stage = row?.acquisitionStage ?? 'new';
     if (stage === 'new') return false;
@@ -916,8 +919,9 @@ function vlTierFor(nextDueAt: number | null, now: number): VLTier {
  *
  * Eligibility filter (intra-pattern, per-key hard gate):
  *   For type-position patterns, a cell of type T+1 at key K only
- *   surfaces once both position cells of type T at key K have
- *   reached `acquiring` stage or above. Non-type-position patterns
+ *   surfaces once EVERY position cell of type T at key K has
+ *   reached `acquiring` stage or above — two cells when T is Guide
+ *   Tones, three when T is Seventh Chords. Non-type-position patterns
  *   (diatonic-cycle, minor-aba, dom7b9, dim7) have no gating.
  *
  * Sort order (eligible cells):

@@ -140,7 +140,7 @@ describe('harmonicFluencyCounts', () => {
 // -------------------------------------------------------------------
 // Shapes & Patterns — post 20 Aug 2026 drill-catalog cut:
 // triads (6×12×4 = 288) + sevenths (6×12×6 = 432) = 720 chord-shape;
-// + 96 scales + 372 voice-leading = 1188 total (Mental Viz excluded).
+// + 96 scales + 408 voice-leading = 1224 total (Mental Viz excluded).
 // Extensions (14) and special/sixth (3) left the catalog — see
 // docs/DASHBOARD_REDESIGN_DESIGN.md § Catalog cuts.
 // Supplementary two-handed seventh rows are excluded — they're
@@ -164,17 +164,17 @@ describe('shapesCounts', () => {
     expect(c.scaleDrills).toBe(96);
   });
 
-  it('voiceLeading = 31 sub-cells × 12 keys = 372 (Phase 1 VL catalog)', () => {
+  it('voiceLeading = 34 sub-cells × 12 keys = 408 (Seventh Chords got its 3rd position)', () => {
     // Per src/docs/VOICE_LEADING_SUBMODULE_DESIGN.md § Total Cell Count
     // (corrected catalog): five-one (6) + major-251 (6) + minor-251 (6)
     // + diatonic-cycle (3) + minor-aba (2) + dom7b9 (4) + dim7 (4)
-    // = 31 sub-cells per key × 12 keys.
-    expect(c.voiceLeading).toBe(372);
+    // = 34 sub-cells per key × 12 keys.
+    expect(c.voiceLeading).toBe(408);
   });
 
-  it('total = 1188 (sum of sub-areas)', () => {
-    // 720 chord-shape + 96 scale + 372 voice-leading.
-    expect(c.total).toBe(1188);
+  it('total = 1224 (sum of sub-areas)', () => {
+    // 720 chord-shape + 96 scale + 408 voice-leading.
+    expect(c.total).toBe(1224);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 

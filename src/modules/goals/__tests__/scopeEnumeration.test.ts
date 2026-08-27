@@ -40,13 +40,13 @@ function shapesGoal(overrides: Partial<Goal>): Goal {
 }
 
 describe('enumerateScopeForGoal — voice-leading scope', () => {
-  it('VL sub-area returns exactly 372 cells (31 × 12 keys)', () => {
+  it('VL sub-area returns exactly 408 cells (34 × 12 keys)', () => {
     const goal = shapesGoal({
       targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
       targetUnit: 'voice_leading',
     });
     const refs = enumerateScopeForGoal(goal);
-    expect(refs).toHaveLength(372);
+    expect(refs).toHaveLength(408);
     // All start with vl: — the prefix-based matcher should accept them all.
     for (const r of refs) {
       expect(r.startsWith('vl:')).toBe(true);
@@ -57,7 +57,7 @@ describe('enumerateScopeForGoal — voice-leading scope', () => {
     const goal = shapesGoal({ targetMetric: COVERAGE_OVERALL_METRIC.SHAPES });
     const refs = enumerateScopeForGoal(goal);
     const vlRefs = refs.filter(r => r.startsWith('vl:'));
-    expect(vlRefs).toHaveLength(372);
+    expect(vlRefs).toHaveLength(408);
   });
 
   it('VL scope contains the expected per-pattern cardinalities × 12 keys', () => {
@@ -71,9 +71,9 @@ describe('enumerateScopeForGoal — voice-leading scope', () => {
       const patternId = ref.split(':')[1];
       byPattern.set(patternId, (byPattern.get(patternId) ?? 0) + 1);
     }
-    expect(byPattern.get('five-one')).toBe(72);         // 6 sub × 12 keys
-    expect(byPattern.get('major-251')).toBe(72);        // 6 sub × 12 keys
-    expect(byPattern.get('minor-251')).toBe(72);        // 6 sub × 12 keys
+    expect(byPattern.get('five-one')).toBe(84);         // 7 sub × 12 keys
+    expect(byPattern.get('major-251')).toBe(84);        // 7 sub × 12 keys
+    expect(byPattern.get('minor-251')).toBe(84);        // 7 sub × 12 keys
     expect(byPattern.get('diatonic-cycle')).toBe(36);   // 3 sub × 12 keys
     expect(byPattern.get('minor-aba')).toBe(24);        // 2 sub × 12 keys
     expect(byPattern.get('dom7b9')).toBe(48);           // 4 sub × 12 keys

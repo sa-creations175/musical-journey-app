@@ -345,17 +345,45 @@ export function defaultDrillTypesForScale(): DefaultDrill[] {
 // `parseVoiceLeadingItemRef` for the canonical parse + the dimensions
 // per pattern.
 //
-// Total cells: 31 per key × 12 keys = 372. Breakdown:
-//   five-one          6 (3 types × 2 positions)
-//   major-251         6 (3 types × 2 positions)
-//   minor-251         6 (3 types × 2 positions)
+// Total cells: 34 per key × 12 keys = 408. Breakdown:
+//   five-one          7 (2+3+2 — see below)
+//   major-251         7 (2+3+2)
+//   minor-251         7 (2+3+2)
 //   diatonic-cycle    3 (3 starting positions)
 //   minor-aba         2 (2 positions)
 //   dom7b9            4 (4 inversions of the dominant)
 //   dim7              4 (4 inversions of the diminished)
 
-/** Shared position tag on the type-position patterns. */
-export type VLABPosition = 'A' | 'B';
+/** Starting-position tag on the type-position patterns.
+ *
+ *  STORAGE TAG, NOT A DISPLAY STRING. These letters are segments of a
+ *  spacingState itemRef — `vl:five-one:guide-tones:A:C` — so they are
+ *  frozen by the data, and `C` is simply the next free one. What the
+ *  reader sees is decided by `positionLabel`: the numbered types read
+ *  "Position 1/2/3", Extended Voicings reads "Pos A/B". */
+export type VLABPosition = 'A' | 'B' | 'C';
+
+/** Display number for a storage tag. A is the lowest starting note. */
+const VLAB_POSITION_NUMBER: Readonly<Record<VLABPosition, number>> = {
+  A: 1, B: 2, C: 3,
+};
+
+/**
+ * One row group in a type-position pattern: a skill type together
+ * with the starting positions THAT TYPE has.
+ *
+ * POSITIONS ARE PER-TYPE, and that is the whole point of this shape.
+ * A rootless seventh chord in the right hand is 3-5-7 — three notes,
+ * so three inversions, so three places the hand can start. Guide
+ * tones (two notes) and the extended voicing have two. The catalog
+ * used to hang one position list off the pattern and hand the same
+ * two to all three types, which is how Seventh Chords ended up a
+ * position short everywhere except the Diatonic Cycle.
+ */
+export interface VLTypeRow<T extends string> {
+  type: T;
+  positions: ReadonlyArray<VLABPosition>;
+}
 
 /** Types for the 5→1 movement pattern. */
 export type FiveOneType = 'guide-tones' | 'seventh-chords' | 'full-voicing';
@@ -391,24 +419,21 @@ export type VoiceLeadingPattern =
       kind: 'type-position';
       label: string;
       description?: string;
-      types: ReadonlyArray<FiveOneType>;
-      positions: ReadonlyArray<VLABPosition>;
+      types: ReadonlyArray<VLTypeRow<FiveOneType>>;
     }
   | {
       id: 'major-251';
       kind: 'type-position';
       label: string;
       description?: string;
-      types: ReadonlyArray<Major251Type>;
-      positions: ReadonlyArray<VLABPosition>;
+      types: ReadonlyArray<VLTypeRow<Major251Type>>;
     }
   | {
       id: 'minor-251';
       kind: 'type-position';
       label: string;
       description?: string;
-      types: ReadonlyArray<Minor251Type>;
-      positions: ReadonlyArray<VLABPosition>;
+      types: ReadonlyArray<VLTypeRow<Minor251Type>>;
     }
   | {
       id: 'diatonic-cycle';
@@ -450,24 +475,33 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     kind: 'type-position',
     label: '5→1 Movement',
     description: 'Dominant to tonic resolution. Three skill types (guide tones, seventh chords, full voicing) across two starting positions.',
-    types: ['guide-tones', 'seventh-chords', 'full-voicing'],
-    positions: ['A', 'B'],
+    types: [
+      { type: 'guide-tones',    positions: ['A', 'B'] },
+      { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
+      { type: 'full-voicing',   positions: ['A', 'B'] },
+    ],
   },
   {
     id: 'major-251',
     kind: 'type-position',
     label: 'Major 2-5-1',
-    description: 'Foundational ii → V → I voice leading. Three skill types (guide tones, seventh chords, extended voicings) across two starting positions.',
-    types: ['guide-tones', 'seventh-chords', 'aba-structure'],
-    positions: ['A', 'B'],
+    description: 'Foundational ii → V → I voice leading. Guide tones and extended voicings across two starting positions; seventh chords across three.',
+    types: [
+      { type: 'guide-tones',    positions: ['A', 'B'] },
+      { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
+      { type: 'aba-structure',  positions: ['A', 'B'] },
+    ],
   },
   {
     id: 'minor-251',
     kind: 'type-position',
     label: 'Minor 2-5-1',
-    description: 'iiø → V → i voice leading. Three skill types (guide tones, seventh chords, extended voicings) across two starting positions.',
-    types: ['guide-tones', 'seventh-chords', 'full-voicing'],
-    positions: ['A', 'B'],
+    description: 'iiø → V → i voice leading. Guide tones and extended voicings across two starting positions; seventh chords across three.',
+    types: [
+      { type: 'guide-tones',    positions: ['A', 'B'] },
+      { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
+      { type: 'full-voicing',   positions: ['A', 'B'] },
+    ],
   },
   {
     id: 'minor-aba',
@@ -507,7 +541,8 @@ export const VOICE_LEADING_PATTERN_BY_ID = new Map<string, VoiceLeadingPattern>(
  *  fans out into the same dimension product). */
 export function voiceLeadingCellsPerKey(pattern: VoiceLeadingPattern): number {
   switch (pattern.kind) {
-    case 'type-position':  return pattern.types.length * pattern.positions.length;
+    case 'type-position':
+      return pattern.types.reduce((n, t) => n + t.positions.length, 0);
     case 'diatonic-cycle': return pattern.startingPositions.length;
     case 'minor-aba':      return pattern.positions.length;
     case 'inversion-4':    return pattern.positions.length;
@@ -515,7 +550,7 @@ export function voiceLeadingCellsPerKey(pattern: VoiceLeadingPattern): number {
 }
 
 /** Total VL cell count across the whole catalog: sum of per-pattern
- *  fan-outs × number of keys. 372 today (31 sub-cells/key × 12). */
+ *  fan-outs × number of keys. 408 today (34 sub-cells/key × 12). */
 export function voiceLeadingTotalCellCount(): number {
   return VOICE_LEADING_PATTERNS.reduce(
     (sum, p) => sum + voiceLeadingCellsPerKey(p), 0,
@@ -534,8 +569,8 @@ export function enumerateVoiceLeadingCells(
   switch (pattern.kind) {
     case 'type-position': {
       const out: string[] = [];
-      for (const type of pattern.types) {
-        for (const position of pattern.positions) {
+      for (const { type, positions } of pattern.types) {
+        for (const position of positions) {
           out.push(`vl:${pattern.id}:${type}:${position}:${keyName}`);
         }
       }
@@ -597,7 +632,21 @@ export type VoiceLeadingItemRefDescriptor =
 const KEY_SET: ReadonlySet<string> = new Set(KEYS);
 
 function isVLABPosition(s: string): s is VLABPosition {
-  return s === 'A' || s === 'B';
+  return s === 'A' || s === 'B' || s === 'C';
+}
+
+/** True when `position` is one the pattern actually gives that type.
+ *  Positions are per-type now, so a global letter check would accept
+ *  `guide-tones:C`, which no grid draws and no drill can run. */
+function typeHasPosition(
+  patternId: string,
+  type: string,
+  position: VLABPosition,
+): boolean {
+  const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
+  if (!pattern || pattern.kind !== 'type-position') return false;
+  const row = pattern.types.find(t => t.type === type);
+  return row ? row.positions.includes(position) : false;
 }
 function isFiveOneType(s: string): s is FiveOneType {
   return s === 'guide-tones' || s === 'seventh-chords' || s === 'full-voicing';
@@ -641,6 +690,7 @@ export function parseVoiceLeadingItemRef(
       const type = parts[2];
       const position = parts[3];
       if (!isFiveOneType(type) || !isVLABPosition(position)) return null;
+      if (!typeHasPosition(patternId, type, position)) return null;
       return { patternId, kind: 'type-position', type, position, keyName };
     }
     case 'major-251': {
@@ -648,6 +698,7 @@ export function parseVoiceLeadingItemRef(
       const type = parts[2];
       const position = parts[3];
       if (!isMajor251Type(type) || !isVLABPosition(position)) return null;
+      if (!typeHasPosition(patternId, type, position)) return null;
       return { patternId, kind: 'type-position', type, position, keyName };
     }
     case 'minor-251': {
@@ -655,6 +706,7 @@ export function parseVoiceLeadingItemRef(
       const type = parts[2];
       const position = parts[3];
       if (!isMinor251Type(type) || !isVLABPosition(position)) return null;
+      if (!typeHasPosition(patternId, type, position)) return null;
       return { patternId, kind: 'type-position', type, position, keyName };
     }
     case 'diatonic-cycle': {
@@ -684,14 +736,39 @@ export function parseVoiceLeadingItemRef(
 /** Human-friendly type label used in row gutters + modal headers. */
 function typeLabel(type: FiveOneType | Major251Type | Minor251Type): string {
   switch (type) {
-    case 'guide-tones':    return 'Guide tones';
-    case 'seventh-chords': return 'Seventh chords';
+    case 'guide-tones':    return 'Guide Tones';
+    case 'seventh-chords': return 'Seventh Chords';
     // ONE NAME FOR ONE THING. These are the same row, and the old
     // names disagreed about what it was. "ABA structure" was also
     // simply wrong on the 5→1: it names a three-chord alternation
     // and that pattern has two chords.
     case 'full-voicing':   return 'Extended Voicings';
     case 'aba-structure':  return 'Extended Voicings';
+  }
+}
+
+/**
+ * How a starting position is named, which is not the same for every
+ * row.
+ *
+ * ONLY EXTENDED VOICINGS USES A AND B, because there they are a real
+ * convention rather than a label: the A voicing starts the ii from
+ * its 3rd, the B voicing from its 7th. Guide Tones and Seventh Chords
+ * have no such convention, so they get plain numbers — the position
+ * is just where the right hand starts, 1 on the 3rd, 2 on the 5th,
+ * 3 on the 7th.
+ */
+function positionLabel(
+  type: FiveOneType | Major251Type | Minor251Type,
+  position: VLABPosition,
+): string {
+  switch (type) {
+    case 'full-voicing':
+    case 'aba-structure':
+      return `Pos ${position}`;
+    case 'guide-tones':
+    case 'seventh-chords':
+      return `Position ${VLAB_POSITION_NUMBER[position]}`;
   }
 }
 
@@ -726,7 +803,8 @@ function minorAbaLetter(p: MinorAbaPosition): 'A' | 'B' {
 
 /** Human-friendly sub-cell label, suitable for display alongside the
  *  pattern label. Examples:
- *    "Guide tones · Pos A"
+ *    "Guide Tones · Position 1"
+ *    "Seventh Chords · Position 3"
  *    "Extended Voicings · Pos B"
  *    "Starting position 2"
  *    "Position A"        (minor-aba)
@@ -737,7 +815,7 @@ export function voiceLeadingSubCellLabel(
 ): string {
   switch (desc.kind) {
     case 'type-position':
-      return `${typeLabel(desc.type)} · Pos ${desc.position}`;
+      return `${typeLabel(desc.type)} · ${positionLabel(desc.type, desc.position)}`;
     case 'diatonic-cycle':
       return `Starting position ${positionNumber(desc.startingPosition)}`;
     case 'minor-aba':
@@ -779,11 +857,11 @@ export function voiceLeadingGridRows(
   switch (pattern.kind) {
     case 'type-position': {
       const out: VoiceLeadingGridRow[] = [];
-      for (const type of pattern.types) {
-        for (const position of pattern.positions) {
+      for (const { type, positions } of pattern.types) {
+        for (const position of positions) {
           out.push({
             rowId: `${type}:${position}`,
-            label: `${typeLabel(type)} · Pos ${position}`,
+            label: `${typeLabel(type)} · ${positionLabel(type, position)}`,
             hint: typeHint(type),
             itemRefForKey: (k) => `vl:${pattern.id}:${type}:${position}:${k}`,
           });

@@ -1,7 +1,7 @@
 /**
  * A coverage goal's target is a frozen count. The 20 Aug 2026
  * chord-shape cut took the module from 1320 items to 1116, the
- * supplementary reinstatement took it back to 1188, and the cut emptied
+ * supplementary reinstatement took it back to 1224, and the cut emptied
  * every extension sub-area, so goals saved before it can now be
  * unreachable. These pin that the app SAYS so rather than rewriting the
  * number the user chose.
@@ -35,16 +35,16 @@ function mkGoal(patch: Partial<Goal>): Goal {
 
 describe('detectScopeShrink', () => {
   it('leaves a reachable goal alone', () => {
-    // 100 of the 1188 items that exist today.
+    // 100 of the 1224 items that exist today.
     expect(detectScopeShrink(mkGoal({ targetValue: 100 }))).toBeNull();
   });
 
   it('flags an overall goal whose target outlived the catalog', () => {
-    // 852 + 96 + 372 = 1320 was the pre-cut module total.
+    // 852 + 96 + 408 = 1356 was the pre-cut module total.
     const shrink = detectScopeShrink(mkGoal({ targetValue: 1320 }));
     expect(shrink).not.toBeNull();
     expect(shrink!.storedTarget).toBe(1320);
-    expect(shrink!.availableNow).toBe(1188);
+    expect(shrink!.availableNow).toBe(1224);
     expect(shrink!.isEmpty).toBe(false);
   });
 
@@ -85,7 +85,7 @@ describe('describeScopeShrink', () => {
   it('never proposes a replacement number', () => {
     const shrink = detectScopeShrink(mkGoal({ targetValue: 1320 }))!;
     const text = describeScopeShrink(shrink);
-    expect(text).toContain('1188');
+    expect(text).toContain('1224');
     expect(text).toContain('1320');
     // The whole point is handing the decision back, so no "change it
     // to N" phrasing.

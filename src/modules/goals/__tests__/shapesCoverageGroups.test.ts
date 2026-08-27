@@ -65,10 +65,10 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     //   scale_minor_pentatonic (36) + 3×12 sp sub-groups (36) = 264
     // Voice leading side (Layer 1 + Layer 2 entries co-exist, same
     // shape as the Scales side):
-    //   legacy voice_leading (372) +
+    //   legacy voice_leading (408) +
     //   diatonic-cycle (36) + five-one (72) + major-251 (72) +
     //   minor-251 (72) + minor-aba (24) + dom7b9 (48) + dim7 (48) = 744
-    // Per-pattern denominators sum to 372 — same as the legacy bucket.
+    // Per-pattern denominators sum to 408 — same as the legacy bucket.
     // Aggregates use moduleItemCounts which doesn't double-count.
     const defSum = SHAPES_COVERAGE_GROUP_DEFS.reduce(
       (acc, g) => acc + g.denominator, 0,
@@ -91,7 +91,7 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
       0 + 0 +
       0;
     const scalesSide = 96 + 12 + 12 + 36 + 3 * 12 + 36 + 3 * 12;
-    const vlSide = 372 + 36 + 72 + 72 + 72 + 24 + 48 + 48;
+    const vlSide = 408 + 36 + 84 + 84 + 84 + 24 + 48 + 48;
     expect(defSum).toBe(chordShapeSide + scalesSide + vlSide);
   });
 });
@@ -282,19 +282,19 @@ describe('Voice-leading per-pattern coverage groups', () => {
     {
       id: 'voice_leading_five_one',
       patternId: 'five-one',
-      denominator: 72,
+      denominator: 84,
       sampleRef: 'vl:five-one:guide-tones:A:C',
     },
     {
       id: 'voice_leading_major_251',
       patternId: 'major-251',
-      denominator: 72,
+      denominator: 84,
       sampleRef: 'vl:major-251:seventh-chords:B:Bb',
     },
     {
       id: 'voice_leading_minor_251',
       patternId: 'minor-251',
-      denominator: 72,
+      denominator: 84,
       sampleRef: 'vl:minor-251:full-voicing:A:F',
     },
     {
@@ -326,13 +326,13 @@ describe('Voice-leading per-pattern coverage groups', () => {
     }
   });
 
-  it('per-pattern denominators sum to the broad voice_leading bucket (372)', () => {
+  it('per-pattern denominators sum to the broad voice_leading bucket (408)', () => {
     const sum = VL_PATTERN_DEFS.reduce(
       (acc, d) => acc + getShapesCoverageGroup(d.id)!.denominator,
       0,
     );
     expect(sum).toBe(getShapesCoverageGroup('voice_leading')!.denominator);
-    expect(sum).toBe(372);
+    expect(sum).toBe(408);
   });
 
   it('every per-pattern id routes to the voice_leading activity area', () => {
