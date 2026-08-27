@@ -119,7 +119,7 @@ function AccountSection() {
           disabled={refreshing || offline}
           className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent disabled:opacity-50"
         >
-          {refreshing ? 'refreshing…' : 'refresh from cloud'}
+          {refreshing ? 'refreshing…' : 'Refresh from Cloud'}
         </button>
         <button
           onClick={signOut}

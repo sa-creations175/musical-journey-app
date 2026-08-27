@@ -84,7 +84,7 @@ export default function SignUpForm({ onSwitchToLogin }: Props) {
         disabled={submitting}
         className="w-full px-4 py-2 rounded-md bg-production text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60"
       >
-        {submitting ? 'Creating account…' : 'Create account'}
+        {submitting ? 'Creating account…' : 'Create Account'}
       </button>
       <p className="text-xs text-center text-neutral-500">
         already have an account?{' '}

@@ -134,7 +134,7 @@ export default function RepertoireKeyDiagnostics() {
         disabled={busy}
         className="px-4 min-h-[40px] rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent disabled:opacity-50 mb-3"
       >
-        {busy ? 'checking…' : 'check song keys'}
+        {busy ? 'checking…' : 'Check Song Keys'}
       </button>
 
       {error && <p className="text-sm text-needswork mb-3">check failed: {error}</p>}

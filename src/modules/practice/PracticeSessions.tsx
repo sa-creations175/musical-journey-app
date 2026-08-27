@@ -737,7 +737,7 @@ export default function PracticeSessions() {
                   : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
               }`}
             >
-              {endingActive ? 'ending…' : 'end & start new'}
+              {endingActive ? 'ending…' : 'End & Start New'}
             </button>
             <button
               type="button"

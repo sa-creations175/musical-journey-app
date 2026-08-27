@@ -301,7 +301,7 @@ function FlaggedForReviewPanel() {
             {flagged.length} card{flagged.length === 1 ? '' : 's'} parked for later thought
           </p>
         </div>
-        <span className="text-xs text-neutral-500">{expanded ? 'hide' : 'show'}</span>
+        <span className="text-xs text-neutral-500">{expanded ? 'Hide' : 'Show'}</span>
       </button>
 
       {expanded && (

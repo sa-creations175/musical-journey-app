@@ -59,7 +59,7 @@ export default function LoginForm({ onSwitchToSignUp }: Props) {
         disabled={submitting}
         className="w-full px-4 py-2 rounded-md bg-production text-white text-sm font-semibold hover:opacity-90 disabled:opacity-60"
       >
-        {submitting ? 'Signing in…' : 'Sign in'}
+        {submitting ? 'Signing in…' : 'Sign In'}
       </button>
       <p className="text-xs text-center text-neutral-500">
         new here?{' '}

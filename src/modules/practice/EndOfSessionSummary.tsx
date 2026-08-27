@@ -199,7 +199,7 @@ export default function EndOfSessionSummary() {
             : 'bg-fluent hover:opacity-90'
         }`}
       >
-        {persisting ? 'saving…' : 'done'}
+        {persisting ? 'saving…' : 'Done'}
       </button>
     </div>
   );

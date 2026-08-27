@@ -157,7 +157,7 @@ export default function ProposalScreen({
               }`}
             >
               <span aria-hidden>↻</span>
-              <span>{regenerating ? 'regenerating…' : 'regenerate'}</span>
+              <span>{regenerating ? 'regenerating…' : 'Regenerate'}</span>
             </button>
           )}
         </div>
