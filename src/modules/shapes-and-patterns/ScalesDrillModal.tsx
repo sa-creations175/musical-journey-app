@@ -331,7 +331,10 @@ export default function ScalesDrillModal({
         itemRef: cell.itemRef,
         moduleRef: 'shapes-and-patterns',
         hand: currentHand,
-        signal: { kind: 'rating', rating: feelToRating(feel) },
+        // THE FEEL RIDES ALONG. `feelToRating` collapses four levels
+        // to three, and "the lowest of the last three rated reps"
+        // needs all four back.
+        signal: { kind: 'rating', rating: feelToRating(feel), feel },
       });
       if (handIndex < hands.length - 1) {
         // More hands to drill — refresh in place for the next hand.

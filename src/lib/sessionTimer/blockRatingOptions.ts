@@ -1,4 +1,5 @@
 import type { PerformanceRating } from './types';
+import { FEEL_OPTIONS } from '../fluencyScale';
 
 /**
  * Shared 4-level feel scale for the block wrap-up "How did it go?"
@@ -32,36 +33,40 @@ export interface BlockRatingFeelOption {
   inactiveClass: string;
 }
 
-export const BLOCK_RATING_FEEL_OPTIONS: ReadonlyArray<BlockRatingFeelOption> = [
-  {
-    feel: 1,
-    label: 'Struggled',
-    rating: 'crawling',
+/** Styling stays local — a colour is not vocabulary. */
+const FEEL_CLASSES: Record<1 | 2 | 3 | 4, { activeClass: string; inactiveClass: string }> = {
+  1: {
     activeClass: 'bg-needswork text-white border-needswork',
     inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
   },
-  {
-    feel: 2,
-    label: 'Working on it',
-    rating: 'crawling',
+  2: {
     activeClass: 'bg-developing text-white border-developing',
     inactiveClass: 'border-developing/40 text-developing hover:bg-developing/10',
   },
-  {
-    feel: 3,
-    label: 'Clean',
-    rating: 'cruising',
+  3: {
     activeClass: 'bg-fluent text-white border-fluent',
     inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
   },
-  {
-    feel: 4,
-    label: 'In flow',
-    rating: 'flying',
+  4: {
     activeClass: 'bg-mastered text-white border-mastered',
     inactiveClass: 'border-mastered/40 text-mastered hover:bg-mastered/10',
   },
-];
+};
+
+/**
+ * THE WORDS AND THE COLLAPSE BOTH COME FROM `fluencyScale`.
+ *
+ * This file used to hold its own copy of the four labels, which is how
+ * "Clean" here and "comfortable" there survived side by side over one
+ * identical stored 3.
+ */
+export const BLOCK_RATING_FEEL_OPTIONS: ReadonlyArray<BlockRatingFeelOption> =
+  FEEL_OPTIONS.map(opt => ({
+    feel: opt.feel,
+    label: opt.label,
+    rating: opt.rating as PerformanceRating,
+    ...FEEL_CLASSES[opt.feel],
+  }));
 
 /** Collapsed 3-value rating for a 4-level feel selection, or null. */
 export function ratingForFeel(feel: 1 | 2 | 3 | 4 | null): PerformanceRating | null {

@@ -69,7 +69,15 @@ export async function recordKeyProving(args: {
     await recordEngagement({
       itemRef: songKeyItemRef(args.songKeyId),
       moduleRef: 'repertoire',
-      signal: { kind: 'rating', rating: args.passed ? 'flying' : 'crawling' },
+      // THE TEST, AND THE ONLY THING THAT RATES A SONG KEY. A pass is
+      // a clean run at tempo, which is Clean rather than In flow — the
+      // test does not ask how it felt, so it cannot claim the top step.
+      // A failure is Struggled.
+      signal: {
+        kind: 'rating',
+        rating: args.passed ? 'flying' : 'crawling',
+        feel: args.passed ? 3 : 1,
+      },
       ...(args.timestamp !== undefined ? { timestamp: args.timestamp } : {}),
     });
   } catch (err) {

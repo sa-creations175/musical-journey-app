@@ -263,7 +263,9 @@ describe('how it went', () => {
   it('stores the feel that was chosen', async () => {
     const h = mount(20);
     h.toRatingStep();
-    h.click('in flow');
+    // Label casing now comes from `fluencyScale`, the one source for
+    // the four words. The subject here is the stored 4, not the word.
+    h.click('In flow');
     await h.clickAsync('Log It');
     expect((await onlyRow()).feelRating).toBe(4);
     h.unmount();

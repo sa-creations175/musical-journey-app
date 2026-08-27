@@ -1,6 +1,7 @@
 import { db, type SpacingState, type AcquisitionStage, type MemoryType, type DrillHand, type DrillStyle } from './db';
 import { putSpacingState } from './practiceWrites';
 import { getMemoryType } from './memoryType';
+import type { Feel } from './fluencyScale';
 import { answer as engineAnswer, newCardState } from './spacing/engine';
 import { bandForRow, cardStateFromRow, rowFieldsFromCardState } from './spacing/row';
 import { loadSettingsForCard } from './spacing/store';
@@ -59,14 +60,40 @@ export const RATING_ACQUIRED_MIN_RATINGS = 3;
  *  same column can carry signals across all four memory types. */
 export type PerformanceEntry =
   | { t: number; kind: 'attempt'; correct: boolean }
-  | { t: number; kind: 'rating'; rating: 'flying' | 'cruising' | 'crawling' }
+  | {
+      t: number;
+      kind: 'rating';
+      rating: 'flying' | 'cruising' | 'crawling';
+      /**
+       * The FOUR-level feel behind the three-level rating.
+       *
+       * `rating` collapses Struggled and Working on it into one value,
+       * and "the lowest of the last three rated reps" has to tell them
+       * apart. Absent on rows written before this existed; a reader
+       * that needs four levels falls back to `feelForRating`.
+       */
+      feel?: Feel;
+      /**
+       * False when this engagement happened but must NOT move the
+       * rating. Songs: only a test moves the rating, while a logged
+       * practice session still counts for coverage and last-touched.
+       */
+      scores?: boolean;
+    }
   | { t: number; kind: 'recency' };
 
 /** Public input shape for `recordEngagement`. The `kind` must match the
  *  module's memory type (validated at runtime). */
 export type EngagementSignal =
   | { kind: 'attempt'; correct: boolean }
-  | { kind: 'rating'; rating: 'flying' | 'cruising' | 'crawling' }
+  | {
+      kind: 'rating';
+      rating: 'flying' | 'cruising' | 'crawling';
+      /** The four-level feel, where the caller has one. */
+      feel?: Feel;
+      /** False for an engagement that must not move the rating. */
+      scores?: boolean;
+    }
   | { kind: 'recency' };
 
 export interface RecordEngagementInput {
@@ -307,7 +334,11 @@ function signalIsPositive(signal: EngagementSignal): boolean {
 function entryFromSignal(signal: EngagementSignal, t: number): PerformanceEntry {
   switch (signal.kind) {
     case 'attempt': return { t, kind: 'attempt', correct: signal.correct };
-    case 'rating':  return { t, kind: 'rating', rating: signal.rating };
+    case 'rating':  return {
+      t, kind: 'rating', rating: signal.rating,
+      ...(signal.feel !== undefined ? { feel: signal.feel } : {}),
+      ...(signal.scores === false ? { scores: false } : {}),
+    };
     case 'recency': return { t, kind: 'recency' };
   }
 }

@@ -181,7 +181,18 @@ export async function logPracticeSession(
       await recordEngagement({
         itemRef: input.songId,
         moduleRef: 'repertoire',
-        signal: { kind: 'rating', rating: feelToRating(input.feelRating) },
+        // ONLY A TEST MOVES A SONG'S RATING. A logged practice session
+        // still records that the song was touched — it counts toward
+        // coverage and last-touched, and it keeps the spacing row
+        // alive — but `scores: false` keeps it out of the rating.
+        // Sitting down with a song is not a claim about how well you
+        // play it; proving a key is.
+        signal: {
+          kind: 'rating',
+          rating: feelToRating(input.feelRating),
+          feel: input.feelRating,
+          scores: false,
+        },
         timestamp: now,
       });
     } catch (err) {

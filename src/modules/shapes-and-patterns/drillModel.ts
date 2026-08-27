@@ -1,3 +1,4 @@
+import { feelEmoji, feelLabel } from '../../lib/fluencyScale';
 import {
   db,
   type DrillHand,
@@ -630,7 +631,12 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
       moduleRef: 'shapes-and-patterns',
       hand: input.hand,
       style: input.style,
-      signal: { kind: 'rating', rating: feelToRating(input.feelRating) },
+      signal: {
+        kind: 'rating',
+        rating: feelToRating(input.feelRating),
+        // Four levels preserved; the collapse to three is lossy.
+        feel: input.feelRating,
+      },
       timestamp: session.timestamp,
     });
   }
@@ -927,14 +933,14 @@ export function formatDuration(seconds: number): string {
 
 // --- Feel-rating labels --------------------------------------------
 
+// THE WORDS COME FROM `fluencyScale`, which is the only definition.
+// These two maps used to be a private copy; so did the labels inside
+// FEEL_CARD_OPTIONS below.
 export const FEEL_LABEL: Record<DrillSession['feelRating'], string> = {
-  1: 'Struggled',
-  2: 'Working on it',
-  3: 'Clean',
-  4: 'In flow',
+  1: feelLabel(1), 2: feelLabel(2), 3: feelLabel(3), 4: feelLabel(4),
 };
 export const FEEL_EMOJI: Record<DrillSession['feelRating'], string> = {
-  1: '😓', 2: '🧗', 3: '🙂', 4: '🎶',
+  1: feelEmoji(1), 2: feelEmoji(2), 3: feelEmoji(3), 4: feelEmoji(4),
 };
 
 /**
@@ -953,28 +959,28 @@ export const FEEL_CARD_OPTIONS: ReadonlyArray<{
 }> = [
   {
     value: 1,
-    label: 'Struggled',
+    label: feelLabel(1),
     hint: 'breakdowns, not flowing',
     activeClass: 'bg-needswork text-white border-needswork',
     inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
   },
   {
     value: 2,
-    label: 'Working on it',
+    label: feelLabel(2),
     hint: 'getting there, still effortful',
     activeClass: 'bg-developing text-white border-developing',
     inactiveClass: 'border-developing/40 text-developing hover:bg-developing/10',
   },
   {
     value: 3,
-    label: 'Clean',
+    label: feelLabel(3),
     hint: 'steady, clean execution',
     activeClass: 'bg-fluent text-white border-fluent',
     inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
   },
   {
     value: 4,
-    label: 'In flow',
+    label: feelLabel(4),
     hint: 'effortless, automatic',
     activeClass: 'bg-mastered text-white border-mastered',
     inactiveClass: 'border-mastered/40 text-mastered hover:bg-mastered/10',

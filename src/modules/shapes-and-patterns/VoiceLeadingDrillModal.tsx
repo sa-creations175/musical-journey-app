@@ -276,7 +276,10 @@ export default function VoiceLeadingDrillModal({
         itemRef,
         moduleRef: 'shapes-and-patterns',
         hand: 'both',
-        signal: { kind: 'rating', rating: feelToRating(feel) },
+        // THE FEEL RIDES ALONG. `feelToRating` collapses four levels
+        // to three, and "the lowest of the last three rated reps"
+        // needs all four back.
+        signal: { kind: 'rating', rating: feelToRating(feel), feel },
       });
       onLogged?.();
       onClose();

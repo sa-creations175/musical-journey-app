@@ -36,9 +36,13 @@ describe('FEEL_OPTIONS', () => {
   });
 
   it('labels every step', () => {
-    expect(feelLabel(1)).toBe('struggled');
-    expect(feelLabel(3)).toBe('comfortable');
-    expect(feelLabel(4)).toBe('in flow');
+    // THE WORDS MOVED HERE FROM FIVE PLACES, two of which said
+    // "comfortable" for step 3 where three said "Clean". Same stored
+    // ordinal either way — only the label changed, and "Clean" is the
+    // word the rules are written in.
+    expect(feelLabel(1)).toBe('Struggled');
+    expect(feelLabel(3)).toBe('Clean');
+    expect(feelLabel(4)).toBe('In flow');
   });
 });
 

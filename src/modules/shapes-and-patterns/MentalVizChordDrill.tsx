@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/Modal';
 import PianoKeyboard from '../../components/PianoKeyboard';
 import { recordEngagement } from '../../lib/spacingState';
+import { feelForRating } from '../../lib/fluencyScale';
 import { loadMentalVizQueue } from './mentalVizQueue';
 import { logMentalVizSession } from './drillModel';
 import { MENTAL_VIZ_MODULE_REF, mentalVizPrompt, type MentalVizItem } from './mentalVizLibrary';
@@ -69,7 +70,10 @@ export default function MentalVizChordDrill({ onClose }: { onClose: () => void }
       await recordEngagement({
         itemRef: current.itemRef,
         moduleRef: MENTAL_VIZ_MODULE_REF,
-        signal: { kind: 'rating', rating },
+        // This drill's buttons ARE the three-valued rating, so there is
+        // no four-level feel to carry. `feelForRating` picks the lower
+        // of the two that `crawling` covers — see its own note.
+        signal: { kind: 'rating', rating, feel: feelForRating(rating) },
       });
       // OMITTED rather than measured from the epoch when no card was
       // ever shown — unreachable while one is on screen, and the guard

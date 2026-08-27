@@ -4,68 +4,56 @@
  */
 
 import type { SpacingState } from '../db';
-import { bandForAccuracyPercent, type AccuracyBand } from './bands';
+import type { AccuracyBand } from './bands';
 import type { SpacingCardState } from './engine';
+import {
+  NOT_STARTED, bandOf, measuredVerdict, selfRatedVerdict, type BandVerdict,
+} from './banding';
+import { feelForRating, type Feel } from '../fluencyScale';
 
 /**
- * How many recent signals decide the band.
+ * The band a row is currently in.
  *
- * The same window the acquisition rule already uses, and for the same
- * reason: a band is meant to say how the card is going NOW. A lifetime
- * average would let a card that has been wrong all week keep a rating
- * it earned a month ago.
+ * TWO RULES, PICKED BY WHAT THE ROW ACTUALLY HOLDS. Attempt entries
+ * mean a measured card and the twenty-answer percentage; rating
+ * entries mean a self-rated one and the lowest of the last three. See
+ * `banding.ts` for why the choice is read from the signals rather than
+ * from the module name.
  */
-export const BAND_WINDOW = 10;
-
-/**
- * A rating is worth this much when it stands in for a percentage.
- *
- * =====================================================================
- * HALF THE APP DOES NOT HAVE A PERCENTAGE TO BAND.
- *
- * Declarative modules answer right or wrong and produce one honestly.
- * Procedural and integration modules produce Flying / Cruising /
- * Crawling — a judgement, not a score — and the scheduler still needs
- * a band for them, because they are on the same engine.
- *
- * So a rating is mapped to the middle of the band it plainly means:
- * Flying is fluent, Cruising is developing, Crawling is needs-work.
- * Deliberately NOT 100 for Flying — one good day should not put a
- * drill in the band reserved for near-perfect recall, and averaging a
- * window of them can still climb there.
- * ===================================================================== */
-export const RATING_PERCENT: Readonly<Record<string, number>> = {
-  flying: 90,
-  cruising: 70,
-  crawling: 30,
-};
-
-/**
- * The band a row is currently in, or null when nothing has been
- * recorded that could produce one.
- *
- * Null is not "needs work". A card with no history has not scored
- * badly, it has not scored — and the acquiring stage exists precisely
- * so that nothing needs a band until it has earned one.
- */
-export function bandForRow(row: Pick<SpacingState, 'performanceHistory'>): AccuracyBand | null {
+export function bandVerdictForRow(
+  row: Pick<SpacingState, 'performanceHistory'>,
+): BandVerdict {
   const history = Array.isArray(row.performanceHistory) ? row.performanceHistory : [];
-  const scored: number[] = [];
+
+  const answers: Array<{ correct: boolean }> = [];
+  const reps: Array<{ feel: Feel }> = [];
   for (const entry of history) {
-    const kind = entry?.kind;
-    if (kind === 'attempt' && typeof entry.correct === 'boolean') {
-      scored.push(entry.correct ? 100 : 0);
-    } else if (kind === 'rating' && typeof entry.rating === 'string') {
-      const pct = RATING_PERCENT[entry.rating];
-      if (pct !== undefined) scored.push(pct);
+    if (entry?.kind === 'attempt' && typeof entry.correct === 'boolean') {
+      answers.push({ correct: entry.correct });
+    } else if (entry?.kind === 'rating' && typeof entry.rating === 'string') {
+      // A rep that does not score is still a rep that HAPPENED — it
+      // just does not move the rating. Songs: a logged practice session
+      // counts for coverage and last-touched, only a test rates.
+      if (entry.scores === false) continue;
+      const feel = typeof entry.feel === 'number'
+        ? entry.feel as Feel
+        : feelForRating(entry.rating as 'flying' | 'cruising' | 'crawling');
+      reps.push({ feel });
     }
-    // 'recency' entries carry no verdict and are skipped rather than
-    // counted as zero — expression items have no correctness at all.
+    // 'recency' carries no verdict at all — expression items have no
+    // correctness — and is skipped rather than counted as a zero.
   }
-  if (scored.length === 0) return null;
-  const window = scored.slice(-BAND_WINDOW);
-  const mean = window.reduce((a, b) => a + b, 0) / window.length;
-  return bandForAccuracyPercent(mean);
+
+  if (answers.length > 0) return measuredVerdict(answers);
+  if (reps.length > 0) return selfRatedVerdict(reps);
+  return NOT_STARTED;
+}
+
+/** The band, or null when the card has not earned one. */
+export function bandForRow(
+  row: Pick<SpacingState, 'performanceHistory'>,
+): AccuracyBand | null {
+  return bandOf(bandVerdictForRow(row));
 }
 
 /**

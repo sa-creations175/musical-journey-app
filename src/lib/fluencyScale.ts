@@ -26,12 +26,23 @@
  *   · flying / cruising / crawling, which `songCellRunThroughs.rating`
  *     stores and nothing reads.
  *
- * NOT yet adopted by `sessionTimer/blockRatingOptions.ts`, which holds
- * its own 1–4 with the same shape but labels step 3 "Clean" rather than
- * "Comfortable". Unifying that belongs to the dashboard build, which
- * changes the drill buttons across S&P and Production at the same time.
- * Kept separate here so a logging change does not quietly restyle the
- * session-block rating screen.
+ * ---------------------------------------------------------------
+ * NOW THE ONLY DEFINITION. FIVE FILES USED TO HOLD THEIR OWN.
+ *
+ * `sessionTimer/blockRatingOptions.ts`, `shapes-and-patterns/
+ * drillModel.ts` (twice) and `repertoire/PracticeHistory.tsx` each
+ * carried a private copy of these four words, and they had drifted:
+ * three said "Clean" for step 3 and two said "comfortable".
+ *
+ * THE DISAGREEMENT WAS ONLY EVER A WORD. Every one of those maps is
+ * keyed on the SAME stored ordinal — `Feel`, 1–4 — so "comfortable"
+ * and "Clean" were two labels over one identical stored 3. Nothing was
+ * migrated and no history was rewritten to unify them; a label map
+ * changed its strings.
+ *
+ * "Clean" wins because it is the word the rules are written in, and
+ * because three of the five sites already said it.
+ * ---------------------------------------------------------------
  */
 
 /** Stored value. Ordinal, ascending. */
@@ -42,13 +53,16 @@ export interface FeelOption {
   label: string;
   /** 0–100 projection, for surfaces that show a fluency number. */
   value: number;
+  emoji: string;
+  /** What this collapses to for the three-valued spacing signal. */
+  rating: 'flying' | 'cruising' | 'crawling';
 }
 
 export const FEEL_OPTIONS: ReadonlyArray<FeelOption> = [
-  { feel: 1, label: 'struggled',     value: 25 },
-  { feel: 2, label: 'working on it', value: 50 },
-  { feel: 3, label: 'comfortable',   value: 75 },
-  { feel: 4, label: 'in flow',       value: 100 },
+  { feel: 1, label: 'Struggled',     value: 25,  emoji: '😓', rating: 'crawling' },
+  { feel: 2, label: 'Working on it', value: 50,  emoji: '🧗', rating: 'crawling' },
+  { feel: 3, label: 'Clean',         value: 75,  emoji: '🙂', rating: 'cruising' },
+  { feel: 4, label: 'In flow',       value: 100, emoji: '🎶', rating: 'flying' },
 ];
 
 const BY_FEEL = new Map<Feel, FeelOption>(FEEL_OPTIONS.map(o => [o.feel, o]));
@@ -60,6 +74,23 @@ export function fluencyValue(feel: Feel): number {
 
 export function feelLabel(feel: Feel): string {
   return BY_FEEL.get(feel)?.label ?? String(feel);
+}
+
+/** Emoji for a stored feel. The one place these come from too. */
+export function feelEmoji(feel: Feel): string {
+  return BY_FEEL.get(feel)?.emoji ?? '';
+}
+
+/**
+ * The three-valued signal a feel collapses to.
+ *
+ * LOSSY, WHICH IS WHY THE FEEL IS STORED ALONGSIDE IT. Struggled and
+ * Working on it both collapse to `crawling`, so a rule that has to
+ * tell them apart — "the lowest of the last three rated reps" does —
+ * cannot be answered from the collapsed value.
+ */
+export function ratingForFeelValue(feel: Feel): 'flying' | 'cruising' | 'crawling' {
+  return BY_FEEL.get(feel)?.rating ?? 'crawling';
 }
 
 /**
@@ -107,3 +138,26 @@ export function normaliseFeel(raw: number | null | undefined): Feel | null {
  * ---------------------------------------------------------------
  */
 export const CONSISTENTLY_FLUENT_AVG = 3.5;
+
+/**
+ * A representative feel for a three-valued rating. LOSSY AND ONE-WAY.
+ *
+ * =====================================================================
+ * ONLY FOR CALL SITES THAT NEVER HAD A FEEL TO BEGIN WITH.
+ *
+ * `crawling` covers BOTH Struggled and Working on it, so this cannot
+ * recover which was meant — it picks Struggled, the lower of the two.
+ * That is deliberate rather than arbitrary: the feel decides a band,
+ * the band decides a ceiling, and guessing high would stretch a card
+ * the reader may be failing. Over-scheduling something known costs a
+ * little time; under-scheduling something unknown costs the knowledge.
+ *
+ * Anything that HAS a feel must pass the feel and never route through
+ * here.
+ * =====================================================================
+ */
+export function feelForRating(rating: 'flying' | 'cruising' | 'crawling'): Feel {
+  if (rating === 'flying') return 4;
+  if (rating === 'cruising') return 3;
+  return 1;
+}

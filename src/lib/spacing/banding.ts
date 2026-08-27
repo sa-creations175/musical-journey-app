@@ -1,0 +1,141 @@
+/**
+ * What band a card is in — two rules, one per kind of module.
+ *
+ * =====================================================================
+ * THE MEAN WAS NEVER THE RULE. THERE ARE TWO RULES.
+ *
+ * The engine used to average the last ten signals and band the mean.
+ * That is not how either half of the app is scored:
+ *
+ *   MEASURED modules — harmonic fluency, ear training, reading,
+ *   production vocabulary — score the percentage right over the last
+ *   TWENTY answers on that card.
+ *
+ *   SELF-RATED modules — shapes & patterns including mental
+ *   visualisation, and song repertoire — take the LOWEST of the last
+ *   THREE rated reps. Not an average. Three cleans and one struggle is
+ *   Needs Work, because the struggle is the thing that has not gone
+ *   away.
+ *
+ * Getting this wrong is not cosmetic: the band picks the multiplier
+ * and the ceiling, so a card that should be capped at 2 days drifts to
+ * 30 on a rule that is too generous.
+ *
+ * WHICH RULE APPLIES IS READ FROM THE SIGNALS, NOT THE MODULE NAME.
+ * Attempts mean measured, ratings mean self-rated. That is not a
+ * shortcut — it is the only thing that gets production right, where
+ * the vocabulary deck writes attempts and lessons write ratings under
+ * one `production` moduleRef. A module lookup would have to pick one
+ * and be wrong about the other.
+ * =====================================================================
+ */
+
+import type { AccuracyBand } from './bands';
+import { bandForAccuracyPercent } from './bands';
+import type { Feel } from '../fluencyScale';
+
+/** Answers over which a measured card is scored. */
+export const MEASURED_WINDOW = 20;
+/** Tries before a measured card has a band at all. */
+export const MEASURED_FLOOR = 5;
+/** Rated reps over which a self-rated card is scored. */
+export const SELF_RATED_WINDOW = 3;
+/** Rated reps before a self-rated card has a band at all. */
+export const SELF_RATED_FLOOR = 3;
+
+/**
+ * A card that has no band yet, and why.
+ *
+ * `not-started` and `started` are NOT bands and must never be treated
+ * as one. Never met is not the same as met-and-not-yet-judged, and
+ * neither is the same as scoring badly — a card you have seen twice
+ * has not earned Needs Work, it has earned nothing yet.
+ */
+export type BandVerdict =
+  | { kind: 'band'; band: AccuracyBand }
+  | { kind: 'started'; tries: number }
+  | { kind: 'not-started' };
+
+export const NOT_STARTED: BandVerdict = { kind: 'not-started' };
+
+/** The band, or null when there isn't one. What the scheduler takes. */
+export function bandOf(verdict: BandVerdict): AccuracyBand | null {
+  return verdict.kind === 'band' ? verdict.band : null;
+}
+
+/** What a surface shows. */
+export function bandVerdictLabel(verdict: BandVerdict): string {
+  switch (verdict.kind) {
+    case 'not-started': return 'Not Started';
+    case 'started': return 'Started';
+    case 'band': return verdict.band;
+  }
+}
+
+// =====================================================================
+// Measured
+// =====================================================================
+
+/**
+ * Percentage right over the last twenty answers on this card.
+ *
+ * Under five tries there is no band: a percentage over three answers
+ * swings between 67 and 100 on one miss, which is the whole reason the
+ * floor exists.
+ */
+export function measuredVerdict(
+  answers: ReadonlyArray<{ correct: boolean }>,
+): BandVerdict {
+  if (answers.length === 0) return NOT_STARTED;
+  if (answers.length < MEASURED_FLOOR) {
+    return { kind: 'started', tries: answers.length };
+  }
+  const window = answers.slice(-MEASURED_WINDOW);
+  const correct = window.filter(a => a.correct).length;
+  return { kind: 'band', band: bandForAccuracyPercent((correct / window.length) * 100) };
+}
+
+// =====================================================================
+// Self-rated
+// =====================================================================
+
+/**
+ * The band each feel maps to when it is the LOWEST of the three.
+ *
+ * One-to-one and ordinal, which is what makes the rule's worked
+ * examples come out:
+ *
+ *   Struggled anywhere in the three   → lowest 1 → Needs Work
+ *   Clean, Clean, Working on it       → lowest 2 → Developing
+ *   Clean, Clean, Clean               → lowest 3 → Fluent
+ *   In flow, In flow, Clean           → lowest 3 → Fluent
+ *   In flow, In flow, In flow         → lowest 4 → Mastered
+ */
+const BAND_FOR_LOWEST: Record<Feel, AccuracyBand> = {
+  1: 'needs-work',
+  2: 'developing',
+  3: 'fluent',
+  4: 'mastered',
+};
+
+/**
+ * The lowest of the last three rated reps.
+ *
+ * NOT AN AVERAGE, and the difference is the point. Averaging three
+ * cleans and a struggle reads as Fluent; the rule reads it as Needs
+ * Work, because a rep you struggled through is evidence that has not
+ * been superseded by the two easy ones after it.
+ */
+export function selfRatedVerdict(
+  reps: ReadonlyArray<{ feel: Feel }>,
+): BandVerdict {
+  if (reps.length === 0) return NOT_STARTED;
+  if (reps.length < SELF_RATED_FLOOR) {
+    return { kind: 'started', tries: reps.length };
+  }
+  const window = reps.slice(-SELF_RATED_WINDOW);
+  const lowest = window.reduce<Feel>(
+    (low, r) => (r.feel < low ? r.feel : low), window[0].feel,
+  );
+  return { kind: 'band', band: BAND_FOR_LOWEST[lowest] };
+}
