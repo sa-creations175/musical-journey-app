@@ -194,8 +194,18 @@ export function titleCase(label: string): string {
 
       // Minor words only duck between space-separated words. A hyphen
       // joins one word, so "check-in" stays "Check-In".
-      if (!isFirst && afterSpace && MINOR_WORDS.has(run.toLowerCase())) {
-        return run.toLowerCase();
+      //
+      // AND ONLY IF THE SOURCE WROTE THEM SMALL. This function's job is
+      // to raise a canonical lowercase label, never to flatten a capital
+      // someone chose: the `A` in "title A–Z" is a letter range, not the
+      // article, and lowercasing it produced "Title a–Z".
+      if (
+        !isFirst
+        && afterSpace
+        && run === run.toLowerCase()
+        && MINOR_WORDS.has(run)
+      ) {
+        return run;
       }
       return capitalise(run);
     })

@@ -91,6 +91,13 @@ describe('small words, and where a clause restarts', () => {
     expect(titleCase('skip — no penalty')).toBe('Skip — No Penalty');
   });
 
+  it('never lowercases a capital the source chose', () => {
+    // The `A` in a letter range is not the article. Raising a lowercase
+    // label is this function's job; flattening a capital is not.
+    expect(titleCase('title A–Z')).toBe('Title A–Z');
+    expect(titleCase('sort by A or B')).toBe('Sort by A or B');
+  });
+
   it('does not restart on a comma or an ampersand', () => {
     expect(titleCase('yes, restore backup')).toBe('Yes, Restore Backup');
     expect(titleCase('delay & saturation')).toBe('Delay & Saturation');
