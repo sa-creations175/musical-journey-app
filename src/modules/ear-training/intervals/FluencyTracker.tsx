@@ -272,7 +272,7 @@ function TierLegend() {
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1 z-10 w-72 rounded-2xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-3 text-xs shadow-lg">
-          <div className="font-medium mb-2">skill tiers</div>
+          <div className="font-medium mb-2">Skill Tiers</div>
           <ul className="space-y-1.5">
             {TIER_ORDER.map(tier => (
               <li key={tier} className="flex items-start gap-2">

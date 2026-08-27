@@ -140,7 +140,7 @@ export default function SyncDiagnosticsSection() {
         <div className="mb-4">
           {attemptsPush && (
             <p className="text-sm mb-2">
-              <span className="font-medium">attempts</span>{' '}
+              <span className="font-medium">Attempts</span>{' '}
               — <span className="font-mono tabular-nums">{attemptsPush.localCount}</span> here,{' '}
               <span className="font-mono tabular-nums">{attemptsPush.cloudCount}</span> in cloud,{' '}
               <span className="font-mono tabular-nums">{attemptsPush.pushed}</span> pushed
@@ -201,7 +201,7 @@ export default function SyncDiagnosticsSection() {
             )}
             {attemptsStatus && (
               <p>
-                <span className="font-medium">attempts</span>{' '}
+                <span className="font-medium">Attempts</span>{' '}
                 — <span className="font-mono tabular-nums">{attemptsStatus.local}</span> here,{' '}
                 <span className="font-mono tabular-nums">
                   {attemptsStatus.cloud ?? '?'}

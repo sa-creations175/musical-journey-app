@@ -278,7 +278,7 @@ function GoalAccumulator({
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
-        Monthly goals so far
+        Monthly Goals So Far
       </span>
       <ul className="flex flex-col gap-1">
         {goals.map(g => {

@@ -235,7 +235,7 @@ export default function DrillSessionModal({
         blocks: [
           {
             moduleRef: 'shapes-and-patterns',
-            label: 'Shapes practice',
+            label: 'Shapes Practice',
             // Soft cap; the canonical end is the user tapping End on
             // the global banner, not the timer reaching this value.
             plannedSeconds: 60 * 60,

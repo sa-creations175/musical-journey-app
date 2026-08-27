@@ -536,7 +536,7 @@ function HardBlockToggle({
     >
       <div className="flex-1 min-w-0">
         <div className="text-xs font-medium text-neutral-800 dark:text-neutral-100">
-          Auto-advance blocks
+          Auto-Advance Blocks
         </div>
         <div className="text-[11px] text-neutral-500">
           Move to next block when time is up

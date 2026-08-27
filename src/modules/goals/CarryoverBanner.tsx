@@ -139,7 +139,7 @@ export default function CarryoverBanner({ reloadKey }: BannerProps) {
       >
         <div className="flex-1 min-w-0">
           <div className="text-sm font-medium text-violet-900 dark:text-violet-200">
-            Last month — items still uncovered
+            Last Month — Items Still Uncovered
           </div>
           <div className="text-xs text-violet-800/80 dark:text-violet-300/80 mt-0.5">
             {summary}

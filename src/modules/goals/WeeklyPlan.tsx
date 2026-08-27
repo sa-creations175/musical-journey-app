@@ -1783,7 +1783,7 @@ function RepertoireGuidanceRow({
         className="px-3 py-2 text-[11px] leading-snug text-neutral-600 dark:text-neutral-400"
       >
         <span className="font-medium text-neutral-700 dark:text-neutral-300">
-          Suggested session split:
+          Suggested Session Split:
         </span>{' '}
         ~{REPERTOIRE_SPOTLIGHT_MINUTES} min on {sotmPhrase} +{' '}
         ~{REPERTOIRE_MAINTENANCE_MINUTES} min maintenance rotation.{coverageClause}

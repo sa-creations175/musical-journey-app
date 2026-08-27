@@ -353,7 +353,7 @@ const KEY_STATE_BADGE: Record<SongKeyState, { label: string; className: string }
   solid:        { label: 'Solid',        className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
   comfortable:  { label: 'Comfortable',  className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200' },
   learning:     { label: 'Learning',     className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
-  not_started:  { label: 'Not started',  className: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400' },
+  not_started:  { label: 'Not Started',  className: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400' },
 };
 
 function StateHeader({
@@ -492,7 +492,7 @@ function StreakMeter({
           rule you only find out about by losing progress to it is not
           a rule the user agreed to. */}
       <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
-        Three clean run-throughs{floorText}, <span className="font-medium">back to back</span>,
+        Three clean run-throughs{floorText}, <span className="font-medium">Back to Back</span>,
         in this one sitting. Any not-clean run puts it back to zero, and closing
         this window starts the count over.
       </p>
@@ -514,7 +514,7 @@ function AttemptLog({
   return (
     <div>
       <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
-        Attempts this session
+        Attempts This Session
       </div>
       {attempts.length === 0 ? (
         <p className="text-xs text-neutral-500 italic">
@@ -557,9 +557,9 @@ function AttemptRow({
       <span className="text-neutral-700 dark:text-neutral-200 tabular-nums">♩ {attempt.bpm}</span>
       <span className="text-neutral-400">·</span>
       {attempt.wasClean ? (
-        <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ clean</span>
+        <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Clean</span>
       ) : (
-        <span className="text-needswork font-medium">✗ not clean</span>
+        <span className="text-needswork font-medium">✗ Not Clean</span>
       )}
       {belowFloor && (
         <span
@@ -599,7 +599,7 @@ function AddAttemptArea({
   return (
     <div>
       <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
-        Add attempt
+        Add Attempt
       </div>
       <div className="flex items-stretch gap-2">
         <label className="flex items-center gap-1.5 px-3 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900">

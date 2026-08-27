@@ -28,9 +28,9 @@ import { timeOfDayFor } from './timeOfDay';
  */
 
 const CONTEXT_OPTIONS: ReadonlyArray<{ value: PracticeSessionContext; label: string }> = [
-  { value: 'keys',   label: 'At the keyboard' },
-  { value: 'laptop', label: 'On my laptop' },
-  { value: 'phone',  label: 'On my phone' },
+  { value: 'keys',   label: 'At the Keyboard' },
+  { value: 'laptop', label: 'On My Laptop' },
+  { value: 'phone',  label: 'On My Phone' },
 ];
 
 interface FormState {

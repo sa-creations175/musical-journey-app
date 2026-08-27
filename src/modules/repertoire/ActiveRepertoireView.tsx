@@ -78,12 +78,12 @@ const SORT_OPTIONS: Array<{ id: SortMode; label: string }> = [
   // learning-order is the canonical study sequence; drag-to-reorder
   // is enabled only in this mode (other modes use a non-draggable
   // 3-col grid so the user can browse without authoring the order).
-  { id: 'learning-order',   label: 'learning order (drag to reorder)' },
-  { id: 'date-added',       label: 'date added (oldest first)' },
-  { id: 'recent-practice',  label: 'recently practiced' },
-  { id: 'alphabetical',     label: 'alphabetical (A–Z)' },
-  { id: 'by-stage',         label: 'by stage' },
-  { id: 'by-freshness',     label: 'by freshness (stalest first)' },
+  { id: 'learning-order',   label: 'Learning Order (Drag to Reorder)' },
+  { id: 'date-added',       label: 'Date Added (Oldest First)' },
+  { id: 'recent-practice',  label: 'Recently Practiced' },
+  { id: 'alphabetical',     label: 'Alphabetical (A–Z)' },
+  { id: 'by-stage',         label: 'By Stage' },
+  { id: 'by-freshness',     label: 'By Freshness (Stalest First)' },
 ];
 
 /** The module this home belongs to — its accent tints the cards. */

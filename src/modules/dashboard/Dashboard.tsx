@@ -813,7 +813,7 @@ function QuickActionsSection({
             to={next.route}
             className="rounded-lg border border-black/[0.07] p-3 hover:border-fluent/60 transition-colors"
           >
-            <div className="text-sm font-medium">start a practice session</div>
+            <div className="text-sm font-medium">Start a Practice Session</div>
             <div className="text-xs text-neutral-500 mt-0.5">suggested: {next.label}</div>
           </Link>
         )}
@@ -821,7 +821,7 @@ function QuickActionsSection({
           onClick={onLogCreative}
           className="text-left rounded-lg border border-fluent/40 bg-fluent/5 p-3 hover:border-fluent transition-colors"
         >
-          <div className="text-sm font-medium text-fluent">log creative time</div>
+          <div className="text-sm font-medium text-fluent">Log Creative Time</div>
           <div className="text-xs text-neutral-500 mt-0.5">just play / just produce</div>
         </button>
         {data.repertoire.performanceReady.length > 0 ? (
@@ -829,7 +829,7 @@ function QuickActionsSection({
             to="/repertoire"
             className="rounded-lg border border-black/[0.07] p-3 hover:border-fluent/60 transition-colors"
           >
-            <div className="text-sm font-medium">review performance-ready</div>
+            <div className="text-sm font-medium">Review Performance-Ready</div>
             <div className="text-xs text-neutral-500 mt-0.5">
               {data.repertoire.performanceReady.length} song{data.repertoire.performanceReady.length === 1 ? '' : 's'} at internalized or later
             </div>
@@ -839,7 +839,7 @@ function QuickActionsSection({
             to="/repertoire"
             className="rounded-lg border border-black/[0.07] p-3 hover:border-fluent/60 transition-colors"
           >
-            <div className="text-sm font-medium">open song repertoire</div>
+            <div className="text-sm font-medium">Open Song Repertoire</div>
             <div className="text-xs text-neutral-500 mt-0.5">work a song you know</div>
           </Link>
         )}

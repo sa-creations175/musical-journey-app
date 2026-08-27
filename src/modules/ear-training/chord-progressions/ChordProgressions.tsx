@@ -24,17 +24,17 @@ function isTabId(v: string): v is TabId {
 const TABS: Array<{ id: TabId; label: string; hint: string }> = [
   {
     id: 'key-detection',
-    label: 'key detection',
+    label: 'Key Detection',
     hint: 'find the tonal centre by ear',
   },
   {
     id: 'chord-motion',
-    label: 'chord motion',
+    label: 'Chord Motion',
     hint: 'degree-to-degree fluency with scaffolding',
   },
   {
     id: 'full-progression',
-    label: 'full progression',
+    label: 'Full Progression',
     hint: 'the full tier-based progression catalogue',
   },
 ];

@@ -635,7 +635,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
   ), []);
 
   const focusFilter: FilterConfig = useMemo(() => ({
-    label: 'filter by tier:',
+    label: 'Filter by Tier:',
     options: tierFilterOptions,
     isVisible: (progId, activeTiers) => {
       const prog = progressionById(progId);
@@ -930,7 +930,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               </p>
               <div className="flex flex-wrap items-center justify-center gap-1.5">
                 {([
-                  { token: '', label: 'root' },
+                  { token: '', label: 'Root' },
                   { token: '3', label: '/3' },
                   { token: '4', label: '/4' },
                   { token: '5', label: '/5' },
@@ -1049,12 +1049,12 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
           emptySuggestionMessage="you don't have any progressions in developing, needs-work, or untouched tiers yet."
           extraQuickSelects={[
             {
-              label: 'must-knows only',
+              label: 'Must-Knows Only',
               compute: () => MUST_KNOW_IDS,
               emptyMessage: 'no must-know progressions match the current filter.',
             },
             {
-              label: 'slash chord progressions',
+              label: 'Slash Chord Progressions',
               compute: () => PROGRESSIONS
                 .filter(p => containsSlashChords(p.numerals))
                 .map(p => p.id),

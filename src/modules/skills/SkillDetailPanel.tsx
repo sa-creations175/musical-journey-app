@@ -21,10 +21,10 @@ interface Props {
 }
 
 const PRIORITY_OPTIONS: Array<{ value: SkillPriority | ''; label: string; hint: string }> = [
-  { value: '',            label: 'unset',       hint: 'no priority set' },
-  { value: 'comfort',     label: 'comfort',     hint: 'already a strong area — maintain without pushing' },
-  { value: 'deep',        label: 'deep',        hint: 'actively investing — surface this often' },
-  { value: 'maintenance', label: 'maintenance', hint: 'keep it warm with occasional reps' },
+  { value: '',            label: 'Unset',       hint: 'no priority set' },
+  { value: 'comfort',     label: 'Comfort',     hint: 'already a strong area — maintain without pushing' },
+  { value: 'deep',        label: 'Deep',        hint: 'actively investing — surface this often' },
+  { value: 'maintenance', label: 'Maintenance', hint: 'keep it warm with occasional reps' },
 ];
 
 /** Cross-cutting conceptual tags the Catalogue suggests alongside the

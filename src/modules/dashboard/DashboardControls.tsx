@@ -50,10 +50,10 @@ export interface DashboardControlsProps {
 const SORT_FIELDS: ReadonlyArray<{ id: SortField; label: string }> = [
   // The default, and not a sort: modules in nav order, submodules in
   // catalog order.
-  { id: 'natural', label: 'nav order' },
-  { id: 'accuracy', label: 'accuracy' },
-  { id: 'coverage', label: 'coverage' },
-  { id: 'recency', label: 'recency' },
+  { id: 'natural', label: 'Nav Order' },
+  { id: 'accuracy', label: 'Accuracy' },
+  { id: 'coverage', label: 'Coverage' },
+  { id: 'recency', label: 'Recency' },
 ];
 
 /**

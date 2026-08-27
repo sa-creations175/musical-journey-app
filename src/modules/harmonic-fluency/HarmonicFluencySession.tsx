@@ -58,9 +58,9 @@ export interface SessionStats {
 }
 
 const VISUAL_MODES = [
-  { id: 'text', label: 'text' },
-  { id: 'number-grid', label: 'grid' },
-  { id: 'keyboard', label: 'keyboard' },
+  { id: 'text', label: 'Text' },
+  { id: 'number-grid', label: 'Grid' },
+  { id: 'keyboard', label: 'Keyboard' },
 ] as const;
 
 export default function HarmonicFluencySession({

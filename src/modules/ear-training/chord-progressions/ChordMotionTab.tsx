@@ -1063,7 +1063,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
             </div>
             <div className="mx-auto max-w-md grid grid-cols-[auto,1fr] gap-x-3 gap-y-2 items-center text-sm">
               <label htmlFor="motion-distance" className="text-neutral-500 justify-self-end">
-                distance:
+                Distance:
               </label>
               <select
                 id="motion-distance"
@@ -1081,7 +1081,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
               </select>
 
               <label htmlFor="motion-direction" className="text-neutral-500 justify-self-end">
-                direction:
+                Direction:
               </label>
               <select
                 id="motion-direction"
@@ -1095,7 +1095,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
               </select>
 
               <label htmlFor="motion-notes" className="text-neutral-500 justify-self-end">
-                notes:
+                Notes:
               </label>
               <select
                 id="motion-notes"
@@ -1111,7 +1111,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
               </select>
 
               <label htmlFor="motion-listening" className="text-neutral-500 justify-self-end">
-                listening:
+                Listening:
               </label>
               <select
                 id="motion-listening"
@@ -1135,7 +1135,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
             </div>
             <div className="mx-auto max-w-md grid grid-cols-[auto,1fr] gap-x-3 gap-y-2 items-center text-sm">
               <label htmlFor="motion-scaffold" className="text-neutral-500 justify-self-end">
-                scaffolding:
+                Scaffolding:
               </label>
               <select
                 id="motion-scaffold"

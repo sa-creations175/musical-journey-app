@@ -388,8 +388,8 @@ export default function ChordFluencyTracker({ chords, attempts }: Props) {
         </div>
         <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
           {([
-            { id: 'tier', label: 'tier view' },
-            { id: 'family', label: 'family view' },
+            { id: 'tier', label: 'Tier View' },
+            { id: 'family', label: 'Family View' },
           ] as const).map(opt => (
             <button
               key={opt.id}

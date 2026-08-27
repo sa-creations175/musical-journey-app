@@ -560,7 +560,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
           }
         >
           <p className="text-sm text-neutral-700 dark:text-neutral-200">
-            this will replace <span className="font-medium">all</span> your current practice data
+            this will replace <span className="font-medium">All</span> your current practice data
             with the backup from <span className="font-medium">{pendingBackupDate}</span>.
             your current data will be lost. this cannot be undone.
           </p>

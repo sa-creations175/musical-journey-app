@@ -627,7 +627,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
           note={focusActive ? (
             <div className="rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
               <span className="font-medium text-fluent">focus mode is active</span> with these selections.
-              modify below and click <span className="font-medium">update focus session</span>, or{' '}
+              modify below and click <span className="font-medium">Update Focus Session</span>, or{' '}
               <button
                 type="button"
                 onClick={() => { setFocusActive(false); setShowFocusPanel(false); }}
@@ -640,7 +640,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
           ) : (
             <div className="rounded-lg bg-neutral-100 dark:bg-neutral-800/60 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
               your last selection is shown below. you're currently in the full quiz — click{' '}
-              <span className="font-medium">start focus session</span> to narrow the quiz to the selected intervals.
+              <span className="font-medium">Start Focus Session</span> to narrow the quiz to the selected intervals.
             </div>
           )}
           sections={focusSections}

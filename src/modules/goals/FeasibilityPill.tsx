@@ -43,11 +43,11 @@ export function pillConfig(
   if (status === null) return null;
   switch (status) {
     case 'on_track':
-      return { label: 'On track',     bg: '#EAF3DE', text: '#3B6D11' };
+      return { label: 'On Track',     bg: '#EAF3DE', text: '#3B6D11' };
     case 'at_risk':
       return { label: 'Pick up pace', bg: '#FAEEDA', text: '#854F0B' };
     case 'critical':
-      return { label: 'Act now',      bg: '#FAECE7', text: '#993C1D' };
+      return { label: 'Act Now',      bg: '#FAECE7', text: '#993C1D' };
     case 'unrecoverable':
       return { label: 'Unrecoverable', bg: '#F1EFE8', text: '#5F5E5A' };
   }

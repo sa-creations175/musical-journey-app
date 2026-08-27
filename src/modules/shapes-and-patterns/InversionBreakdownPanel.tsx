@@ -487,12 +487,12 @@ function stageBadge(stage: AcquisitionStage | undefined): { label: string; class
   }
   if (stage === 'acquiring') {
     return {
-      label: 'In progress',
+      label: 'In Progress',
       className: 'bg-developing/15 text-developing',
     };
   }
   return {
-    label: 'Not started',
+    label: 'Not Started',
     className: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400',
   };
 }

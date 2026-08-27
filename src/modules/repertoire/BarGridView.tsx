@@ -2914,7 +2914,7 @@ function ChordCellBox({
 }
 
 const TAG_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'secondary_dominant', label: 'Secondary dom' },
+  { value: 'secondary_dominant', label: 'Secondary Dom' },
   { value: 'borrowed', label: 'Borrowed' },
   { value: 'passing', label: 'Passing' },
   { value: 'pedal', label: 'Pedal' },

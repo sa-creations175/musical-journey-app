@@ -190,8 +190,8 @@ export default function ScalesModes() {
         <span className="text-[11px] text-neutral-500 uppercase tracking-wide">sort reference:</span>
         <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
           {([
-            { id: 'brightness', label: 'brightness (brightest → darkest)' },
-            { id: 'parentScale', label: 'parent scale position' },
+            { id: 'brightness', label: 'Brightness (Brightest → Darkest)' },
+            { id: 'parentScale', label: 'Parent Scale Position' },
           ] as const).map(opt => (
             <button
               key={opt.id}
@@ -212,8 +212,8 @@ export default function ScalesModes() {
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-4">
         <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-sm">
           {([
-            { id: 'scale', label: 'hear the scale' },
-            { id: 'vamp', label: 'sit inside the mode' },
+            { id: 'scale', label: 'Hear the Scale' },
+            { id: 'vamp', label: 'Sit Inside the Mode' },
           ] as const).map(opt => (
             <button
               key={opt.id}

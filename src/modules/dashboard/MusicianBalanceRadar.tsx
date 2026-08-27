@@ -20,11 +20,11 @@ interface Axis {
 }
 
 const AXES: Axis[] = [
-  { key: 'theoretical', label: 'theoretical fluency', shortLabel: 'theory' },
-  { key: 'physical',    label: 'physical command',    shortLabel: 'hands' },
-  { key: 'musical',     label: 'musical application', shortLabel: 'repertoire' },
-  { key: 'creative',    label: 'creative genius',     shortLabel: 'creative' },
-  { key: 'consistency', label: 'consistency',         shortLabel: 'rhythm' },
+  { key: 'theoretical', label: 'Theoretical Fluency', shortLabel: 'Theory' },
+  { key: 'physical',    label: 'Physical Command',    shortLabel: 'Hands' },
+  { key: 'musical',     label: 'Musical Application', shortLabel: 'Repertoire' },
+  { key: 'creative',    label: 'Creative Genius',     shortLabel: 'Creative' },
+  { key: 'consistency', label: 'Consistency',         shortLabel: 'Rhythm' },
 ];
 
 /**

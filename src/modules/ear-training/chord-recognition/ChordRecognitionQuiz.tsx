@@ -830,7 +830,7 @@ export default function ChordRecognitionQuiz({
   }, [chords]);
 
   const familyFilter: FilterConfig = useMemo(() => ({
-    label: 'filter by family:',
+    label: 'Filter by Family:',
     options: FAMILY_FILTER_OPTIONS,
     isVisible: (chordId, activeFamilies) => {
       const fam = familyByChord.get(chordId);
@@ -1012,8 +1012,8 @@ export default function ChordRecognitionQuiz({
       <div className="flex flex-col items-center gap-3">
         <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
           {([
-            { id: 'blocked', label: 'blocked' },
-            { id: 'broken', label: 'broken' },
+            { id: 'blocked', label: 'Blocked' },
+            { id: 'broken', label: 'Broken' },
           ] as const).map(opt => (
             <button
               key={opt.id}
@@ -1040,9 +1040,9 @@ export default function ChordRecognitionQuiz({
           aria-disabled={playStyle !== 'broken'}
         >
           {([
-            { id: 'asc', label: 'ascending' },
-            { id: 'desc', label: 'descending' },
-            { id: 'both', label: 'both' },
+            { id: 'asc', label: 'Ascending' },
+            { id: 'desc', label: 'Descending' },
+            { id: 'both', label: 'Both' },
           ] as const).map(opt => (
             <button
               key={opt.id}
@@ -1211,7 +1211,7 @@ export default function ChordRecognitionQuiz({
           note={focusActive ? (
             <div className="rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
               <span className="font-medium text-fluent">focus mode is active</span> with these selections.
-              modify below and click <span className="font-medium">update focus session</span>, or{' '}
+              modify below and click <span className="font-medium">Update Focus Session</span>, or{' '}
               <button
                 type="button"
                 onClick={() => { setFocusActive(false); setShowFocusPanel(false); }}
@@ -1224,7 +1224,7 @@ export default function ChordRecognitionQuiz({
           ) : (
             <div className="rounded-lg bg-neutral-100 dark:bg-neutral-800/60 px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
               your last selection is shown below. you're currently in the full quiz — click{' '}
-              <span className="font-medium">start focus session</span> to narrow the quiz to the selected chords.
+              <span className="font-medium">Start Focus Session</span> to narrow the quiz to the selected chords.
             </div>
           )}
           filter={familyFilter}

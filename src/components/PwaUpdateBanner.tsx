@@ -75,7 +75,7 @@ export default function PwaUpdateBanner() {
     >
       <div className="rounded-lg bg-neutral-900 dark:bg-neutral-800 text-white shadow-lg px-3 py-2.5 flex items-center gap-3">
         <span className="text-sm font-medium flex-1 min-w-0 truncate">
-          New version available
+          New Version Available
         </span>
         <button
           type="button"

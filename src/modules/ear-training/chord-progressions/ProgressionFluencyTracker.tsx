@@ -324,9 +324,9 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
   // Also roll up per scaffolding mode so the user can see whether
   // Minimal mode is lagging Full.
   const scaffoldStats = useMemo(() => ([
-    { mode: 'full' as const, label: 'full scaffolding', stats: rollingFor(attempts, 'motion-mode:full') },
-    { mode: 'partial' as const, label: 'partial scaffolding', stats: rollingFor(attempts, 'motion-mode:partial') },
-    { mode: 'minimal' as const, label: 'minimal scaffolding', stats: rollingFor(attempts, 'motion-mode:minimal') },
+    { mode: 'full' as const, label: 'Full Scaffolding', stats: rollingFor(attempts, 'motion-mode:full') },
+    { mode: 'partial' as const, label: 'Partial Scaffolding', stats: rollingFor(attempts, 'motion-mode:partial') },
+    { mode: 'minimal' as const, label: 'Minimal Scaffolding', stats: rollingFor(attempts, 'motion-mode:minimal') },
   ]), [attempts]);
 
   return (
@@ -368,10 +368,10 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
 interface Props { attempts: AttemptRecord[]; }
 
 const VIEW_TABS: Array<{ id: ViewMode; label: string }> = [
-  { id: 'full-progression', label: 'full progression' },
-  { id: 'key-detection', label: 'key detection' },
-  { id: 'chord-motion', label: 'chord motion' },
-  { id: 'must-knows', label: 'must-knows only' },
+  { id: 'full-progression', label: 'Full Progression' },
+  { id: 'key-detection', label: 'Key Detection' },
+  { id: 'chord-motion', label: 'Chord Motion' },
+  { id: 'must-knows', label: 'Must-Knows Only' },
 ];
 
 export default function ProgressionFluencyTracker({ attempts }: Props) {

@@ -108,7 +108,7 @@ export default function DiaryEntryEditor({ entry, skill, skillId, starter, onClo
       <div className="space-y-4 text-sm">
         {starter && !entry?.userText && (
           <div className="rounded-md border border-fluent/30 bg-fluent/5 p-3 italic text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
-            <span className="text-fluent not-italic font-medium">starter:</span> {starter}
+            <span className="text-fluent not-italic font-medium">Starter:</span> {starter}
           </div>
         )}
 

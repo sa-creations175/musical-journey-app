@@ -99,23 +99,23 @@ export default function FocusPanel({
       emptySuggestionMessage="no modes in developing, needs-work, stale, or untouched tiers yet."
       extraQuickSelects={[
         {
-          label: 'church modes only',
+          label: 'Church Modes Only',
           compute: () => CHURCH_MODES as string[],
         },
         {
-          label: 'include harmonic + melodic minor',
+          label: 'Include Harmonic + Melodic Minor',
           compute: () => MODES.map(m => m.id),
         },
         {
-          label: 'brightest tier',
+          label: 'Brightest Tier',
           compute: () => brightnessTier('brightest'),
         },
         {
-          label: 'middle tier',
+          label: 'Middle Tier',
           compute: () => brightnessTier('middle'),
         },
         {
-          label: 'darkest tier',
+          label: 'Darkest Tier',
           compute: () => brightnessTier('darkest'),
         },
       ]}

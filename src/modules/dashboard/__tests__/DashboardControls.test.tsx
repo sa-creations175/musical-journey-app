@@ -366,7 +366,7 @@ describe('the nav-order default', () => {
     const fields = [...el.querySelectorAll('[data-testid^="sort-"]')]
       .filter(n => n.getAttribute('data-testid') !== 'sort-direction')
       .map(n => n.textContent);
-    expect(fields).toEqual(['nav order', 'accuracy', 'coverage', 'recency']);
+    expect(fields).toEqual(['Nav Order', 'Accuracy', 'Coverage', 'Recency']);
   });
 
   it('marks it active at the default view', () => {

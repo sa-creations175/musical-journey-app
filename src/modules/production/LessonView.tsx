@@ -147,7 +147,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
           className="w-full rounded-2xl border border-black/[0.07] px-4 py-3 text-left flex items-center justify-between hover:border-production/60 transition-colors"
         >
           <div>
-            <div className="text-sm font-medium">Deep dive</div>
+            <div className="text-sm font-medium">Deep Dive</div>
             <div className="text-[11px] text-neutral-500">
               Extended treatment — 15-30 minutes. More examples, nuance, reference songs.
             </div>

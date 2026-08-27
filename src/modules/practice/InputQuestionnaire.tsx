@@ -411,7 +411,7 @@ const CONTEXT_OPTIONS: ReadonlyArray<{
   { value: 'keys',   glyph: '⌨', label: 'Keys',         subtitle: 'keyboard only' },
   { value: 'laptop', glyph: '▭', label: 'Laptop',       subtitle: 'no keyboard, DAW available' },
   { value: 'phone',  glyph: '▯', label: 'Phone',        subtitle: 'most constrained' },
-  { value: 'full',   glyph: '⊕', label: 'Full session', subtitle: 'keys first, then everything' },
+  { value: 'full',   glyph: '⊕', label: 'Full Session', subtitle: 'keys first, then everything' },
 ];
 
 function Q2Context({
@@ -752,15 +752,15 @@ function UrgencyPill({ band }: { band: PaceBand | null }) {
   const { label, className } = (() => {
     switch (band) {
       case 'significantly-behind':
-        return { label: 'behind', className: 'bg-needswork/15 text-needswork border-needswork/40' };
+        return { label: 'Behind', className: 'bg-needswork/15 text-needswork border-needswork/40' };
       case 'behind':
-        return { label: 'behind', className: 'bg-needswork/10 text-needswork border-needswork/30' };
+        return { label: 'Behind', className: 'bg-needswork/10 text-needswork border-needswork/30' };
       case 'at-risk':
-        return { label: 'slip',   className: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300' };
+        return { label: 'Slip',   className: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/30 dark:text-amber-300' };
       case 'ahead':
-        return { label: 'ok',     className: 'bg-neutral-100 text-neutral-500 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700' };
+        return { label: 'OK',     className: 'bg-neutral-100 text-neutral-500 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-400 dark:border-neutral-700' };
       case 'well-ahead':
-        return { label: 'ahead',  className: 'bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-500 dark:border-neutral-700' };
+        return { label: 'Ahead',  className: 'bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-800 dark:text-neutral-500 dark:border-neutral-700' };
     }
   })();
   return (

@@ -14,8 +14,8 @@ type VerdictState = 'correct' | 'incorrect' | 'partial';
 
 const VERDICT: Record<VerdictState, { cls: string; icon: string; label: string }> = {
   correct: { cls: 'bg-fluent/10 text-fluent', icon: '✓', label: 'Correct' },
-  incorrect: { cls: 'bg-needswork/10 text-needswork', icon: '✗', label: 'Not quite' },
-  partial: { cls: 'bg-developing/10 text-developing', icon: '~', label: 'Half credit' },
+  incorrect: { cls: 'bg-needswork/10 text-needswork', icon: '✗', label: 'Not Quite' },
+  partial: { cls: 'bg-developing/10 text-developing', icon: '~', label: 'Half Credit' },
 };
 
 export default function AnswerVerdict({

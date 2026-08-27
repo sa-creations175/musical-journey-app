@@ -61,9 +61,9 @@ export default function FluencySessionSettings({
           <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1.5">display mode</div>
           <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
             {([
-              { id: 'text', label: 'text only' },
-              { id: 'number-grid', label: 'number grid' },
-              { id: 'keyboard', label: 'keyboard' },
+              { id: 'text', label: 'Text Only' },
+              { id: 'number-grid', label: 'Number Grid' },
+              { id: 'keyboard', label: 'Keyboard' },
             ] as const).map(opt => (
               <button
                 key={opt.id}

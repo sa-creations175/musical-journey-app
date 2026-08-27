@@ -60,7 +60,7 @@ const SESSION_RATING_OPTIONS: ReadonlyArray<{
   },
   {
     value: 'going_through_it',
-    label: 'Going through it',
+    label: 'Going Through It',
     activeClass: 'bg-teal-700 text-white border-teal-700',
     inactiveClass:
       'border-teal-700/40 text-teal-700 dark:text-teal-400 hover:bg-teal-700/10',

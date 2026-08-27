@@ -85,7 +85,7 @@ describe('the tab and the pool arrive together', () => {
     await setPref('chordProgressionsActiveTab', 'key-detection');
     const el = await renderAt(`${ROUTE}?tab=chord-motion&focus=motion:1-b2-asc`);
     expect(onChordMotion(el)).toBe(true);
-    expect(activeTab(el)).toContain('chord motion');
+    expect(activeTab(el)).toContain('Chord Motion');
   });
 
   it('still opens the tab you left it on when the URL names none', async () => {
@@ -94,7 +94,7 @@ describe('the tab and the pool arrive together', () => {
     await setPref('chordProgressionsActiveTab', 'key-detection');
     const el = await renderAt(ROUTE);
     expect(onChordMotion(el)).toBe(false);
-    expect(activeTab(el)).toContain('key detection');
+    expect(activeTab(el)).toContain('Key Detection');
   });
 
   it('carries focus protection in from the URL', async () => {

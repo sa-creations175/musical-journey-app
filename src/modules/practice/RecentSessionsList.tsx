@@ -75,7 +75,7 @@ export default function RecentSessionsList() {
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-xs font-medium text-neutral-600 dark:text-neutral-300">
-        Recent sessions
+        Recent Sessions
       </span>
       <ul className="flex flex-col gap-2">
         {sessions.map(s => (

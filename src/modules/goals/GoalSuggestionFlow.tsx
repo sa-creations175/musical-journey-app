@@ -131,10 +131,10 @@ interface HfCoverageGroupOption {
 }
 
 const HF_COVERAGE_GROUPS: ReadonlyArray<HfCoverageGroupOption> = [
-  { id: 'foundational',       label: 'foundational / math',  denominator: HF_COUNTS.byGroup.foundational,      accentHex: DASHBOARD_META.accentHex },
-  { id: 'chord-knowledge',    label: 'chord knowledge',      denominator: HF_COUNTS.byGroup.chordKnowledge,    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
-  { id: 'functional-applied', label: 'functional / applied', denominator: HF_COUNTS.byGroup.functionalApplied, accentHex: PRACTICE_SESSIONS_META.accentHex },
-  { id: 'ear-recognition',    label: 'ear & recognition',    denominator: HF_COUNTS.byGroup.earRecognition,    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
+  { id: 'foundational',       label: 'Foundational / Math',  denominator: HF_COUNTS.byGroup.foundational,      accentHex: DASHBOARD_META.accentHex },
+  { id: 'chord-knowledge',    label: 'Chord Knowledge',      denominator: HF_COUNTS.byGroup.chordKnowledge,    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
+  { id: 'functional-applied', label: 'Functional / Applied', denominator: HF_COUNTS.byGroup.functionalApplied, accentHex: PRACTICE_SESSIONS_META.accentHex },
+  { id: 'ear-recognition',    label: 'Ear & Recognition',    denominator: HF_COUNTS.byGroup.earRecognition,    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
 ];
 
 const MODULE_LABEL: Record<SuggestionFlowModule, string> = {
@@ -709,7 +709,7 @@ function HfFocusSection({
           Focus
         </div>
         <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          Cover cards to acquired stage
+          Cover Cards to Acquired Stage
         </div>
       </header>
 
@@ -907,7 +907,7 @@ function TargetDateField({
   return (
     <label className="flex flex-col gap-1">
       <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
-        Target date
+        Target Date
       </span>
       <input
         type="date"
@@ -1199,10 +1199,10 @@ interface EtCoverageGroupOption {
 }
 
 const ET_COVERAGE_GROUPS: ReadonlyArray<EtCoverageGroupOption> = [
-  { id: 'intervals',          label: 'intervals',          denominator: ET_COUNTS.intervals },
-  { id: 'chord-recognition',  label: 'chord recognition',  denominator: ET_COUNTS.chordRecognition },
-  { id: 'chord-progressions', label: 'chord progressions', denominator: ET_COUNTS.chordProgressions },
-  { id: 'scales-modes',       label: 'scales & modes',     denominator: ET_COUNTS.scalesModes },
+  { id: 'intervals',          label: 'Intervals',          denominator: ET_COUNTS.intervals },
+  { id: 'chord-recognition',  label: 'Chord Recognition',  denominator: ET_COUNTS.chordRecognition },
+  { id: 'chord-progressions', label: 'Chord Progressions', denominator: ET_COUNTS.chordProgressions },
+  { id: 'scales-modes',       label: 'Scales & Modes',     denominator: ET_COUNTS.scalesModes },
 ];
 
 function EarTrainingMonthlyBody({
@@ -1293,7 +1293,7 @@ function EtFocusSection({
       <header>
         <div className="text-[10px] uppercase tracking-wide text-fluent">Focus</div>
         <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          Reach acquired stage on items
+          Reach Acquired Stage on Items
         </div>
       </header>
       <div className="flex gap-1.5 flex-wrap">
@@ -1392,7 +1392,7 @@ function EtAccuracySection({
         <>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-neutral-700 dark:text-neutral-200">
-              Drill type
+              Drill Type
             </span>
             <select
               value={target.drillTypeId ?? ''}
@@ -1849,7 +1849,7 @@ function ShapesFocusSection({
       <header>
         <div className="text-[10px] uppercase tracking-wide text-fluent">Focus</div>
         <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          Reach acquired stage on shapes
+          Reach Acquired Stage on Shapes
         </div>
       </header>
       <div className="flex gap-1.5 flex-wrap">
@@ -2140,7 +2140,7 @@ function ProductionCompletionFocus({
       <header>
         <div className="text-[10px] uppercase tracking-wide text-fluent">Focus</div>
         <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          Complete production lessons
+          Complete Production Lessons
         </div>
       </header>
       <div className="flex gap-1.5 flex-wrap">
@@ -2299,7 +2299,7 @@ function PracticeConsistencyFocus({
       <header>
         <div className="text-[10px] uppercase tracking-wide text-fluent">Focus</div>
         <div className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          Show up consistently
+          Show Up Consistently
         </div>
       </header>
       <div className="space-y-2 text-sm">

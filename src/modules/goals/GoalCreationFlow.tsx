@@ -1732,16 +1732,16 @@ export interface DrillType {
 export const EAR_TRAINING_DRILL_TYPES: ReadonlyArray<DrillType> = [
   {
     id: 'intervals',
-    label: 'intervals',
+    label: 'Intervals',
     subtypes: [
-      { id: 'ascending',  label: 'ascending'  },
-      { id: 'descending', label: 'descending' },
-      { id: 'both',       label: 'both'       },
+      { id: 'ascending',  label: 'Ascending'  },
+      { id: 'descending', label: 'Descending' },
+      { id: 'both',       label: 'Both'       },
     ],
   },
   {
     id: 'chord-recognition',
-    label: 'chord recognition',
+    label: 'Chord Recognition',
     subtypes: [
       { id: 'foundational', label: 'Foundational Triads' },
       { id: 'seventh',      label: 'Seventh Chords'      },
@@ -1751,19 +1751,19 @@ export const EAR_TRAINING_DRILL_TYPES: ReadonlyArray<DrillType> = [
   },
   {
     id: 'chord-progressions',
-    label: 'chord progressions',
+    label: 'Chord Progressions',
     subtypes: [
-      { id: 'key-detection',    label: 'key detection'    },
-      { id: 'chord-motion',     label: 'chord motion'     },
-      { id: 'full-progression', label: 'full progression' },
+      { id: 'key-detection',    label: 'Key Detection'    },
+      { id: 'chord-motion',     label: 'Chord Motion'     },
+      { id: 'full-progression', label: 'Full Progression' },
     ],
   },
   {
     id: 'scales-modes',
-    label: 'scales & modes',
+    label: 'Scales & Modes',
     subtypes: [
-      { id: 'modes',                label: 'modes'                },
-      { id: 'minor-scale-variants', label: 'minor scale variants' },
+      { id: 'modes',                label: 'Modes'                },
+      { id: 'minor-scale-variants', label: 'Minor Scale Variants' },
     ],
   },
 ];
@@ -1785,10 +1785,10 @@ const ACCURACY_PCT_STEP = 5;
  */
 const ET_COUNTS = earTrainingCounts();
 const EAR_TRAINING_COVERAGE_GROUPS = [
-  { id: 'intervals',          label: 'intervals',          denominator: ET_COUNTS.intervals },
-  { id: 'chord-recognition',  label: 'chord recognition',  denominator: ET_COUNTS.chordRecognition },
-  { id: 'chord-progressions', label: 'chord progressions', denominator: ET_COUNTS.chordProgressions },
-  { id: 'scales-modes',       label: 'scales & modes',     denominator: ET_COUNTS.scalesModes },
+  { id: 'intervals',          label: 'Intervals',          denominator: ET_COUNTS.intervals },
+  { id: 'chord-recognition',  label: 'Chord Recognition',  denominator: ET_COUNTS.chordRecognition },
+  { id: 'chord-progressions', label: 'Chord Progressions', denominator: ET_COUNTS.chordProgressions },
+  { id: 'scales-modes',       label: 'Scales & Modes',     denominator: ET_COUNTS.scalesModes },
 ] as const;
 
 const EAR_TRAINING_TOTAL_ITEMS = ET_COUNTS.total;
@@ -2147,10 +2147,10 @@ interface HarmonicFluencyCoverageGroup {
 
 const HF_COUNTS = harmonicFluencyCounts();
 const HARMONIC_FLUENCY_COVERAGE_GROUPS: ReadonlyArray<HarmonicFluencyCoverageGroup> = [
-  { id: 'foundational',       label: 'foundational / math',  denominator: HF_COUNTS.byGroup.foundational,      accentHex: DASHBOARD_META.accentHex },
-  { id: 'chord-knowledge',    label: 'chord knowledge',      denominator: HF_COUNTS.byGroup.chordKnowledge,    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
-  { id: 'functional-applied', label: 'functional / applied', denominator: HF_COUNTS.byGroup.functionalApplied, accentHex: PRACTICE_SESSIONS_META.accentHex },
-  { id: 'ear-recognition',    label: 'ear & recognition',    denominator: HF_COUNTS.byGroup.earRecognition,    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
+  { id: 'foundational',       label: 'Foundational / Math',  denominator: HF_COUNTS.byGroup.foundational,      accentHex: DASHBOARD_META.accentHex },
+  { id: 'chord-knowledge',    label: 'Chord Knowledge',      denominator: HF_COUNTS.byGroup.chordKnowledge,    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
+  { id: 'functional-applied', label: 'Functional / Applied', denominator: HF_COUNTS.byGroup.functionalApplied, accentHex: PRACTICE_SESSIONS_META.accentHex },
+  { id: 'ear-recognition',    label: 'Ear & Recognition',    denominator: HF_COUNTS.byGroup.earRecognition,    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
 ];
 
 const HARMONIC_FLUENCY_TOTAL_ITEMS = HF_COUNTS.total;
@@ -2856,12 +2856,12 @@ interface ProductionCoverageGroup {
 
 const PROD_COUNTS = productionCounts();
 const PRODUCTION_COVERAGE_GROUPS: ReadonlyArray<ProductionCoverageGroup> = [
-  { id: 'workflow-foundations',   label: 'workflow foundations',         denominator: PROD_COUNTS.byPath['workflow-foundations']   ?? 0 },
-  { id: 'language-of-production', label: 'the language of production',   denominator: PROD_COUNTS.byPath['language-of-production'] ?? 0 },
-  { id: 'vocal-production',       label: 'vocal production',             denominator: PROD_COUNTS.byPath['vocal-production']       ?? 0 },
-  { id: 'genre-productions',      label: 'genre productions',            denominator: PROD_COUNTS.byPath['genre-productions']      ?? 0 },
-  { id: 'arrangement',            label: 'arrangement & song structure', denominator: PROD_COUNTS.byPath['arrangement']            ?? 0 },
-  { id: 'business',               label: 'the business of music',        denominator: PROD_COUNTS.byPath['business']               ?? 0 },
+  { id: 'workflow-foundations',   label: 'Workflow Foundations',         denominator: PROD_COUNTS.byPath['workflow-foundations']   ?? 0 },
+  { id: 'language-of-production', label: 'The Language of Production',   denominator: PROD_COUNTS.byPath['language-of-production'] ?? 0 },
+  { id: 'vocal-production',       label: 'Vocal Production',             denominator: PROD_COUNTS.byPath['vocal-production']       ?? 0 },
+  { id: 'genre-productions',      label: 'Genre Productions',            denominator: PROD_COUNTS.byPath['genre-productions']      ?? 0 },
+  { id: 'arrangement',            label: 'Arrangement & Song Structure', denominator: PROD_COUNTS.byPath['arrangement']            ?? 0 },
+  { id: 'business',               label: 'The Business of Music',        denominator: PROD_COUNTS.byPath['business']               ?? 0 },
 ];
 
 const PRODUCTION_TOTAL_LESSONS = PROD_COUNTS.total;

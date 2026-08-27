@@ -37,7 +37,7 @@ export default function WeeklyPlanBanner({ onOpenPlan }: Props) {
     <div className="rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3 flex items-start gap-3">
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
-          Plan your week
+          Plan Your Week
         </div>
         <div className="text-xs text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
           You haven't set this week's plan yet. Review last week's pace, set

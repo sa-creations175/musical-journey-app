@@ -370,7 +370,7 @@ function NewArrangementModal({
               className="mt-1"
             />
             <span>
-              <span className="font-medium">start blank</span>
+              <span className="font-medium">Start Blank</span>
               <span className="block text-[11px] text-neutral-500">same beats / words, no chord placements yet.</span>
             </span>
           </label>

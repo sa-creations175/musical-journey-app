@@ -14,7 +14,7 @@ import {
 describe('pillConfig', () => {
   it('on_track → "On track" with green palette', () => {
     expect(pillConfig('on_track')).toEqual({
-      label: 'On track',
+      label: 'On Track',
       bg: '#EAF3DE',
       text: '#3B6D11',
     });
@@ -30,7 +30,7 @@ describe('pillConfig', () => {
 
   it('critical → "Act now" with orange palette', () => {
     expect(pillConfig('critical')).toEqual({
-      label: 'Act now',
+      label: 'Act Now',
       bg: '#FAECE7',
       text: '#993C1D',
     });
