@@ -4,7 +4,6 @@ import {
   db,
   type DrillSession,
   type DrillSkill,
-  type DrillType,
   type SpacingState,
   type DrillHand,
 } from '../../lib/db';
@@ -14,7 +13,7 @@ import { bandVerdictLabel, NOT_STARTED, type BandVerdict } from '../../lib/spaci
 import { accuracyBandDef, type AccuracyBand } from '../../lib/spacing/bands';
 import { HAND_ORDER } from './acquisition';
 import DrillListModal from './DrillListModal';
-import DrillSessionModal from './DrillSessionModal';
+import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import {
   CHORD_QUALITY_BY_ID,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
@@ -66,10 +65,11 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
   //     the supplementary two-handed-drills row on sevenths, or any
   //     row the user has added customs to) — go through DrillListModal
   //     so they can pick which one.
-  const [openSession, setOpenSession] = useState<
-    { skill: DrillSkill; drillType: DrillType; hand: DrillHand } | null
-  >(null);
   const [openSkill, setOpenSkill] = useState<DrillSkill | null>(null);
+  /** The Practice/Test shell, opened by a grid square. Holds only what
+   *  the header needs — it writes nothing in commit 1, so there is no
+   *  skill row to carry. */
+  const [openPractice, setOpenPractice] = useState<{ skillLabel: string } | null>(null);
   // Self-assessment dismissal: hides the prompt for the lifetime of
   // the panel after the user picks "Not started" (no spacingState
   // rows get created in that case, so the persistence-based check
@@ -94,24 +94,13 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
     [keyName, quality],
   ) ?? [];
 
-  // Live drill types — still needed to decide whether to route a row
-  // through DrillListModal (multiple drills to pick from) or
-  // DrillSessionModal directly (single seed drill).
+  // THE DRILL-TYPE LOOKUP WENT WITH THE ROUTE THAT NEEDED IT. It
+  // existed to decide whether a square opened DrillListModal (several
+  // drills to pick from) or DrillSessionModal (one seed drill); a
+  // square opens the Practice/Test shell now and asks neither
+  // question. `skillIds` stays — the last-drilled reads below still
+  // need it.
   const skillIds = useMemo(() => new Set(skills.map(s => s.id)), [skills]);
-  const drillTypes = useLiveQuery<DrillType[]>(
-    () => db.drillTypes.toArray(),
-    [],
-  ) ?? [];
-  const typesBySkill = useMemo(() => {
-    const m = new Map<string, DrillType[]>();
-    for (const t of drillTypes) {
-      if (!skillIds.has(t.skillId)) continue;
-      const arr = m.get(t.skillId) ?? [];
-      arr.push(t);
-      m.set(t.skillId, arr);
-    }
-    return m;
-  }, [drillTypes, skillIds]);
 
   // Last-practiced per skill, read directly from db.drillSessions —
   // the canonical "this drill happened" record. Earlier versions of
@@ -300,7 +289,6 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
               {gridStates.map(state => {
                 const skill = skills.find(sk => (sk.inversionState ?? null) === state);
                 const itemRef = state ? `${itemRefPrefix}:${state}` : itemRefPrefix;
-                const skillTypes = skill ? typesBySkill.get(skill.id) ?? [] : [];
                 return (
                   <tr key={state ?? 'single'}>
                     <th scope="row" className="border-b border-r border-neutral-200
@@ -317,12 +305,21 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
                             : null}
                           disabled={!skill}
                           onDrill={() => {
+                            // THE SQUARE OPENS THE PRACTICE/TEST SHELL
+                            // NOW. It used to open the drill modal
+                            // straight away, which asked how long and
+                            // then ran one drill; the shell asks what
+                            // KIND of sitting this is first, and holds
+                            // as many drills as you want inside one
+                            // clock. Commit 1 of 4 — see the panel's
+                            // own note for what is not in it yet.
+                            //
+                            // `skill` still gates the press so an
+                            // un-materialised row cannot open one.
                             if (!skill) return;
-                            if (skillTypes.length === 1) {
-                              setOpenSession({ skill, drillType: skillTypes[0], hand });
-                            } else {
-                              setOpenSkill(skill);
-                            }
+                            setOpenPractice({
+                              skillLabel: `${state ? inversionStateLabel(state) : 'Drills'} · ${HAND_COLUMN_LABEL[hand]}`,
+                            });
                           }}
                         />
                       </td>
@@ -367,21 +364,17 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
         )}
       </div>
 
-      {openSession && (
-        <DrillSessionModal
-          skill={openSession.skill}
-          drillType={openSession.drillType}
-          // ONE SQUARE, ONE HAND. Tapping the left-hand square must not
-          // walk the reader through the right hand to reach it.
-          hands={[openSession.hand]}
-          onClose={() => setOpenSession(null)}
-          onLogged={() => setOpenSession(null)}
-        />
-      )}
       {openSkill && (
         <DrillListModal
           skill={openSkill}
           onClose={() => setOpenSkill(null)}
+        />
+      )}
+      {openPractice && (
+        <PracticeTestPanel
+          cellLabel={cellLabel}
+          skillLabel={openPractice.skillLabel}
+          onClose={() => setOpenPractice(null)}
         />
       )}
     </Modal>

@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walk The Drill</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#F2F3F0; --surface:#FBFBFA; --surface-2:#F6F7F4;
+    --ink:#1E211F; --ink-2:#494E4A; --muted:#787E79; --faint:#9AA09B;
+    --line:#E1E3DE; --line-strong:#CFD2CC;
+    --accent:#2F7D5C; --accent-soft:#E4EFE8;
+    --flag:#B8791F; --flag-soft:#F7EEDC;
+    --r-needs:#C05548; --r-dev:#CE9530; --r-fluent:#4FA278; --r-mastered:#5386BE; --r-none:#A9AEA9;
+    --mod:#C2803A;
+    --fs-4:.875rem; --fs-5:.78rem; --fs-6:.69rem;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#16181A; --surface:#1D2022; --surface-2:#212527;
+      --ink:#ECEEEB; --ink-2:#C3C8C4; --muted:#939994; --faint:#767C77;
+      --line:#2C3134; --line-strong:#3C4245;
+      --accent:#6FBF97; --accent-soft:#1E332A;
+      --flag:#D9A653; --flag-soft:#33291A;
+      --r-needs:#DD7A6B; --r-dev:#E0AF52; --r-fluent:#6FC395; --r-mastered:#7CA9DC; --r-none:#787E7A;
+      --mod:#DA9E5C;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#16181A; --surface:#1D2022; --surface-2:#212527;
+    --ink:#ECEEEB; --ink-2:#C3C8C4; --muted:#939994; --faint:#767C77;
+    --line:#2C3134; --line-strong:#3C4245;
+    --accent:#6FBF97; --accent-soft:#1E332A;
+    --flag:#D9A653; --flag-soft:#33291A;
+    --r-needs:#DD7A6B; --r-dev:#E0AF52; --r-fluent:#6FC395; --r-mastered:#7CA9DC; --r-none:#787E7A;
+    --mod:#DA9E5C;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Instrument Sans",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+    font-size:1rem;line-height:1.55;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums;}
+
+  .wrap{max-width:1140px;margin:0 auto;padding:clamp(1.5rem,4vw,3rem) clamp(1rem,3vw,2rem) 4rem;
+    display:flex;flex-direction:column;gap:1.5rem;}
+  .eyebrow{font-size:var(--fs-6);letter-spacing:.13em;text-transform:uppercase;font-weight:600;color:var(--mod);margin:0 0 .4rem;}
+  h1{font-size:clamp(1.6rem,1.2rem + 1.4vw,2.2rem);line-height:1.1;letter-spacing:-.02em;font-weight:600;margin:0 0 .5rem;}
+  .lede{margin:0;max-width:66ch;color:var(--ink-2);font-size:.97rem;}
+
+  .switch{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;}
+  .switch button{font:inherit;font-size:var(--fs-5);font-weight:600;cursor:pointer;
+    background:var(--surface);border:1px solid var(--line-strong);color:var(--ink-2);
+    border-radius:999px;padding:.4rem 1rem;}
+  .switch button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .switch button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .switch .sep{width:1px;height:1.4rem;background:var(--line-strong);margin:0 .3rem;}
+
+  .cols{display:grid;gap:1.3rem;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);align-items:start;}
+  @media (max-width:920px){.cols{grid-template-columns:1fr;}}
+
+  .device{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:clamp(.7rem,2vw,1.4rem);}
+  .modal{background:var(--surface);border:1px solid var(--line-strong);border-radius:12px;
+    box-shadow:0 14px 34px -22px rgba(0,0,0,.45);overflow:hidden;}
+  .mhead{padding:1rem 1.25rem .9rem;border-bottom:1px solid var(--line);}
+  .mhead .primary{font-size:1.15rem;font-weight:600;letter-spacing:-.01em;margin:0;color:var(--mod);}
+  .mhead .secondary{margin:.15rem 0 0;font-size:var(--fs-4);color:var(--ink-2);}
+  .mhead .secondary b{color:var(--ink);font-weight:700;}
+  .mhead .chords{margin:.55rem 0 0;display:grid;grid-auto-flow:column;
+    grid-auto-columns:max-content;align-items:start;gap:.5rem;overflow-x:auto;padding-bottom:.15rem;}
+  .mhead .chords .ch{display:flex;flex-direction:column;gap:.05rem;}
+  .mhead .chords .sym{font-size:var(--fs-4);font-weight:700;color:var(--accent);}
+  .mhead .chords .pos{font-size:var(--fs-6);font-weight:700;letter-spacing:.1em;color:var(--faint);
+    border-bottom:1px solid var(--line-strong);padding-bottom:.28rem;margin-bottom:.28rem;}
+  .mhead .chords .nts{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+    font-size:.66rem;color:var(--muted);white-space:nowrap;}
+  .mhead .chords .arw{color:var(--faint);font-size:var(--fs-5);align-self:center;padding-top:.2rem;}
+  .mhead .chords .nts i{font-style:italic;color:var(--faint);}
+  .mhead .rownote{margin:.5rem 0 0;font-size:var(--fs-6);color:var(--muted);max-width:62ch;line-height:1.5;}
+  .desc{border-top:1px solid var(--line);padding-top:.5rem;margin-top:.5rem;}
+  .desc:first-child{border-top:0;padding-top:0;margin-top:0;}
+  .desclab{display:flex;align-items:baseline;gap:.45rem;margin:0 0 .25rem;}
+  .desclab b{font-size:var(--fs-6);font-weight:700;color:var(--ink);letter-spacing:.01em;}
+  .desclab .scope{font-size:var(--fs-6);color:var(--faint);font-weight:500;}
+  .desclab .edited{font-size:var(--fs-6);color:var(--accent);font-weight:600;}
+  .desclab .sp{flex:1;}
+  .desctext{margin:0;font-size:var(--fs-6);color:var(--muted);line-height:1.5;}
+  .desctext.blank{font-style:italic;color:var(--faint);}
+  .lnk{font:inherit;font-size:var(--fs-6);font-weight:600;color:var(--accent);
+    background:none;border:0;padding:0;cursor:pointer;}
+  .lnk:hover{text-decoration:underline;}
+  .lnk.quiet{color:var(--faint);font-weight:500;}
+  .desc textarea{width:100%;box-sizing:border-box;font:inherit;font-size:var(--fs-6);line-height:1.5;
+    color:var(--ink);background:var(--surface-2);border:1px solid var(--line-strong);
+    border-radius:.35rem;padding:.4rem .5rem;resize:vertical;min-height:4.2rem;}
+  .desc textarea:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .descbtns{display:flex;gap:.6rem;align-items:center;margin-top:.35rem;}
+  .mbody{padding:1.05rem 1.25rem 1.25rem;display:flex;flex-direction:column;gap:1rem;}
+  .mfoot{padding:.75rem 1.25rem;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap;}
+
+  .lbl{font-size:var(--fs-6);letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--faint);
+    margin:0 0 .5rem;display:flex;justify-content:space-between;align-items:baseline;gap:.75rem;}
+  .lbl .hint{letter-spacing:0;text-transform:none;font-weight:500;color:var(--muted);font-size:var(--fs-5);}
+
+  button.opt{font:inherit;text-align:left;cursor:pointer;background:var(--surface);
+    border:1px solid var(--line-strong);border-radius:9px;padding:.75rem .9rem;color:inherit;
+    display:flex;flex-direction:column;gap:.2rem;width:100%;}
+  button.opt:hover{border-color:var(--accent);}
+  button.opt:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  button.opt .t{font-weight:600;font-size:.96rem;}
+  button.opt .d{font-size:var(--fs-5);color:var(--muted);line-height:1.42;}
+  button.opt.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent);}
+  .optrow{display:grid;gap:.55rem;grid-template-columns:1fr 1fr;}
+  .centre-span{grid-column:1 / -1;display:flex;justify-content:center;}
+  .centre-span > .opt{width:calc(50% - .275rem);}
+  @media (max-width:560px){.optrow{grid-template-columns:1fr;} .centre-span > .opt{width:100%;}}
+
+  .grid{width:100%;border-collapse:collapse;}
+  .grid th,.grid td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;}
+  .grid td:last-child,.grid th:last-child{border-right:0;}
+  .grid tr:last-child td,.grid tr:last-child th{border-bottom:0;}
+  .grid thead th{font-size:var(--fs-6);letter-spacing:.11em;text-transform:uppercase;color:var(--faint);font-weight:600;padding:.5rem .4rem;}
+  .grid tbody th{text-align:left;font-weight:500;font-size:var(--fs-5);padding:.5rem .7rem;white-space:nowrap;}
+  .grid td{padding:.28rem;}
+  .cell{width:100%;font:inherit;cursor:pointer;background:transparent;border:1px solid transparent;border-radius:7px;
+    padding:.35rem .2rem;display:flex;flex-direction:column;align-items:center;gap:.08rem;color:inherit;}
+  .cell:hover{background:var(--surface-2);border-color:var(--line-strong);}
+  .cell:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+  .rat{display:inline-flex;align-items:center;gap:.3rem;font-size:var(--fs-6);font-weight:600;white-space:nowrap;}
+  .dot{width:.45rem;height:.45rem;border-radius:2px;flex:none;}
+  .fr{font-family:"IBM Plex Mono",monospace;font-size:.62rem;color:var(--faint);}
+
+  .chips{display:flex;flex-wrap:wrap;gap:.35rem;}
+  .chip{font:inherit;font-size:var(--fs-5);font-weight:500;cursor:pointer;
+    border:1px solid var(--line-strong);background:var(--surface);border-radius:7px;padding:.25rem .65rem;color:var(--ink-2);}
+  .chip.sel{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  .chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  select{font:inherit;font-size:var(--fs-5);padding:.3rem .5rem;border-radius:7px;
+    border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);}
+  textarea{font:inherit;font-size:var(--fs-5);width:100%;min-height:3.4rem;resize:vertical;
+    border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);color:var(--ink);padding:.5rem .6rem;}
+  textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+
+  .box{border:1px solid var(--line);border-radius:9px;padding:.8rem .9rem;display:flex;flex-direction:column;gap:.5rem;}
+  .between{display:flex;align-items:center;justify-content:space-between;gap:.75rem;font-size:var(--fs-5);color:var(--ink-2);}
+
+  .clock{border:1px solid var(--line);border-radius:9px;padding:.9rem;text-align:center;
+    font-family:"IBM Plex Mono",monospace;font-size:2rem;font-variant-numeric:tabular-nums;letter-spacing:.02em;}
+  .clock.big{font-size:2.7rem;}
+  .clock small{display:block;font-family:"Instrument Sans",sans-serif;font-size:var(--fs-6);
+    letter-spacing:.12em;text-transform:uppercase;color:var(--faint);margin-top:.25rem;font-weight:600;}
+  .clock.session{background:var(--surface-2);}
+  .clock.down{border-color:var(--accent);}
+
+  .btn{font:inherit;font-size:var(--fs-5);font-weight:600;cursor:pointer;border-radius:8px;padding:.5rem 1.05rem;
+    background:var(--surface);border:1px solid var(--line-strong);color:var(--ink);}
+  .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--muted);}
+  .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .row{display:flex;gap:.5rem;flex-wrap:wrap;}
+
+  .drills{display:flex;flex-direction:column;gap:.35rem;}
+  .drill{display:flex;align-items:center;gap:.55rem;border:1px solid var(--line);border-radius:8px;
+    padding:.45rem .65rem;font-size:var(--fs-5);}
+  .drill .n{color:var(--faint);font-weight:700;font-family:"IBM Plex Mono",monospace;font-size:.7rem;}
+  .drill .what{flex:1;min-width:0;}
+  .drill .what b{font-weight:600;}
+  .drill .meta{font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--faint);display:block;}
+  .drill .below{font-size:var(--fs-6);color:var(--flag);font-weight:700;}
+  .drill.empty{color:var(--muted);justify-content:center;border-style:dashed;}
+  .drill.pending{border-style:dashed;color:var(--muted);}
+
+  .banner{border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0;
+    padding:.7rem .9rem;font-size:var(--fs-5);color:var(--ink-2);}
+  .banner b{color:var(--ink);}
+  .banner.warn{border-left-color:var(--flag);background:var(--flag-soft);}
+
+  .side{display:flex;flex-direction:column;gap:.9rem;position:sticky;top:1rem;}
+  .panel{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:.95rem 1.05rem;}
+  .panel h3{margin:0 0 .5rem;font-size:var(--fs-6);letter-spacing:.11em;text-transform:uppercase;color:var(--faint);font-weight:700;}
+  .panel ul{margin:0;padding-left:1.05rem;display:flex;flex-direction:column;gap:.3rem;}
+  .panel li{font-size:var(--fs-5);color:var(--ink-2);}
+  .panel li b{color:var(--ink);}
+  .panel.differs{border-left:3px solid var(--flag);}
+  .panel.differs h3{color:var(--flag);}
+  .panel pre{margin:0;font-family:"IBM Plex Mono",monospace;font-size:.7rem;line-height:1.6;
+    color:var(--ink-2);white-space:pre-wrap;word-break:break-word;}
+
+  .trail{display:flex;flex-wrap:wrap;gap:.25rem;align-items:center;font-size:var(--fs-6);color:var(--faint);
+    letter-spacing:.08em;text-transform:uppercase;font-weight:600;}
+  .trail span.on{color:var(--accent);}
+  .trail i{font-style:normal;opacity:.5;}
+
+  /* log view */
+  .logentry{border:1px solid var(--line);border-radius:9px;padding:.7rem .85rem;display:flex;flex-direction:column;gap:.4rem;}
+  .logentry .top{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;flex-wrap:wrap;}
+  .logentry .kind{font-size:var(--fs-6);letter-spacing:.1em;text-transform:uppercase;font-weight:700;}
+  .logentry .kind.practice{color:var(--muted);}
+  .logentry .kind.test{color:var(--accent);}
+  .logentry .when{font-family:"IBM Plex Mono",monospace;font-size:.68rem;color:var(--faint);}
+  .logentry ul{margin:0;padding-left:1rem;display:flex;flex-direction:column;gap:.2rem;}
+  .logentry li{font-size:var(--fs-5);color:var(--ink-2);}
+  .logentry li .meta{font-family:"IBM Plex Mono",monospace;font-size:.66rem;color:var(--faint);}
+  .logentry .note{font-size:var(--fs-5);color:var(--muted);font-style:italic;}
+  @media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Prototype · nothing is saved</p>
+    <h1>Walk The Drill</h1>
+    <p class="lede">A session clock that counts up and never pauses, and drills inside it that count down. Practice drills are optional and stop at Developing. Test drills are three, at target, and are the only way past it. Same shell on four surfaces. On voice-leading, both descriptions are editable. The pattern one is about the shape and follows you into every key; note names live only in the key one. Clocks run at 4× so you are not sitting here.</p>
+  </header>
+
+  <div class="switch" id="switch"></div>
+
+  <div class="cols">
+    <div>
+      <div class="device">
+        <div class="modal">
+          <div class="mhead">
+            <p class="primary" id="hPrimary"></p>
+            <p class="secondary" id="hSecondary"></p>
+            <p class="chords" id="hChords"></p>
+            <p class="rownote" id="hNote"></p>
+          </div>
+          <div class="mbody" id="stage"></div>
+          <div class="mfoot">
+            <button class="btn ghost" id="back">← Back</button>
+            <div class="trail" id="trail"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <h3>Identical everywhere</h3>
+        <ul>
+          <li>Session clock up, drill clock down</li>
+          <li>The mode chooser and its wording</li>
+          <li>The full metronome — groove, subdivision, preview. Never a reduced copy.</li>
+          <li>The four rating words and their order</li>
+          <li>Three test drills, at target, lowest wins</li>
+          <li>The below-target marker</li>
+          <li>The cell's practice log</li>
+        </ul>
+      </div>
+      <div class="panel differs">
+        <h3 id="dTitle">Allowed to differ</h3>
+        <ul id="dList"></ul>
+      </div>
+      <div class="panel">
+        <h3>What would be written</h3>
+        <pre id="log">Nothing yet — walk to the end of a path.</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var BANDS = {
+    needs:{label:"Needs Work",cls:"r-needs"}, dev:{label:"Developing",cls:"r-dev"},
+    fluent:{label:"Fluent",cls:"r-fluent"}, master:{label:"Mastered",cls:"r-mastered"},
+    started:{label:"Started",cls:"r-none"}, none:{label:"Not Started",cls:"r-none"}
+  };
+  var FEEL = [
+    {k:1,w:"Struggled",hint:"breakdowns, not flowing"},
+    {k:2,w:"Working On It",hint:"getting there, still effortful"},
+    {k:3,w:"Clean",hint:"steady, clean execution"},
+    {k:4,w:"In Flow",hint:"effortless, automatic"}
+  ];
+  function feelOf(k){ return FEEL.filter(function(f){return f.k===k;})[0]; }
+  function bandFor(feels){
+    var lo = Math.min.apply(null, feels);
+    return lo===1?"needs":lo===2?"dev":lo===3?"fluent":"master";
+  }
+
+  var SURFACES = {
+    chord:{
+      name:"Chord Shape", primary:"C Major", secondary:"Shapes & Patterns · chord shapes",
+      rateLabel:"changes a minute", target:60, manner:true,
+      rateOptions:[{v:1,t:"One Shape Per Beat"},{v:2,t:"One Shape Every 2 Beats"},{v:4,t:"One Shape Every 4 Beats"}],
+      rateFrom:function(bpm,per){ return Math.round(bpm/per); },
+      differs:[
+        "<b>A grid</b> — inversions down, hands across. The square you press is the skill.",
+        "<b>Broken or blocked</b> on each practice drill. A test drill is always blocked.",
+        "<b>Hands</b> — left, right, both, each rated on its own."
+      ],
+      entry:gridEntry
+    },
+    scales:{
+      name:"Scale", primary:"C Major Scale", secondary:"Shapes & Patterns · scales",
+      rateLabel:"notes a minute", target:240, manner:false,
+      rateOptions:[{v:1,t:"One Note Per Beat"},{v:2,t:"Two Notes Per Beat"},{v:4,t:"Four Notes Per Beat"}],
+      rateFrom:function(bpm,per){ return Math.round(bpm*per); },
+      differs:[
+        "<b>A hand chooser</b>, not a grid — a scale has no inversions.",
+        "<b>No broken or blocked.</b> A scale is a single line; there is nothing to block.",
+        "<b>The rate reads in notes per beat</b>, because here you are faster than the click."
+      ],
+      entry:handEntry
+    },
+    voice:{
+      name:"Voice-Leading", primary:"Major 2–5–1", secondary:"Shapes & Patterns · voice-leading",
+      rateLabel:"chord changes a minute", target:60, manner:false,
+      skipEntry:true,
+      keys:["E\u266d","F","A"],
+      rowSets:{
+        guide:{
+          label:"Guide Tones", pos:"Position 1",
+          note:"Two notes, the 3rd and the 7th. There is no freedom here \u2014 the ii\u2019s 3rd is held as the V\u2019s 7th, then falls to the I\u2019s 3rd; the ii\u2019s 7th falls a half step to the V\u2019s 3rd and stays as the I\u2019s 7th. That is the whole ii\u2013V\u2013I in two voices.",
+          byKey:{
+            "E\u266d":{
+              chords:[
+                {sym:"Fm7",    lh:"F",  rh:"A\u266d E\u266d"},
+                {sym:"B\u266d7",    lh:"B\u266d", rh:"A\u266d D"},
+                {sym:"E\u266dmaj7", lh:"E\u266d", rh:"G D"}
+              ],
+              keyNote:"A\u266d holds, then falls to G. E\u266d falls to D and stays."
+            },
+            "F":{
+              chords:[
+                {sym:"Gm7",    lh:"G",  rh:"B\u266d F"},
+                {sym:"C7",     lh:"C",  rh:"B\u266d E"},
+                {sym:"Fmaj7",  lh:"F",  rh:"A E"}
+              ],
+              keyNote:"B\u266d holds, then falls to A. F falls to E and stays."
+            },
+            "A":{
+              chords:[
+                {sym:"Bm7",    lh:"B",  rh:"D A"},
+                {sym:"E7",     lh:"E",  rh:"D G\u266f"},
+                {sym:"Amaj7",  lh:"A",  rh:"C\u266f G\u266f"}
+              ],
+              keyNote:"D holds, then falls to C\u266f. A falls to G\u266f and stays."
+            }
+          }
+        },
+        seventh:{
+          label:"Seventh Chords", pos:"Position 1",
+          note:"Position 1 fixes where the right hand starts \u2014 on the 3rd. How you resolve from there is yours: up, down, or with a line threaded through. The app doesn\u2019t print a path it can\u2019t know.",
+          byKey:{
+            "E\u266d":{
+              chords:[
+                {sym:"Fm7",    lh:"F",  rh:"A\u266d C E\u266d"},
+                {sym:"B\u266d7"},
+                {sym:"E\u266dmaj7"}
+              ],
+              keyNote:""
+            },
+            "F":{
+              chords:[
+                {sym:"Gm7",    lh:"G",  rh:"B\u266d D F"},
+                {sym:"C7"},
+                {sym:"Fmaj7"}
+              ],
+              keyNote:""
+            },
+            "A":{
+              chords:[
+                {sym:"Bm7",    lh:"B",  rh:"D F\u266f A"},
+                {sym:"E7"},
+                {sym:"Amaj7"}
+              ],
+              keyNote:""
+            }
+          }
+        },
+        extended:{
+          label:"Extended Voicings", pos:"Position A",
+          note:"A and B are a real convention, so the whole thing is determined. One voice moves on the first change; everything else is a common tone.",
+          byKey:{
+            "E\u266d":{
+              chords:[
+                {sym:"Fm9",    pos:"A", lh:"F",  rh:"A\u266d C E\u266d G"},
+                {sym:"B\u266d13",   pos:"B", lh:"B\u266d", rh:"A\u266d C D G"},
+                {sym:"E\u266dmaj9", pos:"A", lh:"E\u266d", rh:"G B\u266d D F"}
+              ],
+              keyNote:"Only E\u266d \u2192 D moves on the first change."
+            },
+            "F":{
+              chords:[
+                {sym:"Gm9",    pos:"A", lh:"G",  rh:"B\u266d D F A"},
+                {sym:"C13",    pos:"B", lh:"C",  rh:"B\u266d D E A"},
+                {sym:"Fmaj9",  pos:"A", lh:"F",  rh:"A C E G"}
+              ],
+              keyNote:"Only F \u2192 E moves on the first change."
+            },
+            "A":{
+              chords:[
+                {sym:"Bm9",    pos:"A", lh:"B",  rh:"D F\u266f A C\u266f"},
+                {sym:"E13",    pos:"B", lh:"E",  rh:"D F\u266f G\u266f C\u266f"},
+                {sym:"Amaj9",  pos:"A", lh:"A",  rh:"C\u266f E G\u266f B"}
+              ],
+              keyNote:"Only A \u2192 G\u266f moves on the first change."
+            }
+          }
+        }
+      },
+      rateOptions:[{v:1,t:"One Chord Per Beat"},{v:2,t:"One Chord Every 2 Beats"},{v:4,t:"One Chord Every 4 Beats"}],
+      rateFrom:function(bpm,per){ return Math.round(bpm/per); },
+      differs:[
+        "<b>No Pick A Skill step.</b> A cell is already one skill \u2014 pattern, row and key. The starting position is a row in the grid, not a choice inside the cell.",
+        "<b>No hands.</b> Voice-leading is two-handed by definition, so there is nothing to split.",
+        "<b>No broken or blocked.</b> The movement between voicings is the exercise.",
+        "<b>Drills are timed loops.</b> A ii\u2013V\u2013I takes seconds, so you run it round for a set length rather than once.",
+        "<b>Two descriptions, not one.</b> The pattern description is about the shape and never names a note \u2014 it follows the row into every key. Note names live only in the key note, which belongs to this cell alone."
+      ],
+      entry:function(){ return el("div"); }
+    },
+    song:{
+      name:"Song Section", primary:"O Come All Ye Faithful", secondary:"Song Repertoire · sections",
+      rateLabel:"BPM", target:90, manner:false,
+      skipEntry:true, cellName:"Verse 1 · A♭", countdown:false, unit:"Run", sessionMetro:true,
+      rateOptions:[{v:1,t:"At The Written Tempo"}],
+      rateFrom:function(bpm){ return bpm; },
+      differs:[
+        "<b>No Pick A Skill step.</b> You arrived from the matrix cell, so the section and key are already chosen. It opens on the mode question.",
+        "<b>Runs count up, not down.</b> A section takes as long as it takes, so there is no target length — you press Done when the run is over.",
+        "<b>A metronome on the session itself</b>, because plenty of the work here happens outside a run.",
+        "<b>What you worked on</b> and <b>which sections you touched</b> — asked at the end, because a session wanders past the cell you tapped.",
+        "<b>Open Lead Sheet</b>, which collapses this to a bar and keeps the clock visible.",
+        "<b>The target is the song's own tempo</b>, not a figure from the settings tree."
+      ],
+      entry:sectionEntry
+    }
+  };
+
+  var SEED_LOG = [
+    {kind:"test", when:"3d ago", total:"4m 10s", band:"fluent",
+      drills:[{t:"Test 1 · blocked",m:"60s · 60/min · at target",f:3},{t:"Test 2 · blocked",m:"60s · 60/min · at target",f:3},{t:"Test 3 · blocked",m:"60s · 60/min · at target",f:4}]},
+    {kind:"practice", when:"6d ago", total:"11m 24s", note:"left hand still lagging on the 2nd inversion",
+      drills:[{t:"Drill 1 · broken",m:"90s · 30/min",f:2},{t:"Drill 2 · blocked",m:"60s · 45/min",f:2},{t:"Drill 3 · blocked",m:"60s · 60/min",f:3},{t:"Drill 4 · blocked",m:"120s · 60/min",f:null}]},
+    {kind:"practice", when:"9d ago", total:"6m 02s",
+      drills:[{t:"Drill 1 · broken",m:"120s · 20/min",f:1}]}
+  ];
+
+  var S=null, tick=null;
+  // Edits live outside session state: a description is a change to the library,
+  // not to this sitting. EDITS.pattern is keyed by row type and follows the
+  // pattern into every key. EDITS.key is keyed by rowType|key — this cell only.
+  var EDITS = { pattern:{}, key:{} };
+  var editing = null;   // null | "pattern" | "key" 
+
+  function reset(surface){
+    if (tick){ clearInterval(tick); tick=null; }
+    S = {
+      surface: surface || (S&&S.surface) || "chord",
+      step:"entry", pick:null, mode:null,
+      sessionSecs:0, drills:[],
+      draft:null,         // {manner,target,bpm,per,left}
+      note:"", sections:["Verse 1"], activities:[],
+      result:null
+    };
+    if (cfg().skipEntry){ S.pick={row:cfg().cellName}; S.step="choose"; }
+    render();
+  }
+  var ACTIVITIES = ["Building The Lead Sheet","Watching A Tutorial","Getting It Under The Fingers","Practising In Time","Just Playing","Something Else"];
+  function cfg(){ return SURFACES[S.surface]; }
+
+  function el(t,c,h){ var n=document.createElement(t); if(c)n.className=c; if(h!=null)n.innerHTML=h; return n; }
+  function btn(c,h,fn){ var b=el("button",c,h); b.type="button"; b.addEventListener("click",fn); return b; }
+  function fmt(s){ var m=Math.floor(s/60),r=s%60; return String(m).padStart(2,"0")+":"+String(r).padStart(2,"0"); }
+
+  function startTick(){
+    if (tick) clearInterval(tick);
+    tick = setInterval(function(){
+      S.sessionSecs += 1;
+      if (S.step === "drilling" && S.draft){
+        if (cfg().countdown === false){
+          S.draft.up = (S.draft.up||0) + 1;
+        } else {
+          S.draft.left -= 1;
+          if (S.draft.left <= 0){ S.draft.left = 0; S.step="drillrate"; render(); return; }  // session clock keeps running
+        }
+      }
+      var a=document.getElementById("sessClock"); if(a) a.firstChild.nodeValue=fmt(S.sessionSecs);
+      var b=document.getElementById("drillClock");
+      if(b && S.draft) b.firstChild.nodeValue=fmt(cfg().countdown===false ? (S.draft.up||0) : S.draft.left);
+    }, 250);
+  }
+  function stopTick(){ if(tick){ clearInterval(tick); tick=null; } }
+
+  function rateOf(d){ return cfg().rateFrom(d.bpm, d.per); }
+  function atTarget(d){ return rateOf(d) >= cfg().target; }
+
+  // ---------- entries ----------
+  function gridEntry(){
+    var w=el("div");
+    w.appendChild(el("p","lbl","Pick A Skill"));
+    var rows=["Root Position","1st Inversion","2nd Inversion","All Inversions Fluid"];
+    var hands=["Left Hand","Right Hand","Both Hands"];
+    var seed={
+      "Root Position|Left Hand":["fluent","3d ago"],"Root Position|Right Hand":["master","2w ago"],"Root Position|Both Hands":["dev","5d ago"],
+      "1st Inversion|Left Hand":["dev","6d ago"],"1st Inversion|Right Hand":["fluent","3d ago"],"1st Inversion|Both Hands":["started","1d ago"],
+      "2nd Inversion|Left Hand":["needs","1d ago"],"2nd Inversion|Right Hand":["dev","1w ago"],"2nd Inversion|Both Hands":["none","never"],
+      "All Inversions Fluid|Left Hand":["none","never"],"All Inversions Fluid|Right Hand":["started","4d ago"],"All Inversions Fluid|Both Hands":["none","never"]
+    };
+    var t=el("table","grid"), th=el("thead"), tr=el("tr");
+    tr.appendChild(el("th","","Shape"));
+    hands.forEach(function(h){ tr.appendChild(el("th","",h)); });
+    th.appendChild(tr); t.appendChild(th);
+    var tb=el("tbody");
+    rows.forEach(function(r){
+      var row=el("tr"); row.appendChild(el("th","",r));
+      hands.forEach(function(h){
+        var td=el("td"), k=seed[r+"|"+h], b=BANDS[k[0]];
+        td.appendChild(btn("cell",
+          "<span class='rat' style='color:var(--"+b.cls+")'><span class='dot' style='background:var(--"+b.cls+")'></span>"+b.label+"</span><span class='fr'>"+k[1]+"</span>",
+          function(){ S.pick={row:r,hand:h}; S.step="choose"; render(); }));
+        row.appendChild(td);
+      });
+      tb.appendChild(row);
+    });
+    t.appendChild(tb);
+    var sc=el("div"); sc.style.overflowX="auto"; sc.appendChild(t); w.appendChild(sc);
+    return w;
+  }
+  function handEntry(){
+    var w=el("div");
+    w.appendChild(el("p","lbl","Pick A Skill <span class='hint'>Each hand is rated on its own</span>"));
+    var box=el("div","optrow");
+    [["Left Hand","Developing · 6d ago"],["Right Hand","Fluent · 3d ago"]].forEach(function(o){
+      box.appendChild(btn("opt","<span class='t'>"+o[0]+"</span><span class='d'>"+o[1]+"</span>",
+        function(){ S.pick={hand:o[0]}; S.step="choose"; render(); }));
+    });
+    var centre=el("div","centre-span");
+    centre.appendChild(btn("opt","<span class='t'>Both Hands</span><span class='d'>Started · 1w ago</span>",
+      function(){ S.pick={hand:"Both Hands"}; S.step="choose"; render(); }));
+    box.appendChild(centre);
+    w.appendChild(box); return w;
+  }
+  function sectionEntry(){
+    var w=el("div");
+    w.appendChild(el("p","lbl","Pick A Skill <span class='hint'>Section in a key</span>"));
+    var box=el("div","optrow");
+    [["Verse 1 · A♭","Developing · 1w ago"],["Refrain · A♭","Fluent · 4d ago"],["Verse 1 · D♭","Not Started · never"],["Refrain · D♭","Started · 2d ago"]].forEach(function(o){
+      box.appendChild(btn("opt","<span class='t'>"+o[0]+"</span><span class='d'>"+o[1]+"</span>",
+        function(){ S.pick={row:o[0]}; S.step="choose"; render(); }));
+    });
+    w.appendChild(box); return w;
+  }
+
+  // ---------- chooser ----------
+  function chooser(){
+    var w=el("div");
+    w.appendChild(el("p","lbl","What Are You About To Do <span class='hint'>The clock starts either way</span>"));
+    var box=el("div","optrow");
+    box.appendChild(btn("opt","<span class='t'>Practice</span><span class='d'>Working it in. Start as many drills as you like inside it, at any tempo. Rating a drill is optional. Takes you as far as <b>Developing</b>.</span>",
+      function(){ S.mode="practice"; S.step="session"; S.sessionSecs=0; startTick(); render(); }));
+    box.appendChild(btn("opt","<span class='t'>Test</span><span class='d'>Three drills, each at or above your target rate, each one rated. The lowest of the three sets the rating. The only way to <b>Fluent</b> or <b>Mastered</b>.</span>",
+      function(){ S.mode="test"; S.step="session"; S.sessionSecs=0; startTick(); render(); }));
+    w.appendChild(box);
+    return w;
+  }
+
+  // ---------- session ----------
+  function sessionClock(){
+    var c=el("div","clock session"); c.id="sessClock";
+    c.appendChild(document.createTextNode(fmt(S.sessionSecs)));
+    c.appendChild(el("small","", S.mode==="test" ? "This Test Session" : "This Practice Session"));
+    return c;
+  }
+
+  function drillList(){
+    var U = cfg().unit || "Drill";
+    var w=el("div","drills");
+    if (!S.drills.length){
+      w.appendChild(el("div","drill empty", S.mode==="test" ? ("No test "+U.toLowerCase()+"s yet.") : ("No "+U.toLowerCase()+"s yet — the clock is still counting.")));
+    }
+    S.drills.forEach(function(d,i){
+      var row=el("div","drill");
+      var label = (S.mode==="test" ? "Test " : U+" ") + (i+1)
+        + (cfg().manner ? " · " + (d.manner==="broken"?"Broken":"Blocked") : "")
+        + (d.scope ? " · " + d.scope.join(" + ") : "");
+      var meta = d.ran + "s · " + d.rate + " " + cfg().rateLabel;
+      var rat = "";
+      if (d.feel){ var b=BANDS[bandFor([d.feel])]; rat = "<span class='rat' style='color:var(--"+b.cls+")'><span class='dot' style='background:var(--"+b.cls+")'></span>"+feelOf(d.feel).w+"</span>"; }
+      else rat = "<span style='font-size:var(--fs-6);color:var(--faint)'>NOT RATED</span>";
+      row.innerHTML = "<span class='n'>"+(i+1)+"</span><span class='what'><b>"+label+"</b><span class='meta'>"+meta+"</span></span>"+rat+
+        (d.below ? "<span class='below'>BELOW</span>" : "");
+      w.appendChild(row);
+    });
+    if (S.mode==="test"){
+      for (var i=S.drills.length; i<3; i++){
+        w.appendChild(el("div","drill pending","<span class='n'>"+(i+1)+"</span><span class='what'>Test "+(i+1)+" — not run yet</span>"));
+      }
+    }
+    if (S.mode==="practice" && S.drills.length){
+      var note=el("p","");
+      note.style.cssText="margin:.3rem 0 0;font-size:var(--fs-6);color:var(--muted)";
+      note.innerHTML="No pressure here — a practice "+U.toLowerCase()+" tells you where you are without claiming anything.";
+      w.appendChild(note);
+    }
+    return w;
+  }
+
+  function sessionStep(){
+    var w=el("div"); w.style.display="flex"; w.style.flexDirection="column"; w.style.gap="1rem";
+    w.appendChild(sessionClock());
+
+    if (S.mode==="practice" && S.surface==="song"){
+      var ls=btn("btn","Open Lead Sheet",function(){});
+      ls.style.width="100%";
+      w.appendChild(ls);
+    }
+
+    var U = cfg().unit || "Drill";
+    if (cfg().sessionMetro && S.mode==="practice"){
+      if (!S.sessionMet) S.sessionMet = {bpm:90, per:1};
+      w.appendChild(metroBox(S.sessionMet));
+    }
+
+    var lab = S.mode==="test" ? ("The Three Test " + U + "s") : (U + "s In This Session");
+    var hint = S.mode==="test" ? "All three at target, all three rated" : "Optional — the session counts either way";
+    w.appendChild(el("p","lbl", lab + " <span class='hint'>"+hint+"</span>"));
+    w.appendChild(drillList());
+
+    var actions=el("div","row");
+    var done = S.mode==="test" && S.drills.filter(function(d){return !d.below;}).length >= 3;
+    if (!done){
+      actions.appendChild(btn("btn primary",
+        S.mode==="test" ? ("Start Test " + (S.drills.length+1)) : ("Start A Practice " + U),
+        function(){ S.draft={manner:null,target:60,bpm:(cfg().sessionMetro&&S.sessionMet?S.sessionMet.bpm:60),per:1,left:60,up:0}; S.step="setup"; render(); }));
+    }
+    if (S.mode==="practice"){
+      var end = btn("btn","End Session", function(){ stopTick(); S.step="wrap"; render(); });
+      end.disabled = S.sessionSecs < 30;
+      actions.appendChild(end);
+      if (S.sessionSecs < 30){
+        var n=el("p","","Under the 30-second floor — "+(30-S.sessionSecs)+"s more before this session counts.");
+        n.style.fontSize="var(--fs-6)"; n.style.color="var(--muted)"; n.style.margin="0";
+        w.appendChild(n);
+      }
+    } else if (done){
+      var feels = S.drills.filter(function(d){return !d.below;}).slice(0,3).map(function(d){return d.feel;});
+      var band = bandFor(feels);
+      var b = BANDS[band];
+      w.appendChild(el("div","banner","<b>Three drills at target, all rated.</b> The lowest of them was "+feelOf(Math.min.apply(null,feels)).w+", so this reads <b style='color:var(--"+b.cls+")'>"+b.label+"</b>."));
+      actions.appendChild(btn("btn primary","Save The Test", function(){
+        stopTick(); S.result={kind:"test",band:band,feels:feels}; S.step="done"; render();
+      }));
+    }
+    actions.appendChild(btn("btn ghost","+30s", function(){ S.sessionSecs+=30; render(); }));
+    w.appendChild(actions);
+    return w;
+  }
+
+  // ---------- the metronome, one component everywhere ----------
+  var GROOVES = ["Click","Basic Drum Beat","Swing","Bossa","Waltz (3/4)","6/8 Shuffle"];
+  var SUBDIV = ["Quarter Notes","Eighth Notes","Triplets","Sixteenths"];
+  function metroBox(d){
+    var c=cfg();
+    if (!d.groove) d.groove = GROOVES[1];
+    if (!d.subdiv) d.subdiv = SUBDIV[0];
+    var box=el("div","box");
+    var head=el("div","between");
+    head.innerHTML="<span style='font-size:var(--fs-6);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700'>Metronome</span>"+
+      "<span class='mono' style='font-size:.72rem;color:var(--muted)'>"+d.bpm+" BPM</span>";
+    box.appendChild(head);
+
+    var chips=el("div","chips");
+    [40,60,75,90,110,130].forEach(function(v){ chips.appendChild(btn("chip"+(d.bpm===v?" sel":""),String(v),function(){ d.bpm=v; render(); })); });
+    chips.appendChild(btn("chip","−",function(){ d.bpm=Math.max(40,d.bpm-1); render(); }));
+    chips.appendChild(btn("chip","+",function(){ d.bpm=Math.min(220,d.bpm+1); render(); }));
+    box.appendChild(chips);
+
+    function selectRow(label, options, current, onPick){
+      var r=el("div","between"); r.appendChild(el("span","",label));
+      var s=el("select");
+      options.forEach(function(o){
+        var op=document.createElement("option");
+        op.value=String(o.v!==undefined?o.v:o); op.textContent=(o.t!==undefined?o.t:o);
+        if (String(current)===op.value) op.selected=true;
+        s.appendChild(op);
+      });
+      s.addEventListener("change",function(){ onPick(s.value); render(); });
+      r.appendChild(s); return r;
+    }
+
+    box.appendChild(selectRow("Groove", GROOVES, d.groove, function(v){ d.groove=v; }));
+    box.appendChild(selectRow("Subdivision", SUBDIV, d.subdiv, function(v){ d.subdiv=v; }));
+    box.appendChild(selectRow("Rate", c.rateOptions, d.per, function(v){ d.per=Number(v); }));
+
+    var pv=btn("btn ghost","▶ Preview",function(){});
+    pv.style.alignSelf="flex-start"; pv.style.padding=".2rem 0";
+    box.appendChild(pv);
+
+    var ok=atTarget(d);
+    box.appendChild(el("div","between",
+      "<span class='mono' style='font-size:.72rem;color:var(--muted)'>"+rateOf(d)+" "+c.rateLabel+"</span>"+
+      "<span style='font-size:.69rem;font-weight:700;color:var(--"+(ok?"accent":"flag")+")'>"+(ok?"AT TARGET ("+c.target+")":"BELOW TARGET ("+c.target+")")+"</span>"));
+
+    box.appendChild(el("p","","<span style='font-size:.66rem;color:var(--faint)'>The same metronome the app already has — groove, subdivision, preview. Not a reduced copy.</span>"));
+    return box;
+  }
+
+  // ---------- drill setup ----------
+  function setupStep(){
+    var c=cfg(), d=S.draft;
+    var w=el("div"); w.style.display="flex"; w.style.flexDirection="column"; w.style.gap="1rem";
+    w.appendChild(sessionClock());
+
+    if (c.manner){
+      var m=el("div");
+      m.appendChild(el("p","lbl","Manner <span class='hint'>"+(S.mode==="test"?"A test drill is always blocked":"Pick per drill, not per session")+"</span>"));
+      var row=el("div","chips");
+      [["broken","Broken"],["blocked","Blocked"]].forEach(function(o){
+        var disabled = S.mode==="test" && o[0]==="broken";
+        var b=btn("chip"+(d.manner===o[0]?" sel":""),o[1],function(){ if(!disabled){ d.manner=o[0]; render(); } });
+        if (disabled) b.disabled=true;
+        row.appendChild(b);
+      });
+      if (S.mode==="test") d.manner="blocked";
+      m.appendChild(row); w.appendChild(m);
+    }
+
+    if (c.countdown !== false){
+      var t=el("div");
+      t.appendChild(el("p","lbl","How Long <span class='hint mono'>"+d.target+"s</span>"));
+      var tc=el("div","chips");
+      [30,60,90,120,180].forEach(function(v){
+        tc.appendChild(btn("chip"+(d.target===v?" sel":""),v+"s",function(){ d.target=v; d.left=v; render(); }));
+      });
+      t.appendChild(tc); w.appendChild(t);
+    } else {
+      w.appendChild(el("div","banner","<b>No target length.</b> A section takes as long as it takes — the clock counts up alongside the session's, and you press Done when the run is over."));
+    }
+
+    w.appendChild(metroBox(d));
+
+    if (S.mode==="test" && !atTarget(d)){
+      w.appendChild(el("div","banner warn","<b>Below target.</b> This run will be logged, but it won't count toward the three. Raise the tempo, or change how many beats each shape gets."));
+    }
+
+    var actions=el("div","row");
+    var go=btn("btn primary", c.countdown===false ? "Start The Run" : "Start Drill", function(){
+      if (c.countdown===false){ d.up=0; } else { d.left=d.target; }
+      S.step="drilling"; startTick(); render();
+    });
+    if (c.manner && !d.manner) go.disabled=true;
+    actions.appendChild(go);
+    actions.appendChild(btn("btn","Cancel",function(){ S.draft=null; S.step="session"; render(); }));
+    w.appendChild(actions);
+    if (c.manner && !d.manner){
+      var hint=el("p","","Pick broken or blocked first — the prototype won't choose for you.");
+      hint.style.fontSize="var(--fs-6)"; hint.style.color="var(--muted)"; hint.style.margin="0";
+      w.appendChild(hint);
+    }
+    return w;
+  }
+
+  // ---------- drilling ----------
+  function drillingStep(){
+    var d=S.draft, c=cfg();
+    var w=el("div"); w.style.display="flex"; w.style.flexDirection="column"; w.style.gap="1rem";
+    w.appendChild(sessionClock());
+    var upMode = c.countdown === false;
+    var dc=el("div","clock big down"); dc.id="drillClock";
+    dc.appendChild(document.createTextNode(fmt(upMode ? (d.up||0) : d.left)));
+    dc.appendChild(el("small","", (S.mode==="test" ? "Test " + (S.drills.length+1) : (c.unit||"Drill") + " " + (S.drills.length+1)) + (c.manner ? " · " + (d.manner==="broken"?"Broken":"Blocked") : "")));
+    w.appendChild(dc);
+    w.appendChild(el("div","between",
+      "<span class='mono' style='font-size:.72rem;color:var(--muted)'>"+d.bpm+" BPM · "+rateOf(d)+" "+c.rateLabel+"</span>"+
+      "<span style='font-size:.69rem;font-weight:700;color:var(--"+(atTarget(d)?"accent":"flag")+")'>"+(atTarget(d)?"AT TARGET":"BELOW TARGET")+"</span>"));
+    var actions=el("div","row");
+    actions.appendChild(btn("btn primary", upMode ? "Done — Rate It" : "Finish Now", function(){ S.step="drillrate"; render(); }));  // session clock keeps running
+    if (!upMode) actions.appendChild(btn("btn ghost","Skip Ahead",function(){ S.sessionSecs+=d.left; d.left=1; render(); }));
+    w.appendChild(actions);
+    return w;
+  }
+
+  // ---------- drill rating ----------
+  function drillRateStep(){
+    var d=S.draft, c=cfg();
+    var w=el("div"); w.style.display="flex"; w.style.flexDirection="column"; w.style.gap=".9rem";
+    var ran = d.target - d.left;
+    w.appendChild(el("div","banner",
+      S.mode==="test"
+        ? "<b>Test "+(S.drills.length+1)+" done.</b> Rating it is required — it's one of the three that sets your rating."
+        : "<b>"+(cfg().unit||"Drill")+" done.</b> Rating it is optional, and nothing is claimed either way. It goes in the log regardless."));
+    if (S.surface==="song" && S.mode==="practice"){
+      if (!d.scope) d.scope=["Verse 1"];
+      var sc=el("div");
+      sc.appendChild(el("p","lbl","What Was That Run <span class='hint'>You opened on Verse 1</span>"));
+      var sr=el("div","chips");
+      ["Verse 1","Refrain","Bridge","Outro"].forEach(function(n){
+        var on=d.scope.indexOf(n)>=0;
+        sr.appendChild(btn("chip"+(on?" sel":""),n,function(){
+          var i=d.scope.indexOf("The Whole Song"); if(i>=0) d.scope.splice(i,1);
+          var j=d.scope.indexOf(n); if(j>=0) d.scope.splice(j,1); else d.scope.push(n);
+          render();
+        }));
+      });
+      var whole = d.scope.indexOf("The Whole Song")>=0;
+      sr.appendChild(btn("chip"+(whole?" sel":""),"The Whole Song",function(){
+        d.scope = whole ? [] : ["The Whole Song"]; render();
+      }));
+      sc.appendChild(sr);
+      if (whole){
+        sc.appendChild(el("div","banner","<b>This counts for every section.</b> You played them all, so how it went is evidence about all of them — not just Verse 1.<br><br>It is also how you get ready for the <b>whole-song test</b>, which is the only thing that moves this song to the <b>Comfortable</b> status."));
+      }
+      w.appendChild(sc);
+    }
+
+    w.appendChild(el("p","lbl","How Did That Go <span class='hint'>"+(S.mode==="test"?"Required":"Optional")+"</span>"));
+    var g=el("div"); g.style.display="grid"; g.style.gap=".4rem";
+    FEEL.slice().reverse().forEach(function(f){
+      g.appendChild(btn("opt","<span class='t'>"+f.w+"</span><span class='d'>"+f.hint+"</span>",function(){
+        commitDrill(f.k, ran);
+      }));
+    });
+    w.appendChild(g);
+    if (S.mode==="practice"){
+      var row=el("div","row");
+      row.appendChild(btn("btn","Skip The Rating",function(){ commitDrill(null, ran); }));
+      w.appendChild(row);
+    }
+    return w;
+  }
+  function commitDrill(feel, ran){
+    var d=S.draft;
+    var secs = cfg().countdown===false ? (d.up||0) : (ran||d.target);
+    S.drills.push({manner:d.manner, ran:secs, rate:rateOf(d), below:!atTarget(d), feel:feel, bpm:d.bpm,
+      scope:(d.scope&&d.scope.length)?d.scope.slice():null});
+    S.draft=null; S.step="session"; startTick(); render();
+  }
+
+  // ---------- wrap (practice only) ----------
+  function wrapStep(){
+    var rated = S.drills.filter(function(d){ return d.feel; });
+    var w=el("div"); w.style.display="flex"; w.style.flexDirection="column"; w.style.gap=".9rem";
+    w.appendChild(el("div","banner","<b>Practice stops at Developing.</b> However this session is rated, it cannot claim <b>Fluent</b>. A test at target can."));
+
+    if (S.drills.length){
+      w.appendChild(el("p","lbl","This Session"));
+      w.appendChild(drillList());
+    }
+
+    if (rated.length){
+      var sum = rated.reduce(function(a,d){ return a + d.feel; }, 0);
+      S.derivedFeel = Math.round(sum / rated.length);
+      if (!S.overrode) S.sessionFeel = S.derivedFeel;
+      var bb = BANDS[bandFor([S.sessionFeel])];
+      var box = el("div","box");
+      var top = el("div","between");
+      top.innerHTML =
+        "<span style='font-size:var(--fs-6);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700'>This Session Reads</span>" +
+        "<span class='rat' style='font-size:.9rem;color:var(--"+bb.cls+")'><span class='dot' style='background:var(--"+bb.cls+")'></span>"+feelOf(S.sessionFeel).w+"</span>";
+      box.appendChild(top);
+      box.appendChild(el("p","","<span style='font-size:var(--fs-6);color:var(--muted)'>" +
+        (S.overrode
+          ? "You changed this from " + feelOf(S.derivedFeel).w + ", which is what the drills averaged to."
+          : "Averaged from your "+rated.length+" rated drill"+(rated.length>1?"s":"")+". A test takes the lowest of three; a practice session takes the average of what you did.") +
+        "</span>"));
+
+      if (!S.showOverride){
+        var dis = btn("btn ghost", S.overrode ? "Change It Back" : "Disagree?", function(){
+          if (S.overrode){ S.overrode=false; S.sessionFeel=S.derivedFeel; }
+          else { S.showOverride = true; }
+          render();
+        });
+        dis.style.alignSelf="flex-start"; dis.style.padding=".2rem 0";
+        box.appendChild(dis);
+      } else {
+        box.appendChild(el("p","lbl","Set It Yourself"));
+        var gg=el("div"); gg.style.display="grid"; gg.style.gap=".35rem";
+        FEEL.slice().reverse().forEach(function(f){
+          gg.appendChild(btn("opt"+(S.sessionFeel===f.k?" sel":""),
+            "<span class='t'>"+f.w+"</span><span class='d'>"+f.hint+(f.k===S.derivedFeel?" · what your drills averaged to":"")+"</span>",
+            function(){
+              S.sessionFeel=f.k;
+              S.overrode=(f.k!==S.derivedFeel);
+              S.showOverride=false;
+              render();
+            }));
+        });
+        box.appendChild(gg);
+      }
+      w.appendChild(box);
+    } else {
+      w.appendChild(el("p","lbl","How Did It Go <span class='hint'>"+(S.drills.length ? "None of your drills were rated" : "No drills this session")+"</span>"));
+      var g=el("div"); g.style.display="grid"; g.style.gap=".4rem";
+      FEEL.slice().reverse().forEach(function(f){
+        g.appendChild(btn("opt"+(S.sessionFeel===f.k?" sel":""),"<span class='t'>"+f.w+"</span><span class='d'>"+f.hint+"</span>",function(){
+          S.sessionFeel = (S.sessionFeel===f.k) ? null : f.k; render();
+        }));
+      });
+      w.appendChild(g);
+    }
+
+    if (S.surface === "song"){
+      var act=el("div");
+      act.appendChild(el("p","lbl","What Did You Work On <span class='hint'>Pick any that apply</span>"));
+      var ar=el("div","chips");
+      ACTIVITIES.forEach(function(a){
+        var on=S.activities.indexOf(a)>=0;
+        ar.appendChild(btn("chip"+(on?" sel":""),a,function(){
+          var i=S.activities.indexOf(a); if(i>=0)S.activities.splice(i,1); else S.activities.push(a); render();
+        }));
+      });
+      act.appendChild(ar); w.appendChild(act);
+
+      var sect=el("div");
+      sect.appendChild(el("p","lbl","Sections You Touched <span class='hint'>You started on Verse 1</span>"));
+      var sr=el("div","chips");
+      ["Verse 1","Refrain","Bridge","Outro"].forEach(function(n2){
+        var on=S.sections.indexOf(n2)>=0;
+        sr.appendChild(btn("chip"+(on?" sel":""),n2,function(){
+          var i=S.sections.indexOf(n2); if(i>=0)S.sections.splice(i,1); else S.sections.push(n2); render();
+        }));
+      });
+      sect.appendChild(sr); w.appendChild(sect);
+    }
+
+    var n=el("div");
+    n.appendChild(el("p","lbl","A Note, If You Want One <span class='hint'>Optional</span>"));
+    var ta=el("textarea"); ta.placeholder="what worked, what didn't, voicings to revisit";
+    ta.value=S.note; ta.addEventListener("input",function(){ S.note=ta.value; });
+    n.appendChild(ta); w.appendChild(n);
+
+    var actions=el("div","row");
+    actions.appendChild(btn("btn primary","Log The Session",function(){
+      var band="started";
+      S.capped=false;
+      if (S.sessionFeel){
+        var b=bandFor([S.sessionFeel]);
+        S.capped=(b==="fluent"||b==="master");
+        band=S.capped?"dev":b;
+      }
+      S.result={kind:"practice",band:band,feels:S.sessionFeel?[S.sessionFeel]:[],derived:rated.length>0 && !S.overrode,overrode:S.overrode};
+      S.step="done"; render();
+    }));
+    if (!S.sessionFeel && !rated.length){
+      actions.appendChild(btn("btn ghost","Skip The Rating",function(){
+        S.sessionFeel=null;
+        S.result={kind:"practice",band:"started",feels:[],derived:false};
+        S.step="done"; render();
+      }));
+    }
+    w.appendChild(actions);
+    return w;
+  }
+
+  // ---------- done ----------
+  function doneStep(){
+    var b=BANDS[S.result.band];
+    var w=el("div"); w.style.display="flex"; w.style.flexDirection="column"; w.style.gap=".9rem";
+    var head=el("div","box");
+    head.innerHTML="<div class='between'><span style='font-size:var(--fs-6);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700'>Now Reads</span>"+
+      "<span class='rat' style='font-size:.95rem;color:var(--"+b.cls+")'><span class='dot' style='background:var(--"+b.cls+")'></span>"+b.label+"</span></div>";
+    w.appendChild(head);
+
+    var msg;
+    if (S.result.kind==="test"){
+      msg = "Three drills at target, each rated. The lowest set it.";
+      if (S.result.band==="dev") msg += " That brings this back in about a week rather than a month — which is what you want after a run went wrong.";
+      if (S.result.band==="fluent"||S.result.band==="master") msg = "<b>Three at target, all clean.</b> That's the claim made and recorded.";
+    } else if (S.capped){
+      msg = "<b>Practice stops at Developing.</b> That session came out at Clean or better, but practice cannot claim <b>Fluent</b>. Go to Test mode and nail it at target, and it can.";
+    } else if (S.result.feels.length){
+      msg = "Logged as <b>"+feelOf(S.result.feels[0]).w+"</b>" + (S.result.derived ? ", averaged from the drills inside it." : ".") + " Practice moves you as far as <b>Developing</b>.";
+    } else {
+      msg = "Logged with no ratings. <b>Started</b> means you met it and the clock proves it — there is just no verdict yet.";
+    }
+    w.appendChild(el("div","banner",msg));
+
+    if (S.surface==="song" && S.result.kind==="practice"){
+      var SECTIONS=["Verse 1","Refrain","Bridge","Outro"];
+      var per={};
+      S.drills.forEach(function(d){
+        if (!d.feel || !d.scope) return;
+        var covers = d.scope.indexOf("The Whole Song")>=0 ? SECTIONS : d.scope;
+        covers.forEach(function(s){ (per[s]=per[s]||[]).push(d.feel); });
+      });
+      var keys=Object.keys(per);
+      if (keys.length){
+        var box=el("div","box");
+        box.appendChild(el("p","lbl","What Each Section Got <span class='hint'>From the runs that covered it</span>"));
+        keys.forEach(function(s){
+          var avg=Math.round(per[s].reduce(function(a,b){return a+b;},0)/per[s].length);
+          var raw=bandFor([avg]);
+          var capped=(raw==="fluent"||raw==="master");
+          var bb=BANDS[capped?"dev":raw];
+          var r=el("div","between");
+          r.innerHTML="<span>"+s+" <span style='color:var(--faint);font-size:var(--fs-6)'>· "+per[s].length+" run"+(per[s].length>1?"s":"")+"</span></span>"+
+            "<span class='rat' style='color:var(--"+bb.cls+")'><span class='dot' style='background:var(--"+bb.cls+")'></span>"+bb.label+"</span>";
+          box.appendChild(r);
+        });
+        box.appendChild(el("p","","<span style='font-size:var(--fs-6);color:var(--muted)'>A run's rating goes to everything that run covered, and stops at <b>Developing</b>. Take any of these to <b>Fluent</b> by testing it at target in Test mode.</span>"));
+        w.appendChild(box);
+      }
+    }
+
+    var row=el("div","row");
+    row.appendChild(btn("btn primary","See This Cell's Log",function(){ S.step="cellLog"; render(); }));
+    row.appendChild(btn("btn","Walk It Again",function(){ reset(S.surface); }));
+    w.appendChild(row);
+    return w;
+  }
+
+  // ---------- cell log ----------
+  function cellLogStep(){
+    var w=el("div"); w.style.display="flex"; w.style.flexDirection="column"; w.style.gap=".7rem";
+    var total = SEED_LOG.length + 1;
+    w.appendChild(el("p","lbl","Practice Log <span class='hint'>"+total+" sessions · this square only</span>"));
+
+    var mine = {
+      kind:S.result.kind, when:"just now",
+      total: fmt(S.sessionSecs).replace(":","m ")+"s",
+      band:S.result.band, note:S.note,
+      overall: S.result.feels.length ? feelOf(S.result.feels[0]).w + (S.result.derived ? " (averaged)" : (S.result.overrode ? " (set by hand)" : "")) : null,
+      drills:S.drills.map(function(d,i){
+        return {t:(S.result.kind==="test"?"Test ":(cfg().unit||"Drill")+" ")+(i+1)+(cfg().manner?" · "+(d.manner==="broken"?"Broken":"Blocked"):"")+(d.scope?" · "+d.scope.join(" + "):""),
+                m:d.ran+"s · "+d.rate+" "+cfg().rateLabel+(d.below?" · below target":""), f:d.feel};
+      })
+    };
+    [mine].concat(SEED_LOG).forEach(function(e){
+      var box=el("div","logentry");
+      var top=el("div","top");
+      top.innerHTML="<span class='kind "+e.kind+"'>"+(e.kind==="test"?"Test":"Practice")+
+        (e.overall ? " · " + e.overall : "")+"</span>"+
+        "<span class='when'>"+e.when+" · "+e.total+"</span>";
+      box.appendChild(top);
+      if (e.drills.length){
+        var ul=el("ul");
+        e.drills.forEach(function(d){
+          var r = d.f ? feelOf(d.f).w : "not rated";
+          ul.appendChild(el("li","", d.t+" — "+r+"<br><span class='meta'>"+d.m+"</span>"));
+        });
+        box.appendChild(ul);
+      } else {
+        box.appendChild(el("p","note","No drills — just time at the keys."));
+      }
+      if (e.note) box.appendChild(el("p","note","“"+e.note+"”"));
+      w.appendChild(box);
+    });
+
+    w.appendChild(el("div","banner","This same list is what feeds the time on the module card and the module calendar. One record, three places it shows up."));
+    var row=el("div","row");
+    row.appendChild(btn("btn primary","Walk It Again",function(){ reset(S.surface); }));
+    w.appendChild(row);
+    return w;
+  }
+
+  // ---------- editable descriptions ----------
+  function renderDescriptions(host, c){
+    var pKey = S.rowType, kKey = S.rowType + "|" + S.key;
+    var pEdited = Object.prototype.hasOwnProperty.call(EDITS.pattern, pKey);
+    var pText   = pEdited ? EDITS.pattern[pKey] : c.rowDefault;
+
+    function field(which, opts){
+      var box = el("div","desc");
+      var lab = el("div","desclab");
+      lab.appendChild(el("b","",opts.label));
+      lab.appendChild(el("span","scope",opts.scope));
+      if (opts.edited) lab.appendChild(el("span","edited","\u00b7 Edited"));
+      lab.appendChild(el("span","sp"));
+
+      if (editing === which){
+        var ta = el("textarea");
+        ta.value = opts.value;
+        ta.placeholder = opts.placeholder || "";
+        box.appendChild(lab);
+        box.appendChild(ta);
+        var row = el("div","descbtns");
+        row.appendChild(btn("lnk","Save",function(){
+          var v = ta.value.trim();
+          opts.save(v); editing = null; render();
+        }));
+        row.appendChild(btn("lnk quiet","Cancel",function(){ editing=null; render(); }));
+        if (opts.reset) row.appendChild(btn("lnk quiet","Reset To Default",function(){
+          opts.reset(); editing=null; render();
+        }));
+        box.appendChild(row);
+        setTimeout(function(){ ta.focus(); ta.setSelectionRange(ta.value.length,ta.value.length); },0);
+        return box;
+      }
+
+      lab.appendChild(btn("lnk", opts.value ? "Edit" : opts.addLabel, function(){
+        editing = which; render();
+      }));
+      box.appendChild(lab);
+      if (opts.value) box.appendChild(el("p","desctext",opts.value));
+      else box.appendChild(el("p","desctext blank",opts.blank));
+      return box;
+    }
+
+    host.appendChild(field("pattern",{
+      label:"Pattern Description",
+      scope:"\u00b7 Every Key",
+      edited:pEdited,
+      value:pText,
+      addLabel:"Edit",
+      blank:"",
+      save:function(v){ if (v === c.rowDefault || v === "") delete EDITS.pattern[pKey]; else EDITS.pattern[pKey] = v; },
+      reset:pEdited ? function(){ delete EDITS.pattern[pKey]; } : null
+    }));
+
+    var kEdited = Object.prototype.hasOwnProperty.call(EDITS.key, kKey);
+    var kVal    = kEdited ? EDITS.key[kKey] : (c.keyDefault || "");
+    host.appendChild(field("key",{
+      label:"In " + S.key,
+      scope:"\u00b7 This Cell Only",
+      edited:kEdited,
+      value:kVal,
+      addLabel:"+ Add A Note",
+      blank:"Nothing to say about this key that isn\u2019t true of the pattern.",
+      placeholder:"What is true in " + S.key + " that isn\u2019t true in the other keys?",
+      save:function(v){ if (v === (c.keyDefault||"")) delete EDITS.key[kKey]; else EDITS.key[kKey] = v; },
+      reset:kEdited ? function(){ delete EDITS.key[kKey]; } : null
+    }));
+  }
+
+  // ---------- render ----------
+  function render(){
+    var c=cfg();
+    var sw=document.getElementById("switch"); sw.innerHTML="";
+    Object.keys(SURFACES).forEach(function(k){
+      var b=btn("",SURFACES[k].name,function(){ reset(k); });
+      b.setAttribute("aria-pressed",String(k===S.surface));
+      sw.appendChild(b);
+    });
+
+    // voice-leading row-type + key switcher
+    if (c.rowSets){
+      if (!S.rowType || !c.rowSets[S.rowType]) S.rowType = "extended";
+      if (!S.key || c.keys.indexOf(S.key) < 0) S.key = c.keys[0];
+      var set = c.rowSets[S.rowType];
+      var kd  = set.byKey[S.key];
+      c.cellName = "<b>"+S.key+"</b> \u00b7 "+set.label+" \u00b7 <b>"+set.pos+"</b>";
+      c.chords = kd.chords;
+      c.rowNote = set.note;
+      c.rowDefault = set.note;
+      c.keyDefault = kd.keyNote;
+      if (S.pick) S.pick = {row:c.cellName};
+      sw.appendChild(el("span","sep"));
+      Object.keys(c.rowSets).forEach(function(k){
+        var b=btn("", c.rowSets[k].label, function(){ S.rowType=k; S.editing=null; render(); });
+        b.setAttribute("aria-pressed", String(k===S.rowType));
+        sw.appendChild(b);
+      });
+      sw.appendChild(el("span","sep"));
+      c.keys.forEach(function(k){
+        var b=btn("", k, function(){ S.key=k; S.editing=null; render(); });
+        b.setAttribute("aria-pressed", String(k===S.key));
+        sw.appendChild(b);
+      });
+    } else { c.rowNote = null; }
+
+    var sec=c.secondary;
+    if (S.pick){
+      var bits=[];
+      if (S.pick.row) bits.push(S.pick.row);
+      if (S.pick.hand) bits.push(S.pick.hand);
+      if (bits.length) sec=bits.join(" · ");
+    }
+    document.getElementById("hPrimary").textContent=c.primary;
+    document.getElementById("hSecondary").innerHTML=sec;
+    var ht=document.getElementById("hChords");
+    if (c.chords){
+      ht.style.display="grid";
+      ht.innerHTML = c.chords.map(function(k){
+        return "<span class='ch'><b class='sym'>"+k.sym+"</b>"+
+               (k.pos ? "<b class='pos'>"+k.pos+"</b>" : "<b class='pos'>&nbsp;</b>")+
+               "<span class='nts'>"+(k.rh ? k.lh+" · "+k.rh : "<i>your choice</i>")+"</span></span>";
+      }).join("<span class='arw'>→</span>");
+    } else ht.style.display="none";
+    var hn=document.getElementById("hNote"); hn.innerHTML="";
+    if (c.rowNote){ hn.style.display="block"; renderDescriptions(hn,c); }
+    else hn.style.display="none";
+
+    document.getElementById("dTitle").textContent="Allowed to differ — "+c.name;
+    var dl=document.getElementById("dList"); dl.innerHTML="";
+    c.differs.forEach(function(d){ dl.appendChild(el("li","",d)); });
+
+    var stage=document.getElementById("stage"); stage.innerHTML="";
+    if (S.step==="entry") stage.appendChild(c.entry());
+    else if (S.step==="choose") stage.appendChild(chooser());
+    else if (S.step==="session") stage.appendChild(sessionStep());
+    else if (S.step==="setup") stage.appendChild(setupStep());
+    else if (S.step==="drilling") stage.appendChild(drillingStep());
+    else if (S.step==="drillrate") stage.appendChild(drillRateStep());
+    else if (S.step==="wrap") stage.appendChild(wrapStep());
+    else if (S.step==="done") stage.appendChild(doneStep());
+    else if (S.step==="cellLog") stage.appendChild(cellLogStep());
+
+    var names = S.mode==="test"
+      ? ["Skill","Mode","Test Drills","Save","Done"]
+      : ["Skill","Mode","Practice","Wrap Up","Done"];
+    var pos = {entry:0,choose:1,session:2,setup:2,drilling:2,drillrate:2,wrap:3,done:4,cellLog:4}[S.step];
+    var tr=document.getElementById("trail"); tr.innerHTML="";
+    names.forEach(function(n,i){
+      if(i) tr.appendChild(el("i","","›"));
+      tr.appendChild(el("span", i<=pos?"on":"", n));
+    });
+
+    var lg=document.getElementById("log");
+    if (S.step==="done"||S.step==="cellLog"){
+      var L=[];
+      L.push("surface        "+S.surface);
+      L.push("skill          "+sec);
+      L.push("mode           "+S.result.kind+" session");
+      L.push("session secs   "+S.sessionSecs);
+      L.push("drills         "+S.drills.length);
+      S.drills.forEach(function(d,i){
+        L.push("  "+(i+1)+"            "+(d.manner?d.manner+", ":"")+(d.scope?d.scope.join("+")+", ":"")+d.ran+"s, "+d.rate+"/min"+(d.below?" (below)":"")+", "+(d.feel?feelOf(d.feel).w:"unrated"));
+      });
+      if (S.surface==="song"){
+        L.push("activities     "+(S.activities.length?S.activities.join(", "):"none"));
+        L.push("sections       "+S.sections.join(", "));
+      }
+      if (S.note) L.push("note           \""+S.note+"\"");
+      L.push("band           "+BANDS[S.result.band].label);
+      lg.textContent=L.join("\n");
+    } else {
+      lg.textContent="Nothing yet — walk to the end of a path.";
+    }
+  }
+
+  document.getElementById("back").addEventListener("click",function(){
+    if (S.step==="entry"){ return; }
+    if (S.step==="choose"){
+      if (cfg().skipEntry){ reset(S.surface); return; }
+      S.step="entry"; S.pick=null; stopTick();
+    }
+    else if (S.step==="setup"||S.step==="wrap"){ S.step="session"; S.draft=null; startTick(); }
+    else if (S.step==="cellLog"){ S.step="done"; }
+    else { reset(S.surface); return; }
+    render();
+  });
+
+  reset("chord");
+})();
+</script>
+</body>
+</html>
