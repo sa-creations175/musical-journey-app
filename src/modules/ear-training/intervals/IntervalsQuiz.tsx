@@ -403,7 +403,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">interval quiz</h2>
+        <h2 className="text-base sm:text-lg font-medium tracking-tight">Interval Quiz</h2>
       </div>
 
       {/* Focus button + dynamic scope description. Direction tabs sit
@@ -672,7 +672,7 @@ function LifetimeStatsModal({ onClose }: { onClose: () => void }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h3 className="font-medium">lifetime stats</h3>
+          <h3 className="font-medium">Lifetime Stats</h3>
           <button onClick={onClose} className="text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100" aria-label="close">×</button>
         </div>
         <dl className="text-sm space-y-1.5">

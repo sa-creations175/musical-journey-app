@@ -10,7 +10,7 @@ export default function IntervalsCalendar() {
         <Link to="/ear-training/intervals" className="text-xs text-neutral-500 hover:text-fluent">
           ← intervals
         </Link>
-        <h1 className="text-2xl font-medium tracking-tight mt-2">intervals practice calendar</h1>
+        <h1 className="text-2xl font-medium tracking-tight mt-2">Intervals Practice Calendar</h1>
         <p className="text-neutral-500 text-sm">
           each cell is one day. color tracks how close you came to your daily goal.
         </p>

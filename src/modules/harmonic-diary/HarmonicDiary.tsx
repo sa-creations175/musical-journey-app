@@ -166,7 +166,7 @@ export default function HarmonicDiary() {
             className="diary-serif text-3xl sm:text-4xl font-medium tracking-tight"
             style={{ color: 'var(--diary-text)' }}
           >
-            harmonic diary
+            Harmonic Diary
           </h1>
           <div className="flex items-center gap-2">
             <ViewToggle mode={mode} onChange={setMode} />

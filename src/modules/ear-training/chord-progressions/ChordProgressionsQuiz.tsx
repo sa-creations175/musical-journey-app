@@ -665,7 +665,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
       data-item-key={active ? active.id : undefined}
     >
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">chord progressions quiz</h2>
+        <h2 className="text-base sm:text-lg font-medium tracking-tight">Chord Progressions Quiz</h2>
       </div>
 
       {/* Scope tabs (all-first) + focus button + dynamic status line. */}

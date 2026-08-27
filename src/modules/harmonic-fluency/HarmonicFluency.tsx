@@ -295,7 +295,7 @@ function FlaggedForReviewPanel() {
       >
         <div>
           <h2 className="text-sm sm:text-base font-medium tracking-tight text-developing">
-            🚩 flagged for review
+            🚩 Flagged for Review
           </h2>
           <p className="text-[11px] text-neutral-500 mt-0.5">
             {flagged.length} card{flagged.length === 1 ? '' : 's'} parked for later thought

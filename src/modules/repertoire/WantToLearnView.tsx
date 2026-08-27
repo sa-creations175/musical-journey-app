@@ -123,7 +123,7 @@ export default function WantToLearnView({ onBack, onPromoted }: Props) {
 
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-base sm:text-lg font-medium tracking-tight">want to learn</h2>
+          <h2 className="text-base sm:text-lg font-medium tracking-tight">Want to Learn</h2>
           <p className="text-xs text-neutral-500 mt-0.5">
             songs that haven't made it into active repertoire yet. promote one when you're ready to start.
           </p>

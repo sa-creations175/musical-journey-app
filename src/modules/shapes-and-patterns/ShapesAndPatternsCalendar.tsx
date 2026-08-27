@@ -61,7 +61,7 @@ export default function ShapesAndPatternsCalendar() {
         <Link to="/shapes-and-patterns" className="text-xs text-neutral-500 hover:text-fluent">
           ← back to shapes &amp; patterns
         </Link>
-        <h1 className="text-2xl font-medium tracking-tight mt-2">shapes &amp; patterns · calendar</h1>
+        <h1 className="text-2xl font-medium tracking-tight mt-2">Shapes &amp; Patterns · Calendar</h1>
         <p className="text-neutral-500 text-sm">
           every day you ran at least one drill session lights up; darker cells = more minutes practised.
         </p>

@@ -894,7 +894,7 @@ export default function ChordRecognitionQuiz({
       data-item-key={current ? attemptItemId(current.chord.id, current.inversion) : undefined}
     >
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">chord recognition quiz</h2>
+        <h2 className="text-base sm:text-lg font-medium tracking-tight">Chord Recognition Quiz</h2>
       </div>
 
       {/* Scope selector (all-first) + focus button + dynamic status line.
@@ -1261,7 +1261,7 @@ function LifetimeStatsModal({ onClose }: { onClose: () => void }) {
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h3 className="font-medium">lifetime stats · chord recognition</h3>
+          <h3 className="font-medium">Lifetime Stats · Chord Recognition</h3>
           <button onClick={onClose} aria-label="close" className="text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100">×</button>
         </div>
         <dl className="text-sm space-y-1.5">

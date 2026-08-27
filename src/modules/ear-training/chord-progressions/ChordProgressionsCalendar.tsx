@@ -10,7 +10,7 @@ export default function ChordProgressionsCalendar() {
         <Link to="/ear-training/chord-progressions" className="text-xs text-neutral-500 hover:text-fluent">
           ← chord progressions
         </Link>
-        <h1 className="text-2xl font-medium tracking-tight mt-2">chord progressions practice calendar</h1>
+        <h1 className="text-2xl font-medium tracking-tight mt-2">Chord Progressions Practice Calendar</h1>
         <p className="text-neutral-500 text-sm">
           each cell is one day. color tracks how close you came to your daily goal.
         </p>

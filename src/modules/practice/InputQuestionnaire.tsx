@@ -219,7 +219,7 @@ export default function InputQuestionnaire({
         className="bg-white dark:bg-neutral-900 w-full sm:max-w-md sm:rounded-2xl rounded-t-card border-t sm:border border-black/[0.07] shadow-xl flex flex-col max-h-[90vh] focus:outline-none"
       >
         <header className="shrink-0 px-4 sm:px-5 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-          <h3 className="text-sm sm:text-base font-medium tracking-tight">Plan your session</h3>
+          <h3 className="text-sm sm:text-base font-medium tracking-tight">Plan Your Session</h3>
           <button
             onClick={onClose}
             aria-label="close"

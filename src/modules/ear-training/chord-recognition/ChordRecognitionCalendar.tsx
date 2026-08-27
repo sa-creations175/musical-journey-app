@@ -10,7 +10,7 @@ export default function ChordRecognitionCalendar() {
         <Link to="/ear-training/chord-recognition" className="text-xs text-neutral-500 hover:text-fluent">
           ← chord recognition
         </Link>
-        <h1 className="text-2xl font-medium tracking-tight mt-2">chord recognition practice calendar</h1>
+        <h1 className="text-2xl font-medium tracking-tight mt-2">Chord Recognition Practice Calendar</h1>
         <p className="text-neutral-500 text-sm">
           each cell is one day. color tracks how close you came to your daily goal.
         </p>

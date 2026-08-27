@@ -264,7 +264,7 @@ export function BlockExpiryModal() {
             {moduleLabel}
           </div>
           <h3 className="text-lg font-medium text-neutral-800 dark:text-neutral-100">
-            Block time’s up
+            Block Time’s Up
           </h3>
         </header>
 

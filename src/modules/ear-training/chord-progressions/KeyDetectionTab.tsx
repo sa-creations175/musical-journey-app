@@ -277,7 +277,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-base sm:text-lg font-medium tracking-tight">key detection</h2>
+          <h2 className="text-base sm:text-lg font-medium tracking-tight">Key Detection</h2>
           <p className="text-xs text-neutral-500 mt-0.5">
             a progression plays three times — hum to find home, then pick the tonic.
           </p>

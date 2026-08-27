@@ -223,7 +223,7 @@ export default function SongDetailView({
   if (!songId || songs.find(s => s.id === songId) === undefined) {
     return (
       <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3">
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">song detail</h2>
+        <h2 className="text-base sm:text-lg font-medium tracking-tight">Song Detail</h2>
         <p className="text-sm text-neutral-500">
           pick a song from your active repertoire to open its detail view.
         </p>

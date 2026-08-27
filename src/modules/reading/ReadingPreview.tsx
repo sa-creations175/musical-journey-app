@@ -81,7 +81,7 @@ export default function ReadingPreview() {
       <header className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-medium tracking-tight">
-            Reading — notation preview
+            Reading — Notation Preview
           </h1>
           <p className="text-[12px] text-neutral-500">
             Twenty-one fixed samples. Captions are derived from the

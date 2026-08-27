@@ -9,7 +9,7 @@ export default function ScalesModesCalendar() {
         <Link to="/ear-training/scales-modes" className="text-xs text-neutral-500 hover:text-fluent">
           ← scales &amp; modes
         </Link>
-        <h1 className="text-2xl font-medium tracking-tight mt-2">scales &amp; modes practice calendar</h1>
+        <h1 className="text-2xl font-medium tracking-tight mt-2">Scales &amp; Modes Practice Calendar</h1>
         <p className="text-neutral-500 text-sm">
           each cell is one day. color tracks how close you came to your daily goal.
         </p>

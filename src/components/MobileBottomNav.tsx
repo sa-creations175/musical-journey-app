@@ -255,7 +255,7 @@ function ModulesSheet({
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <header className="shrink-0 px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-          <h3 className="text-sm font-medium tracking-tight">modules</h3>
+          <h3 className="text-sm font-medium tracking-tight">Modules</h3>
           <button
             onClick={onClose}
             aria-label="close"

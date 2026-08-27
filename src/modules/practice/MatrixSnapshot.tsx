@@ -194,7 +194,7 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
   return (
     <div className="p-4">
       <h2 className="text-base font-semibold text-neutral-900 dark:text-neutral-100">
-        Progress snapshot
+        Progress Snapshot
       </h2>
       <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
         {ACTIVITY_SUBTITLE[activity]}

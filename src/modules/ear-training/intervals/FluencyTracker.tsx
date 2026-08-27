@@ -311,7 +311,7 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="text-base sm:text-lg font-medium tracking-tight">fluency tracker</h2>
+          <h2 className="text-base sm:text-lg font-medium tracking-tight">Fluency Tracker</h2>
           <TierLegend />
           <EtSelectToggle selection={selection} />
         </div>

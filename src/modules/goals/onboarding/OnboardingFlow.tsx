@@ -121,7 +121,7 @@ export default function OnboardingFlow({ onExit }: Props) {
           {GOALS_META.icon}
         </span>
         <h1 className="text-2xl font-semibold text-neutral-800 dark:text-neutral-100 flex-1">
-          Set up your Goals
+          Set Up Your Goals
         </h1>
         <button
           type="button"

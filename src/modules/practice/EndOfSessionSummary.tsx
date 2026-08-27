@@ -106,7 +106,7 @@ export default function EndOfSessionSummary() {
   return (
     <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
       <section className="text-center space-y-2">
-        <h2 className="text-xl font-medium tracking-tight">Session complete</h2>
+        <h2 className="text-xl font-medium tracking-tight">Session Complete</h2>
         <div className="flex items-center justify-center gap-3 text-sm text-neutral-600 dark:text-neutral-300">
           <span className="font-mono tabular-nums text-base">
             {formatActiveTime(totalActiveSec * 1000)}

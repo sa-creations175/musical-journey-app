@@ -813,7 +813,7 @@ function SummaryCard<TCard extends BaseFlashcard>({
   }
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-5 space-y-4">
-      <h2 className="text-lg font-medium tracking-tight">session complete</h2>
+      <h2 className="text-lg font-medium tracking-tight">Session Complete</h2>
       <div className="flex items-baseline gap-4 text-sm flex-wrap">
         <span>
           <span className="text-neutral-500">answered: </span>

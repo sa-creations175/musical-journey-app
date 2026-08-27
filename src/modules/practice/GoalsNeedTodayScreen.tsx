@@ -119,7 +119,7 @@ export default function GoalsNeedTodayScreen({
     >
       <header className="px-4 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-2">
         <h2 className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
-          What your goals need today
+          What Your Goals Need Today
         </h2>
         <button
           type="button"

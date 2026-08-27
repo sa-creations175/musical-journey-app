@@ -222,7 +222,7 @@ function PlanForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: () => 
     <div className="rounded-md border border-black/[0.07] px-4 py-3 flex flex-col gap-3">
       <div>
         <h3 className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          Plan a vacation
+          Plan a Vacation
         </h3>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
           Practice still counts when it happens. Vacation only changes how the

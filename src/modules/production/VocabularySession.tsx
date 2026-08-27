@@ -399,7 +399,7 @@ export default function VocabularySession({ onBack }: Props) {
         <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-5 space-y-5">
           <div>
             <h2 className="text-base sm:text-lg font-medium tracking-tight">
-              session settings
+              Session Settings
             </h2>
             <p className="text-xs text-neutral-500 mt-0.5">
               {SESSION_TARGET} cards per session · spaced repetition picks
