@@ -1,7 +1,9 @@
 import { getPref, setPref } from '../../lib/userPrefs';
 import type { IntervalBounds } from '../../lib/spacingState';
 import { INTERVAL_GROWTH_FACTOR } from '../../lib/spacingState';
-import type { DueWindows } from './matrix/keySpacing';
+import {
+  DUE_SOON_DEFAULT_DAYS, GRACE_DEFAULT_DAYS, type DueWindows,
+} from './matrix/keySpacing';
 
 /**
  * How often a song key has to be proven again, as four settings.
@@ -42,8 +44,13 @@ export const PREF_GRACE_DAYS = 'songKeyGraceDays';
  */
 export const FIRST_INTERVAL_DEFAULT = 2;
 export const LONGEST_INTERVAL_DEFAULT = 30;
-export const DUE_SOON_DEFAULT = 7;
-export const GRACE_DEFAULT = 7;
+// ONE SOURCE EACH. Both of these were declared here as 7 and again in
+// `matrix/keySpacing.ts` as 7, with no import between them — two
+// numbers that had to move together and nothing saying so. Grace's
+// home is the spacing tree, which keySpacing now reads it from; due-
+// soon is repertoire's own and keySpacing is where it lives.
+export const DUE_SOON_DEFAULT = DUE_SOON_DEFAULT_DAYS;
+export const GRACE_DEFAULT = GRACE_DEFAULT_DAYS;
 
 export interface SongKeySpacingSettings {
   firstIntervalDays: number;

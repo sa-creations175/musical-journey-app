@@ -26,6 +26,8 @@
  * clock, can lapse.
  */
 
+import { DEFAULT_SPACING_SETTINGS } from '../../../lib/spacing/settings';
+
 /**
  * Held  — proven recently enough that the claim stands.
  * Due soon — inside the warning window, so the work can be done
@@ -43,8 +45,29 @@ export interface DueWindows {
   graceDays: number;
 }
 
+/**
+ * Days before `nextDueAt` that a key starts warning.
+ *
+ * Repertoire's own, and the only copy. Due-soon is a warning window
+ * on the matrix and has no equivalent in the spacing tree, so unlike
+ * grace it has nowhere higher to live.
+ */
 export const DUE_SOON_DEFAULT_DAYS = 7;
-export const GRACE_DEFAULT_DAYS = 7;
+
+/**
+ * Days after `nextDueAt` before the rung actually drops.
+ *
+ * =====================================================================
+ * ONE SOURCE, AND IT IS THE SPACING TREE.
+ *
+ * This was declared here as 7 and again in `spacingPrefs.ts` as 7,
+ * with no import between them: two numbers that had to be changed
+ * together and nothing saying so. Grace is a spacing setting — it is
+ * on the tree at every level — so the tree's default is the value and
+ * both repertoire copies now read from it.
+ * =====================================================================
+ */
+export const GRACE_DEFAULT_DAYS = DEFAULT_SPACING_SETTINGS.stale.graceDays;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
