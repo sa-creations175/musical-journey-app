@@ -6,11 +6,19 @@ import {
   isCardSeen,
 } from '../../lib/flashcards/cardSpacing';
 
-// THE QUEUE READS THE ONE ENGINE NOW. It used to read
-// `db.flashcardStates` — an SM-2 row this module kept alongside the
-// spacing row it also wrote on every answer, so "due" here and "due"
-// everywhere else were two different questions with two different
-// answers. Everything below asks `spacingState`.
+// Harmonic fluency's session queue: which cards a drill draws, in
+// what order.
+//
+// IT WAS CALLED `spacedRepetition.ts`, and by the end that name named
+// nothing it did. The SM-2 maths lived in `lib/flashcards/
+// spacedRepetition.ts`, this file re-exported it, and the two were
+// easy to confuse. That file is retired and its maths with it; what
+// was left here is queue-building, so the file is named for that.
+//
+// THE QUEUE READS THE ONE ENGINE. It used to read the SM-2 table this
+// module kept alongside the spacing row it also wrote on every answer,
+// so "due" here and "due" everywhere else were two different questions
+// with two different answers. Everything below asks `spacingState`.
 //
 // Module-specific session-building (which deck to draw from, which
 // categories) stays in this file — Production Vocabulary owns its

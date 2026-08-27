@@ -1829,7 +1829,8 @@ export const FLASHCARDS: Flashcard[] = [
   // scored by counting letters and ignoring the interval's quality.
   // `scaleDegreeQualityCards` below asks the same 84 questions as its
   // alteration-zero subset, plus 84 more that land outside the key.
-  // `sdmQualityMigration.ts` moves a reader's history across.
+  // `sdmQualityMigration.ts` moved a reader's history across, and is
+  // retired now that it has.
   ...generateNamedNoteCards(),
   ...DIATONIC_QUALITY_CARDS,
   ...FUNCTIONAL_HARMONY_CARDS,

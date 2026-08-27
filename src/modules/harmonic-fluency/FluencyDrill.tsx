@@ -27,7 +27,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 import DailyGoalBar from '../../components/DailyGoalBar';
 import HarmonicFluencySession, { type SessionStats } from './HarmonicFluencySession';
-import { buildSession, practiceAheadNotice } from './spacedRepetition';
+import { buildSession, practiceAheadNotice } from './sessionQueue';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import { CATEGORY_ORDER, type FlashcardCategory } from './catalog';
 

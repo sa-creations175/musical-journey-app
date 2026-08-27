@@ -26,7 +26,7 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { db, type SpacingState } from '../../../lib/db';
 import { FLASHCARDS, type FlashcardCategory } from '../catalog';
-import { buildSession, practiceAheadNotice } from '../spacedRepetition';
+import { buildSession, practiceAheadNotice } from '../sessionQueue';
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
