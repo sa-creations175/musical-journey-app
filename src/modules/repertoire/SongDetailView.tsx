@@ -132,7 +132,6 @@ import { SONG_KEY_OPTIONS, isCanonicalSongKey } from './matrix/keys';
 import { ensureSongHasOriginalKey } from './matrixMigration';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
-import { VIEW_CALENDAR_LABEL } from '../../lib/labelCase';
 
 
 
@@ -2138,17 +2137,12 @@ function SongDetailInner({
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">matrix</h3>
             <SectionGuidance surface="matrix" />
-            {/* THE SAME WORDS SIX OTHER MODULES USE. Shapes &
-                Patterns, harmonic fluency and the four ear-training
-                tabs all reach their calendar through "view calendar
-                →" in this style. A seventh phrasing for one door
-                would read as a different door. */}
-            <Link
-              to={`/repertoire/calendar?songId=${encodeURIComponent(song.id)}`}
-              className="text-xs text-neutral-500 hover:text-fluent"
-            >
-              {VIEW_CALENDAR_LABEL} →
-            </Link>
+            {/* NO CALENDAR LINK HERE ANY MORE. The page had two, and
+                this was the working one — but a link in the middle of
+                the page and another in the top right is two doors to
+                one room. The header's link now carries `?songId=`, so
+                the surviving one is the one that was always in the
+                place a reader looks. */}
           </div>
           {/* The change-stage dropdown and the advance button are gone.
               A stage is where the evidence puts you: play it, prove it,

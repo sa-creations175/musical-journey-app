@@ -603,14 +603,29 @@ describe('the practice history card moved to a calendar (3d-9)', () => {
     // The words are one shared constant now, so this cannot drift from
     // the module homes by being retyped — which is exactly how it came
     // to be lowercase here while they were capitalised.
-    expect(read('SongDetailView.tsx')).toContain('VIEW_CALENDAR_LABEL');
+    //
+    // IT LIVES IN `Repertoire.tsx` NOW. The song page had two calendar
+    // links: the module header's, which pointed at the all-songs
+    // calendar and read as dead from inside a song, and a working one
+    // on the matrix card. The header's is the survivor because the top
+    // right is where a reader looks, so it is the header that has to
+    // carry the words and the song.
+    // The words now come from `ModuleHomeHeader`, which every module
+    // home already renders them through; Repertoire hands it the
+    // destination and the header supplies the label.
+    expect(codeOf(read('Repertoire.tsx'))).toContain('calendarTo');
     expect(VIEW_CALENDAR_LABEL).toBe('View Calendar');
+  });
+
+  it('the song page has exactly one calendar link', () => {
+    // Two doors to one room, and the one in the top right did nothing.
+    expect(VIEW()).not.toContain('/repertoire/calendar');
   });
 
   it('the calendar is reached by the ?songId= convention, not a second one', () => {
     // Repertoire.tsx already reads ?songId= for deep links. A route
     // param would be a second way to name a song in a URL.
-    expect(VIEW()).toContain('/repertoire/calendar?songId=');
+    expect(codeOf(read('Repertoire.tsx'))).toContain('/repertoire/calendar?songId=');
     expect(CAL()).toContain("searchParams.get('songId')");
   });
 

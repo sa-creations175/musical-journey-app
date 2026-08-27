@@ -172,10 +172,18 @@ export default function Repertoire() {
 
   return (
     <div className="space-y-3">
+      {/* ONE CALENDAR LINK ON THE PAGE, AND IT KNOWS WHERE IT IS.
+          The song detail renders under this header, so a song page had
+          two: this one, pointing at the all-songs calendar and
+          appearing to do nothing from inside a song, and a working
+          `?songId=` link on the matrix card. The header's link now
+          carries the song when one is open, and the matrix has none. */}
       <ModuleHomeHeader
         moduleIds={['repertoire']}
         moduleId="repertoire"
-        calendarTo="/repertoire/calendar"
+        calendarTo={selectedSongId === null
+          ? '/repertoire/calendar'
+          : `/repertoire/calendar?songId=${encodeURIComponent(selectedSongId)}`}
         intro={{
           description: 'Bring songs to life by mastering each song, section by section, key by key.',
         }}
