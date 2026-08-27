@@ -27,6 +27,7 @@ import {
 import { spacingTree, walkTree, type SpacingNode } from '../../lib/spacing/tree';
 import { recalculateAllSchedules, countAffected } from '../../lib/spacing/recalculate';
 import ConfirmDialog from '../../components/ConfirmDialog';
+import { moduleMetaById } from '../../lib/moduleMeta';
 
 // =====================================================================
 // Copy — every string the screen shows, in one place
@@ -326,25 +327,33 @@ export default function SpacingSettings() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-[10.5px] uppercase tracking-[0.06em] text-neutral-400">
-                <th className="border-b border-neutral-300 dark:border-neutral-700
-                  px-3 py-2.5 text-left font-semibold">&nbsp;</th>
+                <th className="min-w-[280px] border-b border-neutral-300
+                  dark:border-neutral-700 px-3 py-2.5 text-left font-semibold">&nbsp;</th>
+                {/* WRAPPING, NOT TRUNCATED. Seven columns plus a name has to
+                    fit a full-width page without sideways scrolling, and the
+                    header words are fixed — so the headers wrap onto two
+                    lines instead of the right edge reading "NEVER LO". */}
                 {['In schedule', 'Acquiring', 'Comes back in', 'Then grows by',
                   'Never longer than', 'Due soon', 'Grace after due'].map(h => (
-                  <th key={h} className="whitespace-nowrap border-b border-neutral-300
-                    dark:border-neutral-700 px-3 py-2.5 text-right font-semibold">{h}</th>
+                  <th key={h} className="w-[92px] border-b border-neutral-300
+                    dark:border-neutral-700 px-2 py-2.5 text-right align-bottom
+                    font-semibold leading-[1.25]">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {rows.map(({ node, depth, chain }) => {
                 const r = resolveForNode(node.id, overrides);
+                const accentHex = depth === 0
+                  ? moduleMetaById(node.id)?.accentHex ?? null
+                  : null;
                 const own = new Set(pathsSetAt({
                   id: node.id, label: '', settings: overrides[node.id] ?? {},
                 }));
                 const off = !r.inSchedule;
                 const rowSongs = node.id === 'repertoire';
                 const cell = (path: SettingsPath, text: string) => (
-                  <td className={`whitespace-nowrap px-3 py-1.5 text-right font-mono text-[13px]
+                  <td className={`h-9 whitespace-nowrap px-2 py-0 text-right font-mono text-[13px]
                     ${off ? 'text-neutral-400 dark:text-neutral-600'
                       : own.has(path) ? 'text-developing'
                       : r.sourceByPath[path] ? 'text-neutral-400' : 'text-neutral-400'}`}>
@@ -355,12 +364,28 @@ export default function SpacingSettings() {
                   <tr
                     key={node.id}
                     onClick={() => setSelectedId(node.id)}
+                    aria-selected={node.id === selectedId}
                     className={`cursor-pointer border-b border-neutral-200 dark:border-neutral-800
-                      ${node.id === selectedId ? 'bg-neutral-100 dark:bg-neutral-800/60' : ''}`}
+                      ${node.id === selectedId
+                        ? 'bg-fluent/[0.13] dark:bg-fluent/[0.16] ring-1 ring-inset ring-fluent/50'
+                        : 'hover:bg-neutral-100/70 dark:hover:bg-neutral-800/40'}`}
                   >
-                    <td className={`w-full px-3 py-1.5 text-left text-[14px]
-                      ${depth === 1 ? 'pl-8 text-[13.5px]' : depth === 2 ? 'pl-14 text-[13px]' : ''}
-                      ${off ? 'text-neutral-400 line-through decoration-1' : ''}`}>
+                    {/* A MODULE ROW IS A HEADER. All caps in the module's own
+                        accent so one module is distinguishable from the next at
+                        a glance; everything under it stays Title Case. This is
+                        a decision about this page, not general capitalisation. */}
+                    <td
+                      style={depth === 0 && !off && accentHex
+                        ? { color: accentHex } : undefined}
+                      className={`relative h-9 w-full px-3 py-0 text-left
+                        ${depth === 0
+                          ? 'text-[13px] font-semibold uppercase tracking-[0.07em]'
+                          : depth === 1 ? 'pl-8 text-[13.5px]' : 'pl-14 text-[13px]'}
+                        ${off ? 'text-neutral-400 line-through decoration-1' : ''}`}>
+                      {node.id === selectedId && (
+                        <span aria-hidden className="absolute left-0 top-0 h-full w-[3px]
+                          bg-fluent" />
+                      )}
                       {node.children.length > 0 && (
                         <button
                           type="button"
@@ -391,7 +416,7 @@ export default function SpacingSettings() {
                           tracking-[0.04em] text-neutral-400">out</span>
                       )}
                     </td>
-                    <td className="px-3 py-1.5 text-right">
+                    <td className="h-9 px-2 py-0 text-right">
                       <Switch
                         on={r.inSchedule}
                         disabled={off && chain.slice(0, -1).some(
@@ -409,16 +434,16 @@ export default function SpacingSettings() {
                         walked through a first-exposure tally, and the
                         column says so rather than showing a pattern
                         nothing runs. */}
-                    <td className={`whitespace-nowrap px-3 py-1.5 text-right font-mono text-[13px]
+                    <td className={`h-9 whitespace-nowrap px-2 py-0 text-right font-mono text-[13px]
                       ${off ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-400'}`}>
                       {rowSongs ? '—' : off ? '—' : acquiringSummary(r.value.acquiring.tally)}
                     </td>
                     {off
-                      ? <><td className="px-3 py-1.5 text-right font-mono text-[13px] text-neutral-400">—</td>
-                          <td className="px-3 py-1.5 text-right font-mono text-[13px] text-neutral-400">—</td>
-                          <td className="px-3 py-1.5 text-right font-mono text-[13px] text-neutral-400">—</td>
-                          <td className="px-3 py-1.5 text-right font-mono text-[13px] text-neutral-400">—</td>
-                          <td className="px-3 py-1.5 text-right font-mono text-[13px] text-neutral-400">—</td></>
+                      ? <><td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
+                          <td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
+                          <td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
+                          <td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
+                          <td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td></>
                       : <>
                           {cell('maintaining.firstWaitDays', days(r.value.maintaining.firstWaitDays))}
                           {cell('maintaining.perBand.fluent.growth', growthLabel(r.value, 'fluent'))}
@@ -449,8 +474,14 @@ export default function SpacingSettings() {
           <div className="text-[12px] text-neutral-400">
             {selectedChain.slice(0, -1).map(n => n.label).join(' → ') || 'Module'}
           </div>
-          <div className="text-[17px] font-semibold">
-            {selectedChain[selectedChain.length - 1]?.label ?? selectedId}
+          <div
+            className="text-[17px] font-semibold"
+            style={selectedChain.length === 1
+              ? { color: moduleMetaById(selectedId)?.accentHex } : undefined}
+          >
+            {selectedChain.length === 1
+              ? (selectedChain[0]?.label ?? selectedId).toUpperCase()
+              : selectedChain[selectedChain.length - 1]?.label ?? selectedId}
           </div>
           <div className="mt-1 text-[12.5px] text-neutral-500">
             {selectedChain.length > 1
