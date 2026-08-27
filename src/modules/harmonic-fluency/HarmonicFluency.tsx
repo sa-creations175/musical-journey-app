@@ -12,6 +12,9 @@ import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import { harmonicFluencyCards } from './homeCards';
 import { db } from '../../lib/db';
+import {
+  countStudyLater, listReviewFlagged, setReviewFlag,
+} from '../../lib/flashcards/cardSpacing';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
 import FluencySessionSettings, { SESSION_SETTINGS_LABEL } from './FluencySessionSettings';
@@ -26,7 +29,6 @@ import {
   FLASHCARDS,
   type FlashcardCategory,
 } from './catalog';
-import { setReviewFlag } from '../../lib/flashcards/spacedRepetition';
 
 /** What a running drill was started with. Null when none is running. */
 interface RunningDrill {
@@ -58,7 +60,7 @@ export default function HarmonicFluency() {
 
   // Live count of flagged cards across the user's per-card state.
   const flaggedCount = useLiveQuery(
-    () => db.flashcardStates.filter(s => s.isFlagged === true).count(),
+    () => countStudyLater(MODULE_ID),
     [],
   ) ?? 0;
 
@@ -262,20 +264,20 @@ function FlaggedForReviewPanel() {
 
   const flagged = useLiveQuery(
     async () => {
-      const rows = await db.flashcardStates
-        .filter(s => s.flagged === true)
-        .toArray();
+      // Already sorted most-recently-engaged first, and already
+      // narrowed to this module — a vocabulary card carries the same
+      // flag on the same field and does not belong in this panel.
+      const rows = await listReviewFlagged(MODULE_ID);
       return rows
         .map(r => ({
-          cardId: r.cardId,
-          note: r.flagNote,
-          lastReviewed: r.lastReviewed,
-          card: CARDS_BY_ID.get(r.cardId),
+          cardId: r.itemRef,
+          note: r.reviewFlagNote,
+          lastReviewed: r.lastEngagedAt ?? 0,
+          card: CARDS_BY_ID.get(r.itemRef),
         }))
         .filter((x): x is typeof x & { card: NonNullable<typeof x.card> } =>
           x.card !== undefined,
-        )
-        .sort((a, b) => b.lastReviewed - a.lastReviewed);
+        );
     },
     [],
   );

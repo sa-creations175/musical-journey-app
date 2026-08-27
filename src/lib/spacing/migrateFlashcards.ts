@@ -33,6 +33,7 @@ import { MS_PER_DAY } from './engine';
 import { bandForAccuracyPercent } from './bands';
 import { tallyExposureDays } from './settings';
 import { loadOverrides, settingsForCard } from './store';
+import { moduleRefForCardId } from '../flashcards/cardSpacing';
 
 export const PREF_FLASHCARD_MIGRATION = 'spacingFlashcardMigrationDone';
 
@@ -52,11 +53,20 @@ export interface MigrationReport {
   unclaimed: number;
 }
 
-/** Which module a flashcard id belongs to. Vocabulary namespaces its
- *  ids; everything else in that table is harmonic fluency. */
-function moduleForCardId(cardId: string): string {
-  return cardId.startsWith('prod-vocab:') ? 'production' : 'harmonic-fluency';
-}
+/**
+ * IT USED TO FILE VOCABULARY UNDER `production`, WHICH WAS THE WRONG
+ * ADDRESS AND WOULD HAVE THROWN ON THE NEXT ANSWER.
+ *
+ * `production` is integration memory and takes only rating signals; a
+ * vocabulary card emits attempts. Rows carried under that ref would
+ * have been written once and then rejected by every `recordEngagement`
+ * that followed. The deck has its own declarative ref now, and the one
+ * definition of which card goes where lives beside the readers — see
+ * `flashcards/cardSpacing.ts`. Carrying a row to an address the live
+ * code does not read from loses the history as surely as not carrying
+ * it, and does it silently.
+ */
+const moduleForCardId = moduleRefForCardId;
 
 /**
  * Where a part-way card resumes.

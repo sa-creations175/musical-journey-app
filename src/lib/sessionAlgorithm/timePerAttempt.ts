@@ -66,7 +66,7 @@ export type ShapesActivityArea =
  *  drill mix (90 s/rep for individual inversions, 120 s/rep for
  *  fluid + extensions/special voicings) — see Phase 4 inversion
  *  spec. Voice-leading became per-sub-cell with the Phase 1 VL
- *  submodule build: the 372-cell catalog mixes 90 s, 120 s, and
+ *  submodule build: the 408-cell catalog mixes 90 s, 120 s, and
  *  180 s drills, weighted average ~1.6 min — see VOICE_LEADING_PATTERN_SECONDS
  *  for the per-pattern table and `voiceLeadingCellSeconds` for the
  *  sub-cell-precise lookup the algo uses. Recalibrate alongside
@@ -74,7 +74,7 @@ export type ShapesActivityArea =
 export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
   chord_shape_drills: 1.6,  // weighted avg: triads ~1.625, sevenths ~1.6
   scale_drills:       2,
-  voice_leading:      1.7,  // weighted avg ≈1.74 across 372 sub-cells (see VOICE_LEADING_PATTERN_SECONDS)
+  voice_leading:      1.7,  // weighted avg ≈1.72 across 408 sub-cells (see VOICE_LEADING_PATTERN_SECONDS)
 };
 
 /** Weighted-average fallback used when a Shapes time estimate is
@@ -86,18 +86,30 @@ export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
  *    chord_shape_drills = 852 acquisition-path items
  *      (triads 6×12×4=288, sevenths 6×12×5=360, extensions 14×12=168, special 3×12=36)
  *    scale_drills       = 4 scales × 12 keys = 48
- *    voice_leading      = 372 sub-cells (31 sub-cells/key × 12 keys)
- *      Per-pattern per-key time:
- *        five-one     = (2 × 90) + (2 × 90) + (2 × 120) =  600 s
- *        major-251    = (2 × 90) + (2 × 90) + (2 × 120) =  600 s
- *        minor-251    = (2 × 90) + (2 × 90) + (2 × 120) =  600 s
+ *    voice_leading      = 408 sub-cells (34 sub-cells/key × 12 keys)
+ *      Per-pattern per-key time (seventh chords carries three
+ *      starting positions, the other two types carry two):
+ *        five-one     = (2 × 90) + (3 × 90) + (2 × 120) =  690 s
+ *        major-251    = (2 × 90) + (3 × 90) + (2 × 120) =  690 s
+ *        minor-251    = (2 × 90) + (3 × 90) + (2 × 120) =  690 s
  *        diatonic-cyc = 3 × 180                          =  540 s
  *        minor-aba    = 2 × 90                           =  180 s
  *        dom7b9       = 4 × 90                           =  360 s
  *        dim7         = 4 × 90                           =  360 s
- *      Per-key total = 3240 s; × 12 keys = 38 880 s = 648 min.
- *      → 648 min / 372 cells ≈ 1.742 min/rep on average for VL.
- *  → (852×1.6 + 48×2 + 648) / 1272 ≈ 1.66 min/rep overall.
+ *      Per-key total = 3510 s; × 12 keys = 42 120 s = 702 min.
+ *      → 702 min / 408 cells ≈ 1.721 min/rep on average for VL.
+ *
+ *  TWO WEIGHTS ABOVE ARE ALSO STALE, AND PREDATE THE VL CHANGE. The
+ *  catalog now holds 720 chord-shape items rather than 852 and 96
+ *  scale cells rather than 48 — `moduleItemCounts` and its tests are
+ *  the live figures. They are left as written here on purpose,
+ *  because correcting them is not a prose edit: with all three
+ *  weights current the overall average derives as
+ *    (720×1.6 + 96×2 + 702) / 1224 ≈ 1.67 min/rep,
+ *  against the 1.66 this file declares. Moving that constant changes
+ *  every session time estimate the WeeklyPlan review produces, which
+ *  wants a deliberate call rather than a drive-by rounding.
+ *
  *  Hardcoded (rather than computed from moduleItemCounts) so this
  *  file stays dependency-free. Re-derive if the catalog shifts. */
 export const SHAPES_DEFAULT_TIME_PER_REP_MINUTES = 1.66;

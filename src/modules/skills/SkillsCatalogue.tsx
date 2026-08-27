@@ -44,10 +44,14 @@ export default function SkillsCatalogue() {
   // Live signal — re-runs the registry build whenever any source
   // mutates. Four cheap counts keep the dependency tight.
   const liveSignal = useLiveQuery(async () => {
+    // `spacingState` replaced the flashcard count here: the registry
+    // stopped reading `flashcardStates` when harmonic fluency's tier
+    // moved onto attempts, and a signal that watches a table nothing
+    // reads would miss the writes that now matter.
     const [a, d, f, s, ann, songs] = await Promise.all([
       db.attempts.count(),
       db.drillSessions.count(),
-      db.flashcardStates.count(),
+      db.spacingState.count(),
       db.songPracticeLog.count(),
       db.skillAnnotations.count(),
       db.songs.count(),

@@ -1,29 +1,28 @@
-import { db } from '../../lib/db';
 import { FLASHCARDS, type Flashcard, type FlashcardCategory } from './catalog';
+import {
+  dueSortKey,
+  getCardSpacingMany,
+  isCardDue,
+  isCardSeen,
+} from '../../lib/flashcards/cardSpacing';
 
-// SM-2-inspired spaced repetition. The per-card schedule math
-// (ease, interval, nextReviewDate, totals, flag toggle) is shared
-// across modules and lives in src/lib/flashcards/spacedRepetition.ts.
-// Re-exported here so existing HF callers keep their import paths.
+// THE QUEUE READS THE ONE ENGINE NOW. It used to read
+// `db.flashcardStates` — an SM-2 row this module kept alongside the
+// spacing row it also wrote on every answer, so "due" here and "due"
+// everywhere else were two different questions with two different
+// answers. Everything below asks `spacingState`.
 //
 // Module-specific session-building (which deck to draw from, which
 // categories) stays in this file — Production Vocabulary owns its
 // own building logic in modules/production/VocabularySession.tsx.
-export {
-  blankState,
-  getState,
-  recordAttempt,
-  toggleFlag,
-  updateState,
-} from '../../lib/flashcards/spacedRepetition';
 
 // --- Session building ------------------------------------------------
 
 export interface SessionBuildOptions {
   categories: FlashcardCategory[];   // empty array = all categories
   target: number;                    // desired number of cards (default 20)
-  /** When true, pull only the user's flagged cards (ignoring SM-2 due
-      dates). Flag acts as an on-demand drill override. */
+  /** When true, pull only the user's flagged cards (ignoring due
+      dates entirely). Flag acts as an on-demand drill override. */
   flaggedOnly?: boolean;
   now?: number;
 }
@@ -46,8 +45,8 @@ export interface BuiltSession {
    * The queue is ahead-of-schedule practice: nothing in it was due.
    *
    * The caller says so on screen. It does NOT change how the reps are
-   * recorded — an answer given early is an answer, and `recordAttempt`
-   * / the SM-2 update treat it exactly like any other.
+   * recorded — an answer given early is an answer, and the engine
+   * treats it exactly like any other.
    */
   practiceAhead: boolean;
   /**
@@ -98,15 +97,15 @@ export async function buildSession(opts: SessionBuildOptions): Promise<BuiltSess
     categorySet.size === 0 || categorySet.has(c.category);
 
   const eligible = FLASHCARDS.filter(inCategory);
-  const states = await db.flashcardStates.bulkGet(eligible.map(c => c.id));
+  const rows = await getCardSpacingMany(eligible.map(c => c.id));
 
   // Flagged-only short-circuit: user is explicitly drilling flagged
-  // cards, so we ignore SM-2 timing and just return every flagged card
-  // in the selected categories, shuffled.
+  // cards, so we ignore the schedule and just return every flagged
+  // card in the selected categories, shuffled.
   if (opts.flaggedOnly) {
     const flagged: Flashcard[] = [];
-    eligible.forEach((card, i) => {
-      if (states[i]?.isFlagged) flagged.push(card);
+    eligible.forEach(card => {
+      if (rows.get(card.id)?.studyLater) flagged.push(card);
     });
     shuffleInPlace(flagged);
     const cards = flagged.slice(0, target);
@@ -125,13 +124,16 @@ export async function buildSession(opts: SessionBuildOptions): Promise<BuiltSess
 
   const due: Flashcard[] = [];
   const untouched: Flashcard[] = [];
-  eligible.forEach((card, i) => {
-    const state = states[i];
-    if (!state) {
+  eligible.forEach(card => {
+    const row = rows.get(card.id);
+    // UNSEEN IS A STAGE, NOT AN ABSENT ROW. A card can hold a spacing
+    // row carrying nothing but a flag — see `blankCardSpacing` — and
+    // that is still a card the reader has never answered.
+    if (!isCardSeen(row)) {
       untouched.push(card);
       return;
     }
-    if (state.nextReviewDate <= now) due.push(card);
+    if (isCardDue(row, now)) due.push(card);
   });
 
   // Shuffle both pools so repeat sessions don't feel deterministic.
@@ -159,12 +161,9 @@ export async function buildSession(opts: SessionBuildOptions): Promise<BuiltSess
   // path applies, with the cutoff removed rather than a different rule
   // substituted. Shuffled at the end so a repeat run is not identical.
   const ahead = eligible
-    .map((card, i) => ({ card, state: states[i] }))
-    .filter((row): row is { card: Flashcard; state: NonNullable<typeof row.state> } =>
-      row.state !== undefined)
-    .sort((a, b) => a.state.nextReviewDate - b.state.nextReviewDate)
-    .slice(0, target)
-    .map(row => row.card);
+    .filter(card => isCardSeen(rows.get(card.id)))
+    .sort((a, b) => dueSortKey(rows.get(a.id)) - dueSortKey(rows.get(b.id)))
+    .slice(0, target);
   shuffleInPlace(ahead);
 
   return {
@@ -196,11 +195,12 @@ async function countDueOutside(
   const categorySet = new Set(categories);
   const outside = FLASHCARDS.filter(c => !categorySet.has(c.category));
   if (outside.length === 0) return 0;
-  const states = await db.flashcardStates.bulkGet(outside.map(c => c.id));
-  return states.reduce<number>(
-    (n, state) => (state && state.nextReviewDate <= now ? n + 1 : n),
-    0,
-  );
+  const rows = await getCardSpacingMany(outside.map(c => c.id));
+  let n = 0;
+  for (const card of outside) {
+    if (isCardDue(rows.get(card.id), now)) n += 1;
+  }
+  return n;
 }
 
 /**

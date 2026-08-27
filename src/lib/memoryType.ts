@@ -81,6 +81,19 @@ export const MODULE_MEMORY_TYPES: Readonly<Record<string, MemoryType>> = Object.
   // Integration — multi-skill synthesis under real-world conditions.
   'repertoire':          'integration',
   'production':          'integration',
+  // Production VOCABULARY, split from the lessons above it because the
+  // two are scored in different currencies. A lesson is self-rated, so
+  // `production` is integration and takes rating signals. A vocabulary
+  // card is a flashcard with a right answer, so it emits ATTEMPTS — and
+  // feeding an attempt to an integration ref throws. The deck wrote no
+  // spacing row at all rather than resolve that; this is the resolution
+  // `VocabularySession` named when it skipped the call.
+  //
+  // Its rows live under this ref and its itemRefs keep the
+  // `prod-vocab:` prefix, so `spacing/tree.ts` still nests it under the
+  // Production node — module-level settings cascade to it exactly as
+  // before, `inSchedule` included.
+  'production-vocabulary': 'declarative',
 
   // Expression — creative output, recency-driven, no correctness.
   'just-play':           'expression',

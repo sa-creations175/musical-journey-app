@@ -3,7 +3,6 @@ import {
   type AttemptRecord,
   type DrillSkill,
   type DrillType,
-  type FlashcardState,
   type ProductionLesson,
   type ProductionLessonRating,
   type SkillAnnotation,
@@ -11,7 +10,7 @@ import {
   type SkillPriority,
   type Song,
 } from '../../lib/db';
-import { computeTier, type Tier } from '../../lib/tier';
+import type { Tier } from '../../lib/tier';
 import type { TickAttempt } from '../../lib/progressBar';
 import { normaliseStage } from '../repertoire/stage';
 import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
@@ -224,19 +223,6 @@ function tierForAttempts(attempts: AttemptRecord[], now: number): { tier: Tier; 
   return tierAndLastFromAttempts(attempts, now);
 }
 
-function tierForFlashcardState(state: FlashcardState | undefined, now: number): Tier {
-  if (!state || state.totalAttempts === 0) return 'untouched';
-  const windowTotal = Math.min(TIER_WINDOW, state.totalAttempts);
-  const accuracy = state.totalCorrect / state.totalAttempts;
-  const windowCorrect = Math.round(accuracy * windowTotal);
-  const daysSince = Math.floor((now - state.lastReviewed) / DAY_MS);
-  return computeTier({
-    windowCorrect,
-    windowTotal,
-    daysSinceLastAttempt: state.lastReviewed ? daysSince : null,
-  });
-}
-
 // --- Skill-type decomposition --------------------------------------
 
 const MODULE_LABELS: Record<string, { label: string; route: string }> = {
@@ -269,7 +255,6 @@ function moduleMeta(moduleId: string): { label: string; route: string } {
 export async function buildSkillRegistry(now: number = Date.now()): Promise<SkillRecord[]> {
   const [
     attempts,
-    flashcardStates,
     songs,
     drillSkills,
     drillTypes,
@@ -277,7 +262,6 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     productionLessons,
   ] = await Promise.all([
     db.attempts.toArray(),
-    db.flashcardStates.toArray(),
     db.songs.toArray(),
     db.drillSkills.toArray(),
     db.drillTypes.toArray(),
@@ -291,16 +275,20 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
   const records: SkillRecord[] = [];
 
   // --- Harmonic Fluency (one skill per flashcard) ------------------
-  const stateByCard = new Map<string, FlashcardState>();
-  for (const s of flashcardStates) stateByCard.set(s.cardId, s);
-  // HARMONIC FLUENCY'S TIER AND ITS STRIP READ DIFFERENT SOURCES, and
-  // that is pre-existing rather than introduced here. The tier comes
-  // from `FlashcardState` — lifetime totals scaled into a pseudo-window
-  // by `tierForFlashcardState` — while these are the actual attempt
-  // rows. They can disagree, and the module-home card already reads the
-  // attempts. Reported rather than quietly reconciled: moving the tier
-  // onto attempts changes displayed tiers across the catalogue and is
-  // its own decision.
+  // HARMONIC FLUENCY'S TIER AND ITS STRIP READ THE SAME SOURCE NOW.
+  //
+  // The tier used to come off `FlashcardState`: lifetime totals scaled
+  // into a pseudo-window, which produced a badge that read "fluent"
+  // identically to a real rolling-window tier and was not one
+  // (RULE_LEGIBILITY 1.8). The strip beside it read the actual attempt
+  // rows. Two numbers about one card, either of which the reader might
+  // have been looking at.
+  //
+  // Both are the attempts now, through the same `tierForAttempts` every
+  // other module in this file uses. Displayed tiers WILL move for cards
+  // whose lifetime accuracy differs from their recent form — that is
+  // the point, and it is the direction of the fix: recent form is what
+  // a tier was always claiming to describe.
   const hfAttemptsByCard = new Map<string, AttemptRecord[]>();
   for (const a of attempts) {
     if (a.moduleId !== 'harmonic-fluency') continue;
@@ -308,10 +296,9 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     if (arr) arr.push(a); else hfAttemptsByCard.set(a.itemId, [a]);
   }
   for (const card of FLASHCARDS) {
-    const state = stateByCard.get(card.id);
-    const tier = tierForFlashcardState(state, now);
-    const lastPracticed = state?.lastReviewed ?? null;
-    const totalTime = state ? state.totalAttempts * 12 : 0; // ~12s/card rough
+    const cardAttempts = hfAttemptsByCard.get(card.id) ?? [];
+    const { tier, last: lastPracticed } = tierForAttempts(cardAttempts, now);
+    const totalTime = cardAttempts.length * 12; // ~12s/card rough
     const { label, route } = moduleMeta('harmonic-fluency');
     const skillId = canonicalSkillId('harmonic-fluency', 'card', card.id);
     const ann = annotationById.get(skillId);
@@ -333,7 +320,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
       priority: ann?.priority,
       tags: ann?.tags ?? [],
       note: ann?.note,
-      window: windowFrom(hfAttemptsByCard.get(card.id) ?? []),
+      window: windowFrom(cardAttempts),
       // Carried straight through. The registry does not know what a
       // key or a degree means here — only that the generator supplied
       // coordinates and the grid will read them.

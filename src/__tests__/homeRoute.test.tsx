@@ -61,16 +61,21 @@ describe('every surface that means "home" agrees', () => {
     expect(match![1]).toBe(HOME);
   });
 
-  it('the home route renders the NEW dashboard, and the old one is elsewhere', () => {
+  it('the home route renders the dashboard, and the old one is gone', () => {
     // Asserted against App.tsx's route table as source. Rendering it
     // would boot auth, sync, Dexie and the session timer to learn one
     // thing about one line.
     expect(appSource).toContain('<Route index element={<DashboardScreen />} />');
-    expect(appSource).toContain('<Route path="dashboard-old" element={<Dashboard />} />');
-    // Guard the guard: both components must still be imported, or the
-    // assertions above are matching text in a comment.
+    // Guard the guard: the component must still be imported, or the
+    // assertion above is matching text in a comment.
     expect(appSource).toMatch(/^import DashboardScreen from/m);
-    expect(appSource).toMatch(/^import Dashboard from/m);
+    // THE OLD SCREEN IS RETIRED, not parked. It was `/` until 20 Aug
+    // and sat at /dashboard-old for a week so the new one had something
+    // to be checked against. Pinned as an absence because a route that
+    // comes back by accident is exactly how two dashboards start
+    // disagreeing again.
+    expect(appSource).not.toContain('dashboard-old');
+    expect(appSource).not.toMatch(/^import Dashboard from/m);
   });
 });
 

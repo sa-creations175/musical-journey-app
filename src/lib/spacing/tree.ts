@@ -120,14 +120,29 @@ function shapesChildren(): SpacingNode[] {
 }
 
 /**
- * Production splits into the vocabulary deck and the lessons. Both
- * write `production`; the deck's ids carry a `prod-vocab:` prefix,
- * which is what separates them.
+ * Production splits into the vocabulary deck and the lessons.
+ *
+ * THEY NO LONGER SHARE A moduleRef. Both used to write `production`
+ * and the `prod-vocab:` prefix was the only thing separating them;
+ * the deck now writes `production-vocabulary`, because a card is
+ * scored on attempts and a lesson on ratings, and one memory type
+ * cannot take both signals. See `memoryType.ts`.
+ *
+ * THE NODE STAYS A CHILD OF PRODUCTION, which is the whole reason
+ * this is safe. `chainForCard` matches the deepest node whose
+ * moduleRef equals the card's, but the chain it returns is the path
+ * from the root — so a vocab card still resolves through the
+ * Production node above it, and every setting on that node still
+ * cascades down. Turning Production off turns the deck off with it.
+ *
+ * The prefix match is kept rather than dropped. It is redundant while
+ * this ref holds only deck rows, and it is what keeps the node honest
+ * if anything else is ever filed under the same ref.
  */
 function productionChildren(): SpacingNode[] {
   return [
     node('production.vocabulary', 'vocabulary', 'submodule', {
-      moduleRef: 'production',
+      moduleRef: 'production-vocabulary',
       itemRefMatch: (ref) => ref.startsWith('prod-vocab:'),
     }),
     node('production.lessons', 'lessons', 'submodule', {

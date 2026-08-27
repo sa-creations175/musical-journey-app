@@ -21,7 +21,6 @@
 
 import {
   db,
-  type FlashcardState,
   type Goal,
   type PracticeSessionContext,
   type Song,
@@ -2433,12 +2432,12 @@ export function computeProductionVocabSeconds(
   );
 }
 
-/** Internal: the cardId prefix that marks a Production-vocabulary
- *  flashcard row in the shared db.flashcardStates table (the same
- *  table holds HF cards). Mirrors VOCAB_CARD_ID_PREFIX in
- *  vocabularyFlashcards.ts; duplicated here to keep this file's
- *  imports off the production module surface. */
-const PROD_VOCAB_CARDID_PREFIX = 'prod-vocab:';
+/** Internal: the spacing moduleRef the Production-vocabulary deck
+ *  files its rows under. Declarative, and deliberately not
+ *  `production` (integration) — see `memoryType.ts`. Inlined rather
+ *  than imported to keep this file's imports off the production
+ *  module surface. */
+const PROD_VOCAB_MODULE_REF = 'production-vocabulary';
 
 /** True when the goal touches the Production module via candidate
  *  resolution. Covers coverage / accuracy / consistency / production-
@@ -2452,21 +2451,25 @@ export function hasProductionGoal(goals: ReadonlyArray<Goal>): boolean {
   });
 }
 
-/** Count Production-vocab cards whose SR schedule says they're due
- *  on or before `now`. Reads the indexed `nextReviewDate` range
- *  first, then filters by the prod-vocab cardId prefix. */
+/**
+ * Count Production-vocab cards the schedule says are due on or before
+ * `now`.
+ *
+ * READS THE DECK'S OWN moduleRef, so no id-prefix filter is needed —
+ * it used to scan every due flashcard row in a table shared with
+ * harmonic fluency and sift the `prod-vocab:` ones back out.
+ *
+ * A null `nextDueAt` is NOT due: it marks an unscheduled row (a
+ * flag-only card, or one seeded by a backfill), and counting those
+ * would report cards as owed that have never been scheduled.
+ */
 export async function countDueProductionVocabCards(
   now: number,
 ): Promise<number> {
-  const rows: FlashcardState[] = await db.flashcardStates
-    .where('nextReviewDate')
-    .belowOrEqual(now)
-    .toArray();
-  let n = 0;
-  for (const r of rows) {
-    if (r.cardId.startsWith(PROD_VOCAB_CARDID_PREFIX)) n++;
-  }
-  return n;
+  return db.spacingState
+    .where('moduleRef').equals(PROD_VOCAB_MODULE_REF)
+    .filter(r => r.nextDueAt != null && r.nextDueAt <= now)
+    .count();
 }
 
 /** Pure eligibility check — laptop/phone only, Production goal

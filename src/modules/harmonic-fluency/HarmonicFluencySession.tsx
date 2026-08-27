@@ -4,12 +4,12 @@
  * The module-specific bits live here: the visual-aid dispatcher
  * (LinearScaleStrip / ScaleDegreeCompass), the explanation linkifier
  * (ModeLinkify), and the persistence pipeline (db.attempts +
- * db.flashcardStates SR layer + recordEngagement + dailySummary).
+ * recordEngagement + dailySummary).
  * Generic UI behavior (queue, timer, choices, streaks, summary,
  * shortcuts) is in src/lib/flashcards/FlashcardSession.tsx.
  */
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type AttemptRecord } from '../../lib/db';
+import type { AttemptRecord } from '../../lib/db';
 import { addAttempt } from '../../lib/practiceWrites';
 import { elapsedFields, timedOutFields } from '../../lib/attemptTiming';
 import { updateDailySummary } from '../../lib/dailySummaries';
@@ -17,8 +17,9 @@ import ScaleDegreeCompass from './ScaleDegreeCompass';
 import LinearScaleStrip from './LinearScaleStrip';
 import { degreeNote, parseKeyRoot } from './catalog';
 import type { Flashcard, FlashcardCategory } from './catalog';
-import { recordAttempt, toggleFlag } from './spacedRepetition';
-import { setReviewFlag } from '../../lib/flashcards/spacedRepetition';
+import {
+  getCardSpacingMany, setReviewFlag, toggleStudyLater,
+} from '../../lib/flashcards/cardSpacing';
 import { recordEngagement } from '../../lib/spacingState';
 import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import LydianChordRows from './LydianChordRows';
@@ -47,7 +48,8 @@ interface Props {
       or hand-picked categories) and the queue has fewer than 4 unique
       cards. In that case the attempt still logs to the DB (so daily
       goal, streaks, and the calendar work normally), but we skip the
-      SM-2 update so a tight drill can't push easy cards further out. */
+      spacing engagement so a tight drill can't push easy cards further
+      out. */
   focusProtected?: boolean;
 }
 
@@ -71,20 +73,19 @@ export default function HarmonicFluencySession({
   onDisplayModeChange,
   focusProtected = false,
 }: Props) {
-  // Flag state — live query over db.flashcardStates for the cards in
+  // Flag state — live query over the spacing rows for the cards in
   // queue. The shell consumes a Set<string> of flagged ids for ★
   // (study-later) and a separate set + note map for 🚩 (review meta).
   const flagState = useLiveQuery(async () => {
-    const ids = queue.map(c => c.id);
-    const states = await db.flashcardStates.where('cardId').anyOf(ids).toArray();
+    const rows = await getCardSpacingMany(queue.map(c => c.id));
     const star = new Set<string>();
     const review = new Set<string>();
     const notes = new Map<string, string>();
-    for (const s of states) {
-      if (s.isFlagged) star.add(s.cardId);
-      if (s.flagged) {
-        review.add(s.cardId);
-        if (s.flagNote) notes.set(s.cardId, s.flagNote);
+    for (const [cardId, row] of rows) {
+      if (row.studyLater) star.add(cardId);
+      if (row.reviewFlagged) {
+        review.add(cardId);
+        if (row.reviewFlagNote) notes.set(cardId, row.reviewFlagNote);
       }
     }
     return { star, review, notes };
@@ -124,14 +125,29 @@ export default function HarmonicFluencySession({
       ...(choice !== null ? { chosenAnswerText: choice } : {}),
     };
     await addAttempt(record);
-    await recordEngagement({
-      itemRef: card.id,
-      moduleRef: MODULE_ID,
-      signal: { kind: 'attempt', correct },
-      timestamp,
-    });
+    // FOCUS PROTECTION MOVED, IT DID NOT DISAPPEAR.
+    //
+    // It used to gate the SM-2 write while `recordEngagement` ran
+    // regardless — so a tight drill was protected on the scheduler
+    // nothing read and unprotected on the one that decided when cards
+    // actually came back. With the SM-2 write gone, leaving the gate
+    // where it was would have left the flag doing nothing at all for
+    // scheduling, which is a feature deleted by omission rather than a
+    // refactor.
+    //
+    // So the gate is on the real engine now, which is what it always
+    // meant: a hand-picked or flagged-only queue does not push its
+    // cards further out. The attempt row is still written either way —
+    // the rep happened, and daily goals, streaks and the calendar all
+    // count it — and `excludeFromFluency` above still keeps it out of
+    // the fluency score. Only the schedule sits out.
     if (!focusProtected) {
-      await recordAttempt(card.id, correct);
+      await recordEngagement({
+        itemRef: card.id,
+        moduleRef: MODULE_ID,
+        signal: { kind: 'attempt', correct },
+        timestamp,
+      });
     }
     await updateDailySummary(MODULE_ID);
   }
@@ -152,7 +168,7 @@ export default function HarmonicFluencySession({
       onCardAnswered={handleCardAnswered}
       flaggedIds={flaggedIds}
       onToggleFlag={async cardId => {
-        await toggleFlag(cardId);
+        await toggleStudyLater(cardId);
       }}
       reviewFlaggedIds={reviewFlaggedIds}
       reviewFlagNotes={reviewFlagNotes}

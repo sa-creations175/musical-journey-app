@@ -22,6 +22,7 @@ import { Navigate, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { db } from '../../lib/db';
+import { countStudyLater } from '../../lib/flashcards/cardSpacing';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
 import FluencySessionSettings, { SESSION_SETTINGS_LABEL } from './FluencySessionSettings';
@@ -102,7 +103,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
   ) ?? 0;
   const prefs = useFluencyPrefs(totalAttempts);
   const flaggedCount = useLiveQuery(
-    () => db.flashcardStates.filter(s => s.isFlagged === true).count(),
+    () => countStudyLater(MODULE_ID),
     [],
   ) ?? 0;
   const attempts = useLiveQuery(

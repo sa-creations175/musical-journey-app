@@ -58,10 +58,24 @@ describe('finding the chain for a card', () => {
   });
 
   it('separates production vocabulary from production lessons', () => {
-    expect(chainForCard('production', 'prod-vocab:comp').map(n => n.id))
+    // THE DECK HAS ITS OWN moduleRef — declarative, because a card is
+    // scored on attempts and a lesson is self-rated. The lookup is by
+    // that ref, not by `production` plus a prefix.
+    expect(chainForCard('production-vocabulary', 'prod-vocab:comp').map(n => n.id))
       .toEqual(['production', 'production.vocabulary']);
     expect(chainForCard('production', 'path-1/lesson-2').map(n => n.id))
       .toEqual(['production', 'production.lessons']);
+  });
+
+  it('keeps the vocabulary deck under the Production node, so settings cascade', () => {
+    // THE POINT OF THE SPLIT NOT BEING A NEW TOP-LEVEL MODULE. The
+    // deck's ref differs from its parent's, but `chainForCard` returns
+    // the path from the root — so Production's own settings, including
+    // `inSchedule`, still reach it. Turning Production off turns the
+    // deck off with it.
+    const chain = chainForCard('production-vocabulary', 'prod-vocab:comp');
+    expect(chain[0].id).toBe('production');
+    expect(chain).toHaveLength(2);
   });
 
   it('puts a harmonic fluency card under its own category', () => {

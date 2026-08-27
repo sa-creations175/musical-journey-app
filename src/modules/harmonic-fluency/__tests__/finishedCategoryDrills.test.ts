@@ -24,7 +24,7 @@
  */
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { db, type FlashcardState } from '../../../lib/db';
+import { db, type SpacingState } from '../../../lib/db';
 import { FLASHCARDS, type FlashcardCategory } from '../catalog';
 import { buildSession, practiceAheadNotice } from '../spacedRepetition';
 
@@ -37,37 +37,42 @@ const OTHER: FlashcardCategory = 'named-notes';
 const cardsIn = (category: FlashcardCategory) =>
   FLASHCARDS.filter(c => c.category === category);
 
-function state(cardId: string, nextReviewDate: number): FlashcardState {
+/** A spacing row for a card that HAS been answered — stage past `new`,
+ *  which is what `isCardSeen` reads. */
+function state(itemRef: string, nextDueAt: number): SpacingState {
   return {
-    cardId,
-    easeFactor: 2.5,
-    interval: 10,
-    nextReviewDate,
-    lastReviewed: NOW - DAY,
-    consecutiveCorrect: 3,
-    totalAttempts: 4,
-    totalCorrect: 4,
+    id: `sp-${itemRef}`,
+    itemRef,
+    moduleRef: 'harmonic-fluency',
+    hand: 'both',
+    style: 'solid',
+    memoryType: 'declarative',
+    acquisitionStage: 'acquired',
+    currentIntervalDays: 10,
+    lastEngagedAt: NOW - DAY,
+    nextDueAt,
+    performanceHistory: [],
   };
 }
 
 /** Every card in `category` seen and scheduled into the future. */
 async function finish(category: FlashcardCategory, at = NOW + 10 * DAY) {
-  await db.flashcardStates.bulkPut(cardsIn(category).map(c => state(c.id, at)));
+  await db.spacingState.bulkPut(cardsIn(category).map(c => state(c.id, at)));
 }
 
 /** Every card in `category` seen and due right now. */
 async function makeDue(category: FlashcardCategory) {
-  await db.flashcardStates.bulkPut(cardsIn(category).map(c => state(c.id, NOW - DAY)));
+  await db.spacingState.bulkPut(cardsIn(category).map(c => state(c.id, NOW - DAY)));
 }
 
 beforeEach(async () => {
-  await db.flashcardStates.clear();
+  await db.spacingState.clear();
 });
 
 /**
  * LEAVE THE TABLE AS IT WAS FOUND.
  *
- * `flashcardStates` is shared across test files in a worker, and
+ * `spacingState` is shared across test files in a worker, and
  * `harmonicFluencyPage` clears only `db.attempts`. Rows left behind
  * here would turn that file's result into a function of test ORDER —
  * its drill-category test asserts a session starts, which depends on
@@ -76,7 +81,7 @@ beforeEach(async () => {
  * defending itself.
  */
 afterEach(async () => {
-  await db.flashcardStates.clear();
+  await db.spacingState.clear();
 });
 
 describe('drilling a category with nothing due', () => {

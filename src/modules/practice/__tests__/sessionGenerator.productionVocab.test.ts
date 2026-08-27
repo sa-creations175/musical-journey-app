@@ -14,8 +14,8 @@
  *     at /production?view=vocabulary with the spec'd label +
  *     description and the given duration.
  *   · countDueProductionVocabCards — Dexie integration; counts
- *     rows with cardId starting with `prod-vocab:` AND
- *     nextReviewDate ≤ now.
+ *     spacing rows under the deck's own moduleRef whose nextDueAt is
+ *     non-null and ≤ now.
  */
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -28,7 +28,7 @@ import {
   PRODUCTION_VOCAB_MAX_SECONDS,
   PRODUCTION_VOCAB_MIN_SECONDS,
 } from '../sessionGenerator';
-import { db, type FlashcardState, type Goal } from '../../../lib/db';
+import { db, type Goal, type SpacingState } from '../../../lib/db';
 
 const NOW = 1_700_000_000_000;
 
@@ -55,15 +55,23 @@ function mkGoal(partial: Partial<Goal>): Goal {
   };
 }
 
-function mkCard(partial: Partial<FlashcardState> & { cardId: string }): FlashcardState {
+/** A spacing row as the vocabulary deck writes them. `moduleRef`
+ *  defaults to the deck's own ref; the HF case overrides it, which is
+ *  now what separates the two rather than an id prefix. */
+function mkRow(
+  partial: Partial<SpacingState> & { itemRef: string },
+): SpacingState {
   return {
-    easeFactor: 2.5,
-    interval: 1,
-    nextReviewDate: NOW,
-    lastReviewed: NOW - 86_400_000,
-    consecutiveCorrect: 0,
-    totalAttempts: 1,
-    totalCorrect: 0,
+    id: `sp-${partial.itemRef}`,
+    moduleRef: 'production-vocabulary',
+    hand: 'both',
+    style: 'solid',
+    memoryType: 'declarative',
+    acquisitionStage: 'acquiring',
+    currentIntervalDays: 1,
+    lastEngagedAt: NOW - 86_400_000,
+    nextDueAt: NOW,
+    performanceHistory: [],
     ...partial,
   };
 }
@@ -217,30 +225,66 @@ describe('buildProductionVocabBlock', () => {
 });
 
 beforeEach(async () => {
-  await db.flashcardStates.clear();
+  await db.spacingState.clear();
 });
 
 describe('countDueProductionVocabCards — Dexie integration', () => {
   it('counts prod-vocab cards due now', async () => {
-    await db.flashcardStates.bulkPut([
-      mkCard({ cardId: 'prod-vocab:reverb', nextReviewDate: NOW - 1000 }),
-      mkCard({ cardId: 'prod-vocab:eq', nextReviewDate: NOW }),
+    await db.spacingState.bulkPut([
+      mkRow({ itemRef: 'prod-vocab:reverb', nextDueAt: NOW - 1000 }),
+      mkRow({ itemRef: 'prod-vocab:eq', nextDueAt: NOW }),
     ]);
     expect(await countDueProductionVocabCards(NOW)).toBe(2);
   });
 
-  it('excludes non-prod-vocab card ids (HF cards live in the same table)', async () => {
-    await db.flashcardStates.bulkPut([
-      mkCard({ cardId: 'prod-vocab:reverb', nextReviewDate: NOW - 1000 }),
-      mkCard({ cardId: 'hf:dom7-C', nextReviewDate: NOW - 1000 }),
+  it('excludes harmonic fluency, which is a different moduleRef now', async () => {
+    await db.spacingState.bulkPut([
+      mkRow({ itemRef: 'prod-vocab:reverb', nextDueAt: NOW - 1000 }),
+      mkRow({
+        itemRef: 'hf:dom7-C',
+        moduleRef: 'harmonic-fluency',
+        nextDueAt: NOW - 1000,
+      }),
+    ]);
+    expect(await countDueProductionVocabCards(NOW)).toBe(1);
+  });
+
+  it('excludes production LESSONS, which share the module but not the ref', async () => {
+    // The split this ref exists for: a lesson is integration memory and
+    // self-rated, a card is declarative and scored. A due lesson is not
+    // a due card.
+    await db.spacingState.bulkPut([
+      mkRow({ itemRef: 'prod-vocab:reverb', nextDueAt: NOW - 1000 }),
+      mkRow({
+        itemRef: 'path-1/lesson-2',
+        moduleRef: 'production',
+        memoryType: 'integration',
+        nextDueAt: NOW - 1000,
+      }),
     ]);
     expect(await countDueProductionVocabCards(NOW)).toBe(1);
   });
 
   it('excludes prod-vocab cards scheduled in the future', async () => {
-    await db.flashcardStates.bulkPut([
-      mkCard({ cardId: 'prod-vocab:past', nextReviewDate: NOW - 1000 }),
-      mkCard({ cardId: 'prod-vocab:future', nextReviewDate: NOW + 86_400_000 }),
+    await db.spacingState.bulkPut([
+      mkRow({ itemRef: 'prod-vocab:past', nextDueAt: NOW - 1000 }),
+      mkRow({ itemRef: 'prod-vocab:future', nextDueAt: NOW + 86_400_000 }),
+    ]);
+    expect(await countDueProductionVocabCards(NOW)).toBe(1);
+  });
+
+  it('excludes an unscheduled row — a flag-only card is not overdue', async () => {
+    // A null nextDueAt is what a card carries when the reader starred
+    // it and never answered it. Reading null as due-since-the-epoch
+    // would put every such card into the block's count.
+    await db.spacingState.bulkPut([
+      mkRow({ itemRef: 'prod-vocab:past', nextDueAt: NOW - 1000 }),
+      mkRow({
+        itemRef: 'prod-vocab:starred',
+        acquisitionStage: 'new',
+        nextDueAt: null,
+        studyLater: true,
+      }),
     ]);
     expect(await countDueProductionVocabCards(NOW)).toBe(1);
   });

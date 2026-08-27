@@ -8,22 +8,29 @@
  * DailyGoalBar at the top, focus-protected mode for narrowed pools
  * that fall under 4 cards, and the "last session" feedback line.
  *
- * Card ids are namespaced (`prod-vocab:`) so the shared
- * db.flashcardStates table holds vocab + HF rows side-by-side without
- * collision and no schema migration is needed.
+ * Card ids are namespaced (`prod-vocab:`), and the deck's spacing rows
+ * carry their own moduleRef — `production-vocabulary`, declarative,
+ * because a card is scored on attempts while a production LESSON is
+ * self-rated. See `memoryType.ts`. The tree still nests the deck under
+ * Production, so module-level spacing settings cascade to it.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type AttemptRecord } from '../../lib/db';
+import type { AttemptRecord } from '../../lib/db';
 import { addAttempt } from '../../lib/practiceWrites';
 import { elapsedFields, timedOutFields } from '../../lib/attemptTiming';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { updateDailySummary } from '../../lib/dailySummaries';
 import {
-  recordAttempt as recordSrAttempt,
-  toggleFlag,
-} from '../../lib/flashcards/spacedRepetition';
+  countStudyLater,
+  getCardSpacingMany,
+  isCardDue,
+  isCardSeen,
+  moduleRefForCardId,
+  toggleStudyLater,
+} from '../../lib/flashcards/cardSpacing';
+import { recordEngagement } from '../../lib/spacingState';
 import DailyGoalBar from '../../components/DailyGoalBar';
 import {
   PRODUCTION_VOCAB_FLASHCARDS,
@@ -41,6 +48,11 @@ import FlashcardSession, {
 } from '../../lib/flashcards/FlashcardSession';
 
 const MODULE_ID = 'production';
+/** The deck's SPACING ref, which is not its attempt ref. Attempts stay
+ *  under `production` — that is where the module's history lives and
+ *  what counts it — while the schedule lives under a declarative ref of
+ *  its own. See `memoryType.ts`. */
+const VOCAB_MODULE_REF = 'production-vocabulary';
 const PREF_TIMER = 'productionVocabTimerMode';
 const PREF_CLUSTERS = 'productionVocabClusterFilter';
 const SESSION_TARGET = 10;
@@ -103,12 +115,12 @@ async function buildVocabSession(opts: {
     clusterSet.size === 0 || clusterSet.has(c.clusterId);
 
   const eligible = PRODUCTION_VOCAB_FLASHCARDS.filter(inCluster);
-  const states = await db.flashcardStates.bulkGet(eligible.map(c => c.id));
+  const rows = await getCardSpacingMany(eligible.map(c => c.id));
 
   if (opts.flaggedOnly) {
     const flagged: VocabFlashcard[] = [];
-    eligible.forEach((card, i) => {
-      if (states[i]?.isFlagged) flagged.push(card);
+    eligible.forEach(card => {
+      if (rows.get(card.id)?.studyLater) flagged.push(card);
     });
     const cards = shuffle(flagged).slice(0, target);
     return { cards, dueCount: 0, newCount: 0, allCaughtUp: cards.length === 0 };
@@ -116,10 +128,11 @@ async function buildVocabSession(opts: {
 
   const due: VocabFlashcard[] = [];
   const untouched: VocabFlashcard[] = [];
-  eligible.forEach((card, i) => {
-    const state = states[i];
-    if (!state) untouched.push(card);
-    else if (state.nextReviewDate <= now) due.push(card);
+  eligible.forEach(card => {
+    const row = rows.get(card.id);
+    // A flag-only row is not a card you have seen — see `isCardSeen`.
+    if (!isCardSeen(row)) untouched.push(card);
+    else if (isCardDue(row, now)) due.push(card);
   });
 
   const dueShuffled = shuffle(due);
@@ -155,14 +168,13 @@ export default function VocabularySession({ onBack }: Props) {
   const autoStartRef = useRef(false);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Live count of flagged vocab cards across the user's per-card SR
-  // state. Same shared db.flashcardStates table HF reads from, but
-  // filtered to the prod-vocab namespace.
-  const flaggedCount = useLiveQuery(async () => {
-    const ids = PRODUCTION_VOCAB_FLASHCARDS.map(c => c.id);
-    const rows = await db.flashcardStates.where('cardId').anyOf(ids).toArray();
-    return rows.filter(r => r.isFlagged === true).length;
-  }, []) ?? 0;
+  // Live count of starred vocab cards. The deck has its own moduleRef,
+  // so this no longer has to filter a shared table by id prefix — the
+  // ref IS the filter.
+  const flaggedCount = useLiveQuery(
+    () => countStudyLater(VOCAB_MODULE_REF),
+    [],
+  ) ?? 0;
 
   // Hydrate prefs on mount.
   useEffect(() => {
@@ -244,9 +256,9 @@ export default function VocabularySession({ onBack }: Props) {
   const flaggedIds = useLiveQuery(async () => {
     if (!sessionQueue) return new Set<string>();
     const ids = sessionQueue.cards.map(c => c.id);
-    const rows = await db.flashcardStates.where('cardId').anyOf(ids).toArray();
+    const rows = await getCardSpacingMany(ids);
     const set = new Set<string>();
-    for (const r of rows) if (r.isFlagged) set.add(r.cardId);
+    for (const [cardId, row] of rows) if (row.studyLater) set.add(cardId);
     return set;
   }, [sessionQueue]) ?? new Set<string>();
 
@@ -303,17 +315,30 @@ export default function VocabularySession({ onBack }: Props) {
       ...(choice !== null ? { chosenAnswerText: choice } : {}),
     };
     await addAttempt(record);
-    await recordSrAttempt(card.id, correct, timestamp);
+    // THE CALL THIS FILE SAID TO RE-INTRODUCE, RE-INTRODUCED.
+    //
+    // It was skipped because 'production' is integration memory and
+    // throws on an attempt signal, and the note here named the fix:
+    // register a declarative ref for the deck. That ref now exists, so
+    // the deck schedules on the same engine as everything else instead
+    // of on an SM-2 row beside it.
+    //
+    // THE ATTEMPT ROW KEEPS `moduleId: 'production'`. Only the SPACING
+    // ref is new. Rewriting the attempt history's module would detach
+    // every answer ever given here from the module that counts them.
+    //
+    // Focus-protected runs sit out, matching harmonic fluency: a
+    // narrowed pool still logs its reps and still counts toward the
+    // daily goal, it just does not push its cards further out.
+    if (!focusProtected) {
+      await recordEngagement({
+        itemRef: card.id,
+        moduleRef: moduleRefForCardId(card.id),
+        signal: { kind: 'attempt', correct },
+        timestamp,
+      });
+    }
     await updateDailySummary(MODULE_ID);
-
-    // Phase 3 spacingState (recordEngagement) is intentionally
-    // skipped. 'production' is registered as `integration` memory
-    // type, which only accepts rating-shaped signals — feeding it
-    // an 'attempt' throws. Vocab cards aren't currently goal-tracked,
-    // so the spacing layer doesn't need a row per card. If vocab
-    // ever becomes a candidate for the session generator, register
-    // a declarative-typed module ref ('production-vocabulary') in
-    // MODULE_MEMORY_TYPES and re-introduce the recordEngagement call.
   }
 
   // Focus-protected mode: user has narrowed the pool (flagged-only
@@ -359,7 +384,7 @@ export default function VocabularySession({ onBack }: Props) {
           onCardAnswered={handleCardAnswered}
           flaggedIds={flaggedIds}
           onToggleFlag={async cardId => {
-            await toggleFlag(cardId);
+            await toggleStudyLater(cardId);
           }}
           focusProtected={focusProtected}
           fadeStreakThreshold={0}
