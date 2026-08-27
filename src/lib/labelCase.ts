@@ -1,10 +1,11 @@
 /**
  * How a LABEL is cased, decided once.
  *
- * Nav rows and module-home card titles both read from here. They are
- * the same problem — a canonical lowercase label that has to appear in
- * a style — and answering it twice is how "Chord Recognition" in one
- * list comes to sit beside "chord recognition" in another.
+ * Nav rows, module-home card titles and the dashboard read catalog all
+ * read from here. They are the same problem — a canonical lowercase
+ * label that has to appear in a style — and answering it three times is
+ * how "Chord Recognition" in one list came to sit beside "chord
+ * recognition" in another.
  *
  * =====================================================================
  * THE LABELS STAY CANONICAL. ONLY THE RENDER CHANGES.
@@ -26,6 +27,29 @@
  * reading it. Title Case cannot be done that way — CSS `capitalize`
  * capitalises every word including the small ones, and treats hyphens
  * inconsistently across engines — so it is computed.
+ *
+ * ─── The three exemptions ────────────────────────────────────────────
+ *
+ * NOTATION, UNITS AND SENTENCES ARE NOT LABELS. Two of the three can be
+ * recognised from the word itself and are handled below:
+ *
+ *   1. NOTATION — roman numerals (`vi`, `ii`, `bVII`) and degrees led by
+ *      an accidental (`b3`, `#4`). The case IS the meaning: `vi` is a
+ *      minor six and `VI` is a major one, `b3` is a flat third and `B3`
+ *      is a note two octaves below middle C.
+ *   2. UNITS — `bpm`, `min`, `sec` and that family. A unit has a
+ *      spelling, not a style.
+ *
+ * The third cannot be seen from one word, so it is a CALL-SITE
+ * decision, not this function's:
+ *
+ *   3. SENTENCES — a full sentence, a question, an instruction, or a
+ *      fragment that only completes a neighbouring sentence is body
+ *      copy. Do not pass it through here, and do not retype it.
+ *
+ * Phrase-level theory conventions ("major 7th", "half-diminished") are
+ * exempt the same way: they live in the catalogs as canonical strings
+ * and simply are not routed through this function.
  */
 
 /**
@@ -36,34 +60,112 @@
  * anything not listed is capitalised.
  */
 const MINOR_WORDS: ReadonlySet<string> = new Set([
-  'a', 'an', 'and', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with',
+  'a', 'an', 'and', 'at', 'by', 'for', 'from', 'in', 'of', 'on', 'or',
+  'the', 'to', 'with',
 ]);
 
-/** Capitalise one word, and each half of a hyphenated one. */
+/**
+ * Separators that start a new title rather than continue one.
+ *
+ * A dash, colon or bracket opens a fresh clause, and its first word is
+ * capitalised whatever it is — "Eb Minor Pentatonic — From b3", not
+ * "— from b3". A space or a comma does not, so "Add from Want to Learn
+ * List" keeps its small words small.
+ */
+const CLAUSE_BREAK = /[—–:;(){}[\]/|·→]/;
+
+/**
+ * Units and abbreviations that carry their own spelling.
+ *
+ * "+5 min" is not "+5 Min", and a metronome reads in `bpm`. Left
+ * exactly as stored, so a site that already writes `dB` keeps it.
+ */
+const UNITS: ReadonlySet<string> = new Set([
+  'bpm', 'min', 'mins', 'sec', 'secs', 'hr', 'hrs', 'ms', 'hz', 'khz', 'db', 'rpm',
+]);
+
+/** What continues a word rather than starting one. Digits and
+ *  apostrophes are inside a word; punctuation and spaces are not.
+ *  An apostrophe is NOT a word break, or `Ain't Nobody` comes out as
+ *  `Ain'T Nobody`. */
+const WORD_CHAR = /[\p{L}\p{N}'’]/u;
+
+/** Splits a label into alternating word and separator runs. */
+const RUNS = /[\p{L}\p{N}'’]+|[^\p{L}\p{N}'’]+/gu;
+
+/**
+ * A degree led by its accidental — `b3`, `b2`, `bVII`, `#4`.
+ *
+ * Covers both spellings a degree takes: arabic (the scale-cell and
+ * chord-motion form) and roman (the borrowed-chord form). No English
+ * word puts a lowercase `b` in front of a digit or a capital, so
+ * neither shape can be a real word start.
+ */
+function isAccidentalDegree(word: string): boolean {
+  return /^[b#][\d\p{Lu}]/u.test(word);
+}
+
+/**
+ * A roman numeral, in whichever case it was written.
+ *
+ * `vi` is a minor six and `VI` a major one, so the stored case is the
+ * chord quality and capitalising it transposes the meaning. Matching
+ * only `i`/`v`/`x` keeps this off English words — no word is built from
+ * those three letters alone except "I", which is already capitalised
+ * and so passes through unchanged either way.
+ */
+function isRomanNumeral(word: string): boolean {
+  return /^[ivx]+$/i.test(word);
+}
+
+/** Capitalise one word, leaving its tail exactly as stored — `EQ` stays
+ *  `EQ`, `7th` stays `7th`, `AI era` becomes `AI Era`. Lowercasing the
+ *  tail is what a naive Title Case does, and it is wrong here. */
 function capitalise(word: string): string {
-  return word
-    .split('-')
-    .map(part => (part.length === 0 ? part : part[0].toUpperCase() + part.slice(1)))
-    .join('-');
+  return word[0].toUpperCase() + word.slice(1);
 }
 
 /**
  * "voice-leading drills" → "Voice-Leading Drills".
  * "want to learn" → "Want to Learn".
+ * "add from want to learn list" → "Add from Want to Learn List".
+ * "clear override (use song default)" → "Clear Override (Use Song Default)".
+ * "vi → 1 ascending" → "vi → 1 Ascending".
+ * "+5 min" → "+5 min".
  *
- * The FIRST word is always capitalised, whatever it is — a title that
- * opened with a lowercase "the" would read as a mistake rather than as
- * a rule.
+ * Every word start is capitalised, including inside brackets and after
+ * a hyphen or dash — a parenthetical cased half one way and half the
+ * other reads as a mistake rather than as a rule. The first word of the
+ * label, and of each clause a dash or bracket opens, is capitalised
+ * whatever it is, unless it is notation or a unit.
  */
 export function titleCase(label: string): string {
-  return label
-    .split(/(\s+)/)
-    .map((chunk, i) => {
-      if (/^\s+$/.test(chunk) || chunk.length === 0) return chunk;
-      const lower = chunk.toLowerCase();
-      // Index counts whitespace chunks too, so the first WORD is 0.
-      if (i > 0 && MINOR_WORDS.has(lower)) return lower;
-      return capitalise(chunk);
+  const runs = label.match(RUNS);
+  if (runs === null) return label;
+
+  let leads = true;
+  let afterSpace = false;
+
+  return runs
+    .map(run => {
+      if (!WORD_CHAR.test(run[0])) {
+        afterSpace = /\s/.test(run);
+        if (CLAUSE_BREAK.test(run)) leads = true;
+        return run;
+      }
+      const isFirst = leads;
+      leads = false;
+
+      // Notation and units keep the spelling they were given.
+      if (isAccidentalDegree(run) || isRomanNumeral(run)) return run;
+      if (UNITS.has(run.toLowerCase())) return run;
+
+      // Minor words only duck between space-separated words. A hyphen
+      // joins one word, so "check-in" stays "Check-In".
+      if (!isFirst && afterSpace && MINOR_WORDS.has(run.toLowerCase())) {
+        return run.toLowerCase();
+      }
+      return capitalise(run);
     })
     .join('');
 }

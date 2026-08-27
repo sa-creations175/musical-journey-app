@@ -33,6 +33,7 @@
  * rows in Dexie, not a constant; it arrives with its adapter, built
  * from loaded rows so it stays a pure function of its inputs.
  */
+import { titleCase } from '../../../lib/labelCase';
 import { FLASHCARDS, CATEGORY_LABELS, CATEGORY_ORDER } from '../../harmonic-fluency/catalog';
 import { INTERVAL_SEEDS, directionsFor } from '../../ear-training/intervals/seed';
 import { reachableInversions } from '../../ear-training/chord-recognition/inversionUtils';
@@ -146,8 +147,7 @@ export function catalogRefSet(catalog: ModuleCatalog): Set<string> {
 const EAR_TRAINING = 'ear training';
 
 /**
- * Title Case for a dashboard row label — the first letter of each word,
- * and NOTHING else touched.
+ * Title Case for a dashboard row label.
  *
  * ─── The convention ──────────────────────────────────────────────────
  *
@@ -164,52 +164,18 @@ const EAR_TRAINING = 'ear training';
  * module's own chips, sidebar and headings — surfaces with their own
  * typography that are not wrong to capitalise.
  *
- * ─── Why only the first letter of each word ──────────────────────────
+ * ─── One implementation, not two ─────────────────────────────────────
  *
- * Lowercasing the rest would destroy meaning that lives in the case:
- * `EQ` becomes `Eq`, `M3` becomes `M3`→`M3` only by luck, `AI era`
- * becomes `Ai Era`. So the rest of every word is left exactly as stored.
- *
- * An apostrophe is NOT a word break, or `Ain't Nobody` comes out as
- * `Ain'T Nobody`.
- *
- * ─── Why a lone `b` before a digit is left alone ─────────────────────
- *
- * THE CASE IS THE MEANING. `b3` is a flat third and `B3` is a note two
- * octaves below middle C. Chord-motion rows are built from degree
- * spellings (`b2 → 3`), and scale cells carry them mid-label
- * ("from b3"), so a rule that capitalises word-initial letters
- * unconditionally would silently transpose them. `#4` is safe either
- * way — `#` is not a letter — and is covered for symmetry.
+ * THIS USED TO BE ITS OWN COPY. It knew that a leading `b` is a flat
+ * and not a word start; `lib/labelCase` knew that "want to learn" reads
+ * as "Want to Learn". Each was right about what the other got wrong,
+ * and a row could disagree with the nav item pointing at it. The two
+ * are now one function, holding both rules and the notation and unit
+ * exemptions — see `lib/labelCase`. Re-exported rather than
+ * re-imported at each site so this module's own callers read the same
+ * as they did.
  */
-export function titleCase(label: string): string {
-  let out = '';
-  for (let i = 0; i < label.length; i++) {
-    const ch = label[i];
-    const startsWord = i === 0 || !WORD_CHAR.test(label[i - 1]);
-    out += startsWord && !isAccidental(label, i) ? ch.toUpperCase() : ch;
-  }
-  return out;
-}
-
-/** What continues a word rather than starting one. Digits and
- *  apostrophes are inside a word; punctuation and spaces are not. */
-const WORD_CHAR = /[\p{L}\p{N}'’]/u;
-
-/**
- * A flat or sharp sign attached to a degree, not the first letter of a
- * word.
- *
- * Covers both spellings a degree takes: arabic (`b3`, the scale-cell and
- * chord-motion form) and roman (`bVII`, the borrowed-chord form). No
- * English word puts a lowercase `b` in front of a digit or a capital,
- * so neither shape can be a real word start.
- */
-function isAccidental(label: string, i: number): boolean {
-  const ch = label[i];
-  if (ch !== 'b' && ch !== '#') return false;
-  return /[\d\p{Lu}]/u.test(label[i + 1] ?? '');
-}
+export { titleCase };
 
 function one(id: string, label: string, path: readonly string[]): CatalogItem {
   return { id, label, path, itemRefs: [id] };

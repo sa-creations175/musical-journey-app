@@ -37,6 +37,55 @@ describe('title case', () => {
   });
 });
 
+describe('the three exemptions — notation, units, sentences', () => {
+  // NOT LABELS. Two of the three are visible in the word itself and are
+  // handled by the function; the third is a call-site decision, because
+  // no per-word rule can see a sentence.
+  it('leaves a roman numeral in the case it was written', () => {
+    // `vi` is a minor six and `VI` a major one — capitalising the label
+    // transposes the chord it names.
+    expect(titleCase('vi → 1 ascending')).toBe('vi → 1 Ascending');
+    expect(titleCase('ii → V ascending')).toBe('ii → V Ascending');
+    expect(titleCase('bVII → 1 ascending')).toBe('bVII → 1 Ascending');
+  });
+
+  it('leaves a degree led by its accidental alone', () => {
+    expect(titleCase('b3')).toBe('b3');
+    expect(titleCase('from b3 upward')).toBe('From b3 Upward');
+    // A `b` that is not an accidental still starts a word.
+    expect(titleCase('bass clef')).toBe('Bass Clef');
+  });
+
+  it('leaves a unit spelled the way a unit is spelled', () => {
+    expect(titleCase('+5 min')).toBe('+5 min');
+    expect(titleCase('bpm')).toBe('bpm');
+  });
+
+  it('capitalises inside a bracket rather than half of it', () => {
+    expect(titleCase('clear override (use song default)'))
+      .toBe('Clear Override (Use Song Default)');
+  });
+});
+
+describe('small words, and where a clause restarts', () => {
+  it('keeps a preposition small between spaced words', () => {
+    expect(titleCase('add from want to learn list'))
+      .toBe('Add from Want to Learn List');
+  });
+
+  it('capitalises the first word of a clause a dash opens', () => {
+    // A dash starts a new title rather than continuing one.
+    expect(titleCase('eb minor pentatonic — from b3'))
+      .toBe('Eb Minor Pentatonic — From b3');
+    expect(titleCase('skip — no penalty')).toBe('Skip — No Penalty');
+  });
+
+  it('does not restart on a comma or an ampersand', () => {
+    expect(titleCase('yes, restore backup')).toBe('Yes, Restore Backup');
+    expect(titleCase('delay & saturation')).toBe('Delay & Saturation');
+  });
+});
+
 describe('card titles use the same rule', () => {
   it('capitalises the labels the module homes hand over', () => {
     // The adapters keep the catalog's own lowercase words; the card

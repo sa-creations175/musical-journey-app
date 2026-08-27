@@ -270,12 +270,33 @@ describe('titleCase — first letter of each word, nothing else touched', () => 
     expect(titleCase('b3')).toBe('b3');
     expect(titleCase('b2 → 3')).toBe('b2 → 3');
     // Roman spelling too: `bVII` is a flat-seven chord.
-    expect(titleCase('bVII in a major key')).toBe('bVII In A Major Key');
+    expect(titleCase('bVII in a major key')).toBe('bVII in a Major Key');
     expect(titleCase('eb minor pentatonic — from b3'))
       .toBe('Eb Minor Pentatonic — From b3');
     // A `b` that is NOT an accidental still starts a word.
     expect(titleCase('bass clef')).toBe('Bass Clef');
-    expect(titleCase('below the staff')).toBe('Below The Staff');
+    expect(titleCase('below the staff')).toBe('Below the Staff');
+  });
+
+  it('leaves a roman numeral in the case it was written', () => {
+    // `vi` is a minor six and `VI` a major one. Capitalising the label
+    // would transpose the chord it names.
+    expect(titleCase('vi → 1 ascending')).toBe('vi → 1 Ascending');
+    expect(titleCase('ii → V ascending')).toBe('ii → V Ascending');
+    expect(titleCase('V → vi (deceptive)')).toBe('V → vi (Deceptive)');
+    expect(titleCase('bVI → bVII ascending')).toBe('bVI → bVII Ascending');
+  });
+
+  it('leaves a unit spelled the way a unit is spelled', () => {
+    expect(titleCase('+5 min')).toBe('+5 min');
+    expect(titleCase('bpm')).toBe('bpm');
+    expect(titleCase('tap tempo bpm')).toBe('Tap Tempo bpm');
+  });
+
+  it('capitalises inside a bracket, not half of it', () => {
+    // Half one way and half the other reads as a mistake, not a rule.
+    expect(titleCase('clear override (use song default)'))
+      .toBe('Clear Override (Use Song Default)');
   });
 
   it('breaks on punctuation and dashes, not only on spaces', () => {
@@ -286,7 +307,11 @@ describe('titleCase — first letter of each word, nothing else touched', () => 
   });
 
   it('is idempotent — applying it twice changes nothing', () => {
-    for (const s of ['delay & saturation', 'EQ', 'b2 → 3', "ain't nobody"]) {
+    for (const s of [
+      'delay & saturation', 'EQ', 'b2 → 3', "ain't nobody",
+      'want to learn', 'vi → 1 ascending', '+5 min',
+      'clear override (use song default)',
+    ]) {
       expect(titleCase(titleCase(s)), s).toBe(titleCase(s));
     }
   });
