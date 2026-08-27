@@ -73,6 +73,15 @@ export interface SpacingSettings {
     minimumDays: number;
   };
   stale: {
+    /**
+     * The warning window BEFORE due. Grace is the window after.
+     *
+     * Same shape, opposite side, so it sits beside grace rather than
+     * off on its own. It is NOT a scheduling number — nothing about
+     * when a card comes back depends on it. It decides only when a
+     * surface starts saying "this is coming".
+     */
+    dueSoonDays: number;
     /** Counted from the DUE DATE, never from the length of the wait. */
     graceDays: number;
   };
@@ -101,6 +110,7 @@ export const DEFAULT_SPACING_SETTINGS: SpacingSettings = {
     minimumDays: 1,
   },
   stale: {
+    dueSoonDays: 7,
     graceDays: 7,
   },
 };
@@ -128,6 +138,7 @@ export interface PartialSpacingSettings {
     minimumDays?: number;
   };
   stale?: {
+    dueSoonDays?: number;
     graceDays?: number;
   };
 }
@@ -148,6 +159,7 @@ export type SettingsPath =
   | 'maintaining.firstWaitDays'
   | 'maintaining.onWrong'
   | 'maintaining.minimumDays'
+  | 'stale.dueSoonDays'
   | 'stale.graceDays'
   | `maintaining.perBand.${AccuracyBand}.growth`
   | `maintaining.perBand.${AccuracyBand}.ceilingDays`;
@@ -159,6 +171,7 @@ export const SETTINGS_PATHS: ReadonlyArray<SettingsPath> = [
   'maintaining.firstWaitDays',
   'maintaining.onWrong',
   'maintaining.minimumDays',
+  'stale.dueSoonDays',
   'stale.graceDays',
   ...ACCURACY_BANDS.flatMap(b => [
     `maintaining.perBand.${b.id}.growth` as SettingsPath,
@@ -178,6 +191,7 @@ export function readPath(
     case 'maintaining.firstWaitDays': return partial.maintaining?.firstWaitDays;
     case 'maintaining.onWrong': return partial.maintaining?.onWrong;
     case 'maintaining.minimumDays': return partial.maintaining?.minimumDays;
+    case 'stale.dueSoonDays': return partial.stale?.dueSoonDays;
     case 'stale.graceDays': return partial.stale?.graceDays;
     default: {
       const m = /^maintaining\.perBand\.(.+)\.(growth|ceilingDays)$/.exec(path);
@@ -249,6 +263,10 @@ export function resolveSettings(chain: ReadonlyArray<SettingsLevel>): ResolvedSe
     if (s.maintaining?.minimumDays !== undefined) {
       value.maintaining.minimumDays = s.maintaining.minimumDays;
       sourceByPath['maintaining.minimumDays'] = level;
+    }
+    if (s.stale?.dueSoonDays !== undefined) {
+      value.stale.dueSoonDays = s.stale.dueSoonDays;
+      sourceByPath['stale.dueSoonDays'] = level;
     }
     if (s.stale?.graceDays !== undefined) {
       value.stale.graceDays = s.stale.graceDays;
@@ -325,7 +343,7 @@ function structuredCloneSettings(s: SpacingSettings): SpacingSettings {
       onWrong: s.maintaining.onWrong,
       minimumDays: s.maintaining.minimumDays,
     },
-    stale: { graceDays: s.stale.graceDays },
+    stale: { dueSoonDays: s.stale.dueSoonDays, graceDays: s.stale.graceDays },
   };
 }
 

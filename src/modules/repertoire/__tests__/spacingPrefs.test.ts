@@ -1,134 +1,107 @@
-// @vitest-environment jsdom
 /**
- * The four spacing settings, and the sequence they produce.
+ * Repertoire's adapter over the spacing tree's Songs row.
  *
- * The sequence is the part the user actually reads — "2 → 4 → 8 → 16
- * → 30 days" is what makes a floor of 2 mean anything — so it is
- * derived from the two ends by the same doubling the engine walks
- * rather than listed. A preview that could disagree with the engine
- * would be worse than no preview.
+ * ---------------------------------------------------------------
+ * WHAT THIS FILE USED TO ASSERT, AND WHERE IT WENT.
+ *
+ * It tested `intervalSequence` — the old settings section's read-out —
+ * and that the read-out matched `computeIntervalDays`. Both are gone:
+ * there is no single ceiling to walk any more, and the spacing page
+ * draws its sequences by running the real scheduler, which
+ * `previewSequence` is tested for in the engine's own file. That rule
+ * still holds, it is simply enforced somewhere else.
+ *
+ * What survives here is what still applies: defaults when nothing is
+ * stored, and refusing a stored value that would make every key
+ * permanently overdue.
+ * ---------------------------------------------------------------
  */
-import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
+import 'fake-indexeddb/auto';
 import { db } from '../../../lib/db';
-import { computeIntervalDays } from '../../../lib/spacingState';
+import { setPref } from '../../../lib/userPrefs';
+import { PREF_SPACING_TREE } from '../../../lib/spacing/store';
 import {
-  FIRST_INTERVAL_DEFAULT,
-  LONGEST_INTERVAL_DEFAULT,
-  PREF_FIRST_INTERVAL_DAYS,
-  PREF_LONGEST_INTERVAL_DAYS,
-  SPACING_DEFAULTS,
-  boundsFrom,
-  getSpacingSettings,
-  intervalSequence,
+  PREF_DUE_SOON_DAYS, PREF_FIRST_INTERVAL_DAYS, PREF_GRACE_DAYS,
+  PREF_LONGEST_INTERVAL_DAYS, PREF_SONG_PREFS_MIGRATED, SPACING_DEFAULTS,
+  SONGS_NODE_ID, getSpacingSettings, migrateSongSpacingPrefs, windowsFrom,
 } from '../spacingPrefs';
 
-beforeEach(async () => { await db.userPrefs.clear(); });
-
-describe('the sequence', () => {
-  it('is what the defaults actually produce', () => {
-    expect(intervalSequence(SPACING_DEFAULTS)).toEqual([2, 4, 8, 16, 30]);
-  });
-
-  it('follows the floor when the floor moves', () => {
-    expect(intervalSequence({ ...SPACING_DEFAULTS, firstIntervalDays: 4 }))
-      .toEqual([4, 8, 16, 30]);
-  });
-
-  it('is clamped by the ceiling, not extended past it', () => {
-    const seq = intervalSequence({ ...SPACING_DEFAULTS, longestIntervalDays: 10 });
-    expect(seq).toEqual([2, 4, 8, 10]);
-    expect(Math.max(...seq)).toBe(10);
-  });
-
-  it('collapses to one entry when the ends meet', () => {
-    expect(intervalSequence({
-      ...SPACING_DEFAULTS, firstIntervalDays: 14, longestIntervalDays: 14,
-    })).toEqual([14]);
-  });
-
-  it('terminates when the ceiling is below the floor', () => {
-    // A user dragging one past the other. The clamp in the settings
-    // reader stops this reaching here, but a preview that could spin
-    // would hang the panel rather than show a wrong number.
-    expect(intervalSequence({
-      ...SPACING_DEFAULTS, firstIntervalDays: 30, longestIntervalDays: 5,
-    })).toEqual([30]);
-  });
+beforeEach(async () => {
+  await db.userPrefs.clear();
 });
 
-describe('the preview matches the engine', () => {
-  it('walks the same values computeIntervalDays produces', () => {
-    // THE LOAD-BEARING ONE. The panel shows this sequence as a promise
-    // about what will happen; if the engine walks different numbers,
-    // the promise is a lie that nobody can see being broken.
-    const settings = SPACING_DEFAULTS;
-    const bounds = boundsFrom(settings);
-    const shown = intervalSequence(settings);
-
-    const walked: number[] = [];
-    let prior = 0;
-    for (let i = 0; i < shown.length; i++) {
-      prior = computeIntervalDays({
-        memoryType: 'integration',
-        priorInterval: prior,
-        signal: { kind: 'rating', rating: 'flying' },
-        bounds,
-      });
-      walked.push(prior);
-    }
-    expect(walked).toEqual(shown);
-  });
-
-  it('still matches when the ends are moved', () => {
-    const settings = { ...SPACING_DEFAULTS, firstIntervalDays: 3, longestIntervalDays: 20 };
-    const bounds = boundsFrom(settings);
-    const shown = intervalSequence(settings);
-    const walked: number[] = [];
-    let prior = 0;
-    for (let i = 0; i < shown.length; i++) {
-      prior = computeIntervalDays({
-        memoryType: 'integration', priorInterval: prior,
-        signal: { kind: 'rating', rating: 'flying' }, bounds,
-      });
-      walked.push(prior);
-    }
-    expect(walked).toEqual(shown);
-  });
-});
-
-describe('reading stored settings', () => {
-  it('returns the defaults when nothing is stored', async () => {
+describe('reading the Songs row', () => {
+  it('returns the tree defaults when nothing is stored', async () => {
     expect(await getSpacingSettings()).toEqual(SPACING_DEFAULTS);
+    expect(SPACING_DEFAULTS.firstIntervalDays).toBe(2);
+    expect(SPACING_DEFAULTS.dueSoonDays).toBe(7);
+    expect(SPACING_DEFAULTS.graceDays).toBe(7);
   });
 
-  it('reproduces the behaviour the app already had', () => {
-    // The defaults are not arbitrary: the shared engine's initial of 1
-    // doubles to 2, and integration caps at 30. A user who never opens
-    // the panel sees no change.
-    expect(FIRST_INTERVAL_DEFAULT).toBe(2);
-    expect(LONGEST_INTERVAL_DEFAULT).toBe(30);
-    expect(computeIntervalDays({
-      memoryType: 'integration', priorInterval: 0,
-      signal: { kind: 'rating', rating: 'flying' },
-    })).toBe(FIRST_INTERVAL_DEFAULT);
+  it('reports the top band as the longest a key can ever wait', () => {
+    // There is no single ceiling any more — a key is capped by the
+    // band it is in — so "the most time that can ever pass" is the
+    // highest of the four.
+    expect(SPACING_DEFAULTS.longestIntervalDays).toBe(60);
   });
 
-  it('never lets the ceiling sit below the floor', async () => {
-    // Otherwise every pass would SHORTEN the interval — the sequence
-    // would start above its own cap.
-    await db.userPrefs.put({ key: PREF_FIRST_INTERVAL_DAYS, value: 20 });
-    await db.userPrefs.put({ key: PREF_LONGEST_INTERVAL_DAYS, value: 5 });
+  it('reads an override off the Songs row', async () => {
+    await setPref(PREF_SPACING_TREE, {
+      [SONGS_NODE_ID]: { stale: { graceDays: 14, dueSoonDays: 3 } },
+    });
     const s = await getSpacingSettings();
-    expect(s.longestIntervalDays).toBeGreaterThanOrEqual(s.firstIntervalDays);
+    expect(windowsFrom(s)).toEqual({ dueSoonDays: 3, graceDays: 14 });
   });
 
-  it('clamps a value that could make every key permanently overdue', async () => {
-    // These cross a sync boundary and can arrive from another device
-    // or an older build. A zero or a negative is not a preference.
-    await db.userPrefs.put({ key: PREF_FIRST_INTERVAL_DAYS, value: 0 });
-    expect((await getSpacingSettings()).firstIntervalDays).toBe(FIRST_INTERVAL_DEFAULT);
-    await db.userPrefs.put({ key: PREF_FIRST_INTERVAL_DAYS, value: -5 });
-    expect((await getSpacingSettings()).firstIntervalDays).toBe(FIRST_INTERVAL_DEFAULT);
+  it('refuses a stored value that would make every key permanently overdue', async () => {
+    // Zero and negative grace are rejected on read, so a bad value
+    // arriving from another device cannot demote a whole library.
+    await setPref(PREF_SPACING_TREE, { [SONGS_NODE_ID]: { stale: { graceDays: 0 } } });
+    expect((await getSpacingSettings()).graceDays).toBe(SPACING_DEFAULTS.graceDays);
+  });
+});
+
+describe('carrying the four retired prefs onto the tree', () => {
+  it('carries only what was actually changed', async () => {
+    await setPref(PREF_FIRST_INTERVAL_DAYS, 2);    // unchanged default
+    await setPref(PREF_GRACE_DAYS, 14);            // customised
+    const r = await migrateSongSpacingPrefs();
+    expect(r.migrated).toBe(true);
+    expect(r.carried).toEqual(['grace after due']);
+    expect((await getSpacingSettings()).graceDays).toBe(14);
+    // The untouched one is still inheriting, not pinned as an override.
+    expect((await getSpacingSettings()).firstIntervalDays).toBe(2);
+  });
+
+  it('puts a customised longest interval on the top band', async () => {
+    await setPref(PREF_LONGEST_INTERVAL_DAYS, 45);
+    await migrateSongSpacingPrefs();
+    expect((await getSpacingSettings()).longestIntervalDays).toBe(45);
+  });
+
+  it('carries nothing when every pref sat at its old default', async () => {
+    await setPref(PREF_FIRST_INTERVAL_DAYS, 2);
+    await setPref(PREF_LONGEST_INTERVAL_DAYS, 30);
+    await setPref(PREF_DUE_SOON_DAYS, 7);
+    await setPref(PREF_GRACE_DAYS, 7);
+    const r = await migrateSongSpacingPrefs();
+    expect(r.carried).toEqual([]);
+  });
+
+  it('runs once', async () => {
+    await setPref(PREF_GRACE_DAYS, 21);
+    await migrateSongSpacingPrefs();
+    const second = await migrateSongSpacingPrefs();
+    expect(second.migrated).toBe(false);
+    expect(second.carried).toEqual([]);
+  });
+
+  it('does not re-run after the flag is set, even with prefs present', async () => {
+    await setPref(PREF_SONG_PREFS_MIGRATED, true);
+    await setPref(PREF_GRACE_DAYS, 21);
+    const r = await migrateSongSpacingPrefs();
+    expect(r.migrated).toBe(false);
+    expect((await getSpacingSettings()).graceDays).toBe(SPACING_DEFAULTS.graceDays);
   });
 });

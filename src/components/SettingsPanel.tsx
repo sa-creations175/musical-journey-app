@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from './Modal';
+import { Link } from 'react-router-dom';
 import { getPref, setPref } from '../lib/userPrefs';
 import { MODULE_ORDER, type ModuleMeta } from '../lib/moduleMeta';
 import {
@@ -23,7 +24,6 @@ import { SPELLING_LABEL, useSpelling } from '../lib/spellingPref';
 import type { Spelling } from '../lib/spelling';
 import SyncDiagnosticsSection from './SyncDiagnosticsSection';
 import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
-import SpacingSettingsSection from '../modules/repertoire/SpacingSettingsSection';
 import PracticeWindowSettingsSection from '../modules/repertoire/PracticeWindowSettingsSection';
 import FreshnessSettingsSection from '../modules/dashboard/mobile/FreshnessSettingsSection';
 import SeededKeyRowsPanel from '../modules/repertoire/SeededKeyRowsPanel';
@@ -398,7 +398,29 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
           <SeededKeyRowsPanel />
 
-          <SpacingSettingsSection />
+          {/* THE NUMBERS MOVED. Four controls used to sit here — first
+              interval, longest interval, due-soon and grace — editing
+              song-key timing in a second place. They are now the Songs
+              row of the spacing tree, which is the one place any
+              timing number is set for anything. */}
+          <section>
+            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+              spacing &amp; scheduling
+            </h4>
+            <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
+              every number that decides when something comes back to you — for songs and
+              for every other module — now lives on one page.
+            </p>
+            <Link
+              to="/settings/spacing"
+              onClick={onClose}
+              className="inline-block px-4 min-h-[40px] leading-[40px] rounded-lg border
+                border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent
+                hover:text-fluent"
+            >
+              open spacing &amp; scheduling
+            </Link>
+          </section>
 
           <section>
             <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">

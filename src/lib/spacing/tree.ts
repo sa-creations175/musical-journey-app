@@ -24,6 +24,9 @@ import { MODULE_ORDER } from '../moduleMeta';
 import { EAR_TRAINING_SUB_MODULES } from '../../modules/ear-training/homeCards';
 import { READING_SKILL_ORDER, READING_SKILL_LABELS } from '../../modules/reading/homeCards';
 import { SHAPES_SECTIONS } from '../../modules/shapes-and-patterns/homeCards';
+import {
+  CATEGORY_LABELS, CATEGORY_ORDER, FLASHCARDS,
+} from '../../modules/harmonic-fluency/catalog';
 
 export type TreeLevel = 'module' | 'submodule' | 'skill';
 
@@ -134,14 +137,38 @@ function productionChildren(): SpacingNode[] {
   ];
 }
 
+/**
+ * Harmonic fluency's categories, in the catalog's own order.
+ *
+ * THE CARD'S CATEGORY IS LOOKED UP, NEVER PARSED OUT OF ITS ID. The
+ * catalog says so in as many words: ids there are positional handles
+ * for stored state, and reading one as a schema would mean renumbering
+ * a generator moved a reader's settings. So the map is built by
+ * walking the cards, which is the only thing that actually knows.
+ */
+const CATEGORY_BY_CARD_ID: ReadonlyMap<string, string> = new Map(
+  FLASHCARDS.map(c => [c.id, c.category as string]),
+);
+
+function harmonicFluencyChildren(): SpacingNode[] {
+  return CATEGORY_ORDER.map(category =>
+    node(`harmonic-fluency.${category}`, CATEGORY_LABELS[category], 'submodule', {
+      moduleRef: 'harmonic-fluency',
+      itemRefMatch: (ref) => CATEGORY_BY_CARD_ID.get(ref) === category,
+    }),
+  );
+}
+
 const CHILDREN_BY_MODULE: Readonly<Record<string, () => SpacingNode[]>> = {
   'reading': readingChildren,
   'ear-training': earTrainingChildren,
   'shapes-and-patterns': shapesChildren,
   'production': productionChildren,
-  // Harmonic fluency and repertoire have no submodule level in the
-  // spec's tree; both render collapsed with nothing under them.
-  'harmonic-fluency': () => [],
+  'harmonic-fluency': harmonicFluencyChildren,
+  // SONGS IS A LEAF, DELIBERATELY. The tree is a tree of KINDS of
+  // thing — module, submodule, skill. A song is one instance, not a
+  // kind, and instances do not belong in it. If per-song pacing ever
+  // becomes a real want it goes on that song's own page.
   'repertoire': () => [],
 };
 

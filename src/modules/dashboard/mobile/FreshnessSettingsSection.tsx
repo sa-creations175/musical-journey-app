@@ -3,7 +3,7 @@
  * freshness scale.
  *
  * THE SCALE RENDERS LIVE beside the field, for the same reason
- * `SpacingSettingsSection` shows its interval sequence: "7 days" in
+ * the spacing page shows its interval sequence: "7 days" in
  * isolation says nothing about what is being agreed to, and the seven
  * rungs at the lengths they will draw say all of it. Derived from the
  * same function the dashboard draws with, so it cannot show one thing

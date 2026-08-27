@@ -125,7 +125,13 @@ export function cleanPartial(raw: unknown): PartialSpacingSettings {
   }
 
   const grace = positiveDays(r.stale?.graceDays);
-  if (grace !== undefined) out.stale = { graceDays: grace };
+  const dueSoon = positiveDays(r.stale?.dueSoonDays);
+  if (grace !== undefined || dueSoon !== undefined) {
+    out.stale = {
+      ...(dueSoon !== undefined ? { dueSoonDays: dueSoon } : {}),
+      ...(grace !== undefined ? { graceDays: grace } : {}),
+    };
+  }
 
   return out;
 }

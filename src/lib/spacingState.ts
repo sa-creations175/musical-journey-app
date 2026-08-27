@@ -70,8 +70,6 @@ export type EngagementSignal =
   | { kind: 'recency' };
 
 export interface RecordEngagementInput {
-  /** Per-caller interval bounds. See `computeIntervalDays`. */
-  bounds?: IntervalBounds;
   /**
    * Pre-resolved settings, for callers that already have them and for
    * tests that need a deterministic schedule. Omitted by every drill:

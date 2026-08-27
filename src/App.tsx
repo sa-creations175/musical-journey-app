@@ -1,6 +1,9 @@
 // Future feature ideas live in /ROADMAP.md at the project root.
 import { Suspense, lazy } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
+import SpacingSettings from './modules/settings/SpacingSettings';
 import Layout from './components/Layout';
 import Dashboard from './modules/dashboard/Dashboard';
 import HarmonicFluency from './modules/harmonic-fluency/HarmonicFluency';
@@ -53,6 +56,16 @@ import { SyncProvider } from './lib/sync/SyncContext';
 import { SessionTimerProvider } from './lib/sessionTimer/SessionTimerContext';
 
 export default function App() {
+  // ONE-TIME, AT BOOT, AND IDEMPOTENT. The four retired song-key prefs
+  // have to reach the Songs row whether or not the reader ever opens
+  // the spacing page — a customised grace window that only applied
+  // once you went looking for it would not be applied at all.
+  useEffect(() => {
+    void migrateSongSpacingPrefs().catch(err => {
+      console.warn('[spacing] song pref migration failed', err);
+    });
+  }, []);
+
   return (
     <AuthProvider>
     <AuthGate>
@@ -85,6 +98,7 @@ export default function App() {
               path="dashboard-next"
               element={<RedirectPreservingSearch to="/" />}
             />
+            <Route path="settings/spacing" element={<SpacingSettings />} />
             <Route path="goals" element={<Goals />} />
             <Route path="practice-sessions" element={<PracticeSessions />} />
             <Route path="practice-sessions/active" element={<ActiveSessionScreen />} />

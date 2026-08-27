@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { MODULE_ORDER } from '../../moduleMeta';
 import { EAR_TRAINING_SUB_MODULES } from '../../../modules/ear-training/homeCards';
 import { READING_SKILL_ORDER } from '../../../modules/reading/homeCards';
+import { CATEGORY_ORDER } from '../../../modules/harmonic-fluency/catalog';
 import { chainForCard, chainForId, spacingTree, walkTree } from '../tree';
 
 describe('order is read, never redeclared', () => {
@@ -18,6 +19,16 @@ describe('order is read, never redeclared', () => {
     const et = spacingTree().find(n => n.id === 'ear-training');
     expect(et?.children.map(c => c.label))
       .toEqual(EAR_TRAINING_SUB_MODULES.map(s => s.label));
+  });
+
+  it('takes harmonic fluency categories from the catalog order', () => {
+    const hf = spacingTree().find(n => n.id === 'harmonic-fluency');
+    expect(hf?.children.map(c => c.id.replace('harmonic-fluency.', '')))
+      .toEqual([...CATEGORY_ORDER]);
+  });
+
+  it('leaves Songs a leaf — the tree holds kinds, not instances', () => {
+    expect(spacingTree().find(n => n.id === 'repertoire')?.children).toEqual([]);
   });
 
   it('takes reading skills from its tab strip order', () => {
@@ -53,10 +64,17 @@ describe('finding the chain for a card', () => {
       .toEqual(['production', 'production.lessons']);
   });
 
-  it('falls back to the module when no child claims the ref', () => {
-    // Not a failure: a module with no split, or an item that predates
-    // one, is scheduled by its module's settings.
+  it('puts a harmonic fluency card under its own category', () => {
+    // Looked up from the catalog, never parsed out of the id — the
+    // catalog forbids reading its ids as a schema.
     expect(chainForCard('harmonic-fluency', 'ks-4').map(n => n.id))
+      .toEqual(['harmonic-fluency', 'harmonic-fluency.key-signatures']);
+  });
+
+  it('falls back to the module when no child claims the ref', () => {
+    // Not a failure: an item that predates a split, or one no category
+    // owns, is scheduled by its module's settings.
+    expect(chainForCard('harmonic-fluency', 'not-a-real-card-id').map(n => n.id))
       .toEqual(['harmonic-fluency']);
   });
 

@@ -1,6 +1,5 @@
 import { SONG_KEY_ITEM_REF_PREFIX } from '../../practice/endOfSessionPersistence';
 import { getSpacingState, recordEngagement } from '../../../lib/spacingState';
-import { boundsFrom, getSpacingSettings } from '../spacingPrefs';
 
 /**
  * Recording that a key was, or was not, proven.
@@ -40,23 +39,37 @@ export function songKeyItemRef(songKeyId: string): string {
 /**
  * Record the outcome of a whole-song test on one key.
  *
- * Bounds come from the user's settings, so the sequence the settings
- * screen shows is the sequence the engine actually walks. Outside a
- * transaction, mirroring every other spacing write: a spacing failure
- * must not roll back the test result the user just earned.
+ * =====================================================================
+ * NO BOUNDS. THE SONGS ROW OF THE SPACING TREE DECIDES, LIKE EVERY
+ * OTHER CALLER.
+ *
+ * This used to pass `bounds: boundsFrom(settings)`, a per-caller
+ * override carrying repertoire's own first-interval and longest-
+ * interval prefs. When `recordEngagement` moved onto the two-stage
+ * engine the parameter stopped being read, and the override went
+ * silently nowhere — song keys were scheduled by the tree's defaults
+ * while the settings screen still showed numbers that did nothing.
+ *
+ * Removed rather than reconnected: one engine means one place the
+ * numbers live, and that place is now the Songs row. Repertoire is no
+ * longer a special case, so `boundsFrom` and the parameter it fed are
+ * both gone.
+ *
+ * Outside a transaction, mirroring every other spacing write: a
+ * spacing failure must not roll back the test result the user just
+ * earned.
+ * =====================================================================
  */
 export async function recordKeyProving(args: {
   songKeyId: string;
   passed: boolean;
   timestamp?: number;
 }): Promise<void> {
-  const settings = await getSpacingSettings();
   try {
     await recordEngagement({
       itemRef: songKeyItemRef(args.songKeyId),
       moduleRef: 'repertoire',
       signal: { kind: 'rating', rating: args.passed ? 'flying' : 'crawling' },
-      bounds: boundsFrom(settings),
       ...(args.timestamp !== undefined ? { timestamp: args.timestamp } : {}),
     });
   } catch (err) {
