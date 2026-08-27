@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
-  type AcquisitionStage,
   type DrillSession,
   type DrillSkill,
   type DrillType,
@@ -10,7 +9,6 @@ import {
   type DrillHand,
 } from '../../lib/db';
 import Modal from '../../components/Modal';
-import { assertSpacingStage } from '../../lib/spacingState';
 import { bandVerdictForRow } from '../../lib/spacing/row';
 import { bandVerdictLabel, NOT_STARTED, type BandVerdict } from '../../lib/spacing/banding';
 import { accuracyBandDef, type AccuracyBand } from '../../lib/spacing/bands';
@@ -29,7 +27,6 @@ import {
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 
-type SelfAssessmentLevel = 'not_started' | 'familiar' | 'comfortable';
 
 interface Props {
   /** Chord-shape cell coordinates. The panel materialises every
@@ -82,8 +79,6 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
   // milliseconds later with the seeded stages, but the UI shouldn't
   // wait on it. Resets on panel remount (i.e., next time the user
   // opens the cell from the heat grid).
-  const [selfAssessmentDismissed, setSelfAssessmentDismissed] = useState(false);
-  const [seedingAssessment, setSeedingAssessment] = useState(false);
 
   // Materialise + load all skill rows for the cell. findAllChordShape­
   // SkillsForCell runs the cell-level transaction (creates any
@@ -176,15 +171,9 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
       .toArray(),
     [],
   ) ?? [];
-  const stageByItemRef = useMemo(() => {
-    const m = new Map<string, AcquisitionStage>();
-    for (const r of spacingRows) {
-      if (r.itemRef === itemRefPrefix || r.itemRef.startsWith(`${itemRefPrefix}:`)) {
-        m.set(r.itemRef, r.acquisitionStage);
-      }
-    }
-    return m;
-  }, [spacingRows, itemRefPrefix]);
+  // NO STAGE MAP ANY MORE. The cell showed an acquisition stage —
+  // Acquired / In Progress / Not Started — beside a rating from a
+  // different vocabulary. It shows the rating and nothing else now.
 
   /**
    * The rating for one square of the grid, keyed `itemRef|hand`.
@@ -255,65 +244,7 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
     ? lastPracticedBySkill.get(supplementarySkill.id) ?? null
     : null;
 
-  const hasAnySpacingForCell = stageByItemRef.size > 0;
-  const showSelfAssessment = !selfAssessmentDismissed && !hasAnySpacingForCell;
 
-  /**
-   * Seed spacingState rows for the acquisition-path inversion states
-   * at the chosen stage (or no-op for 'not_started'). Supplementary
-   * rows are intentionally skipped — they're practice tools, not
-   * acquisition targets.
-   *
-   * Uses assertSpacingStage (deliberate state declaration), not
-   * recordEngagement — the user hasn't actually practiced, they're
-   * declaring where they're starting from. No performanceHistory
-   * entries are appended.
-   */
-  const handleSelfAssessment = async (level: SelfAssessmentLevel) => {
-    if (seedingAssessment) return;
-    if (level === 'not_started') {
-      setSelfAssessmentDismissed(true);
-      return;
-    }
-    const stage: AcquisitionStage = level === 'familiar' ? 'acquiring' : 'acquired';
-    /**
-     * THE SUPPLEMENTARY ROW IS STILL SKIPPED, and now for a different
-     * reason than it used to be.
-     *
-     * It used to be skipped because it did not gate acquisition at all.
-     * Since 20 Aug 2026 it does — it is a shape to own like the other
-     * five — and it is skipped here anyway, because NOTHING SHOULD BE
-     * ASSUMED ON THE PLAYER'S BEHALF. Saying you know Cmaj7 says
-     * nothing about whether you can play it two-handed with the triad
-     * in the right hand; that is a different physical skill, and
-     * seeding a stage onto a row never touched would be the app
-     * answering a question it did not ask.
-     *
-     * The consequence is accepted: a self-assessment takes a seventh to
-     * five of its six rows and no further. The sixth needs real reps.
-     *
-     * The general rule, which governs anything shaped like this: a
-     * self-assessment is guesswork feeding the SESSION GENERATOR, so it
-     * has somewhere to start. The dashboard reports what the app has
-     * actually recorded. The two must not cross-contaminate — the
-     * dashboard's whole value is that it says "here are your gaps
-     * according to what you have done", not "according to what you once
-     * told us about yourself".
-     */
-    const pathStates = states.filter(s => s !== 'supplementary');
-    setSeedingAssessment(true);
-    try {
-      await Promise.all(
-        pathStates.map(state => {
-          const itemRef = state ? `${itemRefPrefix}:${state}` : itemRefPrefix;
-          return assertSpacingStage(itemRef, 'shapes-and-patterns', stage);
-        }),
-      );
-      setSelfAssessmentDismissed(true);
-    } finally {
-      setSeedingAssessment(false);
-    }
-  };
 
   // Derive title from the first skill's label (which already carries
   // the chord notation, e.g. "Cmaj7 (major seventh)"). Strip the
@@ -342,107 +273,99 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
         </div>
       )}
     >
-      {showSelfAssessment ? (
-        <SelfAssessmentPrompt
-          label={cellLabel}
-          disabled={seedingAssessment}
-          onPick={handleSelfAssessment}
-        />
-      ) : (
-        <div>
-          {/* THE GRID. Inversions down the side, hands across the top,
-              and the whole square is the button. Twelve drills where
-              there were four, and the same three hands the scales cell
-              has always offered. */}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px] border-collapse">
-              <thead>
-                <tr>
-                  <th scope="col" className="w-[34%] border-b border-neutral-200
-                    dark:border-neutral-800 px-3 pb-2 pt-1 text-left text-[11px]
+      <div>
+        {/* THE GRID. Inversions down the side, hands across the top,
+            and the whole square is the button. Twelve drills where
+            there were four, and the same three hands the scales cell
+            has always offered. */}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] border-collapse">
+            <thead>
+              <tr>
+                <th scope="col" className="w-[34%] border-b border-neutral-200
+                  dark:border-neutral-800 px-3 pb-2 pt-1 text-left text-[11px]
+                  font-semibold uppercase tracking-[0.11em] text-neutral-400">
+                  Shape
+                </th>
+                {HAND_ORDER.map(hand => (
+                  <th key={hand} scope="col" className="w-[22%] border-b border-neutral-200
+                    dark:border-neutral-800 px-2 pb-2 pt-1 text-center text-[11px]
                     font-semibold uppercase tracking-[0.11em] text-neutral-400">
-                    Shape
+                    {HAND_COLUMN_LABEL[hand]}
                   </th>
-                  {HAND_ORDER.map(hand => (
-                    <th key={hand} scope="col" className="w-[22%] border-b border-neutral-200
-                      dark:border-neutral-800 px-2 pb-2 pt-1 text-center text-[11px]
-                      font-semibold uppercase tracking-[0.11em] text-neutral-400">
-                      {HAND_COLUMN_LABEL[hand]}
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {gridStates.map(state => {
+                const skill = skills.find(sk => (sk.inversionState ?? null) === state);
+                const itemRef = state ? `${itemRefPrefix}:${state}` : itemRefPrefix;
+                const skillTypes = skill ? typesBySkill.get(skill.id) ?? [] : [];
+                return (
+                  <tr key={state ?? 'single'}>
+                    <th scope="row" className="border-b border-r border-neutral-200
+                      dark:border-neutral-800 px-3 py-2 text-left text-sm font-medium">
+                      {state ? inversionStateLabel(state) : 'Drills'}
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {gridStates.map(state => {
-                  const skill = skills.find(sk => (sk.inversionState ?? null) === state);
-                  const itemRef = state ? `${itemRefPrefix}:${state}` : itemRefPrefix;
-                  const skillTypes = skill ? typesBySkill.get(skill.id) ?? [] : [];
-                  return (
-                    <tr key={state ?? 'single'}>
-                      <th scope="row" className="border-b border-r border-neutral-200
-                        dark:border-neutral-800 px-3 py-2 text-left text-sm font-medium">
-                        {state ? inversionStateLabel(state) : 'Drills'}
-                      </th>
-                      {HAND_ORDER.map(hand => (
-                        <td key={hand} className="border-b border-r border-neutral-200
-                          last:border-r-0 dark:border-neutral-800 px-1.5 py-1 text-center">
-                          <GridCell
-                            verdict={verdictByItemRefHand.get(`${itemRef}|${hand}`) ?? NOT_STARTED}
-                            lastPracticedAt={skill
-                              ? lastPracticedBySkillHand.get(`${skill.id}|${hand}`) ?? null
-                              : null}
-                            disabled={!skill}
-                            onDrill={() => {
-                              if (!skill) return;
-                              if (skillTypes.length === 1) {
-                                setOpenSession({ skill, drillType: skillTypes[0], hand });
-                              } else {
-                                setOpenSkill(skill);
-                              }
-                            }}
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* OUTSIDE THE GRID, AND THE SHAPE SAYS SO BEFORE THE LABEL
-              DOES. One exercise, not a hand-split of the row above it:
-              the left hand holds the root while the right runs the
-              inversions, so there is no left/right/both to offer. */}
-          {supplementarySkill && (
-            <div className="mt-1 flex flex-wrap items-center justify-between gap-3
-              border-t border-neutral-300 bg-neutral-50 px-3 py-3
-              dark:border-neutral-700 dark:bg-neutral-900/40">
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium">Root In Left, Inversions In Right</span>
-                <span className="text-[11px] text-neutral-500">
-                  Left hand holds the root; right hand runs the inversions up and down
-                </span>
-              </span>
-              <span className="flex items-center gap-3">
-                <RatingChip verdict={
-                  verdictByItemRefHand.get(`${itemRefPrefix}:supplementary|both`) ?? NOT_STARTED
-                } />
-                <span className="font-mono text-[11px] tabular-nums text-neutral-400">
-                  {supplementaryLast === null ? 'never' : humanAgo(supplementaryLast)}
-                </span>
-                <button
-                  onClick={() => setOpenSkill(supplementarySkill)}
-                  className="rounded-md bg-fluent px-3.5 py-1.5 text-xs font-semibold
-                    text-white hover:opacity-90"
-                >
-                  Drill
-                </button>
-              </span>
-            </div>
-          )}
+                    {HAND_ORDER.map(hand => (
+                      <td key={hand} className="border-b border-r border-neutral-200
+                        last:border-r-0 dark:border-neutral-800 px-1.5 py-1 text-center">
+                        <GridCell
+                          verdict={verdictByItemRefHand.get(`${itemRef}|${hand}`) ?? NOT_STARTED}
+                          lastPracticedAt={skill
+                            ? lastPracticedBySkillHand.get(`${skill.id}|${hand}`) ?? null
+                            : null}
+                          disabled={!skill}
+                          onDrill={() => {
+                            if (!skill) return;
+                            if (skillTypes.length === 1) {
+                              setOpenSession({ skill, drillType: skillTypes[0], hand });
+                            } else {
+                              setOpenSkill(skill);
+                            }
+                          }}
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        {/* OUTSIDE THE GRID, AND THE SHAPE SAYS SO BEFORE THE LABEL
+            DOES. One exercise, not a hand-split of the row above it:
+            the left hand holds the root while the right runs the
+            inversions, so there is no left/right/both to offer. */}
+        {supplementarySkill && (
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-3
+            border-t border-neutral-300 bg-neutral-50 px-3 py-3
+            dark:border-neutral-700 dark:bg-neutral-900/40">
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium">Root In Left, Inversions In Right</span>
+              <span className="text-[11px] text-neutral-500">
+                Left hand holds the root; right hand runs the inversions up and down
+              </span>
+            </span>
+            <span className="flex items-center gap-3">
+              <RatingChip verdict={
+                verdictByItemRefHand.get(`${itemRefPrefix}:supplementary|both`) ?? NOT_STARTED
+              } />
+              <span className="font-mono text-[11px] tabular-nums text-neutral-400">
+                {supplementaryLast === null ? 'never' : humanAgo(supplementaryLast)}
+              </span>
+              <button
+                onClick={() => setOpenSkill(supplementarySkill)}
+                className="rounded-md bg-fluent px-3.5 py-1.5 text-xs font-semibold
+                  text-white hover:opacity-90"
+              >
+                Drill
+              </button>
+            </span>
+          </div>
+        )}
+      </div>
 
       {openSession && (
         <DrillSessionModal
@@ -468,94 +391,7 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
 // ---------------------------------------------------------------------
 
 
-/**
- * First-open self-assessment prompt. Replaces the inversion rows
- * until the user picks an option, so the rows don't have to render
- * misleading "Not started" badges next to the question that's
- * asking what state to start them in.
- *
- *   Not started  → no spacingState rows created; rows show with
- *                  "Not started" badges, normal acquisition path
- *                  applies.
- *   Familiar     → all acquisition-path inversion-state rows seeded
- *                  at 'acquiring' stage.
- *   Comfortable  → same, seeded at 'acquired' stage.
- *
- * Supplementary rows (two-handed seventh drills) are never seeded
- * by self-assessment — they're practice tools, not acquisition
- * targets.
- */
-function SelfAssessmentPrompt({
-  label,
-  disabled,
-  onPick,
-}: {
-  label: string;
-  disabled: boolean;
-  onPick: (level: SelfAssessmentLevel) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <div className="text-sm font-medium">
-          How well do you know {label}?
-        </div>
-        <div className="text-xs text-neutral-500 mt-1">
-          Quick self-assessment — sets the starting acquisition stage for each
-          inversion. You can always revise by drilling; the spacing system
-          will demote shapes you rate poorly later on.
-        </div>
-      </div>
-      <div className="grid gap-2">
-        <SelfAssessmentOption
-          title="Not Started"
-          hint="I haven't practiced this. Start from scratch."
-          disabled={disabled}
-          onClick={() => onPick('not_started')}
-        />
-        <SelfAssessmentOption
-          title="Familiar"
-          hint="I know it but it's not solid. Start at acquiring stage."
-          disabled={disabled}
-          onClick={() => onPick('familiar')}
-        />
-        <SelfAssessmentOption
-          title="Comfortable"
-          hint="I can play this reliably. Start at acquired stage."
-          disabled={disabled}
-          onClick={() => onPick('comfortable')}
-        />
-      </div>
-    </div>
-  );
-}
 
-function SelfAssessmentOption({
-  title,
-  hint,
-  disabled,
-  onClick,
-}: {
-  title: string;
-  hint: string;
-  disabled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`text-left rounded-lg border px-3 py-2.5 transition ${
-        disabled
-          ? 'border-neutral-200 dark:border-neutral-800 opacity-50 cursor-not-allowed'
-          : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:bg-fluent/5'
-      }`}
-    >
-      <div className="text-sm font-medium">{title}</div>
-      <div className="text-[11px] text-neutral-500 mt-0.5">{hint}</div>
-    </button>
-  );
-}
 
 
 /* `stageBadge` is gone with the row layout. The cell shows a RATING
