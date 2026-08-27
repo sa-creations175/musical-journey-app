@@ -3,6 +3,9 @@ import { Suspense, lazy } from 'react';
 import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
+import {
+  clearDeclaredChordShapeStages, describeClear,
+} from './lib/spacing/clearDeclaredStages';
 import SpacingSettings from './modules/settings/SpacingSettings';
 import Layout from './components/Layout';
 import Dashboard from './modules/dashboard/Dashboard';
@@ -64,6 +67,17 @@ export default function App() {
     void migrateSongSpacingPrefs().catch(err => {
       console.warn('[spacing] song pref migration failed', err);
     });
+    // ONE-TIME, AND IT DELETES. The chord cell's retired
+    // self-assessment wrote acquisition stages with nothing drilled
+    // behind them; those rows still counted toward coverage and still
+    // reached the session generator. Gated on a synced pref, so it
+    // runs once across devices, and it only ever removes rows that
+    // have no history AND no drill — see the module's own note.
+    void clearDeclaredChordShapeStages()
+      .then(r => { if (!r.skipped && r.cleared > 0) console.info(describeClear(r)); })
+      .catch(err => {
+        console.warn('[spacing] clearing declared stages failed', err);
+      });
   }, []);
 
   return (
