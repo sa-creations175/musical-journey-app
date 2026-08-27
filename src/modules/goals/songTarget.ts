@@ -320,43 +320,45 @@ interface PreviewSong {
  * null when the selection isn't fully specified.
  *
  * Examples:
- *   "Take Mirror to Solid in C"
- *   "Take Mirror to Cross-key 50%"
- *   "Take Mirror to Internalized"
- *   "Get Mirror Comfortable in F"
- *   "Get Mirror Solid in F"
- *   "Get the Bridge of Mirror Comfortable in F"
+ *   "Take Mirror to Solid status in the key of C"
+ *   "Take Mirror to Cross-key status at 50%"
+ *   "Take Mirror to Internalized status"
+ *   "Get Mirror to Comfortable status in the key of F"
+ *   "Get Mirror to Solid status in the key of F"
+ *   "Get the Bridge of Mirror to Comfortable status in the key of F"
  */
 export function previewSongTarget(
   sel: SongTargetSelection,
   song: PreviewSong,
 ): string | null {
   const title = song.title || 'this song';
-  const originalKey = song.key && song.key.trim() !== '' ? song.key : 'the original key';
+  const originalKey = song.key && song.key.trim() !== ''
+    ? `the key of ${song.key}`
+    : 'the original key';
 
   if (sel.granularity === 'whole') {
     if (sel.wholeOption === 'solid') {
-      return `Take ${title} to Solid in ${originalKey}`;
+      return `Take ${title} to Solid status in ${originalKey}`;
     }
     if (sel.wholeOption === 'internalized') {
-      return `Take ${title} to Internalized`;
+      return `Take ${title} to Internalized status`;
     }
     if (sel.wholeOption === 'cross_key') {
       const pct = clampCrossKeyPercent(sel.crossKeyPercent);
-      return `Take ${title} to Cross-key ${pct}%`;
+      return `Take ${title} to Cross-key status at ${pct}%`;
     }
     return null;
   }
   if (sel.granularity === 'key') {
     if (!sel.keyTarget) return null;
     const stateLabel = sel.keyState === 'solid' ? 'Solid' : 'Comfortable';
-    return `Get ${title} ${stateLabel} in ${sel.keyTarget}`;
+    return `Get ${title} to ${stateLabel} status in the key of ${sel.keyTarget}`;
   }
   if (sel.granularity === 'section') {
     if (!sel.sectionId || !sel.keyTarget) return null;
     const sectionName = song.sectionNamesById?.get(sel.sectionId) ?? 'a section';
     const stateLabel = sel.keyState === 'solid' ? 'Solid' : 'Comfortable';
-    return `Get the ${sectionName} of ${title} ${stateLabel} in ${sel.keyTarget}`;
+    return `Get the ${sectionName} of ${title} to ${stateLabel} status in the key of ${sel.keyTarget}`;
   }
   return null;
 }
@@ -379,19 +381,19 @@ export function describeSongGoalTarget(
   // Generic fallback when the caller didn't resolve the song record
   // (e.g. song was deleted). Keeps the line readable without a name.
   if (sel.granularity === 'whole') {
-    if (sel.wholeOption === 'solid') return 'Take song to Solid in original key';
-    if (sel.wholeOption === 'internalized') return 'Take song to Internalized';
+    if (sel.wholeOption === 'solid') return 'Take song to Solid status in the original key';
+    if (sel.wholeOption === 'internalized') return 'Take song to Internalized status';
     if (sel.wholeOption === 'cross_key') {
-      return `Take song to Cross-key ${clampCrossKeyPercent(sel.crossKeyPercent)}%`;
+      return `Take song to Cross-key status at ${clampCrossKeyPercent(sel.crossKeyPercent)}%`;
     }
   }
   if (sel.granularity === 'key' && sel.keyTarget) {
     const stateLabel = sel.keyState === 'solid' ? 'Solid' : 'Comfortable';
-    return `Get song ${stateLabel} in ${sel.keyTarget}`;
+    return `Get song to ${stateLabel} status in the key of ${sel.keyTarget}`;
   }
   if (sel.granularity === 'section' && sel.sectionId && sel.keyTarget) {
     const stateLabel = sel.keyState === 'solid' ? 'Solid' : 'Comfortable';
-    return `Get a section of song ${stateLabel} in ${sel.keyTarget}`;
+    return `Get a section of song to ${stateLabel} status in the key of ${sel.keyTarget}`;
   }
   return null;
 }

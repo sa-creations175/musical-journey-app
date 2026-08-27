@@ -308,7 +308,7 @@ function RuleReminder({
     return (
       <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-3 py-2 text-xs text-red-800 dark:text-red-200">
         This key has lapsed since you last demonstrated it. Passing a retest
-        clears the lapse and restores Solid — engagement alone does not.
+        clears the lapse and restores <b>Solid</b> — engagement alone does not.
       </div>
     );
   }
@@ -317,7 +317,7 @@ function RuleReminder({
     // affordance). Re-attempts log to audit but don't change state.
     return (
       <div className="rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
-        This key is already at <span className="font-medium">Solid</span>.
+        This key is already at <b>Solid</b>.
         Re-attempts log to the audit trail but don't change the key's state.
       </div>
     );
@@ -332,8 +332,8 @@ function RuleReminder({
       <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-black/[0.07] px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
         Play through the full song in this key. Log each attempt as clean or
         not-clean.{' '}
-        Passing <span className="font-medium">moves the song to Comfortable</span>.
-        It will not make this key Solid — that needs every section here
+        Passing moves the song to <b>Comfortable</b>.
+        It will not make this key <b>Solid</b> — that needs every section here
         comfortable too, which is what working them one at a time is for.
       </div>
     );
@@ -342,7 +342,7 @@ function RuleReminder({
     <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-black/[0.07] px-3 py-2 text-xs text-neutral-600 dark:text-neutral-300">
       Play through the full song in this key. Log each attempt as clean or
       not-clean. Every section here is comfortable, so passing{' '}
-      <span className="font-medium">unlocks Solid</span> for this key.
+      unlocks <b>Solid</b> for this key.
     </div>
   );
 }

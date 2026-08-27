@@ -207,7 +207,7 @@ describe('dimensionRowsFor — Shapes & Patterns', () => {
       mastery: { areaIds: ['voice_leading'] },
     };
     const rows = dimensionRowsFor(draftFor('shapes-and-patterns', { shapesPatterns: sp }));
-    expect(rows[1].value).toBe('Reach Solid in chord shape drills and scale drills');
+    expect(rows[1].value).toBe('Reach Solid status in chord shape drills and scale drills');
     expect(rows[2].value).toBe('Truly own voice-leading');
   });
 });

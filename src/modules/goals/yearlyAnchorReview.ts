@@ -247,7 +247,7 @@ function summarizeShapesBreadth(sp: ShapesPatternsAnchor): string {
 
 function summarizeShapesDepth(sp: ShapesPatternsAnchor): string {
   if (sp.depth.areaIds.length === 0) return '—';
-  return `Reach Solid in ${joinAnd(sp.depth.areaIds.map(id => SHAPES_AREA_LABELS[id]))}`;
+  return `Reach Solid status in ${joinAnd(sp.depth.areaIds.map(id => SHAPES_AREA_LABELS[id]))}`;
 }
 
 function summarizeShapesMastery(sp: ShapesPatternsAnchor): string {
@@ -267,13 +267,13 @@ function dimensionRowsForShapes(sp: ShapesPatternsAnchor): DimensionReviewRow[] 
 
 function summarizeShapes(sp: ShapesPatternsAnchor, year: number): string {
   const breadthClause = sp.breadth.kind === 'all'
-    ? `work toward Comfortable across all ${shapesCounts().total} shapes`
+    ? `work toward Comfortable status across all ${shapesCounts().total} shapes`
     : sp.breadth.groupIds.length === 0
-      ? 'work toward Comfortable in the areas you choose'
-      : `work toward Comfortable in ${joinAnd(sp.breadth.groupIds.map(id => SHAPES_AREA_LABELS[id as keyof typeof SHAPES_AREA_LABELS]))}`;
+      ? 'work toward Comfortable status in the areas you choose'
+      : `work toward Comfortable status in ${joinAnd(sp.breadth.groupIds.map(id => SHAPES_AREA_LABELS[id as keyof typeof SHAPES_AREA_LABELS]))}`;
   const depthClause = sp.depth.areaIds.length === 0
     ? null
-    : `reach Solid in ${joinAnd(sp.depth.areaIds.map(id => SHAPES_AREA_LABELS[id]))}`;
+    : `reach Solid status in ${joinAnd(sp.depth.areaIds.map(id => SHAPES_AREA_LABELS[id]))}`;
   const masteryClause = sp.mastery.areaIds.length === 0
     ? null
     : `truly own ${joinAnd(sp.mastery.areaIds.map(id => SHAPES_AREA_LABELS[id]))}`;

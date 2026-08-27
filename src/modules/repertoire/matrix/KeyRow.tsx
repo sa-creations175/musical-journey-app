@@ -166,7 +166,7 @@ export default function KeyRow({
           <button
             type="button"
             onClick={() => onLogRun(songKey.id)}
-            title="Log one clean run-through of the whole song in this key, at or above your performance tempo. This is the last key-by-key requirement for Internalized."
+            title="Log one clean run-through of the whole song in this key, at or above your performance tempo. This is the last key-by-key requirement for Internalized status."
             className="px-1 text-[9px] whitespace-nowrap tracking-wide font-medium text-neutral-400 hover:text-fluent"
           >
             Run at Tempo · 1 Clean Pass

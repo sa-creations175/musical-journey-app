@@ -608,10 +608,11 @@ export function songCumulativeNudge(
   const violated = i > s || s > c;
   if (!violated) return null;
   return (
-    `Heads up — Internalized songs are usually a subset of Solid, ` +
-    `which are a subset of Comfortable. Your numbers ` +
-    `(${c} comfortable / ${s} solid / ${i} internalized) suggest ` +
-    `otherwise.`
+    `Heads up — songs at Internalized status are usually a subset of ` +
+    `those at Solid status, which are a subset of those at ` +
+    `Comfortable status. Your numbers ` +
+    `(${c} at Comfortable / ${s} at Solid / ${i} at Internalized) ` +
+    `suggest otherwise.`
   );
 }
 
@@ -877,7 +878,7 @@ function encodeShapesDimensions(sp: ShapesPatternsAnchor): DimensionRecordSpec[]
   if (sp.depth.areaIds.length > 0) {
     const labels = sp.depth.areaIds.map(id => SHAPES_AREA_LABELS[id]).join(' + ');
     records.push({
-      description: `Reach Solid in ${labels} across all 12 keys by year-end`,
+      description: `Reach Solid status in ${labels} across all 12 keys by year-end`,
       targetMetric: 'shapes_proficiency_overall',
       targetValue: null,
       targetUnit: `${sp.depth.areaIds[0]}:solid`,
@@ -912,7 +913,7 @@ function encodeSongRepertoireDimensions(sr: SongRepertoireAnchor): DimensionReco
 
   if (sr.breadthCount > 0) {
     records.push({
-      description: `Reach Comfortable on ${sr.breadthCount} song${sr.breadthCount === 1 ? '' : 's'} by year-end`,
+      description: `Reach Comfortable status on ${sr.breadthCount} song${sr.breadthCount === 1 ? '' : 's'} by year-end`,
       targetMetric: SONG_METRIC.WHOLE,
       targetValue: sr.breadthCount,
       targetUnit: 'comfortable',
@@ -921,7 +922,7 @@ function encodeSongRepertoireDimensions(sr: SongRepertoireAnchor): DimensionReco
   }
   if (sr.depthCount > 0) {
     records.push({
-      description: `Reach Solid on ${sr.depthCount} song${sr.depthCount === 1 ? '' : 's'} by year-end`,
+      description: `Reach Solid status on ${sr.depthCount} song${sr.depthCount === 1 ? '' : 's'} by year-end`,
       targetMetric: SONG_METRIC.WHOLE,
       targetValue: sr.depthCount,
       targetUnit: 'solid',
@@ -930,7 +931,7 @@ function encodeSongRepertoireDimensions(sr: SongRepertoireAnchor): DimensionReco
   }
   if (sr.masteryCount > 0) {
     records.push({
-      description: `Reach Internalized on ${sr.masteryCount} song${sr.masteryCount === 1 ? '' : 's'} by year-end`,
+      description: `Reach Internalized status on ${sr.masteryCount} song${sr.masteryCount === 1 ? '' : 's'} by year-end`,
       targetMetric: SONG_METRIC.WHOLE,
       targetValue: sr.masteryCount,
       targetUnit: 'internalized',
@@ -1842,10 +1843,10 @@ function Screen1ShapesPatterns({
       <DimensionSection
         title="Breadth"
         id="breadth"
-        question={`Do you want to work toward Comfortable across all ${counts.total} shapes this year? (Mental Visualization is excluded — it counts toward consistency only.)`}
+        question={`Do you want to work toward Comfortable status across all ${counts.total} shapes this year? (Mental Visualization is excluded — it counts toward consistency only.)`}
       >
         <BreadthYesNoPicker
-          yesLabel={`Yes — work toward Comfortable across all ${counts.total} shapes`}
+          yesLabel={`Yes — work toward Comfortable status across all ${counts.total} shapes`}
           noLabel="No — just specific areas"
           groups={breadthGroupOptions}
           value={state.breadth}

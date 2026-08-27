@@ -191,7 +191,7 @@ export default function CrossKeyFollowupModal({
           <span className="text-neutral-800 dark:text-neutral-100 font-medium">
             {song.title}
           </span>
-          {' '}marked as Cross-key. Pick the keys you were practicing in and we'll
+          {' '}marked as <b>Cross-key</b>. Pick the keys you were practicing in and we'll
           add them to the matrix.
         </p>
 

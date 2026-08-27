@@ -326,7 +326,7 @@ function KeyTarget({
   // surfaced inline so the user understands what they're committing
   // to.
   const lapsedNote = pickedHint?.isLapsed && selection.keyState === 'solid'
-    ? `${selection.keyTarget} is currently lapsed — pass a retest to clear.`
+    ? `The key of ${selection.keyTarget} is currently lapsed — pass a retest to clear.`
     : null;
   // Already-at-target check: if the picked state is already met,
   // soft-warn (not blocking — user might want to set a re-confirmation
@@ -382,7 +382,8 @@ function KeyTarget({
       )}
       {alreadyAt && !lapsedNote && (
         <div className="text-[11px] text-amber-700 dark:text-amber-300">
-          {selection.keyTarget} is already at {selection.keyState === 'solid' ? 'Solid' : 'Comfortable'} — pick a different target?
+          The key of <b>{selection.keyTarget}</b> is already at{' '}
+          <b>{selection.keyState === 'solid' ? 'Solid' : 'Comfortable'}</b> — pick a different target?
         </div>
       )}
     </div>
@@ -420,7 +421,7 @@ function SectionTarget({
     ? keyStateHints.get(selection.keyTarget) ?? null
     : null;
   const lapsedNote = pickedHint?.isLapsed && selection.keyState === 'solid'
-    ? `${selection.keyTarget} is currently lapsed — pass a retest to clear.`
+    ? `The key of ${selection.keyTarget} is currently lapsed — pass a retest to clear.`
     : null;
 
   return (

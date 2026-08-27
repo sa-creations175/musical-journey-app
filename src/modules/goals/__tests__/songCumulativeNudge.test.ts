@@ -55,9 +55,9 @@ describe('songCumulativeNudge', () => {
       breadthCount: 3, depthCount: 1, masteryCount: 2, consistency,
     });
     expect(result).not.toBeNull();
-    expect(result).toContain('3 comfortable');
-    expect(result).toContain('1 solid');
-    expect(result).toContain('2 internalized');
+    expect(result).toContain('3 at Comfortable');
+    expect(result).toContain('1 at Solid');
+    expect(result).toContain('2 at Internalized');
   });
 
   it('returns a nudge when Depth > Breadth (1 / 3 / 0)', () => {
@@ -65,8 +65,8 @@ describe('songCumulativeNudge', () => {
       breadthCount: 1, depthCount: 3, masteryCount: 0, consistency,
     });
     expect(result).not.toBeNull();
-    expect(result).toContain('1 comfortable');
-    expect(result).toContain('3 solid');
+    expect(result).toContain('1 at Comfortable');
+    expect(result).toContain('3 at Solid');
   });
 
   it('returns a single combined nudge when both relationships are violated', () => {
@@ -80,9 +80,9 @@ describe('songCumulativeNudge', () => {
     // Single string, not an array.
     expect(typeof result).toBe('string');
     // Contains all three numbers in the canonical order.
-    expect(result).toContain('1 comfortable');
-    expect(result).toContain('2 solid');
-    expect(result).toContain('5 internalized');
+    expect(result).toContain('1 at Comfortable');
+    expect(result).toContain('2 at Solid');
+    expect(result).toContain('5 at Internalized');
   });
 
   it('returns a nudge when only Mastery > Comfortable (transitively, via 0 Depth)', () => {
