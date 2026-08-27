@@ -288,13 +288,13 @@ describe('parseVoiceLeadingItemRef', () => {
 // ---------------------------------------------------------------------
 
 describe('voiceLeadingSubCellLabel', () => {
-  it('numbers the position, except on Extended Voicings where A/B is the convention', () => {
+  it('every starting position shares one format, number or letter', () => {
     const major = parseVoiceLeadingItemRef('vl:major-251:aba-structure:B:C')!;
-    expect(voiceLeadingSubCellLabel(major)).toBe('Extended Voicings · Pos B');
+    expect(voiceLeadingSubCellLabel(major)).toBe('Extended Voicings · Position B');
     const five = parseVoiceLeadingItemRef('vl:five-one:guide-tones:A:F')!;
     expect(voiceLeadingSubCellLabel(five)).toBe('Guide Tones · Position 1');
     const minor = parseVoiceLeadingItemRef('vl:minor-251:full-voicing:B:G')!;
-    expect(voiceLeadingSubCellLabel(minor)).toBe('Extended Voicings · Pos B');
+    expect(voiceLeadingSubCellLabel(minor)).toBe('Extended Voicings · Position B');
     const third = parseVoiceLeadingItemRef('vl:minor-251:seventh-chords:C:G')!;
     expect(voiceLeadingSubCellLabel(third)).toBe('Seventh Chords · Position 3');
   });
@@ -306,9 +306,9 @@ describe('voiceLeadingSubCellLabel', () => {
     expect(parseVoiceLeadingItemRef('vl:five-one:seventh-chords:C:C')).not.toBeNull();
   });
 
-  it('diatonic-cycle reads as "Starting position N"', () => {
+  it('diatonic-cycle joins the shared format — it counts the same thing', () => {
     const desc = parseVoiceLeadingItemRef('vl:diatonic-cycle:pos3:F')!;
-    expect(voiceLeadingSubCellLabel(desc)).toBe('Starting position 3');
+    expect(voiceLeadingSubCellLabel(desc)).toBe('Position 3');
   });
 
   it('minor-aba strips the pos- prefix', () => {
@@ -318,9 +318,16 @@ describe('voiceLeadingSubCellLabel', () => {
     expect(voiceLeadingSubCellLabel(b)).toBe('Position B');
   });
 
-  it('inversion-4 reads as "Position N"', () => {
+  it('inversion-4 names the inversion, because it counts a different thing', () => {
+    // These rows count inversions of the dominant, not where the right
+    // hand starts, so they must NOT read "Position N" like the rows
+    // above them. pos1 is root position — not an inversion at all.
+    const root = parseVoiceLeadingItemRef('vl:dom7b9:pos1:G')!;
+    expect(voiceLeadingSubCellLabel(root)).toBe('Root Position');
     const desc = parseVoiceLeadingItemRef('vl:dom7b9:pos4:G')!;
-    expect(voiceLeadingSubCellLabel(desc)).toBe('Position 4');
+    expect(voiceLeadingSubCellLabel(desc)).toBe('3rd Inversion');
+    const dim = parseVoiceLeadingItemRef('vl:dim7:pos3:A')!;
+    expect(voiceLeadingSubCellLabel(dim)).toBe('2nd Inversion');
   });
 });
 
@@ -433,19 +440,19 @@ describe('voiceLeadingGridRows', () => {
   it('row labels are human-friendly for the gutter', () => {
     const major = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!);
     expect(major[0].label).toBe('Guide Tones · Position 1');
-    expect(major[6].label).toBe('Extended Voicings · Pos B');
+    expect(major[6].label).toBe('Extended Voicings · Position B');
 
     const cycle = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!);
-    expect(cycle[0].label).toBe('Starting position 1');
-    expect(cycle[2].label).toBe('Starting position 3');
+    expect(cycle[0].label).toBe('Position 1');
+    expect(cycle[2].label).toBe('Position 3');
 
     const aba = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!);
     expect(aba[0].label).toBe('Position A');
     expect(aba[1].label).toBe('Position B');
 
     const dom = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('dom7b9')!);
-    expect(dom[0].label).toBe('Position 1');
-    expect(dom[3].label).toBe('Position 4');
+    expect(dom[0].label).toBe('Root Position');
+    expect(dom[3].label).toBe('3rd Inversion');
   });
 
   it('itemRefForKey produces the canonical sub-cell itemRef', () => {

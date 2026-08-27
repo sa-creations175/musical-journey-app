@@ -747,30 +747,76 @@ function typeLabel(type: FiveOneType | Major251Type | Minor251Type): string {
   }
 }
 
+/** Everything a position label needs, and nothing else. Both the grid
+ *  gutter and the modal header build their labels through
+ *  `positionLabel` with one of these, so the page cannot say two
+ *  things about one cell. */
+export type VLPositionSlot =
+  | {
+      kind: 'type-position';
+      type: FiveOneType | Major251Type | Minor251Type;
+      position: VLABPosition;
+    }
+  | { kind: 'diatonic-cycle'; position: DiatonicCyclePosition }
+  | { kind: 'minor-aba';      position: MinorAbaPosition }
+  | { kind: 'inversion-4';    position: InversionPosition };
+
 /**
- * How a starting position is named, which is not the same for every
- * row.
+ * THE ONE PLACE A POSITION IS NAMED, for all seven patterns.
  *
- * ONLY EXTENDED VOICINGS USES A AND B, because there they are a real
- * convention rather than a label: the A voicing starts the ii from
- * its 3rd, the B voicing from its 7th. Guide Tones and Seventh Chords
- * have no such convention, so they get plain numbers — the position
- * is just where the right hand starts, 1 on the 3rd, 2 on the 5th,
- * 3 on the 7th.
+ * Five of the six row families count the same thing — which note the
+ * right hand starts on — so they share one format, "Position <token>",
+ * and differ only in whether the token is a number or a letter:
+ *
+ *   · Guide Tones, Seventh Chords, Diatonic Cycle — numbers. The
+ *     position is just where the hand starts: 1 on the 3rd, 2 on the
+ *     5th, 3 on the 7th. The Diatonic Cycle used to say "Starting
+ *     position 1" for this, which was a second name for one idea and
+ *     the only label on the page that was not Title Case.
+ *   · Extended Voicings and Minor ABA — letters, because A and B are
+ *     a real convention there rather than an ordinal: the A voicing
+ *     starts the ii from its 3rd, the B voicing from its 7th. They
+ *     used to disagree about the format anyway ("Pos A" against
+ *     "Position A") while meaning the same thing.
+ *
+ * dom7b9 AND dim7 ARE THE EXCEPTION, AND THEY STAY DIFFERENT ON
+ * PURPOSE. Those rows count inversions of the dominant (or of the
+ * dim7), not where the right hand starts, so "Position 2" there meant
+ * something else entirely from "Position 2" on the Seventh Chords row
+ * directly above. A shared format is the goal; a shared lie is not.
+ * They now name the inversion — and the first of them is root
+ * position, which is not an inversion at all, which is exactly the
+ * fact the old numbering hid.
  */
-function positionLabel(
-  type: FiveOneType | Major251Type | Minor251Type,
-  position: VLABPosition,
-): string {
-  switch (type) {
-    case 'full-voicing':
-    case 'aba-structure':
-      return `Pos ${position}`;
-    case 'guide-tones':
-    case 'seventh-chords':
-      return `Position ${VLAB_POSITION_NUMBER[position]}`;
+function positionLabel(slot: VLPositionSlot): string {
+  switch (slot.kind) {
+    case 'type-position':
+      switch (slot.type) {
+        case 'full-voicing':
+        case 'aba-structure':
+          return `Position ${slot.position}`;
+        case 'guide-tones':
+        case 'seventh-chords':
+          return `Position ${VLAB_POSITION_NUMBER[slot.position]}`;
+      }
+      break;
+    case 'diatonic-cycle':
+      return `Position ${positionNumber(slot.position)}`;
+    case 'minor-aba':
+      return `Position ${minorAbaLetter(slot.position)}`;
+    case 'inversion-4':
+      return INVERSION_LABEL[slot.position];
   }
 }
+
+/** What the dom7b9 / dim7 rows actually count. `pos1` is the chord in
+ *  root position — the reason these cannot borrow "Position N". */
+const INVERSION_LABEL: Readonly<Record<InversionPosition, string>> = {
+  pos1: 'Root Position',
+  pos2: '1st Inversion',
+  pos3: '2nd Inversion',
+  pos4: '3rd Inversion',
+};
 
 /** What "extended" means here, for the two ids that share the name.
  *  Shown beside the row label — the name says which row, the hint
@@ -786,7 +832,8 @@ function typeHint(type: FiveOneType | Major251Type | Minor251Type): string | und
   }
 }
 
-/** Number for the diatonic-cycle / inversion positions. */
+/** Number for the diatonic-cycle positions. The inversion
+ *  patterns name their inversion instead — see INVERSION_LABEL. */
 function positionNumber(p: DiatonicCyclePosition | InversionPosition): number {
   switch (p) {
     case 'pos1': return 1;
@@ -805,23 +852,23 @@ function minorAbaLetter(p: MinorAbaPosition): 'A' | 'B' {
  *  pattern label. Examples:
  *    "Guide Tones · Position 1"
  *    "Seventh Chords · Position 3"
- *    "Extended Voicings · Pos B"
- *    "Starting position 2"
+ *    "Extended Voicings · Position B"
+ *    "Position 2"        (diatonic-cycle)
  *    "Position A"        (minor-aba)
- *    "Position 3"        (dom7b9 / dim7)
+ *    "2nd Inversion"     (dom7b9 / dim7 — they count inversions)
  */
 export function voiceLeadingSubCellLabel(
   desc: VoiceLeadingItemRefDescriptor,
 ): string {
   switch (desc.kind) {
     case 'type-position':
-      return `${typeLabel(desc.type)} · ${positionLabel(desc.type, desc.position)}`;
+      return `${typeLabel(desc.type)} · ${positionLabel(desc)}`;
     case 'diatonic-cycle':
-      return `Starting position ${positionNumber(desc.startingPosition)}`;
+      return positionLabel({ kind: 'diatonic-cycle', position: desc.startingPosition });
     case 'minor-aba':
-      return `Position ${minorAbaLetter(desc.position)}`;
+      return positionLabel(desc);
     case 'inversion-4':
-      return `Position ${positionNumber(desc.position)}`;
+      return positionLabel(desc);
   }
 }
 
@@ -861,7 +908,7 @@ export function voiceLeadingGridRows(
         for (const position of positions) {
           out.push({
             rowId: `${type}:${position}`,
-            label: `${typeLabel(type)} · ${positionLabel(type, position)}`,
+            label: `${typeLabel(type)} · ${positionLabel({ kind: 'type-position', type, position })}`,
             hint: typeHint(type),
             itemRefForKey: (k) => `vl:${pattern.id}:${type}:${position}:${k}`,
           });
@@ -872,19 +919,19 @@ export function voiceLeadingGridRows(
     case 'diatonic-cycle':
       return pattern.startingPositions.map(p => ({
         rowId: p,
-        label: `Starting position ${positionNumber(p)}`,
+        label: positionLabel({ kind: 'diatonic-cycle', position: p }),
         itemRefForKey: (k) => `vl:${pattern.id}:${p}:${k}`,
       }));
     case 'minor-aba':
       return pattern.positions.map(p => ({
         rowId: p,
-        label: `Position ${minorAbaLetter(p)}`,
+        label: positionLabel({ kind: 'minor-aba', position: p }),
         itemRefForKey: (k) => `vl:${pattern.id}:${p}:${k}`,
       }));
     case 'inversion-4':
       return pattern.positions.map(p => ({
         rowId: p,
-        label: `Position ${positionNumber(p)}`,
+        label: positionLabel({ kind: 'inversion-4', position: p }),
         itemRefForKey: (k) => `vl:${pattern.id}:${p}:${k}`,
       }));
   }
