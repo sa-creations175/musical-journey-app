@@ -23,8 +23,6 @@ import { titleCase } from './labelCase';
 
 const PAGE_TITLES: Record<string, string> = {
   '/':                                            'Dashboard',
-  // Temporary, alongside the swap. Goes with the old screen.
-  '/dashboard-old':                               'Dashboard (old)',
   '/goals':                                       'Goals',
   '/practice-sessions':                           'Practice Sessions',
   '/practice-sessions/active':                    'Active Session',

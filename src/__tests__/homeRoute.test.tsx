@@ -48,11 +48,14 @@ describe('every surface that means "home" agrees', () => {
     expect(DASHBOARD_META.route).toBe(HOME);
   });
 
-  it('the page-title map names it, and names the old one differently', () => {
+  it('the page-title map names it', () => {
     expect(titleForPath(HOME)).toBe('Dashboard');
-    // The comparison path is labelled, so the two screens are never
-    // both just "Dashboard" in a browser tab while both are reachable.
-    expect(titleForPath('/dashboard-old')).toBe('Dashboard (old)');
+    // THE SECOND HALF OF THIS TEST RETIRED WITH THE SCREEN. It asserted
+    // that /dashboard-old was labelled "Dashboard (old)", so the two
+    // were never both plain "Dashboard" in a browser tab — a rule about
+    // telling two reachable screens apart, and there is one now. The
+    // map entry went with the route rather than being left to name a
+    // path that 404s.
   });
 
   it("the PWA start_url opens it — what an installed icon launches", () => {
