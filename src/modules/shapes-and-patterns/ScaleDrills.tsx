@@ -53,10 +53,24 @@ const STAGE_BG: Readonly<Record<AcquisitionBucket, string>> = {
   'not-started': 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
 };
 
+/** The three swatch labels, Title Cased because a legend item is a
+ *  label like any other chip — no `uppercase` class renders these, so
+ *  what is written here is what appears.
+ *
+ *  The status-word rule is satisfied by the row's HEADING rather than
+ *  by marking each of these, which is the whole reason the heading
+ *  reads "Status" and not "Legend". See `Legend` below.
+ *
+ *  KNOWN AND NOT THIS COMMIT'S TO FIX: "In Progress" and "Acquired"
+ *  are the old acquisition-stage vocabulary rather than the six
+ *  rating words, and this legend is the last place they are still on
+ *  screen — the chord cell modal dropped them. The wording belongs to
+ *  the Practice/Test job, which is changing what these grids display;
+ *  casing them here does not endorse them. */
 const STAGE_LEGEND_LABEL: Readonly<Record<AcquisitionBucket, string>> = {
-  'acquired':    'acquired',
-  'in-progress': 'in progress',
-  'not-started': 'not started',
+  'acquired':    'Acquired',
+  'in-progress': 'In Progress',
+  'not-started': 'Not Started',
 };
 
 interface ScaleRow {
@@ -359,7 +373,11 @@ function ScaleGroupBlock({
 function Legend() {
   return (
     <div className="flex items-center gap-3 flex-wrap text-[11px] text-neutral-500">
-      <span>Legend</span>
+      {/* "Status", not "Legend". The heading is what marks the three
+          words after it as status words — one qualifier governing the
+          list, rather than bolding every item in a three-item row
+          where there is no ordinary English for them to hide in. */}
+      <span>Status</span>
       <LegendChip bucket="not-started" />
       <LegendChip bucket="in-progress" />
       <LegendChip bucket="acquired" />
