@@ -1,9 +1,19 @@
+// @vitest-environment jsdom
 /**
  * The migration, on both paths.
  */
-import { describe, expect, it } from 'vitest';
+import 'fake-indexeddb/auto';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_SPACING_SETTINGS } from '../settings';
-import { resumeGapDays } from '../migrateFlashcards';
+import {
+  migrateFlashcardSchedules,
+  previewFlashcardMigration,
+  resumeGapDays,
+  PREF_FLASHCARD_MIGRATION,
+  PREF_FLASHCARD_MIGRATION_ARMED,
+} from '../migrateFlashcards';
+import { db } from '../../db';
+import { getPref, setPref } from '../../userPrefs';
 
 const TALLY = DEFAULT_SPACING_SETTINGS.acquiring.tally;   // 2·1·0·1·0·1 → 0,0,1,3,5
 
@@ -39,5 +49,51 @@ describe('where a part-way card resumes', () => {
     expect(resumeGapDays(custom, 1)).toBe(3);
     expect(resumeGapDays(custom, 2)).toBe(0);
     expect(resumeGapDays(custom, 3)).toBeNull();
+  });
+});
+
+// =====================================================================
+// Wired, and not armed
+// =====================================================================
+
+describe('the arming gate', () => {
+  beforeEach(async () => {
+    await db.spacingState.clear();
+    await db.flashcardStates.clear();
+    await db.userPrefs.clear();
+  });
+
+  it('does nothing at all while unarmed, however much there is to do', async () => {
+    // THE WHOLE POINT OF THE SECOND PREF. The migration is in the boot
+    // path; this is what stops it firing there.
+    await db.flashcardStates.bulkAdd([
+      { cardId: 'ks-1', easeFactor: 2.5, interval: 6, nextReviewDate: 1_000,
+        lastReviewed: 500, consecutiveCorrect: 2, totalAttempts: 9, totalCorrect: 8 },
+    ]);
+    const r = await migrateFlashcardSchedules();
+    expect(r.skipped).toBe(true);
+    expect(await db.spacingState.count()).toBe(0);
+    // And it did not quietly mark itself done, which would strand the
+    // rows permanently the moment someone armed it later.
+    expect(await getPref(PREF_FLASHCARD_MIGRATION, false)).toBe(false);
+  });
+
+  it('the preview counts the same rows without writing any of them', async () => {
+    await db.flashcardStates.bulkAdd([
+      { cardId: 'ks-1', easeFactor: 2.5, interval: 6, nextReviewDate: 1_000,
+        lastReviewed: 500, consecutiveCorrect: 2, totalAttempts: 9, totalCorrect: 8 },
+    ]);
+    const preview = await previewFlashcardMigration();
+    expect(preview.toMaintaining + preview.toAcquiring).toBe(1);
+    expect(await db.spacingState.count()).toBe(0);
+    expect(await getPref(PREF_FLASHCARD_MIGRATION, false)).toBe(false);
+
+    // Armed, the run lands exactly what the preview promised.
+    await setPref(PREF_FLASHCARD_MIGRATION_ARMED, true);
+    const run = await migrateFlashcardSchedules();
+    expect(run.skipped).toBe(false);
+    expect(run.toMaintaining).toBe(preview.toMaintaining);
+    expect(run.toAcquiring).toBe(preview.toAcquiring);
+    expect(await db.spacingState.count()).toBe(1);
   });
 });

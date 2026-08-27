@@ -6,6 +6,15 @@ import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
 import {
   clearDeclaredChordShapeStages, describeClear,
 } from './lib/spacing/clearDeclaredStages';
+import {
+  describeMigration,
+  describePreview,
+  migrateFlashcardSchedules,
+  previewFlashcardMigration,
+  PREF_FLASHCARD_MIGRATION,
+  PREF_FLASHCARD_MIGRATION_ARMED,
+} from './lib/spacing/migrateFlashcards';
+import { getPref } from './lib/userPrefs';
 import SpacingSettings from './modules/settings/SpacingSettings';
 import Layout from './components/Layout';
 import HarmonicFluency from './modules/harmonic-fluency/HarmonicFluency';
@@ -77,6 +86,31 @@ export default function App() {
       .catch(err => {
         console.warn('[spacing] clearing declared stages failed', err);
       });
+    // ONE-TIME, AND DELIBERATELY NOT ARMED YET.
+    //
+    // Carrying every flashcard schedule onto the one engine is a
+    // one-way write over live data, so it sits behind a SECOND pref
+    // that defaults to off. Wired here means it is in the boot path
+    // and will fire the moment that pref is set — it does not mean it
+    // has run. Until then this logs the PLAN, read-only, so the number
+    // of rows can be looked at before anything is committed to.
+    //
+    // The order is the whole point: every reader moved onto
+    // spacingState first, so nothing is still reading the SM-2 rows
+    // this carries across. Running it while both engines were live is
+    // what would let them diverge again.
+    void (async () => {
+      const armed = await getPref<boolean>(PREF_FLASHCARD_MIGRATION_ARMED, false);
+      if (!armed) {
+        const done = await getPref<boolean>(PREF_FLASHCARD_MIGRATION, false);
+        if (!done) console.info(describePreview(await previewFlashcardMigration()));
+        return;
+      }
+      const r = await migrateFlashcardSchedules();
+      if (!r.skipped) console.info(describeMigration(r));
+    })().catch(err => {
+      console.warn('[spacing] flashcard migration failed', err);
+    });
   }, []);
 
   return (

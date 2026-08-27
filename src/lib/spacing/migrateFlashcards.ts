@@ -37,6 +37,25 @@ import { moduleRefForCardId } from '../flashcards/cardSpacing';
 
 export const PREF_FLASHCARD_MIGRATION = 'spacingFlashcardMigrationDone';
 
+/**
+ * THE SECOND GATE, AND THE ONE THAT MATTERS RIGHT NOW.
+ *
+ * `PREF_FLASHCARD_MIGRATION` above answers "has it run". This answers
+ * "may it run", and it defaults to NO. The migration is wired into
+ * boot and will not fire until this is set, because carrying every
+ * schedule across is a one-way write over live data and the count
+ * wants looking at first.
+ *
+ * Arm it from the console when you have read the preview the boot logs:
+ *
+ *   await (await import('/src/lib/userPrefs.ts'))
+ *     .setPref('spacingFlashcardMigrationArmed', true)
+ *
+ * Then reload. The run itself is still idempotent and still keyed on
+ * the done-pref, so arming it twice is harmless.
+ */
+export const PREF_FLASHCARD_MIGRATION_ARMED = 'spacingFlashcardMigrationArmed';
+
 /** The floor that decides which path a card takes. */
 export const RATING_FLOOR_ANSWERS = 5;
 
@@ -100,20 +119,33 @@ async function answerCountsByItem(): Promise<Map<string, { total: number; correc
   return out;
 }
 
-export async function migrateFlashcardSchedules(
+/**
+ * WORK OUT WHAT WOULD HAPPEN, WITHOUT DOING ANY OF IT.
+ *
+ * =====================================================================
+ * THE PLAN IS SEPARATE FROM THE RUN, SO THE COUNT CAN BE SEEN FIRST.
+ *
+ * This used to be one function that read, decided and wrote in a single
+ * pass, which meant the only way to learn how many rows it would touch
+ * was to let it touch them. Splitting it costs nothing — the run below
+ * is this plan plus a loop of writes — and it buys a number that can be
+ * looked at before anything is committed to.
+ *
+ * Deliberately does NOT consult the done-pref. "What would this do" is
+ * a fair question after it has already run, and answering `skipped`
+ * would refuse it.
+ * =====================================================================
+ */
+export async function planFlashcardMigration(
   now = Date.now(),
-): Promise<MigrationReport> {
-  const already = await getPref<boolean>(PREF_FLASHCARD_MIGRATION, false);
-  if (already) {
-    return { skipped: true, toMaintaining: 0, toAcquiring: 0, flagsCarried: 0, unclaimed: 0 };
-  }
-
+): Promise<{ report: MigrationReport; writes: SpacingState[] }> {
   const states = await db.flashcardStates.toArray();
   const counts = await answerCountsByItem();
   const overrides = await loadOverrides();
   const report: MigrationReport = {
     skipped: false, toMaintaining: 0, toAcquiring: 0, flagsCarried: 0, unclaimed: 0,
   };
+  const writes: SpacingState[] = [];
 
   for (const state of states) {
     const moduleRef = moduleForCardId(state.cardId);
@@ -165,7 +197,7 @@ export async function migrateFlashcardSchedules(
         settings.maintaining.minimumDays,
         Math.min(settings.maintaining.perBand[band].ceilingDays, state.interval || settings.maintaining.firstWaitDays),
       );
-      await putSpacingState({
+      writes.push({
         ...base,
         ...flags,
         spacingStage: 'maintaining',
@@ -181,7 +213,7 @@ export async function migrateFlashcardSchedules(
       // and the remaining gaps run from TODAY — the old due date is
       // discarded because acquiring gaps replace it.
       const gap = resumeGapDays(settings.acquiring.tally, seen.total);
-      await putSpacingState({
+      writes.push({
         ...base,
         ...flags,
         spacingStage: 'acquiring',
@@ -195,8 +227,46 @@ export async function migrateFlashcardSchedules(
     }
   }
 
+  return { report, writes };
+}
+
+/** The plan's counts alone. Read-only; writes nothing, sets no pref. */
+export async function previewFlashcardMigration(
+  now = Date.now(),
+): Promise<MigrationReport> {
+  return (await planFlashcardMigration(now)).report;
+}
+
+export async function migrateFlashcardSchedules(
+  now = Date.now(),
+): Promise<MigrationReport> {
+  // NOT ARMED READS EXACTLY LIKE ALREADY-RUN to every caller: nothing
+  // is touched and `skipped` comes back true. The boot path tells the
+  // two apart itself so it can log the preview in one case and not the
+  // other.
+  const armed = await getPref<boolean>(PREF_FLASHCARD_MIGRATION_ARMED, false);
+  if (!armed) {
+    return { skipped: true, toMaintaining: 0, toAcquiring: 0, flagsCarried: 0, unclaimed: 0 };
+  }
+  const already = await getPref<boolean>(PREF_FLASHCARD_MIGRATION, false);
+  if (already) {
+    return { skipped: true, toMaintaining: 0, toAcquiring: 0, flagsCarried: 0, unclaimed: 0 };
+  }
+
+  const { report, writes } = await planFlashcardMigration(now);
+  for (const row of writes) await putSpacingState(row);
   await setPref(PREF_FLASHCARD_MIGRATION, true);
   return report;
+}
+
+/** What the console shows before a run — the plan, with nothing done. */
+export function describePreview(r: MigrationReport): string {
+  return '[spacing] flashcard migration is WIRED AND NOT ARMED. '
+    + `It would touch ${r.toMaintaining + r.toAcquiring} rows: `
+    + `${r.toMaintaining} into maintaining, ${r.toAcquiring} into acquiring, `
+    + `${r.flagsCarried} carrying a flag`
+    + (r.unclaimed > 0 ? `, ${r.unclaimed} unclaimed and left alone` : '')
+    + `. Set the pref '${PREF_FLASHCARD_MIGRATION_ARMED}' to run it.`;
 }
 
 /** What the console shows after a run. */
