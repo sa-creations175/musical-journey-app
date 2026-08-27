@@ -90,8 +90,28 @@ const UNITS: ReadonlySet<string> = new Set([
  *  `Ain'T Nobody`. */
 const WORD_CHAR = /[\p{L}\p{N}'’]/u;
 
-/** Splits a label into alternating word and separator runs. */
-const RUNS = /[\p{L}\p{N}'’]+|[^\p{L}\p{N}'’]+/gu;
+/**
+ * An HTML entity — `&amp;`, `&rsquo;`, `&#8212;`.
+ *
+ * A label written in JSX carries these verbatim, and the letters inside
+ * one are a spelling, not a word: `&amp;` capitalised is `&Amp;`, which
+ * renders as literal text rather than as an ampersand.
+ */
+const ENTITY = String.raw`&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);`;
+
+/**
+ * Splits a label into entity, word and separator runs.
+ *
+ * The separator alternative refuses to swallow an `&` that opens an
+ * entity, or "scales &amp; modes" would run the space and ampersand
+ * together and leave `amp` looking like a word.
+ */
+const RUNS = new RegExp(
+  `${ENTITY}|[\\p{L}\\p{N}'’]+|(?:(?!${ENTITY})[^\\p{L}\\p{N}'’])+`,
+  'gu',
+);
+
+const IS_ENTITY = new RegExp(`^${ENTITY}$`, 'u');
 
 /**
  * A degree led by its accidental — `b3`, `b2`, `bVII`, `#4`.
@@ -145,14 +165,26 @@ export function titleCase(label: string): string {
 
   let leads = true;
   let afterSpace = false;
+  let continues = false;
 
   return runs
     .map(run => {
+      if (IS_ENTITY.test(run)) {
+        // An entity sits INSIDE a word as often as between two —
+        // `&rsquo;` is the apostrophe in "you&rsquo;re" — so whatever
+        // follows it directly continues the word rather than starting
+        // one, exactly as a typed apostrophe does.
+        afterSpace = false;
+        continues = true;
+        return run;
+      }
       if (!WORD_CHAR.test(run[0])) {
         afterSpace = /\s/.test(run);
+        continues = false;
         if (CLAUSE_BREAK.test(run)) leads = true;
         return run;
       }
+      if (continues) return run;
       const isFirst = leads;
       leads = false;
 

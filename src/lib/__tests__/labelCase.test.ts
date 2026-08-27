@@ -61,6 +61,17 @@ describe('the three exemptions — notation, units, sentences', () => {
     expect(titleCase('bpm')).toBe('bpm');
   });
 
+  it('leaves an HTML entity spelled as an entity', () => {
+    // `&Amp;` renders as literal text, not as an ampersand. A label
+    // written in JSX carries these verbatim.
+    expect(titleCase('scales &amp; modes')).toBe('Scales &amp; Modes');
+    expect(titleCase('you&rsquo;re late')).toBe('You&rsquo;re Late');
+    expect(titleCase('data backup &amp; restore'))
+      .toBe('Data Backup &amp; Restore');
+    // A bare ampersand still behaves like one.
+    expect(titleCase('delay & saturation')).toBe('Delay & Saturation');
+  });
+
   it('capitalises inside a bracket rather than half of it', () => {
     expect(titleCase('clear override (use song default)'))
       .toBe('Clear Override (Use Song Default)');
