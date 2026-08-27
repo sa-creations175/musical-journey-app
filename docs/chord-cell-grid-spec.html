@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chord Cell Drill Grid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#F2F3F0;
+    --surface:#FBFBFA;
+    --surface-2:#F6F7F4;
+    --ink:#1E211F;
+    --ink-2:#494E4A;
+    --muted:#787E79;
+    --faint:#9AA09B;
+    --line:#E1E3DE;
+    --line-strong:#CFD2CC;
+    --accent:#2F7D5C;
+    --accent-soft:#E4EFE8;
+    --flag:#B8791F;
+    --flag-soft:#F7EEDC;
+
+    --r-needs:#C05548;
+    --r-dev:#CE9530;
+    --r-fluent:#4FA278;
+    --r-mastered:#5386BE;
+    --r-none:#A9AEA9;
+
+    --mod-shapes:#C2803A;
+
+    --fs-1:clamp(1.9rem,1.4rem + 1.6vw,2.6rem);
+    --fs-2:1.22rem;
+    --fs-3:1rem;
+    --fs-4:.875rem;
+    --fs-5:.78rem;
+    --fs-6:.69rem;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#16181A;
+      --surface:#1D2022;
+      --surface-2:#212527;
+      --ink:#ECEEEB;
+      --ink-2:#C3C8C4;
+      --muted:#939994;
+      --faint:#767C77;
+      --line:#2C3134;
+      --line-strong:#3C4245;
+      --accent:#6FBF97;
+      --accent-soft:#1E332A;
+      --flag:#D9A653;
+      --flag-soft:#33291A;
+
+      --r-needs:#DD7A6B;
+      --r-dev:#E0AF52;
+      --r-fluent:#6FC395;
+      --r-mastered:#7CA9DC;
+      --r-none:#787E7A;
+
+      --mod-shapes:#DA9E5C;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#16181A;
+    --surface:#1D2022;
+    --surface-2:#212527;
+    --ink:#ECEEEB;
+    --ink-2:#C3C8C4;
+    --muted:#939994;
+    --faint:#767C77;
+    --line:#2C3134;
+    --line-strong:#3C4245;
+    --accent:#6FBF97;
+    --accent-soft:#1E332A;
+    --flag:#D9A653;
+    --flag-soft:#33291A;
+
+    --r-needs:#DD7A6B;
+    --r-dev:#E0AF52;
+    --r-fluent:#6FC395;
+    --r-mastered:#7CA9DC;
+    --r-none:#787E7A;
+
+    --mod-shapes:#DA9E5C;
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    background:var(--ground);
+    color:var(--ink);
+    font-family:"Instrument Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    font-size:var(--fs-3);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .wrap{
+    max-width:1080px;
+    margin:0 auto;
+    padding:clamp(2rem,5vw,4.5rem) clamp(1.1rem,4vw,2.5rem) 5rem;
+    display:flex;
+    flex-direction:column;
+    gap:3.25rem;
+  }
+
+  .eyebrow{
+    font-size:var(--fs-6);
+    letter-spacing:.13em;
+    text-transform:uppercase;
+    font-weight:600;
+    color:var(--mod-shapes);
+    margin:0 0 .65rem;
+  }
+
+  h1{
+    font-size:var(--fs-1);
+    line-height:1.08;
+    letter-spacing:-.02em;
+    font-weight:600;
+    margin:0 0 .7rem;
+    text-wrap:balance;
+  }
+
+  .lede{
+    margin:0;
+    max-width:62ch;
+    color:var(--ink-2);
+    font-size:1.03rem;
+  }
+
+  h2{
+    font-size:var(--fs-2);
+    font-weight:600;
+    letter-spacing:-.01em;
+    margin:0 0 .35rem;
+  }
+
+  .sub{
+    margin:0 0 1.4rem;
+    color:var(--muted);
+    font-size:var(--fs-4);
+    max-width:62ch;
+  }
+
+  section{display:flex;flex-direction:column;}
+
+  /* ---- change list ---- */
+  .changes{
+    display:grid;
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .change{
+    background:var(--surface);
+    padding:1rem 1.15rem;
+    display:grid;
+    grid-template-columns:5.5rem 1fr;
+    gap:1rem;
+    align-items:baseline;
+  }
+  .change .tag{
+    font-size:var(--fs-6);
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    font-weight:600;
+    color:var(--faint);
+  }
+  .change .tag.add{color:var(--accent);}
+  .change .tag.cut{color:var(--r-needs);}
+  .change p{margin:0;font-size:var(--fs-4);color:var(--ink-2);}
+  .change p b{color:var(--ink);font-weight:600;}
+
+  /* ---- mock modal ---- */
+  .stage{
+    background:var(--surface-2);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:clamp(1rem,3vw,2rem);
+  }
+  .modal{
+    background:var(--surface);
+    border:1px solid var(--line-strong);
+    border-radius:12px;
+    box-shadow:0 14px 34px -22px rgba(0,0,0,.45);
+    overflow:hidden;
+  }
+  .modal-head{
+    padding:1.15rem 1.4rem 1rem;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:1rem;
+  }
+  .modal-title{font-size:1.3rem;font-weight:600;margin:0;letter-spacing:-.01em;}
+  .modal-note{margin:.2rem 0 0;font-size:var(--fs-4);color:var(--muted);}
+  .x{color:var(--faint);font-size:1.1rem;line-height:1;padding-top:.2rem;}
+
+  .grid-scroll{overflow-x:auto;}
+
+  table.grid{
+    width:100%;
+    border-collapse:collapse;
+    min-width:520px;
+  }
+  table.grid th,table.grid td{text-align:left;}
+  table.grid thead th{
+    font-size:var(--fs-6);
+    letter-spacing:.11em;
+    text-transform:uppercase;
+    font-weight:600;
+    color:var(--faint);
+    padding:.85rem 1rem .6rem;
+    border-bottom:1px solid var(--line);
+  }
+  table.grid thead th.rowname{width:34%;}
+  table.grid thead th.hand{text-align:center;width:22%;}
+
+  table.grid tbody th{
+    font-weight:500;
+    font-size:var(--fs-4);
+    padding:.7rem 1rem;
+    color:var(--ink);
+    border-bottom:1px solid var(--line);
+    border-right:1px solid var(--line);
+  }
+  table.grid tbody td{
+    padding:.45rem .5rem;
+    border-bottom:1px solid var(--line);
+    border-right:1px solid var(--line);
+    text-align:center;
+    vertical-align:middle;
+  }
+  table.grid tbody td:last-child{border-right:0;}
+  table.grid tbody tr:last-child th,
+  table.grid tbody tr:last-child td{border-bottom:0;}
+
+  .cellbtn{
+    width:100%;
+    border:1px solid transparent;
+    background:transparent;
+    border-radius:7px;
+    padding:.4rem .3rem;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:.12rem;
+    cursor:pointer;
+    font:inherit;
+    color:inherit;
+    transition:background .12s ease,border-color .12s ease;
+  }
+  .cellbtn:hover,.cellbtn:focus-visible{
+    background:var(--surface-2);
+    border-color:var(--line-strong);
+    outline:none;
+  }
+  .cellbtn:focus-visible{box-shadow:0 0 0 2px var(--accent-soft),0 0 0 3px var(--accent);}
+
+  .rating{
+    display:inline-flex;
+    align-items:center;
+    gap:.36rem;
+    font-size:var(--fs-5);
+    font-weight:600;
+    letter-spacing:-.005em;
+  }
+  .dot{width:.5rem;height:.5rem;border-radius:2px;flex:none;}
+  .d-needs{background:var(--r-needs);} .t-needs{color:var(--r-needs);}
+  .d-dev{background:var(--r-dev);} .t-dev{color:var(--r-dev);}
+  .d-fluent{background:var(--r-fluent);} .t-fluent{color:var(--r-fluent);}
+  .d-mastered{background:var(--r-mastered);} .t-mastered{color:var(--r-mastered);}
+  .d-none{background:var(--r-none);} .t-none{color:var(--muted);}
+  .d-started{background:var(--r-none);} .t-started{color:var(--ink-2);}
+
+  .fresh{
+    font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:var(--fs-6);
+    color:var(--faint);
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* supplementary row */
+  .supp{
+    border-top:1px solid var(--line-strong);
+    background:var(--surface-2);
+    padding:.85rem 1rem;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:1rem;
+    flex-wrap:wrap;
+  }
+  .supp .lbl{display:flex;flex-direction:column;gap:.1rem;}
+  .supp .lbl .n{font-size:var(--fs-4);font-weight:500;}
+  .supp .lbl .w{font-size:var(--fs-6);color:var(--muted);}
+  .supp .right{display:flex;align-items:center;gap:.9rem;}
+  .drillbtn{
+    font:inherit;
+    font-size:var(--fs-5);
+    font-weight:600;
+    color:#fff;
+    background:var(--accent);
+    border:1px solid var(--accent);
+    border-radius:7px;
+    padding:.35rem .95rem;
+    cursor:pointer;
+  }
+  .drillbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  .modal-foot{
+    padding:.85rem 1.4rem;
+    border-top:1px solid var(--line);
+    display:flex;
+    justify-content:flex-end;
+  }
+  .closebtn{
+    font:inherit;font-size:var(--fs-5);font-weight:600;
+    background:var(--surface);border:1px solid var(--line-strong);
+    border-radius:7px;padding:.4rem 1.1rem;color:var(--ink);cursor:pointer;
+  }
+
+  .caption{
+    margin:.85rem 0 0;
+    font-size:var(--fs-5);
+    color:var(--muted);
+    max-width:62ch;
+  }
+
+  /* ---- legend ---- */
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:.45rem .5rem;
+    padding:0;
+    margin:0;
+    list-style:none;
+  }
+  .legend li{
+    display:inline-flex;
+    align-items:center;
+    gap:.4rem;
+    font-size:var(--fs-5);
+    font-weight:500;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:.28rem .7rem;
+  }
+
+  /* ---- anatomy ---- */
+  .anatomy{
+    display:grid;
+    gap:1.1rem;
+    grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
+  }
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:1rem 1.1rem;
+  }
+  .card h3{
+    margin:0 0 .3rem;
+    font-size:var(--fs-5);
+    letter-spacing:.09em;
+    text-transform:uppercase;
+    color:var(--faint);
+    font-weight:600;
+  }
+  .card p{margin:0;font-size:var(--fs-4);color:var(--ink-2);}
+
+  /* ---- rules ---- */
+  ol.rules{margin:0;padding-left:1.25rem;display:flex;flex-direction:column;gap:.6rem;}
+  ol.rules li{font-size:var(--fs-4);color:var(--ink-2);}
+  ol.rules li b{color:var(--ink);font-weight:600;}
+
+  .open{
+    border-left:3px solid var(--flag);
+    background:var(--flag-soft);
+    border-radius:0 8px 8px 0;
+    padding:.9rem 1.1rem;
+  }
+  .open h3{
+    margin:0 0 .25rem;font-size:var(--fs-6);letter-spacing:.11em;
+    text-transform:uppercase;color:var(--flag);font-weight:700;
+  }
+  .open p{margin:0;font-size:var(--fs-4);color:var(--ink-2);}
+
+  hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
+
+  @media (max-width:560px){
+    .change{grid-template-columns:1fr;gap:.3rem;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Shapes &amp; Patterns · cell modal</p>
+    <h1>Chord Cell Drill Grid</h1>
+    <p class="lede">Clicking a scales cell offers left, right and both. Clicking a chord shape cell offers inversions and no hand choice at all. This makes the two consistent: inversions down the side, hands across the top, one click to drill any combination.</p>
+  </header>
+
+  <section>
+    <h2>What Changes</h2>
+    <p class="sub">Three things, one of them a removal.</p>
+    <div class="changes">
+      <div class="change">
+        <span class="tag add">Add</span>
+        <p><b>Hand columns.</b> Every inversion can be drilled left, right or both — the same three choices the scales cell already offers.</p>
+      </div>
+      <div class="change">
+        <span class="tag">Change</span>
+        <p><b>The badge shows the rating.</b> Needs Work, Developing, Fluent, Mastered, Started, Not Started — the same four-plus-two vocabulary as everywhere else. No separate acquisition word.</p>
+      </div>
+      <div class="change">
+        <span class="tag cut">Cut</span>
+        <p><b>The self-assessment prompt goes.</b> "How well do you know this?" with Not started / Familiar / Comfortable is retired. It was what made a chord read Acquired and never at the same time.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>Triads — Four Rows</h2>
+    <p class="sub">Root position, two inversions, and fluid movement between them. Every row splits three ways.</p>
+
+    <div class="stage">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <p class="modal-title">C Major</p>
+            <p class="modal-note">Each inversion and hand is its own drill.</p>
+          </div>
+          <span class="x" aria-hidden="true">✕</span>
+        </div>
+
+        <div class="grid-scroll">
+          <table class="grid">
+            <thead>
+              <tr>
+                <th class="rowname" scope="col">Shape</th>
+                <th class="hand" scope="col">Left</th>
+                <th class="hand" scope="col">Right</th>
+                <th class="hand" scope="col">Both</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Root Position</th>
+                <td><button class="cellbtn"><span class="rating t-fluent"><span class="dot d-fluent"></span>Fluent</span><span class="fresh">3d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-mastered"><span class="dot d-mastered"></span>Mastered</span><span class="fresh">2w ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-dev"><span class="dot d-dev"></span>Developing</span><span class="fresh">5d ago</span></button></td>
+              </tr>
+              <tr>
+                <th scope="row">1st Inversion</th>
+                <td><button class="cellbtn"><span class="rating t-dev"><span class="dot d-dev"></span>Developing</span><span class="fresh">6d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-fluent"><span class="dot d-fluent"></span>Fluent</span><span class="fresh">3d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-started"><span class="dot d-started"></span>Started</span><span class="fresh">1d ago</span></button></td>
+              </tr>
+              <tr>
+                <th scope="row">2nd Inversion</th>
+                <td><button class="cellbtn"><span class="rating t-needs"><span class="dot d-needs"></span>Needs Work</span><span class="fresh">1d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-dev"><span class="dot d-dev"></span>Developing</span><span class="fresh">1w ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+              </tr>
+              <tr>
+                <th scope="row">All Inversions Fluid</th>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-started"><span class="dot d-started"></span>Started</span><span class="fresh">4d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-foot"><button class="closebtn">Close</button></div>
+      </div>
+    </div>
+    <p class="caption">Twelve drills where there were four. The whole cell is the button — no separate Drill control taking up a column.</p>
+  </section>
+
+  <section>
+    <h2>Sevenths — Five Rows, Plus One Outside</h2>
+    <p class="sub">Sevenths carry a third inversion, and one two-handed exercise that cannot split by hand: left hand on the root, right hand running the inversions up and down. It exists for maj7, min7 and dom7, and sits below the grid rather than inside it.</p>
+
+    <div class="stage">
+      <div class="modal">
+        <div class="modal-head">
+          <div>
+            <p class="modal-title">C Major 7</p>
+            <p class="modal-note">Each inversion and hand is its own drill.</p>
+          </div>
+          <span class="x" aria-hidden="true">✕</span>
+        </div>
+
+        <div class="grid-scroll">
+          <table class="grid">
+            <thead>
+              <tr>
+                <th class="rowname" scope="col">Shape</th>
+                <th class="hand" scope="col">Left</th>
+                <th class="hand" scope="col">Right</th>
+                <th class="hand" scope="col">Both</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Root Position</th>
+                <td><button class="cellbtn"><span class="rating t-fluent"><span class="dot d-fluent"></span>Fluent</span><span class="fresh">4d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-fluent"><span class="dot d-fluent"></span>Fluent</span><span class="fresh">4d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-dev"><span class="dot d-dev"></span>Developing</span><span class="fresh">1w ago</span></button></td>
+              </tr>
+              <tr>
+                <th scope="row">1st Inversion</th>
+                <td><button class="cellbtn"><span class="rating t-dev"><span class="dot d-dev"></span>Developing</span><span class="fresh">1w ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-dev"><span class="dot d-dev"></span>Developing</span><span class="fresh">6d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+              </tr>
+              <tr>
+                <th scope="row">2nd Inversion</th>
+                <td><button class="cellbtn"><span class="rating t-needs"><span class="dot d-needs"></span>Needs Work</span><span class="fresh">2d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-started"><span class="dot d-started"></span>Started</span><span class="fresh">2d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+              </tr>
+              <tr>
+                <th scope="row">3rd Inversion</th>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-needs"><span class="dot d-needs"></span>Needs Work</span><span class="fresh">3d ago</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+              </tr>
+              <tr>
+                <th scope="row">All Inversions Fluid</th>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+                <td><button class="cellbtn"><span class="rating t-none"><span class="dot d-none"></span>Not Started</span><span class="fresh">never</span></button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="supp">
+          <span class="lbl">
+            <span class="n">Root In Left, Inversions In Right</span>
+            <span class="w">Left hand holds the root; right hand runs the inversions up and down</span>
+          </span>
+          <span class="right">
+            <span class="rating t-started"><span class="dot d-started"></span>Started</span>
+            <span class="fresh">9d ago</span>
+            <button class="drillbtn">Drill</button>
+          </span>
+        </div>
+
+        <div class="modal-foot"><button class="closebtn">Close</button></div>
+      </div>
+    </div>
+    <p class="caption">One exercise, not a hand-split of the row above it. It keeps its own Drill button precisely because it is not part of the grid — the shape says so before you read the label. Whether the left hand doubles the root at the octave is a choice at the piano, not something the app tracks.</p>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>What Sits In A Cell</h2>
+    <p class="sub">Two facts, stacked. Nothing else fits at this size, and nothing else is needed to decide what to drill.</p>
+    <div class="anatomy">
+      <div class="card">
+        <h3>The rating</h3>
+        <p>Coloured square and word. Needs Work, Developing, Fluent, Mastered — plus Started below the floor, and Not Started for never met.</p>
+      </div>
+      <div class="card">
+        <h3>Last drilled</h3>
+        <p>In words, from the drill log. <span class="fresh">3d ago</span> or <span class="fresh">never</span>. Read live, not from a cache.</p>
+      </div>
+      <div class="card">
+        <h3>The cell is the button</h3>
+        <p>Clicking anywhere in it starts that drill. Hover and keyboard focus both show it clearly.</p>
+      </div>
+    </div>
+
+    <ul class="legend" style="margin-top:1.1rem;">
+      <li><span class="dot d-needs"></span>Needs Work</li>
+      <li><span class="dot d-dev"></span>Developing</li>
+      <li><span class="dot d-fluent"></span>Fluent</li>
+      <li><span class="dot d-mastered"></span>Mastered</li>
+      <li><span class="dot d-started"></span>Started</li>
+      <li><span class="dot d-none"></span>Not Started</li>
+    </ul>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>Rules For The Build</h2>
+    <p class="sub">Everything below holds regardless of layout choices.</p>
+    <ol class="rules">
+      <li><b>One vocabulary on screen.</b> The cell shows a rating. It never shows an acquisition stage. "Acquired" leaves the interface.</li>
+      <li><b>Hands come from the catalog.</b> Left, right and both are existing drills, not new ones. If a combination has no catalog entry, say so rather than inventing it.</li>
+      <li><b>The two-handed exercise stays reachable.</b> Root in the left hand, inversions up and down in the right. Sevenths only. It sits below the grid, keeps its own Drill button, and never grows hand columns.</li>
+      <li><b>Last drilled reads the drill log directly</b>, not the cached field — the cache was going stale while badges updated.</li>
+      <li><b>Scales cells are untouched.</b> This changes the chord shape cell only.</li>
+      <li><b>Title Case for labels and buttons</b>, per the app-wide rule. Chord names keep their real notation — Cmaj7 is not retyped.</li>
+    </ol>
+  </section>
+
+  <section style="gap:.9rem;">
+    <div class="open">
+      <h3>Decided — clearing the old declarations</h3>
+      <p>Retiring the prompt stops new declarations. The ones already stored get cleared too, so every chord starts from what has actually been drilled. Coverage numbers and the session generator will both move as a result. <b>Report the count before clearing anything</b> — how many rows carry a declared stage with no reps behind it — the same way the settings page previews a recalculation before it runs.</p>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

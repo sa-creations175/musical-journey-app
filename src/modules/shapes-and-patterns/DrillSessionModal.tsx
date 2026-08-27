@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import type { DrillHand, DrillSession, DrillSkill, DrillStyle, DrillType } from '../../lib/db';
 import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toaster';
@@ -21,6 +21,18 @@ import {
 interface Props {
   skill: DrillSkill;
   drillType: DrillType;
+  /**
+   * The hands to walk, in order. Defaults to all three — what a whole
+   * cell has always meant.
+   *
+   * THE WALK IS A PROP, exactly as it already is on the scales modal.
+   * The chord grid taps one (inversion × hand) square, and a reader who
+   * came for their left hand should not sit through the right one to
+   * reach it. The STYLE dimension is not a prop: solid then arpeggiated
+   * are two passes of the same square, and the grid has no column that
+   * would let a reader ask for one without the other.
+   */
+  hands?: readonly DrillHand[];
   onClose: () => void;
   onLogged: (session: DrillSession) => void;
   /** Seeds the countdown when opened by the in-session chord-shape
@@ -62,7 +74,7 @@ interface DrillSkillStep {
   hand: DrillHand;
   style: DrillStyle;
 }
-const SKILLS: ReadonlyArray<DrillSkillStep> = [
+const ALL_SKILLS: ReadonlyArray<DrillSkillStep> = [
   { hand: 'left', style: 'solid' },
   { hand: 'left', style: 'arpeggiated' },
   { hand: 'right', style: 'solid' },
@@ -70,6 +82,8 @@ const SKILLS: ReadonlyArray<DrillSkillStep> = [
   { hand: 'both', style: 'solid' },
   { hand: 'both', style: 'arpeggiated' },
 ];
+
+const ALL_HANDS: ReadonlyArray<DrillHand> = ['left', 'right', 'both'];
 
 /**
  * Drill runner: setup → running → (paused → running)* → assess.
@@ -113,6 +127,7 @@ export default function DrillSessionModal({
   drillType,
   onClose,
   onLogged,
+  hands = ALL_HANDS,
   initialTargetSeconds,
   onRedo,
   onPrevious,
@@ -146,7 +161,11 @@ export default function DrillSessionModal({
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   // Which of the six (hand × style) skills we're on for this cell.
   const [skillIndex, setSkillIndex] = useState(0);
-  const currentSkill = SKILLS[skillIndex];
+  const SKILLS = useMemo<ReadonlyArray<DrillSkillStep>>(
+    () => ALL_SKILLS.filter(step => hands.includes(step.hand)),
+    [hands],
+  );
+  const currentSkill = SKILLS[skillIndex] ?? SKILLS[0];
   const currentHand = currentSkill.hand;
   const currentStyle = currentSkill.style;
   const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
