@@ -48,10 +48,18 @@ const STAGE_BG: Readonly<Record<AcquisitionBucket, string>> = {
   'not-started': 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
 };
 
-const STAGE_LEGEND_LABEL: Readonly<Record<AcquisitionBucket, string>> = {
-  'acquired':    'acquired',
-  'in-progress': 'in progress',
-  'not-started': 'not started',
+/** The status word in a cell's tooltip.
+ *
+ *  Title Case because it is a status, not a description of one, and
+ *  the tooltip sweep did not reach it — the string is assembled from
+ *  a lookup inside a template literal, so there is no `title="..."`
+ *  for a sweep to see. Despite the old name there is no legend in
+ *  this file rendering these; ScaleDrills has its own copy that a
+ *  legend DOES render, and it is deliberately not touched here. */
+const STAGE_STATUS_LABEL: Readonly<Record<AcquisitionBucket, string>> = {
+  'acquired':    'Acquired',
+  'in-progress': 'In Progress',
+  'not-started': 'Not Started',
 };
 
 export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props) {
@@ -141,7 +149,12 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             {KEYS_CIRCLE_OF_FOURTHS.map(k => {
               const itemRef = row.itemRefForKey(k);
               const bucket = bucketForStage(stageByItemRef.get(itemRef));
-              const title = `${row.label} in ${spellKey(k, spelling)} — ${STAGE_LEGEND_LABEL[bucket]}`;
+              // "Seventh Chords · Position 1 · the key of Eb — Not Started".
+              // A bare key letter after "in" read as a stray word, and
+              // a lowercase "not started" read as a description rather
+              // than the status it is. Both are marked; the separator
+              // is a middot so the three facts read as three facts.
+              const title = `${row.label} · the key of ${spellKey(k, spelling)} — ${STAGE_STATUS_LABEL[bucket]}`;
               return (
                 <button
                   key={k}
