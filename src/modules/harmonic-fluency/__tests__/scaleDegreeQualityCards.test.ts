@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import { catalogRulesFor } from '../decoyGuard';
 import { scaleDegreeQualityCards } from '../scaleDegreeQualityCards';
-import { LEGACY_TO_QUALITY } from '../sdmQualityMigration';
+import { LEGACY_TO_QUALITY } from '../scaleDegreeQualityCards';
 import {
   INTERVAL_QUALITIES, degreeAnswer, degreeMathExplanation, degreeResult,
   groundedLine, parseNote, type Direction,
@@ -50,7 +50,8 @@ describe('the set', () => {
   it('carries the old 84 as its alteration-zero subset, one for one', () => {
     // The old cards are deleted, so the claim is asserted against the
     // migration map — which is derived from these same cards, and
-    // pinned card-by-card in sdmQualityMigration.test.ts.
+    // The migration that consumed this map is retired; the map
+    // stayed, because the one-for-one claim is about the CATALOG.
     const unaltered = CARDS.filter(c => c.facts.alteration === 0);
     expect(unaltered.length).toBe(84);
     expect(LEGACY_TO_QUALITY.size).toBe(84);

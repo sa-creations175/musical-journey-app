@@ -1829,6 +1829,23 @@ export interface IntervalDescription {
   updatedAt: number;
 }
 
+/**
+ * A row of the retired SM-2 flashcard scheduler.
+ *
+ * =====================================================================
+ * THE DEXIE STORE IS GONE; THIS SHAPE IS NOT.
+ *
+ * `flashcardStates` was dropped at v38. The type stays because two
+ * copies of these rows outlive the store and both are still readable:
+ * the Supabase `flashcard_states` table, kept deliberately as the last
+ * unmodified copy of the original data, and any backup file exported
+ * before the drop.
+ *
+ * NOTHING IN THE APP READS A ROW OF THIS ANY MORE. It is here so that
+ * whoever goes looking at either of those copies has the field names
+ * and their meanings, rather than a JSON blob and a guess.
+ * =====================================================================
+ */
 export interface FlashcardState {
   cardId: string;
   easeFactor: number;        // SM-2, starts at 2.5
@@ -2764,7 +2781,6 @@ export class AppDB extends Dexie {
   attempts!: Table<AttemptRecord, string>;
   dailySummaries!: Table<DailySummary, [string, string]>;
   progressionAssociations!: Table<ProgressionAssociation, string>;
-  flashcardStates!: Table<FlashcardState, string>;
   modeAssociations!: Table<ModeAssociation, string>;
   intervalDescriptions!: Table<IntervalDescription, string>;
   songSections!: Table<SongSection, string>;
@@ -4224,6 +4240,39 @@ export class AppDB extends Dexie {
       );
       if (stale.length) await spacing.bulkDelete(stale.map(r => r.id));
     });
+
+    /**
+     * `flashcardStates` is dropped.
+     *
+     * =================================================================
+     * A NEW VERSION SAYING `null`, NOT AN EDIT TO AN OLD ONE.
+     *
+     * The table is named in twenty-four historical `stores()` blocks
+     * above and every one of them stays exactly as it is. Those blocks
+     * describe what the schema WAS at each version, and a browser
+     * sitting on v20 replays them in order to reach the present — edit
+     * one and you change history that some device is still walking
+     * through. `stores({ flashcardStates: null })` is Dexie's own way
+     * to say "and now it is gone", and it is the only correct one.
+     *
+     * It looks wrong: twenty-four live-looking references to a table
+     * that no longer exists. Editing them is what would actually be
+     * wrong.
+     * =================================================================
+     *
+     * NOTHING READS IT. Every surface moved onto `spacingState` first,
+     * the schedules were carried across by `spacing/migrateFlashcards`,
+     * and the two user-authored flags — the study-later star and the
+     * review flag with its note — live on the spacing row now. What is
+     * dropped here is a scheduler nothing consults and counters that
+     * `attempts` holds more completely.
+     *
+     * THE SUPABASE COPY IS DELIBERATELY UNTOUCHED. `flashcard_states`
+     * is still there, still synced-to historically, and is the last
+     * unmodified copy of the original SM-2 data. Dropping the local
+     * store does not drop that, and it is not to be dropped.
+     */
+    this.version(38).stores({ flashcardStates: null });
   }
 }
 

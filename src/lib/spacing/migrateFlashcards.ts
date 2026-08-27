@@ -25,7 +25,7 @@
  * =====================================================================
  */
 
-import { db, type AttemptRecord, type SpacingState } from '../db';
+import { db, type AttemptRecord, type FlashcardState, type SpacingState } from '../db';
 import { getPref, setPref } from '../userPrefs';
 import { putSpacingState } from '../practiceWrites';
 import { getMemoryType } from '../memoryType';
@@ -103,6 +103,31 @@ export function resumeGapDays(tally: ReadonlyArray<number>, answersDone: number)
   return Math.max(0, days[answersDone] - previousDay);
 }
 
+/**
+ * The SM-2 rows, if this database still has any.
+ *
+ * =====================================================================
+ * THE TABLE THIS MIGRATION READS NO LONGER EXISTS.
+ *
+ * `flashcardStates` was dropped at Dexie v38, once this had run and
+ * every reader had moved onto `spacingState`. The migration is kept
+ * anyway — it is the record of how the schedules were carried across,
+ * and it is keyed on a done-pref that is set, so it never reaches this
+ * function on a database that has already run it.
+ *
+ * Looked up by NAME rather than through `db.flashcardStates`, which is
+ * gone from the type. A build where the store is absent gets an empty
+ * array and every count comes back zero: a migration with no input
+ * reports that it moved nothing, which is true, rather than throwing
+ * on a table lookup.
+ * =====================================================================
+ */
+async function readRetiredFlashcardStates(): Promise<FlashcardState[]> {
+  const table = db.tables.find(t => t.name === 'flashcardStates');
+  if (!table) return [];
+  return table.toArray() as Promise<FlashcardState[]>;
+}
+
 /** Answers per card, counted from the attempt log. */
 async function answerCountsByItem(): Promise<Map<string, { total: number; correct: number }>> {
   const out = new Map<string, { total: number; correct: number }>();
@@ -139,7 +164,7 @@ async function answerCountsByItem(): Promise<Map<string, { total: number; correc
 export async function planFlashcardMigration(
   now = Date.now(),
 ): Promise<{ report: MigrationReport; writes: SpacingState[] }> {
-  const states = await db.flashcardStates.toArray();
+  const states = await readRetiredFlashcardStates();
   const counts = await answerCountsByItem();
   const overrides = await loadOverrides();
   const report: MigrationReport = {

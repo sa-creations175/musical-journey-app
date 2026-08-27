@@ -31,7 +31,6 @@ const att = (
 
 beforeEach(async () => {
   await db.attempts.clear();
-  await db.flashcardStates.clear();
 });
 
 describe('reading is in the registry', () => {

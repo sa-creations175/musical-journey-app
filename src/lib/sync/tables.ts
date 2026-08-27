@@ -136,8 +136,17 @@ export const SYNC_TABLES: SyncTableConfig[] = [
   { dexie: 'progressionAssociations', pg: 'progression_associations', idField: 'progressionId', topLevel: [] },
   { dexie: 'modeAssociations', pg: 'mode_associations', idField: 'modeId', topLevel: [] },
   { dexie: 'intervalDescriptions', pg: 'interval_descriptions', idField: 'intervalKey', topLevel: [] },
-  { dexie: 'flashcardStates', pg: 'flashcard_states', idField: 'cardId',
-    topLevel: [{ dexie: 'nextReviewDate', pg: 'next_review_date' }] },
+  // `flashcardStates` was registered here until the SM-2 scheduler was
+  // retired (Dexie v38). Removing the entry stands the table down in
+  // BOTH directions at once — `hooks.ts` stops queueing pushes and
+  // `backfill.ts` / `engine.ts` stop pulling — because every consumer
+  // reads this one list.
+  //
+  // THE SUPABASE TABLE IS LEFT ALONE ON PURPOSE. `flashcard_states`
+  // still exists server-side with its rows intact, and is the last
+  // unmodified copy of the original data. Un-registering it here means
+  // nothing writes to it or reads from it again; it does not mean it
+  // was dropped, and it is not to be.
   { dexie: 'userPrefs', pg: 'user_prefs', idField: 'key', topLevel: [] },
   { dexie: 'logicSkills', pg: 'logic_skills', idField: 'id', topLevel: [] },
   { dexie: 'chordShapes', pg: 'chord_shapes', idField: 'id', topLevel: [] },

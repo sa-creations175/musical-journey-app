@@ -53,47 +53,58 @@ describe('where a part-way card resumes', () => {
 });
 
 // =====================================================================
-// Wired, and not armed
+// Wired, not armed, and now with nothing left to read
 // =====================================================================
+//
+// THESE USED TO SEED `flashcardStates`. The table was dropped at Dexie
+// v38 once the migration had run and every reader had moved onto
+// spacingState, so there is no longer any way to give this a row to
+// carry across. What can still be pinned is the behaviour that matters
+// from here: the gate holds, the plan and the run cannot diverge, and
+// the migration survives its own input being gone.
 
 describe('the arming gate', () => {
   beforeEach(async () => {
     await db.spacingState.clear();
-    await db.flashcardStates.clear();
     await db.userPrefs.clear();
   });
 
-  it('does nothing at all while unarmed, however much there is to do', async () => {
+  it('does nothing, and does not mark itself done, while unarmed', async () => {
     // THE WHOLE POINT OF THE SECOND PREF. The migration is in the boot
     // path; this is what stops it firing there.
-    await db.flashcardStates.bulkAdd([
-      { cardId: 'ks-1', easeFactor: 2.5, interval: 6, nextReviewDate: 1_000,
-        lastReviewed: 500, consecutiveCorrect: 2, totalAttempts: 9, totalCorrect: 8 },
-    ]);
     const r = await migrateFlashcardSchedules();
     expect(r.skipped).toBe(true);
     expect(await db.spacingState.count()).toBe(0);
-    // And it did not quietly mark itself done, which would strand the
-    // rows permanently the moment someone armed it later.
+    // Not marking itself done is the load-bearing half. A skipped run
+    // that set the pref would strand every row permanently the moment
+    // someone armed it afterwards.
     expect(await getPref(PREF_FLASHCARD_MIGRATION, false)).toBe(false);
   });
 
-  it('the preview counts the same rows without writing any of them', async () => {
-    await db.flashcardStates.bulkAdd([
-      { cardId: 'ks-1', easeFactor: 2.5, interval: 6, nextReviewDate: 1_000,
-        lastReviewed: 500, consecutiveCorrect: 2, totalAttempts: 9, totalCorrect: 8 },
-    ]);
+  it('survives its source table being gone, and reports zero', async () => {
+    // `readRetiredFlashcardStates` looks the store up BY NAME rather
+    // than through `db.flashcardStates`, which no longer exists on the
+    // type. Absent must read as "no rows to move" — the honest answer —
+    // and never as a throw on a table lookup.
     const preview = await previewFlashcardMigration();
-    expect(preview.toMaintaining + preview.toAcquiring).toBe(1);
-    expect(await db.spacingState.count()).toBe(0);
-    expect(await getPref(PREF_FLASHCARD_MIGRATION, false)).toBe(false);
+    expect(preview.toMaintaining).toBe(0);
+    expect(preview.toAcquiring).toBe(0);
+    expect(preview.unclaimed).toBe(0);
 
-    // Armed, the run lands exactly what the preview promised.
     await setPref(PREF_FLASHCARD_MIGRATION_ARMED, true);
     const run = await migrateFlashcardSchedules();
     expect(run.skipped).toBe(false);
+    expect(run.toMaintaining).toBe(0);
+    expect(run.toAcquiring).toBe(0);
+    expect(await db.spacingState.count()).toBe(0);
+  });
+
+  it('the preview and the run agree, which is the point of the split', async () => {
+    const preview = await previewFlashcardMigration();
+    await setPref(PREF_FLASHCARD_MIGRATION_ARMED, true);
+    const run = await migrateFlashcardSchedules();
     expect(run.toMaintaining).toBe(preview.toMaintaining);
     expect(run.toAcquiring).toBe(preview.toAcquiring);
-    expect(await db.spacingState.count()).toBe(1);
+    expect(run.flagsCarried).toBe(preview.flagsCarried);
   });
 });

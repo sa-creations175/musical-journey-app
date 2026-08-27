@@ -35,7 +35,6 @@ beforeEach(async () => {
   await Promise.all([
     db.spacingState.clear(),
     db.attempts.clear(),
-    db.flashcardStates.clear(),
     db.drillSessions.clear(),
     db.drillSkills.clear(),
     db.songPracticeLog.clear(),

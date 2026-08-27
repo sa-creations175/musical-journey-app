@@ -302,3 +302,52 @@ export function qualityOfCardId(id: string): {
   if (startDegree < 1 || startDegree > DEGREE_COUNT) return null;
   return { startDegree, quality, direction: m[2] as Direction };
 }
+
+// ---------------------------------------------------------------------
+// The 84 that were replaced
+// ---------------------------------------------------------------------
+
+/**
+ * The legacy scale-degree-math ids, and which quality card each became.
+ *
+ * =====================================================================
+ * THIS OUTLIVED THE MIGRATION THAT NEEDED IT.
+ *
+ * It lived in `sdmQualityMigration.ts`, which moved a reader's history
+ * from the old 84 cards onto their replacements. That migration is gone
+ * — confirmed finished, nothing left to move — but the CLAIM this map
+ * encodes is about the catalog, not about migrating anything: every one
+ * of the 84 old questions has exactly one counterpart among the
+ * alteration-zero quality cards, and that is still true and still worth
+ * pinning.
+ *
+ * DERIVED FROM THE NEW CARDS, not from a second hand-written table.
+ * The one-for-one relationship is asserted in
+ * `scaleDegreeQualityCards.test.ts`; this reads the same fields that
+ * assertion reads, so a mapping and a claim about the mapping cannot
+ * drift apart. A literal 84-line table would be a copy of a rule, and
+ * the copy is the one that goes wrong.
+ * =====================================================================
+ */
+
+/** "2nd", "3rd", "4th" — the ordinal spelling the old ids carried. */
+function legacyOrdinalSuffix(n: number): string {
+  return n === 2 ? 'nd' : n === 3 ? 'rd' : 'th';
+}
+
+/** The old id for a quality card that has an old counterpart. */
+export function legacyIdFor(
+  startDegree: number, intervalId: number, direction: string,
+): string {
+  return `sdm-${startDegree}-${direction}-${intervalId}${legacyOrdinalSuffix(intervalId)}`;
+}
+
+/** Old id → new id, for the 84 that have a counterpart. */
+export const LEGACY_TO_QUALITY: ReadonlyMap<string, string> = new Map(
+  scaleDegreeQualityCards()
+    .filter(c => c.facts.alteration === 0)
+    .map(c => [
+      legacyIdFor(c.facts.startDegree, c.facts.intervalId, c.facts.direction),
+      c.id,
+    ]),
+);

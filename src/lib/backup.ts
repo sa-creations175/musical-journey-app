@@ -30,7 +30,6 @@ const TABLES = {
   attempts: db.attempts,
   dailySummaries: db.dailySummaries,
   progressionAssociations: db.progressionAssociations,
-  flashcardStates: db.flashcardStates,
   modeAssociations: db.modeAssociations,
   intervalDescriptions: db.intervalDescriptions,
   songSections: db.songSections,
@@ -164,7 +163,45 @@ export function normalizeRestoredAttempts(
   });
 }
 
+/**
+ * Table keys in the FILE that this build no longer has a table for.
+ *
+ * =====================================================================
+ * A DROPPED TABLE MUST NOT MAKE A RESTORE SILENT.
+ *
+ * `restoreBackup` walks the CURRENT map, not the file's keys, so a
+ * backup carrying a retired table restores cleanly and simply ignores
+ * it. That is the right behaviour — there is nowhere to put the rows —
+ * but doing it without a word means a file the reader believes is a
+ * complete copy comes back incomplete and nothing says so.
+ *
+ * `flashcardStates` is the first of these: dropped at Dexie v38, and
+ * present in every backup taken before that. BACKUP_VERSION stays at 1
+ * deliberately — bumping it would invalidate those files outright, and
+ * they are still good for everything else in them.
+ * =====================================================================
+ */
+function retiredTablesIn(backup: BackupFile): Array<{ name: string; rows: number }> {
+  const known = new Set<string>(TABLE_NAMES);
+  return Object.entries(backup.data as Record<string, unknown>)
+    .filter(([name]) => !known.has(name))
+    .map(([name, rows]) => ({
+      name,
+      rows: Array.isArray(rows) ? rows.length : 0,
+    }))
+    .filter(t => t.rows > 0);
+}
+
 export async function restoreBackup(backup: BackupFile): Promise<void> {
+  // Warned BEFORE the transaction, so the line is in the console even
+  // if the restore itself then fails.
+  for (const t of retiredTablesIn(backup)) {
+    console.warn(
+      `[backup] skipped ${t.rows} row${t.rows === 1 ? '' : 's'} from `
+      + `"${t.name}" — that table no longer exists in this version of `
+      + `the app. Nothing else in the file was affected.`,
+    );
+  }
   const tables = TABLE_NAMES.map(name => TABLES[name] as unknown as Table<unknown, unknown>);
   await db.transaction('rw', tables, async () => {
     for (const name of TABLE_NAMES) {
