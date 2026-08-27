@@ -474,7 +474,7 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     id: 'five-one',
     kind: 'type-position',
     label: '5→1 Movement',
-    description: 'Dominant to tonic resolution. Three skill types (guide tones, seventh chords, full voicing) across two starting positions.',
+    description: 'The last two chords of a 2-5-1 — for when you want tension resolving home without the full turnaround, or to tonicise a chord.',
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
