@@ -282,11 +282,11 @@ describe('parseVoiceLeadingItemRef', () => {
 describe('voiceLeadingSubCellLabel', () => {
   it('type-position reads as "<type> · Pos <position>"', () => {
     const major = parseVoiceLeadingItemRef('vl:major-251:aba-structure:B:C')!;
-    expect(voiceLeadingSubCellLabel(major)).toBe('ABA structure · Pos B');
+    expect(voiceLeadingSubCellLabel(major)).toBe('Extended Voicings · Pos B');
     const five = parseVoiceLeadingItemRef('vl:five-one:guide-tones:A:F')!;
     expect(voiceLeadingSubCellLabel(five)).toBe('Guide tones · Pos A');
     const minor = parseVoiceLeadingItemRef('vl:minor-251:full-voicing:B:G')!;
-    expect(voiceLeadingSubCellLabel(minor)).toBe('Full voicing · Pos B');
+    expect(voiceLeadingSubCellLabel(minor)).toBe('Extended Voicings · Pos B');
   });
 
   it('diatonic-cycle reads as "Starting position N"', () => {
@@ -407,7 +407,7 @@ describe('voiceLeadingGridRows', () => {
   it('row labels are human-friendly for the gutter', () => {
     const major = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!);
     expect(major[0].label).toBe('Guide tones · Pos A');
-    expect(major[5].label).toBe('ABA structure · Pos B');
+    expect(major[5].label).toBe('Extended Voicings · Pos B');
 
     const cycle = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!);
     expect(cycle[0].label).toBe('Starting position 1');

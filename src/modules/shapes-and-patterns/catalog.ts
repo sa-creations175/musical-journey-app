@@ -359,8 +359,14 @@ export type VLABPosition = 'A' | 'B';
 
 /** Types for the 5→1 movement pattern. */
 export type FiveOneType = 'guide-tones' | 'seventh-chords' | 'full-voicing';
-/** Types for the Major 2-5-1 pattern. ABA structure is the "long"
- *  capstone type — the pattern's namesake voice-leading exercise. */
+/** Types for the Major 2-5-1 pattern.
+ *
+ *  `aba-structure` and `five-one`/`minor-251`'s `full-voicing` are ONE
+ *  ROW UNDER TWO IDS — both display as "Extended Voicings". The ids
+ *  are kept apart because they are spacingState keys: collapsing them
+ *  would orphan every rep already logged against `aba-structure`.
+ *  Merging the ids needs a migration and is deliberately not done
+ *  here. */
 export type Major251Type = 'guide-tones' | 'seventh-chords' | 'aba-structure';
 /** Types for the Minor 2-5-1 pattern. */
 export type Minor251Type = 'guide-tones' | 'seventh-chords' | 'full-voicing';
@@ -451,7 +457,7 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     id: 'major-251',
     kind: 'type-position',
     label: 'Major 2-5-1',
-    description: 'Foundational ii → V → I voice leading. Three skill types (guide tones, seventh chords, ABA structure) across two starting positions.',
+    description: 'Foundational ii → V → I voice leading. Three skill types (guide tones, seventh chords, extended voicings) across two starting positions.',
     types: ['guide-tones', 'seventh-chords', 'aba-structure'],
     positions: ['A', 'B'],
   },
@@ -459,7 +465,7 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     id: 'minor-251',
     kind: 'type-position',
     label: 'Minor 2-5-1',
-    description: 'iiø → V → i voice leading. Three skill types (guide tones, seventh chords, full voicing) across two starting positions.',
+    description: 'iiø → V → i voice leading. Three skill types (guide tones, seventh chords, extended voicings) across two starting positions.',
     types: ['guide-tones', 'seventh-chords', 'full-voicing'],
     positions: ['A', 'B'],
   },
@@ -680,8 +686,26 @@ function typeLabel(type: FiveOneType | Major251Type | Minor251Type): string {
   switch (type) {
     case 'guide-tones':    return 'Guide tones';
     case 'seventh-chords': return 'Seventh chords';
-    case 'full-voicing':   return 'Full voicing';
-    case 'aba-structure':  return 'ABA structure';
+    // ONE NAME FOR ONE THING. These are the same row, and the old
+    // names disagreed about what it was. "ABA structure" was also
+    // simply wrong on the 5→1: it names a three-chord alternation
+    // and that pattern has two chords.
+    case 'full-voicing':   return 'Extended Voicings';
+    case 'aba-structure':  return 'Extended Voicings';
+  }
+}
+
+/** What "extended" means here, for the two ids that share the name.
+ *  Shown beside the row label — the name says which row, the hint
+ *  says what you actually play. */
+function typeHint(type: FiveOneType | Major251Type | Minor251Type): string | undefined {
+  switch (type) {
+    case 'full-voicing':
+    case 'aba-structure':
+      return '9ths added, 13ths on the dominant';
+    case 'guide-tones':
+    case 'seventh-chords':
+      return undefined;
   }
 }
 
@@ -703,7 +727,7 @@ function minorAbaLetter(p: MinorAbaPosition): 'A' | 'B' {
 /** Human-friendly sub-cell label, suitable for display alongside the
  *  pattern label. Examples:
  *    "Guide tones · Pos A"
- *    "ABA structure · Pos B"
+ *    "Extended Voicings · Pos B"
  *    "Starting position 2"
  *    "Position A"        (minor-aba)
  *    "Position 3"        (dom7b9 / dim7)
@@ -734,6 +758,9 @@ export interface VoiceLeadingGridRow {
   rowId: string;
   /** Display label for the row gutter. */
   label: string;
+  /** Muted second line under the label, when the name alone does not
+   *  say what the row is. Only Extended Voicings has one today. */
+  hint?: string;
   /** Build the canonical sub-cell itemRef for this row × key. */
   itemRefForKey: (keyName: string) => string;
 }
@@ -757,6 +784,7 @@ export function voiceLeadingGridRows(
           out.push({
             rowId: `${type}:${position}`,
             label: `${typeLabel(type)} · Pos ${position}`,
+            hint: typeHint(type),
             itemRefForKey: (k) => `vl:${pattern.id}:${type}:${position}:${k}`,
           });
         }

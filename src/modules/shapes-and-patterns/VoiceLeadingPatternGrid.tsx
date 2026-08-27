@@ -125,10 +125,18 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             }}
           >
             <div
-              className="text-xs pr-2 py-0.5 truncate text-neutral-600 dark:text-neutral-300"
-              title={row.label}
+              className="text-xs pr-2 py-0.5 min-w-0 text-neutral-600 dark:text-neutral-300"
+              title={row.hint ? `${row.label} — ${row.hint}` : row.label}
             >
-              {row.label}
+              <div className="truncate">{row.label}</div>
+              {/* The name says which row; the hint says what you play.
+                  Only Extended Voicings has one — it is the row whose
+                  name was ambiguous enough to need two names before. */}
+              {row.hint && (
+                <div className="text-[10px] leading-tight text-neutral-400 truncate">
+                  {row.hint}
+                </div>
+              )}
             </div>
             {KEYS_CIRCLE_OF_FOURTHS.map(k => {
               const itemRef = row.itemRefForKey(k);
