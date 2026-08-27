@@ -150,10 +150,10 @@ export default function SyncDiagnosticsSection() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-700">
-                  <th className={HEAD}>table</th>
-                  <th className={`${HEAD} text-right`}>here</th>
-                  <th className={`${HEAD} text-right`}>cloud</th>
-                  <th className={`${HEAD} text-right`}>pushed</th>
+                  <th className={HEAD}>Table</th>
+                  <th className={`${HEAD} text-right`}>Here</th>
+                  <th className={`${HEAD} text-right`}>Cloud</th>
+                  <th className={`${HEAD} text-right`}>Pushed</th>
                 </tr>
               </thead>
               <tbody>
@@ -214,9 +214,9 @@ export default function SyncDiagnosticsSection() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-700">
-                  <th className={HEAD}>table</th>
-                  <th className={`${HEAD} text-right`}>here</th>
-                  <th className={`${HEAD} text-right`}>cloud</th>
+                  <th className={HEAD}>Table</th>
+                  <th className={`${HEAD} text-right`}>Here</th>
+                  <th className={`${HEAD} text-right`}>Cloud</th>
                 </tr>
               </thead>
               <tbody>
