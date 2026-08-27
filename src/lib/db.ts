@@ -2576,7 +2576,14 @@ export interface SongCellRunThrough {
    *  (Phase B's exploration-vs-drill mode detection treats an unrated
    *  section as still in exploration). Every run-through row from one
    *  cell-modal save carries the same rating: it describes the
-   *  session, not the individual attempt. */
+   *  session, not the individual attempt.
+   *
+   *  AUDITED EMPTY 27 Aug 2026 — all 12 rows absent, every one written
+   *  before the field existed (see 85839cb for the counts). The first
+   *  reader should treat anything that is not a number 1-4 as absent
+   *  and must NOT map the old flying/cruising/crawling vocabulary:
+   *  there is nothing here to map, and `feelForRating` would read
+   *  every 'crawling' as Struggled rather than Working on it. */
   rating?: SongRunThroughRating;
   /**
    * The `songPracticeLog` session this run-through happened inside,
