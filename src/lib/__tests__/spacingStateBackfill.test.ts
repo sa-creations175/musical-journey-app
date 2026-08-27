@@ -5,17 +5,17 @@
  *   1. Pure derivation helpers — no Dexie, exhaustive coverage of
  *      threshold/window edges per module.
  *   2. End-to-end `backfillSpacingStateIfNeeded` integration — seeds
- *      the source tables (attempts, flashcardStates, drillSessions,
+ *      the source tables (attempts, drillSessions,
  *      songPracticeLog, productionLessons), runs the backfill,
  *      asserts the right spacingState rows landed.
  */
 import 'fake-indexeddb/auto';
+import backfillSource from '../spacingStateBackfill.ts?raw';
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   PREF_SPACING_STATE_BACKFILL_V1,
   backfillSpacingStateIfNeeded,
   deriveDeclarativeStage,
-  deriveFlashcardStage,
   deriveRatingStage,
 } from '../spacingStateBackfill';
 import { getSpacingState, recordEngagement } from '../spacingState';
@@ -98,25 +98,32 @@ describe('deriveDeclarativeStage', () => {
   });
 });
 
-describe('deriveFlashcardStage', () => {
-  it('returns null when totalAttempts is 0', () => {
-    expect(deriveFlashcardStage(0, 0)).toBeNull();
-  });
-
-  it('returns acquiring below the min gate', () => {
-    expect(deriveFlashcardStage(4, 4)).toBe('acquiring');
-  });
-
-  it('returns acquired at the boundary (5 attempts, 4 correct = 80%)', () => {
-    expect(deriveFlashcardStage(5, 4)).toBe('acquired');
-  });
-
-  it('returns acquiring when threshold is missed', () => {
-    expect(deriveFlashcardStage(10, 7)).toBe('acquiring');
-  });
-
-  it('returns acquiring even at 100% if below min attempts', () => {
-    expect(deriveFlashcardStage(2, 2)).toBe('acquiring');
+/**
+ * `deriveFlashcardStage` USED TO BE TESTED HERE, and it is gone.
+ *
+ * It derived harmonic fluency's starting stage from the SM-2 row's
+ * LIFETIME counters, which was the only rule in this file that had no
+ * window — a card missed on each of its last five reps still read
+ * `acquired` on the strength of forty right answers two years back.
+ * Harmonic fluency goes through `deriveDeclarativeStage` now, with the
+ * same trailing-ten window as the other four declarative modules, so
+ * the cases above cover it too.
+ *
+ * The one behaviour worth pinning separately is that HF is dispatched
+ * at all — a module silently missing from the backfill loop shows up
+ * as day-one coverage of zero and nothing else.
+ */
+describe('harmonic fluency joins the declarative modules', () => {
+  it('is backfilled from attempts, with no branch of its own', () => {
+    expect(backfillSource).toContain(
+      "backfillDeclarativeFromAttempts('harmonic-fluency'",
+    );
+    // The retired branch, pinned as an absence — including in prose,
+    // which is why the comment above the removal names the SM-2 table
+    // in words rather than by identifier. Reading it here is what this
+    // commit removed, and it must not come back when the table itself
+    // is dropped.
+    expect(backfillSource).not.toContain('db.flashcardStates');
   });
 });
 
@@ -255,14 +262,17 @@ describe('backfillSpacingStateIfNeeded — declarative modules', () => {
 });
 
 describe('backfillSpacingStateIfNeeded — Harmonic Fluency', () => {
-  it('uses flashcardStates aggregate counters', async () => {
-    await db.flashcardStates.bulkAdd([
-      { cardId: 'sdm-1', easeFactor: 2.5, interval: 1, nextReviewDate: 0, lastReviewed: 0,
-        consecutiveCorrect: 5, totalAttempts: 5, totalCorrect: 5 },
-      { cardId: 'nn-1', easeFactor: 2.5, interval: 1, nextReviewDate: 0, lastReviewed: 0,
-        consecutiveCorrect: 0, totalAttempts: 3, totalCorrect: 1 },
-      { cardId: 'dq-1', easeFactor: 2.5, interval: 1, nextReviewDate: 0, lastReviewed: 0,
-        consecutiveCorrect: 0, totalAttempts: 0, totalCorrect: 0 },
+  it('derives from attempts, on the same trailing window as the rest', async () => {
+    const t = 1_000;
+    await addAttemptRows([
+      // 5 for 5 → acquired.
+      ...Array.from({ length: 5 }, (_, i) => ({
+        moduleId: 'harmonic-fluency', itemId: 'sdm-1', correct: true, timestamp: t + i,
+      })),
+      // 1 of 3 → under the min gate, and under the threshold anyway.
+      { moduleId: 'harmonic-fluency', itemId: 'nn-1', correct: true,  timestamp: t },
+      { moduleId: 'harmonic-fluency', itemId: 'nn-1', correct: false, timestamp: t + 1 },
+      { moduleId: 'harmonic-fluency', itemId: 'nn-1', correct: false, timestamp: t + 2 },
     ]);
     await backfillSpacingStateIfNeeded();
     const sdm = await getSpacingState('sdm-1', 'harmonic-fluency');
@@ -270,7 +280,26 @@ describe('backfillSpacingStateIfNeeded — Harmonic Fluency', () => {
     const dq  = await getSpacingState('dq-1',  'harmonic-fluency');
     expect(sdm!.acquisitionStage).toBe('acquired');
     expect(nn!.acquisitionStage).toBe('acquiring');
-    expect(dq).toBeUndefined();  // 0 attempts → no row
+    expect(dq).toBeUndefined();  // never answered → no row
+  });
+
+  it('FORGETS: a long-ago run of right answers no longer carries a card', async () => {
+    // THE CASE THE OLD RULE GOT WRONG, and the reason for the change.
+    // Twenty correct, then five wrong. Lifetime accuracy is 20/25 =
+    // 80%, which cleared the old gate exactly. The trailing ten is
+    // 5 of 10, which does not.
+    const t = 1_000;
+    await addAttemptRows([
+      ...Array.from({ length: 20 }, (_, i) => ({
+        moduleId: 'harmonic-fluency', itemId: 'ks-9', correct: true, timestamp: t + i,
+      })),
+      ...Array.from({ length: 5 }, (_, i) => ({
+        moduleId: 'harmonic-fluency', itemId: 'ks-9', correct: false, timestamp: t + 100 + i,
+      })),
+    ]);
+    await backfillSpacingStateIfNeeded();
+    const row = await getSpacingState('ks-9', 'harmonic-fluency');
+    expect(row!.acquisitionStage).toBe('acquiring');
   });
 });
 

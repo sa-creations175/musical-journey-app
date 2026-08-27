@@ -89,7 +89,9 @@ async function runBackfill(): Promise<BackfillCounts> {
   await backfillDeclarativeFromAttempts('chord-recognition',  bump);
   await backfillDeclarativeFromAttempts('chord-progressions', bump);
   await backfillDeclarativeFromAttempts('scales-modes',       bump);
-  await backfillHarmonicFluency(bump);
+  // HARMONIC FLUENCY IS ONE MORE DECLARATIVE MODULE NOW. It used to
+  // have its own branch reading `flashcardStates` — see below.
+  await backfillDeclarativeFromAttempts('harmonic-fluency',   bump);
   await backfillShapesAndPatterns(bump);
   await backfillRepertoire(bump);
   await backfillProduction(bump);
@@ -118,7 +120,9 @@ function isExcludedChordProgressionsItemId(id: string): boolean {
 }
 
 async function backfillDeclarativeFromAttempts(
-  moduleId: 'intervals' | 'chord-recognition' | 'chord-progressions' | 'scales-modes',
+  moduleId:
+    | 'intervals' | 'chord-recognition' | 'chord-progressions' | 'scales-modes'
+    | 'harmonic-fluency',
   bump: (moduleRef: string, itemRef: string, stage: AcquisitionStage | null) => Promise<void>,
 ): Promise<void> {
   const rows = await db.attempts
@@ -160,34 +164,33 @@ export function deriveDeclarativeStage(
 }
 
 // ===================================================================
-// Harmonic Fluency — read from db.flashcardStates (SM-2 aggregates)
+// Harmonic Fluency — read from db.attempts, like every other
+// declarative module
 // ===================================================================
-
-async function backfillHarmonicFluency(
-  bump: (moduleRef: string, itemRef: string, stage: AcquisitionStage | null) => Promise<void>,
-): Promise<void> {
-  const rows = await db.flashcardStates.toArray();
-  for (const row of rows) {
-    const stage = deriveFlashcardStage(row.totalAttempts, row.totalCorrect);
-    await bump('harmonic-fluency', row.cardId, stage);
-  }
-}
-
-/** Uses SM-2's aggregate counters (totalAttempts / totalCorrect) as
- *  the authoritative source for HF — flashcardStates is richer than
- *  the rolling-window accuracy from db.attempts and matches what the
- *  HF UI itself trusts. Threshold semantics match the declarative
- *  rule: ≥5 total attempts at ≥80% accuracy → acquired. */
-export function deriveFlashcardStage(
-  totalAttempts: number,
-  totalCorrect: number,
-): AcquisitionStage | null {
-  if (totalAttempts === 0) return null;
-  if (totalAttempts >= DECL_MIN_ATTEMPTS && totalCorrect / totalAttempts >= DECL_THRESHOLD) {
-    return 'acquired';
-  }
-  return 'acquiring';
-}
+//
+// IT HAD ITS OWN BRANCH, AND ITS OWN RULE, AND THAT WAS THE PROBLEM.
+//
+// `backfillHarmonicFluency` read the SM-2 flashcard table directly and
+// derived a stage from LIFETIME counters — totalAttempts /
+// totalCorrect over all time. Every other declarative module here derives from the trailing
+// ten attempts. Two rules, and the one HF used was the one that could
+// not forget: a card answered forty times correctly two years ago and
+// missed on each of the last five still read `acquired`, because
+// 40/45 clears 80%.
+//
+// The justification written at the time was that the SM-2 table was
+// "richer than the rolling-window accuracy from db.attempts and matches
+// what the HF UI itself trusts". Neither half survived: the counters
+// UNDERCOUNT, because focus-protected sessions wrote the attempt row
+// and skipped the SM-2 write, and the HF UI stopped trusting them when
+// its tier moved onto attempts.
+//
+// So the branch is gone rather than ported. HF is dispatched through
+// `backfillDeclarativeFromAttempts` above with the same window, the
+// same thresholds and the same code as the other four.
+//
+// `deriveFlashcardStage` went with it. It took the two counters as
+// arguments and nothing can supply them once the table is dropped.
 
 // ===================================================================
 // Shapes & Patterns — drillSessions joined to drillSkills
@@ -340,4 +343,113 @@ async function backfillProduction(
   for (const lesson of lessons) {
     await bump('production', lesson.id, STAGE_FOR_RATING[lesson.rating ?? 0]);
   }
+}
+
+// ===================================================================
+// Sizing the harmonic-fluency change, before it can land on anything
+// ===================================================================
+
+export interface HfBackfillShift {
+  /** True when the one-time backfill has already run. When it has,
+   *  the rule change below touches NOTHING until a `_V2` pref ships —
+   *  `bump` skips every item that already has a row. */
+  alreadyRan: boolean;
+  /** Cards with at least one attempt — the population either rule
+   *  sees. */
+  cardsWithAttempts: number;
+  /** What the retired lifetime-counter rule would seed. */
+  oldAcquired: number;
+  oldAcquiring: number;
+  /** What the trailing-window rule seeds. */
+  newAcquired: number;
+  newAcquiring: number;
+  /** Cards the two rules disagree about, and which way. */
+  demoted: number;
+  promoted: number;
+  /** HF rows that exist right now at `acquired` or better — the number
+   *  goal coverage is actually counting today. */
+  liveAcquiredRows: number;
+}
+
+/**
+ * What moving harmonic fluency's backfill onto attempts would do.
+ *
+ * READ-ONLY, AND DELIBERATELY NOT WIRED INTO BOOT. This answers "how
+ * big is the move" before the move can affect anything, which is the
+ * only moment the question is worth asking.
+ *
+ * THE HONEST HEADLINE IS USUALLY `alreadyRan`. The backfill is gated
+ * by a one-time pref and skips any item that already has a row, so on
+ * a database where it has run the rule change is inert — it decides
+ * what a FRESH install seeds, not what this one holds. The counts
+ * below are the counterfactual either way: what each rule would say
+ * about the attempt history as it stands.
+ */
+export async function describeHfBackfillShift(): Promise<HfBackfillShift> {
+  const alreadyRan =
+    (await getPref<number>(PREF_SPACING_STATE_BACKFILL_V1, 0)) > 0;
+
+  const rows = await db.attempts
+    .where('moduleId').equals('harmonic-fluency')
+    .toArray();
+
+  const byCard = new Map<string, Array<{ correct: boolean; ts: number }>>();
+  for (const r of rows) {
+    const list = byCard.get(r.itemId) ?? [];
+    list.push({ correct: r.correct, ts: r.timestamp });
+    byCard.set(r.itemId, list);
+  }
+
+  /** The retired rule: lifetime totals, no window. */
+  const oldStage = (
+    attempts: Array<{ correct: boolean }>,
+  ): AcquisitionStage | null => {
+    if (attempts.length === 0) return null;
+    const correct = attempts.filter(a => a.correct).length;
+    if (
+      attempts.length >= DECL_MIN_ATTEMPTS
+      && correct / attempts.length >= DECL_THRESHOLD
+    ) return 'acquired';
+    return 'acquiring';
+  };
+
+  const out: HfBackfillShift = {
+    alreadyRan,
+    cardsWithAttempts: byCard.size,
+    oldAcquired: 0, oldAcquiring: 0,
+    newAcquired: 0, newAcquiring: 0,
+    demoted: 0, promoted: 0,
+    liveAcquiredRows: 0,
+  };
+
+  for (const attempts of byCard.values()) {
+    const before = oldStage(attempts);
+    const after = deriveDeclarativeStage(attempts);
+    if (before === 'acquired') out.oldAcquired += 1;
+    if (before === 'acquiring') out.oldAcquiring += 1;
+    if (after === 'acquired') out.newAcquired += 1;
+    if (after === 'acquiring') out.newAcquiring += 1;
+    if (before === 'acquired' && after !== 'acquired') out.demoted += 1;
+    if (before !== 'acquired' && after === 'acquired') out.promoted += 1;
+  }
+
+  // What coverage counts today, whatever wrote it.
+  const ACQUIRED_PLUS = new Set(['acquired', 'consolidated', 'mastered']);
+  out.liveAcquiredRows = await db.spacingState
+    .where('moduleRef').equals('harmonic-fluency')
+    .filter(r => ACQUIRED_PLUS.has(r.acquisitionStage))
+    .count();
+
+  return out;
+}
+
+/** One line for the console. */
+export function describeHfShift(s: HfBackfillShift): string {
+  const head = s.alreadyRan
+    ? '[spacing] HF backfill already ran — this rule change is inert here'
+    : '[spacing] HF backfill has NOT run — this rule decides what it seeds';
+  return `${head}; ${s.cardsWithAttempts} cards with attempts, `
+    + `acquired ${s.oldAcquired} → ${s.newAcquired} `
+    + `(${s.demoted} demoted, ${s.promoted} promoted); `
+    + `${s.liveAcquiredRows} HF rows counting toward coverage today`;
 }
