@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Settings — Spacing &amp; Scheduling</title>
+<style>
+  :root{
+    --bg:#14151a; --panel:#1c1e25; --panel2:#22252e; --line:#2e323d; --hair:#24272f;
+    --text:#e8e9ee; --dim:#9096a4; --dimmer:#6b7280;
+    --accent:#7dd3a0; --accent-dim:#3d6b52; --override:#e0a458; --off:#5a5f6b;
+    --fresh:#9b8cd4;
+    --r1:#e07a5f; --r2:#e0a458; --r3:#7dd3a0; --r4:#6fb3e0;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:26px 20px 60px}
+  .wrap{max-width:1220px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13.5px;margin:0 0 20px}
+  .note{background:#1a1d24;border:1px solid var(--line);border-left:3px solid var(--override);
+    border-radius:6px;padding:11px 14px;color:var(--dim);font-size:13px;margin:0 0 20px}
+  .note b{color:var(--text);font-weight:600}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:visible;margin-bottom:18px}
+  .card h2{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);
+    margin:0;padding:12px 16px 10px;border-bottom:1px solid var(--line);font-weight:600}
+  .card h2 .hint{text-transform:none;letter-spacing:0;color:var(--dimmer);font-weight:400;font-size:12px;margin-left:9px}
+  .pad{padding:14px 16px}
+
+  /* info button */
+  .i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;
+    border:1px solid #454a56;color:var(--dimmer);font-size:9.5px;font-weight:700;margin-left:6px;
+    vertical-align:1px;font-style:normal;user-select:none;font-family:-apple-system,sans-serif}
+  .pop{background:#171a20;border:1px solid #3a3f4a;border-radius:7px;padding:11px 13px;margin:8px 0 4px;
+    font-size:12.5px;color:var(--dim);line-height:1.55;max-width:640px;position:relative}
+  .pop:before{content:"";position:absolute;top:-6px;left:26px;width:10px;height:10px;background:#171a20;
+    border-left:1px solid #3a3f4a;border-top:1px solid #3a3f4a;transform:rotate(45deg)}
+  .pop b{color:var(--text);font-weight:600}
+  .pop .eg{display:block;margin-top:7px;padding-top:7px;border-top:1px solid #262a33;color:var(--dimmer)}
+  .pop .eg b{color:var(--accent);font-weight:600}
+
+  /* rating bands */
+  .bands{display:flex;gap:10px;flex-wrap:wrap}
+  .band{border:1px solid #343843;border-radius:6px;background:#171a20;padding:8px 12px;min-width:132px}
+  .band .bn{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:7px}
+  .band .bv{font-family:var(--mono);font-size:12.5px;color:var(--dimmer);margin-top:3px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:2px;flex:0 0 auto}
+  .d1{background:var(--r1)}.d2{background:var(--r2)}.d3{background:var(--r3)}.d4{background:var(--r4)}
+
+  /* freshness */
+  .ladder{display:flex;flex-direction:column;gap:7px;max-width:540px}
+  .lr{display:flex;align-items:center;gap:12px}
+  .lr .when{font-size:12.5px;color:var(--dim);min-width:140px}
+  .lr .track{flex:1;height:9px;background:#22252e;border-radius:5px;overflow:hidden}
+  .lr .fill{height:100%;background:var(--fresh);border-radius:5px}
+  .lr .frac{font-family:var(--mono);font-size:11.5px;color:var(--dimmer);min-width:34px;text-align:right}
+
+  /* tree */
+  table{width:100%;border-collapse:collapse}
+  thead th{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dimmer);
+    font-weight:600;text-align:right;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  thead th.l{text-align:left}
+  tbody td{padding:7px 12px;border-bottom:1px solid var(--hair);text-align:right;font-family:var(--mono);
+    font-size:13px;white-space:nowrap}
+  tbody td.l{text-align:left;font-family:inherit;font-size:14px;width:100%}
+  tbody tr:last-child td{border-bottom:0}
+  tr.sel td{background:var(--panel2)}
+  tr.sel td.l{box-shadow:inset 3px 0 0 var(--accent)}
+  .lvl2 .l{padding-left:26px;font-size:13.5px;color:#c9cdd7}
+  .lvl3 .l{padding-left:52px;font-size:13px;color:var(--dim)}
+  .isoff .l{color:var(--off);text-decoration:line-through;text-decoration-thickness:1px}
+  .isoff td:not(.l){color:#3f434c}
+  td .inh,.inh{color:var(--dimmer)}
+  .ovr{color:var(--override)}
+  .chev{display:inline-block;width:14px;color:var(--dimmer);font-size:10px;user-select:none}
+  .tag{font-family:inherit;font-size:10px;letter-spacing:.04em;text-transform:uppercase;padding:1px 5px;
+    border-radius:3px;font-weight:600;margin-left:8px;vertical-align:1px}
+  .tag.o{color:var(--override);border:1px solid #6b542c;background:#2a2318}
+  .tag.x{color:var(--off);border:1px solid #3a3e48;background:#20232a}
+  .tag.q{color:var(--dimmer);border:1px solid #3a3e48;background:#20232a}
+
+  .sw{display:inline-block;width:28px;height:16px;border-radius:8px;background:var(--accent-dim);position:relative}
+  .sw:after{content:"";position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:var(--accent)}
+  .sw.off{background:#31343d}
+  .sw.off:after{right:auto;left:2px;background:#5a5f6b}
+
+  /* detail */
+  .dhead{padding:14px 16px 12px;border-bottom:1px solid var(--line)}
+  .dhead .crumb{font-size:12px;color:var(--dimmer);margin-bottom:3px}
+  .dhead .title{font-size:17px;font-weight:600}
+  .dhead .meta{font-size:12.5px;color:var(--dim);margin-top:4px}
+  .sect{padding:2px 16px 16px}
+  .sect h3{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);
+    margin:18px 0 6px;font-weight:600}
+  .sect h3 .hint{text-transform:none;letter-spacing:0;color:var(--dimmer);font-weight:400;font-size:12px;margin-left:8px}
+
+  .days{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 6px}
+  .day{border:1px solid #343843;border-radius:6px;background:#171a20;padding:7px 9px;text-align:center;min-width:70px}
+  .day .dn{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dimmer);margin-bottom:4px}
+  .day.zero{opacity:.5}
+  .stp{display:inline-flex;align-items:center;border:1px solid #343843;border-radius:5px;background:#171a20;overflow:hidden}
+  .stp b{font-family:var(--mono);font-weight:500;font-size:14px;padding:4px 11px;min-width:38px;text-align:center}
+  .stp i{font-style:normal;color:var(--dimmer);font-size:13px;padding:4px 8px;background:#1e222a;user-select:none}
+  .stp i:first-child{border-right:1px solid #2c303a}
+  .stp i:last-child{border-left:1px solid #2c303a}
+  .ok{font-size:12.5px;color:var(--accent);margin-top:5px}
+  .after{font-size:12.5px;color:var(--dim);margin-top:3px}
+
+  .f{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--hair)}
+  .f:last-child{border-bottom:0}
+  .f .fl{flex:1;font-size:13.5px}
+  .f .fl small{display:block;color:var(--dimmer);font-size:11.5px;margin-top:1px}
+  .inp{font-family:var(--mono);font-size:13.5px;background:#171a20;border:1px solid #343843;border-radius:5px;
+    padding:5px 9px;min-width:112px;text-align:right}
+  .inp.inh{background:transparent;border:1px dashed #34383f;color:var(--dimmer)}
+  .inp.ovrv{border-color:#6b542c;color:var(--override)}
+  .sel2{font-family:inherit;font-size:13px;background:#171a20;border:1px solid #343843;border-radius:5px;
+    padding:5px 26px 5px 10px;position:relative}
+  .sel2:after{content:"▾";position:absolute;right:9px;color:var(--dimmer);font-size:10px;top:6px}
+  .src{font-size:11.5px;color:var(--dimmer);min-width:130px;text-align:right}
+  .src.o{color:var(--override)}
+  .fixed{font-size:13px;color:var(--dim);font-family:var(--mono)}
+
+  /* rating rows with inline sequence */
+  .rr{border-bottom:1px solid var(--hair);padding:10px 0}
+  .rr:last-child{border-bottom:0}
+  .rr .top{display:flex;align-items:center;gap:12px}
+  .rr .nm{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:126px}
+  .rr .ctl{display:flex;align-items:center;gap:10px;margin-left:auto}
+  .rr .cl{font-size:11.5px;color:var(--dimmer)}
+  .box{font-family:var(--mono);font-size:13px;background:#171a20;border:1px solid #343843;border-radius:5px;
+    padding:4px 9px;display:inline-block;min-width:96px;text-align:right}
+  .box.inh{background:transparent;border:1px dashed #34383f;color:var(--dimmer)}
+  .box.ovrv{border-color:#6b542c;color:var(--override)}
+  .seq{font-family:var(--mono);font-size:12.5px;color:var(--dim);margin-top:6px;padding-left:2px}
+  .seq em{font-style:normal;color:var(--dimmer)}
+  .seqlab{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--dimmer);margin-right:8px}
+
+  .legend{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--dim);align-items:center}
+  .legend span{display:flex;align-items:center;gap:7px}
+  .chip{width:26px;height:14px;border-radius:4px;border:1px dashed #34383f;display:inline-block}
+  .chip.o{border:1px solid #6b542c;background:#2a2318}
+  .chip.n{border:1px solid #343843;background:#171a20}
+  .scroll{overflow-x:auto}
+  .foot{border-top:1px solid var(--hair);color:var(--dimmer);font-size:12px;padding:10px 16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Settings → Spacing &amp; Scheduling</h1>
+  <p class="sub">Every number that decides when something comes back to you.</p>
+
+  <div class="note">
+    <b>Mockup — numbers are placeholders.</b> Two stages: <b>Acquiring</b>, the first few times you meet
+    something, and <b>Maintaining</b>, once it has a rating. Changes apply from the next time you answer
+    that card — nothing already scheduled gets rewritten.
+  </div>
+
+  <!-- GLOBAL -->
+  <div class="card">
+    <h2>Applies everywhere <span class="hint">not settable per module</span></h2>
+    <div class="pad">
+      <div style="font-size:12.5px;color:var(--dim);margin-bottom:8px">Accuracy ratings<i class="i">i</i></div>
+      <div class="bands">
+        <div class="band"><div class="bn"><i class="dot d1"></i>Needs work</div><div class="bv">under 60%</div></div>
+        <div class="band"><div class="bn"><i class="dot d2"></i>Developing</div><div class="bv">60 – 79%</div></div>
+        <div class="band"><div class="bn"><i class="dot d3"></i>Fluent</div><div class="bv">80 – 94%</div></div>
+        <div class="band"><div class="bn"><i class="dot d4"></i>Mastered</div><div class="bv">95 – 100%</div></div>
+      </div>
+
+      <div style="font-size:12.5px;color:var(--dim);margin:18px 0 8px">Freshness line — how recently you touched it<i class="i">i</i></div>
+      <div class="ladder">
+        <div class="lr"><span class="when">Today</span><span class="track"><span class="fill" style="width:100%"></span></span><span class="frac">6/6</span></div>
+        <div class="lr"><span class="when">Within 1 week</span><span class="track"><span class="fill" style="width:83.3%"></span></span><span class="frac">5/6</span></div>
+        <div class="lr"><span class="when">Within 2 weeks</span><span class="track"><span class="fill" style="width:66.6%"></span></span><span class="frac">4/6</span></div>
+        <div class="lr"><span class="when">Within 3 weeks</span><span class="track"><span class="fill" style="width:50%"></span></span><span class="frac">3/6</span></div>
+        <div class="lr"><span class="when">Within 4 weeks</span><span class="track"><span class="fill" style="width:33.3%"></span></span><span class="frac">2/6</span></div>
+        <div class="lr"><span class="when">Over 4 weeks · 29+</span><span class="track"><span class="fill" style="width:16.6%"></span></span><span class="frac">1/6</span></div>
+      </div>
+      <div class="pop" style="margin-top:10px">
+        <b>Freshness is not a rating.</b> It only says how long it's been since you last touched something —
+        it never changes a colour or a score. A full line means today; an almost-empty line means it's been
+        over a month.
+      </div>
+    </div>
+  </div>
+
+  <!-- TREE -->
+  <div class="card">
+    <h2>Everything at a glance <span class="hint">same order as the navbar · every row expands to the skill level</span></h2>
+    <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th class="l">&nbsp;</th>
+          <th>In schedule</th>
+          <th>Acquiring</th>
+          <th>Comes back in</th>
+          <th>Then grows by</th>
+          <th>Never longer than</th>
+          <th>Grace after due</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="l"><span class="chev">▾</span>Reading</td><td><span class="sw"></span></td><td>5 over 4 days</td><td>2 days</td><td>× 2.5</td><td>60 days</td><td>7 days</td></tr>
+        <tr class="lvl2"><td class="l">Note Names</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl2"><td class="l">Key Signatures</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl2"><td class="l">Shapes<span class="tag q">names TBC</span></td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+
+        <tr class="sel"><td class="l"><span class="chev">▾</span>Ear Training</td><td><span class="sw"></span></td><td>5 over 4 days</td><td>2 days</td><td>× 2.5</td><td>60 days</td><td>7 days</td></tr>
+        <tr class="lvl2"><td class="l">Intervals</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl2"><td class="l">Chord Recognition<span class="tag o">changed</span></td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="ovr">1 day</td><td class="ovr">× 1.7</td><td class="ovr">30 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl2"><td class="l"><span class="chev">▾</span>Chord Progression</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl3 isoff"><td class="l">Key Detection<span class="tag x">out</span></td><td><span class="sw off"></span></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr class="lvl3"><td class="l">Chord Motion</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl3"><td class="l">Progression ID</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl2"><td class="l"><span class="chev">▾</span>Scales &amp; Modes</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl3"><td class="l">Hear the Scale</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl3"><td class="l">Sit Inside</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+
+        <tr><td class="l"><span class="chev">▸</span>Harmonic Fluency</td><td><span class="sw"></span></td><td>5 over 4 days</td><td>2 days</td><td>× 2.5</td><td>60 days</td><td>7 days</td></tr>
+
+        <tr><td class="l"><span class="chev">▾</span>Shapes &amp; Patterns</td><td><span class="sw"></span></td><td>5 over 4 days</td><td>2 days</td><td>× 2.5</td><td>30 days</td><td>7 days</td></tr>
+        <tr class="lvl2"><td class="l">Chords<span class="tag o">changed</span></td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="ovr">× 2.0</td><td class="ovr">45 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl2"><td class="l">Scales<span class="tag o">changed</span></td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="ovr">14 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl2"><td class="l">Mental Visualisation</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">30 days</td><td class="inh">7 days</td></tr>
+
+        <tr><td class="l"><span class="chev">▸</span>Songs</td><td><span class="sw"></span></td><td>—</td><td>2 days</td><td>× 2.5</td><td>30 days</td><td>7 days</td></tr>
+
+        <tr><td class="l"><span class="chev">▾</span>Production</td><td><span class="sw"></span></td><td>5 over 4 days</td><td>2 days</td><td>× 2.5</td><td>60 days</td><td>7 days</td></tr>
+        <tr class="lvl2"><td class="l">Vocabulary</td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="inh">2 days</td><td class="inh">× 2.5</td><td class="inh">60 days</td><td class="inh">7 days</td></tr>
+        <tr class="lvl2"><td class="l">Lessons<span class="tag o">changed</span></td><td><span class="sw"></span></td><td class="inh">5 over 4 days</td><td class="ovr">7 days</td><td class="inh">× 2.5</td><td class="ovr">90 days</td><td class="inh">7 days</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="foot">
+      <b style="color:var(--dim)">Then grows by</b> and <b style="color:var(--dim)">Never longer than</b> depend on
+      the accuracy rating — the table shows the <b style="color:var(--dim)">Fluent</b> row. Open a row to see all four.
+      &nbsp;·&nbsp; Order matches the navbar; change it in one place and it changes everywhere.
+    </div>
+  </div>
+
+  <!-- DETAIL -->
+  <div class="card">
+    <div class="dhead">
+      <div class="crumb">Ear Training → Submodule</div>
+      <div class="title">Chord Recognition</div>
+      <div class="meta">Inherits Ear Training · 3 values changed here</div>
+    </div>
+    <div class="sect">
+
+      <h3>Acquiring <span class="hint">the first few times you meet a card, before it has a rating</span></h3>
+
+      <div class="f" style="border-bottom:0;padding-bottom:2px">
+        <div class="fl">How often it comes up<i class="i">i</i>
+          <small>Counting from the first time you ever see it</small></div>
+      </div>
+      <div class="pop">
+        <b>You're setting how many times a new card appears on each day.</b> A day set to 0 means it
+        doesn't come up that day at all.
+        <span class="eg">Say you meet a new chord on a <b>Monday</b>. You'd see it twice that Monday, once
+        <b>Tuesday</b>, once <b>Thursday</b>, and once <b>Saturday</b>. That's five answers — and on the
+        fifth one it gets its first accuracy rating.<br><br>
+        If you don't practise on Thursday, nothing is lost. It waits, and shows up the next time you sit
+        down. The one after that comes two days later — or the next time you practise, if that's longer.</span>
+      </div>
+      <div class="days">
+        <div class="day"><div class="dn">Day 0 · today</div><div class="stp"><i>−</i><b>2</b><i>+</i></div></div>
+        <div class="day"><div class="dn">Day 1</div><div class="stp"><i>−</i><b>1</b><i>+</i></div></div>
+        <div class="day zero"><div class="dn">Day 2</div><div class="stp"><i>−</i><b>0</b><i>+</i></div></div>
+        <div class="day"><div class="dn">Day 3</div><div class="stp"><i>−</i><b>1</b><i>+</i></div></div>
+        <div class="day zero"><div class="dn">Day 4</div><div class="stp"><i>−</i><b>0</b><i>+</i></div></div>
+        <div class="day"><div class="dn">Day 5</div><div class="stp"><i>−</i><b>1</b><i>+</i></div></div>
+      </div>
+      <div class="ok">✓ 5 answers over 4 days — a rating appears after the last one.</div>
+
+      <div class="f" style="margin-top:10px">
+        <div class="fl">When you get it right<i class="i">i</i></div>
+        <div class="fixed">carry on with the pattern</div>
+        <div class="src">always</div>
+      </div>
+      <div class="f">
+        <div class="fl">When you get it wrong<i class="i">i</i>
+          <small>Other options: add one to tomorrow · start the pattern over · do nothing</small></div>
+        <div class="sel2">Repeat this session</div>
+        <div class="src">from Ear Training</div>
+      </div>
+
+      <h3>Maintaining <span class="hint">once it has a rating</span></h3>
+
+      <div class="f">
+        <div class="fl">First time it comes back<i class="i">i</i>
+          <small>The very first wait after it graduates, before the rating caps it</small></div>
+        <div class="inp ovrv">1 day</div><div class="src o">changed · was 2</div>
+      </div>
+
+      <div class="pop">
+        <b>Your rating decides the rest.</b> Every time you get it right, the wait is multiplied — but it can
+        never go past the ceiling for that rating. Get a card wrong and it drops back to the start.
+        <span class="eg">So a chord you're <b>Fluent</b> on drifts out to a month, while one you're
+        <b>Needs work</b> on stays on your plate every day or two until it improves.</span>
+      </div>
+
+      <div style="display:flex;gap:10px;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+        color:var(--dimmer);font-weight:600;padding:10px 0 2px;justify-content:flex-end">
+        <span style="min-width:96px;text-align:right">Comes back in</span>
+        <span style="min-width:96px;text-align:right">Never longer than</span>
+      </div>
+
+      <div class="rr">
+        <div class="top">
+          <div class="nm"><i class="dot d1"></i>Needs work</div>
+          <div class="ctl"><span class="box inh">back to start</span><span class="box inh">2 days</span></div>
+        </div>
+        <div class="seq"><span class="seqlab">days</span>1 · 1 · 1 · 1 <em>— never gets past 2</em></div>
+      </div>
+
+      <div class="rr">
+        <div class="top">
+          <div class="nm"><i class="dot d2"></i>Developing</div>
+          <div class="ctl"><span class="box inh">× 1.5</span><span class="box inh">7 days</span></div>
+        </div>
+        <div class="seq"><span class="seqlab">days</span>1 · 2 · 3 · 4 · 6 · 7 <em>— then holds at 7</em></div>
+      </div>
+
+      <div class="rr">
+        <div class="top">
+          <div class="nm"><i class="dot d3"></i>Fluent</div>
+          <div class="ctl"><span class="box ovrv">× 1.7</span><span class="box ovrv">30 days</span></div>
+        </div>
+        <div class="seq"><span class="seqlab">days</span>1 · 2 · 3 · 5 · 8 · 14 · 24 · 30 <em>— then holds at 30</em></div>
+      </div>
+
+      <div class="rr">
+        <div class="top">
+          <div class="nm"><i class="dot d4"></i>Mastered</div>
+          <div class="ctl"><span class="box inh">× 2.5</span><span class="box inh">60 days</span></div>
+        </div>
+        <div class="seq"><span class="seqlab">days</span>1 · 3 · 6 · 16 · 39 · 60 <em>— then holds at 60</em></div>
+      </div>
+
+      <div class="f" style="margin-top:8px">
+        <div class="fl">When you get it wrong<i class="i">i</i></div>
+        <div class="sel2">Back to the first wait</div>
+        <div class="src">from Ear Training</div>
+      </div>
+      <div class="f">
+        <div class="fl">Never shorter than</div>
+        <div class="inp inh">1 day</div><div class="src">from Ear Training</div>
+      </div>
+
+      <h3>Stale <span class="hint">what happens when you don't come back</span></h3>
+      <div class="f">
+        <div class="fl">Grace after it's due<i class="i">i</i>
+          <small>You're late, but it isn't stale yet</small></div>
+        <div class="inp inh">7 days</div><div class="src">from Ear Training</div>
+      </div>
+      <div class="pop">
+        <b>Grace counts from the day it was due</b> — not from how long the wait was.
+        <span class="eg">A chord on a 60-day wait that came due on the 1st is late on the 2nd, and
+        <b>stale on the 8th</b>. Stale doesn't change its rating and doesn't change its colour. It moves to
+        the front of the queue and its freshness line is nearly empty.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i class="chip n"></i> set at this level</span>
+    <span><i class="chip"></i> inherited from above</span>
+    <span><i class="chip o"></i> changed here</span>
+    <span><i class="sw"></i> in the schedule</span>
+    <span><i class="sw off"></i> out — still drillable, no due dates</span>
+    <span><i class="i">i</i> plain-language explanation with an example from this exact module</span>
+  </div>
+
+</div>
+</body>
+</html>

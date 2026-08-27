@@ -1,6 +1,10 @@
 import { db, type SpacingState, type AcquisitionStage, type MemoryType, type DrillHand, type DrillStyle } from './db';
 import { putSpacingState } from './practiceWrites';
 import { getMemoryType } from './memoryType';
+import { answer as engineAnswer, newCardState } from './spacing/engine';
+import { bandForRow, cardStateFromRow, rowFieldsFromCardState } from './spacing/row';
+import { loadSettingsForCard } from './spacing/store';
+import type { SpacingSettings } from './spacing/settings';
 
 /**
  * Phase 2 substep 1a — foundational helpers for the unified spacing-state
@@ -68,6 +72,12 @@ export type EngagementSignal =
 export interface RecordEngagementInput {
   /** Per-caller interval bounds. See `computeIntervalDays`. */
   bounds?: IntervalBounds;
+  /**
+   * Pre-resolved settings, for callers that already have them and for
+   * tests that need a deterministic schedule. Omitted by every drill:
+   * the point of resolving per answer is that nobody has to remember to.
+   */
+  settings?: SpacingSettings;
   itemRef: string;
   moduleRef: string;
   signal: EngagementSignal;
@@ -282,6 +292,20 @@ function assertSignalMatchesMemoryType(
   }
 }
 
+/**
+ * Whether a signal counts as a pass for the scheduler.
+ *
+ * `recency` never reaches this — expression items carry no verdict and
+ * are short-circuited before the scheduler runs. See `recordEngagement`.
+ */
+function signalIsPositive(signal: EngagementSignal): boolean {
+  if (signal.kind === 'attempt') return signal.correct;
+  if (signal.kind === 'rating') {
+    return signal.rating === 'flying' || signal.rating === 'cruising';
+  }
+  return true;
+}
+
 function entryFromSignal(signal: EngagementSignal, t: number): PerformanceEntry {
   switch (signal.kind) {
     case 'attempt': return { t, kind: 'attempt', correct: signal.correct };
@@ -336,14 +360,28 @@ export async function recordEngagement(
   const entry = entryFromSignal(signal, t);
   const existing = await getSpacingState(itemRef, moduleRef, hand, style);
 
+  // EXPRESSION ITEMS NEVER REACH THE SCHEDULER.
+  //
+  // Just Play, Just Produce and the Diary record that you turned up,
+  // not whether you were right — there is no verdict to band and no
+  // pass to grow an interval on. The two-stage engine would have to
+  // invent one, so instead these keep the old behaviour exactly: the
+  // interval stands and the due date moves forward from now.
+  if (signal.kind === 'recency') {
+    return await recordRecency(existing, {
+      itemRef, moduleRef, hand, style, memoryType, entry, t,
+    });
+  }
+
+  // THE SETTINGS ARE READ ON EVERY ANSWER, which is the whole of what
+  // makes "changes apply from the next time you answer that card" true.
+  // Nothing about the schedule is frozen onto the row when it is
+  // created, so there is no stale copy to invalidate later.
+  const settings = input.settings
+    ?? await loadSettingsForCard(moduleRef, itemRef);
+
   if (!existing) {
     const initialHistory: PerformanceEntry[] = [entry];
-    const intervalDays = computeIntervalDays({
-      memoryType,
-      priorInterval: 0,
-      signal,
-      bounds: input.bounds,
-    });
     const row: SpacingState = {
       id: crypto.randomUUID(),
       itemRef,
@@ -355,6 +393,82 @@ export async function recordEngagement(
       // also clear the acquired threshold (min 5 attempts / min 3
       // ratings), but we run computeNextStage for uniformity in case
       // future thresholds drop to 1.
+      acquisitionStage: computeNextStage(memoryType, 'acquiring', initialHistory),
+      currentIntervalDays: 0,
+      lastEngagedAt: t,
+      nextDueAt: null,
+      performanceHistory: initialHistory as Array<Record<string, unknown>>,
+    };
+    const scheduled = engineAnswer({
+      state: newCardState(),
+      settings,
+      correct: signalIsPositive(signal),
+      // No band on a first answer, and that is not "needs work": the
+      // acquiring stage exists so nothing needs a band until it has
+      // earned one.
+      band: null,
+      answeredAt: t,
+    });
+    Object.assign(row, rowFieldsFromCardState(scheduled));
+    await db.spacingState.add(row);
+    return row;
+  }
+
+  const history = [
+    ...(existing.performanceHistory as PerformanceEntry[]),
+    entry,
+  ].slice(-PERFORMANCE_HISTORY_MAX);
+  const scheduled = engineAnswer({
+    state: cardStateFromRow(existing),
+    settings,
+    correct: signalIsPositive(signal),
+    // The band is read from history INCLUDING this answer, so a card
+    // that just dropped out of Fluent is scheduled by its new band
+    // rather than by the one it has already lost.
+    band: bandForRow({ performanceHistory: history as Array<Record<string, unknown>> }),
+    answeredAt: t,
+  });
+  const updated: SpacingState = {
+    ...existing,
+    acquisitionStage: computeNextStage(memoryType, existing.acquisitionStage, history),
+    performanceHistory: history as Array<Record<string, unknown>>,
+    ...rowFieldsFromCardState(scheduled),
+  };
+  // Dev-Mode-gated: a practice engagement's spacing update is suppressed
+  // when Dev Mode is on (assertSpacingStage's deliberate curation writes
+  // below are NOT gated — they're not practice-session data).
+  await putSpacingState(updated);
+  return updated;
+}
+
+/**
+ * The expression path: no band, no growth, no stage machine.
+ *
+ * Kept byte-for-byte equivalent to what the old engine did for a
+ * recency signal — `computeIntervalDays` returned the prior interval
+ * unchanged (floored to the initial on a first engagement) and the due
+ * date was that far out from now.
+ */
+async function recordRecency(
+  existing: SpacingState | undefined,
+  ctx: {
+    itemRef: string; moduleRef: string; hand: DrillHand; style: DrillStyle;
+    memoryType: MemoryType; entry: PerformanceEntry; t: number;
+  },
+): Promise<SpacingState> {
+  const { itemRef, moduleRef, hand, style, memoryType, entry, t } = ctx;
+  const max = MAX_INTERVAL_BY_MEMORY_TYPE[memoryType];
+  const prior = existing?.currentIntervalDays ?? 0;
+  const intervalDays = Math.min(
+    max,
+    Math.max(MIN_INTERVAL_DAYS, prior > 0 ? prior : INITIAL_INTERVAL_DAYS),
+  );
+
+  if (!existing) {
+    const initialHistory: PerformanceEntry[] = [entry];
+    const row: SpacingState = {
+      id: crypto.randomUUID(),
+      itemRef, moduleRef, hand, style, memoryType,
       acquisitionStage: computeNextStage(memoryType, 'acquiring', initialHistory),
       currentIntervalDays: intervalDays,
       lastEngagedAt: t,
@@ -369,12 +483,6 @@ export async function recordEngagement(
     ...(existing.performanceHistory as PerformanceEntry[]),
     entry,
   ].slice(-PERFORMANCE_HISTORY_MAX);
-  const intervalDays = computeIntervalDays({
-    memoryType,
-    priorInterval: existing.currentIntervalDays,
-    signal,
-    bounds: input.bounds,
-  });
   const updated: SpacingState = {
     ...existing,
     acquisitionStage: computeNextStage(memoryType, existing.acquisitionStage, history),
@@ -383,9 +491,6 @@ export async function recordEngagement(
     nextDueAt: computeNextDueAt(t, intervalDays),
     performanceHistory: history as Array<Record<string, unknown>>,
   };
-  // Dev-Mode-gated: a practice engagement's spacing update is suppressed
-  // when Dev Mode is on (assertSpacingStage's deliberate curation writes
-  // below are NOT gated — they're not practice-session data).
   await putSpacingState(updated);
   return updated;
 }
@@ -446,6 +551,19 @@ export async function assertSpacingStage(
       lastEngagedAt: t,
       nextDueAt: null,
       performanceHistory: [],
+      // A ROW CREATED NOW SAYS WHAT STAGE IT IS IN.
+      //
+      // `cardStateFromRow` reads a MISSING `spacingStage` as
+      // maintaining, because rows written before the two-stage engine
+      // have real intervals behind them and must not be dropped back
+      // into a first-exposure tally. A row created this instant has no
+      // such history, so leaving the field absent would hand a brand
+      // new card to the wrong half of the scheduler — which is exactly
+      // what happened to production lessons, where this function runs
+      // before the engagement that follows it.
+      spacingStage: 'acquiring',
+      exposuresDone: 0,
+      extraExposures: 0,
     };
     await db.spacingState.add(row);
     return;

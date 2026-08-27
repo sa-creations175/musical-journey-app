@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { bulkAddAttempts } from '../../../lib/practiceWrites';
+import { recordEngagement } from '../../../lib/spacingState';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
@@ -691,6 +692,20 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     // report three where one was taken.
     const submissionTiming = answerTimingFields(asked.current, now);
     await bulkAddAttempts(records.map(r => ({ ...r, ...submissionTiming })));
+    // ON THE SCHEDULE AT LAST — this tab wrote attempts and nothing
+    // else, so tracing a chord's motion never came back to you.
+    //
+    // THE MOTION ITSELF IS THE ITEM. The mode and starting-note rows
+    // are sub-skills of one act of answering, and giving each its own
+    // spacing row would schedule three cards where the reader
+    // experiences one. Serial, because recordEngagement reads then
+    // writes — the sibling tab says the same at its own call site.
+    await recordEngagement({
+      itemRef: mId,
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct: fullCredit },
+      timestamp: now,
+    });
     await updateDailySummary(MODULE_ID);
   };
 

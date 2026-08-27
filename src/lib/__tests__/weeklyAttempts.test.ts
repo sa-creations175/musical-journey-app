@@ -410,12 +410,26 @@ describe('getWeeklyAttempts — Production', () => {
     const to = Date.now();
 
     expect(await getWeeklyAttempts('production', from, to)).toBe(1);
-    // The spacing row exists and carries the stage — it just carries
-    // no history, which is exactly why it can't be the count.
+    // WHAT CHANGED, AND WHY THE COUNT STILL CANNOT COME FROM HERE.
+    // Lessons used to reach spacingState only through
+    // assertSpacingStage, which writes a stage and no history — so
+    // this row's history was always empty and that emptiness was the
+    // point of the assertion. Lessons are now on the scheduler, so the
+    // rating lands here too. The count still comes from the session
+    // rows rather than from history: one rating produces one history
+    // entry, but re-rating the same lesson would produce two while the
+    // reader has visited it once.
     const spacingRows = await db.spacingState
       .where('moduleRef').equals('production').toArray();
     expect(spacingRows).toHaveLength(1);
-    expect(spacingRows[0].performanceHistory).toEqual([]);
+    expect(spacingRows[0].performanceHistory).toHaveLength(1);
+    expect(spacingRows[0].performanceHistory[0]).toMatchObject({
+      kind: 'rating', rating: 'cruising',
+    });
+    // And it now has a due date, which is the whole of what putting
+    // lessons on the engine was for.
+    expect(spacingRows[0].nextDueAt).not.toBeNull();
+    expect(spacingRows[0].spacingStage).toBe('acquiring');
   });
 
   it('agrees with getWeeklyRatedProductionAttempts — one definition, two names', async () => {

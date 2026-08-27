@@ -116,14 +116,22 @@ describe('warnings are soft', () => {
     expect(tallyWarnings([2, 1, 0, 1, 0, 1])).toEqual([]);
   });
 
-  it('warns under five answers', () => {
-    const w = tallyWarnings([1, 1, 0, 1, 0, 0]);
+  it('warns under five answers, with the real count in the copy', () => {
+    // 4 answers across 3 days: only the answer-count warning fires.
+    const w = tallyWarnings([2, 1, 0, 1, 0, 0]);
     expect(w.map(x => x.id)).toEqual(['too-few-answers']);
+    expect(w[0].text).toBe(
+      'This pattern gives 4 answers. Below five, a percentage swings too much to mean anything.',
+    );
   });
 
-  it('warns under three distinct days', () => {
-    const w = tallyWarnings([3, 3, 0, 0, 0, 0]);
+  it('warns under three distinct days, with the real counts in the copy', () => {
+    const w = tallyWarnings([3, 2, 0, 0, 0, 0]);
     expect(w.map(x => x.id)).toEqual(['too-few-days']);
+    expect(w[0].text).toBe(
+      'These 5 answers land on 2 days. Answers in one sitting only prove you remember '
+      + 'what you just saw — it\'s the night in between that shows it stuck.',
+    );
   });
 
   it('can say both at once, and neither blocks anything', () => {

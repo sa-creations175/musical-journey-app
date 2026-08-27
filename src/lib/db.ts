@@ -2345,6 +2345,43 @@ export interface SpacingState {
   lastEngagedAt: number | null;
   nextDueAt: number | null;
   performanceHistory: Array<Record<string, unknown>>;
+  /**
+   * Which of the scheduler's two stages this card is in.
+   *
+   * =====================================================================
+   * NOT `acquisitionStage`, AND THE TWO MUST NOT BE CONFLATED.
+   *
+   * `acquisitionStage` is new → acquiring → acquired → consolidated →
+   * mastered: how well the item is KNOWN, and what goal coverage counts.
+   * This is which half of the scheduler is running: whether the card is
+   * still walking its first-exposure tally or has a rating and is being
+   * multiplied outward. A card can be `acquired` and still acquiring, and
+   * on the day these were one field that combination was unrepresentable.
+   *
+   * OPTIONAL because rows written before the two-stage engine have no
+   * value for it. Absent reads as `maintaining`: those cards have real
+   * intervals and real history behind them, and dropping them back into
+   * a first-exposure tally would re-teach things the reader already knows.
+   * ===================================================================== */
+  spacingStage?: 'acquiring' | 'maintaining';
+  /** Answers given while acquiring. Counts ANSWERS, not tally slots — the
+   *  two diverge as soon as an extra exposure is owed. */
+  exposuresDone?: number;
+  /** Exposures owed on the next day, from `add-to-next-day` misses. */
+  extraExposures?: number;
+  /**
+   * The review-flag pile, carried off `flashcardStates` when that table
+   * was removed.
+   *
+   * USER-AUTHORED AND NOT DERIVABLE FROM ANYTHING. Every other field on
+   * the old flashcard row could be rebuilt from `attempts`; these could
+   * not, so they moved here rather than being dropped with the table.
+   * `studyLater` is the quick toggle, `reviewFlagged` the meta-review
+   * pile, and `reviewFlagNote` the free text explaining why.
+   */
+  studyLater?: boolean;
+  reviewFlagged?: boolean;
+  reviewFlagNote?: string;
 }
 
 /**

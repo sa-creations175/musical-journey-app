@@ -364,13 +364,13 @@ export interface TallyWarning {
 }
 
 /**
- * SOFT. These warn and never block — a reader who wants three
- * exposures over two days is allowed to have them, and finding out
- * whether that works is the reason the setting is exposed at all.
+ * SOFT. These warn and never block, and never prevent saving — a
+ * reader who wants three exposures over two days is allowed to have
+ * them, and finding out whether that works is the reason the setting
+ * is exposed at all.
  *
- * The spec ships the OK line and not these two; the copy here is
- * written to match its voice and is the one piece of screen text in
- * this file not taken from it.
+ * The counts are substituted rather than written into the string, so
+ * the warning describes the pattern actually on screen.
  */
 export function tallyWarnings(tally: ReadonlyArray<number>): TallyWarning[] {
   const out: TallyWarning[] = [];
@@ -379,19 +379,36 @@ export function tallyWarnings(tally: ReadonlyArray<number>): TallyWarning[] {
   if (answers < MIN_RECOMMENDED_ANSWERS) {
     out.push({
       id: 'too-few-answers',
-      text: `${answers} answer${answers === 1 ? '' : 's'} is a thin basis for a first rating. `
-        + `Five or more gives the rating something to stand on.`,
+      text: `This pattern gives ${answers} answer${answers === 1 ? '' : 's'}. `
+        + `Below five, a percentage swings too much to mean anything.`,
     });
   }
   if (days < MIN_RECOMMENDED_DAYS) {
     out.push({
       id: 'too-few-days',
-      text: `Spread over ${days} day${days === 1 ? '' : 's'}. `
-        + `Three or more separate days is what makes it stick rather than just land.`,
+      text: `These ${answers} answer${answers === 1 ? '' : 's'} land on ${days} `
+        + `day${days === 1 ? '' : 's'}. Answers in one sitting only prove you remember `
+        + `what you just saw — it's the night in between that shows it stuck.`,
     });
   }
   return out;
 }
+
+/**
+ * The info control's explanation for the tally.
+ *
+ * It answers the question the two warnings raise — why five, why
+ * spread — and ends by pointing at the setting that actually solves
+ * "I want to move faster", so the reader has somewhere to go that
+ * isn't lowering the floor.
+ */
+export const TALLY_INFO_TEXT =
+  'Why five, and why spread out? Below five answers a percentage swings too much to mean '
+  + 'anything — one miss out of three reads as 67%, and the same card tomorrow reads as 100%. '
+  + 'But five answers in one sitting only proves you remember what you just saw. What tells '
+  + 'you it stuck is answering it again after a night’s sleep. So the rating waits for '
+  + 'five answers across at least three days. If you want to get through cards faster, '
+  + 'tighten the days rather than lowering this.';
 
 /** The OK line, straight from the spec. */
 export function tallySummary(tally: ReadonlyArray<number>): string {

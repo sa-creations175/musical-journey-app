@@ -130,3 +130,28 @@ export function ratingOption(
 ): (typeof RATING_OPTIONS)[number] {
   return BY_VALUE.get(rating ?? 0) ?? RATING_OPTIONS[0];
 }
+
+/**
+ * The five-step rating as a spacing signal.
+ *
+ * =====================================================================
+ * LESSONS HAD NO SCHEDULE AT ALL, AND NOW THEY DO.
+ *
+ * `assertSpacingStage` wrote a row with `nextDueAt: null` — a stage
+ * mirror for goal coverage and nothing else, so a lesson you read once
+ * never came back. The rating the reader already gives is a perfectly
+ * good signal; it simply was not being spent on anything.
+ *
+ * 'not started' produces NO SIGNAL. Clearing a rating back to zero
+ * deletes the row (see `STAGE_FOR_RATING`), and scheduling something
+ * the reader has just said they have not begun would be inventing an
+ * engagement that did not happen.
+ * ===================================================================== */
+export const SIGNAL_FOR_RATING:
+  Record<ProductionLessonRating, 'flying' | 'cruising' | 'crawling' | null> = {
+  0: null,          // not started — no engagement to record
+  25: 'crawling',   // read it
+  50: 'crawling',   // deep dive — still reading
+  75: 'cruising',   // tried it — the coverage line
+  100: 'flying',    // mastered
+};

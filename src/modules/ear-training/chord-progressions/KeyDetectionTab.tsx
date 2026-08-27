@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import { recordEngagement } from '../../../lib/spacingState';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
@@ -230,6 +231,16 @@ export default function KeyDetectionTab({ attempts }: Props) {
       // which is the whole reason it exists.
       chosenItemId: keyDetectionItemId(selectedNote),
       ...answerTimingFields(asked.current, Date.now()),
+    });
+    // ON THE SCHEDULE AT LAST. This tab wrote attempt rows and nothing
+    // else, so naming a key was the one ear-training drill that never
+    // came back to you — no spacing row, no due date, invisible to the
+    // session generator. Same itemRef the attempt row carries, so the
+    // two are joinable.
+    await recordEngagement({
+      itemRef: keyDetectionItemId(round.key),
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct },
     });
     await updateDailySummary(MODULE_ID);
 

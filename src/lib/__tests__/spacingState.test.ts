@@ -208,11 +208,16 @@ describe('recordEngagement — first call creates a row', () => {
     expect(row.itemRef).toBe('M3:asc');
     expect(row.moduleRef).toBe('intervals');
     expect(row.lastEngagedAt).toBe(1000);
-    // Phase 3 Step 6g — first-engagement schedule. Correct attempt
-    // grows from INITIAL_INTERVAL_DAYS (1) by INTERVAL_GROWTH_FACTOR
-    // (×2) → 2 days, capped well under declarative's 60-day max.
-    expect(row.currentIntervalDays).toBe(2);
-    expect(row.nextDueAt).toBe(1000 + 2 * 24 * 60 * 60 * 1000);
+    // THE RULE THIS REPLACES. Under the single-stage engine a first
+    // correct answer grew INITIAL_INTERVAL_DAYS (1) by ×2 and the card
+    // went away for two days. It now enters ACQUIRING, where the
+    // default tally puts two exposures on day 0 — so the second one is
+    // due in the same session and there is no interval yet to speak of.
+    // The old assertion was not wrong; the stage it described is gone.
+    expect(row.spacingStage).toBe('acquiring');
+    expect(row.exposuresDone).toBe(1);
+    expect(row.currentIntervalDays).toBe(0);
+    expect(row.nextDueAt).toBe(1000);
     expect(row.performanceHistory).toHaveLength(1);
   });
 

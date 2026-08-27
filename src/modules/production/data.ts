@@ -9,8 +9,8 @@ import {
 } from '../../lib/db';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { whenSyncReady } from '../../lib/sync/syncReady';
-import { assertSpacingStage } from '../../lib/spacingState';
-import { STAGE_FOR_RATING } from './lessonRating';
+import { assertSpacingStage, recordEngagement } from '../../lib/spacingState';
+import { SIGNAL_FOR_RATING, STAGE_FOR_RATING } from './lessonRating';
 import { PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
 import { REFERENCE_TRACKS, STARTER_LEGACY_SONIC_NOTES } from './content/referenceTracks';
@@ -306,6 +306,20 @@ export async function setLessonRating(
   }
 
   await assertSpacingStage(lessonId, 'production', STAGE_FOR_RATING[rating]);
+
+  // AND ON THE SCHEDULE. The stage mirror above is for goal coverage
+  // and writes no due date; without this a lesson was read once and
+  // never came back. 'not started' signals nothing — see
+  // SIGNAL_FOR_RATING.
+  const signal = SIGNAL_FOR_RATING[rating];
+  if (signal !== null) {
+    await recordEngagement({
+      itemRef: lessonId,
+      moduleRef: 'production',
+      signal: { kind: 'rating', rating: signal },
+      timestamp: endedAt,
+    });
+  }
 }
 
 // --- Glossary state CRUD -------------------------------------------
