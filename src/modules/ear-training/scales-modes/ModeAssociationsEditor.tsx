@@ -117,7 +117,7 @@ export default function ModeAssociationsEditor({ modeId, alwaysEditing = false }
         maxLength={ASSOC_MAX}
         placeholder={
           hasSaved
-            ? 'edit your note…'
+            ? 'Edit Your Note…'
             : 'e.g. "that Tom Misch track feels like this" or "the sound of stepping out of the subway at night"'
         }
         className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-xs focus:outline-none focus:border-fluent"

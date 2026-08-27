@@ -2715,7 +2715,7 @@ export default function LeadSheetSection({
                     type="text"
                     value={addLabelDraft}
                     onChange={e => setAddLabelDraft(e.target.value)}
-                    placeholder="custom label (optional)"
+                    placeholder="Custom Label (Optional)"
                     className="w-full px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200"
                   />
                   <div className="flex gap-1">
@@ -2765,7 +2765,7 @@ export default function LeadSheetSection({
                 value={notesDraft}
                 onChange={e => setNotesDraft(e.target.value)}
                 onBlur={() => notesDraft !== (section.notes ?? '') && commit({ notes: notesDraft })}
-                placeholder="thoughts, voicing ideas, performance cues"
+                placeholder="Thoughts, Voicing Ideas, Performance Cues"
                 className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-xs"
               />
             )}

@@ -133,7 +133,7 @@ export default function AssociationsEditor({ progressionId, alwaysEditing = fals
         maxLength={ASSOC_MAX}
         placeholder={
           hasSaved
-            ? 'edit your note…'
+            ? 'Edit Your Note…'
             : 'e.g. "the verse of my roommate\'s song" or "Stevie Wonder uses this in everything"'
         }
         className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-xs focus:outline-none focus:border-fluent"

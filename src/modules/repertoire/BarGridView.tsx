@@ -3171,7 +3171,7 @@ function ChordEditorPopover({
             closeNaming();
           }
         }}
-        placeholder="Voicing name…"
+        placeholder="Voicing Name…"
         className="flex-1 min-w-0 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5 text-[11px]"
       />
       <button
@@ -3355,7 +3355,7 @@ function ChordEditorPopover({
                   type="text"
                   value={customDraft}
                   onChange={e => setCustomDraft(e.target.value)}
-                  placeholder="custom…"
+                  placeholder="Custom…"
                   className="flex-1 px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-200"
                   onClick={e => e.stopPropagation()}
                 />

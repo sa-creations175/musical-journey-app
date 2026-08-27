@@ -451,7 +451,7 @@ function Mnemonic({
         if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         if (e.key === 'Escape') { setDraft(value); setEditing(false); }
       }}
-      placeholder={ledger ? 'add your own' : 'mnemonic'}
+      placeholder={ledger ? 'add your own' : 'Mnemonic'}
       aria-label={`mnemonic for ${noteId}`}
       data-testid="staff-mnemonic"
       data-note={noteId}

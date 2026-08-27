@@ -190,7 +190,7 @@ function SessionNote({
       onChange={e => onChange(e.target.value)}
       rows={3}
       autoFocus
-      placeholder="what happened"
+      placeholder="What Happened"
       aria-label="A note about this session"
       className="w-full px-2.5 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-transparent text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400"
     />
@@ -270,7 +270,7 @@ function ActivityPicker({
           type="text"
           value={other}
           onChange={e => onOtherChange(e.target.value)}
-          placeholder="in your own words"
+          placeholder="In Your Own Words"
           aria-label="What the other work was"
           className="w-full px-2.5 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 bg-transparent text-xs text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400"
         />

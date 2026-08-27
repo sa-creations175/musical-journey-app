@@ -149,7 +149,7 @@ export default function Dashboard() {
                     await saveUserName(nameDraft);
                     setEditingName(false);
                   }}
-                  placeholder="your name"
+                  placeholder="Your Name"
                   className="bg-transparent border-b border-fluent/50 focus:outline-none text-2xl sm:text-3xl font-medium tracking-tight italic px-1"
                   style={{ width: `${Math.max(4, nameDraft.length + 1)}ch` }}
                 />

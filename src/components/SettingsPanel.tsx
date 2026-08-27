@@ -384,7 +384,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 onKeyDown={e => {
                   if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                 }}
-                placeholder="your name"
+                placeholder="Your Name"
                 className="flex-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
               />
               <button

@@ -216,8 +216,8 @@ function AddEntryRow({ onCancel, onSaved }: { onCancel: () => void; onSaved: () 
   return (
     <div className="rounded-lg border border-fluent/40 bg-fluent/5 p-3 space-y-2">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="title" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5" />
-        <input value={artist} onChange={e => setArtist(e.target.value)} placeholder="artist" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5" />
+        <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="Title" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5" />
+        <input value={artist} onChange={e => setArtist(e.target.value)} placeholder="Artist" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5" />
       </div>
       <textarea rows={2} value={why} onChange={e => setWhy(e.target.value)} placeholder="why you want to learn it (optional)" className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm" />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
@@ -227,8 +227,8 @@ function AddEntryRow({ onCancel, onSaved }: { onCancel: () => void; onSaved: () 
             {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </label>
-        <input value={link} onChange={e => setLink(e.target.value)} placeholder="recording link (optional)" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 font-mono text-[11px]" />
-        <input value={tagsText} onChange={e => setTagsText(e.target.value)} placeholder="tags, comma-separated" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1" />
+        <input value={link} onChange={e => setLink(e.target.value)} placeholder="Recording Link (Optional)" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1 font-mono text-[11px]" />
+        <input value={tagsText} onChange={e => setTagsText(e.target.value)} placeholder="Tags, Comma-Separated" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1" />
       </div>
       <div className="flex items-center gap-2">
         <button onClick={save} disabled={!canSave} className={`px-3 py-1 rounded-md text-xs font-medium text-white ${canSave ? 'bg-fluent hover:opacity-90' : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'}`}>Save</button>
@@ -310,7 +310,7 @@ function EntryRow({ entry, onPromote }: { entry: WantToLearnEntry; onPromote: ()
       </div>
       {editing ? (
         <div className="space-y-2">
-          <textarea rows={2} value={whyDraft} onChange={e => setWhyDraft(e.target.value)} placeholder="why you want to learn it" className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-xs" />
+          <textarea rows={2} value={whyDraft} onChange={e => setWhyDraft(e.target.value)} placeholder="Why You Want to Learn It" className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-xs" />
           <div className="flex items-center gap-2 text-xs flex-wrap">
             <label className="inline-flex items-center gap-1 text-neutral-500">
               priority:
@@ -318,7 +318,7 @@ function EntryRow({ entry, onPromote }: { entry: WantToLearnEntry; onPromote: ()
                 {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
               </select>
             </label>
-            <input value={tagsText} onChange={e => setTagsText(e.target.value)} placeholder="tags, comma-separated" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1" />
+            <input value={tagsText} onChange={e => setTagsText(e.target.value)} placeholder="Tags, Comma-Separated" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1" />
             <button onClick={saveEdits} className="px-2.5 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">Save</button>
           </div>
         </div>
