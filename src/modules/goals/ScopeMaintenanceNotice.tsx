@@ -124,7 +124,7 @@ export default function ScopeMaintenanceNotice({ view, onChanged }: Props) {
           )}
           className="text-neutral-500 hover:text-fluent disabled:opacity-50"
         >
-          Not now
+          Not Now
         </button>
       </div>
     </div>

@@ -122,7 +122,7 @@ export default function ManualLogForm() {
           onClick={() => setOpen(true)}
           className="px-3 py-1.5 text-sm rounded-md bg-fluent text-white hover:bg-fluent/90"
         >
-          + Log a session
+          + Log a Session
         </button>
         <span className="text-xs text-neutral-500 dark:text-neutral-400">
           Record a session that already happened.
@@ -216,7 +216,7 @@ export default function ManualLogForm() {
           disabled={!canSave || busy}
           className="px-3 py-1.5 text-sm rounded-md bg-fluent text-white hover:bg-fluent/90 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Save session
+          Save Session
         </button>
       </div>
     </div>

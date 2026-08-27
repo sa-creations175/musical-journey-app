@@ -87,7 +87,7 @@ export default function Screen1Goals({ monthlyGoals }: Props) {
             onClick={() => setExpanded('improve')}
             className="self-start text-sm text-fluent hover:underline"
           >
-            + Add another goal
+            + Add Another Goal
           </button>
         </div>
       )}
@@ -247,7 +247,7 @@ function ImproveAreaMiniForm({ onAdded }: { onAdded: () => void }) {
           disabled={!canAdd || busy}
           className="px-3 py-1.5 text-sm rounded-md bg-fluent text-white hover:bg-fluent/90 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Add monthly goal
+          Add Monthly Goal
         </button>
       </div>
     </div>

@@ -71,7 +71,7 @@ export default function LessonView({ lessonId, onBack }: Props) {
   if (!lesson || !path) {
     return (
       <div className="space-y-3">
-        <button onClick={onBack} className="text-xs text-neutral-500 hover:text-fluent">← back</button>
+        <button onClick={onBack} className="text-xs text-neutral-500 hover:text-fluent">← Back</button>
         <p className="text-sm text-neutral-500 italic">lesson not found.</p>
       </div>
     );

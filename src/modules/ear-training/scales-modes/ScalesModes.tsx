@@ -164,7 +164,7 @@ export default function ScalesModes() {
           onClick={() => setShowFocusPanel(true)}
           className="text-xs text-neutral-500 hover:text-fluent"
         >
-          ⊞ focus on specific modes
+          ⊞ Focus on Specific Modes
         </button>
         <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2">
           <span>
@@ -179,7 +179,7 @@ export default function ScalesModes() {
               onClick={() => setFocusActive(false)}
               className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
             >
-              exit focus
+              Exit Focus
             </button>
           )}
         </p>

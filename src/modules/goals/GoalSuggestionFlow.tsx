@@ -2756,7 +2756,7 @@ function RepertoireSpotlightQueueSection({
           onClick={() => setPickerOpen(true)}
           className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
         >
-          + Add slot
+          + Add Slot
         </button>
       ) : (
         <div className="space-y-2 border-t border-neutral-200 dark:border-neutral-800 pt-2">
@@ -2818,7 +2818,7 @@ function RepertoireSpotlightQueueSection({
               onClick={addTbd}
               className="text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
             >
-              Add TBD slot →
+              Add TBD Slot →
             </button>
             <button
               type="button"

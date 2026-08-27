@@ -22,7 +22,7 @@ export default function EndSessionButton({ onEnd }: { onEnd: () => void }) {
       data-testid="end-session"
       className="text-neutral-500 hover:text-fluent"
     >
-      end session
+      End Session
     </button>
   );
 }

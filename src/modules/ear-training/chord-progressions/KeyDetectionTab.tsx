@@ -306,7 +306,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
             onClick={() => { stopAll(); setRunState('answering'); }}
             className="px-4 py-2 rounded-lg border border-needswork text-needswork text-sm font-medium hover:bg-needswork/10"
           >
-            stop
+            Stop
           </button>
         )}
         {(runState === 'answering' || runState === 'reveal') && (
@@ -314,7 +314,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
             onClick={replayProgression}
             className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
           >
-            replay progression
+            Replay Progression
           </button>
         )}
         {runState === 'reveal' && (
@@ -322,7 +322,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
             onClick={nextRound}
             className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
           >
-            next progression →
+            Next Progression →
           </button>
         )}
       </div>
@@ -365,7 +365,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
                     aria-label={`play ${opt.note}`}
                     className="text-neutral-500 hover:text-fluent text-xs underline"
                   >
-                    ▶ play
+                    ▶ Play
                   </button>
                   <button
                     onClick={() => { if (!submitted) setSelectedNote(opt.note); }}
@@ -389,7 +389,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
                     : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
                 }`}
               >
-                submit
+                Submit
               </button>
             </div>
           )}

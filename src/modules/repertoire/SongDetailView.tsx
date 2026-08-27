@@ -244,7 +244,7 @@ export default function SongDetailView({
           onClick={onBackToActive}
           className="text-xs text-neutral-500 hover:text-fluent"
         >
-          ← back to active repertoire
+          ← Back to Active Repertoire
         </button>
       </section>
     );
@@ -1745,7 +1745,7 @@ function SongDetailInner({
           onClick={onBackToActive}
           className="text-neutral-500 hover:text-fluent"
         >
-          ← back to active repertoire
+          ← Back to Active Repertoire
         </button>
         {songs.length > 1 && (
           <label className="inline-flex items-center gap-2 text-neutral-500">
@@ -1891,13 +1891,13 @@ function SongDetailInner({
                   onClick={addReferenceVideoDraft}
                   className="self-start px-2 py-1 rounded-md text-xs text-neutral-500 hover:text-fluent border border-dashed border-neutral-300 dark:border-neutral-600 hover:border-fluent transition-colors"
                 >
-                  + Add video
+                  + Add Video
                 </button>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={saveMeta} className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
-              <button onClick={() => setEditingMeta(false)} className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
+              <button onClick={saveMeta} className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">Save</button>
+              <button onClick={() => setEditingMeta(false)} className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">Cancel</button>
             </div>
           </div>
         ) : (
@@ -1926,7 +1926,7 @@ function SongDetailInner({
               onClick={openEdit}
               className="absolute top-2 right-3 text-xs text-neutral-500 hover:text-fluent"
             >
-              edit
+              Edit
             </button>
             <div className="grid gap-x-5 gap-y-1.5 sm:grid-cols-2">
             <div className="min-w-0 space-y-1">
@@ -2060,8 +2060,8 @@ function SongDetailInner({
                     className="w-full rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
                   />
                   <div className="flex items-center gap-2">
-                    <button onClick={saveWhy} className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
-                    <button onClick={() => setWhyEditing(false)} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
+                    <button onClick={saveWhy} className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">Save</button>
+                    <button onClick={() => setWhyEditing(false)} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">Cancel</button>
                   </div>
                 </div>
               ) : hasDescription ? (
@@ -2069,14 +2069,14 @@ function SongDetailInner({
                   <p className="whitespace-pre-wrap text-sm text-neutral-700 dark:text-neutral-200">
                     {song.description}
                   </p>
-                  <button onClick={openWhyEditor} className="text-[11px] text-neutral-500 hover:text-fluent shrink-0">edit</button>
+                  <button onClick={openWhyEditor} className="text-[11px] text-neutral-500 hover:text-fluent shrink-0">Edit</button>
                 </div>
               ) : (
                 <button
                   onClick={openWhyEditor}
                   className="text-xs text-neutral-500 hover:text-fluent"
                 >
-                  + add a note about this song
+                  + Add a Note About This Song
                 </button>
               )}
             {/* ---------------------------------------------------------------
@@ -2295,13 +2295,13 @@ function SongDetailInner({
                         : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent'
                     }`}
                   >
-                    eighths
+                    Eighths
                   </button>
                   <button
                     onClick={addSection}
                     className="text-neutral-500 hover:text-fluent"
                   >
-                    + add section
+                    + Add Section
                   </button>
                   {(sections.length > 1 || reorderMode) && (
                     <button
@@ -2329,7 +2329,7 @@ function SongDetailInner({
                         : 'text-neutral-500 hover:text-fluent'
                     }`}
                   >
-                    edit
+                    Edit
                   </button>
                   <button
                     type="button"
@@ -2441,7 +2441,7 @@ function SongDetailInner({
             onClick={() => setConfirmDeleteSong(true)}
             className="px-3 py-1.5 rounded-md bg-needswork text-white text-xs font-medium hover:opacity-90"
           >
-            Delete this song
+            Delete This Song
           </button>
         </div>
       </section>
@@ -2693,7 +2693,7 @@ function SongDetailInner({
             onClick={dismissArming}
             className="pointer-events-auto shrink-0 rounded-full border border-white/40 dark:border-neutral-900/40 px-1.5 hover:bg-white/10 dark:hover:bg-neutral-900/10"
           >
-            cancel
+            Cancel
           </button>
         </CellAnchoredMessage>
       )}
@@ -2821,7 +2821,7 @@ function SongAssociationsSection({ song }: { song: Song }) {
             onClick={() => setEditing(true)}
             className="mt-2 text-[11px] text-fluent hover:underline"
           >
-            edit
+            Edit
           </button>
         </div>
       ) : (
@@ -2845,14 +2845,14 @@ function SongAssociationsSection({ song }: { song: Song }) {
                   : 'bg-fluent hover:opacity-90'
               }`}
             >
-              save to harmonic diary
+              Save to Harmonic Diary
             </button>
             {(editing || dirty) && (
               <button
                 onClick={cancel}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
               >
-                cancel
+                Cancel
               </button>
             )}
             {justSaved && (

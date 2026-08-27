@@ -121,7 +121,7 @@ export default function RatingStep({
           title="Puts the clock back on and returns to the timer."
           className="px-3 py-2 text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
         >
-          ← Back to the timer
+          ← Back to the Timer
         </button>
         <button
           type="button"
@@ -134,7 +134,7 @@ export default function RatingStep({
           })}
           className="ml-auto px-4 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 disabled:opacity-40"
         >
-          Log it
+          Log It
         </button>
       </div>
     </div>
@@ -180,7 +180,7 @@ function SessionNote({
         onClick={() => setOpen(true)}
         className="text-xs text-neutral-500 hover:text-fluent"
       >
-        + add a note about this session
+        + Add a Note About This Session
       </button>
     );
   }

@@ -74,14 +74,14 @@ export function HardPausePromptModal() {
             onClick={handleEnd}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            end session
+            End Session
           </button>
           <button
             onClick={handleResume}
             data-autofocus
             className="px-4 py-1.5 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
           >
-            resume
+            Resume
           </button>
         </div>
       }

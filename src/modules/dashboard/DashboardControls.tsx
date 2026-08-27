@@ -326,7 +326,7 @@ export default function DashboardControls({
         onClick={() => onChange(DEFAULT_VIEW_STATE)}
         className={`${CONTROL} ${IDLE} disabled:opacity-40 disabled:cursor-default`}
       >
-        reset
+        Reset
       </button>
     </div>
   );

@@ -127,7 +127,7 @@ export default function GoalsNeedTodayScreen({
           className="text-xs text-neutral-500 hover:text-fluent"
           aria-label="Skip and pick a time"
         >
-          skip
+          Skip
         </button>
       </header>
 
@@ -213,7 +213,7 @@ function ReadyContent({
             onClick={onClose}
             className="text-sm text-fluent hover:underline"
           >
-            Keyboard now → Phone midday → Keyboard later
+            Keyboard Now → Phone Midday → Keyboard Later
           </button>
           <p className="text-[11px] text-neutral-500 mt-1">
             Picks up the day planner in the questionnaire — open it to set

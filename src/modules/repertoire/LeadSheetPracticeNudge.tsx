@@ -48,14 +48,14 @@ export default function LeadSheetPracticeNudge({
           onClick={onStart}
           className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
         >
-          start practising
+          Start Practising
         </button>
         <button
           type="button"
           onClick={onDismiss}
           className="text-[11px] text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
         >
-          not now
+          Not Now
         </button>
       </div>
     </div>

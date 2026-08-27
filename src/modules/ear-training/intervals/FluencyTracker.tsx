@@ -145,7 +145,7 @@ function DirectionStats({
           <button
             onClick={() => bumpManual(iv.id, direction, 'correct', 1)}
             className="px-1.5 h-5 rounded border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent"
-          >+correct</button>
+          >+Correct</button>
           <button
             onClick={() => bumpManual(iv.id, direction, 'total', -1)}
             className="w-5 h-5 rounded border border-neutral-200 dark:border-neutral-700 hover:border-needswork hover:text-needswork"
@@ -154,7 +154,7 @@ function DirectionStats({
           <button
             onClick={() => bumpManual(iv.id, direction, 'total', 1)}
             className="px-1.5 h-5 rounded border border-neutral-200 dark:border-neutral-700 hover:border-needswork hover:text-needswork"
-          >+attempt</button>
+          >+Attempt</button>
         </div>
       </div>
     </div>
@@ -228,8 +228,8 @@ function AnchorRow({ iv, direction }: AnchorEditorProps) {
               placeholder={defaultText}
             />
             <div className="flex items-center gap-2">
-              <button onClick={save} className="px-2 py-1 rounded-md bg-fluent text-white hover:opacity-90">save</button>
-              <button onClick={() => setEditing(false)} className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700">cancel</button>
+              <button onClick={save} className="px-2 py-1 rounded-md bg-fluent text-white hover:opacity-90">Save</button>
+              <button onClick={() => setEditing(false)} className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700">Cancel</button>
               {customText && (
                 <button onClick={useDefault} className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500">use default</button>
               )}

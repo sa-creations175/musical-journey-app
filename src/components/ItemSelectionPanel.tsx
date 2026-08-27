@@ -181,7 +181,7 @@ export default function ItemSelectionPanel({
         onClick={onCancel}
         className="px-4 min-h-[44px] rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm hover:border-neutral-400"
       >
-        cancel
+        Cancel
       </button>
       <button
         onClick={() => onStart([...selected])}
@@ -227,10 +227,10 @@ export default function ItemSelectionPanel({
 
       <div className="flex flex-wrap gap-2 mb-4 text-xs">
         <button onClick={selectAll} className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent">
-          all
+          All
         </button>
         <button onClick={selectNone} className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent">
-          none
+          None
         </button>
         {suggestWeakSpots && (
           <button onClick={selectSuggestion} className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent">

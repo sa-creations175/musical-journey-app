@@ -70,7 +70,7 @@ export default function GlossaryOverlay({ termId, onClose, onOpenLesson }: Props
                 }}
                 className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-500 hover:text-needswork hover:border-needswork"
               >
-                un-mark
+                Un-Mark
               </button>
             ) : (
               <button
@@ -80,7 +80,7 @@ export default function GlossaryOverlay({ termId, onClose, onOpenLesson }: Props
                 }}
                 className="px-3 py-1.5 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
               >
-                got it ✓
+                Got It ✓
               </button>
             )}
             {primaryLesson && onOpenLesson && (
@@ -88,7 +88,7 @@ export default function GlossaryOverlay({ termId, onClose, onOpenLesson }: Props
                 onClick={() => onOpenLesson(primaryLesson.id)}
                 className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-sm hover:bg-fluent/10"
               >
-                open primary lesson →
+                Open Primary Lesson →
               </button>
             )}
           </div>
@@ -96,7 +96,7 @@ export default function GlossaryOverlay({ termId, onClose, onOpenLesson }: Props
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            close
+            Close
           </button>
         </div>
       }

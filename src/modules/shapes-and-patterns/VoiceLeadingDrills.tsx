@@ -186,7 +186,7 @@ export default function VoiceLeadingDrills() {
                   }}
                   className="text-neutral-400 hover:text-needswork text-[11px]"
                 >
-                  remove
+                  Remove
                 </button>
               )}
             </div>
@@ -237,13 +237,13 @@ export default function VoiceLeadingDrills() {
                   : 'bg-fluent hover:opacity-90'
               }`}
             >
-              add pattern
+              Add Pattern
             </button>
             <button
               onClick={() => { setAdding(false); setNewLabel(''); setNewDescription(''); }}
               className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
             >
-              cancel
+              Cancel
             </button>
           </div>
         </section>
@@ -253,7 +253,7 @@ export default function VoiceLeadingDrills() {
             onClick={() => setAdding(true)}
             className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
           >
-            + add voice-leading pattern
+            + Add Voice-Leading Pattern
           </button>
         </div>
       )}

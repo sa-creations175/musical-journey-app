@@ -51,7 +51,7 @@ export default function YearlyAnchorInterstitial({
         onClick={onSkip}
         className="px-4 py-2 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800"
       >
-        Skip — just create this goal
+        Skip — Just Create This Goal
       </button>
       <button
         type="button"
@@ -59,7 +59,7 @@ export default function YearlyAnchorInterstitial({
         className="px-4 py-2 text-sm rounded-md bg-teal-600 text-white hover:bg-teal-700"
         data-autofocus
       >
-        Set yearly anchor first
+        Set Yearly Anchor First
       </button>
     </div>
   );

@@ -323,7 +323,7 @@ function FlaggedForReviewPanel() {
                   className="text-[11px] text-neutral-500 hover:text-needswork shrink-0"
                   title="remove review flag"
                 >
-                  unflag
+                  Unflag
                 </button>
               </div>
               {note && (

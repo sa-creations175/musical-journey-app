@@ -68,7 +68,7 @@ export default function LoginForm({ onSwitchToSignUp }: Props) {
           onClick={onSwitchToSignUp}
           className="text-production hover:underline"
         >
-          create an account
+          Create an Account
         </button>
       </p>
     </form>

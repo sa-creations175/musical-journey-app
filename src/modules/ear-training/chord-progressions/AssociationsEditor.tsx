@@ -149,14 +149,14 @@ export default function AssociationsEditor({ progressionId, alwaysEditing = fals
               : 'bg-fluent hover:opacity-90'
           }`}
         >
-          save
+          Save
         </button>
         <button
           type="button"
           onClick={cancel}
           className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700"
         >
-          cancel
+          Cancel
         </button>
         {hasSaved && (
           <button
@@ -164,7 +164,7 @@ export default function AssociationsEditor({ progressionId, alwaysEditing = fals
             onClick={reset}
             className="px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-needswork hover:border-needswork"
           >
-            reset to default
+            Reset to Default
           </button>
         )}
         <span className="ml-auto text-[11px] text-neutral-400 tabular-nums">

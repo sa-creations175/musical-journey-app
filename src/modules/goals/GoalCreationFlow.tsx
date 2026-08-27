@@ -3487,7 +3487,7 @@ function Step3HalfView({
         title="Coming soon — for now, save this goal then add a parent goal separately."
         className="self-start text-xs text-neutral-500 dark:text-neutral-400 px-3 py-1.5 rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 cursor-not-allowed opacity-60"
       >
-        + Create new parent goal
+        + Create New Parent Goal
       </button>
     </div>
   );

@@ -28,7 +28,7 @@ export default function PathView({ pathId, onOpenLesson, onBack }: Props) {
   if (!path) {
     return (
       <div className="space-y-3">
-        <button onClick={onBack} className="text-xs text-neutral-500 hover:text-fluent">← back</button>
+        <button onClick={onBack} className="text-xs text-neutral-500 hover:text-fluent">← Back</button>
         <p className="text-sm text-neutral-500 italic">path not found.</p>
       </div>
     );
@@ -37,7 +37,7 @@ export default function PathView({ pathId, onOpenLesson, onBack }: Props) {
   if (path.status === 'planned') {
     return (
       <div className="space-y-3 max-w-2xl">
-        <button onClick={onBack} className="text-xs text-neutral-500 hover:text-production">← back to production</button>
+        <button onClick={onBack} className="text-xs text-neutral-500 hover:text-production">← Back to Production</button>
         <h1 className="text-2xl font-medium tracking-tight">{path.title}</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-300 italic">{path.subtitle}</p>
         <div className="rounded-2xl border border-dashed border-production/40 bg-production/5 p-6 text-sm text-neutral-600 dark:text-neutral-300">
@@ -60,7 +60,7 @@ export default function PathView({ pathId, onOpenLesson, onBack }: Props) {
       {/* Header */}
       <header className="space-y-2">
         <button onClick={onBack} className="text-xs text-neutral-500 hover:text-production">
-          ← back to production
+          ← Back to Production
         </button>
         <h1 className="text-2xl font-medium tracking-tight">{path.title}</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-300 italic">{path.subtitle}</p>

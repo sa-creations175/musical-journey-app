@@ -804,7 +804,7 @@ export default function GoalFormModal({
                 onClick={confirmScopeChange}
                 className="px-3 py-1.5 text-xs rounded-md bg-needswork text-white hover:bg-needswork/90"
               >
-                Switch and clear
+                Switch and Clear
               </button>
             </div>
           </div>
@@ -854,14 +854,14 @@ function WeekChoicePicker({
           onClick={() => onChange(thisStart, thisEnd)}
           className={pill(!isNext)}
         >
-          This week
+          This Week
         </button>
         <button
           type="button"
           onClick={() => onChange(nextStart, nextEnd)}
           className={pill(isNext)}
         >
-          Next week
+          Next Week
         </button>
       </div>
       <div className="text-[10px] text-neutral-500 dark:text-neutral-400">

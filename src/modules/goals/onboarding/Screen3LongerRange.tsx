@@ -26,19 +26,19 @@ const LONG_SCOPES: ReadonlyArray<{ scope: GoalScope; title: string; cta: string;
   {
     scope: 'yearly',
     title: 'A goal for this year',
-    cta: '+ Add a yearly goal',
+    cta: '+ Add a Yearly Goal',
     hint: 'Measurable annual focus — items at a level, hours on modules, count completed.',
   },
   {
     scope: 'two_to_three_year',
     title: '2–3 year direction',
-    cta: '+ Reflect on 2–3 years',
+    cta: '+ Reflect on 2–3 Years',
     hint: 'Where you want to be as a musician on a 2-3 year horizon. Open text — no numbers.',
   },
   {
     scope: 'lifetime',
     title: 'Lifetime vision',
-    cta: '+ Reflect on a lifetime vision',
+    cta: '+ Reflect on a Lifetime Vision',
     hint: 'Your overall vision for music in your life. Open text — no numbers.',
   },
 ];

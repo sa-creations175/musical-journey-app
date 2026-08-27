@@ -125,7 +125,7 @@ export default function DrillListModal({ skill, onClose }: Props) {
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            close
+            Close
           </button>
         </div>
       )}
@@ -160,7 +160,7 @@ export default function DrillListModal({ skill, onClose }: Props) {
                 className="text-[11px] text-neutral-500 hover:text-fluent"
                 title="rename this skill — type your preferred notation (B♭sus2, G minor 7, etc.)"
               >
-                rename
+                Rename
               </button>
             </>
           )}
@@ -208,7 +208,7 @@ export default function DrillListModal({ skill, onClose }: Props) {
                     onClick={() => setActiveDrill(d)}
                     className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
                   >
-                    Start drill
+                    Start Drill
                   </button>
                   {drillTypes.length > 1 && (
                     <button
@@ -259,13 +259,13 @@ export default function DrillListModal({ skill, onClose }: Props) {
                     : 'bg-fluent hover:opacity-90'
                 }`}
               >
-                save drill
+                Save Drill
               </button>
               <button
                 onClick={() => { setAdding(false); setNewName(''); }}
                 className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
               >
-                cancel
+                Cancel
               </button>
             </div>
           </div>
@@ -274,7 +274,7 @@ export default function DrillListModal({ skill, onClose }: Props) {
             onClick={() => setAdding(true)}
             className="text-xs text-neutral-500 hover:text-fluent"
           >
-            + add drill
+            + Add Drill
           </button>
         )}
       </div>

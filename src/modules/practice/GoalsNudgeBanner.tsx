@@ -113,7 +113,7 @@ export default function GoalsNudgeBanner() {
           onClick={handleDismiss}
           className="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
         >
-          Maybe later
+          Maybe Later
         </button>
         <Link
           to="/goals"

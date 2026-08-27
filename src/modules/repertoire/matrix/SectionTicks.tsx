@@ -36,7 +36,7 @@ export default function SectionTicks({
             onClick={onSelectAll}
             className="text-[11px] text-fluent hover:underline underline-offset-2"
           >
-            select all
+            Select All
           </button>
         )}
       </div>

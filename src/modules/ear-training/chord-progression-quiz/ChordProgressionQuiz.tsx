@@ -54,7 +54,7 @@ export default function ChordProgressionQuiz() {
             onClick={() => setOpen(true)}
             className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
           >
-            Start drill
+            Start Drill
           </button>
         </div>
       </section>

@@ -195,7 +195,7 @@ function CellPopover({
           data-testid="mobile-cell-popover-close"
           className="ml-auto shrink-0 text-[11px] text-neutral-500 underline"
         >
-          close
+          Close
         </button>
       </div>
       {/* THE NUMBERS AS TEXT, always — the colour is a second reading of

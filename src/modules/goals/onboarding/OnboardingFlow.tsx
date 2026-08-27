@@ -128,7 +128,7 @@ export default function OnboardingFlow({ onExit }: Props) {
           onClick={() => void handleSkip()}
           className="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
         >
-          Skip the rest
+          Skip the Rest
         </button>
       </div>
 

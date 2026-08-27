@@ -253,7 +253,7 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            close
+            Close
           </button>
         </div>
       )}

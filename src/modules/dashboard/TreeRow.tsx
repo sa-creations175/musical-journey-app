@@ -383,7 +383,7 @@ function SmallPoolPromptPanel({
           onClick={onDismiss}
           className="text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
         >
-          cancel
+          Cancel
         </button>
       </div>
     </div>

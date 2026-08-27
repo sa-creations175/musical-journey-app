@@ -160,7 +160,7 @@ export default function PracticeCalendar({ moduleId, alsoModuleIds }: Props) {
             onClick={goToday}
             className="text-xs px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent"
           >
-            today
+            Today
           </button>
         )}
       </header>

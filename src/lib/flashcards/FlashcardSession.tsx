@@ -606,14 +606,14 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               onClick={() => setFlagEditorOpen(false)}
               className="px-2 py-1 rounded-md text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
             >
-              cancel
+              Cancel
             </button>
             {reviewFlagged && (
               <button
                 onClick={() => void handleClearReviewFlag()}
                 className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 hover:border-needswork hover:text-needswork"
               >
-                remove flag
+                Remove Flag
               </button>
             )}
             <button
@@ -756,7 +756,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
           className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent disabled:opacity-40 disabled:cursor-not-allowed"
           title="previous card (←)"
         >
-          ← previous
+          ← Previous
         </button>
         <div className="text-[10px] text-neutral-400 hidden sm:block">
           shortcuts: <span className="font-mono">1–4</span> answer ·
@@ -840,7 +840,7 @@ function SummaryCard<TCard extends BaseFlashcard>({
         onClick={onExit}
         className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
       >
-        done
+        Done
       </button>
     </section>
   );

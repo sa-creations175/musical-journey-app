@@ -85,7 +85,7 @@ export default function DiaryEntryEditor({ entry, skill, skillId, starter, onClo
               onClick={remove}
               className="text-xs text-neutral-500 hover:text-needswork"
             >
-              remove entry
+              Remove Entry
             </button>
           ) : <span />}
           <div className="flex items-center gap-2">
@@ -93,13 +93,13 @@ export default function DiaryEntryEditor({ entry, skill, skillId, starter, onClo
               onClick={onClose}
               className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
             >
-              cancel
+              Cancel
             </button>
             <button
               onClick={save}
               className="px-4 py-1.5 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
             >
-              save
+              Save
             </button>
           </div>
         </div>

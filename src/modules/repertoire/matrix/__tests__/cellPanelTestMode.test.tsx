@@ -116,7 +116,7 @@ function mount(opts: { minutes?: number; cell?: SongCell; tempo?: number | null 
   /** Straight into test mode. */
   const toTest = () => click('Test');
   /** Log `n` clean runs at the current tempo. */
-  const runsClean = (n: number) => { for (let i = 0; i < n; i += 1) click('clean'); };
+  const runsClean = (n: number) => { for (let i = 0; i < n; i += 1) click('Clean'); };
   return {
     click, clickAsync, button, setBpm, toTest, runsClean,
     find: (label: string) => [...container.querySelectorAll('button')]
@@ -143,7 +143,7 @@ describe('the runs land at the cell grain', () => {
     const h = mount();
     h.toTest();
     h.runsClean(2);
-    await h.clickAsync('Save runs');
+    await h.clickAsync('Save Runs');
 
     expect(await db.songCellRunThroughs.count()).toBe(2);
     expect(await db.songKeyRunThroughs.count()).toBe(0);
@@ -157,7 +157,7 @@ describe('the runs land at the cell grain', () => {
     const h = mount();
     h.toTest();
     h.runsClean(3);
-    await h.clickAsync('Mark comfortable');
+    await h.clickAsync('Mark Comfortable');
 
     expect(await getSpacingState(songKeyItemRef('sk-C'), 'repertoire')).toBeUndefined();
     // Not vacuous: the save really did happen.
@@ -179,7 +179,7 @@ describe('three clean runs in a row', () => {
     const h = mount();
     h.toTest();
     h.runsClean(2);
-    expect(h.button('Mark comfortable').hasAttribute('disabled')).toBe(true);
+    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(true);
     h.unmount();
   });
 
@@ -187,8 +187,8 @@ describe('three clean runs in a row', () => {
     const h = mount();
     h.toTest();
     h.runsClean(3);
-    expect(h.button('Mark comfortable').hasAttribute('disabled')).toBe(false);
-    await h.clickAsync('Mark comfortable');
+    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(false);
+    await h.clickAsync('Mark Comfortable');
 
     const stored = await db.songCells.get('cell-1');
     expect(stored?.cellState).toBe('comfortable');
@@ -199,9 +199,9 @@ describe('three clean runs in a row', () => {
     const h = mount();
     h.toTest();
     h.runsClean(2);
-    h.click('not clean');
+    h.click('Not Clean');
     expect(h.text()).toContain('0 of 3 clean runs in a row');
-    expect(h.button('Mark comfortable').hasAttribute('disabled')).toBe(true);
+    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(true);
     h.unmount();
   });
 
@@ -213,7 +213,7 @@ describe('three clean runs in a row', () => {
     h.toTest();
     expect(h.text()).toContain('2 of 3 clean runs in a row');
     h.runsClean(1);
-    expect(h.button('Mark comfortable').hasAttribute('disabled')).toBe(false);
+    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(false);
     h.unmount();
   });
 });
@@ -229,7 +229,7 @@ describe('the tempo floor', () => {
     h.runsClean(3);
     expect(h.text()).toContain('0 of 3 clean runs in a row');
 
-    await h.clickAsync('Save runs');
+    await h.clickAsync('Save Runs');
     expect(await db.songCellRunThroughs.count()).toBe(3);
     expect((await db.songCells.get('cell-1'))?.cellState).toBe('learning');
     h.unmount();
@@ -250,7 +250,7 @@ describe('the tempo floor', () => {
     const h = mount({ tempo: null });
     h.toTest();
     h.runsClean(3);
-    expect(h.button('Mark comfortable').hasAttribute('disabled')).toBe(false);
+    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(false);
     h.unmount();
   });
 });
@@ -260,7 +260,7 @@ describe('a test is timed, and not rated', () => {
     const h = mount({ minutes: 20 });
     h.toTest();
     h.runsClean(1);
-    await h.clickAsync('Save runs');
+    await h.clickAsync('Save Runs');
 
     const rows = await db.songPracticeLog.toArray();
     expect(rows).toHaveLength(1);
@@ -277,7 +277,7 @@ describe('a test is timed, and not rated', () => {
     h.toTest();
     h.runsClean(1);
     expect(h.text()).not.toContain('What kind of work was it?');
-    await h.clickAsync('Save runs');
+    await h.clickAsync('Save Runs');
 
     const row = (await db.songPracticeLog.toArray())[0];
     expect(Object.hasOwn(row, 'activities')).toBe(false);
@@ -291,7 +291,7 @@ describe('a test is timed, and not rated', () => {
     const h = mount();
     h.toTest();
     h.runsClean(1);
-    await h.clickAsync('Save runs');
+    await h.clickAsync('Save Runs');
 
     const logId = (await db.songPracticeLog.toArray())[0].id;
     const runs = await db.songCellRunThroughs.toArray();
@@ -303,7 +303,7 @@ describe('a test is timed, and not rated', () => {
     const h = mount();
     h.toTest();
     h.runsClean(1);
-    await h.clickAsync('Save runs');
+    await h.clickAsync('Save Runs');
     expect(await getSpacingState('s1', 'repertoire')).toBeUndefined();
     h.unmount();
   });

@@ -977,7 +977,7 @@ export default function ChordRecognitionQuiz({
           onClick={() => setShowFocusPanel(true)}
           className="text-xs text-neutral-500 hover:text-fluent"
         >
-          ⊞ focus on specific chords
+          ⊞ Focus on Specific Chords
         </button>
         <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2">
           <span>{scopeLabel}</span>
@@ -986,7 +986,7 @@ export default function ChordRecognitionQuiz({
               onClick={onExitFocus}
               className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
             >
-              exit focus
+              Exit Focus
             </button>
           )}
         </p>
@@ -1095,7 +1095,7 @@ export default function ChordRecognitionQuiz({
               onClick={startNew}
               className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
             >
-              next chord →
+              Next Chord →
             </button>
           )}
         </div>
@@ -1199,7 +1199,7 @@ export default function ChordRecognitionQuiz({
           onClick={() => setShowLifetime(true)}
           className="text-neutral-500 hover:text-fluent"
         >
-          view lifetime stats
+          View Lifetime Stats
         </button>
       </div>
 
@@ -1217,7 +1217,7 @@ export default function ChordRecognitionQuiz({
                 onClick={() => { setFocusActive(false); setShowFocusPanel(false); }}
                 className="text-fluent underline hover:opacity-80"
               >
-                exit focus
+                Exit Focus
               </button>
               {' '}to return to the full quiz.
             </div>

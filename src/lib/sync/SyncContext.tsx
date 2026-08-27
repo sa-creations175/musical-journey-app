@@ -252,7 +252,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
               onClick={() => window.location.reload()}
               className="mt-2 text-xs px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent"
             >
-              retry
+              Retry
             </button>
           </div>
         </div>

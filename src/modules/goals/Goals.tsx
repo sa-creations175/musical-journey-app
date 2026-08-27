@@ -517,7 +517,7 @@ export default function Goals() {
             onClick={() => void deleteSelectedGoals()}
             className="px-3 py-1.5 rounded-md text-sm font-medium bg-needswork text-white hover:opacity-90 disabled:opacity-40"
           >
-            Delete selected
+            Delete Selected
           </button>
           <button
             type="button"
@@ -641,7 +641,7 @@ export default function Goals() {
             }}
             className="px-3 py-1.5 rounded-md text-xs font-medium border border-dashed border-needswork/60 text-needswork hover:bg-needswork/10"
           >
-            Clear all goals (dev)
+            Clear All Goals (Dev)
           </button>
         </div>
       )}
@@ -1672,7 +1672,7 @@ function MonthlyLayerBody({
                   onClick={() => onAddMonthlyGoal(moduleId)}
                   className="text-xs text-neutral-500 dark:text-neutral-400 italic hover:text-fluent transition-colors py-1"
                 >
-                  + Add monthly goal
+                  + Add Monthly Goal
                 </button>
               ) : (
                 <ul className="flex flex-col gap-1">
@@ -2403,7 +2403,7 @@ function UmbrellaRow({
           onClick={setExpanded}
           className="mt-1 text-[10px] text-neutral-500 dark:text-neutral-400 hover:text-fluent transition-colors"
         >
-          Show activity ↓
+          Show Activity ↓
         </button>
       )}
 
@@ -2920,7 +2920,7 @@ function ByModuleSection({
                 onClick={() => onAddMonthlyGoal(moduleId)}
                 className="text-xs text-neutral-500 dark:text-neutral-400 italic hover:text-fluent transition-colors py-1"
               >
-                + Add monthly goal
+                + Add Monthly Goal
               </button>
             ) : (
               <ul className="flex flex-col gap-1">

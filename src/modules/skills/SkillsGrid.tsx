@@ -190,7 +190,7 @@ export default function SkillsGrid({ records, moduleFilter, onSelectSkill }: Pro
             onClick={clearAllFilters}
             className="text-xs text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
           >
-            clear filters
+            Clear Filters
           </button>
         )}
       </div>

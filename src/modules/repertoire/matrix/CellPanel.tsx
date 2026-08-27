@@ -498,7 +498,7 @@ export default function CellPanel({
               onClick={() => onLayoutChange('bar')}
               className="w-full px-3 py-3 rounded-lg bg-info text-white text-sm font-medium hover:opacity-90"
             >
-              Open lead sheet
+              Open Lead Sheet
             </button>
 
             <div className="flex items-center gap-2">
@@ -541,7 +541,7 @@ function SwapPrompt({ busy, onSwap }: { busy: boolean; onSwap: () => void }) {
         onClick={onSwap}
         className="px-2 py-1 rounded bg-fluent text-white text-[11px] font-medium hover:opacity-90 disabled:opacity-40"
       >
-        log that one and start this
+        Log That One and Start This
       </button>
     </div>
   );

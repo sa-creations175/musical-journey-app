@@ -60,7 +60,7 @@ export default function MonthEndCleanupBanner({ onSelect }: Props) {
           }}
           className="px-3 py-1.5 text-sm rounded-md bg-neutral-700 dark:bg-neutral-600 text-white hover:bg-neutral-800 dark:hover:bg-neutral-500"
         >
-          Dismiss all
+          Dismiss All
         </button>
         <button
           type="button"

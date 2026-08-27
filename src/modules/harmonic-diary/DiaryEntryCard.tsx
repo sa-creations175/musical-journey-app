@@ -100,7 +100,7 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
             className="mt-3 text-[11px] underline-offset-4 hover:underline transition"
             style={{ color: 'var(--diary-text-dim)' }}
           >
-            Claude's starter — tap to customise
+            Claude's Starter — Tap to Customise
           </button>
         </>
       ) : (

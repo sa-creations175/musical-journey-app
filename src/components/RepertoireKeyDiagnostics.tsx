@@ -389,7 +389,7 @@ function RowActions({
             () => deleteJunkKeyRow(rowId),
           )}
         >
-          delete row
+          Delete Row
         </button>
       )}
 

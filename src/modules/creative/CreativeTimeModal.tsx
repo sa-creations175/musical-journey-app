@@ -273,7 +273,7 @@ function CreativeTimeModalImpl({
       return (
         <div className="flex items-center justify-end">
           <button onClick={onClose} className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm">
-            cancel
+            Cancel
           </button>
         </div>
       );
@@ -285,7 +285,7 @@ function CreativeTimeModalImpl({
             onClick={() => setPhase('mode-select')}
             className="text-xs text-neutral-500 hover:text-fluent"
           >
-            ← change mode
+            ← Change Mode
           </button>
           <div className="flex items-center gap-2">
             <button
@@ -316,7 +316,7 @@ function CreativeTimeModalImpl({
             onClick={cancelWithoutLogging}
             className="text-xs text-neutral-500 hover:text-needswork"
           >
-            cancel — don't log
+            Cancel — Don't Log
           </button>
           <button
             onClick={completeSession}
@@ -327,7 +327,7 @@ function CreativeTimeModalImpl({
                 : 'bg-fluent text-white hover:opacity-90'
             }`}
           >
-            complete early
+            Complete Early
           </button>
         </div>
       );
@@ -336,13 +336,13 @@ function CreativeTimeModalImpl({
     return (
       <div className="flex items-center justify-end gap-2">
         <button onClick={cancelWithoutLogging} className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm">
-          don't log
+          Don't Log
         </button>
         <button
           onClick={saveSession}
           className="px-4 py-1.5 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
         >
-          save session
+          Save Session
         </button>
       </div>
     );
@@ -440,7 +440,7 @@ function PromptPicker({
           onClick={onSkipAll}
           className="px-4 py-1.5 rounded-md bg-fluent text-white text-sm"
         >
-          start session without a prompt
+          Start Session Without a Prompt
         </button>
       </div>
     );
@@ -461,14 +461,14 @@ function PromptPicker({
           onClick={onNext}
           className="text-xs text-fluent hover:underline"
         >
-          ↻ next prompt
+          ↻ Next Prompt
         </button>
         <button
           onClick={onRefresh}
           className="text-xs text-neutral-500 hover:text-fluent"
           title="re-draft the whole list"
         >
-          re-draft all
+          Re-Draft All
         </button>
       </div>
       <p className="text-xs text-neutral-500 italic">
@@ -603,7 +603,7 @@ function SessionTimer({
                 onClick={onPause}
                 className="px-5 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
               >
-                pause
+                Pause
               </button>
             )}
             {elapsed > 0 && !running && (
@@ -611,7 +611,7 @@ function SessionTimer({
                 onClick={onReset}
                 className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-500 hover:border-fluent hover:text-fluent"
               >
-                reset
+                Reset
               </button>
             )}
           </div>
@@ -625,19 +625,19 @@ function SessionTimer({
                 onClick={() => onExtend(5)}
                 className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
               >
-                +5 minutes
+                +5 Minutes
               </button>
               <button
                 onClick={() => onExtend(10)}
                 className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
               >
-                +10 minutes
+                +10 Minutes
               </button>
               <button
                 onClick={onComplete}
                 className="px-4 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
               >
-                complete session
+                Complete Session
               </button>
             </div>
           </div>

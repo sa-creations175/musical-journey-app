@@ -406,7 +406,7 @@ export function SongOfMonthTbdNudgeBanner() {
           onClick={handleDismiss}
           className="text-xs text-amber-800/70 hover:text-amber-900 dark:text-amber-200/70 dark:hover:text-amber-200"
         >
-          Maybe later
+          Maybe Later
         </button>
         <button
           type="button"

@@ -180,7 +180,7 @@ export default function HarmonicDiary() {
               onMouseEnter={e => { e.currentTarget.style.opacity = '0.88'; }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
             >
-              + add association
+              + Add Association
             </button>
           </div>
         </div>
@@ -220,7 +220,7 @@ export default function HarmonicDiary() {
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
             >
-              clear
+              Clear
             </button>
           )}
         </div>
@@ -442,7 +442,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
         className="mt-2 px-4 py-2 rounded-md text-sm font-medium transition"
         style={{ backgroundColor: 'var(--diary-text)', color: 'var(--diary-card-bg)' }}
       >
-        + add your first association
+        + Add Your First Association
       </button>
     </div>
   );

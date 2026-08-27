@@ -171,8 +171,8 @@ function DescriptionEditor({ chord }: DescriptionEditorProps) {
         placeholder={chord.soundDefault}
       />
       <div className="flex items-center gap-2 flex-wrap">
-        <button onClick={save} className="px-2 py-1 rounded-md bg-fluent text-white hover:opacity-90">save</button>
-        <button onClick={() => setEditing(false)} className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700">cancel</button>
+        <button onClick={save} className="px-2 py-1 rounded-md bg-fluent text-white hover:opacity-90">Save</button>
+        <button onClick={() => setEditing(false)} className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700">Cancel</button>
         {isCustom && (
           <button onClick={resetToDefault} className="px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500">use default</button>
         )}

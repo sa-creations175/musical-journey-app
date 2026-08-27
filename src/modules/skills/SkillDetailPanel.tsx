@@ -177,7 +177,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            close
+            Close
           </button>
         </div>
       }
@@ -281,7 +281,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
                         : 'bg-fluent hover:opacity-90'
                     }`}
                   >
-                    save description
+                    Save Description
                   </button>
                   <button
                     onClick={() => {
@@ -290,7 +290,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
                     }}
                     className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
                   >
-                    cancel
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -313,7 +313,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
                 onClick={() => setEditingAssociation(true)}
                 className="text-[11px] text-fluent hover:underline"
               >
-                edit
+                Edit
               </button>
             )}
           </div>
@@ -351,7 +351,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
                       : 'bg-fluent hover:opacity-90'
                   }`}
                 >
-                  save association
+                  Save Association
                 </button>
                 <Link
                   to={`/harmonic-diary?skill=${encodeURIComponent(skill.skillId)}`}

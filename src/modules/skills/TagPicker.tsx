@@ -130,7 +130,7 @@ export default function TagPicker({ existing, onAdd, seed = [], placeholder }: P
               : 'bg-fluent text-white hover:opacity-90'
           }`}
         >
-          add
+          Add
         </button>
       </div>
 

@@ -48,7 +48,7 @@ export default function WeeklyPlanBanner({ onOpenPlan }: Props) {
         onClick={onOpenPlan}
         className="shrink-0 px-3 py-1.5 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
       >
-        Plan your week
+        Plan Your Week
       </button>
     </div>
   );

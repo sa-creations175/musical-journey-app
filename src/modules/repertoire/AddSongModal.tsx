@@ -178,7 +178,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            cancel
+            Cancel
           </button>
           <button
             onClick={submitBlank}
@@ -187,7 +187,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
               canSaveBlank ? 'bg-fluent hover:opacity-90' : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
             }`}
           >
-            add to repertoire
+            Add to Repertoire
           </button>
         </div>
       ) : (
@@ -196,7 +196,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            close
+            Close
           </button>
         </div>
       )}
@@ -223,7 +223,7 @@ export default function AddSongModal({ onClose, onAdded }: Props) {
                 : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'
             }`}
           >
-            add a new song
+            Add a New Song
           </button>
         </div>
       )}

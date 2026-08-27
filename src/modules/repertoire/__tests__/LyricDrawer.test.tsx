@@ -349,7 +349,7 @@ describe('LyricDrawer — un-place', () => {
     const dots = container!.querySelectorAll('[aria-label^="row options"]');
     act(() => (dots[1] as HTMLElement).click()); // l1, fully placed
     const btn = Array.from(container!.querySelectorAll('button')).find(
-      b => b.textContent === 'un-place full line',
+      b => b.textContent === 'Un-Place Full Line',
     ) as HTMLElement;
     act(() => btn.click());
     expect(onLineUnplace).toHaveBeenCalledWith('l1');
@@ -371,7 +371,7 @@ describe('LyricDrawer — un-place', () => {
     ).toBeNull();
     const dots = container!.querySelector('[aria-label^="row options"]') as HTMLElement;
     act(() => dots.click());
-    expect(container!.textContent).not.toContain('un-place full line');
+    expect(container!.textContent).not.toContain('Un-Place Full Line');
   });
 });
 
@@ -398,14 +398,14 @@ describe('LyricDrawer — duplicate', () => {
   it('offers duplicate on every row', () => {
     withDup();
     openMenu(4);
-    expect(container!.textContent).toContain('duplicate');
+    expect(container!.textContent).toContain('Duplicate');
   });
 
   it('duplicates the line', () => {
     const onDuplicateLine = withDup();
     openMenu(4);
     const btn = Array.from(container!.querySelectorAll('button')).find(
-      b => b.textContent === 'duplicate',
+      b => b.textContent === 'Duplicate',
     ) as HTMLElement;
     act(() => btn.click());
     expect(onDuplicateLine).toHaveBeenCalledWith('l3');
@@ -416,7 +416,7 @@ describe('LyricDrawer — duplicate', () => {
     // refuse — a placed refrain is exactly what gets duplicated.
     withDup();
     openMenu(1);
-    expect(container!.textContent).toContain('duplicate');
+    expect(container!.textContent).toContain('Duplicate');
   });
 
   it('opens a menu for duplicate alone, without the kind toggle', () => {
@@ -430,7 +430,7 @@ describe('LyricDrawer — duplicate', () => {
       />,
     );
     openMenu(4);
-    expect(container!.textContent).toContain('duplicate');
+    expect(container!.textContent).toContain('Duplicate');
     expect(container!.textContent).not.toContain('make header');
   });
 });
@@ -528,7 +528,7 @@ describe('LyricDrawer — pick mode', () => {
     act(() => bodies()[PARTIAL].click());
     act(() => byLabel('move "adore"')!.click());
     const go = Array.from(container!.querySelectorAll('button')).find(
-      b => b.textContent === 'move it',
+      b => b.textContent === 'Move It',
     ) as HTMLElement;
     act(() => go.click());
     expect(onArmWord).toHaveBeenCalledWith('l2-0');
@@ -539,7 +539,7 @@ describe('LyricDrawer — pick mode', () => {
     act(() => bodies()[PARTIAL].click());
     act(() => byLabel('move "adore"')!.click());
     const cancel = Array.from(container!.querySelectorAll('button')).find(
-      b => b.textContent === 'cancel',
+      b => b.textContent === 'Cancel',
     ) as HTMLElement;
     act(() => cancel.click());
     expect(onArmWord).not.toHaveBeenCalled();

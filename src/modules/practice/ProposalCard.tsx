@@ -513,7 +513,7 @@ export default function ProposalCard({
         onClick={() => onAccept({ ...data, blocks: orderedBlocks }, { hardBlock })}
         className="w-full px-3 py-2 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
       >
-        start this session
+        Start This Session
       </button>
     </div>
   );
@@ -665,7 +665,7 @@ function RedistributionPrompt({
           onClick={onSkip}
           className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
         >
-          dismiss
+          Dismiss
         </button>
       </div>
     );
@@ -685,7 +685,7 @@ function RedistributionPrompt({
           aria-label="Dismiss without redistributing"
           title="Dismiss without redistributing — freed time drops the session length"
         >
-          skip
+          Skip
         </button>
       </div>
       <div className="flex flex-wrap gap-1.5">
@@ -711,7 +711,7 @@ function RedistributionPrompt({
             onClick={() => onPick(null)}
             className="px-2.5 py-1 rounded-md border border-neutral-400 text-[11px] font-medium text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
           >
-            Split evenly
+            Split Evenly
           </button>
         )}
       </div>
@@ -825,7 +825,7 @@ function BlockSwapPanel({
           onClick={onClose}
           className="shrink-0 text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
         >
-          cancel
+          Cancel
         </button>
       </div>
     );

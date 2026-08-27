@@ -824,7 +824,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
               onClick={replayMotion}
               className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
             >
-              replay motion
+              Replay Motion
             </button>
             {round && round.scaffold !== 'minimal' ? (
               <div className="flex flex-col items-center gap-1">
@@ -935,7 +935,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 onClick={nextRound}
                 className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
               >
-                next motion →
+                Next Motion →
               </button>
               {offerChallenge && (
                 <div className="flex flex-col items-start gap-1">
@@ -1042,7 +1042,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 }}
                 className="text-xs text-fluent hover:underline self-start"
               >
-                practice this motion specifically → focus mode
+                Practice This Motion Specifically → Focus Mode
               </button>
             </div>
           </>
@@ -1165,7 +1165,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
           onClick={() => setShowFocusPanel(true)}
           className="text-xs text-neutral-500 hover:text-fluent"
         >
-          ⊞ focus on specific motions
+          ⊞ Focus on Specific Motions
         </button>
         <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2 flex-wrap justify-center">
           <span className="text-neutral-500">current scope:</span>
@@ -1179,7 +1179,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
               onClick={() => setFocusActive(false)}
               className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
             >
-              exit focus
+              Exit Focus
             </button>
           )}
         </p>
@@ -1203,7 +1203,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 onClick={() => { setFocusActive(false); setShowFocusPanel(false); }}
                 className="text-fluent underline hover:opacity-80"
               >
-                exit focus
+                Exit Focus
               </button>{' '}
               to return to the full scope.
             </div>

@@ -205,7 +205,7 @@ function LinkedTrackRow({
           onClick={onRemove}
           className="text-[11px] px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-needswork hover:border-needswork"
         >
-          Remove from lesson
+          Remove from Lesson
         </button>
       </div>
     </li>

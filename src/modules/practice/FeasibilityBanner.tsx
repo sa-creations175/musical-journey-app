@@ -101,7 +101,7 @@ function PrimaryRow({
             onClick={onTapDeep}
             className="text-[11px] inline-flex items-center px-2 py-0.5 rounded-md bg-amber-500 text-white font-medium hover:opacity-90"
           >
-            Deep day
+            Deep Day
           </button>
         )}
       </div>

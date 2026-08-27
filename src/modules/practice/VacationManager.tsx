@@ -79,7 +79,7 @@ export default function VacationManager() {
         onClick={() => setPlanning(true)}
         className="text-sm text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100 underline-offset-2 hover:underline"
       >
-        + Plan a vacation
+        + Plan a Vacation
       </button>
     );
 }
@@ -148,7 +148,7 @@ function ActiveVacationCard({
         onClick={() => void handleEndToday()}
         className="shrink-0 px-3 py-1.5 text-xs rounded-md border border-amber-700 dark:border-amber-300 text-amber-900 dark:text-amber-100 hover:bg-amber-100 dark:hover:bg-amber-900/40"
       >
-        End vacation today
+        End Vacation Today
       </button>
     </div>
   );
@@ -287,7 +287,7 @@ function PlanForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: () => 
           disabled={!validRange || busy}
           className="px-3 py-1.5 text-sm rounded-md bg-fluent text-white hover:bg-fluent/90 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Save vacation
+          Save Vacation
         </button>
       </div>
     </div>

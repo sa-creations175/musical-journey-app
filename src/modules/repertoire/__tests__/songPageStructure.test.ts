@@ -99,7 +99,7 @@ describe('two cards were absorbed, not merely hidden', () => {
   it('the note and the links moved WITH it', () => {
     // Guard the guard: deleting the heading and losing the content
     // would satisfy the assertion above.
-    expect(DETAIL).toContain('+ add a note about this song');
+    expect(DETAIL).toContain('+ Add a Note About This Song');
     expect(DETAIL).toContain('spotify ↗');
   });
 
@@ -225,7 +225,7 @@ describe('the metadata card is two columns', () => {
     expect(facts).toBeLessThan(right);
     const column = DETAIL.slice(right, DETAIL.indexOf('>matrix</h3>'));
     for (const marker of [
-      '+ add a note about this song',
+      '+ Add a Note About This Song',
       'spotify ↗',
       '<SongAssociationsSection song={song} />',
     ]) {
@@ -272,7 +272,7 @@ describe('the facts row reads as facts', () => {
     // Links are the only thing in that column you reach for
     // mid-practice.
     const links = DETAIL.indexOf('spotify ↗');
-    expect(links).toBeLessThan(DETAIL.indexOf('+ add a note about this song'));
+    expect(links).toBeLessThan(DETAIL.indexOf('+ Add a Note About This Song'));
     expect(links).toBeLessThan(DETAIL.indexOf('<SongAssociationsSection song={song} />'));
   });
 

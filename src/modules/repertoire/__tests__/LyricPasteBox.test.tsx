@@ -111,7 +111,7 @@ describe('LyricPasteBox — commit', () => {
     render(<LyricPasteBox onCommit={onCommit} />);
     open();
     type(VERSE);
-    await click('add lines');
+    await click('Add Lines');
     expect(onCommit).toHaveBeenCalledWith(VERSE);
   });
 
@@ -120,7 +120,7 @@ describe('LyricPasteBox — commit', () => {
     render(<LyricPasteBox onCommit={onCommit} />);
     open();
     const btn = Array.from(container!.querySelectorAll('button')).find(b =>
-      b.textContent?.includes('add lines'),
+      b.textContent?.includes('Add Lines'),
     ) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
   });
@@ -130,7 +130,7 @@ describe('LyricPasteBox — commit', () => {
     render(<LyricPasteBox onCommit={onCommit} />);
     open();
     type(VERSE);
-    await click('clear');
+    await click('Clear');
     expect(onCommit).not.toHaveBeenCalled();
     expect((container!.querySelector('textarea') as HTMLTextAreaElement).value).toBe(
       '',
@@ -141,7 +141,7 @@ describe('LyricPasteBox — commit', () => {
     render(<LyricPasteBox onCommit={vi.fn()} />);
     open();
     type(VERSE);
-    await click('add lines');
+    await click('Add Lines');
     expect(container!.querySelector('textarea')).toBeNull();
   });
 });

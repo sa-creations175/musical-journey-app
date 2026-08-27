@@ -99,7 +99,7 @@ export default function ProgressDetail({
           onClick={onClose}
           className="ml-auto text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
         >
-          close
+          Close
         </button>
       </div>
 
@@ -514,7 +514,7 @@ function ItemDetail({
           onClick={onClose}
           className="ml-auto text-[11px] text-neutral-500 underline"
         >
-          close
+          Close
         </button>
       </div>
 

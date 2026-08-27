@@ -414,7 +414,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
           onClick={() => setShowFocusPanel(true)}
           className="text-xs text-neutral-500 hover:text-fluent"
         >
-          ⊞ focus on specific intervals
+          ⊞ Focus on Specific Intervals
         </button>
         <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2">
           {focusActive ? (
@@ -426,7 +426,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
                 onClick={onExitFocus}
                 className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
               >
-                exit focus
+                Exit Focus
               </button>
             </>
           ) : null}
@@ -495,7 +495,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
             onClick={startNew}
             className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
           >
-            next interval →
+            Next Interval →
           </button>
         )}
       </div>
@@ -615,7 +615,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
           onClick={() => setShowLifetime(true)}
           className="text-neutral-500 hover:text-fluent"
         >
-          view lifetime stats
+          View Lifetime Stats
         </button>
       </div>
 
@@ -633,7 +633,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
                 onClick={() => { setFocusActive(false); setShowFocusPanel(false); }}
                 className="text-fluent underline hover:opacity-80"
               >
-                exit focus
+                Exit Focus
               </button>
               {' '}to return to the full quiz.
             </div>

@@ -169,7 +169,7 @@ describe('what kind of work it was', () => {
     h.toRatingStep();
     h.click('building the lead sheet');
     h.click('getting it under the fingers');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     expect((await onlyRow()).activities)
       .toEqual(['lead-sheet', 'under-the-fingers']);
@@ -181,7 +181,7 @@ describe('what kind of work it was', () => {
     // field is absent rather than empty.
     const h = mount(30);
     h.toRatingStep();
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     const row = await onlyRow();
     expect(row.durationMin).toBe(30);
@@ -194,7 +194,7 @@ describe('what kind of work it was', () => {
     h.toRatingStep();
     h.click('something else');
     h.type('What the other work was', 'transcribing the bass line');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     const row = await onlyRow();
     expect(row.activities).toEqual(['other']);
@@ -217,7 +217,7 @@ describe('what kind of work it was', () => {
     const h = mount(45);
     h.toRatingStep();
     h.click('just playing');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     const row = await onlyRow();
     expect(row.activities).toEqual(['just-playing']);
@@ -243,7 +243,7 @@ describe('"practising in time" is never derived', () => {
   it('is written only when the user ticks it', async () => {
     const h = mount(30);
     h.toRatingStep();
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
     expect(Object.hasOwn(await onlyRow(), 'activities')).toBe(false);
     h.unmount();
 
@@ -253,7 +253,7 @@ describe('"practising in time" is never derived', () => {
     const h2 = mount(30);
     h2.toRatingStep();
     h2.click('practising in time');
-    await h2.clickAsync('Log it');
+    await h2.clickAsync('Log It');
     expect((await onlyRow()).activities).toEqual(['in-time']);
     h2.unmount();
   });
@@ -264,7 +264,7 @@ describe('how it went', () => {
     const h = mount(20);
     h.toRatingStep();
     h.click('in flow');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
     expect((await onlyRow()).feelRating).toBe(4);
     h.unmount();
   });
@@ -272,7 +272,7 @@ describe('how it went', () => {
   it('invents none when the question is skipped', async () => {
     const h = mount(20);
     h.toRatingStep();
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
     expect(Object.hasOwn(await onlyRow(), 'feelRating')).toBe(false);
     h.unmount();
   });
@@ -283,7 +283,7 @@ describe('the sections carry across from the timer', () => {
     const h = mount(30);
     h.toRatingStep();
     h.click('Verse');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
     expect((await onlyRow()).sectionIds).toEqual(['sec-1', 'sec-2']);
     h.unmount();
   });
@@ -295,7 +295,7 @@ describe('Back to the timer', () => {
     h.toRatingStep();
     expect(readSongTimer()?.running).toBe(false);
 
-    h.click('← Back to the timer');
+    h.click('← Back to the Timer');
     expect(readSongTimer()?.running).toBe(true);
     expect(await db.songPracticeLog.count()).toBe(0);
     h.unmount();
@@ -304,9 +304,9 @@ describe('Back to the timer', () => {
   it('does not lose the minutes it was holding', async () => {
     const h = mount(30);
     h.toRatingStep();
-    h.click('← Back to the timer');
+    h.click('← Back to the Timer');
     await h.clickAsync('Done');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
     expect((await onlyRow()).durationMin).toBe(30);
     h.unmount();
   });
@@ -377,7 +377,7 @@ describe('time the app could not see', () => {
     await h.settle();
     h.toRatingStep();
     h.click('I was locked in');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     expect((await onlyRow()).durationMin).toBe(40);
     h.unmount();
@@ -399,7 +399,7 @@ describe('time the app could not see', () => {
     await h.settle();
     h.toRatingStep();
     h.click('I was gone');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     expect((await onlyRow()).durationMin).toBe(2);
     h.unmount();
@@ -421,7 +421,7 @@ describe('time the app could not see', () => {
     h.toRatingStep();
     h.click('I was here for some of it');
     h.click('barely any');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     // 40 - 38 × 0.75 = 11.5, and elapsedMinutes rounds up.
     expect((await onlyRow()).durationMin).toBe(12);
@@ -444,7 +444,7 @@ describe('time the app could not see', () => {
     h.toRatingStep();
 
     expect(h.text()).not.toContain('App activity not detected');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
     expect((await onlyRow()).durationMin).toBe(40);
     h.unmount();
   });
@@ -469,7 +469,7 @@ describe('a note about the session', () => {
     h.toRatingStep();
     expect(noteBox()).toBeNull();
 
-    h.click('+ add a note about this session');
+    h.click('+ Add a Note About This Session');
     expect(noteBox()).not.toBeNull();
     h.unmount();
   });
@@ -478,7 +478,7 @@ describe('a note about the session', () => {
     const h = mount(30);
     await h.settle();
     h.toRatingStep();
-    h.click('+ add a note about this session');
+    h.click('+ Add a Note About This Session');
     act(() => {
       const box = noteBox()!;
       const setter = Object.getOwnPropertyDescriptor(
@@ -487,7 +487,7 @@ describe('a note about the session', () => {
       setter.call(box, 'the bridge fell apart at bar 12');
       box.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     expect((await onlyRow()).notes).toBe('the bridge fell apart at bar 12');
     h.unmount();
@@ -500,7 +500,7 @@ describe('a note about the session', () => {
     const h = mount(30);
     await h.settle();
     h.toRatingStep();
-    h.click('+ add a note about this session');
+    h.click('+ Add a Note About This Session');
     act(() => {
       const box = noteBox()!;
       const setter = Object.getOwnPropertyDescriptor(
@@ -509,7 +509,7 @@ describe('a note about the session', () => {
       setter.call(box, '   \n  ');
       box.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     expect(Object.hasOwn(await onlyRow(), 'notes')).toBe(false);
     h.unmount();
@@ -519,7 +519,7 @@ describe('a note about the session', () => {
     const h = mount(30);
     await h.settle();
     h.toRatingStep();
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
     expect(Object.hasOwn(await onlyRow(), 'notes')).toBe(false);
     h.unmount();
   });

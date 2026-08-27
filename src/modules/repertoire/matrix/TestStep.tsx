@@ -132,7 +132,7 @@ export default function TestStep({
             disabled={!bpmValid}
             className="flex-1 px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90 disabled:opacity-40"
           >
-            clean
+            Clean
           </button>
           <button
             type="button"
@@ -140,7 +140,7 @@ export default function TestStep({
             disabled={!bpmValid}
             className="flex-1 px-3 py-1.5 rounded-md border border-needswork text-needswork text-xs font-medium hover:bg-needswork/10 disabled:opacity-40"
           >
-            not clean
+            Not Clean
           </button>
         </div>
       </div>
@@ -150,7 +150,7 @@ export default function TestStep({
         onClick={onOpenLeadSheet}
         className="w-full px-3 py-3 rounded-lg bg-info text-white text-sm font-medium hover:opacity-90"
       >
-        Open lead sheet
+        Open Lead Sheet
       </button>
 
       <div className="flex items-center gap-2">
@@ -168,7 +168,7 @@ export default function TestStep({
           onClick={() => onFinish(attempts, false)}
           className="ml-auto px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 text-sm hover:border-fluent disabled:opacity-40"
         >
-          Save runs
+          Save Runs
         </button>
         {!alreadyComfortable && (
           <button
@@ -180,7 +180,7 @@ export default function TestStep({
               : 'Three clean runs in a row at tempo enables this.'}
             className="px-3 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 disabled:opacity-40"
           >
-            Mark comfortable
+            Mark Comfortable
           </button>
         )}
       </div>

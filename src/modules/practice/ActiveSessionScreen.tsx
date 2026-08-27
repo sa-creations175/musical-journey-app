@@ -729,7 +729,7 @@ export default function ActiveSessionScreen() {
           onClick={handleReady}
           className="w-full px-3 py-3 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
         >
-          Ready — start drill
+          Ready — Start Drill
         </button>
 
         <div className="flex items-center justify-center gap-4">
@@ -741,7 +741,7 @@ export default function ActiveSessionScreen() {
                 className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
                 title="advance past this block without logging it as completed"
               >
-                skip this block
+                Skip This Block
               </button>
               <span className="text-neutral-300 dark:text-neutral-700">·</span>
               <button
@@ -750,7 +750,7 @@ export default function ActiveSessionScreen() {
                 className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
                 title="set this block aside and come back to it at the end of the session"
               >
-                defer this block
+                Defer This Block
               </button>
               <span className="text-neutral-300 dark:text-neutral-700">·</span>
             </>
@@ -760,7 +760,7 @@ export default function ActiveSessionScreen() {
             onClick={() => setDiscardOpen(true)}
             className="text-[11px] text-neutral-500 hover:text-needswork underline-offset-2 hover:underline"
           >
-            discard session
+            Discard Session
           </button>
         </div>
 
@@ -927,7 +927,7 @@ export default function ActiveSessionScreen() {
             onClick={handleGoBackToDrills}
             className="w-full text-sm text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
           >
-            ← Go back to drills
+            ← Go Back to Drills
           </button>
         )}
 
@@ -945,7 +945,7 @@ export default function ActiveSessionScreen() {
             onClick={handleEndSessionEarly}
             className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
           >
-            end session early
+            End Session Early
           </button>
           <span className="text-neutral-300 dark:text-neutral-700">·</span>
           <button
@@ -953,7 +953,7 @@ export default function ActiveSessionScreen() {
             onClick={() => setDiscardOpen(true)}
             className="text-[11px] text-neutral-500 hover:text-needswork underline-offset-2 hover:underline"
           >
-            discard session
+            Discard Session
           </button>
         </div>
 
@@ -1053,7 +1053,7 @@ export default function ActiveSessionScreen() {
         onClick={handleEndActivity}
         className="w-full px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm font-medium hover:border-fluent hover:text-fluent"
       >
-        end this activity
+        End This Activity
       </button>
 
       <div className="flex items-center justify-center gap-4">
@@ -1064,7 +1064,7 @@ export default function ActiveSessionScreen() {
             className="text-[11px] text-neutral-500 hover:text-fluent underline-offset-2 hover:underline"
             title="advance past this block without logging it as completed"
           >
-            skip this block
+            Skip This Block
           </button>
         )}
         {!currentBlock.isWarmup && (
@@ -1075,7 +1075,7 @@ export default function ActiveSessionScreen() {
           onClick={() => setDiscardOpen(true)}
           className="text-[11px] text-neutral-500 hover:text-needswork underline-offset-2 hover:underline"
         >
-          discard session
+          Discard Session
         </button>
       </div>
 

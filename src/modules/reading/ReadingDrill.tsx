@@ -661,7 +661,7 @@ export default function ReadingDrill({
             className="px-5 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 disabled:cursor-default"
             style={{ backgroundColor: SEPIA }}
           >
-            submit
+            Submit
           </button>
         ) : (
           <button
@@ -669,7 +669,7 @@ export default function ReadingDrill({
             onClick={next}
             className="px-5 py-2 rounded-lg border border-neutral-300 dark:border-neutral-600 text-sm font-medium"
           >
-            next card
+            Next Card
           </button>
         )}
       </div>
@@ -725,7 +725,7 @@ function AccidentalSequence({
             onClick={() => onChange(sequence.slice(0, -1))}
             className="text-xs text-neutral-400 hover:text-needswork px-1"
           >
-            undo
+            Undo
           </button>
         )}
       </div>

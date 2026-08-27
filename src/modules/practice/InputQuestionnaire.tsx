@@ -263,7 +263,7 @@ export default function InputQuestionnaire({
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
           >
-            cancel
+            Cancel
           </button>
           <button
             onClick={handleGenerate}
@@ -274,7 +274,7 @@ export default function InputQuestionnaire({
                 : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
             }`}
           >
-            generate
+            Generate
           </button>
         </footer>
       </div>
@@ -356,7 +356,7 @@ function Q1Time({
           </button>
         ))}
         <button onClick={openCustom} className={pill(showCustom)}>
-          custom
+          Custom
         </button>
       </div>
       {showCustom && (
@@ -496,17 +496,17 @@ function Q3DayPlan({
           onClick={() => onChange({ kind: 'just_this_session' })}
           className={pill(isJust)}
         >
-          just this session
+          Just This Session
         </button>
         <button onClick={handleFirstClick} className={pill(isFirst)}>
-          first of multiple
+          First of Multiple
         </button>
         {hasEarlierSessions && (
           <button
             onClick={() => onChange({ kind: 'continuing_today' })}
             className={pill(isContinuing)}
           >
-            continuing today
+            Continuing Today
           </button>
         )}
       </div>

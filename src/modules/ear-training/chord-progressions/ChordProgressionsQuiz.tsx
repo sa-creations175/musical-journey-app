@@ -691,7 +691,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
           onClick={() => setShowFocusPanel(true)}
           className="text-xs text-neutral-500 hover:text-fluent"
         >
-          ⊞ focus on specific progressions
+          ⊞ Focus on Specific Progressions
         </button>
         <p className="text-[11px] text-neutral-500 inline-flex items-center gap-2">
           <span>
@@ -706,7 +706,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               onClick={() => setFocusActive(false)}
               className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100 underline"
             >
-              exit focus
+              Exit Focus
             </button>
           )}
         </p>
@@ -828,7 +828,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
             onClick={handlePlayClick}
             className="px-4 py-2 rounded-lg border border-needswork text-needswork text-sm font-medium hover:bg-needswork/10"
           >
-            stop
+            Stop
           </button>
         )}
         {(runState === 'identifying' || runState === 'pattern') && (
@@ -836,7 +836,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
             onClick={handleReplay}
             className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
           >
-            replay
+            Replay
           </button>
         )}
         {runState === 'reveal' && (
@@ -851,7 +851,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               onClick={handleNext}
               className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
             >
-              next progression →
+              Next Progression →
             </button>
           </>
         )}
@@ -965,7 +965,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               disabled={!answers.some(a => a !== null)}
               className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm hover:border-neutral-400 disabled:opacity-40"
             >
-              clear all
+              Clear All
             </button>
             <button
               onClick={handleSubmitAll}
@@ -976,7 +976,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
                   : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
               }`}
             >
-              submit all answers
+              Submit All Answers
             </button>
           </div>
         </div>
@@ -1014,7 +1014,7 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
               onClick={() => handlePatternChoice(null)}
               className="text-xs text-neutral-500 hover:text-fluent"
             >
-              skip — no penalty
+              Skip — No Penalty
             </button>
           </div>
         </div>

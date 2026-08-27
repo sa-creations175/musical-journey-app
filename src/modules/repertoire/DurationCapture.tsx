@@ -104,7 +104,7 @@ export default function DurationCapture({ minutes, onChange }: Props) {
               onClick={reset}
               className="text-[11px] text-neutral-500 hover:text-needswork underline-offset-2 hover:underline"
             >
-              reset
+              Reset
             </button>
           </>
         )}

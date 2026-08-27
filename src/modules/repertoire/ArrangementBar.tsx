@@ -157,7 +157,7 @@ export default function ArrangementBar({
             onClick={() => onChangeCompare([])}
             className="ml-1 px-2 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-needswork hover:border-needswork/40"
           >
-            exit compare
+            Exit Compare
           </button>
         </div>
       ) : (
@@ -192,14 +192,14 @@ export default function ArrangementBar({
                 className="text-neutral-500 hover:text-fluent"
                 title="rename this arrangement"
               >
-                rename
+                Rename
               </button>
               <button
                 onClick={duplicateActive}
                 className="text-neutral-500 hover:text-fluent"
                 title="duplicate this arrangement"
               >
-                duplicate
+                Duplicate
               </button>
               {activeArrangement.id !== BASIC_ARRANGEMENT_ID && arrangements.length > 1 && (
                 <button
@@ -207,7 +207,7 @@ export default function ArrangementBar({
                   className="text-neutral-500 hover:text-needswork"
                   title="delete this arrangement"
                 >
-                  delete
+                  Delete
                 </button>
               )}
             </>
@@ -217,14 +217,14 @@ export default function ArrangementBar({
             onClick={() => setShowNew(true)}
             className="text-neutral-500 hover:text-fluent"
           >
-            + new arrangement
+            + New Arrangement
           </button>
           {arrangements.length > 1 && (
             <button
               onClick={() => onChangeCompare([activeId, ...arrangements.filter(a => a.id !== activeId).slice(0, 1).map(a => a.id)])}
               className="text-neutral-500 hover:text-fluent"
             >
-              compare arrangements
+              Compare Arrangements
             </button>
           )}
         </>
@@ -323,7 +323,7 @@ function NewArrangementModal({
             onClick={onCancel}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            cancel
+            Cancel
           </button>
           <button
             onClick={() => canCreate && onCreate({ name: name.trim(), copyFromActive })}
@@ -332,7 +332,7 @@ function NewArrangementModal({
               canCreate ? 'bg-fluent hover:opacity-90' : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
             }`}
           >
-            create
+            Create
           </button>
         </div>
       )}

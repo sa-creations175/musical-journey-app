@@ -112,7 +112,7 @@ export default function SequenceChoices({
               onClick={() => onRemoveBreak(target.placementId)}
               title="the two phrases merge and their notes combine"
             >
-              remove break
+              Remove Break
             </button>
           )}
         </>

@@ -336,7 +336,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
             onClick={handleStop}
             className="px-4 py-2 rounded-lg border border-needswork text-needswork text-sm font-medium hover:bg-needswork/10"
           >
-            stop and answer
+            Stop and Answer
           </button>
         )}
         {(runState === 'answering' || runState === 'reveal') && (
@@ -344,7 +344,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
             onClick={handleReplay}
             className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
           >
-            replay vamp
+            Replay Vamp
           </button>
         )}
         {runState === 'reveal' && (
@@ -352,7 +352,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
             onClick={handleNext}
             className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
           >
-            next →
+            Next →
           </button>
         )}
       </div>

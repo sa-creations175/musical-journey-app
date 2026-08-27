@@ -120,7 +120,7 @@ export default function SkillsCatalogue() {
           onClick={() => setView({ kind: 'summary' })}
           className="text-xs text-neutral-500 hover:text-fluent"
         >
-          ← back to summary
+          ← Back to Summary
         </button>
       )}
 
@@ -181,7 +181,7 @@ export default function SkillsCatalogue() {
                       className="text-xs hover:underline shrink-0"
                       style={meta ? { color: meta.accentHex } : undefined}
                     >
-                      show all modules →
+                      Show All Modules →
                     </button>
                   </div>
                 );
@@ -264,7 +264,7 @@ function SummaryView({
             onClick={onViewAll}
             className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
           >
-            view all skills →
+            View All Skills →
           </button>
         </div>
         <TierDistributionBar distribution={distribution} />

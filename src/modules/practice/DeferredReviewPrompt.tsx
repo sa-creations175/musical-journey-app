@@ -62,7 +62,7 @@ export default function DeferredReviewPrompt() {
                   onClick={() => resumeDeferredBlock(block.id)}
                   className="px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
                 >
-                  Do it now
+                  Do It Now
                 </button>
                 <button
                   type="button"
@@ -82,7 +82,7 @@ export default function DeferredReviewPrompt() {
         onClick={endDeferredReview}
         className="w-full px-3 py-3 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
       >
-        End session
+        End Session
       </button>
     </div>
   );

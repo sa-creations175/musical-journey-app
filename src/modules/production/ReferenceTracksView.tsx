@@ -145,7 +145,7 @@ export default function ReferenceTracksView() {
                 : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:border-production/60'
             }`}
           >
-            all
+            All
           </button>
           {allTags.map(tag => (
             <button
@@ -279,7 +279,7 @@ function TrackRow({ track, onEdit, onArchive, onDelete }: RowProps) {
             onClick={onEdit}
             className="text-[11px] px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-production hover:border-production/60"
           >
-            edit
+            Edit
           </button>
           <button
             onClick={onArchive}
@@ -291,7 +291,7 @@ function TrackRow({ track, onEdit, onArchive, onDelete }: RowProps) {
             onClick={onDelete}
             className="text-[11px] px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-needswork hover:border-needswork"
           >
-            delete
+            Delete
           </button>
         </div>
       </div>
@@ -769,7 +769,7 @@ export function BrowsePoolsModal({ onClose, preselectedPoolId, onAfterSave }: Br
                 onClick={backToPools}
                 className="text-xs text-neutral-500 hover:text-production"
               >
-                ← back to genres
+                ← Back to Genres
               </button>
             )}
           </div>

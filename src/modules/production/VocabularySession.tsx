@@ -337,7 +337,7 @@ export default function VocabularySession({ onBack }: Props) {
           onClick={onBack}
           className="text-xs text-neutral-500 hover:text-production"
         >
-          ← back to Production
+          ← Back to Production
         </button>
         <h1 className="text-2xl font-medium tracking-tight mt-2">Vocabulary</h1>
         <p className="text-neutral-500 text-sm">
@@ -465,13 +465,13 @@ export default function VocabularySession({ onBack }: Props) {
                   onClick={() => setSelectedClusters(new Set(VOCAB_CLUSTER_ORDER))}
                   className="text-neutral-500 hover:text-production"
                 >
-                  all
+                  All
                 </button>
                 <button
                   onClick={() => setSelectedClusters(new Set())}
                   className="text-neutral-500 hover:text-production"
                 >
-                  mixed (default)
+                  Mixed (Default)
                 </button>
               </div>
             </div>
@@ -504,7 +504,7 @@ export default function VocabularySession({ onBack }: Props) {
               onClick={handleStart}
               className="w-full py-3.5 rounded-xl bg-production text-white text-base font-semibold shadow-sm hover:opacity-90"
             >
-              Start drill
+              Start Drill
             </button>
             {caughtUp && (
               <p className="mt-3 text-xs text-neutral-500 italic">

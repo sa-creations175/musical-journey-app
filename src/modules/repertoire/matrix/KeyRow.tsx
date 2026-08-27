@@ -169,7 +169,7 @@ export default function KeyRow({
             title="Log one clean run-through of the whole song in this key, at or above your performance tempo. This is the last key-by-key requirement for Internalized."
             className="px-1 text-[9px] whitespace-nowrap tracking-wide font-medium text-neutral-400 hover:text-fluent"
           >
-            run at tempo · 1 clean pass
+            Run at Tempo · 1 Clean Pass
           </button>
         )}
         {showActions && onRunTest && (

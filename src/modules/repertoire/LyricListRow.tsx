@@ -191,14 +191,14 @@ export default function LyricListRow({
             }}
             className="px-2 py-0.5 rounded-full border border-fluent/40 text-fluent hover:bg-fluent/10"
           >
-            move it
+            Move It
           </button>
           <button
             type="button"
             onClick={() => setMoveWordId(null)}
             className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
           >
-            cancel
+            Cancel
           </button>
         </div>
       )}
@@ -231,7 +231,7 @@ export default function LyricListRow({
               }}
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
             >
-              un-place full line
+              Un-Place Full Line
             </button>
           )}
           {onDuplicate && (
@@ -244,7 +244,7 @@ export default function LyricListRow({
               title="insert an independent copy below — for a repeated refrain"
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
             >
-              duplicate
+              Duplicate
             </button>
           )}
           {!onSetLineKind ? null : isHeader ? (

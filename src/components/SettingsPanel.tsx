@@ -125,7 +125,7 @@ function AccountSection() {
           onClick={signOut}
           className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-needswork hover:text-needswork"
         >
-          sign out
+          Sign Out
         </button>
       </div>
       <p className="text-[11px] text-neutral-500 mt-2">
@@ -391,7 +391,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 onClick={commitName}
                 className="px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent"
               >
-                save
+                Save
               </button>
             </div>
           </section>
@@ -435,13 +435,13 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 onClick={handleExport}
                 className="px-4 min-h-[40px] rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
               >
-                export my data
+                Export My Data
               </button>
               <button
                 onClick={handlePickFile}
                 className="px-4 min-h-[40px] rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent"
               >
-                import backup file
+                Import Backup File
               </button>
               <input
                 ref={fileInputRef}
@@ -548,13 +548,13 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 onClick={() => setPendingBackup(null)}
                 className="px-4 min-h-[44px] rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm hover:border-neutral-400"
               >
-                cancel
+                Cancel
               </button>
               <button
                 onClick={handleConfirmRestore}
                 className="px-4 min-h-[44px] rounded-lg bg-needswork text-white text-sm font-medium hover:opacity-90"
               >
-                yes, restore backup
+                Yes, Restore Backup
               </button>
             </div>
           }

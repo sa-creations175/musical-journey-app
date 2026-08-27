@@ -59,7 +59,7 @@ export default function MentalVizDrills() {
         onClick={() => setOpen(true)}
         className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90"
       >
-        Start drill
+        Start Drill
       </button>
 
       {open && <MentalVizChordDrill onClose={closeDrill} />}

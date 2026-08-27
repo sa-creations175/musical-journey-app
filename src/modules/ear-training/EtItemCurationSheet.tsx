@@ -174,7 +174,7 @@ export default function EtItemCurationSheet({
             disabled={saving}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            close
+            Close
           </button>
         </div>
       }
@@ -210,7 +210,7 @@ export default function EtItemCurationSheet({
                     : 'bg-fluent text-white hover:opacity-90'
                 }`}
               >
-                save label
+                Save Label
               </button>
             </div>
           </section>
@@ -283,7 +283,7 @@ export default function EtItemCurationSheet({
                   }`}
                   title="Remove this row from the curation table entirely. Any custom label or flag on this item is lost."
                 >
-                  delete permanently
+                  Delete Permanently
                 </button>
               )}
               <button

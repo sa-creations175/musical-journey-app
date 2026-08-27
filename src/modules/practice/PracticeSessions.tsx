@@ -633,7 +633,7 @@ export default function PracticeSessions() {
               onClick={() => setView('home')}
               className="text-xs text-fluent hover:underline"
             >
-              ← back to Practice Sessions
+              ← Back to Practice Sessions
             </button>
           </div>
         )}
@@ -661,7 +661,7 @@ export default function PracticeSessions() {
         onClick={() => handleStartSession()}
         className="w-full mb-5 px-4 py-3 rounded-md bg-fluent text-white text-base font-medium hover:opacity-90"
       >
-        Start session
+        Start Session
       </button>
 
       {/*
@@ -746,7 +746,7 @@ export default function PracticeSessions() {
               data-autofocus
               className="px-4 py-1.5 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
             >
-              resume session
+              Resume Session
             </button>
           </div>
         }

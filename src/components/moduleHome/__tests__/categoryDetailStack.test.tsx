@@ -131,7 +131,7 @@ describe('the stack', () => {
     // And an expanded block's own close reads as collapse.
     act(() => {
       ([...host!.querySelectorAll('button')]
-        .find(x => (x.textContent ?? '').trim() === 'close') as HTMLElement).click();
+        .find(x => (x.textContent ?? '').trim() === 'Close') as HTMLElement).click();
     });
     expect(toggled).toEqual(['b', 'a']);
   });

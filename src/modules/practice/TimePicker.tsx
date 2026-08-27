@@ -62,7 +62,7 @@ export default function TimePicker({ value, onChange, helperText }: Props) {
           onClick={() => setCustomOpen(true)}
           className={pill(showCustom)}
         >
-          custom
+          Custom
         </button>
       </div>
       {showCustom && (

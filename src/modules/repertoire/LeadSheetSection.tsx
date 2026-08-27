@@ -2198,7 +2198,7 @@ export default function LeadSheetSection({
               className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:text-needswork hover:border-needswork"
               title="delete section"
             >
-              delete
+              Delete
             </button>
           )}
         </div>
@@ -2724,7 +2724,7 @@ export default function LeadSheetSection({
                       onClick={() => void handleConfirmAddProgression()}
                       className="px-2 py-0.5 text-[11px] rounded-full border border-fluent bg-fluent/10 text-fluent hover:bg-fluent/20"
                     >
-                      Add to ET practice
+                      Add to ET Practice
                     </button>
                     <button
                       type="button"

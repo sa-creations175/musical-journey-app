@@ -310,7 +310,7 @@ export function GlobalSessionBanner() {
             title="set this block aside and come back to it at the end of the session"
             className="text-xs px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-fluent hover:text-fluent"
           >
-            defer
+            Defer
           </button>
         )}
         <button
@@ -318,7 +318,7 @@ export function GlobalSessionBanner() {
           onClick={handleEndClick}
           className="text-xs px-2.5 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
         >
-          end session
+          End Session
         </button>
       </div>
       {audioPanelOpen && (

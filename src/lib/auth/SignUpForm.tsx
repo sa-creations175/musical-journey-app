@@ -93,7 +93,7 @@ export default function SignUpForm({ onSwitchToLogin }: Props) {
           onClick={onSwitchToLogin}
           className="text-production hover:underline"
         >
-          sign in
+          Sign In
         </button>
       </p>
     </form>

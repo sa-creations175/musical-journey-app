@@ -1297,7 +1297,7 @@ export default function WeeklyPlan({ open, onClose, weekStart: weekStartProp, in
             disabled={saving}
             className="px-3 py-1.5 text-sm rounded-md border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 disabled:opacity-50"
           >
-            Re-plan
+            Re-Plan
           </button>
         ) : (
           <button

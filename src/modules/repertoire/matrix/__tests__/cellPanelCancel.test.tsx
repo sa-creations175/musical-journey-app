@@ -159,7 +159,7 @@ describe('Done, and then Log it', () => {
     const h = mount();
     h.click('Practice');
     h.click('Done');
-    await h.clickAsync('Log it');
+    await h.clickAsync('Log It');
 
     const rows = await db.songPracticeLog.toArray();
     expect(rows).toHaveLength(1);

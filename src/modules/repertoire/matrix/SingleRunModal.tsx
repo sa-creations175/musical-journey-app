@@ -178,7 +178,7 @@ export default function SingleRunModal({
               disabled={!hasBpm || busy}
               className="flex-1 px-3 py-2 text-sm rounded-md bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-300 dark:hover:bg-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
             >
-              ✗ Not clean
+              ✗ Not Clean
             </button>
           </div>
           <p className="mt-1.5 text-[11px] text-neutral-500">

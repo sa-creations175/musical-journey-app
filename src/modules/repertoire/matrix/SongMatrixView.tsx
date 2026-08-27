@@ -292,7 +292,7 @@ export default function SongMatrixView({
           onClick={onClose}
           className="text-xs text-neutral-500 hover:text-fluent inline-flex items-center gap-1"
         >
-          ← song detail
+          ← Song Detail
         </button>
       )}
 

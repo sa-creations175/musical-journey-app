@@ -133,7 +133,7 @@ export default function EtBulkActionBar({
             }`}
             title="Remove the curation rows for these items entirely. Custom labels and flags are lost; catalog defaults resume."
           >
-            Delete all hidden
+            Delete All Hidden
           </button>
         )}
         <button

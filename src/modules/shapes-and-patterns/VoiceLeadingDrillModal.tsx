@@ -340,7 +340,7 @@ export default function VoiceLeadingDrillModal({
               onClick={handleCancel}
               className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
             >
-              cancel — don't log
+              Cancel — Don't Log
             </button>
           )}
           <button
@@ -452,7 +452,7 @@ export default function VoiceLeadingDrillModal({
                 onClick={handleStart}
                 className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
               >
-                Start drill
+                Start Drill
               </button>
             )}
             {phase === 'running' && (
@@ -461,7 +461,7 @@ export default function VoiceLeadingDrillModal({
                   onClick={handlePause}
                   className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
                 >
-                  pause
+                  Pause
                 </button>
                 <button
                   onClick={handleCompleteEarly}
@@ -472,7 +472,7 @@ export default function VoiceLeadingDrillModal({
                       : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
                   }`}
                 >
-                  complete early
+                  Complete Early
                 </button>
               </>
             )}
@@ -482,7 +482,7 @@ export default function VoiceLeadingDrillModal({
                   onClick={handleResume}
                   className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
                 >
-                  resume
+                  Resume
                 </button>
                 <button
                   onClick={handleCompleteEarly}
@@ -493,13 +493,13 @@ export default function VoiceLeadingDrillModal({
                       : 'border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent'
                   }`}
                 >
-                  complete early
+                  Complete Early
                 </button>
                 <button
                   onClick={handleResetToSetup}
                   className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm text-neutral-500"
                 >
-                  reset
+                  Reset
                 </button>
               </>
             )}

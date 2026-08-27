@@ -45,13 +45,13 @@ export default function BackupReminderBanner() {
           onClick={onExport}
           className="px-2.5 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
         >
-          export now
+          Export Now
         </button>
         <button
           onClick={onSnooze}
           className="px-2.5 py-1 rounded-md text-xs text-neutral-600 dark:text-neutral-300 hover:text-fluent"
         >
-          remind me later
+          Remind Me Later
         </button>
       </div>
     </div>

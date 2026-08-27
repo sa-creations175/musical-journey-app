@@ -131,7 +131,7 @@ export default function AnswerKeyboard({
             className="px-2 py-1 rounded border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent"
             aria-label="Show the octave below"
           >
-            ↓ octave
+            ↓ Octave
           </button>
           <span aria-live="polite">
             {shift === 0 ? 'the subject’s octave' : shift > 0 ? `${shift} above` : `${-shift} below`}
@@ -142,7 +142,7 @@ export default function AnswerKeyboard({
             className="px-2 py-1 rounded border border-neutral-200 dark:border-neutral-700 hover:border-fluent hover:text-fluent"
             aria-label="Show the octave above"
           >
-            ↑ octave
+            ↑ Octave
           </button>
         </div>
       )}

@@ -584,7 +584,7 @@ function AttentionSection({ data }: { data: DashboardData }) {
           ? `no recent practice on ${song.artist}`
           : `${song.daysSince} days since you last played it`,
         route: '/repertoire',
-        cta: 'revisit',
+        cta: 'Revisit',
       });
     }
 
@@ -595,7 +595,7 @@ function AttentionSection({ data }: { data: DashboardData }) {
         title: `${hint.label} has uneven coverage`,
         subtitle: 'one drill type dominates — other inversions / variants need time.',
         route: '/shapes-and-patterns',
-        cta: 'balance',
+        cta: 'Balance',
       });
     }
 
@@ -611,7 +611,7 @@ function AttentionSection({ data }: { data: DashboardData }) {
           title: `${m.label} hasn't been touched in ${m.days} days`,
           subtitle: 'a short session would bring it back into the rotation.',
           route: m.route,
-          cta: 'open',
+          cta: 'Open',
         });
       }
     }
@@ -624,7 +624,7 @@ function AttentionSection({ data }: { data: DashboardData }) {
           title: `${m.counts.needsWork} weak-spot items in ${m.label}`,
           subtitle: 'below 50% on the rolling window — targeted practice pays off.',
           route: m.route,
-          cta: 'drill',
+          cta: 'Drill',
         });
       }
     }
@@ -731,13 +731,13 @@ function CreativeGeniusSection({
           onClick={onStartWithPrompt}
           className="px-4 py-1.5 rounded-md bg-fluent text-white text-sm font-medium hover:opacity-90"
         >
-          start with this prompt
+          Start with This Prompt
         </button>
         <button
           onClick={onLogCreative}
           className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-sm hover:bg-fluent/10"
         >
-          log a creative session
+          Log a Creative Session
         </button>
         <Link
           to="/harmonic-diary"

@@ -150,7 +150,7 @@ describe('the two key-level actions', () => {
     // sitting) belongs in the modal, which has room to state it.
     const r = render({ runCounts: true });
     expect(find(r, 'test · 3 clean in a row')).toBeDefined();
-    expect(find(r, 'run at tempo · 1 clean pass')).toBeDefined();
+    expect(find(r, 'Run at Tempo · 1 Clean Pass')).toBeDefined();
     r.unmount();
   });
 
@@ -160,7 +160,7 @@ describe('the two key-level actions', () => {
     // has nothing to do with sections.
     const r = render({ runCounts: true });
     const test = find(r, 'test · 3 clean in a row');
-    const run = find(r, 'run at tempo · 1 clean pass');
+    const run = find(r, 'Run at Tempo · 1 Clean Pass');
     act(() => { test!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     act(() => { run!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(r.tests).toEqual(['sk-F#']);
@@ -178,7 +178,7 @@ describe('the two key-level actions', () => {
 describe('the run button appears only where a run counts', () => {
   const label = (b: Element) => (b.textContent ?? '').replace(/\s+/g, ' ').trim();
   const hasRun = (r: ReturnType<typeof render>) =>
-    r.buttons().some(b => label(b).startsWith('run at tempo'));
+    r.buttons().some(b => label(b).startsWith('Run at Tempo'));
 
   it('is absent when a clean run on this key advances nothing', () => {
     // THE LOAD-BEARING ONE. A single run advances exactly one

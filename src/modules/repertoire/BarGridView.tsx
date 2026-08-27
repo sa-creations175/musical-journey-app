@@ -982,7 +982,7 @@ function TimeSignaturePicker({
           disabled={trimmedDraft === ''}
           className="px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
         >
-          apply
+          Apply
         </button>
       </form>
       {isOverridden && (
@@ -991,7 +991,7 @@ function TimeSignaturePicker({
           onClick={() => onPick(null)}
           className="text-[11px] text-neutral-500 hover:text-needswork"
         >
-          clear override (use song default)
+          Clear Override (Use Song Default)
         </button>
       )}
     </div>
@@ -1726,7 +1726,7 @@ function SyllableEditPopover({
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent"
               title="return just this one to the unplaced pool"
             >
-              Un-place this
+              Un-Place This
             </button>
           )}
           {onUnplaceLine && (
@@ -1736,7 +1736,7 @@ function SyllableEditPopover({
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:border-fluent hover:text-fluent"
               title="return every syllable of this line to the tray, keeping its text"
             >
-              Un-place full line
+              Un-Place Full Line
             </button>
           )}
         </div>
@@ -1767,7 +1767,7 @@ function SyllableEditPopover({
             onClick={() => onModeChange('actions')}
             className="text-[10px] text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
           >
-            ← back
+            ← Back
           </button>
         </div>
       )}
@@ -2438,7 +2438,7 @@ function WordEditPopover({
               disabled={!canJoinPrev}
               className="px-2 py-0.5 rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              Join prev
+              Join Prev
             </button>
           )}
           {onJoin && (
@@ -2483,7 +2483,7 @@ function WordEditPopover({
             onClick={() => onModeChange('actions')}
             className="text-[10px] text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-200"
           >
-            ← back
+            ← Back
           </button>
         </div>
       )}
@@ -3192,7 +3192,7 @@ function ChordEditorPopover({
         }}
         className="text-neutral-500 hover:text-needswork text-[11px]"
       >
-        cancel
+        Cancel
       </button>
     </div>
   );
@@ -3364,7 +3364,7 @@ function ChordEditorPopover({
                   disabled={customDraft.trim() === ''}
                   className="px-2 py-0.5 text-[11px] rounded border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  apply
+                  Apply
                 </button>
               </form>
               {manualTag !== undefined && (
@@ -3376,7 +3376,7 @@ function ChordEditorPopover({
                   }}
                   className="text-[11px] text-neutral-500 hover:text-needswork"
                 >
-                  clear tag
+                  Clear Tag
                 </button>
               )}
             </div>
@@ -3400,10 +3400,10 @@ function ChordEditorPopover({
                     disabled={draftVoicing.length === 0}
                     className="text-fluent hover:underline disabled:opacity-30"
                   >
-                    Save to library
+                    Save to Library
                   </button>
                   <button type="button" onClick={cancelVoicing} className="text-neutral-500 hover:text-needswork">
-                    cancel
+                    Cancel
                   </button>
                 </div>
               ) : (
@@ -3477,7 +3477,7 @@ function ChordEditorPopover({
                   <div className="flex items-center justify-between text-[11px]">
                     {isCustomSlide ? (
                       <button type="button" onClick={saveCustomAsPattern} className="text-fluent hover:underline">
-                        Save to library
+                        Save to Library
                       </button>
                     ) : (
                       <button

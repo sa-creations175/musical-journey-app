@@ -118,7 +118,7 @@ export default function WantToLearnView({ onBack, onPromoted }: Props) {
         data-testid="want-to-learn-back"
         className="text-xs text-neutral-500 hover:text-fluent"
       >
-        ← back to active repertoire
+        ← Back to Active Repertoire
       </button>
 
       <div className="flex items-baseline justify-between flex-wrap gap-2">
@@ -132,7 +132,7 @@ export default function WantToLearnView({ onBack, onPromoted }: Props) {
           onClick={() => setAdding(true)}
           className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-xs font-medium hover:bg-fluent/10"
         >
-          + add
+          + Add
         </button>
       </div>
 
@@ -231,8 +231,8 @@ function AddEntryRow({ onCancel, onSaved }: { onCancel: () => void; onSaved: () 
         <input value={tagsText} onChange={e => setTagsText(e.target.value)} placeholder="tags, comma-separated" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1" />
       </div>
       <div className="flex items-center gap-2">
-        <button onClick={save} disabled={!canSave} className={`px-3 py-1 rounded-md text-xs font-medium text-white ${canSave ? 'bg-fluent hover:opacity-90' : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'}`}>save</button>
-        <button onClick={onCancel} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">cancel</button>
+        <button onClick={save} disabled={!canSave} className={`px-3 py-1 rounded-md text-xs font-medium text-white ${canSave ? 'bg-fluent hover:opacity-90' : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'}`}>Save</button>
+        <button onClick={onCancel} className="px-3 py-1 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs">Cancel</button>
       </div>
     </div>
   );
@@ -303,7 +303,7 @@ function EntryRow({ entry, onPromote }: { entry: WantToLearnEntry; onPromote: ()
             {editing ? 'done' : 'edit'}
           </button>
           <button onClick={onPromote} className="px-2.5 py-1 rounded-md border border-fluent text-fluent text-[11px] font-medium hover:bg-fluent/10">
-            promote →
+            Promote →
           </button>
           <button onClick={remove} className="text-neutral-400 hover:text-needswork">✕</button>
         </div>
@@ -319,7 +319,7 @@ function EntryRow({ entry, onPromote }: { entry: WantToLearnEntry; onPromote: ()
               </select>
             </label>
             <input value={tagsText} onChange={e => setTagsText(e.target.value)} placeholder="tags, comma-separated" className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1" />
-            <button onClick={saveEdits} className="px-2.5 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">save</button>
+            <button onClick={saveEdits} className="px-2.5 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90">Save</button>
           </div>
         </div>
       ) : (

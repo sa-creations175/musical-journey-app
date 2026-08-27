@@ -127,14 +127,14 @@ export default function LyricPasteBox({
           disabled={draft.trim() === ''}
           className="px-2 py-0.5 text-[11px] rounded-full border border-fluent bg-fluent/10 text-fluent hover:bg-fluent/20 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          add lines
+          Add Lines
         </button>
         <button
           type="button"
           onClick={() => setDraft('')}
           className="px-2 py-0.5 text-[11px] rounded-full border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:border-fluent hover:text-fluent"
         >
-          clear
+          Clear
         </button>
         <span className="text-[10px] text-neutral-400 hidden sm:inline">
           cmd/ctrl + enter

@@ -466,7 +466,7 @@ describe('reaching a line break', () => {
       (el.querySelector('[aria-label="edit this line break"]') as HTMLElement).click(),
     );
     const remove = [...el.querySelectorAll('button')].find(
-      b => b.textContent?.trim() === 'remove break',
+      b => b.textContent?.trim() === 'Remove Break',
     )!;
     act(() => remove.click());
     expect(removed).toEqual(['p1']);
