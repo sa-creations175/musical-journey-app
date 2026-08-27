@@ -2022,7 +2022,7 @@ function SongDetailInner({
                 || song.youtubeLink) && (
                 <div className="flex items-center gap-3 flex-wrap text-xs">
                   {song.spotifyLink && (
-                    <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">spotify ↗</a>
+                    <a href={song.spotifyLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">Spotify ↗</a>
                   )}
                   {song.referenceVideos && song.referenceVideos.length > 0
                     ? song.referenceVideos.map(video => (
@@ -2043,7 +2043,7 @@ function SongDetailInner({
                     // the editor and saves (which migrates + clears it).
                     : song.youtubeLink && (
                       <a href={song.youtubeLink} target="_blank" rel="noopener noreferrer" className="text-fluent hover:underline">
-                        youtube ↗
+                        YouTube ↗
                       </a>
                     )}
                 </div>
@@ -2810,7 +2810,7 @@ function SongAssociationsSection({ song }: { song: Song }) {
           to={`/harmonic-diary?skill=${encodeURIComponent(skillId)}`}
           className="text-[11px] text-fluent hover:underline"
         >
-          open in Harmonic Diary →
+          Open in Harmonic Diary →
         </Link>
       </div>
 

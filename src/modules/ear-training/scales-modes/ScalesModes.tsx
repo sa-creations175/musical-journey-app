@@ -126,13 +126,13 @@ export default function ScalesModes() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <Link to="/ear-training" className="text-xs text-neutral-500 hover:text-fluent">
-          ← ear training
+          ← Ear Training
         </Link>
         <Link
           to="/ear-training/scales-modes/calendar"
           className="text-xs text-neutral-500 hover:text-fluent"
         >
-          view calendar →
+          View Calendar →
         </Link>
       </div>
 

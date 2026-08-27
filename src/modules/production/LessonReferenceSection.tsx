@@ -80,7 +80,7 @@ export default function LessonReferenceSection({ lessonId }: Props) {
             to="/production?view=reference-tracks"
             className="text-[11px] text-production hover:underline"
           >
-            open full library →
+            Open Full Library →
           </Link>
         </div>
 

@@ -429,9 +429,9 @@ function VampReveal({ mode, wasCorrect }: { mode: Mode; wasCorrect: boolean }) {
                   <span className="text-neutral-500"> — {s.artist}</span>
                 </span>
                 <a href={songSearchUrl('spotify', s.title, s.artist)} target="_blank" rel="noopener noreferrer"
-                   className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-[10px] hover:border-fluent hover:text-fluent">spotify</a>
+                   className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-[10px] hover:border-fluent hover:text-fluent">Spotify</a>
                 <a href={songSearchUrl('youtube', s.title, s.artist)} target="_blank" rel="noopener noreferrer"
-                   className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-[10px] hover:border-fluent hover:text-fluent">youtube</a>
+                   className="px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 text-[10px] hover:border-fluent hover:text-fluent">YouTube</a>
               </li>
             ))}
           </ul>

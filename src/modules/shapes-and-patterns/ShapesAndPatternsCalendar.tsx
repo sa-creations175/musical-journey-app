@@ -59,7 +59,7 @@ export default function ShapesAndPatternsCalendar() {
     <div className="space-y-5">
       <div>
         <Link to="/shapes-and-patterns" className="text-xs text-neutral-500 hover:text-fluent">
-          ← back to shapes &amp; patterns
+          ← Back to Shapes &amp; Patterns
         </Link>
         <h1 className="text-2xl font-medium tracking-tight mt-2">Shapes &amp; Patterns · Calendar</h1>
         <p className="text-neutral-500 text-sm">

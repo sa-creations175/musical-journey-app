@@ -8,7 +8,7 @@ export default function IntervalsCalendar() {
     <div className="space-y-6">
       <div>
         <Link to="/ear-training/intervals" className="text-xs text-neutral-500 hover:text-fluent">
-          ← intervals
+          ← Intervals
         </Link>
         <h1 className="text-2xl font-medium tracking-tight mt-2">Intervals Practice Calendar</h1>
         <p className="text-neutral-500 text-sm">

@@ -743,7 +743,7 @@ function CreativeGeniusSection({
           to="/harmonic-diary"
           className="px-3 py-1.5 rounded-md border border-amber-400/60 text-amber-700 dark:text-amber-300 text-sm hover:bg-amber-400/10"
         >
-          browse your Harmonic Diary →
+          Browse Your Harmonic Diary →
         </Link>
         {stats?.lastSessionAt && (
           <span className="text-xs text-neutral-500 ml-auto">
@@ -933,7 +933,7 @@ function ModulesPreviewSection({ data }: { data: DashboardData }) {
           to="/skills-catalogue"
           className="text-xs text-fluent hover:underline"
         >
-          open skills catalogue →
+          Open Skills Catalogue →
         </Link>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">

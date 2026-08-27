@@ -7,7 +7,7 @@ export default function ScalesModesCalendar() {
     <div className="space-y-6">
       <div>
         <Link to="/ear-training/scales-modes" className="text-xs text-neutral-500 hover:text-fluent">
-          ← scales &amp; modes
+          ← Scales &amp; Modes
         </Link>
         <h1 className="text-2xl font-medium tracking-tight mt-2">Scales &amp; Modes Practice Calendar</h1>
         <p className="text-neutral-500 text-sm">

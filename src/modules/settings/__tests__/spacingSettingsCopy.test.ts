@@ -51,3 +51,26 @@ describe('the fixed vocabulary', () => {
     expect(source).toContain('apply from the next time you answer');
   });
 });
+
+describe('the detail panel names its own columns', () => {
+  it('heads the multiplier column "Then grows by", not "Comes back in"', () => {
+    // The spec's detail panel headed a column of × 1.5 values "Comes
+    // back in", disagreeing with its own table. What sits there is the
+    // growth multiplier; the first wait has its own field above it.
+    // The detail panel's two column headings, as markup — a count of
+    // the phrase would also match the paragraph explaining the fix.
+    expect(source).toContain('<span className="min-w-[188px] text-right">Then grows by</span>');
+    expect(source).not.toContain('<span className="min-w-[96px] text-right">Comes back in</span>');
+  });
+
+  it('keeps back-to-start selectable rather than a one-way door', () => {
+    expect(source).toContain('back to start');
+    expect(source).toContain('multiply by');
+    expect(source).toContain('A MODE, NOT A NUMBER, AND IT HAS TO BE REVERSIBLE');
+  });
+
+  it('lays the table out fixed so nothing overflows sideways', () => {
+    expect(source).toContain('table-fixed');
+    expect(source).toContain('<colgroup>');
+  });
+});

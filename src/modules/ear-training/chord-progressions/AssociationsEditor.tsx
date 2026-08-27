@@ -175,7 +175,7 @@ export default function AssociationsEditor({ progressionId, alwaysEditing = fals
         to={`/harmonic-diary?skill=${encodeURIComponent(canonicalSkillId('chord-progressions', 'item', progressionId))}`}
         className="inline-block text-[11px] text-fluent hover:underline"
       >
-        open in Harmonic Diary →
+        Open in Harmonic Diary →
       </Link>
     </div>
   );

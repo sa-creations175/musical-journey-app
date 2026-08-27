@@ -128,7 +128,7 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
           onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
           onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
         >
-          practise this →
+          Practise This →
         </Link>
       )}
     </article>

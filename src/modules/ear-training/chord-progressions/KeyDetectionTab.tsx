@@ -415,7 +415,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
             to="/harmonic-fluency"
             className="inline-block text-xs text-fluent hover:underline"
           >
-            practice functional harmony cards → harmonic fluency
+            Practice Functional Harmony Cards → Harmonic Fluency
           </Link>
         </div>
       )}

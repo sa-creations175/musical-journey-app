@@ -860,9 +860,9 @@ export function BrowsePoolsModal({ onClose, preselectedPoolId, onAfterSave }: Br
               )}
               <div className="pl-6 text-[10px] text-neutral-500 truncate">
                 links auto:{' '}
-                <a href={buildSpotifySearchLink(p.title, p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">spotify</a>
+                <a href={buildSpotifySearchLink(p.title, p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">Spotify</a>
                 {' · '}
-                <a href={buildYouTubeProducerLink(p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">youtube</a>
+                <a href={buildYouTubeProducerLink(p.artist)} target="_blank" rel="noreferrer noopener" className="text-production hover:underline">YouTube</a>
               </div>
             </div>
           ))}

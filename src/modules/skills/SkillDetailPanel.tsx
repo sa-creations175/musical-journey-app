@@ -171,7 +171,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-sm hover:bg-fluent/10"
           >
-            practise this skill →
+            Practise This Skill →
           </Link>
           <button
             onClick={onClose}
@@ -358,7 +358,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
                   onClick={onClose}
                   className="text-[11px] text-fluent hover:underline"
                 >
-                  open in Harmonic Diary →
+                  Open in Harmonic Diary →
                 </Link>
               </div>
             </div>

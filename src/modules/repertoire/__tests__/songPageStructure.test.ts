@@ -100,7 +100,7 @@ describe('two cards were absorbed, not merely hidden', () => {
     // Guard the guard: deleting the heading and losing the content
     // would satisfy the assertion above.
     expect(DETAIL).toContain('+ Add a Note About This Song');
-    expect(DETAIL).toContain('spotify ↗');
+    expect(DETAIL).toContain('Spotify ↗');
   });
 
   it('"learning status" is no longer its own card', () => {
@@ -226,7 +226,7 @@ describe('the metadata card is two columns', () => {
     const column = DETAIL.slice(right, DETAIL.indexOf('>matrix</h3>'));
     for (const marker of [
       '+ Add a Note About This Song',
-      'spotify ↗',
+      'Spotify ↗',
       '<SongAssociationsSection song={song} />',
     ]) {
       expect(column, marker).toContain(marker);
@@ -271,7 +271,7 @@ describe('the facts row reads as facts', () => {
   it('puts the links above the two write-something-down lines', () => {
     // Links are the only thing in that column you reach for
     // mid-practice.
-    const links = DETAIL.indexOf('spotify ↗');
+    const links = DETAIL.indexOf('Spotify ↗');
     expect(links).toBeLessThan(DETAIL.indexOf('+ Add a Note About This Song'));
     expect(links).toBeLessThan(DETAIL.indexOf('<SongAssociationsSection song={song} />'));
   });

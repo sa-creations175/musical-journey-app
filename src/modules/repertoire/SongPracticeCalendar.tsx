@@ -85,7 +85,7 @@ export default function SongPracticeCalendar() {
     return (
       <div className="space-y-3">
         <Link to="/repertoire" className="text-xs text-neutral-500 hover:text-fluent">
-          ← back to repertoire
+          ← Back to Repertoire
         </Link>
         <p className="text-sm text-neutral-500">
           {songId ? 'that song no longer exists.' : 'no song named in this link.'}

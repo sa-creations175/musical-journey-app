@@ -159,7 +159,7 @@ export default function ModeAssociationsEditor({ modeId, alwaysEditing = false }
         to={`/harmonic-diary?skill=${encodeURIComponent(canonicalSkillId('scales-modes', 'mode', modeId))}`}
         className="inline-block text-[11px] text-fluent hover:underline"
       >
-        open in Harmonic Diary →
+        Open in Harmonic Diary →
       </Link>
     </div>
   );

@@ -418,7 +418,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent
                 hover:text-fluent"
             >
-              open spacing &amp; scheduling
+              Open Spacing &amp; Scheduling
             </Link>
           </section>
 

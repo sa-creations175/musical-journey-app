@@ -401,7 +401,7 @@ function SummaryView({
                     className="text-[10px] hover:underline"
                     style={meta ? { color: meta.accentHex } : undefined}
                   >
-                    open module →
+                    Open Module →
                   </Link>
                   <span className="text-[10px] text-neutral-400">view skills</span>
                 </div>

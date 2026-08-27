@@ -178,7 +178,7 @@ export default function IntervalDescriptionEditor({ intervalKey, defaultText }: 
               : '/harmonic-diary'}
             className="inline-block text-[11px] text-fluent hover:underline"
           >
-            open in Harmonic Diary →
+            Open in Harmonic Diary →
           </Link>
         );
       })()}

@@ -120,7 +120,7 @@ export default function GoalsNudgeBanner() {
           onClick={handleEngage}
           className="px-3 py-1.5 text-sm rounded-md bg-fluent text-white hover:bg-fluent/90"
         >
-          Set up goals →
+          Set Up Goals →
         </Link>
       </div>
     </div>

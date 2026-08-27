@@ -8,7 +8,7 @@ export default function ChordProgressionsCalendar() {
     <div className="space-y-6">
       <div>
         <Link to="/ear-training/chord-progressions" className="text-xs text-neutral-500 hover:text-fluent">
-          ← chord progressions
+          ← Chord Progressions
         </Link>
         <h1 className="text-2xl font-medium tracking-tight mt-2">Chord Progressions Practice Calendar</h1>
         <p className="text-neutral-500 text-sm">

@@ -32,7 +32,7 @@ export default function ReturnToCatalogueBanner() {
           to="/skills-catalogue"
           className="text-fluent font-medium hover:underline"
         >
-          ← back to skills catalogue
+          ← Back to Skills Catalogue
         </Link>
       </div>
       <button
