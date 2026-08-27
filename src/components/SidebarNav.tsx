@@ -306,13 +306,14 @@ export default function SidebarNav({ collapsed = false }: SidebarNavProps) {
                 // children read clearly as "inside" the group header
                 // rather than peers of it.
                 <div className="flex flex-col gap-0.5 md:gap-1 mt-1 ml-2 pl-2 border-l border-neutral-200 dark:border-neutral-800">
-                  {group.items.map(item => (
+                  {group.items.map((item, i) => (
                     <NavItemRow
                       key={item.id}
                       item={item}
                       expanded={expanded}
                       onToggle={toggle}
                       currentPath={currentPath}
+                      ruled={group.id === 'structured-learning' && i > 0}
                     />
                   ))}
                 </div>
@@ -404,15 +405,38 @@ interface RowProps {
   expanded: Record<string, boolean>;
   onToggle: (id: string) => void;
   currentPath: string;
+  /**
+   * Draw a rule above this row.
+   *
+   * Structured Learning holds six modules, each of which opens into a
+   * list of its own, and at rest they read as one undifferentiated
+   * column. The rule says where one module ends and the next begins.
+   *
+   * A RULE RATHER THAN A TINT. The other candidate was a wash of each
+   * module's own accent behind its row, and it loses twice: the accent
+   * is already on the icon, so a second copy behind the words competes
+   * with it; and the wash lands at the same weight as `bg-fluent/10`,
+   * which is how an ACTIVE row is drawn — so the row you are on stops
+   * being the one that looks different. Reading, Shapes & Patterns and
+   * Song Repertoire also tint to nearly the same warm beige at that
+   * opacity, which separates less than a line does anyway.
+   */
+  ruled?: boolean;
 }
 
-function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
+function NavItemRow({ item, expanded, onToggle, currentPath, ruled = false }: RowProps) {
   const hasChildren = Boolean((item.children && item.children.length > 0) || (item.nestedChildren && item.nestedChildren.length > 0));
   const isOpen = hasChildren && expanded[item.id] === true;
   // Central module meta provides the icon + accent colour so the
   // sidebar's visual language matches the Skills Catalogue /
   // Dashboard "Modules at a glance" cards.
   const meta = moduleMetaById(item.id);
+
+  // Sits ABOVE the row, so the first module in the group has none and
+  // the group header keeps its own spacing.
+  const rule = ruled
+    ? 'border-t border-neutral-200/70 dark:border-neutral-800/70 pt-1 mt-0.5'
+    : '';
 
   // Simple module — just a NavLink.
   if (!hasChildren) {
@@ -422,7 +446,7 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
         end={item.end}
         state={MODULE_HOME_STATE}
         className={({ isActive }) =>
-          `px-3 py-2 rounded-lg text-sm transition inline-flex items-center gap-2 min-w-0 ${
+          `px-3 py-2 rounded-lg text-sm transition inline-flex items-center gap-2 min-w-0 ${rule} ${
             isActive
               ? 'bg-fluent/10 text-fluent'
               : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800'
@@ -446,7 +470,7 @@ function NavItemRow({ item, expanded, onToggle, currentPath }: RowProps) {
   // obvious place to press and did not open anything; the mark beside
   // it was a separate button for what reads as one action.
   return (
-    <div>
+    <div className={rule}>
       <div className="flex items-center gap-0.5">
         <NavLink
           to={item.to}
