@@ -8,7 +8,6 @@ import {
 } from './lib/spacing/clearDeclaredStages';
 import SpacingSettings from './modules/settings/SpacingSettings';
 import Layout from './components/Layout';
-import Dashboard from './modules/dashboard/Dashboard';
 import HarmonicFluency from './modules/harmonic-fluency/HarmonicFluency';
 import HarmonicFluencyCalendar from './modules/harmonic-fluency/HarmonicFluencyCalendar';
 import HarmonicFluencyCategory from './modules/harmonic-fluency/HarmonicFluencyCategory';
@@ -97,13 +96,6 @@ export default function App() {
                 pins that, because a swap leaving three paths on the old
                 screen is worse than no swap. */}
             <Route index element={<DashboardScreen />} />
-            {/* The old dashboard, still reachable for comparison.
-                TEMPORARY: this route and `modules/dashboard/Dashboard`
-                come out in a separate commit once the new screen has
-                been used properly — the same way PracticeLogModal was
-                retired. Deleting it in the swap commit would remove the
-                thing the swap is meant to be checked against. */}
-            <Route path="dashboard-old" element={<Dashboard />} />
             {/* Bookmarked and sitting open in tabs, so it redirects
                 rather than 404s. The search is carried across because
                 the dashboard's filters and sort live in the URL — a
