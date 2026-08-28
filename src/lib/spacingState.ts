@@ -389,6 +389,108 @@ export async function getSpacingState(
 }
 
 /**
+ * The one place a brand-new spacing row is built.
+ *
+ * THREE CALLERS, ONE SHAPE. `recordEngagement`, `recordRecency` and
+ * `recordEngagementOccurred` each need a first row and each used to
+ * spell out the same eight fields. A field added to one and missed in
+ * another is a row that is subtly a different kind of row, and the
+ * only way to notice would be a bug months later in whatever reads it.
+ *
+ * The scheduling fields are the ARGUMENT rather than a default,
+ * because they are the entire difference between the callers and
+ * hiding that behind a default is how the difference gets lost.
+ */
+function newSpacingRow(args: {
+  itemRef: string;
+  moduleRef: string;
+  hand: DrillHand;
+  memoryType: MemoryType;
+  history: PerformanceEntry[];
+  t: number;
+  currentIntervalDays: number;
+  nextDueAt: number | null;
+}): SpacingState {
+  return {
+    id: crypto.randomUUID(),
+    itemRef: args.itemRef,
+    moduleRef: args.moduleRef,
+    hand: args.hand,
+    memoryType: args.memoryType,
+    acquisitionStage: computeNextStage(args.memoryType, 'acquiring', args.history),
+    currentIntervalDays: args.currentIntervalDays,
+    lastEngagedAt: args.t,
+    nextDueAt: args.nextDueAt,
+    performanceHistory: args.history as Array<Record<string, unknown>>,
+  };
+}
+
+/**
+ * Record that an item WAS ENGAGED WITH, and schedule nothing.
+ *
+ * =====================================================================
+ * THE ABSENCE OF A DUE DATE IS THE POINT, NOT AN OMISSION.
+ *
+ * `recordEngagement` always ends with a schedule: an answer moves an
+ * interval, and a `recency` signal moves a due date forward. Both are
+ * right for a thing you DID — you sat at the keyboard, so the app has
+ * an opinion about when you should do it again.
+ *
+ * Some things that count as engagement are not that. Charting a
+ * section of a lead sheet is the input step the rest of the app
+ * depends on: it says the work exists, not that it has been played.
+ * Giving it an interval would turn writing a chart into practice debt,
+ * and a chart that creates debt is a chart you put off writing.
+ *
+ * So this writes the history entry and leaves `currentIntervalDays` at
+ * 0 and `nextDueAt` null. The card reads Started — `engagementVerdict`
+ * needs only a non-empty history — and nothing comes round. The
+ * schedule begins on the first RATED run, which is what the engine
+ * already does with a row that has no interval yet.
+ *
+ * THAT ALSO MEANS THIS IS NOT A GATE. Nothing here declines to
+ * schedule something that would otherwise be scheduled; there was no
+ * schedule to write at charting time in the first place.
+ *
+ * NOT A SECOND WRITER. It shares `newSpacingRow` with
+ * `recordEngagement`, and the memory-type/signal-kind guard is
+ * deliberately NOT consulted: this records that something happened and
+ * makes no claim the guard exists to police. A `recency` entry on an
+ * `integration` module means "this happened, no verdict", which is
+ * exactly true and is the reason the guard would have rejected it.
+ *
+ * IDEMPOTENT BY EXISTENCE. An item that already has a row has already
+ * been engaged with; there is nothing to add and a second entry would
+ * only move `lastEngagedAt` on evidence that is not new. Returns the
+ * existing row untouched. That is what makes a backfill re-runnable.
+ * =====================================================================
+ */
+export async function recordEngagementOccurred(input: {
+  itemRef: string;
+  moduleRef: string;
+  hand?: DrillHand;
+  timestamp?: number;
+}): Promise<SpacingState> {
+  const hand: DrillHand = input.hand ?? 'both';
+  const t = input.timestamp ?? Date.now();
+  const existing = await getSpacingState(input.itemRef, input.moduleRef, hand);
+  if (existing) return existing;
+
+  const row = newSpacingRow({
+    itemRef: input.itemRef,
+    moduleRef: input.moduleRef,
+    hand,
+    memoryType: getMemoryType(input.moduleRef),
+    history: [{ t, kind: 'recency' }],
+    t,
+    currentIntervalDays: 0,
+    nextDueAt: null,
+  });
+  await db.spacingState.add(row);
+  return row;
+}
+
+/**
  * Record an engagement against a spacing-state item. Idempotent in the
  * sense that calling with the same input twice produces a deterministic
  * follow-up state (a second history entry, possibly a stage advance).
@@ -434,22 +536,21 @@ export async function recordEngagement(
 
   if (!existing) {
     const initialHistory: PerformanceEntry[] = [entry];
-    const row: SpacingState = {
-      id: crypto.randomUUID(),
-      itemRef,
-      moduleRef,
-      hand,
-      memoryType,
-      // First engagement: new → acquiring. A single signal can never
-      // also clear the acquired threshold (min 5 attempts / min 3
-      // ratings), but we run computeNextStage for uniformity in case
-      // future thresholds drop to 1.
-      acquisitionStage: computeNextStage(memoryType, 'acquiring', initialHistory),
+    // First engagement: new → acquiring. A single signal can never
+    // also clear the acquired threshold (min 5 attempts / min 3
+    // ratings), but computeNextStage runs inside `newSpacingRow` for
+    // uniformity in case future thresholds drop to 1.
+    //
+    // The interval and due date are filled in by `engineAnswer` just
+    // below, which is why they start empty here rather than at
+    // INITIAL_INTERVAL_DAYS.
+    const row = newSpacingRow({
+      itemRef, moduleRef, hand, memoryType,
+      history: initialHistory,
+      t,
       currentIntervalDays: 0,
-      lastEngagedAt: t,
       nextDueAt: null,
-      performanceHistory: initialHistory as Array<Record<string, unknown>>,
-    };
+    });
     const scheduled = engineAnswer({
       state: newCardState(),
       settings,
@@ -516,16 +617,13 @@ async function recordRecency(
   );
 
   if (!existing) {
-    const initialHistory: PerformanceEntry[] = [entry];
-    const row: SpacingState = {
-      id: crypto.randomUUID(),
+    const row = newSpacingRow({
       itemRef, moduleRef, hand, memoryType,
-      acquisitionStage: computeNextStage(memoryType, 'acquiring', initialHistory),
+      history: [entry],
+      t,
       currentIntervalDays: intervalDays,
-      lastEngagedAt: t,
       nextDueAt: computeNextDueAt(t, intervalDays),
-      performanceHistory: initialHistory as Array<Record<string, unknown>>,
-    };
+    });
     await db.spacingState.add(row);
     return row;
   }

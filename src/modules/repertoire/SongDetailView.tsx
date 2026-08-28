@@ -30,6 +30,7 @@ import { cellForLeadSheetEdit } from './leadSheetNudge';
 import { readSongTimer } from './songTimer';
 import { effectiveTimeSignature, parseTimeSignature, songBeatAxis } from './barGrid';
 import { sectionHasChords } from './sectionChords';
+import { noteSectionCharted } from './chartingEngagement';
 import {
   LYRIC_FOLD_VERSION,
   buildCellIndex,
@@ -793,6 +794,22 @@ function SongDetailInner({
 
   const updateSection = async (sectionId: string, patch: Partial<SongSection>) => {
     await db.songSections.update(sectionId, patch);
+    // CHARTING IS ENGAGEMENT, and this is the funnel every lead-sheet
+    // section write already goes through, so it is where the signal
+    // belongs.
+    //
+    // DELIBERATELY NOT INSIDE `noticeLeadSheetEdit`. That returns early
+    // when the nudge has been dismissed or a timer is already running —
+    // both correct for whether to OFFER a session, both irrelevant to
+    // whether the charting happened. Recording a fact must not depend
+    // on whether the user wanted to be asked something.
+    //
+    // Silent and cheap when there is nothing to do: an uncharted
+    // section writes nothing, and a cell that already has a row is a
+    // single indexed lookup.
+    void noteSectionCharted(sectionId).catch(err => {
+      console.warn('[repertoire] charting engagement failed', err);
+    });
     noticeLeadSheetEdit(sectionId);
   };
 

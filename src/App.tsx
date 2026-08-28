@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
+import { backfillChartingEngagement } from './modules/repertoire/chartingEngagement';
 import {
   clearDeclaredChordShapeStages, describeClear,
 } from './lib/spacing/clearDeclaredStages';
@@ -85,6 +86,28 @@ export default function App() {
       .then(r => { if (!r.skipped && r.cleared > 0) console.info(describeClear(r)); })
       .catch(err => {
         console.warn('[spacing] clearing declared stages failed', err);
+      });
+    // ONE-TIME, AND IT ONLY ADDS. Sections charted before the charting
+    // signal existed have no record that the charting happened, so
+    // their cells read Not Started — indistinguishable from a section
+    // never touched. This gives each charted section's ORIGINAL-KEY
+    // cell the same signal a live edit would now write.
+    //
+    // It writes nothing else: no band, no interval, no due date. And
+    // it runs the same `noteSectionCharted` path a live edit takes,
+    // rather than a parallel bulk write, so there is one definition of
+    // what charting records.
+    void backfillChartingEngagement()
+      .then(r => {
+        if (!r.skipped && (r.written > 0 || r.unresolved > 0)) {
+          console.info(
+            `[repertoire] charting backfill: ${r.written} written, ` +
+            `${r.alreadyPresent} already present, ${r.unresolved} unresolved`,
+          );
+        }
+      })
+      .catch(err => {
+        console.warn('[repertoire] charting backfill failed', err);
       });
     // ONE-TIME, AND DELIBERATELY NOT ARMED YET.
     //
