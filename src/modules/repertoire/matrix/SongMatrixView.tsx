@@ -15,6 +15,7 @@ import MatrixGrid from './MatrixGrid';
 import WholeSongTestBanner from './WholeSongTestBanner';
 import WholeSongTestModal from './WholeSongTestModal';
 import { computeSolidDecayState } from './solidDecay';
+import { computeKeyStateFromCells } from './cellRollup';
 import { hasCrossKeyEngagement } from './songLevelState';
 import { useSongSpelling } from '../useSongSpelling';
 import { useCellBands } from './useCellBands';
@@ -238,16 +239,41 @@ export default function SongMatrixView({
   // says the same thing and more, grouped by sitting, which is the
   // form the counts were a worse summary of.
 
-  // Banner eligibility: keyState === 'comfortable' AND test never
-  // passed. Sorted by lastEngagedAt desc so the most recently worked
-  // key is the banner's primary action target — that's the one the
-  // user is most likely thinking about. Solid keys self-exclude
-  // because their wholeSongTestPassedAt is set.
+  // Banner eligibility: every section of the key is comfortable AND
+  // the test has never passed. Sorted by lastEngagedAt desc so the
+  // most recently worked key is the banner's primary action target —
+  // that's the one the user is most likely thinking about. Solid keys
+  // self-exclude because their wholeSongTestPassedAt is set.
+  //
+  // ---------------------------------------------------------------
+  // DERIVED, NOT READ FROM `keyState`.
+  //
+  // This filtered on the STORED `keyState` and was the eleventh site —
+  // it survived the cellState sweep because it never touched
+  // `cellState`, it trusted the rollup written FROM it. So the banner
+  // announced "All sections of Ab are comfortable" over a grid whose
+  // every tile read Started or Not Started. Two numbers about one
+  // thing, disagreeing on screen at the same time.
+  //
+  // `computeKeyStateFromCells` is the same function the ladder uses,
+  // so the banner and the grid cannot now say different things. The
+  // stored `keyState` is left exactly as it is — nothing writes here,
+  // and 4d is where those rows are earned back.
+  // ---------------------------------------------------------------
   const eligibleTestKeys = useMemo(
     () => songKeys
-      .filter(k => k.keyState === 'comfortable' && k.wholeSongTestPassedAt === null)
+      .filter(k => {
+        if (k.wholeSongTestPassedAt !== null) return false;
+        const derived = computeKeyStateFromCells(
+          songCells.filter(c => c.songKeyId === k.id),
+          visibleSections.length,
+          k.wholeSongTestPassedAt,
+          cellBands,
+        );
+        return derived === 'comfortable';
+      })
       .sort((a, b) => (b.lastEngagedAt ?? 0) - (a.lastEngagedAt ?? 0)),
-    [songKeys],
+    [songKeys, songCells, visibleSections.length, cellBands],
   );
 
   // Resolve the active test target + its sibling cells. Same

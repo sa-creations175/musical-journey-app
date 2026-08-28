@@ -203,7 +203,21 @@ export default function SongCard({
           reader, so it cannot disagree with the matrix about which
           sections are charted. */}
       {sectionsNeedingChords > 0 && (
-        <div className="text-[11px] text-neutral-500" data-testid="song-card-needs-chords">
+        <div
+          // IT READS AS AN ACTION, NOT AS METADATA. It was
+          // `text-neutral-500` at 11px — lighter than the "not
+          // practised yet" line below it, which is a fact rather than
+          // a job, so the only thing on the card that says what to do
+          // next was the quietest thing on it.
+          //
+          // `text-info` is the app's non-grading informational colour,
+          // and it is the same token the Started tile is painted in —
+          // which is what charting produces. So the card's prompt and
+          // the state it leads to are the same colour, and neither can
+          // be mistaken for a grade.
+          className="text-[11px] font-medium text-info"
+          data-testid="song-card-needs-chords"
+        >
           {sectionsNeedingChords} section{sectionsNeedingChords === 1 ? '' : 's'} still{' '}
           {sectionsNeedingChords === 1 ? 'needs' : 'need'} chords
         </div>

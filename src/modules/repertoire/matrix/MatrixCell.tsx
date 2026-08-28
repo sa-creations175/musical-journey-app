@@ -40,8 +40,26 @@ interface Props {
   onClick?: () => void;
 }
 
-/** The band's fill, or null when there is no band to paint. */
+/**
+ * The tile's fill, or null when there is nothing to paint.
+ *
+ * STARTED IS FILLED, AND NOT WITH A BAND COLOUR. It is a real state —
+ * you have engaged with this — and rendering it as a dashed empty tile
+ * made it look like the absence of one, indistinguishable from Not
+ * Started at a glance.
+ *
+ * `bg-info` is what `TIER_BAR_CLASS.started` already paints it in the
+ * proficiency charts, and its note there makes this exact argument:
+ * "Tinted, not grey. The whole point of the band is that it cannot be
+ * mistaken for the empty one — and `info` carries no accuracy meaning,
+ * so it cannot be mistaken for a grade either." The same reasoning,
+ * so the same colour; a second Started blue would be one too many.
+ *
+ * NOT STARTED STAYS EMPTY. Nothing has happened, and a fill would say
+ * something has.
+ */
 function fillClassFor(verdict: BandVerdict): string | null {
+  if (verdict.kind === 'started') return 'bg-info/40 dark:bg-info/50';
   if (verdict.kind !== 'band') return null;
   switch (verdict.band) {
     case 'needs-work': return 'bg-needswork';
@@ -86,10 +104,12 @@ export default function MatrixCell({ verdict, title, ariaLabel, onClick }: Props
         + (onClick ? 'cursor-pointer hover:ring-1 hover:ring-neutral-400 ' : '')
         + 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-fluent '
         + (fill !== null
-          // White on every band fill. The four tokens are dark enough
+          // White on every BAND fill — the four tokens are dark enough
           // for it and one text colour keeps the row scanning as one
-          // thing rather than four.
-          ? `${fill} text-white`
+          // thing rather than four. The Started tint is not: it is a
+          // 40% wash, so it takes `text-info`, the same pairing the
+          // charts use for a Started badge.
+          ? `${fill} ${verdict.kind === 'started' ? 'text-info' : 'text-white'}`
           // No band, no colour. Dashed says "not filled in" the way an
           // empty form field does.
           : 'border border-dashed border-neutral-300 dark:border-neutral-600 '
