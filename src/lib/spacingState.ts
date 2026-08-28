@@ -389,6 +389,30 @@ export async function getSpacingState(
 }
 
 /**
+ * A row id derived from the item's identity, so two writers racing to
+ * create the same row collide on the primary key instead of producing
+ * siblings.
+ *
+ * `[moduleRef+itemRef+hand]` is what the app already means by "one
+ * item" — it is the index every lookup goes through. It is NOT unique
+ * in any schema version, so the database will not enforce that meaning
+ * on its own. Putting the same three fields in the primary key makes
+ * the enforcement free and retroactive-proof: no migration, no unique
+ * index, no version bump.
+ *
+ * The prefix keeps these visibly distinct from the `crypto.randomUUID`
+ * ids every existing row carries. Nothing parses either shape; an id
+ * is an identity, not a value.
+ */
+export function spacingRowId(
+  moduleRef: string,
+  itemRef: string,
+  hand: DrillHand,
+): string {
+  return `sp-${moduleRef}-${hand}-${itemRef}`;
+}
+
+/**
  * The one place a brand-new spacing row is built.
  *
  * THREE CALLERS, ONE SHAPE. `recordEngagement`, `recordRecency` and
@@ -402,6 +426,10 @@ export async function getSpacingState(
  * hiding that behind a default is how the difference gets lost.
  */
 function newSpacingRow(args: {
+  /** The row's primary key. AN ARGUMENT, NOT A DEFAULT: whether it is
+   *  random or derived is the difference between a path that can race
+   *  and one that cannot, and that is not a detail to bury. */
+  id: string;
   itemRef: string;
   moduleRef: string;
   hand: DrillHand;
@@ -412,7 +440,7 @@ function newSpacingRow(args: {
   nextDueAt: number | null;
 }): SpacingState {
   return {
-    id: crypto.randomUUID(),
+    id: args.id,
     itemRef: args.itemRef,
     moduleRef: args.moduleRef,
     hand: args.hand,
@@ -459,10 +487,26 @@ function newSpacingRow(args: {
  * `integration` module means "this happened, no verdict", which is
  * exactly true and is the reason the guard would have rejected it.
  *
- * IDEMPOTENT BY EXISTENCE. An item that already has a row has already
- * been engaged with; there is nothing to add and a second entry would
- * only move `lastEngagedAt` on evidence that is not new. Returns the
- * existing row untouched. That is what makes a backfill re-runnable.
+ * IDEMPOTENT UNDER CONCURRENCY, NOT JUST UNDER REPETITION.
+ *
+ * The existence check below is necessary and NOT sufficient, and the
+ * difference cost a duplicate of every row it wrote. Read-then-write is
+ * two awaits: React StrictMode double-invokes an effect in dev, both
+ * copies reached the check before either reached the write, both saw
+ * nothing, and both inserted. `[moduleRef+itemRef+hand]` is a PLAIN
+ * compound index — no `&` in any schema version — so the database was
+ * happy to hold two rows that the app considers one.
+ *
+ * THE PRIMARY KEY IS WHAT CLOSES IT. The id is derived from the same
+ * three fields the app already treats as the item's identity, so a
+ * racing second insert collides with the first instead of landing
+ * beside it. A collision is not an error here: it means somebody else
+ * created the row a moment ago, which is exactly what was wanted. Only
+ * a constraint failure with no row behind it is rethrown.
+ *
+ * The existence check stays because it is the cheap path — one indexed
+ * lookup and no write for the hundredth chord typed into a section.
+ * The key is the correctness; the check is the speed.
  * =====================================================================
  */
 export async function recordEngagementOccurred(input: {
@@ -477,6 +521,7 @@ export async function recordEngagementOccurred(input: {
   if (existing) return existing;
 
   const row = newSpacingRow({
+    id: spacingRowId(input.moduleRef, input.itemRef, hand),
     itemRef: input.itemRef,
     moduleRef: input.moduleRef,
     hand,
@@ -486,8 +531,17 @@ export async function recordEngagementOccurred(input: {
     currentIntervalDays: 0,
     nextDueAt: null,
   });
-  await db.spacingState.add(row);
-  return row;
+
+  try {
+    await db.spacingState.add(row);
+    return row;
+  } catch (err) {
+    // Lost the race. Re-read rather than assume what the winner wrote:
+    // it may already carry more than this call would have.
+    const raced = await getSpacingState(input.itemRef, input.moduleRef, hand);
+    if (raced) return raced;
+    throw err;
+  }
 }
 
 /**
@@ -545,6 +599,8 @@ export async function recordEngagement(
     // below, which is why they start empty here rather than at
     // INITIAL_INTERVAL_DAYS.
     const row = newSpacingRow({
+      // As above: unchanged, pre-existing, not widened here.
+      id: crypto.randomUUID(),
       itemRef, moduleRef, hand, memoryType,
       history: initialHistory,
       t,
@@ -618,6 +674,11 @@ async function recordRecency(
 
   if (!existing) {
     const row = newSpacingRow({
+      // Unchanged from before this function was extracted. The
+      // read-then-write race is real on this path too, but it is
+      // pre-existing and shared with every module — see the note on
+      // `spacingRowId`. Not widened here.
+      id: crypto.randomUUID(),
       itemRef, moduleRef, hand, memoryType,
       history: [entry],
       t,

@@ -5,6 +5,9 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
 import { backfillChartingEngagement } from './modules/repertoire/chartingEngagement';
 import {
+  describeDedupe, removeDuplicateSpacingRows,
+} from './lib/spacing/dedupeSpacingRows';
+import {
   clearDeclaredChordShapeStages, describeClear,
 } from './lib/spacing/clearDeclaredStages';
 import {
@@ -86,6 +89,16 @@ export default function App() {
       .then(r => { if (!r.skipped && r.cleared > 0) console.info(describeClear(r)); })
       .catch(err => {
         console.warn('[spacing] clearing declared stages failed', err);
+      });
+    // ONE-TIME, AND IT ONLY DELETES. Clears the duplicate spacing rows
+    // the charting backfill wrote before its insert was keyed. Runs
+    // BEFORE that backfill so the two never interleave: the backfill
+    // is now a no-op on a cell that already has a row, and this leaves
+    // exactly one.
+    void removeDuplicateSpacingRows()
+      .then(r => { if (!r.skipped && r.removed > 0) console.info(describeDedupe(r)); })
+      .catch(err => {
+        console.warn('[spacing] duplicate removal failed', err);
       });
     // ONE-TIME, AND IT ONLY ADDS. Sections charted before the charting
     // signal existed have no record that the charting happened, so
