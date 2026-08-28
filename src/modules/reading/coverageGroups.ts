@@ -34,6 +34,8 @@ import {
   parseReadingItemRef,
   type ChordFamily,
 } from './catalog';
+import { READING_SKILL_LABELS } from './skillLabels';
+import type { ReadingDrillSkill } from './pickCard';
 
 export type ReadingCoverageGroupId =
   | 'key-signatures'
@@ -66,25 +68,37 @@ function chordFamilyMatcher(family: ChordFamily) {
   };
 }
 
+/**
+ * The three groups that ARE a whole reading skill take their name from
+ * the skill.
+ *
+ * THE THIRD HAND-TYPED COPY, NOW GONE. These were literals that
+ * happened to match the module's own labels, and they were the last
+ * place still saying "Note recognition" after everything else had
+ * moved to "Note Recognition" — visibly the only sentence-case rows in
+ * the picker. One name per skill, one place it comes from.
+ *
+ * The `id` stays a slug of its own: it is what a saved goal stores, so
+ * it is an address rather than a name and must not follow the wording.
+ */
+const wholeSkillGroup = (
+  id: ReadingCoverageGroupId,
+  skill: ReadingDrillSkill,
+  blurb: string,
+): ReadingCoverageGroupDef => ({
+  id,
+  label: READING_SKILL_LABELS[skill],
+  blurb,
+  matches: ref => parseReadingItemRef(ref)?.skill === skill,
+});
+
 export const READING_COVERAGE_GROUPS: ReadonlyArray<ReadingCoverageGroupDef> = [
-  {
-    id: 'key-signatures',
-    label: 'Key signatures',
-    blurb: 'Read a signature, name the key, count the accidentals.',
-    matches: ref => parseReadingItemRef(ref)?.skill === 'sig',
-  },
-  {
-    id: 'note-recognition',
-    label: 'Note recognition',
-    blurb: 'Name a note on either clef, two ledger lines either side.',
-    matches: ref => parseReadingItemRef(ref)?.skill === 'note',
-  },
-  {
-    id: 'notation-shapes',
-    label: 'Notation shapes',
-    blurb: 'Read the silhouette — root position and the inversions.',
-    matches: ref => parseReadingItemRef(ref)?.skill === 'shape',
-  },
+  wholeSkillGroup('key-signatures', 'sig',
+    'Read a signature, name the key, count the accidentals.'),
+  wholeSkillGroup('note-recognition', 'note',
+    'Name a note on either clef, two ledger lines either side.'),
+  wholeSkillGroup('notation-shapes', 'shape',
+    'Read the silhouette — root position and the inversions.'),
   {
     id: 'chord-triads',
     label: 'Triads',

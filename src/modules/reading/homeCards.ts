@@ -16,34 +16,16 @@ import { categoryCardStats, type CategoryCardModel } from '../../components/modu
 import { readingCounts } from '../../lib/moduleItemCounts';
 import { readingSkillForItemRef } from './catalog';
 import type { ReadingDrillSkill } from './pickCard';
+import { READING_SKILL_LABELS, READING_SKILL_ORDER } from './skillLabels';
 
 /** Reading writes attempts under this module id — see `READING_MODULE_REF`. */
 export const READING_MODULE_ID = 'reading';
 
-export const READING_SKILL_ORDER: ReadonlyArray<ReadingDrillSkill> =
-  ['note', 'shape', 'sig', 'chord'];
-
-/** What each skill is called on screen. Exported so a pool row and a
- *  card cannot label the same skill two different ways. */
-/**
- * What each Reading skill is called, everywhere it is called anything.
- *
- * FULL NAMES, NOT THE SHORT FORMS. "Notes" and "Chords" name the thing
- * being read rather than the skill being practised, and on a page that
- * also shows note names and chord symbols they read as content. What
- * the reader is drilling is recognition of a note, identification of a
- * chord — so the labels say that.
- *
- * ONE MAP, read by the chip row, the card title, the nav and the page
- * title. The nav used to carry its own copy of the four; it reads this
- * now, so a rename lands in all four places at once.
- */
-export const READING_SKILL_LABELS: Readonly<Record<ReadingDrillSkill, string>> = {
-  note: 'Note Recognition',
-  shape: 'Notation Shapes',
-  sig: 'Key Signatures',
-  chord: 'Chord Identification',
-};
+// THE TWO NAME CONSTANTS MOVED TO `skillLabels`, a leaf with no
+// imports of its own, because everything now reads them and this file
+// sits in a cycle — see the note there. Re-exported so no call site
+// had to move.
+export { READING_SKILL_ORDER, READING_SKILL_LABELS } from './skillLabels';
 
 export function isReadingCardKey(key: string): key is ReadingDrillSkill {
   return (READING_SKILL_ORDER as readonly string[]).includes(key);

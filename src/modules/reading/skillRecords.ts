@@ -29,7 +29,7 @@ import {
 } from './catalog';
 import { enumerateReading } from '../goals/scopeEnumeration';
 import type { ReadingDrillSkill } from './pickCard';
-import { READING_SKILL_LABELS } from './homeCards';
+import { READING_SKILL_LABELS } from './skillLabels';
 
 export const READING_MODULE_ID = 'reading';
 

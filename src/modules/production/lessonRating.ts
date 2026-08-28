@@ -136,7 +136,7 @@ export const RATING_OPTIONS: ReadonlyArray<{
   {
     value: 100,
     label: 'In My Music',
-    meaning: 'use it instinctively in my own work',
+    meaning: "it's in my own tracks",
     dot: 'bg-mastered',
   },
 ];
