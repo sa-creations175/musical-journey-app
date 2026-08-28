@@ -11,7 +11,9 @@
  */
 
 import type { DrillHand, DrillSkill, DrillType } from '../../../lib/db';
-import { recordEngagement } from '../../../lib/spacingState';
+import { getSpacingState, recordEngagement } from '../../../lib/spacingState';
+import { NOT_STARTED, type BandVerdict } from '../../../lib/spacing/banding';
+import { bandVerdictForRow } from '../../../lib/spacing/row';
 import type { Feel } from '../../../lib/fluencyScale';
 import {
   feelToRating,
@@ -51,6 +53,16 @@ async function engage(
 ): Promise<void> {
   if (record.feel === null) return;   // no verdict, no claim
   await rate(itemRef, hand, record.feel, record.fromTest);
+}
+
+/** What an item reads now. One reader, so the done step cannot
+ *  disagree with the grid it will be seen next to. */
+async function verdictFor(
+  itemRef: string | null, moduleRef: string, hand: DrillHand,
+): Promise<BandVerdict> {
+  if (itemRef === null) return NOT_STARTED;
+  const row = await getSpacingState(itemRef, moduleRef, hand);
+  return row ? bandVerdictForRow(row) : NOT_STARTED;
 }
 
 /** One rated rep against a shapes item. Shared by the per-drill writer
@@ -104,6 +116,7 @@ export function chordShapeSurface(args: {
       if (itemRef === null) return;
       await rate(itemRef, args.hand, feel, fromTest);
     },
+    readVerdict: () => verdictFor(itemRefForSkill(args.skill), MODULE_REF, args.hand),
   };
 }
 
@@ -138,6 +151,7 @@ export function scaleSurface(args: {
     writeSessionRating: async (feel, fromTest) => {
       await rate(args.itemRef, args.hand, feel, fromTest);
     },
+    readVerdict: () => verdictFor(args.itemRef, MODULE_REF, args.hand),
   };
 }
 
@@ -170,6 +184,7 @@ export function voiceLeadingSurface(args: {
     writeSessionRating: async (feel, fromTest) => {
       await rate(args.itemRef, 'both', feel, fromTest);
     },
+    readVerdict: () => verdictFor(args.itemRef, MODULE_REF, 'both'),
   };
 }
 
@@ -275,5 +290,11 @@ export function songSurface(args: {
       });
       await recordSongKeyRun({ songKeyId: args.songKeyId, feel, fromTest });
     },
+    // THE CELL, not the clock. "Now Reads" is about how well this
+    // section goes in this key; the song-and-key row is a schedule and
+    // has no band to show.
+    readVerdict: () => verdictFor(
+      songCellItemRef(args.cellId), REPERTOIRE_MODULE_REF, 'both',
+    ),
   };
 }

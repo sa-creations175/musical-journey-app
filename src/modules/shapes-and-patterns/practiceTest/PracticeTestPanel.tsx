@@ -42,6 +42,8 @@ import { metronome } from '../../../lib/metronome';
 import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS } from '../drillModel';
 import { isAtTarget, rateFor, type DrillSurface } from './surfaces';
 import { formatClock, useSessionClock } from './sessionClock';
+import type { BandVerdict } from '../../../lib/spacing/banding';
+import { TIER_LABEL } from '../../../lib/tier';
 import {
   DRILL_LENGTHS,
   countsTowardTest,
@@ -53,7 +55,7 @@ import {
   type SessionMode,
 } from './drillModel';
 
-type Step = 'choose' | 'session' | 'setup' | 'drilling' | 'drillrate' | 'wrap';
+type Step = 'choose' | 'session' | 'setup' | 'drilling' | 'drillrate' | 'wrap' | 'done';
 
 /** Reps a test is made of. */
 const TEST_REPS = 3;
@@ -73,6 +75,9 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   const [draft, setDraft] = useState<DrillDraft | null>(null);
   const [ranSeconds, setRanSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
+  /** What the item reads after the session was written, and how it was
+   *  rated — the two things the done step reports. */
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
 
   const sessionSeconds = useSessionClock(mode !== null);
 
@@ -156,7 +161,13 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           fromTest: true,
         });
       }
-      close();
+      setOutcome({
+        kind: 'test',
+        feel: null,
+        derived: false,
+        verdict: await surface.readVerdict(),
+      });
+      setStep('done');
     } finally {
       setSaving(false);
     }
@@ -216,6 +227,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         />
       )}
 
+      {step === 'done' && outcome !== null && (
+        <DoneStep outcome={outcome} onClose={close} />
+      )}
+
       {step === 'wrap' && mode !== null && (
         <WrapStep
           seconds={sessionSeconds}
@@ -225,18 +240,24 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           saving={saving}
           onLog={async (feel) => {
             if (saving) return;
-            if (feel !== null) {
-              setSaving(true);
-              try {
+            setSaving(true);
+            try {
+              if (feel !== null) {
                 // A REP LIKE ANY OTHER. The band rule is unchanged:
                 // practice caps at Developing, and only a test at
                 // tempo goes past it.
                 await surface.writeSessionRating(feel, false);
-              } finally {
-                setSaving(false);
               }
+              setOutcome({
+                kind: 'practice',
+                feel,
+                derived: derivedFeelOf(drills) !== null,
+                verdict: await surface.readVerdict(),
+              });
+              setStep('done');
+            } finally {
+              setSaving(false);
             }
-            close();
           }}
         />
       )}
@@ -946,6 +967,132 @@ function WrapStep({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------
+
+/** What the session did, as the done step reports it. */
+interface Outcome {
+  kind: SessionMode;
+  /** The session's own rating, where practice gave one. */
+  feel: 1 | 2 | 3 | 4 | null;
+  /** Whether that rating came from averaging the drills. */
+  derived: boolean;
+  /** What the item reads now, from the shared reader. */
+  verdict: BandVerdict;
+}
+
+/** The average of the rated drills, or null when none were rated.
+ *  Shared by the wrap and the done step so "averaged" cannot mean two
+ *  different things a screen apart. */
+function derivedFeelOf(
+  drills: ReadonlyArray<CompletedDrill>,
+): 1 | 2 | 3 | 4 | null {
+  const rated = drills.filter(d => d.feel !== null);
+  if (rated.length === 0) return null;
+  return Math.round(
+    rated.reduce((sum, d) => sum + (d.feel as number), 0) / rated.length,
+  ) as 1 | 2 | 3 | 4;
+}
+
+/** The band's own word, from the app's one vocabulary. */
+function verdictWord(v: BandVerdict): string {
+  switch (v.kind) {
+    case 'not-started': return TIER_LABEL.untouched;
+    case 'started': return TIER_LABEL.started;
+    case 'band':
+      switch (v.band) {
+        case 'needs-work': return TIER_LABEL.needsWork;
+        case 'developing': return TIER_LABEL.developing;
+        case 'fluent': return TIER_LABEL.fluent;
+        case 'mastered': return TIER_LABEL.mastered;
+      }
+  }
+}
+
+/**
+ * What the session did.
+ *
+ * =====================================================================
+ * THE SESSION IS THE UNIT, so the session is what reports back. Before
+ * this the panel simply closed and you found out by navigating back
+ * and looking — which asks you to rate something and then declines to
+ * say what the rating did.
+ *
+ * "NOW READS" IS THE ITEM, NOT THE RATING, and it comes from
+ * `surface.readVerdict()` rather than being computed here. A second
+ * opinion about a number the shared reader owns would drift the first
+ * time the band rule moved, which it has twice in a day.
+ *
+ * The clock is gone from this step on purpose: the sitting is over,
+ * and a running clock would say otherwise.
+ * =====================================================================
+ */
+function DoneStep({ outcome, onClose }: {
+  outcome: Outcome;
+  onClose: () => void;
+}) {
+  const word = verdictWord(outcome.verdict);
+  const banded = outcome.verdict.kind === 'band' ? outcome.verdict.band : null;
+  const feelWord = outcome.feel === null
+    ? null
+    : FEEL_CARD_OPTIONS.find(o => o.value === outcome.feel)?.label ?? null;
+  // Practice rated Clean or better, and the ceiling took it to
+  // Developing anyway. The prototype's `capped`.
+  const capped = outcome.kind === 'practice'
+    && outcome.feel !== null && outcome.feel >= 3
+    && banded === 'developing';
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
+            Now Reads
+          </span>
+          <span className="text-sm font-medium">{word}</span>
+        </div>
+      </div>
+
+      <div className="rounded-md border-l-[3px] border-fluent bg-fluent/5 px-3 py-2.5 text-xs text-neutral-700 dark:text-neutral-200">
+        {outcome.kind === 'test' ? (
+          banded === 'fluent' || banded === 'mastered'
+            ? <><b>Three at target, all clean.</b> That&rsquo;s the claim made and recorded.</>
+            : <>
+                Three drills at target, each rated. The lowest set it.
+                {banded === 'developing'
+                  ? ' That brings this back in about a week rather than a month — which is what you want after a run went wrong.'
+                  : ''}
+              </>
+        ) : capped ? (
+          <>
+            <b>Practice stops at Developing.</b> That session came out at Clean
+            or better, but practice cannot claim <b>Fluent</b>. Go to Test mode
+            and nail it at target, and it can.
+          </>
+        ) : feelWord !== null ? (
+          <>
+            Logged as <b>{feelWord}</b>
+            {outcome.derived ? ', averaged from the drills inside it.' : '.'}
+            {' '}Practice moves you as far as <b>Developing</b>.
+          </>
+        ) : (
+          <>
+            Logged with no ratings. <b>Started</b> means you met it and the
+            clock proves it — there is just no verdict yet.
+          </>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={onClose}
+        className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
+      >
+        Close
+      </button>
     </div>
   );
 }

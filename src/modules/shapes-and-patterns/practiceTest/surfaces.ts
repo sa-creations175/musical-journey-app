@@ -20,6 +20,7 @@
 
 import type { DrillStyle } from '../../../lib/db';
 import type { Feel } from '../../../lib/fluencyScale';
+import type { BandVerdict } from '../../../lib/spacing/banding';
 import type { Style } from './drillModel';
 
 /** Which surface this is. Used for wording, never for behaviour — a
@@ -137,6 +138,19 @@ export interface DrillSurface {
    * =====================================================================
    */
   writeSessionRating: (feel: Feel, fromTest: boolean) => Promise<void>;
+  /**
+   * What this item reads NOW, after whatever was just written.
+   *
+   * THE DONE STEP MUST NOT COMPUTE ITS OWN BAND. It would be a second
+   * opinion about a number the shared reader already owns, and the two
+   * would drift the first time the band rule changed — which it has,
+   * twice, in the last day.
+   *
+   * So the surface reads its own row back through
+   * `bandVerdictForRow` and hands over the verdict. `not-started` for
+   * an item with no row, which is a verdict rather than an absence.
+   */
+  readVerdict: () => Promise<BandVerdict>;
 }
 
 export function rateFor(surface: DrillSurface, bpm: number, per: number): number {

@@ -121,3 +121,30 @@ describe('every surface has one', () => {
     expect(refs).not.toContain('songCell:cell-2');
   });
 });
+
+describe('readVerdict — what the done step reports', () => {
+  it('is Not Started before anything is written', async () => {
+    expect(await shapes().readVerdict()).toEqual({ kind: 'not-started' });
+  });
+
+  it('is the SHARED reader s answer, not a local one', async () => {
+    // Three practice sittings at In flow. The done step must say
+    // Developing, because the ceiling is the reader's business and the
+    // panel does not get its own opinion about it.
+    const s = shapes();
+    for (let i = 0; i < 3; i++) await s.writeSessionRating(4, false);
+    expect(await s.readVerdict()).toEqual({ kind: 'band', band: 'developing' });
+  });
+
+  it('reports the CELL for songs, not the schedule', async () => {
+    // "Now Reads" is how well the section goes. The song-and-key row
+    // is a clock and has no band to show.
+    const s = songSurface({
+      cellLabel: 'Verse 1 · A♭', skillLabel: '',
+      cellId: 'cell-1', songKeyId: 'key-1',
+      cellIdBySectionId: new Map(), songTempo: 90,
+    });
+    for (let i = 0; i < 3; i++) await s.writeSessionRating(3, true);
+    expect(await s.readVerdict()).toEqual({ kind: 'band', band: 'fluent' });
+  });
+});
