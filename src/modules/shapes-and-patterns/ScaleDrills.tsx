@@ -30,6 +30,7 @@ import {
   type PentStartingPoint,
 } from './scaleSkills';
 import { CIRCLE_OF_FOURTHS } from './spTiers';
+import { circleOfFourthsIndex } from '../repertoire/circleOfFourths';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
@@ -145,13 +146,12 @@ function pentRow(
   return { rowKey: `${kind}:${sp}`, rowLabel: label, cells: sortByCircleOfFourths(cells) };
 }
 
+/** Cells in wheel order. The ordering itself is shared — see
+ *  `circleOfFourthsIndex`; this only says which field carries the key. */
 function sortByCircleOfFourths(cells: ScaleCell[]): ScaleCell[] {
-  const order = new Map(CIRCLE_OF_FOURTHS.map((k, i) => [k, i]));
-  return [...cells].sort((a, b) => {
-    const ai = order.get(a.keyName) ?? CIRCLE_OF_FOURTHS.length;
-    const bi = order.get(b.keyName) ?? CIRCLE_OF_FOURTHS.length;
-    return ai - bi;
-  });
+  return [...cells].sort(
+    (a, b) => circleOfFourthsIndex(a.keyName) - circleOfFourthsIndex(b.keyName),
+  );
 }
 
 // ---------------------------------------------------------------------

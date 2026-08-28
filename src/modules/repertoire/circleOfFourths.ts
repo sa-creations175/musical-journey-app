@@ -110,3 +110,43 @@ export function generateCircleOfFourthsSequence(originalKey: string): string[] {
   }
   return out;
 }
+
+/**
+ * Where a key sits on the wheel — the ONE ordering every chart sorts by.
+ *
+ * =====================================================================
+ * IT WAS BEING RE-DERIVED PER CHART, AND ONE OF THEM WAS WRONG.
+ *
+ * Four places built their own index over `CIRCLE_OF_FOURTHS`, and
+ * harmonic fluency's key axis did not build one at all — its "circle"
+ * view served chromatic order with F♯ pushed to the end, so the toggle
+ * barely changed the picture. An ordering that every chart claims to
+ * share has to be somewhere it can be shared FROM.
+ * =====================================================================
+ *
+ * Canonicalises first, so a column spelled G♭ and one spelled F♯ land
+ * on the same slot rather than one of them falling off the end.
+ * Unknown keys sort last rather than to zero: an unrecognised key is
+ * not the tonic.
+ */
+export function circleOfFourthsIndex(key: string): number {
+  const canonical = canonicaliseKey(key) ?? key;
+  const i = CIRCLE_OF_FOURTHS.indexOf(canonical);
+  return i < 0 ? CIRCLE_OF_FOURTHS.length : i;
+}
+
+/**
+ * `keys` in wheel order. Pure — returns a new array.
+ *
+ * TIES BREAK ON SPELLING, and the tie is real: harmonic fluency's axis
+ * carries both F♯ and G♭ as separate columns because its two card
+ * generators disagree about how to spell that key. They share a slot,
+ * so without a second term the sort is not total and the two columns
+ * could swap between renders.
+ */
+export function sortByCircleOfFourths(
+  keys: ReadonlyArray<string>,
+): string[] {
+  return [...keys].sort((a, b) =>
+    circleOfFourthsIndex(a) - circleOfFourthsIndex(b) || a.localeCompare(b));
+}

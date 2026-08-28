@@ -26,6 +26,7 @@ import {
 } from './catalogExpansions';
 import { MAJOR_ROOTS, MINOR_ROOTS } from './pentatonics';
 import { DEGREE_MOVEMENTS } from './scaleDegreeQualityCards';
+import { sortByCircleOfFourths } from '../repertoire/circleOfFourths';
 
 const axis = (
   field: string,
@@ -77,14 +78,32 @@ const HF_KEY_COLUMNS: ReadonlyArray<string> = [
   ...HF_MAJOR_KEYS.filter(k => !FLAT_TWELVE.includes(k)),
 ];
 
+/**
+ * THE CIRCLE VIEW DID NOT ORDER BY THE CIRCLE.
+ *
+ * It served `HF_KEY_COLUMNS` as declared, which is `FLAT_TWELVE`
+ * followed by whatever the other generator spells differently — that
+ * is chromatic order with F♯ pushed to the end. Against a chromatic
+ * view of the same twelve it moved exactly one column, so the toggle
+ * looked broken because it very nearly was.
+ *
+ * It sorts through the shared wheel now. The id stays `fifths` because
+ * it is a stored preference: renaming it would silently reset every
+ * reader who had chosen this view. The LABEL is what they read, and it
+ * says what the ordering actually is.
+ */
 const keyAxis: AxisSpec = {
   field: 'key',
   label: 'key',
   views: [
-    { id: 'fifths', label: 'circle of 5ths', values: HF_KEY_COLUMNS },
+    {
+      id: 'fifths',
+      label: 'Circle of 4ths',
+      values: sortByCircleOfFourths(HF_KEY_COLUMNS),
+    },
     {
       id: 'chromatic',
-      label: 'chromatic',
+      label: 'Chromatic',
       values: [...HF_KEY_COLUMNS].sort((a, b) =>
         (CHROMATIC_INDEX.get(ENHARMONIC[a] ?? a) ?? 99)
         - (CHROMATIC_INDEX.get(ENHARMONIC[b] ?? b) ?? 99)

@@ -20,7 +20,7 @@
 // DrillType rows lazily per interaction.
 
 import type { InversionState } from '../../lib/db';
-import { CIRCLE_OF_FOURTHS, canonicaliseKey } from '../repertoire/circleOfFourths';
+import { sortByCircleOfFourths } from '../repertoire/circleOfFourths';
 
 export const KEYS = [
   'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
@@ -38,11 +38,8 @@ export type KeyName = typeof KEYS[number];
  * KEYS itself stays in chromatic order because other code (shapesSplit)
  * depends on that ordering.
  */
-export const KEYS_CIRCLE_OF_FOURTHS: ReadonlyArray<KeyName> = [...KEYS].sort(
-  (a, b) =>
-    CIRCLE_OF_FOURTHS.indexOf(canonicaliseKey(a) ?? a)
-    - CIRCLE_OF_FOURTHS.indexOf(canonicaliseKey(b) ?? b),
-);
+export const KEYS_CIRCLE_OF_FOURTHS: ReadonlyArray<KeyName> =
+  sortByCircleOfFourths(KEYS) as ReadonlyArray<KeyName>;
 
 /** True when this key name prefers flat spellings in display (kept
  *  consistent with the rest of the app). */
