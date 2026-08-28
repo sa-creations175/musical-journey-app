@@ -75,7 +75,6 @@ describe('an overridden built-in keeps built-in behaviour', () => {
     const row = merged.find(p => p.id === 'minor-251')!;
     expect(row.builtin, 'an overridden built-in must still be drillable')
       .toBe(true);
-    expect(row.overridden).toBe(true);
     expect(row.label).toBe('Minor ii-V-i, my voicing');
   });
 
@@ -95,10 +94,8 @@ describe("the stray row already in the database is inert", () => {
   it('an override whose label matches the built-in is treated as absent', () => {
     expect(overrideIsEmpty(STRAY_ROW, MINOR_251.label)).toBe(true);
     const row = mergePatternList([STRAY_ROW]).find(p => p.id === 'minor-251')!;
+    // Reads exactly as it would if nothing were stored at all.
     expect(row.label).toBe(MINOR_251.label);
-    // `overridden` false is what hides the restore control, so the row
-    // reads exactly as it would if nothing were stored at all.
-    expect(row.overridden).toBe(false);
   });
 
   it('needs no write to become harmless — merging alone neutralises it', () => {
@@ -135,24 +132,39 @@ describe('the writer stops new stray rows being made', () => {
   });
 });
 
-describe('Remove restores the catalog default', () => {
-  it('dropping an override brings the shipped name back', () => {
-    const stored = applyRename([], 'minor-251', 'My Minor', 6)!;
-    expect(mergePatternList(stored).find(p => p.id === 'minor-251')!.label)
+describe('renaming is undone by renaming, not by a control', () => {
+  /**
+   * THERE IS NO RESTORE BUTTON, and this is what stands in for one.
+   * Typing the shipped name back deletes the override at the writer,
+   * so the round trip leaves the stored list exactly as it started.
+   */
+  it('typing the shipped name back returns the list to empty', () => {
+    const renamed = applyRename([], 'minor-251', 'My Minor', 6)!;
+    expect(mergePatternList(renamed).find(p => p.id === 'minor-251')!.label)
       .toBe('My Minor');
 
-    const after = applyRemove(stored, 'minor-251');
-    const row = mergePatternList(after).find(p => p.id === 'minor-251')!;
+    const undone = applyRename(renamed, 'minor-251', MINOR_251.label, 7)!;
+    expect(undone).toEqual([]);
+
+    const row = mergePatternList(undone).find(p => p.id === 'minor-251')!;
     expect(row.label).toBe(MINOR_251.label);
-    expect(row.overridden).toBe(false);
-    // And it is still one section, still drillable.
-    expect(mergePatternList(after).filter(p => p.id === 'minor-251'))
-      .toHaveLength(1);
     expect(row.builtin).toBe(true);
+    expect(mergePatternList(undone).filter(p => p.id === 'minor-251'))
+      .toHaveLength(1);
+  });
+});
+
+describe("Remove is only for the reader's own patterns", () => {
+  it('removing one drops its section', () => {
+    const after = applyRemove([OWN_PATTERN], OWN_PATTERN.id);
+    expect(mergePatternList(after)).toHaveLength(VOICE_LEADING_PATTERNS.length);
   });
 
-  it("removing the reader's own pattern drops the section", () => {
-    const after = applyRemove([OWN_PATTERN], OWN_PATTERN.id);
+  it('the catalog is never shortened by it', () => {
+    // `applyRemove` on a built-in id would drop an override, but no UI
+    // path reaches it — the link does not render on a built-in. The
+    // catalog itself is untouchable either way.
+    const after = applyRemove([STRAY_ROW], 'minor-251');
     expect(mergePatternList(after)).toHaveLength(VOICE_LEADING_PATTERNS.length);
   });
 });

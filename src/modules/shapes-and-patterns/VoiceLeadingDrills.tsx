@@ -149,33 +149,19 @@ export default function VoiceLeadingDrills() {
                   <p className="text-xs text-neutral-500 mt-0.5">{effective.description}</p>
                 )}
               </div>
-              {/* THE SAME LINK, TWO OUTCOMES, because there are two
-                  things it can be acting on now that a rename no
-                  longer forks a pattern.
-
-                  On a pattern of the reader's own it removes the
-                  pattern. On an OVERRIDDEN BUILT-IN it deletes the
-                  override, which restores the shipped name — the
-                  pattern itself cannot be removed, because it ships.
-
-                  THE WORDING IS UNCHANGED AND IS A SEPARATE CALL.
-                  "Remove" is honest for the first and arguably wrong
-                  for the second; that is Silas's to decide, so the
-                  behaviour moved and the word did not. */}
-              {(!pattern.builtin || pattern.overridden) && (
+              {/* REMOVE IS FOR THE READER'S OWN PATTERNS ONLY.
+                  A built-in cannot be removed — it ships — so a link
+                  offering to is a promise the app cannot keep. There is
+                  no restore control either: renaming is a display name
+                  and nothing more, and typing the shipped name back is
+                  how you undo it. The override under the hood is only
+                  how that name persists; none of it is on screen. */}
+              {!pattern.builtin && (
                 <button
                   onClick={async () => {
-                    const question = pattern.builtin
-                      ? `Restore the shipped name for "${effective.label}"?`
-                      : `Remove pattern "${effective.label}"? Existing drill data stays but is hidden from this tab.`;
-                    if (!confirm(question)) return;
+                    if (!confirm(`Remove pattern "${effective.label}"? Existing drill data stays but is hidden from this tab.`)) return;
                     await persistCustom(applyRemove(custom, pattern.id));
-                    toast({
-                      message: pattern.builtin
-                        ? 'Shipped name restored.'
-                        : 'Custom pattern removed.',
-                      variant: 'warning',
-                    });
+                    toast({ message: 'Custom pattern removed.', variant: 'warning' });
                   }}
                   className="text-neutral-400 hover:text-needswork text-[11px]"
                 >

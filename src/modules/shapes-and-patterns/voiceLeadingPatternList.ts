@@ -53,10 +53,13 @@ export interface DisplayPattern {
    * not take its drill flow away.
    */
   builtin: boolean;
-  /** The reader has supplied fields for this one. Drives the control
-   *  that puts it back. */
-  overridden: boolean;
 }
+
+// THERE IS NO `overridden` FLAG, and its absence is deliberate. It
+// existed to drive a restore control, and there is no restore control:
+// renaming is a display name, and typing the shipped name back is how
+// it is undone. Nothing on screen distinguishes a renamed pattern from
+// one that was never renamed, so nothing needs to ask.
 
 /**
  * An override is IGNORED when its label matches the built-in's.
@@ -67,6 +70,9 @@ export interface DisplayPattern {
  * where it already exists, with no write to the reader's database and
  * no cleanup migration. `applyRename` stops new ones being created;
  * this handles the ones already out there.
+ *
+ * It is also what makes renaming reversible without a control: type
+ * the shipped name back and the override stops existing, at both ends.
  */
 export function overrideIsEmpty(
   override: CustomPattern,
@@ -102,7 +108,6 @@ export function mergePatternList(
         ? { description: active ? o!.description : p.description }
         : {}),
       builtin: true,
-      overridden: active,
     };
   });
 
@@ -113,7 +118,6 @@ export function mergePatternList(
       label: c.label,
       ...(c.description !== undefined ? { description: c.description } : {}),
       builtin: false,
-      overridden: false,
     });
   }
 
