@@ -80,12 +80,19 @@ const oneView = (
 
 const QUALITY_LABEL = new Map(CHORD_QUALITIES.map(q => [q.id, q.label]));
 
-/** Clef names for the grid's row headers. See the note at `NOTE_GRID`. */
+/**
+ * Clef names for the grid's row headers. See the note at `NOTE_GRID`.
+ *
+ * Lowercase because a clef is notation — "the treble clef" is how it
+ * is written. The map earns its place anyway: it separates the label
+ * from the itemRef segment the row is keyed on, so the two can differ
+ * later without the header quietly printing a key again.
+ */
 const CLEF_LABEL: Readonly<Record<string, string>> = {
-  treble: 'Treble', bass: 'Bass',
+  treble: 'treble', bass: 'bass',
 };
 const POSITION_LABEL: Readonly<Record<string, string>> = {
-  root: 'Root', inv1: '1st', inv2: '2nd', inv3: '3rd',
+  root: 'root', inv1: '1st', inv2: '2nd', inv3: '3rd',
 };
 
 /**

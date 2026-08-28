@@ -29,19 +29,35 @@ import {
 } from './catalog';
 import { enumerateReading } from '../goals/scopeEnumeration';
 import type { ReadingDrillSkill } from './pickCard';
+import { READING_SKILL_LABELS } from './homeCards';
 
 export const READING_MODULE_ID = 'reading';
 
 const SIGNATURE_BY_ID = new Map(SIGNATURES.map(s => [s.id, s]));
 const QUALITY_LABEL = new Map(CHORD_QUALITIES.map(q => [q.id, q.label]));
 
-/** The four skills, as the module home words them, in drill order. */
-export const READING_CATEGORY_LABEL: Readonly<Record<string, string>> = {
-  note: 'Note recognition',
-  shape: 'Notation shapes',
-  sig: 'Key signatures',
-  chord: 'Chord identification',
-};
+/**
+ * The four skills, as the module home words them.
+ *
+ * =====================================================================
+ * DERIVED FROM `READING_SKILL_LABELS`, NOT TYPED AGAIN.
+ *
+ * This was a second hand-written copy of the same four names, and it
+ * had already drifted twice over: sentence case against the chips'
+ * Title Case, and three of the four in a different case from the
+ * fourth — "Note recognition" beside "Chord Identification" on cards
+ * sitting one above the other.
+ *
+ * It is not only a display string: it is also the `category` stamped
+ * on every reading `SkillRecord` and the key `READING_GRIDS` is
+ * indexed by. That is exactly why it must not be a second literal —
+ * the writer and both readers go through this constant, so they move
+ * together, but only while there is one of it. Nothing persists the
+ * value, so its wording is free to change.
+ * =====================================================================
+ */
+export const READING_CATEGORY_LABEL: Readonly<Record<string, string>> =
+  READING_SKILL_LABELS;
 
 /** `which` is not here: it is the second half of a `count` card and
  *  never an item of its own — see SIGNATURE_DIRECTIONS. */
