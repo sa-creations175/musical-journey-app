@@ -209,7 +209,7 @@ export interface CardAction {
    * The handle a test reaches it by.
    *
    * NAMED BY THE CALLER, because the two cards' second buttons are two
-   * different actions — Progress Detail on a category, Lead Sheet on a
+   * different actions — Progress Tracker on a category, Lead Sheet on a
    * song. One shared testid would make a test that means "the song's
    * chart" pass on a category card.
    */
@@ -276,8 +276,14 @@ export const CARD_ACTION_LABEL = 'Open';
  * Defined once for the same reason: the button and the heading it
  * scrolls to are the same promise, and two literals could drift into
  * naming two different things.
+ *
+ * PROGRESS, NOT PROFICIENCY, AND NOT FLUENCY. The section carries
+ * freshness, coverage and time as well as ratings, so "progress" is
+ * the only word true of all of it — and keeping it out of the way
+ * leaves "proficiency" meaning exactly one thing, the four ratings.
+ * Ear Training's four "Fluency Tracker" headings say this now too.
  */
-export const PROGRESS_DETAIL_LABEL = 'Progress Detail';
+export const PROGRESS_TRACKER_LABEL = 'Progress Tracker';
 
 /** Shared so a caller cannot hand `CardShell` a style of its own. */
 export type CardShellStyle = CSSProperties;

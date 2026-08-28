@@ -25,6 +25,8 @@ import {
   computeTier,
   type Tier,
 } from '../../../lib/tier';
+import ProgressTrackerBand from '../../../components/moduleHome/ProgressTrackerBand';
+import { PROGRESS_TRACKER_LABEL } from '../../../components/moduleHome/cardShell';
 
 const ANCHOR_MAX = 120;
 const MODULE_ID = 'intervals';
@@ -308,10 +310,19 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
   const now = Date.now();
 
   return (
+    <>
+      {/* THE SAME BAND AS READING AND HARMONIC FLUENCY. This heading
+          used to be an `h2` reading "Fluency Tracker" inside the card
+          below — one of four saying it, none of them shared, and the
+          word was wrong besides: the section carries freshness,
+          coverage and time as well as ratings. No count: two of the
+          four trackers have no honest item total to put there, and a
+          number that appears on some bands and not others reads as a
+          bug rather than as a fact. */}
+      <ProgressTrackerBand label={PROGRESS_TRACKER_LABEL} />
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="text-base sm:text-lg font-medium tracking-tight">Fluency Tracker</h2>
           <TierLegend />
           <EtSelectToggle selection={selection} />
         </div>
@@ -395,5 +406,6 @@ export default function FluencyTracker({ intervals, attempts }: Props) {
         />
       )}
     </section>
+    </>
   );
 }

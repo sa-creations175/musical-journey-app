@@ -28,6 +28,8 @@ import FluencyDrill, { MODULE_ID, SESSION_TARGET } from './FluencyDrill';
 import FluencySessionSettings, { SESSION_SETTINGS_LABEL } from './FluencySessionSettings';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import PoolPicker from '../../components/moduleHome/PoolPicker';
+import ProgressTrackerBand from '../../components/moduleHome/ProgressTrackerBand';
+import { PROGRESS_TRACKER_LABEL } from '../../components/moduleHome/cardShell';
 import CategoryDetailStack, {
   type DetailEntry,
 } from '../../components/moduleHome/CategoryDetailStack';
@@ -245,18 +247,27 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
 
               The page's own category expanded, everything else lit
               collapsed. */}
+          {/* THE BOUNDARY THIS PAGE NEVER HAD. The drill ran straight
+              into the grid; Reading solved that with a rule and now
+              all three modules share the band. */}
           {axisViews.loaded && (
-            <CategoryDetailStack
-              entries={detailEntries}
-              expanded={expandedDetails}
-              onToggle={toggleDetail}
-              accentHex={moduleMetaById(MODULE_ID)?.accentHex ?? '#7a5aa8'}
-              now={now}
-              viewFor={axisViews.viewFor}
-              onViewChange={axisViews.setView}
-              scrollTo={landing.scrollTo}
-              onScrolled={landing.onScrolled}
-            />
+            <>
+              <ProgressTrackerBand
+                label={PROGRESS_TRACKER_LABEL}
+                count={detailEntries.reduce((n, e) => n + e.items.length, 0)}
+              />
+              <CategoryDetailStack
+                entries={detailEntries}
+                expanded={expandedDetails}
+                onToggle={toggleDetail}
+                accentHex={moduleMetaById(MODULE_ID)?.accentHex ?? '#7a5aa8'}
+                now={now}
+                viewFor={axisViews.viewFor}
+                onViewChange={axisViews.setView}
+                scrollTo={landing.scrollTo}
+                onScrolled={landing.onScrolled}
+              />
+            </>
           )}
         </>
       )}

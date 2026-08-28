@@ -26,6 +26,8 @@ import { useEtSelection, type EtSelectionState } from '../useEtSelection';
 import type { EtItemCuration } from '../../../lib/db';
 import { ALL_MOTIONS, INTERVAL_NAME, parseMotionId } from './ChordMotionTab';
 import AssociationsEditor from './AssociationsEditor';
+import ProgressTrackerBand from '../../../components/moduleHome/ProgressTrackerBand';
+import { PROGRESS_TRACKER_LABEL } from '../../../components/moduleHome/cardShell';
 
 const MODULE_ID = 'chord-progressions';
 type ViewMode = 'full-progression' | 'key-detection' | 'chord-motion' | 'must-knows';
@@ -392,10 +394,12 @@ export default function ProgressionFluencyTracker({ attempts }: Props) {
 
   return (
     <StripContext.Provider value={stripFacts}>
+      {/* THE SAME BAND AS THE OTHER THREE — see any of them for why
+          the `h2` that said "Fluency Tracker" is gone. */}
+      <ProgressTrackerBand label={PROGRESS_TRACKER_LABEL} />
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5">
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="text-base sm:text-lg font-medium tracking-tight">Fluency Tracker</h2>
           {selectionApplies && <EtSelectToggle selection={selection} />}
         </div>
         <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs flex-wrap">

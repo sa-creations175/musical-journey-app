@@ -40,7 +40,7 @@ export interface DetailEntry {
   items: readonly SkillRecord[];
 }
 
-/** The DOM id a detail block answers to, so a card's Progress Detail
+/** The DOM id a detail block answers to, so a card's Progress Tracker
  *  button can scroll to it. One function, so the writer and the reader
  *  cannot disagree about the name. */
 export function detailAnchorId(key: string): string {
@@ -61,7 +61,7 @@ export default function CategoryDetailStack({
   onViewChange: (field: string, viewId: string) => void;
   dueByItem?: ReadonlyMap<string, number | null>;
   /**
-   * A category to bring into view — set by a card's Progress Detail
+   * A category to bring into view — set by a card's Progress Tracker
    * button.
    *
    * READ AFTER THE RENDER THAT EXPANDS IT. The button expands and

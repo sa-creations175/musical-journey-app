@@ -31,7 +31,8 @@ import PoolPicker from '../../components/moduleHome/PoolPicker';
 import CategoryDetailStack, {
   type DetailEntry,
 } from '../../components/moduleHome/CategoryDetailStack';
-import { PROGRESS_DETAIL_LABEL } from '../../components/moduleHome/cardShell';
+import { PROGRESS_TRACKER_LABEL } from '../../components/moduleHome/cardShell';
+import ProgressTrackerBand from '../../components/moduleHome/ProgressTrackerBand';
 import { useAxisViews } from '../../components/moduleHome/useAxisViews';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
@@ -90,7 +91,7 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
     () => new Set([skill]),
   );
   /**
-   * A skill to bring into view — asked for by a card's Progress Detail,
+   * A skill to bring into view — asked for by a card's Progress Tracker,
    * here or on the module home. One mechanism for both: the module home
    * writes it into the URL, this page's own cards set it directly, and
    * `CategoryDetailStack` does the scrolling either way.
@@ -227,26 +228,23 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
       {/* THE DETAIL BLOCK, below the drill. This skill expanded,
           everything else lit collapsed.
 
-          THE RULED HEADER IS THE BOUNDARY. Drill above it, charts
-          below — the page ran the two together, so a reader scrolling
-          down met a grid with no announcement that the questions had
-          stopped. It is also what Progress Detail lands on; see the
-          effect above. */}
+          THE BAND IS THE BOUNDARY. Drill above it, charts below —
+          the page ran the two together, so a reader scrolling down met
+          a grid with no announcement that the questions had stopped.
+          It is also what Progress Tracker lands on; see the effect
+          above.
+
+          IT WAS A HAIRLINE RULE AND IT IS THE SHARED BAND NOW. Two
+          other modules needed the same boundary, and a rule this page
+          owned would have been copied twice. */}
       {axisViews.loaded && (
         <div className="space-y-3">
-          <div
+          <ProgressTrackerBand
             ref={detailHeaderRef}
             data-testid="reading-detail-header"
-            className="flex items-center gap-3 pt-2 scroll-mt-4"
-          >
-            <h2 className="text-[11px] uppercase tracking-wide text-neutral-500">
-              {PROGRESS_DETAIL_LABEL}
-            </h2>
-            <span
-              aria-hidden
-              className="flex-1 border-t border-neutral-200 dark:border-neutral-700"
-            />
-          </div>
+            label={PROGRESS_TRACKER_LABEL}
+            count={detailEntries.reduce((n, e) => n + e.items.length, 0)}
+          />
           <CategoryDetailStack
             entries={detailEntries}
             expanded={expandedDetails}

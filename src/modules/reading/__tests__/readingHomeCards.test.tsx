@@ -23,7 +23,7 @@ import {
 } from '../catalog';
 import { moduleMetaById } from '../../../lib/moduleMeta';
 import { detailHref } from '../../../lib/detailLanding';
-import { PROGRESS_DETAIL_LABEL } from '../../../components/moduleHome/cardShell';
+import { PROGRESS_TRACKER_LABEL } from '../../../components/moduleHome/cardShell';
 import type { AttemptRecord } from '../../../lib/db';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -283,8 +283,8 @@ describe('the page', () => {
     expect(el.querySelector('[data-item-ref]')).not.toBeNull();
   });
 
-  it('rules off the detail area, and lands a Progress Detail press on it', async () => {
-    // WHAT IS ASSERTED IS THE ORDER AND THE TARGET, not the rule.
+  it('bands off the detail area, and lands a Progress Tracker press on it', async () => {
+    // WHAT IS ASSERTED IS THE ORDER AND THE TARGET, not the band.
     // jsdom draws nothing and has no `scrollIntoView`; what it can say
     // is that the header comes before the blocks in the document and
     // that arriving with `?detail=1` consumed the request rather than
@@ -294,7 +294,7 @@ describe('the page', () => {
     const header = el.querySelector('[data-testid="reading-detail-header"]');
     const stack = el.querySelector('[data-testid="category-detail-stack"]');
     expect(header).not.toBeNull();
-    expect(header!.textContent).toBe(PROGRESS_DETAIL_LABEL);
+    expect(header!.textContent).toContain(PROGRESS_TRACKER_LABEL);
     expect(
       header!.compareDocumentPosition(stack!) & Node.DOCUMENT_POSITION_FOLLOWING,
       'the blocks sit below the header',

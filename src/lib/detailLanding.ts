@@ -8,12 +8,12 @@
  * the module home, below every card, and again on the category page.
  * Two renders of one thing is two things that can drift — and the
  * module-home copy landed a full page below the button that opened it,
- * so pressing Progress Detail on the third card of fifteen appeared to
+ * so pressing Progress Tracker on the third card of fifteen appeared to
  * do nothing at all.
  *
  * So there is one block and it lives on the category page. Open and
- * Progress Detail now go to the SAME page and differ only in where they
- * land: Open at the top, ready to drill; Progress Detail at the chart.
+ * Progress Tracker now go to the SAME page and differ only in where they
+ * land: Open at the top, ready to drill; Progress Tracker at the chart.
  * That is the whole of what this parameter carries.
  * =====================================================================
  *
