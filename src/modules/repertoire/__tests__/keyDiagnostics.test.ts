@@ -149,8 +149,8 @@ function cell(songKeyId: string, sectionId: string, o: Partial<SongCell> = {}): 
   return {
     id: `cell-${songKeyId}-${sectionId}`,
     songId: 's1', sectionId, songKeyId,
-    cellState: 'empty', comfortableAt: null, consecutiveCleanCount: 0,
-    lastRunAt: null, lastRunWasClean: null, notes: null,
+    cellState: 'empty',
+    lastRunAt: null, notes: null,
     lastEngagedAt: null, createdAt: NOW, updatedAt: NOW, ...o,
   } as SongCell;
 }

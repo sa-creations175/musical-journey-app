@@ -53,8 +53,7 @@ const section = (): SongMatrixSection => ({
 
 const cell = (over: Partial<SongCell> = {}): SongCell => ({
   id: 'cell-1', songId: 's1', songKeyId: 'sk-C', sectionId: 'sec-1',
-  cellState: 'learning', comfortableAt: null, consecutiveCleanCount: 0,
-  lastRunAt: null, lastRunWasClean: null, notes: null,
+  cellState: 'learning', lastRunAt: null, notes: null,
   lastEngagedAt: null, createdAt: 0, updatedAt: 0,
   ...over,
 });
@@ -199,7 +198,11 @@ describe('the clean-run count, without a button behind it', () => {
 
     const stored = await db.songCells.get('cell-1');
     expect(stored?.cellState).not.toBe('comfortable');
-    expect(stored?.comfortableAt ?? null).toBeNull();
+    // The gate's three fields are gone from the row entirely.
+    const raw = stored as unknown as Record<string, unknown>;
+    expect('comfortableAt' in raw).toBe(false);
+    expect('consecutiveCleanCount' in raw).toBe(false);
+    expect('lastRunWasClean' in raw).toBe(false);
     // The runs themselves are still recorded — only the claim is gone.
     expect(await db.songCellRunThroughs.count()).toBeGreaterThan(0);
     h.unmount();
@@ -214,15 +217,16 @@ describe('the clean-run count, without a button behind it', () => {
     h.unmount();
   });
 
-  it('carries the streak the cell already holds', () => {
+  it('starts each sitting at zero, carrying no stored streak', () => {
     // Unlike the whole-song test, which restarts at 0/3 on every open
-    // because it has to be assembled in one sitting. A cell is
-    // ordinary work and accumulates.
-    const h = mount({ cell: cell({ consecutiveCleanCount: 2 }) });
+    // NOW THE SAME AS THE WHOLE-SONG TEST: the count is this sitting's
+    // only. The stored streak fed the retired three-clean-runs gate and
+    // went with it, so a cell no longer carries one in from last week.
+    const h = mount();
     h.toTest();
+    expect(h.text()).toContain('0 of 3 clean runs in a row');
+    h.runsClean(2);
     expect(h.text()).toContain('2 of 3 clean runs in a row');
-    h.runsClean(1);
-    expect(h.text()).toContain('3 of 3 clean runs in a row');
     h.unmount();
   });
 
@@ -253,8 +257,9 @@ describe('the tempo floor', () => {
   });
 
   it('does not reset a streak either', () => {
-    const h = mount({ cell: cell({ consecutiveCleanCount: 2 }) });
+    const h = mount();
     h.toTest();
+    h.runsClean(2);
     h.setBpm('60');
     h.runsClean(1);
     expect(h.text()).toContain('2 of 3 clean runs in a row');

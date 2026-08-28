@@ -184,8 +184,14 @@ export function applyAttemptsToCell(
    *  cases, neither is degraded. */
   practiceLogId: string | null = null,
 ): { updatedCell: SongCell; runThroughRows: SongCellRunThrough[] } {
+  // FROM ZERO, because the stored streak is gone. It counted toward
+  // the retired three-clean-runs gate, so it described a rule the app
+  // no longer follows. What is left is a count of THIS SITTING's
+  // clean runs — which is the same semantics the whole-song test has
+  // always had, and for the same reason: a streak assembled across
+  // weeks was never the thing being claimed.
   const projectedCount = projectConsecutiveCleanCount(
-    cell.consecutiveCleanCount,
+    0,
     attempts,
     performanceTempo,
   );
@@ -226,18 +232,15 @@ export function applyAttemptsToCell(
   // them, and removing them here would mean two shapes of half-retired
   // cell in the database at once.
   const nextState = cell.cellState;
-  const nextComfortableAt = cell.comfortableAt;
   void markComfortable;
+  void projectedCount;
 
   const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
 
   const updatedCell: SongCell = {
     ...cell,
     cellState: nextState,
-    comfortableAt: nextComfortableAt,
-    consecutiveCleanCount: projectedCount,
     lastRunAt: lastAttempt ? now + (attempts.length - 1) : cell.lastRunAt,
-    lastRunWasClean: lastAttempt ? lastAttempt.wasClean : cell.lastRunWasClean,
     notes,
     lastEngagedAt: now,
     updatedAt: now,

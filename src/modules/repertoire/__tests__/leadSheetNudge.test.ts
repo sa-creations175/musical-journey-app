@@ -29,8 +29,8 @@ const songKey = (over: Partial<SongKey> = {}): SongKey => ({
 
 const cell = (over: Partial<SongCell> = {}): SongCell => ({
   id: 'cell-1', songId: 's1', songKeyId: 'sk-C', sectionId: 'ms-1',
-  cellState: 'learning', comfortableAt: null, consecutiveCleanCount: 0,
-  lastRunAt: null, lastRunWasClean: null, notes: null,
+  cellState: 'learning',
+  lastRunAt: null, notes: null,
   lastEngagedAt: null, createdAt: 0, updatedAt: 0,
   ...over,
 });

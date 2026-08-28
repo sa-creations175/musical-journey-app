@@ -53,8 +53,8 @@ function key(keyName: string, o: Partial<SongKey> = {}): SongKey {
 function cell(songKeyId: string, sectionId: string, o: Partial<SongCell> = {}): SongCell {
   return {
     id: songCellRowId(songKeyId, sectionId), songId: SONG, sectionId, songKeyId,
-    cellState: 'empty', comfortableAt: null, consecutiveCleanCount: 0,
-    lastRunAt: null, lastRunWasClean: null, notes: null, lastEngagedAt: null,
+    cellState: 'empty',
+    lastRunAt: null, notes: null, lastEngagedAt: null,
     createdAt: NOW, updatedAt: NOW, ...o,
   } as SongCell;
 }
@@ -79,7 +79,6 @@ describe('planMaterialisation', () => {
       expect(c.cellState).toBe('empty');
       expect(c.lastRunAt).toBeNull();
       expect(c.lastEngagedAt).toBeNull();
-      expect(c.consecutiveCleanCount).toBe(0);
     }
   });
 

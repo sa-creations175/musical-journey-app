@@ -52,8 +52,8 @@ const section = (id: string, name: string): SongMatrixSection => ({
 
 const cell = (sectionId: string, over: Partial<SongCell> = {}): SongCell => ({
   id: `c-${sectionId}`, songId: 's1', sectionId, songKeyId: 'sk-F#',
-  cellState: 'learning', comfortableAt: null, consecutiveCleanCount: 0,
-  lastRunAt: NOW, lastRunWasClean: true, notes: null, lastEngagedAt: NOW,
+  cellState: 'learning',
+  lastRunAt: NOW, notes: null, lastEngagedAt: NOW,
   createdAt: 0, updatedAt: 0, ...over,
 });
 

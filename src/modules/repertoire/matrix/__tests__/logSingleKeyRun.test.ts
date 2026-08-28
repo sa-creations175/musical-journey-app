@@ -68,8 +68,7 @@ function mkKey(overrides: Partial<SongKey> = {}): SongKey {
 function mkCell(overrides: Partial<SongCell> = {}): SongCell {
   return {
     id: 'cell-1', songId: SONG, sectionId: 'sec-1', songKeyId: 'key-1',
-    cellState: 'comfortable', comfortableAt: NOW, consecutiveCleanCount: 3,
-    lastRunAt: NOW, lastRunWasClean: true, notes: null, lastEngagedAt: NOW,
+    cellState: 'comfortable', lastRunAt: NOW, notes: null, lastEngagedAt: NOW,
     createdAt: NOW, updatedAt: NOW, ...overrides,
   };
 }
@@ -270,7 +269,7 @@ describe('testing a key whose sections are not comfortable', () => {
   it('a pass records the test but does not make the key solid', async () => {
     const key = mkKey({ keyState: 'learning' });
     await db.songKeys.put(key);
-    const touched = mkCell({ consecutiveCleanCount: 0 });
+    const touched = mkCell();
     await db.spacingState.put({
       id: `sp-repertoire-both-songCell:${touched.id}`,
       itemRef: `songCell:${touched.id}`,
@@ -312,7 +311,7 @@ describe('testing a key whose sections are not comfortable', () => {
       markSolid: true,
       performanceTempo: TEMPO,
       isRetest: false,
-      siblingCells: [mkCell({ cellState: 'learning', consecutiveCleanCount: 0 })],
+      siblingCells: [mkCell({ cellState: 'learning' })],
       expectedSectionCount: 1,
       now: NOW,
     });
@@ -339,7 +338,7 @@ describe('testing a key whose sections are not comfortable', () => {
       songKey: key,
       attempts: [1, 2, 3].map(i => ({ id: `c${i}`, bpm: TEMPO, wasClean: true })),
       markSolid: true, performanceTempo: TEMPO, isRetest: false,
-      siblingCells: [mkCell({ cellState: 'learning', consecutiveCleanCount: 0 })],
+      siblingCells: [mkCell({ cellState: 'learning' })],
       expectedSectionCount: 1, now: NOW,
     });
     const after = (await db.songKeys.get('key-1'))!;

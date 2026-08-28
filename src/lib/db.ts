@@ -2541,17 +2541,30 @@ export interface SongCell {
   sectionId: string;
   /** FK → songKeys.id */
   songKeyId: string;
+  /**
+   * RETIRED, AND STILL WRITTEN. Nothing reads this — every site that
+   * did now reads the band through `matrix/cellBands.ts`. It stays
+   * because `song_cells.cell_state` is a synced NOT NULL column: a row
+   * without it fails every upsert. Pinned to whatever it already was.
+   * Dropping the column is separate work with a Postgres migration.
+   */
   cellState: SongCellState;
-  /** Set when cellState first transitions to 'comfortable'. */
-  comfortableAt: number | null;
-  /** Current streak toward the 3-run test (0–3). Resets to 0 on any
-   *  failed run-through; advances cellState to 'comfortable' when it
-   *  reaches 3. */
-  consecutiveCleanCount: number;
+  /**
+   * GONE. `comfortableAt`, `consecutiveCleanCount` and
+   * `lastRunWasClean` stood here.
+   *
+   * They were the three-clean-runs gate: a streak, the moment it was
+   * met, and whether the last run counted toward it. The gate is
+   * retired — comfortable is Fluent-or-better, derived from rated
+   * reps — so all three described a rule the app no longer follows.
+   *
+   * `lastRunAt` SURVIVES and is not part of that set. It says the cell
+   * was played, which is still true and still needed:
+   * `findSeededKeyRows` uses it as one of two independent signals when
+   * deciding whether a key row may be deleted, and losing it would
+   * make practised rows look untouched.
+   */
   lastRunAt: number | null;
-  /** True if the most recent run-through was clean; null when no
-   *  run-through has been logged yet. */
-  lastRunWasClean: boolean | null;
   notes: string | null;
   lastEngagedAt: number | null;
   createdAt: number;

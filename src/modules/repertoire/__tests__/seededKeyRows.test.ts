@@ -78,8 +78,7 @@ describe('what it must NOT clear', () => {
     await db.songKeys.add(keyRow({ isOriginalKey: true }));
     await db.songCells.add({
       id: 'cell-1', songId: 's1', sectionId: 'sec-1', songKeyId: 'sk-C',
-      cellState: 'learning', comfortableAt: null, consecutiveCleanCount: 1,
-      lastRunAt: LATER, lastRunWasClean: true, notes: null,
+      cellState: 'learning', lastRunAt: LATER, notes: null,
       lastEngagedAt: LATER, createdAt: 0, updatedAt: 0,
     });
     expect(await findSeededKeyRows()).toHaveLength(0);
@@ -101,8 +100,8 @@ describe('what it must NOT clear', () => {
     await db.songKeys.add(keyRow());
     await db.songCells.add({
       id: 'cell-1', songId: 's1', sectionId: 'sec-1', songKeyId: 'sk-C',
-      cellState: 'empty', comfortableAt: null, consecutiveCleanCount: 0,
-      lastRunAt: null, lastRunWasClean: null, notes: null,
+      cellState: 'empty',
+      lastRunAt: null, notes: null,
       lastEngagedAt: null, createdAt: 0, updatedAt: 0,
     });
     await db.songCellRunThroughs.add({
@@ -208,8 +207,8 @@ async function seedSeededRow(): Promise<void> {
   await db.songKeys.add(keyRow());
   await db.songCells.add({
     id: 'cell-sk-C-sec1', songId: 's1', sectionId: 'sec1', songKeyId: 'sk-C',
-    cellState: 'empty', comfortableAt: null, consecutiveCleanCount: 0,
-    lastRunAt: null, lastRunWasClean: null, notes: null, lastEngagedAt: null,
+    cellState: 'empty',
+    lastRunAt: null, notes: null, lastEngagedAt: null,
     createdAt: ADDED, updatedAt: ADDED,
   } as never);
 }

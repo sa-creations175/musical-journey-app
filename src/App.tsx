@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
 import { backfillChartingEngagement } from './modules/repertoire/chartingEngagement';
+import { describeWipe, wipeRetiredCellFields } from './modules/repertoire/wipeRetiredCellFields';
 import {
   describeDedupe, removeDuplicateSpacingRows,
 } from './lib/spacing/dedupeSpacingRows';
@@ -129,6 +130,19 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[repertoire] charting backfill failed', err);
+      });
+    // ONE-TIME, DESTRUCTIVE, AND IRREVERSIBLE. Removes the three
+    // fields of the retired three-clean-runs gate and its run-through
+    // log. It checks the counts it was authorised against before it
+    // writes and refuses if they moved — a wipe against a database
+    // that changed under it is a wipe nobody previewed.
+    //
+    // `lastRunAt`, `notes` and `lastEngagedAt` survive; so does
+    // `cellState`, which is a synced NOT NULL column.
+    void wipeRetiredCellFields()
+      .then(r => { if (!r.skipped) console.info(describeWipe(r)); })
+      .catch(err => {
+        console.warn('[repertoire] retired-field wipe failed', err);
       });
     // ONE-TIME, AND DELIBERATELY NOT ARMED YET.
     //

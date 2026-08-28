@@ -73,10 +73,7 @@ function mkCell(partial: Partial<SongCell> & { id: string; sectionId: string; so
   return {
     songId: SONG,
     cellState: 'empty',
-    comfortableAt: null,
-    consecutiveCleanCount: 0,
     lastRunAt: null,
-    lastRunWasClean: null,
     notes: null,
     lastEngagedAt: null,
     createdAt: NOW - 1000,

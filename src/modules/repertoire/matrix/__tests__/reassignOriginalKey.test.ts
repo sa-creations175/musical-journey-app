@@ -51,10 +51,7 @@ function mkCell(overrides: Partial<SongCell> = {}): SongCell {
     sectionId: 'sec-1',
     songKeyId: 'k-c',
     cellState: 'empty',
-    comfortableAt: null,
-    consecutiveCleanCount: 0,
     lastRunAt: null,
-    lastRunWasClean: null,
     notes: null,
     lastEngagedAt: null,
     createdAt: NOW,
@@ -194,7 +191,6 @@ describe('reassignOriginalKey — matrix data survives the flip', () => {
         id: 'cell-1',
         songKeyId: 'k-c',
         cellState: 'comfortable',
-        comfortableAt: NOW,
       }),
     );
 
@@ -206,6 +202,5 @@ describe('reassignOriginalKey — matrix data survives the flip', () => {
     // changes" contract holds.
     expect(cell?.songKeyId).toBe('k-c');
     expect(cell?.cellState).toBe('comfortable');
-    expect(cell?.comfortableAt).toBe(NOW);
   });
 });

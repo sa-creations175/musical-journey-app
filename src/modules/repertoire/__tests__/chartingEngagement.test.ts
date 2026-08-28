@@ -50,12 +50,12 @@ async function seed(opts: { chords: boolean; matrixFk?: boolean; originalKey?: b
   ]);
   await db.songCells.bulkAdd([
     { id: CELL_ID, songId: SONG_ID, sectionId: MATRIX_ID, songKeyId: ORIG_KEY_ID,
-      cellState: 'empty', comfortableAt: null, consecutiveCleanCount: 0,
-      lastRunAt: null, lastRunWasClean: null, notes: null, lastEngagedAt: null,
+      cellState: 'empty',
+      lastRunAt: null, notes: null, lastEngagedAt: null,
       createdAt: 0, updatedAt: 0 } as SongCell,
     { id: OTHER_CELL_ID, songId: SONG_ID, sectionId: MATRIX_ID, songKeyId: OTHER_KEY_ID,
-      cellState: 'empty', comfortableAt: null, consecutiveCleanCount: 0,
-      lastRunAt: null, lastRunWasClean: null, notes: null, lastEngagedAt: null,
+      cellState: 'empty',
+      lastRunAt: null, notes: null, lastEngagedAt: null,
       createdAt: 0, updatedAt: 0 } as SongCell,
   ]);
 }

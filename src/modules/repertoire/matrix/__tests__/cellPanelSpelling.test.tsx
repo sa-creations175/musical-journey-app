@@ -29,8 +29,8 @@ const NOW = 1_760_000_000_000;
 
 const cell = (): SongCell => ({
   id: 'cell-1', songId: 's1', songKeyId: 'sk-C', sectionId: 'sec-1',
-  cellState: 'learning', comfortableAt: null, consecutiveCleanCount: 0,
-  lastRunAt: null, lastRunWasClean: null, notes: null,
+  cellState: 'learning',
+  lastRunAt: null, notes: null,
   lastEngagedAt: null, createdAt: 0, updatedAt: 0,
 });
 

@@ -128,10 +128,7 @@ export function planMaterialisation(
         // `lastRunAt` reads as unengaged everywhere, which is what
         // keeps the legacy-state protection intact.
         cellState: 'empty',
-        comfortableAt: null,
-        consecutiveCleanCount: 0,
         lastRunAt: null,
-        lastRunWasClean: null,
         notes: null,
         lastEngagedAt: null,
         createdAt: now,

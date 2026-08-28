@@ -60,10 +60,7 @@ function cell(
     sectionId,
     songKeyId,
     cellState: 'empty',
-    comfortableAt: null,
-    consecutiveCleanCount: 0,
     lastRunAt: null,
-    lastRunWasClean: null,
     notes: null,
     lastEngagedAt: null,
     createdAt: NOW,
@@ -99,7 +96,7 @@ describe('isCellEngaged', () => {
     // still practice — and it is the cell the user is working hardest
     // on, so treating it as untouched under-reports the worst case.
     expect(isCellEngaged(cell('songkey-s1-C', 'verse', {
-      lastRunAt: NOW, lastRunWasClean: false,
+      lastRunAt: NOW,
     }), NO_CELL_BANDS)).toBe(true);
   });
 

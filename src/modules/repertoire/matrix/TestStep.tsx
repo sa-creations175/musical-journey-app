@@ -63,8 +63,11 @@ export default function TestStep({
   // rejected, and only by refusing to add the attempt.
   const bpmValid = bpmInput.trim() === '' || hasBpm;
 
+  // IN THIS SITTING ONLY. The stored streak is gone: it counted
+  // toward the retired three-clean-runs gate. The whole-song test has
+  // always restarted at 0 for the same reason, so the two now agree.
   const projected = projectConsecutiveCleanCount(
-    cell.consecutiveCleanCount,
+    0,
     attempts,
     performanceTempo,
   );
