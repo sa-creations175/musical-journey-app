@@ -23,6 +23,8 @@ import {
   logVoiceLeadingDrillSession,
 } from '../drillModel';
 import { recordSongKeyRun } from '../../repertoire/matrix/proveKey';
+import { logPracticeSession } from '../../repertoire/logPractice';
+import type { PracticeActivity } from '../../../lib/practiceActivities';
 import {
   REPERTOIRE_MODULE_REF, songCellItemRef,
 } from '../../repertoire/chartingEngagement';
@@ -90,6 +92,15 @@ export function chordShapeSurface(args: {
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
     countsUp: false,
+    // A drill has no between-time, no document, and covers one item.
+    sessionMetronome: false,
+    scopeOptions: null,
+    openedOnScopeId: null,
+    openItem: null,
+    wrapSections: null,
+    wrapAsksActivities: false,
+    // Drills log a DrillSession per run; there is no sitting-level row.
+    writeSessionLog: null,
     hasStyle: true,
     rateLabel: 'changes a minute',
     targetRate: TARGET_RATES['chord-shapes'],
@@ -131,6 +142,15 @@ export function scaleSurface(args: {
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
     countsUp: false,
+    // A drill has no between-time, no document, and covers one item.
+    sessionMetronome: false,
+    scopeOptions: null,
+    openedOnScopeId: null,
+    openItem: null,
+    wrapSections: null,
+    wrapAsksActivities: false,
+    // Drills log a DrillSession per run; there is no sitting-level row.
+    writeSessionLog: null,
     // A scale is a single line — nothing to block, nothing to break.
     hasStyle: false,
     rateLabel: 'notes a minute',
@@ -165,6 +185,15 @@ export function voiceLeadingSurface(args: {
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
     countsUp: false,
+    // A drill has no between-time, no document, and covers one item.
+    sessionMetronome: false,
+    scopeOptions: null,
+    openedOnScopeId: null,
+    openItem: null,
+    wrapSections: null,
+    wrapAsksActivities: false,
+    // Drills log a DrillSession per run; there is no sitting-level row.
+    writeSessionLog: null,
     hasStyle: false,
     rateLabel: 'chord changes a minute',
     targetRate: TARGET_RATES['voice-leading'],
@@ -230,6 +259,13 @@ export function songSurface(args: {
   songKeyId: string;
   /** sectionId → cellId, for this key. What `scope` resolves through. */
   cellIdBySectionId: ReadonlyMap<string, string>;
+  songId: string;
+  /** The key's name, for the practice log's `keys`. */
+  keyName: string;
+  /** The song's sections, in order, for the scope chips and the wrap. */
+  sections: ReadonlyArray<{ id: string; label: string }>;
+  /** Collapse the panel to a bar and show the chart. */
+  onOpenLeadSheet: () => void;
   /** The song's own tempo. NOT a figure from the settings tree: a song
    *  is played at the tempo it is written at, and the tree has no
    *  opinion about that. Null means the song has none set, so every
@@ -242,6 +278,29 @@ export function songSurface(args: {
     skillLabel: args.skillLabel,
     // A section takes as long as it takes.
     countsUp: true,
+    // Reading the chart and working a passage happen between runs.
+    sessionMetronome: true,
+    scopeOptions: args.sections,
+    // Which section this cell is. Derived rather than passed, so it
+    // cannot disagree with `cellIdBySectionId`.
+    openedOnScopeId: [...args.cellIdBySectionId.entries()]
+      .find(([, cellId]) => cellId === args.cellId)?.[0] ?? null,
+    openItem: args.onOpenLeadSheet,
+    wrapSections: args.sections,
+    wrapAsksActivities: true,
+    writeSessionLog: async (entry) => {
+      await logPracticeSession({
+        songId: args.songId,
+        durationMin: Math.max(1, Math.round(entry.durationSeconds / 60)),
+        sectionIds: [...entry.sectionIds],
+        keys: [args.keyName],
+        notes: entry.note,
+        activities: entry.activities as PracticeActivity[],
+        // NO feelRating. See `writeSessionLog` on the interface: the
+        // rating is already recorded where it bands, and the log is
+        // what happened rather than how it went.
+      });
+    },
     // Nothing to block or break — you play the section.
     hasStyle: false,
     rateLabel: 'BPM',

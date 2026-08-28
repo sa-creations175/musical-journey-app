@@ -28,7 +28,11 @@ function surface(songTempo: number | null = 90) {
     skillLabel: '',
     cellId: CELL,
     songKeyId: KEY,
+    songId: 's1',
+    keyName: 'Ab',
     cellIdBySectionId: BY_SECTION,
+    sections: [...BY_SECTION.keys()].map(id => ({ id, label: id })),
+    onOpenLeadSheet: () => {},
     songTempo,
   });
 }

@@ -38,12 +38,14 @@ import { useEffect, useRef, useState } from 'react';
 import Modal from '../../../components/Modal';
 import DrillMetronomeSetup from '../DrillMetronomeSetup';
 import { useMetronomeState } from '../../../lib/useMetronome';
+import MetronomeControl from '../../../components/MetronomeControl';
 import { metronome } from '../../../lib/metronome';
 import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS } from '../drillModel';
 import { isAtTarget, rateFor, type DrillSurface } from './surfaces';
 import { formatClock, useSessionClock } from './sessionClock';
 import type { BandVerdict } from '../../../lib/spacing/banding';
 import { TIER_LABEL } from '../../../lib/tier';
+import { PRACTICE_ACTIVITY_OPTIONS, type PracticeActivity } from '../../../lib/practiceActivities';
 import {
   DRILL_LENGTHS,
   countsTowardTest,
@@ -78,6 +80,9 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   /** What the item reads after the session was written, and how it was
    *  rated — the two things the done step reports. */
   const [outcome, setOutcome] = useState<Outcome | null>(null);
+  /** What the run in progress covered. Empty means the item the panel
+   *  was opened on — see DrillRecord.scope. */
+  const [scope, setScope] = useState<readonly string[]>([]);
 
   const sessionSeconds = useSessionClock(mode !== null);
 
@@ -124,13 +129,18 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       // without a feel, so an unrated drill leaves the band alone.
       await surface.write({
         ranSeconds: d.ranSeconds,
-        targetSeconds: (draft as DrillDraft).targetSeconds,
-        // The three drill surfaces do not scope a rep — see DrillRecord.
-        scope: null,
+        // A COUNT-UP RUN HAS NO TARGET. Recording the draft's length
+        // would be a number nobody set.
+        targetSeconds: surface.countsUp ? 0 : (draft as DrillDraft).targetSeconds,
+        // WHAT THE RUN COVERED. Empty means the item the panel was
+        // opened on — the writer reads null as exactly that, so the
+        // claim stays the smallest one the evidence supports.
+        scope: scope.length > 0 ? scope : null,
         style: d.style,
         feel: d.feel,
         fromTest: false,
       });
+      setScope([]);
     } finally {
       setSaving(false);
     }
@@ -151,8 +161,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       for (const d of reps) {
         await surface.write({
           ranSeconds: d.ranSeconds,
-          targetSeconds: d.ranSeconds,
-          // The three drill surfaces do not scope a rep — see DrillRecord.
+          targetSeconds: surface.countsUp ? 0 : d.ranSeconds,
+          // A test is three runs of the thing being tested. Scoping one
+          // of them to something else would make the three not be three
+          // reps of one item.
           scope: null,
           // A test drill is always blocked, where there is a style at
           // all. The writer drops it on surfaces that have none.
@@ -183,6 +195,24 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
     >
       {step === 'choose' && (
         <ModeChooser onPick={next => { setMode(next); setStep('session'); }} />
+      )}
+
+      {/* A METRONOME ON THE SESSION. Plenty of the work on a song
+          happens between runs — reading the chart, finding a voicing,
+          playing a passage over — and a click that only exists inside
+          a timed drill is not available for any of it. */}
+      {step === 'session' && mode !== null && surface.sessionMetronome && (
+        <MetronomeControl />
+      )}
+
+      {step === 'session' && mode !== null && surface.openItem !== null && (
+        <button
+          type="button"
+          onClick={surface.openItem}
+          className="w-full px-3 py-2.5 rounded-lg bg-info text-white text-sm font-medium hover:opacity-90"
+        >
+          Open Lead Sheet
+        </button>
       )}
 
       {step === 'session' && mode !== null && (
@@ -264,6 +294,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
 
       {step === 'drillrate' && draft !== null && mode !== null && (
         <DrillRateStep
+          surface={surface}
+          openedOn={surface.scopeOptions?.find(o => o.id === surface.openedOnScopeId)?.label ?? null}
+          scope={scope}
+          onScope={setScope}
           mode={mode}
           seconds={sessionSeconds}
           ranSeconds={ranSeconds}
@@ -668,8 +702,15 @@ function DrillingStep({
   onFinish: (ranSeconds: number) => void;
 }) {
   const metro = useMetronomeState();
-  const remaining = useDrillCountdown(draft.targetSeconds, () =>
-    onFinish(draft.targetSeconds));
+  // A COUNT-UP SURFACE HAS NOTHING TO COUNT DOWN TO. The countdown is
+  // still mounted so the hook order does not change between surfaces,
+  // but it is handed 0 — which never fires — and the elapsed clock is
+  // what is shown and what is recorded.
+  const remaining = useDrillCountdown(
+    surface.countsUp ? 0 : draft.targetSeconds,
+    () => { if (!surface.countsUp) onFinish(draft.targetSeconds); },
+  );
+  const elapsed = useElapsed(surface.countsUp);
   const rate = rateFor(surface, metro.bpm, draft.per);
   const atTarget = isAtTarget(surface, metro.bpm, draft.per);
 
@@ -679,7 +720,7 @@ function DrillingStep({
 
       <div className="rounded-lg border border-fluent p-4 text-center">
         <div className="font-mono tabular-nums text-4xl sm:text-5xl text-fluent">
-          {formatClock(remaining)}
+          {formatClock(surface.countsUp ? elapsed : remaining)}
         </div>
         <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mt-1">
           {mode === 'test' ? 'Test' : 'Drill'} {index}
@@ -698,10 +739,10 @@ function DrillingStep({
 
       <button
         type="button"
-        onClick={() => onFinish(draft.targetSeconds - remaining)}
+        onClick={() => onFinish(surface.countsUp ? elapsed : draft.targetSeconds - remaining)}
         className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
       >
-        Finish Now
+        {surface.countsUp ? 'Done — Rate It' : 'Finish Now'}
       </button>
     </div>
   );
@@ -710,16 +751,23 @@ function DrillingStep({
 // ---------------------------------------------------------------------
 
 function DrillRateStep({
-  mode, seconds, ranSeconds, index, onRate, onSkip,
+  mode, seconds, ranSeconds, index, surface, openedOn, scope, onScope, onRate, onSkip,
 }: {
   mode: SessionMode;
   seconds: number;
   ranSeconds: number;
   index: number;
+  surface: DrillSurface;
+  /** The section the panel was opened on, for the hint. */
+  openedOn: string | null;
+  scope: readonly string[];
+  onScope: (next: readonly string[]) => void;
   onRate: (feel: 1 | 2 | 3 | 4) => void;
   onSkip: () => void;
 }) {
   const tooShort = isTooShort(ranSeconds, MIN_REP_SECONDS);
+  const options = surface.scopeOptions;
+  const wholeSong = options !== null && scope.length === options.length;
   return (
     <div className="space-y-4">
       <SessionClockFace seconds={seconds} mode={mode} />
@@ -729,6 +777,53 @@ function DrillRateStep({
           <b>That run was {ranSeconds}s.</b> A run has to reach{' '}
           {MIN_REP_SECONDS} seconds to have been real, so this one goes on the
           list and nothing is saved for it.
+        </div>
+      )}
+
+      {options !== null && (
+        <div>
+          <SectionLabel hint={openedOn !== null ? `You opened on ${openedOn}` : undefined}>
+            What Was That Run
+          </SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {options.map(opt => {
+              const on = scope.includes(opt.id);
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => onScope(
+                    on ? scope.filter(id => id !== opt.id) : [...scope, opt.id],
+                  )}
+                  className={`px-2.5 py-1 rounded-md border text-xs ${
+                    on
+                      ? 'bg-fluent text-white border-fluent font-medium'
+                      : 'border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => onScope(wholeSong ? [] : options.map(o => o.id))}
+              className={`px-2.5 py-1 rounded-md border text-xs ${
+                wholeSong
+                  ? 'bg-fluent text-white border-fluent font-medium'
+                  : 'border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300'
+              }`}
+            >
+              The Whole Song
+            </button>
+          </div>
+          {wholeSong && (
+            <div className="mt-2 rounded-md border-l-[3px] border-fluent bg-fluent/5 px-3 py-2.5 text-xs text-neutral-700 dark:text-neutral-200">
+              <b>This counts for every section.</b> You played them all, so how
+              it went is evidence about all of them — not just{' '}
+              {openedOn ?? 'the one you opened'}.
+            </div>
+          )}
         </div>
       )}
 
@@ -777,6 +872,14 @@ function DrillRateStep({
  * timestamp for the same reason the session clock is — a throttled
  * background tab must not be able to lengthen a drill.
  */
+/** Seconds since this run started. The mirror of the countdown, for a
+ *  surface where the run has no set length. */
+function useElapsed(active: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+  useEffectOnInterval(() => { if (active) setSeconds(s => s + 1); });
+  return seconds;
+}
+
 function useDrillCountdown(targetSeconds: number, onZero: () => void): number {
   const [remaining, setRemaining] = useState(targetSeconds);
   const startedAt = useState(() => Date.now())[0];
@@ -839,7 +942,7 @@ function WrapStep({
   drills: CompletedDrill[];
   surface: DrillSurface;
   saving: boolean;
-  onLog: (feel: 1 | 2 | 3 | 4 | null) => void;
+  onLog: (feel: 1 | 2 | 3 | 4 | null, extras: WrapExtras) => void;
 }) {
   const rated = drills.filter(d => d.feel !== null);
   const derived = rated.length > 0
@@ -851,6 +954,17 @@ function WrapStep({
   const [picked, setPicked] = useState<1 | 2 | 3 | 4 | null>(derived);
   const [showOverride, setShowOverride] = useState(false);
   const overrode = derived !== null && picked !== derived;
+
+  // WHAT HAPPENED, not how it went. These land on the practice log
+  // beside the duration and never feed a status — evidence sets
+  // status, and a ticked box is not evidence.
+  const [activities, setActivities] = useState<PracticeActivity[]>([]);
+  const [touched, setTouched] = useState<readonly string[]>(
+    surface.openedOnScopeId !== null ? [surface.openedOnScopeId] : [],
+  );
+  const [note, setNote] = useState('');
+  const openedOnLabel = surface.wrapSections
+    ?.find(sec => sec.id === surface.openedOnScopeId)?.label ?? null;
 
   const wordFor = (feel: 1 | 2 | 3 | 4) =>
     FEEL_CARD_OPTIONS.find(o => o.value === feel)?.label ?? '';
@@ -945,11 +1059,79 @@ function WrapStep({
         </div>
       )}
 
+      {surface.wrapAsksActivities && (
+        <div>
+          <SectionLabel hint="Pick any that apply">What Did You Work On</SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {PRACTICE_ACTIVITY_OPTIONS.map(opt => {
+              const on = activities.includes(opt.activity);
+              return (
+                <button
+                  key={opt.activity}
+                  type="button"
+                  onClick={() => setActivities(prev => on
+                    ? prev.filter(a => a !== opt.activity)
+                    : [...prev, opt.activity])}
+                  className={`px-2.5 py-1 rounded-md border text-xs ${
+                    on
+                      ? 'bg-fluent text-white border-fluent font-medium'
+                      : 'border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {surface.wrapSections !== null && (
+        <div>
+          <SectionLabel
+            hint={openedOnLabel !== null ? `You started on ${openedOnLabel}` : undefined}
+          >
+            Sections You Touched
+          </SectionLabel>
+          <div className="flex flex-wrap gap-1.5">
+            {surface.wrapSections.map(sec => {
+              const on = touched.includes(sec.id);
+              return (
+                <button
+                  key={sec.id}
+                  type="button"
+                  onClick={() => setTouched(prev => on
+                    ? prev.filter(id => id !== sec.id)
+                    : [...prev, sec.id])}
+                  className={`px-2.5 py-1 rounded-md border text-xs ${
+                    on
+                      ? 'bg-fluent text-white border-fluent font-medium'
+                      : 'border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300'
+                  }`}
+                >
+                  {sec.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <SectionLabel hint="Optional">A Note, If You Want One</SectionLabel>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="what worked, what didn't, voicings to revisit"
+          className="w-full min-h-[3.4rem] rounded-md border border-neutral-300 dark:border-neutral-600 bg-transparent px-2.5 py-2 text-sm"
+        />
+      </div>
+
       <div className="flex items-center gap-2">
         <button
           type="button"
           disabled={saving}
-          onClick={() => onLog(picked)}
+          onClick={() => onLog(picked, { activities, touched, note })}
           className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium disabled:opacity-40"
         >
           {saving ? 'Saving…' : 'Log The Session'}
@@ -960,7 +1142,7 @@ function WrapStep({
         {picked === null && derived === null && (
           <button
             type="button"
-            onClick={() => onLog(null)}
+            onClick={() => onLog(null, { activities, touched, note })}
             className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
           >
             Skip The Rating
@@ -972,6 +1154,20 @@ function WrapStep({
 }
 
 // ---------------------------------------------------------------------
+
+/**
+ * What the sitting CONSISTED OF, as opposed to how it went.
+ *
+ * These go to the practice log, never to a status. The distinction is
+ * a written rule: the log records what happened in a sitting; the
+ * rating records how it went. Evidence sets status — a note and a
+ * ticked activity box do not.
+ */
+interface WrapExtras {
+  activities: PracticeActivity[];
+  touched: readonly string[];
+  note: string;
+}
 
 /** What the session did, as the done step reports it. */
 interface Outcome {

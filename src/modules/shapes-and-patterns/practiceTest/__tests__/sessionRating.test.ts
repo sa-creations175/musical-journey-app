@@ -101,8 +101,9 @@ describe('every surface has one', () => {
   it('songs write the cell AND the song-and-key clock', async () => {
     await songSurface({
       cellLabel: 'Verse 1 · A♭', skillLabel: '',
-      cellId: 'cell-1', songKeyId: 'key-1',
-      cellIdBySectionId: new Map(), songTempo: 90,
+      cellId: 'cell-1', songKeyId: 'key-1', songId: 's1', keyName: 'Ab',
+      cellIdBySectionId: new Map(), sections: [], onOpenLeadSheet: () => {},
+      songTempo: 90,
     }).writeSessionRating(3, false);
     const refs = (await db.spacingState.toArray()).map(r => r.itemRef).sort();
     expect(refs).toEqual(['songCell:cell-1', 'songKey:key-1']);
@@ -113,8 +114,9 @@ describe('every surface has one', () => {
     // it covered the whole song.
     await songSurface({
       cellLabel: 'Verse 1 · A♭', skillLabel: '',
-      cellId: 'cell-1', songKeyId: 'key-1',
+      cellId: 'cell-1', songKeyId: 'key-1', songId: 's1', keyName: 'Ab',
       cellIdBySectionId: new Map([['sec-a', 'cell-1'], ['sec-b', 'cell-2']]),
+      sections: [], onOpenLeadSheet: () => {},
       songTempo: 90,
     }).writeSessionRating(3, false);
     const refs = (await db.spacingState.toArray()).map(r => r.itemRef);
@@ -141,8 +143,9 @@ describe('readVerdict — what the done step reports', () => {
     // is a clock and has no band to show.
     const s = songSurface({
       cellLabel: 'Verse 1 · A♭', skillLabel: '',
-      cellId: 'cell-1', songKeyId: 'key-1',
-      cellIdBySectionId: new Map(), songTempo: 90,
+      cellId: 'cell-1', songKeyId: 'key-1', songId: 's1', keyName: 'Ab',
+      cellIdBySectionId: new Map(), sections: [], onOpenLeadSheet: () => {},
+      songTempo: 90,
     });
     for (let i = 0; i < 3; i++) await s.writeSessionRating(3, true);
     expect(await s.readVerdict()).toEqual({ kind: 'band', band: 'fluent' });

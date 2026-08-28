@@ -91,6 +91,50 @@ export interface DrillSurface {
    */
   countsUp: boolean;
   /**
+   * A metronome on the SESSION, not only inside a drill.
+   *
+   * Plenty of the work on a song happens between runs — reading the
+   * chart, finding a voicing, playing a passage over. A click that
+   * only exists inside a timed drill is not available for any of it.
+   * The drill surfaces have no such between-time: you are drilling or
+   * you are not.
+   */
+  sessionMetronome: boolean;
+  /**
+   * What a single run can be scoped to, and null where a rep covers
+   * exactly the item it was started from.
+   *
+   * Songs only: a run can be one section, several, or the whole song,
+   * and what it covered decides where the rating lands. See
+   * `DrillRecord.scope`.
+   */
+  scopeOptions: ReadonlyArray<{ id: string; label: string }> | null;
+  /** Which of `scopeOptions` the panel was opened on, for the hints
+   *  that name it. Null where there is no scope. */
+  openedOnScopeId: string | null;
+  /**
+   * Open the thing being practised, where there is something to open.
+   *
+   * A lead sheet is the chart you are playing FROM, so it has to be
+   * reachable mid-session without ending the session. Null on every
+   * surface where the item is the notation — a chord shape has no
+   * document behind it.
+   */
+  openItem: (() => void) | null;
+  /**
+   * The sections this item belongs to, for the wrap's "Sections You
+   * Touched". Null where a sitting cannot span more than one thing.
+   */
+  wrapSections: ReadonlyArray<{ id: string; label: string }> | null;
+  /**
+   * Whether the wrap asks what the sitting consisted of.
+   *
+   * TIME RECORD ONLY. The activities land on the practice log beside
+   * the duration and never feed a status: evidence sets status, and a
+   * ticked box is not evidence. See `logPractice.ts`.
+   */
+  wrapAsksActivities: boolean;
+  /**
    * Whether a drill picks a style.
    *
    * CHORD SHAPES ONLY. A scale is a single line and voice-leading's
@@ -151,6 +195,31 @@ export interface DrillSurface {
    * an item with no row, which is a verdict rather than an absence.
    */
   readVerdict: () => Promise<BandVerdict>;
+  /**
+   * Record what the sitting CONSISTED OF, where the surface has a
+   * place for it. Null on the surfaces that do not.
+   *
+   * =====================================================================
+   * NO RATING GOES THROUGH HERE, and that is the whole distinction.
+   *
+   * The practice log records WHAT HAPPENED in a sitting — how long,
+   * which sections, what kind of work, a note. The rating records HOW
+   * IT WENT, and it has already been written by `writeSessionRating`
+   * at the levels that band. Passing the feel again would put the same
+   * verdict in a third place, and a status could then be traced to a
+   * ticked box rather than to evidence.
+   *
+   * The log never feeds a status. That is a rule, not an oversight.
+   * =====================================================================
+   */
+  writeSessionLog:
+    | ((entry: {
+        durationSeconds: number;
+        sectionIds: readonly string[];
+        activities: readonly string[];
+        note: string;
+      }) => Promise<void>)
+    | null;
 }
 
 export function rateFor(surface: DrillSurface, bpm: number, per: number): number {
