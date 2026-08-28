@@ -6,10 +6,7 @@ import { useToast } from '../../components/Toaster';
 import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
 import { useSessionTimer } from '../../lib/sessionTimer/SessionTimerContext';
-import {
-  HANDS_PER_SHAPE_ITEM,
-  STYLES_PER_CHORD_SHAPE_ITEM,
-} from '../../lib/sessionAlgorithm/timePerAttempt';
+import { DEFAULT_DRILL_SECONDS } from '../../lib/spacing/drillSettings';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
 import DrillAssessment from './DrillAssessment';
 import {
@@ -148,15 +145,17 @@ export default function DrillSessionModal({
   // runner walks cells via the Previous/Next/Redo controls. Standalone
   // matrix-tap (no initialTargetSeconds) keeps the original flow exactly.
   const fromRunner = initialTargetSeconds !== undefined;
-  // PER-SKILL countdown seconds. The runner supplies the whole-item
-  // budget (all six skills — 3 hands × 2 styles), so divide by the skill
-  // count; standalone uses the drill type's canonical per-skill suggestion.
-  const seed = fromRunner
-    ? Math.max(
-        30,
-        Math.round(initialTargetSeconds! / (HANDS_PER_SHAPE_ITEM * STYLES_PER_CHORD_SHAPE_ITEM)),
-      )
-    : drillType.suggestedSeconds;
+  /**
+   * How long this drill runs.
+   *
+   * IT USED TO BE THE BLOCK'S BUDGET DIVIDED BY THE PASS COUNT, so a
+   * drill was however long the arithmetic above it left over — 60
+   * seconds at six passes, 120 at three, and nobody chose either. A
+   * drill is as long as it is SET to be; the block covers however many
+   * passes fit at that length rather than stretching them to fill
+   * itself. See `spacing/drillSettings`.
+   */
+  const seed = fromRunner ? DEFAULT_DRILL_SECONDS : drillType.suggestedSeconds;
 
   const [targetSeconds, setTargetSeconds] = useState(seed);
   const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
@@ -445,7 +444,7 @@ export default function DrillSessionModal({
       title={drillType.name}
       description={
         fromRunner
-          ? `${skill.label} · ${HAND_LABEL[currentHand]} · ~${targetSeconds}s in this session`
+          ? `${skill.label} · ${HAND_LABEL[currentHand]} · ${targetSeconds}s`
           : `${skill.label} · ${HAND_LABEL[currentHand]}`
       }
       footer={phase === 'assess' ? (

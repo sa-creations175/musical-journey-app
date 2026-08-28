@@ -37,7 +37,8 @@ import Modal from '../../components/Modal';
 import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
 import { recordEngagement } from '../../lib/spacingState';
-import { HANDS_PER_SHAPE_ITEM, SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
+import { SCALE_KIND_SECONDS } from '../../lib/sessionAlgorithm/timePerAttempt';
+import { DEFAULT_DRILL_SECONDS, DRILL_FLOOR_SECONDS } from '../../lib/spacing/drillSettings';
 import {
   feelToRating,
   formatDuration,
@@ -156,9 +157,12 @@ export default function ScalesDrillModal({
   // budget (all three hands), so divide by the hand count; standalone
   // matrix-tap uses the cell's canonical per-hand duration. Floored at
   // 30s so a hand always gets a real drill.
+  // SET, NOT DERIVED. This divided the block's budget by the hand
+  // count, so a drill's length was a side effect of how much time the
+  // block happened to have. See `spacing/drillSettings`.
   const seed = fromRunner
-    ? Math.max(30, Math.round(initialTargetSeconds! / HANDS_PER_SHAPE_ITEM))
-    : Math.max(30, suggested);
+    ? DEFAULT_DRILL_SECONDS
+    : Math.max(DRILL_FLOOR_SECONDS, suggested);
   const [targetSeconds, setTargetSeconds] = useState(seed);
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -375,7 +379,7 @@ export default function ScalesDrillModal({
       description={
         `${HAND_LABEL[currentHand]} · ` +
         (fromRunner
-          ? `~${targetSeconds}s in this session`
+          ? `${targetSeconds}s`
           : `~${targetSeconds}s suggested`)
       }
       footer={phase === 'assess' ? (

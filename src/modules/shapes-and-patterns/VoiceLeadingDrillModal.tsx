@@ -41,6 +41,7 @@ import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
 import { recordEngagement } from '../../lib/spacingState';
 import { voiceLeadingCellSeconds } from '../../lib/sessionAlgorithm/timePerAttempt';
+import { DEFAULT_DRILL_SECONDS, DRILL_FLOOR_SECONDS } from '../../lib/spacing/drillSettings';
 import {
   feelToRating,
   formatDuration,
@@ -116,10 +117,11 @@ export default function VoiceLeadingDrillModal({
   // screen). Standalone matrix-tap keeps the setup screen. Mirrors
   // ScalesDrillModal.
   const fromRunner = initialTargetSeconds !== undefined;
-  const seed = Math.max(
-    initialTargetSeconds !== undefined ? 60 : 30,
-    initialTargetSeconds ?? suggested,
-  );
+  // SET, NOT DERIVED — the runner's per-item budget decided this
+  // before. See `spacing/drillSettings`.
+  const seed = fromRunner
+    ? DEFAULT_DRILL_SECONDS
+    : Math.max(DRILL_FLOOR_SECONDS, suggested);
 
   const [targetSeconds, setTargetSeconds] = useState(seed);
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
@@ -296,7 +298,7 @@ export default function VoiceLeadingDrillModal({
     ? `${pattern.label} in ${spellKey(keyName, spelling)}`
     : 'Voice-leading drill';
   const suggestionLabel = sessionTargetSeconds !== undefined
-    ? `~${sessionTargetSeconds}s in this session`
+    ? `${targetSeconds}s`
     : `~${suggested}s suggested`;
   const description = subCellLabel
     ? `${subCellLabel} · ${suggestionLabel}`

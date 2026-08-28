@@ -1,13 +1,16 @@
 /**
  * What a drill is, before anything is written down.
  *
- * =====================================================================
- * NOTHING HERE PERSISTS. Commit 1 is the shell: the list of drills
- * lives in React state and dies on reload, deliberately. No
- * `spacingState`, no `drillSessions`, no practice log. Those arrive
- * with the rating step and the log, in later commits.
+ * The in-memory shape of a drill: what the setup screen is choosing
+ * and what the session list shows. Writing happens in the panel, via
+ * `logSession`; nothing in this file touches the database.
  * =====================================================================
  */
+
+import {
+  DEFAULT_DRILL_SECONDS as DEFAULT_DRILL_LENGTH,
+  DRILL_LENGTH_OPTIONS,
+} from '../../../lib/spacing/drillSettings';
 
 /** How the shape is played. Chord shapes only — a scale is a single
  *  line and has nothing to block. */
@@ -17,11 +20,16 @@ export type Manner = 'broken' | 'blocked';
  *  1 and does nothing; it is wired in a later commit. */
 export type SessionMode = 'practice' | 'test';
 
-/** The lengths a drill can be set to, in seconds. */
-export const DRILL_LENGTHS = [30, 60, 90, 120, 180] as const;
 
-/** Where the length picker starts. */
-export const DEFAULT_DRILL_SECONDS = 60;
+/**
+ * The lengths a drill can be set to, and where the picker starts.
+ *
+ * BOTH COME FROM `spacing/drillSettings`, which is the one place these
+ * live until they move into the settings tree per skill. Re-exported
+ * here so this module still reads as the drill's own model.
+ */
+export const DRILL_LENGTHS = DRILL_LENGTH_OPTIONS;
+export const DEFAULT_DRILL_SECONDS = DEFAULT_DRILL_LENGTH;
 
 /**
  * How many beats each shape gets.

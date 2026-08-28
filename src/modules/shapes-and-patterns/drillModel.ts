@@ -23,9 +23,17 @@ import {
   VOICE_LEADING_PATTERNS,
 } from './catalog';
 import { recordEngagement } from '../../lib/spacingState';
+import { DRILL_FLOOR_SECONDS } from '../../lib/spacing/drillSettings';
 
-/** Minimum seconds a drill session must run to count as a rep. */
-export const MIN_REP_SECONDS = 30;
+/**
+ * Minimum seconds a drill must run to count as a rep.
+ *
+ * RE-EXPORTED, NOT REDECLARED. The number is a setting rather than a
+ * constant of this module — it belongs in the spacing settings tree
+ * per skill and lives in `spacing/drillSettings` until it gets there.
+ * This name is kept because a dozen call sites already read it.
+ */
+export const MIN_REP_SECONDS = DRILL_FLOOR_SECONDS;
 
 /**
  * Brief two-tone cue played when a countdown drill timer hits zero.
