@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type DrillSkill } from '../../lib/db';
 import VoiceLeadingPatternGrid from './VoiceLeadingPatternGrid';
-import VoiceLeadingDrillModal from './VoiceLeadingDrillModal';
-import { VOICE_LEADING_PATTERNS } from './catalog';
+import PracticeTestPanel from './practiceTest/PracticeTestPanel';
+import { voiceLeadingSurface } from './practiceTest/makeSurfaces';
+import { parseVoiceLeadingItemRef, voiceLeadingSubCellLabel } from './catalog';
+import { VOICE_LEADING_PATTERNS, VOICE_LEADING_PATTERN_BY_ID } from './catalog';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useToast } from '../../components/Toaster';
-import { spellKey } from '../../lib/spelling';
+import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 
 const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
@@ -201,8 +203,16 @@ export default function VoiceLeadingDrills() {
       })}
 
       {activeDrillItemRef && (
-        <VoiceLeadingDrillModal
-          itemRef={activeDrillItemRef}
+        /* NO PICK A SKILL STEP. A voice-leading cell is already one
+           skill — pattern, row and key — so the tap opens straight on
+           the mode chooser. The sub-cell label is the header's second
+           line rather than a step you walk through. */
+        <PracticeTestPanel
+          surface={voiceLeadingSurface({
+            cellLabel: voiceLeadingCellLabel(activeDrillItemRef, spelling),
+            skillLabel: voiceLeadingSubCellDescription(activeDrillItemRef),
+            itemRef: activeDrillItemRef,
+          })}
           onClose={() => setActiveDrillItemRef(null)}
         />
       )}
@@ -259,4 +269,21 @@ export default function VoiceLeadingDrills() {
       )}
     </div>
   );
+}
+
+
+// ---------------------------------------------------------------------
+
+/** "Major 2–5–1 in E♭" — the pattern and the key, from the itemRef. */
+function voiceLeadingCellLabel(itemRef: string, spelling: Spelling): string {
+  const desc = parseVoiceLeadingItemRef(itemRef);
+  if (!desc) return 'Voice-leading';
+  const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
+  return `${pattern?.label ?? 'Pattern'} in ${spellKey(desc.keyName, spelling)}`;
+}
+
+/** The row within the pattern — the starting position or voicing type. */
+function voiceLeadingSubCellDescription(itemRef: string): string {
+  const desc = parseVoiceLeadingItemRef(itemRef);
+  return desc ? voiceLeadingSubCellLabel(desc) : '';
 }

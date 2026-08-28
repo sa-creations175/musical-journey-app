@@ -685,10 +685,9 @@ export interface LogScaleDrillSessionInput {
   hand: DrillHand;
   /** Actual elapsed drill time in seconds. */
   durationSeconds: number;
-  /** 4-point feel rating, stored directly on DrillSession.feelRating
-   *  (same scale chord shapes use). The modal maps this onto the
-   *  3-point spacingState rating signal separately via feelToRating. */
-  feelRating: DrillSession['feelRating'];
+  /** 4-point feel rating. OMITTED when practice skipped it — the
+   *  session row is still written and no engagement is recorded. */
+  feelRating?: DrillSession['feelRating'];
   /** Suggested per-cell drill seconds the user was working toward
    *  (SCALE_KIND_SECONDS). Optional — mirrors logSession's
    *  targetSeconds. */
@@ -728,10 +727,9 @@ export interface LogVoiceLeadingDrillSessionInput {
   hand: DrillHand;
   /** Actual elapsed drill time in seconds. */
   durationSeconds: number;
-  /** 4-point feel rating, stored directly on DrillSession.feelRating
-   *  (same scale chord shapes use). The modal maps this onto the
-   *  3-point spacingState rating signal separately via feelToRating. */
-  feelRating: DrillSession['feelRating'];
+  /** 4-point feel rating. OMITTED when practice skipped it — the
+   *  session row is still written and no engagement is recorded. */
+  feelRating?: DrillSession['feelRating'];
   /** Suggested per-cell drill seconds (`voiceLeadingCellSeconds`) the
    *  user was working toward. Optional — mirrors logSession's
    *  targetSeconds. */
@@ -767,7 +765,7 @@ export async function logVoiceLeadingDrillSession(
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
       : {}),
-    feelRating: input.feelRating,
+    ...(input.feelRating !== undefined ? { feelRating: input.feelRating } : {}),
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
@@ -788,7 +786,7 @@ export async function logScaleDrillSession(
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
       : {}),
-    feelRating: input.feelRating,
+    ...(input.feelRating !== undefined ? { feelRating: input.feelRating } : {}),
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };

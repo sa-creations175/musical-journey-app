@@ -7,11 +7,10 @@
  * fan out to one row per starting point (1/5/6 for major, 1/b3/b7
  * for minor) so the user can see per-sp progress at a glance.
  *
- * Tapping a cell opens ScalesDrillModal — a slim runner that
- * captures Flying / Cruising / Crawling and writes a procedural
- * rating signal to spacingState via recordEngagement. Natural-minor
- * cells additionally surface the relative-major callout in the
- * assess phase per the design doc.
+ * Tapping a cell asks which hand, then opens the Practice/Test shell
+ * on it — the same shell chord shapes and voice-leading use. The old
+ * ScalesDrillModal is still reached by the in-session runner and is
+ * not retired here.
  *
  * No DrillSkill / DrillType / DrillSession rows are written by
  * this surface — the Scales catalog is static, spacingState is
@@ -33,7 +32,8 @@ import {
 import { CIRCLE_OF_FOURTHS } from './spTiers';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
-import ScalesDrillModal from './ScalesDrillModal';
+import PracticeTestPanel from './practiceTest/PracticeTestPanel';
+import { scaleSurface } from './practiceTest/makeSurfaces';
 import HandChooser from './HandChooser';
 import ThreeBandCell from './ThreeBandCell';
 import {
@@ -67,6 +67,12 @@ const STAGE_BG: Readonly<Record<AcquisitionBucket, string>> = {
  *  screen — the chord cell modal dropped them. The wording belongs to
  *  the Practice/Test job, which is changing what these grids display;
  *  casing them here does not endorse them. */
+const HAND_LABEL: Readonly<Record<DrillHand, string>> = {
+  left: 'Left Hand',
+  right: 'Right Hand',
+  both: 'Both Hands',
+};
+
 const STAGE_LEGEND_LABEL: Readonly<Record<AcquisitionBucket, string>> = {
   'acquired':    'Acquired',
   'in-progress': 'In Progress',
@@ -258,10 +264,25 @@ export default function ScaleDrills() {
       )}
 
       {openCell && (
-        <ScalesDrillModal
-          cell={openCell.cell}
-          hands={openCell.hands}
-          onClose={() => setOpenCell(null)}
+        /* ONE HAND PER SESSION NOW. The old modal walked the hands it
+           was given in order, one countdown each; the shell is a
+           SESSION on one skill, and a hand is a skill. So the chooser
+           opens the session for the hand you picked, and All Three
+           opens three sessions in turn — see `handQueue`. */
+        <PracticeTestPanel
+          key={openCell.hands[0]}
+          surface={scaleSurface({
+            cellLabel: scaleCellLabel(openCell.cell, spelling),
+            skillLabel: HAND_LABEL[openCell.hands[0]],
+            itemRef: openCell.cell.itemRef,
+            hand: openCell.hands[0],
+          })}
+          onClose={() => {
+            const rest = openCell.hands.slice(1);
+            setOpenCell(rest.length
+              ? { cell: openCell.cell, hands: rest }
+              : null);
+          }}
         />
       )}
     </section>

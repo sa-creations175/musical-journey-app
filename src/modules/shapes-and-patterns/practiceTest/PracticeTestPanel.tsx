@@ -39,23 +39,17 @@ import Modal from '../../../components/Modal';
 import DrillMetronomeSetup from '../DrillMetronomeSetup';
 import { useMetronomeState } from '../../../lib/useMetronome';
 import { metronome } from '../../../lib/metronome';
-import type { DrillHand, DrillSkill, DrillType } from '../../../lib/db';
-import { FEEL_CARD_OPTIONS, logSession, MIN_REP_SECONDS } from '../drillModel';
+import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS } from '../drillModel';
+import { isAtTarget, rateFor, type DrillSurface } from './surfaces';
 import { formatClock, useSessionClock } from './sessionClock';
 import {
-  CHORD_RATE_LABEL,
-  CHORD_RATE_OPTIONS,
-  CHORD_TARGET_RATE,
   DRILL_LENGTHS,
   countsTowardTest,
-  isAtTarget,
   isTooShort,
   styleLabel,
   newDraft,
-  rateFor,
   type CompletedDrill,
   type DrillDraft,
-  type Style,
   type SessionMode,
 } from './drillModel';
 
@@ -65,23 +59,14 @@ type Step = 'choose' | 'session' | 'setup' | 'drilling' | 'drillrate';
 const TEST_REPS = 3;
 
 interface Props {
-  /** The cell, for the header — e.g. "Cmaj7 (major seventh)". */
-  cellLabel: string;
-  /** The square within it — e.g. "Root position · Left". */
-  skillLabel: string;
-  /** The skill row the square stands for. Every write is against it. */
-  skill: DrillSkill;
-  /** The drill type a session row hangs off. Chord-shape sessions carry
-   *  a real skill and type so time can be attributed by the join in
-   *  `shapesTimeInvested`. */
-  drillType: DrillType;
-  hand: DrillHand;
+  /** Everything that differs by surface: the labels, the rate, and the
+   *  writer. See `surfaces.ts` — if a surface needs something that is
+   *  not on that interface, that is drift rather than a difference. */
+  surface: DrillSurface;
   onClose: () => void;
 }
 
-export default function PracticeTestPanel({
-  cellLabel, skillLabel, skill, drillType, hand, onClose,
-}: Props) {
+export default function PracticeTestPanel({ surface, onClose }: Props) {
   const [step, setStep] = useState<Step>('choose');
   const [mode, setMode] = useState<SessionMode | null>(null);
   const [drills, setDrills] = useState<CompletedDrill[]>([]);
@@ -103,12 +88,12 @@ export default function PracticeTestPanel({
     const bpm = metronome.state.bpm;
     return {
       id: `drill-${drills.length + 1}`,
-      style: d.style as Style,
+      style: d.style,
       ranSeconds,
       bpm,
-      beatsPerShape: d.beatsPerShape,
-      rate: rateFor(bpm, d.beatsPerShape),
-      belowTarget: !isAtTarget(bpm, d.beatsPerShape),
+      per: d.per,
+      rate: rateFor(surface, bpm, d.per),
+      belowTarget: !isAtTarget(surface, bpm, d.per),
       feel,
       tooShort: isTooShort(ranSeconds, MIN_REP_SECONDS),
     };
@@ -127,23 +112,17 @@ export default function PracticeTestPanel({
     if (d.tooShort) return;
     setSaving(true);
     try {
-      await logSession({
-        skill,
-        drillType,
-        hand,
-        // THE STYLE IS RECORDED, NOT ACTED ON. It rides onto the
-        // DrillSession row for the practice log and stops there —
-        // blocked and broken stopped being separate spacing rows when
-        // that dimension was retired. One square, one rating,
-        // whichever way you played it.
-        style: d.style,
-        durationSeconds: d.ranSeconds,
+      // THE STYLE IS RECORDED, NOT ACTED ON — it rides onto the
+      // session row for the practice log and stops there. A skipped
+      // rating still writes the row, because the time happened and
+      // last-drilled should move; the writer records no engagement
+      // without a feel, so an unrated drill leaves the band alone.
+      await surface.write({
+        ranSeconds: d.ranSeconds,
         targetSeconds: (draft as DrillDraft).targetSeconds,
-        // A skipped rating still writes the SESSION — the time
-        // happened and the square's last-drilled should move — but
-        // `logSession` only records an engagement when there is a feel
-        // to record, so an unrated drill leaves the band alone.
-        ...(d.feel !== null ? { feelRating: d.feel, fromTest: false } : {}),
+        style: d.style,
+        feel: d.feel,
+        fromTest: false,
       });
     } finally {
       setSaving(false);
@@ -163,15 +142,13 @@ export default function PracticeTestPanel({
     try {
       const reps = drills.filter(countsTowardTest).slice(0, TEST_REPS);
       for (const d of reps) {
-        await logSession({
-          skill,
-          drillType,
-          hand,
-          // A test drill is always blocked.
-          style: 'blocked',
-          durationSeconds: d.ranSeconds,
+        await surface.write({
+          ranSeconds: d.ranSeconds,
           targetSeconds: d.ranSeconds,
-          feelRating: d.feel as 1 | 2 | 3 | 4,
+          // A test drill is always blocked, where there is a style at
+          // all. The writer drops it on surfaces that have none.
+          style: surface.hasStyle ? 'blocked' : null,
+          feel: d.feel,
           fromTest: true,
         });
       }
@@ -185,8 +162,8 @@ export default function PracticeTestPanel({
     <Modal
       open
       onClose={close}
-      title={cellLabel}
-      description={skillLabel}
+      title={surface.cellLabel}
+      description={surface.skillLabel}
       footer={<PanelFooter step={step} mode={mode} onClose={close} />}
     >
       {step === 'choose' && (
@@ -199,6 +176,7 @@ export default function PracticeTestPanel({
           seconds={sessionSeconds}
           drills={drills}
           saving={saving}
+          surface={surface}
           onStartDrill={() => { setDraft(newDraft()); setStep('setup'); }}
           onSaveTest={() => void saveTest()}
           onEndSession={close}
@@ -210,6 +188,7 @@ export default function PracticeTestPanel({
           mode={mode}
           seconds={sessionSeconds}
           draft={draft}
+          surface={surface}
           onChange={setDraft}
           onStart={() => { setRanSeconds(0); setStep('drilling'); }}
           onCancel={() => { setDraft(null); setStep('session'); }}
@@ -222,6 +201,7 @@ export default function PracticeTestPanel({
           seconds={sessionSeconds}
           draft={draft}
           index={drills.length + 1}
+          surface={surface}
           onFinish={ran => { setRanSeconds(ran); setStep('drillrate'); }}
         />
       )}
@@ -273,10 +253,26 @@ function PanelFooter({ step, mode, onClose }: {
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+/**
+ * A label, and the hint the prototype puts beside it.
+ *
+ * THE HINTS ARE THE PROTOTYPE'S, not invented here. Every label in it
+ * carries one except `Pick A Skill`, whose hint was deleted for being
+ * a fragment. The rule is: build the ones the artefact carries, invent
+ * none.
+ */
+function SectionLabel({ children, hint }: {
+  children: React.ReactNode;
+  hint?: string;
+}) {
   return (
-    <p className="text-[11px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2">
-      {children}
+    <p className="text-[11px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mb-2 flex items-baseline justify-between gap-3">
+      <span>{children}</span>
+      {hint && (
+        <span className="normal-case tracking-normal font-medium text-neutral-500 text-[0.78rem]">
+          {hint}
+        </span>
+      )}
     </p>
   );
 }
@@ -297,7 +293,7 @@ function SessionClockFace({ seconds, mode }: { seconds: number; mode: SessionMod
 function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
   return (
     <div className="space-y-3">
-      <SectionLabel>What Are You About To Do</SectionLabel>
+      <SectionLabel hint="The clock starts either way">What Are You About To Do</SectionLabel>
       <div className="grid sm:grid-cols-2 gap-2.5">
         <button
           type="button"
@@ -332,12 +328,13 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 // ---------------------------------------------------------------------
 
 function SessionStep({
-  mode, seconds, drills, saving, onStartDrill, onSaveTest, onEndSession,
+  mode, seconds, drills, saving, surface, onStartDrill, onSaveTest, onEndSession,
 }: {
   mode: SessionMode;
   seconds: number;
   drills: ReadonlyArray<CompletedDrill>;
   saving: boolean;
+  surface: DrillSurface;
   onStartDrill: () => void;
   onSaveTest: () => void;
   onEndSession: () => void;
@@ -352,10 +349,14 @@ function SessionStep({
       <SessionClockFace seconds={seconds} mode={mode} />
 
       <div>
-        <SectionLabel>
+        <SectionLabel
+          hint={mode === 'test'
+            ? 'All three at target, all three rated'
+            : 'Optional — the session counts either way'}
+        >
           {mode === 'test' ? 'The Three Test Drills' : 'Drills In This Session'}
         </SectionLabel>
-        <DrillList mode={mode} drills={drills} />
+        <DrillList mode={mode} drills={drills} surface={surface} />
       </div>
 
       {testComplete && (
@@ -400,8 +401,10 @@ function SessionStep({
   );
 }
 
-function DrillList({ mode, drills }: {
-  mode: SessionMode; drills: ReadonlyArray<CompletedDrill>;
+function DrillList({ mode, drills, surface }: {
+  mode: SessionMode;
+  drills: ReadonlyArray<CompletedDrill>;
+  surface: DrillSurface;
 }) {
   if (drills.length === 0) {
     return (
@@ -424,10 +427,10 @@ function DrillList({ mode, drills }: {
               <span className="font-mono text-[0.7rem] font-bold text-neutral-400">{i + 1}</span>
               <span className="flex-1 min-w-0">
                 <b className="font-semibold">
-                  {mode === 'test' ? 'Test' : 'Drill'} {i + 1} · {styleLabel(d.style)}
+                  {mode === 'test' ? 'Test' : 'Drill'} {i + 1}{d.style ? ` · ${styleLabel(d.style)}` : ''}
                 </b>
                 <span className="block font-mono text-[0.66rem] text-neutral-400">
-                  {d.ranSeconds}s · {d.rate} {CHORD_RATE_LABEL}
+                  {d.ranSeconds}s · {d.rate} {surface.rateLabel}
                 </span>
               </span>
               <span className={`text-[11px] ${feelLabel ? 'font-semibold' : 'text-neutral-400 uppercase tracking-wide'}`}>
@@ -453,18 +456,19 @@ function DrillList({ mode, drills }: {
 // ---------------------------------------------------------------------
 
 function SetupStep({
-  mode, seconds, draft, onChange, onStart, onCancel,
+  mode, seconds, draft, surface, onChange, onStart, onCancel,
 }: {
   mode: SessionMode;
   seconds: number;
   draft: DrillDraft;
+  surface: DrillSurface;
   onChange: (next: DrillDraft) => void;
   onStart: () => void;
   onCancel: () => void;
 }) {
   const metro = useMetronomeState();
-  const rate = rateFor(metro.bpm, draft.beatsPerShape);
-  const atTarget = isAtTarget(metro.bpm, draft.beatsPerShape);
+  const rate = rateFor(surface, metro.bpm, draft.per);
+  const atTarget = isAtTarget(surface, metro.bpm, draft.per);
   const isTest = mode === 'test';
 
   // A test drill is always blocked and in time. Set once on entering
@@ -484,14 +488,14 @@ function SetupStep({
           not a dead button. */}
       {isTest ? (
         <div>
-          <SectionLabel>Style</SectionLabel>
+          <SectionLabel hint="A test drill is always blocked">Style</SectionLabel>
           <p className="text-sm text-neutral-700 dark:text-neutral-200 m-0">
             Blocked, at tempo.
           </p>
         </div>
       ) : (
         <div>
-          <SectionLabel>Style</SectionLabel>
+          <SectionLabel hint="Pick per drill, not per session">Style</SectionLabel>
           <div className="flex gap-1.5 flex-wrap">
             {(['broken', 'blocked'] as const).map(st => (
               <button
@@ -513,7 +517,7 @@ function SetupStep({
       )}
 
       <div>
-        <SectionLabel>How Long</SectionLabel>
+        <SectionLabel hint={`${draft.targetSeconds}s`}>How Long</SectionLabel>
         <div className="flex gap-1.5 flex-wrap">
           {DRILL_LENGTHS.map(v => (
             <button
@@ -538,14 +542,14 @@ function SetupStep({
       <div>
         <SectionLabel>Rate</SectionLabel>
         <div className="flex gap-1.5 flex-wrap">
-          {CHORD_RATE_OPTIONS.map(o => (
+          {surface.rateOptions.map(o => (
             <button
-              key={o.beatsPerShape}
+              key={o.per}
               type="button"
-              onClick={() => onChange({ ...draft, beatsPerShape: o.beatsPerShape })}
-              aria-pressed={draft.beatsPerShape === o.beatsPerShape}
+              onClick={() => onChange({ ...draft, per: o.per })}
+              aria-pressed={draft.per === o.per}
               className={`px-3 py-1 rounded-md border text-sm ${
-                draft.beatsPerShape === o.beatsPerShape
+                draft.per === o.per
                   ? 'bg-fluent text-white border-fluent font-semibold'
                   : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent'
               }`}
@@ -556,12 +560,12 @@ function SetupStep({
         </div>
         <div className="flex items-center justify-between gap-3 mt-2">
           <span className="font-mono text-[0.72rem] text-neutral-500">
-            {rate} {CHORD_RATE_LABEL}
+            {rate} {surface.rateLabel}
           </span>
           <span className={`text-[0.69rem] font-bold ${atTarget ? 'text-fluent' : 'text-developing'}`}>
             {atTarget
-              ? `AT TARGET (${CHORD_TARGET_RATE})`
-              : `BELOW TARGET (${CHORD_TARGET_RATE})`}
+              ? `AT TARGET (${surface.targetRate})`
+              : `BELOW TARGET (${surface.targetRate})`}
           </span>
         </div>
       </div>
@@ -598,19 +602,20 @@ function SetupStep({
 // ---------------------------------------------------------------------
 
 function DrillingStep({
-  mode, seconds, draft, index, onFinish,
+  mode, seconds, draft, index, surface, onFinish,
 }: {
   mode: SessionMode;
   seconds: number;
   draft: DrillDraft;
   index: number;
+  surface: DrillSurface;
   onFinish: (ranSeconds: number) => void;
 }) {
   const metro = useMetronomeState();
   const remaining = useDrillCountdown(draft.targetSeconds, () =>
     onFinish(draft.targetSeconds));
-  const rate = rateFor(metro.bpm, draft.beatsPerShape);
-  const atTarget = isAtTarget(metro.bpm, draft.beatsPerShape);
+  const rate = rateFor(surface, metro.bpm, draft.per);
+  const atTarget = isAtTarget(surface, metro.bpm, draft.per);
 
   return (
     <div className="space-y-4">
@@ -628,7 +633,7 @@ function DrillingStep({
 
       <div className="flex items-center justify-between gap-3">
         <span className="font-mono text-[0.72rem] text-neutral-500">
-          {metro.bpm} BPM · {rate} {CHORD_RATE_LABEL}
+          {metro.bpm} BPM · {rate} {surface.rateLabel}
         </span>
         <span className={`text-[0.69rem] font-bold ${atTarget ? 'text-fluent' : 'text-developing'}`}>
           {atTarget ? 'AT TARGET' : 'BELOW TARGET'}
@@ -672,7 +677,7 @@ function DrillRateStep({
       )}
 
       <div>
-        <SectionLabel>How Did That Go</SectionLabel>
+        <SectionLabel hint={mode === 'test' ? 'Required' : 'Optional'}>How Did That Go</SectionLabel>
         {/* BEST FIRST. The four words and their order are the same on
             every surface; only the direction differs from the block
             wrap-up, which reads worst-first. */}

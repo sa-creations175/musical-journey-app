@@ -2,9 +2,9 @@
  * What a drill is, before anything is written down.
  *
  * The in-memory shape of a drill: what the setup screen is choosing
- * and what the session list shows. Writing happens in the panel, via
- * `logSession`; nothing in this file touches the database.
- * =====================================================================
+ * and what the session list shows. Writing happens behind
+ * `DrillSurface.write`; nothing in this file touches the database, and
+ * nothing in it knows which surface it is describing.
  */
 
 import type { DrillStyle } from '../../../lib/db';
@@ -19,13 +19,11 @@ import {
  *
  * The db's own `DrillStyle`, not a parallel word for it. This used to
  * be a local `Manner` type — a second word for one thing, mapped on
- * the way out, and a
- * mapping between two names for one thing is where they drift.
+ * the way out, and a mapping between two names is where they drift.
  */
 export type Style = DrillStyle;
 
-/** Which of the two things a sitting can be. Test is chosen in commit
- *  1 and does nothing; it is wired in a later commit. */
+/** Which of the two things a sitting can be. */
 export type SessionMode = 'practice' | 'test';
 
 
@@ -39,64 +37,24 @@ export type SessionMode = 'practice' | 'test';
 export const DRILL_LENGTHS = DRILL_LENGTH_OPTIONS;
 export const DEFAULT_DRILL_SECONDS = DEFAULT_DRILL_LENGTH;
 
-/**
- * How many beats each shape gets.
- *
- * THIS IS A DRILL SETTING, NOT A METRONOME SETTING. The click runs at
- * one tempo; this says how much of that tempo one shape is allowed to
- * take. Together they give the rate below, which is the number the
- * target is expressed in.
- */
-export interface RateOption {
-  beatsPerShape: number;
-  label: string;
-}
-
-export const CHORD_RATE_OPTIONS: ReadonlyArray<RateOption> = [
-  { beatsPerShape: 1, label: 'One Shape Per Beat' },
-  { beatsPerShape: 2, label: 'One Shape Every 2 Beats' },
-  { beatsPerShape: 4, label: 'One Shape Every 4 Beats' },
-];
-
-/** What a chord-shape drill is measured in. */
-export const CHORD_RATE_LABEL = 'changes a minute';
-
-/**
- * The rate a chord-shape drill has to clear to count as at target.
- *
- * A CONSTANT HERE, AND IT SHOULD NOT STAY ONE. The prototype hard-codes
- * 60 for chord shapes, so that is what this is. Where the real target
- * comes from — the spacing settings tree, a per-shape figure, something
- * else — is not settled, and inventing a source would be worse than
- * naming the placeholder. Test mode is the only thing that reads it as
- * a gate, and test mode is not built yet.
- */
-export const CHORD_TARGET_RATE = 60;
-
-/** Shape changes a minute, from the click and how long a shape gets. */
-export function rateFor(bpm: number, beatsPerShape: number): number {
-  return Math.round(bpm / beatsPerShape);
-}
-
-export function isAtTarget(bpm: number, beatsPerShape: number): boolean {
-  return rateFor(bpm, beatsPerShape) >= CHORD_TARGET_RATE;
-}
-
 /** A drill that has been set up but not yet run. */
 export interface DrillDraft {
   style: Style | null;
   targetSeconds: number;
-  beatsPerShape: number;
+  /** Which rate option is picked — beats per rep, or reps per beat.
+   *  What it means is the surface's business. */
+  per: number;
 }
 
 /** A drill that ran, as the session list shows it. In memory only. */
 export interface CompletedDrill {
   id: string;
-  style: Style;
+  /** Null on every surface that has no style to pick. */
+  style: Style | null;
   /** Seconds actually played — the full length, or less if finished early. */
   ranSeconds: number;
   bpm: number;
-  beatsPerShape: number;
+  per: number;
   rate: number;
   belowTarget: boolean;
   /** The four-point feel, or null when practice skipped the rating. */
@@ -134,7 +92,7 @@ export function newDraft(): DrillDraft {
   return {
     style: null,
     targetSeconds: DEFAULT_DRILL_SECONDS,
-    beatsPerShape: 1,
+    per: 1,
   };
 }
 

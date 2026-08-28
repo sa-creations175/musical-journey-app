@@ -15,6 +15,7 @@ import { accuracyBandDef, type AccuracyBand } from '../../lib/spacing/bands';
 import { HAND_ORDER } from './acquisition';
 import DrillListModal from './DrillListModal';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
+import { chordShapeSurface } from './practiceTest/makeSurfaces';
 import {
   CHORD_QUALITY_BY_ID,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
@@ -389,11 +390,13 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
       )}
       {openPractice && (
         <PracticeTestPanel
-          cellLabel={cellLabel}
-          skillLabel={openPractice.skillLabel}
-          skill={openPractice.skill}
-          drillType={openPractice.drillType}
-          hand={openPractice.hand}
+          surface={chordShapeSurface({
+            cellLabel,
+            skillLabel: openPractice.skillLabel,
+            skill: openPractice.skill,
+            drillType: openPractice.drillType,
+            hand: openPractice.hand,
+          })}
           onClose={() => setOpenPractice(null)}
         />
       )}
