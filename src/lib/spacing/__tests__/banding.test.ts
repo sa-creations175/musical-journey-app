@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  bandVerdictLabel, measuredVerdict, selfRatedVerdict,
+  bandOf, bandVerdictLabel, engagementVerdict, measuredVerdict, selfRatedVerdict,
 } from '../banding';
 import { bandVerdictForRow } from '../row';
 import type { Feel } from '../../fluencyScale';
@@ -116,14 +116,19 @@ describe('reading a stored row', () => {
     ])).toEqual({ kind: 'band', band: 'needs-work' });
   });
 
-  it('ignores a rep that does not score', () => {
+  it('ignores a rep that does not score, but not the fact it happened', () => {
     // SONGS: only a test rates. Three logged practice sessions leave
-    // the card unrated however they felt.
+    // the card UNRATED however they felt — no band, at any feel.
+    //
+    // They do not leave it UNTOUCHED. `logPractice` writes these to
+    // record that the song was sat with; reading them back as Not
+    // Started contradicted the writer and made three real sessions
+    // look like never having opened the song.
     expect(row([
       { kind: 'rating', rating: 'flying', feel: 4, scores: false },
       { kind: 'rating', rating: 'flying', feel: 4, scores: false },
       { kind: 'rating', rating: 'flying', feel: 4, scores: false },
-    ])).toEqual({ kind: 'not-started' });
+    ])).toEqual({ kind: 'started', tries: 0 });
   });
 
   it('counts the tests among them and nothing else', () => {
@@ -136,8 +141,63 @@ describe('reading a stored row', () => {
     ])).toEqual({ kind: 'band', band: 'fluent' });
   });
 
-  it('never counts a recency entry as a zero', () => {
+  it('never counts a recency entry as a zero — it counts as engagement', () => {
+    // The original point stands: a recency entry must never be read as
+    // a wrong answer, so it can never produce a band. What it does
+    // produce is Started, because Just Play happening is still the
+    // thing happening.
     expect(row([{ kind: 'recency' }, { kind: 'recency' }]))
-      .toEqual({ kind: 'not-started' });
+      .toEqual({ kind: 'started', tries: 0 });
+  });
+
+  it('an empty history is the only Not Started', () => {
+    expect(row([])).toEqual({ kind: 'not-started' });
+  });
+
+  it('an entry too malformed to classify still counts as engagement', () => {
+    // Counting the whole history rather than a list of known kinds is
+    // deliberate: a future entry kind nobody remembers to add to the
+    // list arrives as Started, not as never-met.
+    expect(row([{ kind: 'something-not-invented-yet' }]))
+      .toEqual({ kind: 'started', tries: 0 });
+  });
+
+  it('an abandoned test reads Started, not a band', () => {
+    // Two test reps cannot set a band. Before this change the row fell
+    // through the self-rated path and still reported Started via the
+    // rep count; that is unchanged and asserted here so the two ways
+    // of reaching Started stay distinguishable.
+    expect(row([
+      { kind: 'rating', rating: 'flying', feel: 4, fromTest: true },
+      { kind: 'rating', rating: 'flying', feel: 4, fromTest: true },
+    ])).toEqual({ kind: 'started', tries: 2 });
+  });
+});
+
+describe('engagementVerdict — the rule on its own', () => {
+  it('nothing recorded is Not Started', () => {
+    expect(engagementVerdict(0)).toEqual({ kind: 'not-started' });
+  });
+
+  it('anything recorded is Started', () => {
+    expect(engagementVerdict(1)).toEqual({ kind: 'started', tries: 0 });
+    expect(engagementVerdict(47)).toEqual({ kind: 'started', tries: 0 });
+  });
+
+  it('reports no tries, because tries counts scoring signals', () => {
+    // The count passed in is engagements, not attempts or rated reps.
+    // Surfacing it as `tries` would put a number next to "Started"
+    // that means something different from the number beside every
+    // other Started.
+    expect(engagementVerdict(9)).toEqual({ kind: 'started', tries: 0 });
+  });
+
+  it('labels as Started', () => {
+    expect(bandVerdictLabel(engagementVerdict(1))).toBe('Started');
+    expect(bandVerdictLabel(engagementVerdict(0))).toBe('Not Started');
+  });
+
+  it('is not a band', () => {
+    expect(bandOf(engagementVerdict(3))).toBeNull();
   });
 });

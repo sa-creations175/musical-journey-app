@@ -58,6 +58,45 @@ export type BandVerdict =
 
 export const NOT_STARTED: BandVerdict = { kind: 'not-started' };
 
+/**
+ * STARTED MEANS ENGAGED, NOT "SCORED ONCE OR TWICE".
+ *
+ * =====================================================================
+ * The two verdict functions below only ever see signals that SCORE —
+ * attempts, and ratings that count toward a band. Everything else the
+ * app records about an item was invisible to them, so an item could
+ * carry real recorded engagement and still read Not Started.
+ *
+ * That was not a gap in what the app stores. It stores these already:
+ *
+ *   · a `rating` entry with `scores: false` — written by
+ *     `repertoire/logPractice.ts` for a logged practice session, whose
+ *     own comment says it "counts toward coverage and last-touched"
+ *     but is kept "out of the rating". `row.ts` then dropped it and
+ *     the song read as never touched.
+ *   · a `recency` entry — Just Play, Just Produce, the diary. Things
+ *     with no verdict to give, which is not the same as no engagement.
+ *   · an abandoned test, whose one or two reps score but do not band.
+ *
+ * So this is the reader catching up with the writers, not a new claim.
+ * Not Started returns to meaning what its docstring always said it
+ * meant: NEVER MET. Anything else that happened is Started.
+ *
+ * ONE RULE FOR EVERY MODULE. Shapes, scales, voice-leading, mental
+ * visualisation, the chord-progression quiz and repertoire all reach
+ * this through `bandVerdictForRow`, and none of them may special-case
+ * it — a per-module notion of "engaged" is how two numbers start
+ * disagreeing about the same card.
+ *
+ * `tries` is 0 because it counts SCORING signals and there are none.
+ * Same idiom as `InversionBreakdownPanel`, which already builds a
+ * `{ kind: 'started', tries: 0 }` for a rolled-up row.
+ * =====================================================================
+ */
+export function engagementVerdict(engagements: number): BandVerdict {
+  return engagements > 0 ? { kind: 'started', tries: 0 } : NOT_STARTED;
+}
+
 /** The band, or null when there isn't one. What the scheduler takes. */
 export function bandOf(verdict: BandVerdict): AccuracyBand | null {
   return verdict.kind === 'band' ? verdict.band : null;

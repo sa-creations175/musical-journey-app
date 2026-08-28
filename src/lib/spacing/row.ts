@@ -7,7 +7,7 @@ import type { SpacingState } from '../db';
 import type { AccuracyBand } from './bands';
 import type { SpacingCardState } from './engine';
 import {
-  NOT_STARTED, bandOf, measuredVerdict, selfRatedVerdict,
+  bandOf, engagementVerdict, measuredVerdict, selfRatedVerdict,
   type BandVerdict, type RatedRep,
 } from './banding';
 import { feelForRating, type Feel } from '../fluencyScale';
@@ -49,11 +49,26 @@ export function bandVerdictForRow(
     }
     // 'recency' carries no verdict at all — expression items have no
     // correctness — and is skipped rather than counted as a zero.
+    // It still counts as ENGAGEMENT below; a thing with no verdict to
+    // give is not a thing that never happened.
   }
 
   if (answers.length > 0) return measuredVerdict(answers);
   if (reps.length > 0) return selfRatedVerdict(reps);
-  return NOT_STARTED;
+
+  // NOTHING HERE SCORES — but something is here.
+  //
+  // Every entry the two rules above declined to read is still a record
+  // that this item was engaged with: a `scores: false` practice
+  // session, a `recency` entry, an entry too malformed to classify.
+  // The history is the app's own record that something happened, so a
+  // non-empty one cannot mean "never met".
+  //
+  // Deliberately counts the WHOLE history rather than a filtered
+  // subset. Filtering would need a list of which kinds count, and that
+  // list is the seam a future entry kind gets forgotten at — arriving
+  // as Not Started, which is the failure this change exists to fix.
+  return engagementVerdict(history.length);
 }
 
 /** The band, or null when the card has not earned one. */
