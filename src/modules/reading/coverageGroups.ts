@@ -113,7 +113,7 @@ export const READING_COVERAGE_GROUPS: ReadonlyArray<ReadingCoverageGroupDef> = [
   },
   {
     id: 'chord-open-shapes',
-    label: 'Open left-hand shapes',
+    label: 'Open Left-Hand Shapes',
     blurb: 'Octaves, fifths, tenths — the shapes real charts use.',
     matches: chordFamilyMatcher('open'),
   },
