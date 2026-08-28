@@ -52,8 +52,12 @@ import {
 import {
   parseVoiceLeadingItemRef,
   VOICE_LEADING_PATTERN_BY_ID,
+  voiceLeadingGridRows,
+  voiceLeadingRowId,
   voiceLeadingSubCellLabel,
 } from './catalog';
+import VoiceLeadingCellNotes from './VoiceLeadingCellNotes';
+import { keyNoteKey, patternNoteKey } from './voiceLeadingNotes';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
 import DrillAssessment from './DrillAssessment';
 import { spellKey } from '../../lib/spelling';
@@ -110,6 +114,15 @@ export default function VoiceLeadingDrillModal({
   const subCellLabel = desc ? voiceLeadingSubCellLabel(desc) : null;
   const suggested = desc ? voiceLeadingCellSeconds(desc) : 90;
   const keyName = desc?.keyName ?? '';
+
+  // The row this cell sits on, and the default its pattern box falls
+  // back to. The default is the catalog HINT — only the two Extended
+  // Voicings rows have one, which is why every other box ships blank.
+  const rowId = desc ? voiceLeadingRowId(desc) : null;
+  const patternDefault = useMemo(() => {
+    if (!pattern || rowId === null) return '';
+    return voiceLeadingGridRows(pattern).find(r => r.rowId === rowId)?.hint ?? '';
+  }, [pattern, rowId]);
 
   // Launched by the in-session runner (per-item time supplied) → the
   // prep screen already set duration + BPM + meter and the count-in
@@ -400,6 +413,21 @@ export default function VoiceLeadingDrillModal({
                     {subCellLabel}
                   </div>
                 </div>
+              )}
+
+              {/* THE READER'S OWN WORDS ON THIS CELL. The gate places
+                  these under the three chords; nothing in voice-leading
+                  draws the chords yet, so they sit under the sub-cell
+                  label — the one thing on screen that says WHICH cell
+                  this is. When the chord display lands they move below
+                  it, and nothing else about them changes. */}
+              {desc && rowId !== null && (
+                <VoiceLeadingCellNotes
+                  patternKey={patternNoteKey(desc.patternId, rowId)}
+                  keyKey={keyNoteKey(desc.patternId, rowId, keyName)}
+                  patternDefault={patternDefault}
+                  keyLabel={spellKey(keyName, spelling)}
+                />
               )}
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">

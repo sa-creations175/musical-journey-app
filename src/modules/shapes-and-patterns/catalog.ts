@@ -872,6 +872,24 @@ export function voiceLeadingSubCellLabel(
   }
 }
 
+/**
+ * The row a sub-cell belongs to, from its descriptor.
+ *
+ * ONE CONSTRUCTION, USED BY BOTH SIDES. `voiceLeadingGridRows` builds
+ * these ids when it draws the grid; anything filing something against
+ * a row — the reader's notes, for one — has to arrive at the same
+ * string from an itemRef, and a second copy of the rule is how a note
+ * written on a cell comes to be filed under a row that does not exist.
+ */
+export function voiceLeadingRowId(desc: VoiceLeadingItemRefDescriptor): string {
+  switch (desc.kind) {
+    case 'type-position':  return `${desc.type}:${desc.position}`;
+    case 'diatonic-cycle': return desc.startingPosition;
+    case 'minor-aba':      return desc.position;
+    case 'inversion-4':    return desc.position;
+  }
+}
+
 /** One row in the per-sub-dimension heat-grid for a pattern. Each
  *  row corresponds to a unique combination of the pattern's
  *  non-key dimensions; the row's cells are the 12 sub-cells one
@@ -907,7 +925,7 @@ export function voiceLeadingGridRows(
       for (const { type, positions } of pattern.types) {
         for (const position of positions) {
           out.push({
-            rowId: `${type}:${position}`,
+            rowId: voiceLeadingRowId({ kind: 'type-position', type, position } as VoiceLeadingItemRefDescriptor),
             label: `${typeLabel(type)} · ${positionLabel({ kind: 'type-position', type, position })}`,
             hint: typeHint(type),
             itemRefForKey: (k) => `vl:${pattern.id}:${type}:${position}:${k}`,
