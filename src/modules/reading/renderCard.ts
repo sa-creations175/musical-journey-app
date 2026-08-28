@@ -262,8 +262,16 @@ function shapeQualityFor(
  * or four — but it is also genuinely part of which of the seven this
  * is, so it belongs in the answer.
  */
+/**
+ * LOWERCASED HERE, AND ONLY HERE. The labels are Title Case at their
+ * definition because that is what a chart header and an answer button
+ * want. A caption is a SENTENCE about the card — "triad, root
+ * position" — and a chord's quality inside one is notation, which
+ * CLAUDE.md exempts by name. So the label is cased for the places that
+ * label, and uncased for the one place that describes.
+ */
 function shapeCaption(family: ShapeFamily, position: ChordPosition): string {
-  return `${SHAPE_FAMILY_LABEL[family]}, ${POSITION_LABEL[position]}`;
+  return `${SHAPE_FAMILY_LABEL[family].toLowerCase()}, ${POSITION_LABEL[position]}`;
 }
 
 // ---------------------------------------------------------------------
@@ -418,7 +426,9 @@ export function resolveReadingCard(
       // notes, which is what makes the spelling visible.
       keySignature: null,
     },
-    caption: `${pitchName(root)} ${quality.label}${positionPart}`,
+    // Quality lowercased: see `shapeCaption`. "C major" is how a
+    // chord is written; "C Major" is how a button is labelled.
+    caption: `${pitchName(root)} ${quality.label.toLowerCase()}${positionPart}`,
     notes: pitches.map(pitchName).join('–'),
   };
 }

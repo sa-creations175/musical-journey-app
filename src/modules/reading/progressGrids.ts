@@ -60,8 +60,8 @@ const signatureAxis: AxisSpec = {
   label: 'key',
   labelFor: v => SIGNATURE_LABEL.get(String(v)) ?? String(v),
   views: [
-    { id: 'accidentals', label: 'by accidentals', values: SIGNATURES_BY_ACCIDENTAL },
-    { id: 'fourths', label: 'circle of 4ths', values: SIGNATURES_IN_CIRCLE },
+    { id: 'accidentals', label: 'By Accidentals', values: SIGNATURES_BY_ACCIDENTAL },
+    { id: 'fourths', label: 'Circle of 4ths', values: SIGNATURES_IN_CIRCLE },
   ],
 };
 
@@ -79,8 +79,13 @@ const oneView = (
 });
 
 const QUALITY_LABEL = new Map(CHORD_QUALITIES.map(q => [q.id, q.label]));
+
+/** Clef names for the grid's row headers. See the note at `NOTE_GRID`. */
+const CLEF_LABEL: Readonly<Record<string, string>> = {
+  treble: 'Treble', bass: 'Bass',
+};
 const POSITION_LABEL: Readonly<Record<string, string>> = {
-  root: 'root', inv1: '1st', inv2: '2nd', inv3: '3rd',
+  root: 'Root', inv1: '1st', inv2: '2nd', inv3: '3rd',
 };
 
 /**
@@ -129,7 +134,11 @@ const NOTE_GRID: GridSpec = {
     inFrame: v => ledgerLinesFor(Number(v)).side === null,
     views: [{ id: 'default', label: 'note', values: NOTE_POSITIONS }],
   },
-  rows: oneView('clef', 'clef', CLEFS),
+  // THE VALUE IS THE ITEM REF, THE LABEL IS NOT. `treble` and `bass`
+  // are segments of `note:bass:-2`, so the row printed its own id for
+  // want of anywhere else to read a name from. A `labelFor` gives the
+  // header a real label without touching what the ref is keyed on.
+  rows: oneView('clef', 'clef', CLEFS, v => CLEF_LABEL[String(v)] ?? String(v)),
   splitRows: true,
   // THE OTHER WAY UP IS THE NOTATION REFERENCE — the same drawing the
   // reveal panel teaches from, coloured by tier. See `NoteLadder`.
@@ -143,7 +152,7 @@ export const READING_GRIDS: Readonly<Record<string, GridSpec | null>> = {
     // item; it is the second half of a `count` card now, so a row for
     // it would be a row that can never fill.
     rows: oneView('direction', 'question', SIGNATURE_DIRECTIONS, v => ({
-      name: 'name the key', count: 'count',
+      name: 'Name the Key', count: 'Count',
     }[String(v)] ?? String(v))),
   },
   [READING_CATEGORY_LABEL.note]: NOTE_GRID,

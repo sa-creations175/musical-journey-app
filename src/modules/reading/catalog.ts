@@ -216,29 +216,29 @@ export interface ChordQualityDef {
 
 export const CHORD_QUALITIES: ReadonlyArray<ChordQualityDef> = [
   // Triads
-  { id: 'maj',     label: 'major',            family: 'triad',   intervals: [0, 4, 7] },
-  { id: 'min',     label: 'minor',            family: 'triad',   intervals: [0, 3, 7] },
-  { id: 'dim',     label: 'diminished',       family: 'triad',   intervals: [0, 3, 6] },
-  { id: 'aug',     label: 'augmented',        family: 'triad',   intervals: [0, 4, 8] },
+  { id: 'maj',     label: 'Major',            family: 'triad',   intervals: [0, 4, 7] },
+  { id: 'min',     label: 'Minor',            family: 'triad',   intervals: [0, 3, 7] },
+  { id: 'dim',     label: 'Diminished',       family: 'triad',   intervals: [0, 3, 6] },
+  { id: 'aug',     label: 'Augmented',        family: 'triad',   intervals: [0, 4, 8] },
   // Sevenths
-  { id: 'dom7',    label: 'dominant 7th',     family: 'seventh', intervals: [0, 4, 7, 10] },
-  { id: 'maj7',    label: 'major 7th',        family: 'seventh', intervals: [0, 4, 7, 11] },
-  { id: 'min7',    label: 'minor 7th',        family: 'seventh', intervals: [0, 3, 7, 10] },
-  { id: 'halfdim', label: 'half-diminished',  family: 'seventh', intervals: [0, 3, 6, 10] },
-  { id: 'dim7',    label: 'diminished 7th',   family: 'seventh', intervals: [0, 3, 6, 9] },
+  { id: 'dom7',    label: 'Dominant 7th',     family: 'seventh', intervals: [0, 4, 7, 10] },
+  { id: 'maj7',    label: 'Major 7th',        family: 'seventh', intervals: [0, 4, 7, 11] },
+  { id: 'min7',    label: 'Minor 7th',        family: 'seventh', intervals: [0, 3, 7, 10] },
+  { id: 'halfdim', label: 'Half-Diminished',  family: 'seventh', intervals: [0, 3, 6, 10] },
+  { id: 'dim7',    label: 'Diminished 7th',   family: 'seventh', intervals: [0, 3, 6, 9] },
   // Open left-hand shapes that show up in real charts. Single
   // position each — they ARE a voicing, so inverting one would make
   // it a different shape rather than the same shape re-stacked.
-  { id: 'octave',  label: 'octave',           family: 'open',    intervals: [0, 12] },
-  { id: 'r5',      label: 'root–fifth',       family: 'open',    intervals: [0, 7] },
-  { id: 'r5oct',   label: 'root–fifth–octave', family: 'open',   intervals: [0, 7, 12] },
+  { id: 'octave',  label: 'Octave',           family: 'open',    intervals: [0, 12] },
+  { id: 'r5',      label: 'Root–Fifth',       family: 'open',    intervals: [0, 7] },
+  { id: 'r5oct',   label: 'Root–Fifth–Octave', family: 'open',   intervals: [0, 7, 12] },
   // Named by the interval they actually contain, not by a degree that
   // leaves the quality open. [0,10] is a MINOR seventh and [0,16] a
   // MAJOR tenth; "root–seventh" and "root–tenth" would each describe
   // two different shapes, and a label that fits the wrong answer is
   // worse on the answer screen than on the picker.
-  { id: 'r7',      label: 'root + ♭7',        family: 'open',    intervals: [0, 10] },
-  { id: 'r10',     label: 'root + major 10th', family: 'open',   intervals: [0, 16] },
+  { id: 'r7',      label: 'Root + ♭7',        family: 'open',    intervals: [0, 10] },
+  { id: 'r10',     label: 'Root + Major 10th', family: 'open',   intervals: [0, 16] },
 ];
 
 /**
@@ -345,8 +345,8 @@ export type ShapeFamily = Extract<ChordFamily, 'triad' | 'seventh'>;
 export const SHAPE_FAMILIES: ReadonlyArray<ShapeFamily> = ['triad', 'seventh'];
 
 export const SHAPE_FAMILY_LABEL: Readonly<Record<ShapeFamily, string>> = {
-  triad: 'triad',
-  seventh: 'seventh',
+  triad: 'Triad',
+  seventh: 'Seventh',
 };
 
 /** `shape:{family}:{position}` — three segments, where a chord ref has

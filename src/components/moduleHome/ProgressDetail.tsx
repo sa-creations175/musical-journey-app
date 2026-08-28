@@ -397,8 +397,8 @@ const ORIENTATION_LABEL = '';
  * with nothing to choose between.
  */
 const LAYOUT_LABEL: Readonly<Record<string, string>> = {
-  [HORIZONTAL]: 'horizontal',
-  [VERTICAL]: 'vertical',
+  [HORIZONTAL]: 'Horizontal',
+  [VERTICAL]: 'Vertical',
 };
 
 /**
