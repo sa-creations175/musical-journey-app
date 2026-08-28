@@ -93,7 +93,7 @@ export const READING_COVERAGE_GROUPS: ReadonlyArray<ReadingCoverageGroupDef> = [
   },
   {
     id: 'chord-sevenths',
-    label: 'Seventh chords',
+    label: 'Sevenths',
     blurb: 'Dominant, major, minor, half-diminished, diminished.',
     matches: chordFamilyMatcher('seventh'),
   },

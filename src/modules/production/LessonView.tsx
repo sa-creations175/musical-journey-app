@@ -378,7 +378,7 @@ function RatingControls({
         </div>
         <p className="mt-1 text-[11px] text-neutral-500">
           What you actually did — not how well you followed it. From
-          &ldquo;tried it&rdquo; on, the lesson counts toward Production coverage.
+          &ldquo;Tried It&rdquo; on, the lesson counts toward Production coverage.
         </p>
       </div>
       <div className="grid grid-cols-1 gap-2">

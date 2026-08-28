@@ -82,6 +82,27 @@ export function isStarted(rating: ProductionLessonRating): boolean {
  * counting toward coverage. Reading is progress, but it isn't
  * coverage, and the colours say so.
  */
+/**
+ * The five rungs, as the reader sees them.
+ *
+ * =====================================================================
+ * THE LAST RUNG IS "IN MY MUSIC", NOT "MASTERED".
+ *
+ * Every other rung names something DONE with the technique — read it,
+ * went deep, tried it — and then the ladder jumped to a proficiency
+ * word, which in this app means something else entirely: one of the
+ * four ratings, on a scale about how well you play a thing. Production
+ * is not measuring that. It is asking whether a tool has made it into
+ * an actual project, and "In My Music" says so. "Tried It" already
+ * covers having run it once in an exercise, which is what the old top
+ * rung was really being used for.
+ *
+ * It also clears a collision. `mastered` now means exactly one thing
+ * in anything the reader sees — a proficiency rating — and survives
+ * here only as the ENGINE's `acquisitionStage` in `STAGE_FOR_RATING`,
+ * which is a different vocabulary and stays as it is.
+ * =====================================================================
+ */
 export const RATING_OPTIONS: ReadonlyArray<{
   value: ProductionLessonRating;
   label: string;
@@ -90,31 +111,31 @@ export const RATING_OPTIONS: ReadonlyArray<{
 }> = [
   {
     value: 0,
-    label: 'not started',
+    label: 'Not Started',
     meaning: "haven't opened this yet",
     dot: 'bg-neutral-200 dark:bg-neutral-700',
   },
   {
     value: 25,
-    label: 'read it',
+    label: 'Read It',
     meaning: 'read the lesson through',
     dot: 'bg-developing/50',
   },
   {
     value: 50,
-    label: 'deep dive',
+    label: 'Deep Dive',
     meaning: 'went through the deep dive or the reference tutorial',
     dot: 'bg-developing',
   },
   {
     value: 75,
-    label: 'tried it',
+    label: 'Tried It',
     meaning: 'actually ran the Try now exercise',
     dot: 'bg-fluent',
   },
   {
     value: 100,
-    label: 'mastered',
+    label: 'In My Music',
     meaning: 'use it instinctively in my own work',
     dot: 'bg-mastered',
   },
