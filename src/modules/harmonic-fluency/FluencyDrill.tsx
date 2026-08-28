@@ -21,6 +21,13 @@
  * the reader asked, so it must not be rebuilt when a live query behind
  * the page resolves. Mounting this component IS the request; the caller
  * unmounts it to end the run.
+ *
+ * THE EMPTY DEPENDENCY ARRAY IS WHAT MAKES THAT TRUE, and it is the
+ * only thing that needs to. An effect with no dependencies does not
+ * re-run when a live query resolves, because nothing it depends on
+ * changed. A ref guarding against a second run was guarding against
+ * something that could not happen — and it broke the one case that
+ * can. See the effect.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -68,15 +75,31 @@ export default function FluencyDrill({
   const prefs = useFluencyPrefs(totalAttempts);
 
   const [queue, setQueue] = useState<Awaited<ReturnType<typeof buildSession>> | null>(null);
-  const built = useRef(false);
   // Latest callbacks, so building once does not mean calling a stale
   // `onCaughtUp` from the render that started the build.
   const caughtUpRef = useRef(onCaughtUp);
   caughtUpRef.current = onCaughtUp;
 
+  // THE CLEANUP FLAG IS THE WHOLE GUARD, which is the shape React
+  // documents for fetching in an effect: start the work, and let the
+  // cleanup mark the result unwanted.
+  //
+  // IT USED TO CARRY A SECOND GUARD AND THE PAIR DEADLOCKED. A
+  // `built` ref returned early on any run after the first, so under
+  // StrictMode — which mounts, cleans up and mounts again on the same
+  // fiber, refs surviving — the first pass started the build, the
+  // cleanup set `live = false`, the second pass returned at the ref
+  // and started nothing, and the first pass's result was then thrown
+  // away for being stale. `queue` stayed null forever and the
+  // component rendered nothing: no drill, no notice, no goal bar, no
+  // error to find. Either guard alone is correct; together they
+  // cancelled the only build there was.
+  //
+  // The ref is gone rather than the flag because the flag is the one
+  // doing real work — a run whose result arrives after unmount must
+  // not call setState — and because StrictMode's double invoke is
+  // meant to prove that cleanup works, not to be defeated by a ref.
   useEffect(() => {
-    if (built.current) return;
-    built.current = true;
     let live = true;
     void (async () => {
       const session = await buildSession({
