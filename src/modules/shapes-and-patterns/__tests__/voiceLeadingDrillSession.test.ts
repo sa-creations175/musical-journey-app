@@ -128,7 +128,6 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
     // Out-of-window row — must not count.
     await db.drillSessions.add({
       hand: 'both',
-      style: 'solid',
       id: 'old-1',
       drillTypeId: 'vl:major-251:guide-tones:A:Bb',
       skillId: 'vl:major-251:guide-tones:A:Bb',
@@ -151,7 +150,6 @@ describe('logVoiceLeadingDrillSession — counted by getWeeklyAttempts', () => {
 
     await db.drillSessions.add({
       hand: 'both',
-      style: 'solid',
       id: 'cs-1',
       drillTypeId: 'dtype-abc',
       skillId: 'skill-abc',

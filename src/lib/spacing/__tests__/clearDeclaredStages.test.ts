@@ -41,7 +41,6 @@ const session = (skillId: string): DrillSession => ({
   durationSeconds: 60,
   feelRating: 3,
   hand: 'both',
-  style: 'solid',
 } as DrillSession);
 
 describe('what qualifies', () => {

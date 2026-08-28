@@ -49,7 +49,7 @@ describe('where each module’s dates come from', () => {
 
   it('reads timed sessions for shapes & patterns', async () => {
     await db.drillSessions.bulkAdd([
-      { id: 'd1', drillTypeId: 't', skillId: 's', hand: 'both', style: 'solid',
+      { id: 'd1', drillTypeId: 't', skillId: 's', hand: 'both',
         durationSeconds: 300, feelRating: 3, timestamp: NOW } as never,
     ]);
     const days = await loadPracticeDays('shapes-and-patterns');

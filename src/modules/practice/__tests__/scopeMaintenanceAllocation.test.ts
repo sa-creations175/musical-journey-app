@@ -98,8 +98,7 @@ describe('maintenance allocation slice', () => {
   it('the SR due-floor can lift it, capped at typical-high', () => {
     // 30 due HF rows × 30 s/attempt = 900 s of demand, over the cap.
     const rows: SpacingState[] = Array.from({ length: 30 }, (_, i) => ({
-      id: `r${i}`, itemRef: `c${i}`, moduleRef: HF, hand: 'both',
-      style: 'solid', memoryType: 'declarative', acquisitionStage: 'acquired',
+      id: `r${i}`, itemRef: `c${i}`, moduleRef: HF, hand: 'both', memoryType: 'declarative', acquisitionStage: 'acquired',
       currentIntervalDays: 10, lastEngagedAt: 0, nextDueAt: 1,
       performanceHistory: [],
     }));

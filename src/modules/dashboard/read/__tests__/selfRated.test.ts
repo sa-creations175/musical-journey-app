@@ -25,7 +25,7 @@ const DAY = 86_400_000;
 function session(patch: Partial<DrillSession>): DrillSession {
   return {
     id: `d-${Math.random()}`, drillTypeId: 't', skillId: 'skill-1',
-    hand: 'both', style: 'solid', durationSeconds: 120,
+    hand: 'both', durationSeconds: 120,
     feelRating: 3, timestamp: NOW, ...patch,
   } as DrillSession;
 }
@@ -40,7 +40,7 @@ function skill(patch: Partial<DrillSkill>): DrillSkill {
 function spacing(patch: Partial<SpacingState>): SpacingState {
   return {
     id: 'x', itemRef: 'mv:triad:maj:root:C', moduleRef: 'mental-viz',
-    hand: 'both', style: 'solid', memoryType: 'procedural',
+    hand: 'both', memoryType: 'procedural',
     acquisitionStage: 'acquiring', currentIntervalDays: 0,
     lastEngagedAt: null, nextDueAt: null, performanceHistory: [], ...patch,
   } as SpacingState;
@@ -83,8 +83,8 @@ describe('shapesEngagements', () => {
     // Two reps of one shape, not two shapes. The denominator counts the
     // shape once, so the numerator has to as well.
     const out = shapesEngagements([
-      session({ hand: 'right', style: 'solid' }),
-      session({ hand: 'left', style: 'arpeggiated', timestamp: NOW + 1 }),
+      session({ hand: 'right', style: 'blocked' }),
+      session({ hand: 'left', style: 'broken', timestamp: NOW + 1 }),
     ], [skill({})]);
     expect(new Set(out.map(e => e.itemRef)).size).toBe(1);
     expect(out).toHaveLength(2);

@@ -22,7 +22,6 @@ function row(itemRef: string, lastEngagedAt: number | null = NOW): SpacingState 
     itemRef,
     moduleRef: 'shapes-and-patterns',
     hand: 'both',
-    style: 'solid',
     memoryType: 'procedural',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 3,

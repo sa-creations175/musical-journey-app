@@ -7,14 +7,22 @@
  * =====================================================================
  */
 
+import type { DrillStyle } from '../../../lib/db';
 import {
   DEFAULT_DRILL_SECONDS as DEFAULT_DRILL_LENGTH,
   DRILL_LENGTH_OPTIONS,
 } from '../../../lib/spacing/drillSettings';
 
-/** How the shape is played. Chord shapes only — a scale is a single
- *  line and has nothing to block. */
-export type Manner = 'broken' | 'blocked';
+/**
+ * How the shape is played. Chord shapes only — a scale is a single
+ * line and has nothing to block.
+ *
+ * The db's own `DrillStyle`, not a parallel word for it. This used to
+ * be a local `Manner` type — a second word for one thing, mapped on
+ * the way out, and a
+ * mapping between two names for one thing is where they drift.
+ */
+export type Style = DrillStyle;
 
 /** Which of the two things a sitting can be. Test is chosen in commit
  *  1 and does nothing; it is wired in a later commit. */
@@ -76,7 +84,7 @@ export function isAtTarget(bpm: number, beatsPerShape: number): boolean {
 
 /** A drill that has been set up but not yet run. */
 export interface DrillDraft {
-  manner: Manner | null;
+  style: Style | null;
   targetSeconds: number;
   beatsPerShape: number;
 }
@@ -84,7 +92,7 @@ export interface DrillDraft {
 /** A drill that ran, as the session list shows it. In memory only. */
 export interface CompletedDrill {
   id: string;
-  manner: Manner;
+  style: Style;
   /** Seconds actually played — the full length, or less if finished early. */
   ranSeconds: number;
   bpm: number;
@@ -124,12 +132,12 @@ export function countsTowardTest(d: CompletedDrill): boolean {
 
 export function newDraft(): DrillDraft {
   return {
-    manner: null,
+    style: null,
     targetSeconds: DEFAULT_DRILL_SECONDS,
     beatsPerShape: 1,
   };
 }
 
-export function mannerLabel(manner: Manner): string {
-  return manner === 'broken' ? 'Broken' : 'Blocked';
+export function styleLabel(style: Style): string {
+  return style === 'broken' ? 'Broken' : 'Blocked';
 }

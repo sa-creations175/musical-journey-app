@@ -1120,16 +1120,24 @@ export interface DrillType {
 export type DrillHand = 'left' | 'right' | 'both';
 
 /**
- * Playing style for a chord-shape drill (and its rating / spacing
- * state). Solid (block) and arpeggiated are SEPARATE skills for chord
- * shapes — each (shape × key × hand) is drilled both ways, each with
- * its own spacing state and rating history. Only chord shapes carry
- * the dimension: scales are a single-note melodic line (arpeggiated
- * adds nothing), and voice leading is always 'solid'. Every
- * non-chord-shape row rides 'solid' (the backfill default in the v32
- * migration).
+ * How a chord shape was played on one drill.
+ *
+ * =====================================================================
+ * THE WORDS ARE BLOCKED AND BROKEN. They were solid and arpeggiated,
+ * which is not what anyone says at a keyboard, and the app does not
+ * say them any more.
+ *
+ * IT DESCRIBES A DRILL, NOT A SKILL. Blocked and broken used to be two
+ * spacing rows with two ratings; that dimension is retired, so this
+ * rides along on the session row for the practice log and forks
+ * nothing. One square, one rating, however you played it.
+ *
+ * ONLY CHORD SHAPES CARRY ONE. A scale is a single line — there is
+ * nothing to block and nothing to break — and voice leading and mental
+ * visualisation are the same. A row about them has NO style rather
+ * than a style word that is not true of it.
  */
-export type DrillStyle = 'solid' | 'arpeggiated';
+export type DrillStyle = 'blocked' | 'broken';
 
 export interface DrillSession {
   id: string;
@@ -1138,10 +1146,13 @@ export interface DrillSession {
   /** Which hand this rating belongs to. 'both' for voice leading and
    *  for all rows migrated from before the hand dimension existed. */
   hand: DrillHand;
-  /** Playing style this rating belongs to. 'arpeggiated' only for
-   *  chord shapes; 'solid' for scales, voice leading, and every row
-   *  migrated from before the style dimension existed (v32 backfill). */
-  style: DrillStyle;
+  /**
+   * How the shape was played. CHORD SHAPES ONLY, and optional even
+   * there: a drill that never asked leaves it absent rather than
+   * claiming one. Absent on every scale, voice-leading and
+   * mental-visualisation row by definition — see `DrillStyle`.
+   */
+  style?: DrillStyle;
   /** How long this session actually ran (not the target). Minimum
    *  enforced at 30 s by the UI before a session can save. */
   durationSeconds: number;
@@ -4296,7 +4307,7 @@ export class AppDB extends Dexie {
      * and broken were two spacing rows with two ratings, and a square
      * showed the lower of them. The decision that retires it is that
      * practice can be broken or blocked, a test is always blocked and
-     * in time, and proficiency comes only from testing — so the manner
+     * in time, and proficiency comes only from testing — so the style
      * describes a drill, not a skill, and one square has one rating.
      *
      * The four-part index goes; `[moduleRef+itemRef+hand]` was already
@@ -4340,6 +4351,86 @@ export class AppDB extends Dexie {
           + 'blocked counterpart. Nothing was deleted — decide what happens to them.',
         );
       }
+    });
+
+    /**
+     * The style words change, and the rows wearing a wrong one are
+     * cleared.
+     *
+     * =================================================================
+     * A WRITE ON DEAD DATA, AND IT IS WORTH SAYING SO.
+     *
+     * Nothing reads either of the things this touches. The spacingState
+     * `style` came off the row at v39 and no code has looked at it
+     * since; the drillSession styles it clears are on scale rows, which
+     * never had a style to mean anything by. This runs anyway, because
+     * RESIDUE IS HOW SOMEONE LATER CONCLUDES A FIELD STILL MEANS
+     * SOMETHING. A column full of 'solid' invites a reader to write
+     * code against it.
+     *
+     * Three things happen:
+     *
+     *   1. `solid` / `arpeggiated` become `blocked` / `broken` on any
+     *      CHORD-SHAPE session that has one. The old words are not
+     *      what anyone says at a keyboard and do not appear in the app
+     *      any more.
+     *   2. The style is CLEARED from every non-chord-shape session. A
+     *      scale is a single line — there is nothing to block and
+     *      nothing to break — and the same is true of voice leading and
+     *      mental visualisation. Those rows were written 'solid'
+     *      because the field was required, not because it was true of
+     *      them.
+     *   3. The inert `style` is dropped from every spacingState row.
+     *
+     * Counts are logged rather than returned: this is an upgrade, and
+     * there is no caller to hand a report to.
+     * =================================================================
+     */
+    this.version(40).stores({}).upgrade(async tx => {
+      const OLD_TO_NEW: Record<string, string> = {
+        solid: 'blocked',
+        arpeggiated: 'broken',
+      };
+
+      // A chord-shape session carries a real DrillSkill id. Scales,
+      // voice leading and mental viz stand their itemRef in for it, so
+      // the id itself says which a row is about.
+      const skills = await tx.table('drillSkills').toArray();
+      const chordShapeSkillIds = new Set(
+        skills.filter(k => k.kind === 'chord-shape').map(k => k.id),
+      );
+
+      const sessions = await tx.table('drillSessions').toArray();
+      let renamed = 0;
+      let cleared = 0;
+      for (const row of sessions) {
+        if (row.style === undefined) continue;
+        if (chordShapeSkillIds.has(row.skillId)) {
+          const next = OLD_TO_NEW[row.style as string];
+          if (next === undefined) continue;   // already blocked / broken
+          await tx.table('drillSessions').update(row.id, { style: next });
+          renamed += 1;
+        } else {
+          delete row.style;
+          await tx.table('drillSessions').put(row);
+          cleared += 1;
+        }
+      }
+
+      const spacing = await tx.table('spacingState').toArray();
+      const withStyle = spacing.filter(
+        r => Object.prototype.hasOwnProperty.call(r, 'style'),
+      );
+      for (const row of withStyle) {
+        delete row.style;
+        await tx.table('spacingState').put(row);
+      }
+
+      console.info(
+        `[shapes] style values: ${renamed} chord-shape session(s) renamed to `
+        + `blocked / broken, ${cleared} non-chord session(s) cleared, `
+        + `${withStyle.length} inert spacingState style(s) dropped.`,
+      );
     });
   }
 }

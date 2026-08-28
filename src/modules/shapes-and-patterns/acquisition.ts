@@ -80,7 +80,7 @@ export interface AcquisitionCounts {
  * spacing row each, and "this hand is acquired" meant every row logged
  * for it was. The arpeggiated dimension is retired — practice can be
  * broken or blocked, a test is always blocked, and proficiency comes
- * only from testing — so the manner no longer forks the rating and a
+ * only from testing — so the style no longer forks the rating and a
  * hand has exactly one row again.
  *
  * The reduce below is kept over the whole list rather than reading

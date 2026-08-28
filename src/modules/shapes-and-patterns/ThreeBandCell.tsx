@@ -6,11 +6,10 @@
  * scale / VL grids already use.
  *
  * IT HAD A SECOND MODE AND DOES NOT NOW. Chord shapes used to split
- * each band horizontally — solid on top, arpeggiated underneath, six
- * slots — because blocked and broken were separate spacing rows with
- * separate ratings. The arpeggiated dimension is retired, so chord
- * shapes draw the same three bands scales do, and the split mode went
- * with its last caller.
+ * each band horizontally into six slots, because the two playing
+ * styles were separate spacing rows with separate ratings. That
+ * dimension is retired, so chord shapes draw the same three bands
+ * scales do, and the split mode went with its last caller.
  *
  * Empty state: when NO slot has been drilled (all bands/halves empty),
  * the cell renders as a single plain "not started" square — identical to
@@ -27,10 +26,8 @@ import type { AcquisitionBucket } from './acquisition';
  * Per-hand band state.
  *
  * A BUCKET, NOT A STAGE. This file used to hold its own `bucketFor`,
- * one of three copies of the same collapse — and a hand with more than
- * one row (chord shapes are drilled solid AND arpeggiated) cannot be
- * described by a single stage at all. The caller resolves it through
- * `acquisition.ts` and hands over the answer.
+ * one of three copies of the same collapse. The caller resolves it
+ * through `acquisition.ts` and hands over the answer.
  */
 export type BandStage = AcquisitionBucket;
 

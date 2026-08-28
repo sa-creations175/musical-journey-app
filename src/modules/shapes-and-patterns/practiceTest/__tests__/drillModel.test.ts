@@ -50,11 +50,11 @@ describe('the rate a drill runs at', () => {
 });
 
 describe('what the setup screen opens on', () => {
-  it('has no manner picked — the reader chooses, the app does not', () => {
+  it('has no style picked — the reader chooses, the app does not', () => {
     // `Start Drill` is disabled until this is answered. A default
     // would be the app deciding how the shape is played and recording
     // it as though the reader had.
-    expect(newDraft().manner).toBeNull();
+    expect(newDraft().style).toBeNull();
   });
 
   it('opens at a length that is one of the offered ones', () => {
@@ -99,7 +99,7 @@ describe('the floor, per run', () => {
 
 describe('which reps count toward a test', () => {
   const drill = (over: Partial<CompletedDrill>): CompletedDrill => ({
-    id: 'd', manner: 'blocked', ranSeconds: 60, bpm: 60, beatsPerShape: 1,
+    id: 'd', style: 'blocked', ranSeconds: 60, bpm: 60, beatsPerShape: 1,
     rate: 60, belowTarget: false, feel: 3, tooShort: false, ...over,
   });
 

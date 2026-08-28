@@ -8,7 +8,7 @@
  *               starts either way, which is why the question is asked
  *               BEFORE the work rather than after it.
  *   session   — the clock, the drills so far, and what to do next.
- *   setup     — manner, length, and the metronome.
+ *   setup     — style, length, and the metronome.
  *   drilling  — a countdown inside the session clock.
  *   drillrate — how that one went. Optional in practice, required in
  *               a test.
@@ -50,12 +50,12 @@ import {
   countsTowardTest,
   isAtTarget,
   isTooShort,
-  mannerLabel,
+  styleLabel,
   newDraft,
   rateFor,
   type CompletedDrill,
   type DrillDraft,
-  type Manner,
+  type Style,
   type SessionMode,
 } from './drillModel';
 
@@ -103,7 +103,7 @@ export default function PracticeTestPanel({
     const bpm = metronome.state.bpm;
     return {
       id: `drill-${drills.length + 1}`,
-      manner: d.manner as Manner,
+      style: d.style as Style,
       ranSeconds,
       bpm,
       beatsPerShape: d.beatsPerShape,
@@ -131,12 +131,12 @@ export default function PracticeTestPanel({
         skill,
         drillType,
         hand,
-        // THE MANNER IS RECORDED, NOT ACTED ON. It rides onto the
+        // THE STYLE IS RECORDED, NOT ACTED ON. It rides onto the
         // DrillSession row for the practice log and stops there —
         // blocked and broken stopped being separate spacing rows when
-        // the arpeggiated dimension was retired. One square, one
-        // rating, whichever way you played it.
-        style: d.manner === 'broken' ? 'arpeggiated' : 'solid',
+        // that dimension was retired. One square, one rating,
+        // whichever way you played it.
+        style: d.style,
         durationSeconds: d.ranSeconds,
         targetSeconds: (draft as DrillDraft).targetSeconds,
         // A skipped rating still writes the SESSION — the time
@@ -168,7 +168,7 @@ export default function PracticeTestPanel({
           drillType,
           hand,
           // A test drill is always blocked.
-          style: 'solid',
+          style: 'blocked',
           durationSeconds: d.ranSeconds,
           targetSeconds: d.ranSeconds,
           feelRating: d.feel as 1 | 2 | 3 | 4,
@@ -424,7 +424,7 @@ function DrillList({ mode, drills }: {
               <span className="font-mono text-[0.7rem] font-bold text-neutral-400">{i + 1}</span>
               <span className="flex-1 min-w-0">
                 <b className="font-semibold">
-                  {mode === 'test' ? 'Test' : 'Drill'} {i + 1} · {mannerLabel(d.manner)}
+                  {mode === 'test' ? 'Test' : 'Drill'} {i + 1} · {styleLabel(d.style)}
                 </b>
                 <span className="block font-mono text-[0.66rem] text-neutral-400">
                   {d.ranSeconds}s · {d.rate} {CHORD_RATE_LABEL}
@@ -470,7 +470,7 @@ function SetupStep({
   // A test drill is always blocked and in time. Set once on entering
   // the step rather than asked — see the panel below, which states it.
   useEffect(() => {
-    if (isTest && draft.manner !== 'blocked') onChange({ ...draft, manner: 'blocked' });
+    if (isTest && draft.style !== 'blocked') onChange({ ...draft, style: 'blocked' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTest]);
 
@@ -484,28 +484,28 @@ function SetupStep({
           not a dead button. */}
       {isTest ? (
         <div>
-          <SectionLabel>Manner</SectionLabel>
+          <SectionLabel>Style</SectionLabel>
           <p className="text-sm text-neutral-700 dark:text-neutral-200 m-0">
             Blocked, at tempo.
           </p>
         </div>
       ) : (
         <div>
-          <SectionLabel>Manner</SectionLabel>
+          <SectionLabel>Style</SectionLabel>
           <div className="flex gap-1.5 flex-wrap">
-            {(['broken', 'blocked'] as const).map(m => (
+            {(['broken', 'blocked'] as const).map(st => (
               <button
-                key={m}
+                key={st}
                 type="button"
-                onClick={() => onChange({ ...draft, manner: m })}
-                aria-pressed={draft.manner === m}
+                onClick={() => onChange({ ...draft, style: st })}
+                aria-pressed={draft.style === st}
                 className={`px-3 py-1 rounded-md border text-sm ${
-                  draft.manner === m
+                  draft.style === st
                     ? 'bg-fluent text-white border-fluent font-semibold'
                     : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent'
                 }`}
               >
-                {mannerLabel(m)}
+                {styleLabel(st)}
               </button>
             ))}
           </div>
@@ -578,7 +578,7 @@ function SetupStep({
         <button
           type="button"
           onClick={onStart}
-          disabled={draft.manner === null}
+          disabled={draft.style === null}
           className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
         >
           Start Drill
@@ -622,7 +622,7 @@ function DrillingStep({
         </div>
         <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mt-1">
           {mode === 'test' ? 'Test' : 'Drill'} {index}
-          {draft.manner ? ` · ${mannerLabel(draft.manner)}` : ''}
+          {draft.style ? ` · ${styleLabel(draft.style)}` : ''}
         </div>
       </div>
 

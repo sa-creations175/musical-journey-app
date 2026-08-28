@@ -181,7 +181,7 @@ describe('routing sources to catalogs', () => {
     // one reads drillSessions.
     const dashboard = assembleDashboard(source({
       drillSessions: [{
-        id: 'd1', drillTypeId: 't', skillId: 's1', hand: 'both', style: 'solid',
+        id: 'd1', drillTypeId: 't', skillId: 's1', hand: 'both',
         durationSeconds: 60, feelRating: 4, timestamp: NOW,
       } as DrillSession],
       drillSkills: [{
@@ -199,7 +199,7 @@ describe('routing sources to catalogs', () => {
     const dashboard = assembleDashboard(source({
       spacingRows: [{
         id: 'x', itemRef: 'mv:triad:maj:root:C', moduleRef: 'mental-viz',
-        hand: 'both', style: 'solid', memoryType: 'procedural',
+        hand: 'both', memoryType: 'procedural',
         acquisitionStage: 'acquiring', currentIntervalDays: 0,
         lastEngagedAt: NOW, nextDueAt: null,
         performanceHistory: [{ t: NOW, kind: 'rating', rating: 'flying' }],
@@ -220,7 +220,7 @@ describe('routing sources to catalogs', () => {
     const dashboard = assembleDashboard(source({
       spacingRows: [{
         id: 'x', itemRef: MENTAL_VIZ_ITEMS[0].itemRef, moduleRef: 'mental-viz',
-        hand: 'both', style: 'solid', memoryType: 'procedural',
+        hand: 'both', memoryType: 'procedural',
         acquisitionStage: 'acquiring', currentIntervalDays: 0,
         lastEngagedAt: NOW, nextDueAt: null,
         performanceHistory: Array.from({ length: 4 }, (_, i) => ({
@@ -232,7 +232,7 @@ describe('routing sources to catalogs', () => {
       // would read as 30 days stale while the player drilled it this
       // morning.
       drillSessions: Array.from({ length: 4 }, (_, i) => ({
-        id: `d${i}`, drillTypeId: 't', skillId: 's1', hand: 'both', style: 'solid',
+        id: `d${i}`, drillTypeId: 't', skillId: 's1', hand: 'both',
         durationSeconds: 60, feelRating: 1, timestamp: NOW - 30 * DAY - i * 1000,
       } as DrillSession)),
       drillSkills: [{

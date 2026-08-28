@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
-import type { DrillHand, DrillSession, DrillSkill, DrillStyle, DrillType } from '../../lib/db';
+import type { DrillHand, DrillSession, DrillSkill, DrillType } from '../../lib/db';
 import Modal from '../../components/Modal';
 import type { Feel } from '../../lib/fluencyScale';
 import { useToast } from '../../components/Toaster';
@@ -64,10 +64,11 @@ type Phase = 'setup' | 'running' | 'paused' | 'assess';
 // were separate spacing rows with separate ratings. The arpeggiated
 // dimension is retired, so a cell is three passes: left, right, both.
 //
-// `style` is still written on the DrillSession row, and this path
-// always writes `solid`. That is honest rather than lossy: this modal
-// never asked which manner you were playing in, it just walked both.
-// The Practice/Test panel is the surface that asks.
+// THIS PATH WRITES NO STYLE, and that is the honest answer rather
+// than a lossy one: it never asked how you were playing, it just
+// walked the hands. An absent style says "nobody asked"; a `blocked`
+// would claim something the reader never said. The Practice/Test
+// panel is the surface that asks.
 const HAND_LABEL: Record<DrillHand, string> = {
   left: 'Left hand',
   right: 'Right hand',
@@ -75,12 +76,11 @@ const HAND_LABEL: Record<DrillHand, string> = {
 };
 interface DrillSkillStep {
   hand: DrillHand;
-  style: DrillStyle;
 }
 const ALL_SKILLS: ReadonlyArray<DrillSkillStep> = [
-  { hand: 'left', style: 'solid' },
-  { hand: 'right', style: 'solid' },
-  { hand: 'both', style: 'solid' },
+  { hand: 'left' },
+  { hand: 'right' },
+  { hand: 'both' },
 ];
 
 const ALL_HANDS: ReadonlyArray<DrillHand> = ['left', 'right', 'both'];
@@ -169,7 +169,6 @@ export default function DrillSessionModal({
   );
   const currentSkill = SKILLS[skillIndex] ?? SKILLS[0];
   const currentHand = currentSkill.hand;
-  const currentStyle = currentSkill.style;
   const [feel, setFeel] = useState<Feel | null>(null);
   const [notes, setNotes] = useState('');
 
@@ -391,7 +390,6 @@ export default function DrillSessionModal({
       skill,
       drillType,
       hand: currentHand,
-      style: currentStyle,
       durationSeconds: elapsedSeconds,
       // Capture the user-selected countdown so future rolling-
       // average planning has the target alongside the actual.

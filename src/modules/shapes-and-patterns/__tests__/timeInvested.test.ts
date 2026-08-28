@@ -20,7 +20,6 @@ const session = (skillId: string, durationSeconds: number): DrillSession => ({
   drillTypeId: skillId,
   skillId,
   hand: 'both',
-  style: 'solid',
   durationSeconds,
   feelRating: 3,
   timestamp: 1_800_000_000_000,

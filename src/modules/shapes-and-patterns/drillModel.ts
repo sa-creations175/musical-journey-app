@@ -534,10 +534,12 @@ export interface LogSessionInput {
    *  (left / right / both); the rating + spacing engagement are logged
    *  against it. */
   hand: DrillHand;
-  /** Which playing style this drill was for. Chord shapes pass the
-   *  active style (solid / arpeggiated) — each is a separate skill with
-   *  its own rating + spacing engagement. */
-  style: DrillStyle;
+  /**
+   * How the shape was played, for chord shapes that asked. Omitted by
+   * every other kind and by any chord-shape surface that never put the
+   * question — an absent style is honest where a default would not be.
+   */
+  style?: DrillStyle;
   durationSeconds: number;
   /** Countdown duration the user picked before starting the drill,
    *  in seconds. Persists separately from durationSeconds so a
@@ -628,7 +630,7 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
     drillTypeId: input.drillType.id,
     skillId: input.skill.id,
     hand: input.hand,
-    style: input.style,
+    ...(input.style !== undefined ? { style: input.style } : {}),
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
@@ -759,8 +761,8 @@ export async function logVoiceLeadingDrillSession(
     drillTypeId: input.itemRef,
     skillId: input.itemRef,
     hand: input.hand,
-    // Voice leading is always solid (no arpeggiated dimension).
-    style: 'solid',
+    // NO STYLE. Voice leading has nothing to block and nothing to
+    // break — the movement between voicings is the exercise.
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
@@ -781,8 +783,7 @@ export async function logScaleDrillSession(
     drillTypeId: input.itemRef,
     skillId: input.itemRef,
     hand: input.hand,
-    // Scales are a single-note melodic line — no arpeggiated dimension.
-    style: 'solid',
+    // NO STYLE. A scale is a single line; there is nothing to block.
     durationSeconds: Math.round(input.durationSeconds),
     ...(input.targetSeconds !== undefined
       ? { targetSeconds: Math.round(input.targetSeconds) }
@@ -851,10 +852,9 @@ export async function logMentalVizSession(
     id: uid('dses'),
     drillTypeId: input.itemRef,
     skillId: input.itemRef,
-    // Away from the keyboard entirely — no hand, no style. `both` and
-    // `solid` are the fields' own defaults for a row with neither.
+    // Away from the keyboard entirely — no hand, no style. `both` is
+    // the hand field's own default for a row with neither.
     hand: 'both',
-    style: 'solid',
     durationSeconds: Math.round(input.durationSeconds),
     feelRating: MENTAL_VIZ_FEEL[input.rating],
     timestamp: Date.now(),

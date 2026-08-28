@@ -144,7 +144,6 @@ describe('pending-push protection across the real schema', () => {
       drillTypeId: 'dt-1',
       skillId: 'sk-1',
       hand: 'both',
-      style: 'solid',
       durationSeconds: 90,
       feelRating: 3,
       timestamp: fresh,

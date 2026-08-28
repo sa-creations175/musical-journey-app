@@ -180,18 +180,13 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
    * The rating for one square of the grid, keyed `itemRef|hand`.
    *
    * =====================================================================
-   * A SQUARE IS TWO ROWS, AND THE LOWER ONE WINS.
+   * ONE SQUARE, ONE ROW, ONE RATING.
    *
-   * Chord shapes are drilled in two styles per hand — solid then
-   * arpeggiated — and each keeps its own spacing row. The grid has no
-   * style column, so a square spans both.
-   *
-   * Taking the LOWER verdict follows the rule this module already
-   * holds for hands: `acquisition.ts` says a hand counts as acquired
-   * only when every row logged for it is. It is the same instinct as
-   * the self-rated band itself, which takes the lowest of the last
-   * three rather than the average — a shape you can block but not
-   * arpeggiate is not yet a shape you own.
+   * A square used to span two spacing rows — one per playing style —
+   * and showed the lower of them. That dimension is retired: the style
+   * describes a drill rather than a skill, so a square has one row and
+   * the reduce below is a guard against a stray duplicate rather than
+   * a rule about styles.
    * =====================================================================
    */
   const verdictByItemRefHand = useMemo(() => {

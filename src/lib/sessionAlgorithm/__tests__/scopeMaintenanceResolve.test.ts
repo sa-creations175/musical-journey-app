@@ -52,8 +52,7 @@ const hfGoal: Goal = {
  *  honestly rather than by a filter that waves it through. */
 function fullHfRows(history: PerformanceEntry[]): SpacingState[] {
   return FLASHCARDS.map(card => ({
-    id: card.id, itemRef: card.id, moduleRef: HF, hand: 'both' as const,
-    style: 'solid' as const, memoryType: 'declarative' as const,
+    id: card.id, itemRef: card.id, moduleRef: HF, hand: 'both' as const, memoryType: 'declarative' as const,
     acquisitionStage: 'acquired' as const, currentIntervalDays: 10,
     lastEngagedAt: BASE, nextDueAt: BASE,
     performanceHistory: history as unknown as Array<Record<string, unknown>>,
