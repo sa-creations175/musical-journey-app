@@ -89,6 +89,9 @@ function render(over: Partial<Parameters<typeof KeyRow>[0]> = {}) {
     container, taps, tests, runs,
     text: () => container.textContent ?? '',
     buttons: () => [...container.querySelectorAll('button')],
+    // A cell with no row behind it is rendered as a div rather
+    // than a button, so cells are found by testid, not by tag.
+    cells: () => [...container.querySelectorAll('[data-testid="matrix-cell"]')],
     unmount() { act(() => { root.unmount(); }); container.remove(); },
   };
 }
@@ -97,15 +100,21 @@ describe('one row, cells that are cells', () => {
   it('renders one cell per section', () => {
     const r = render();
     // Three sections plus the two actions — and no strip.
-    const cells = r.buttons().filter(b => b.className.includes('aspect-square'));
+    const cells = r.cells();
     expect(cells).toHaveLength(3);
     r.unmount();
   });
 
-  it('every cell is square, which is what makes it read as a grid', () => {
+  it('every cell carries its band word, which is what it now says', () => {
+    // WAS "every cell is square". A square of colour needed a legend;
+    // the word is the legend, so the cell is no longer square and the
+    // shape is not what makes it readable.
     const r = render();
-    const cells = r.buttons().filter(b => b.className.includes('aspect-square'));
+    const cells = r.cells();
     expect(cells.length).toBeGreaterThan(0);
+    for (const c of cells) {
+      expect((c.textContent ?? '').trim().length).toBeGreaterThan(0);
+    }
     r.unmount();
   });
 
@@ -114,7 +123,10 @@ describe('one row, cells that are cells', () => {
     // passing on an empty render.
     const r = render();
     expect(r.text().length).toBeGreaterThan(0);
-    for (const gone of ['Comfortable', 'sections', 'Tested', 'Untested']) {
+    // 'Comfortable' is deliberately absent from this list now: the
+    // row's own gate line names Comfortable status, which is the
+    // point of it. The strip's other words are still gone.
+    for (const gone of ['sections', 'Tested', 'Untested']) {
       expect(r.text()).not.toContain(gone);
     }
     r.unmount();
@@ -122,7 +134,7 @@ describe('one row, cells that are cells', () => {
 
   it('taps a cell by its id', () => {
     const r = render();
-    const cells = r.buttons().filter(b => b.className.includes('aspect-square'));
+    const cells = r.cells();
     act(() => { cells[0].dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(r.taps).toEqual(['c-sec-1']);
     r.unmount();
@@ -130,10 +142,11 @@ describe('one row, cells that are cells', () => {
 
   it('a section with no cell row is not tappable', () => {
     // Nothing to log against yet. Firing a tap with no cell id would
-    // mean inventing one.
+    // mean inventing one — so it is not even a button.
     const r = render();
-    const cells = r.buttons().filter(b => b.className.includes('aspect-square'));
-    act(() => { cells[2].dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const third = r.cells()[2];
+    expect(third.tagName.toLowerCase()).not.toBe('button');
+    act(() => { third.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(r.taps).toEqual([]);
     r.unmount();
   });
@@ -270,7 +283,11 @@ describe('the column template', () => {
    */
   it('caps the cell columns instead of letting them absorb the row', () => {
     const t = gridTemplate(3);
-    expect(t).toContain('repeat(3, minmax(42px, 56px))');
+    // WIDER THAN IT WAS. The cell carries a word now, so 56px no
+    // longer fits its content — but it is still CAPPED, which is the
+    // property that stopped three sections becoming three enormous
+    // squares and a 400px-tall row.
+    expect(t).toContain('repeat(3, minmax(5.5rem, 7rem))');
     // The load-bearing half: a template written with `1fr` per cell —
     // or `minmax(42px, 1fr)` — passes a "cells have a minimum" test
     // and still stretches. The maximum is what fixed the bug.
@@ -280,7 +297,7 @@ describe('the column template', () => {
   it('gives the slack to a column that is allowed to grow', () => {
     // Something must absorb the leftover width or the capped cells
     // stretch again. Here it is the trailing 1fr, after the actions.
-    expect(gridTemplate(3).trimEnd().endsWith('1fr')).toBe(true);
+    expect(gridTemplate(3).trimEnd().endsWith('minmax(0, 1fr)')).toBe(true);
   });
 
   it('is the same template the header row uses', async () => {

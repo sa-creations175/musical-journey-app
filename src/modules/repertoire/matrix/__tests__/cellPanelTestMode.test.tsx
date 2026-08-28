@@ -157,7 +157,7 @@ describe('the runs land at the cell grain', () => {
     const h = mount();
     h.toTest();
     h.runsClean(3);
-    await h.clickAsync('Mark Comfortable');
+    await h.clickAsync('Save Runs');
 
     expect(await getSpacingState(songKeyItemRef('sk-C'), 'repertoire')).toBeUndefined();
     // Not vacuous: the save really did happen.
@@ -174,32 +174,33 @@ describe('the runs land at the cell grain', () => {
   });
 });
 
-describe('three clean runs in a row', () => {
-  it('does not offer Mark comfortable before the third', () => {
+describe('the clean-run count, without a button behind it', () => {
+  // MARK COMFORTABLE IS GONE. It wrote `cellState: 'comfortable'`,
+  // which nothing reads; comfortable is Fluent-or-better derived from
+  // rated reps, so no button can reach it. The COUNT survives — it is
+  // still a true thing about the runs — so these assert the count and
+  // the absence of the control.
+
+  it('shows no Mark Comfortable control at any point in the streak', () => {
     const h = mount();
     h.toTest();
-    h.runsClean(2);
-    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(true);
+    expect(h.text()).not.toContain('Mark Comfortable');
+    h.runsClean(3);
+    expect(h.text()).not.toContain('Mark Comfortable');
     h.unmount();
   });
 
-  it('offers it on the third, and it no longer advances anything', async () => {
-    // MARK COMFORTABLE IS RETIRED. It used to write
-    // `cellState: 'comfortable'`; comfortable is now Fluent-or-better,
-    // derived from rated reps, so no button can reach it. The control
-    // still renders — removing it is 4b's job — but the field it wrote
-    // is a placeholder nothing reads, and this asserts it stays put.
+  it('three clean runs advance nothing on the cell', async () => {
     const h = mount();
     h.toTest();
     h.runsClean(3);
-    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(false);
-    await h.clickAsync('Mark Comfortable');
+    expect(h.text()).toContain('3 of 3 clean runs in a row');
+    await h.clickAsync('Save Runs');
 
     const stored = await db.songCells.get('cell-1');
-    // The claim it used to make is the thing that is gone.
     expect(stored?.cellState).not.toBe('comfortable');
-    expect(stored?.comfortableAt).toBeNull();
-    // The runs themselves are still recorded — only the state claim is gone.
+    expect(stored?.comfortableAt ?? null).toBeNull();
+    // The runs themselves are still recorded — only the claim is gone.
     expect(await db.songCellRunThroughs.count()).toBeGreaterThan(0);
     h.unmount();
   });
@@ -210,7 +211,6 @@ describe('three clean runs in a row', () => {
     h.runsClean(2);
     h.click('Not Clean');
     expect(h.text()).toContain('0 of 3 clean runs in a row');
-    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(true);
     h.unmount();
   });
 
@@ -222,7 +222,15 @@ describe('three clean runs in a row', () => {
     h.toTest();
     expect(h.text()).toContain('2 of 3 clean runs in a row');
     h.runsClean(1);
-    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(false);
+    expect(h.text()).toContain('3 of 3 clean runs in a row');
+    h.unmount();
+  });
+
+  it('names what would actually move the section', () => {
+    const h = mount();
+    h.toTest();
+    expect(h.text()).toContain('Improve this section');
+    expect(h.text()).toContain('3 clean tests in a row');
     h.unmount();
   });
 });
@@ -259,7 +267,7 @@ describe('the tempo floor', () => {
     const h = mount({ tempo: null });
     h.toTest();
     h.runsClean(3);
-    expect(h.button('Mark Comfortable').hasAttribute('disabled')).toBe(false);
+    expect(h.text()).toContain('3 of 3 clean runs in a row');
     h.unmount();
   });
 });

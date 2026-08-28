@@ -5,6 +5,7 @@ import { useSongTimer } from '../useSongTimer';
 import { AMBER_DEFAULT_MIN, getAmberMinutes } from '../songTimerPrefs';
 import MetronomeControl from '../../../components/MetronomeControl';
 import SectionTicks from './SectionTicks';
+import { useCellBands } from './useCellBands';
 import RatingStep, { type RatingAnswers } from './RatingStep';
 import TestStep from './TestStep';
 import {
@@ -103,6 +104,9 @@ export default function CellPanel({
   song, cell, siblingCells, songKey, section, sections, spelling,
   layout, onLayoutChange, onClose, onSaved, onFinished,
 }: Props) {
+  // The cell's band, live — it lives in spacingState, not on the cell.
+  const cellBands = useCellBands([cell]);
+
   const [mode, setMode] = useState<CellPanelMode>('choose');
   const timer = useSongTimer(song.id);
   const [busy, setBusy] = useState(false);
@@ -389,6 +393,7 @@ export default function CellPanel({
           <TestStep
             elapsed={elapsed}
             cell={cell}
+            bands={cellBands}
             performanceTempo={song.tempo ?? null}
             busy={busy}
             onOpenLeadSheet={() => onLayoutChange('bar')}

@@ -322,6 +322,15 @@ export default function SongMatrixView({
           up beside the stage badge. See SongDetailView.
           --------------------------------------------------------------- */}
 
+      {/* WHAT THE GRID IS FOR, said once above it. Every row repeats
+          the rule for its own key; this says why the rule exists at
+          all, which a row has no room for. */}
+      <p className="px-1 pb-2 text-[11px] leading-snug text-neutral-500 dark:text-neutral-400 max-w-[62ch]">
+        Prove you have this song in your repertoire by getting it to{' '}
+        <b className="font-bold text-neutral-700 dark:text-neutral-200">Comfortable</b> status.
+        To achieve that status, you must complete 3 clean test runs of the full song at tempo.
+      </p>
+
       <WholeSongTestBanner
         spelling={spelling}
         eligibleKeys={eligibleTestKeys}

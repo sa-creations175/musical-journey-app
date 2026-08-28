@@ -6,6 +6,7 @@ import {
   projectConsecutiveCleanCount,
   type AttemptDraft,
 } from './cellRollup';
+import { type CellBands, isCellComfortable } from './cellBands';
 
 /**
  * The cell test — one section, one key, at tempo.
@@ -38,6 +39,8 @@ import {
 interface Props {
   elapsed: string;
   cell: SongCell;
+  /** Bands for this cell — see cellBands.ts. */
+  bands: CellBands;
   performanceTempo: number | null;
   busy: boolean;
   onOpenLeadSheet: () => void;
@@ -46,7 +49,7 @@ interface Props {
 }
 
 export default function TestStep({
-  elapsed, cell, performanceTempo, busy,
+  elapsed, cell, bands, performanceTempo, busy,
   onOpenLeadSheet, onCancel, onFinish,
 }: Props) {
   const [attempts, setAttempts] = useState<AttemptDraft[]>([]);
@@ -65,8 +68,10 @@ export default function TestStep({
     attempts,
     performanceTempo,
   );
-  const alreadyComfortable = cell.cellState === 'comfortable';
-  const canMarkComfortable = !alreadyComfortable && projected >= 3;
+  // FROM THE BAND, not from `cellState` — that field is retired and
+  // nothing reads it. Comfortable here means the same thing it means
+  // in the grid beside this panel: Fluent or better.
+  const alreadyComfortable = isCellComfortable(bands, cell.id);
 
   const add = (wasClean: boolean) => {
     if (!bpmValid) return;
@@ -170,20 +175,21 @@ export default function TestStep({
         >
           Save Runs
         </button>
-        {!alreadyComfortable && (
-          <button
-            type="button"
-            disabled={busy || !canMarkComfortable}
-            onClick={() => onFinish(attempts, true)}
-            title={canMarkComfortable
-              ? undefined
-              : 'Three clean runs in a row at tempo enables this.'}
-            className="px-3 py-2 rounded-md bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 text-sm font-medium hover:opacity-90 disabled:opacity-40"
-          >
-            Mark Comfortable
-          </button>
-        )}
+        {/* MARK COMFORTABLE STOOD HERE.
+            It wrote `cellState: 'comfortable'`. Nothing reads that
+            field now, and comfortable is Fluent-or-better derived from
+            rated reps, so the button advanced nothing — and a button
+            that does nothing is worse than no button, because it
+            teaches a rule the app no longer follows. Saving the runs
+            is the whole of what this screen does. */}
       </div>
+
+      {/* WHAT WOULD MOVE THIS SECTION. The row above the grid names the
+          whole song in a key; this names the one section in front of
+          you. */}
+      <p className="text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
+        Improve this section&rsquo;s status with 3 clean tests in a row.
+      </p>
     </div>
   );
 }

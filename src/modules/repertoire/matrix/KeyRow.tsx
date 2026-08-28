@@ -1,7 +1,8 @@
 import type { SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
 import { spellKey, type Spelling } from '../../../lib/spelling';
-import HeatCell from '../../../components/HeatCell';
-import { cellHeat } from './cellHeat';
+import MatrixCell, { bandWordFor } from './MatrixCell';
+import { cellVerdict } from './cellBands';
+import { NOT_STARTED } from '../../../lib/spacing/banding';
 import { keyDueState, type DueWindows, type KeyDueState } from './keySpacing';
 import { isKeyRowEngaged } from './songLevelState';
 import type { CellBands } from './cellBands';
@@ -74,7 +75,11 @@ interface Props {
  * ---------------------------------------------------------------
  */
 export function gridTemplate(sectionCount: number): string {
-  return `4.5rem repeat(${sectionCount}, minmax(42px, 56px)) auto 1fr`;
+  // WIDER THAN THE HEAT GRID WAS, because the cell now carries a
+  // WORD. `minmax(42px, 56px)` fitted a square of colour and nothing
+  // else; "Not Started" needs room. The trailing `1fr` still absorbs
+  // the slack, and now carries the row's gate line.
+  return `4.5rem repeat(${sectionCount}, minmax(5.5rem, 7rem)) auto minmax(0, 1fr)`;
 }
 
 export default function KeyRow({
@@ -136,16 +141,15 @@ export default function KeyRow({
 
       {sections.map(section => {
         const cell = cellsBySectionId.get(section.id) ?? null;
-        const heat = cellHeat(cell, now, bands);
+        const verdict = cell ? cellVerdict(bands, cell.id) : NOT_STARTED;
+        const word = bandWordFor(verdict);
         return (
           <div key={section.id} className="p-px">
-              <HeatCell
-                fill={heat.fill}
-                alpha={heat.alpha}
-                bordered={heat.bordered}
+              <MatrixCell
+                verdict={verdict}
                 onClick={cell && onCellTap ? () => onCellTap(cell.id) : undefined}
-                title={`${section.name} · ${spellKey(keyName, spelling)} — ${describeCell(cell)}`}
-                ariaLabel={`${section.name} in ${spellKey(keyName, spelling)}: ${describeCell(cell)}`}
+                title={`${section.name} · the key of ${spellKey(keyName, spelling)} — ${word}`}
+                ariaLabel={`${section.name} in ${spellKey(keyName, spelling)}: ${word}`}
               />
           </div>
         );
@@ -197,6 +201,20 @@ export default function KeyRow({
           </button>
         )}
       </div>
+
+      {/* THE ROW IS THE WHOLE SONG IN THIS KEY, and this is what would
+          finish it. The columns beside it are its sections — a section
+          on its own is the smaller claim, so the row is what names
+          Comfortable status.
+
+          It rides the template's trailing slack column, so it costs no
+          layout: a song with three sections has the room, and one with
+          eight does not have to find it. */}
+      <div className="flex items-center px-2 min-w-0">
+        <span className="text-[10px] leading-tight text-neutral-500 dark:text-neutral-400 truncate">
+          Prove <b className="font-bold text-neutral-700 dark:text-neutral-200">Comfortable</b> status by 3 clean tests in a row.
+        </span>
+      </div>
     </div>
   );
 }
@@ -208,13 +226,4 @@ const KEY_BORDER_BY_STATE: Record<string, string> = {
   not_started:  'border-l-neutral-200 dark:border-l-neutral-800',
 };
 
-/** What a cell's colour means, in words, for the tooltip and for
- *  assistive tech — the fill ramp is invisible to both. */
-function describeCell(cell: SongCell | null): string {
-  if (cell === null || cell.cellState === 'empty') return 'not started';
-  if (cell.cellState === 'comfortable') return 'comfortable';
-  if (cell.consecutiveCleanCount >= 1) {
-    return `${cell.consecutiveCleanCount} of 3 clean runs in a row`;
-  }
-  return 'in progress';
-}
+

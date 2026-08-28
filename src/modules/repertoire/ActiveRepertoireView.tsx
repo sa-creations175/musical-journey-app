@@ -46,6 +46,7 @@ import {
   practiceIsStale,
   type PracticeWindows,
 } from './practiceWindowPrefs';
+import { sectionHasChords } from './sectionChords';
 import {
   SPACING_DEFAULTS,
   getSpacingSettings,
@@ -308,8 +309,13 @@ export default function ActiveRepertoireView({
       const practiceStale = practiceIsStale(
         lastPractisedAt, derivedStage, advancementNow, practiceWindows,
       );
+      // Through the shared chord reader, so the card and the matrix
+      // cannot disagree about which sections are charted.
+      const sectionsNeedingChords = (sectionsBySong.get(song.id) ?? [])
+        .filter(sec => !sectionHasChords(song, sec)).length;
       return {
         song, lastPractisedAt, freshness, derivedStage, retest, practiceStale,
+        sectionsNeedingChords,
         spelling: resolveSpelling(song.spelling, globalSpelling),
       };
     });
@@ -379,6 +385,7 @@ export default function ActiveRepertoireView({
     stage: row.derivedStage,
     retest: row.retest,
     practiceStale: row.practiceStale,
+    sectionsNeedingChords: row.sectionsNeedingChords,
     accentHex,
     onOpen: () => onOpenSong(row.song.id),
     onOpenLeadSheet: () => onOpenLeadSheet(row.song.id),

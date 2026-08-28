@@ -71,6 +71,9 @@ export interface SongCardProps {
    * `practiceWindowPrefs`. Separate from `retest`: a song can be
    * neglected without any claim having decayed.
    */
+  /** Sections on the lead sheet with no chords charted. Drives the
+   *  one line that says a chart is unfinished. */
+  sectionsNeedingChords: number;
   practiceStale: boolean;
   onOpen: () => void;
   /** Opens this song's chart. The same page as `onOpen`, arriving at
@@ -98,6 +101,7 @@ export default function SongCard({
   freshness,
   stage,
   retest,
+  sectionsNeedingChords,
   practiceStale,
   onOpen,
   onOpenLeadSheet,
@@ -190,6 +194,20 @@ export default function SongCard({
           <span className="text-neutral-500">· {song.tempoLabel}</span>
         )}
       </div>
+
+      {/* THE ONE PLACE THE APP SAYS A LEAD SHEET IS UNFINISHED.
+          It went out with the section chips and came back on its own
+          merits: it is about CHORDS, not about the retired cell state,
+          and charting is what now moves a cell to Started — so this
+          points at the next thing worth doing. Fed by the shared chord
+          reader, so it cannot disagree with the matrix about which
+          sections are charted. */}
+      {sectionsNeedingChords > 0 && (
+        <div className="text-[11px] text-neutral-500" data-testid="song-card-needs-chords">
+          {sectionsNeedingChords} section{sectionsNeedingChords === 1 ? '' : 's'} still{' '}
+          {sectionsNeedingChords === 1 ? 'needs' : 'need'} chords
+        </div>
+      )}
 
       {/* THE LINE THAT SAYS WHEN. The section footer beside it counted
           sections "passed" and "in progress" from the retired
