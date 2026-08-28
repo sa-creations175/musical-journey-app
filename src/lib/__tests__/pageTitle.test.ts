@@ -60,7 +60,11 @@ describe('titleForPath', () => {
     for (const skill of READING_SKILL_ORDER) {
       const title = titleForPath(readingSkillPath(skill));
       expect(title, skill).not.toBe('Musical Journey');
-      expect(title.toLowerCase(), skill).toBe(READING_SKILL_LABELS[skill]);
+      // Case-insensitive on BOTH sides: the claim is that the title
+      // names the skill, not that the label is stored lowercase — it
+      // is Title Case now, and `titleForPath` cases it either way.
+      expect(title.toLowerCase(), skill)
+        .toBe(READING_SKILL_LABELS[skill].toLowerCase());
     }
   });
 

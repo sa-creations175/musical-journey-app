@@ -122,14 +122,28 @@ export const TIER_WEIGHT: Record<Tier, number> = {
   untouched: 1.0,
 };
 
+/**
+ * The tier's name, as the reader sees it.
+ *
+ * TITLE CASE BECAUSE EVERY ONE OF THESE IS A STATUS WORD. They are the
+ * app's own vocabulary for describing the reader — Fluent is a rating,
+ * not an adjective someone chose — and in lowercase, inside a legend
+ * reading "not started, started, needs work…", they parse as ordinary
+ * description rather than as the six things a cell can be.
+ *
+ * Cased HERE rather than at each call site because this is the one
+ * definition. `CategoryCard`'s badge renders it through an `uppercase`
+ * class and so is unaffected on screen; `ProgressDetail`'s legend and
+ * its two item badges paint it as written, and are what change.
+ */
 export const TIER_LABEL: Record<Tier, string> = {
-  mastered: 'mastered',
-  fluent: 'fluent',
-  developing: 'developing',
-  needsWork: 'needs work',
-  stale: 'stale',
-  started: 'started',
-  untouched: 'not started',
+  mastered: 'Mastered',
+  fluent: 'Fluent',
+  developing: 'Developing',
+  needsWork: 'Needs Work',
+  stale: 'Stale',
+  started: 'Started',
+  untouched: 'Not Started',
 };
 
 export const TIER_DESCRIPTION: Record<Tier, string> = {

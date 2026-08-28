@@ -26,10 +26,10 @@ export const READING_SKILL_ORDER: ReadonlyArray<ReadingDrillSkill> =
 /** What each skill is called on screen. Exported so a pool row and a
  *  card cannot label the same skill two different ways. */
 export const READING_SKILL_LABELS: Readonly<Record<ReadingDrillSkill, string>> = {
-  note: 'notes',
-  shape: 'shapes',
-  sig: 'signatures',
-  chord: 'chords',
+  note: 'Notes',
+  shape: 'Shapes',
+  sig: 'Signatures',
+  chord: 'Chords',
 };
 
 export function isReadingCardKey(key: string): key is ReadingDrillSkill {
