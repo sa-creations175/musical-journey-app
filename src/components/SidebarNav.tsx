@@ -5,6 +5,8 @@ import { MODULE_NAME_CASE, titleCase } from '../lib/labelCase';
 import { isLearningModule, moduleMetaById, CREATIVE_SESSIONS_ACCENT_HEX } from '../lib/moduleMeta';
 import ModuleGlyph from './ModuleGlyph';
 import { MODULE_HOME_STATE } from '../lib/useEndOnModuleHome';
+import { READING_SKILL_LABELS, READING_SKILL_ORDER } from '../modules/reading/homeCards';
+import { readingSkillPath } from '../modules/reading/skillRoutes';
 
 /** Per-group accent colour used on the group header so Creative
  *  Sessions (gold) reads distinctly from the neutral learning groups. */
@@ -148,12 +150,16 @@ const NAV_GROUPS: NavGroup[] = [
         // The four skills its module home already leads with. Reading
         // was the one module whose sections could not be reached from
         // the nav at all, because it had no expand control.
-        children: [
-          { label: 'notes',      to: '/reading/notes' },
-          { label: 'shapes',     to: '/reading/shapes' },
-          { label: 'signatures', to: '/reading/signatures' },
-          { label: 'chords',     to: '/reading/chords' },
-        ],
+        //
+        // DERIVED, NOT RETYPED. These were four literals that happened
+        // to match the module's own labels, and "happened to match" is
+        // how the nav ends up calling a skill something the page it
+        // opens does not. Both the word and the address now come from
+        // Reading's own tables.
+        children: READING_SKILL_ORDER.map(skill => ({
+          label: READING_SKILL_LABELS[skill],
+          to: readingSkillPath(skill),
+        })),
       },
       {
         id: 'shapes-and-patterns',

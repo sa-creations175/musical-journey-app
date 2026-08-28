@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { taglineForPath, titleForPath } from '../pageTitle';
 import { MODULE_ORDER } from '../moduleMeta';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../modules/harmonic-fluency/catalog';
-import { READING_SKILL_LABELS, READING_SKILL_ORDER } from '../../modules/reading/homeCards';
+import { READING_SKILL_ORDER } from '../../modules/reading/homeCards';
 import { readingSkillPath } from '../../modules/reading/skillRoutes';
 import { SHAPES_SECTIONS } from '../../modules/shapes-and-patterns/homeCards';
 
@@ -57,15 +57,16 @@ describe('titleForPath', () => {
       expect(title, section.id).not.toBe('Musical Journey');
       expect(title.toLowerCase(), section.id).toBe(section.label);
     }
+    // READING IS THE EXCEPTION, AND IT IS THE POINT. Its banner holds
+    // the MODULE on every skill page rather than flipping to the skill
+    // — the lit chip, the card title and the nav already name that,
+    // and the banner is the page's one fixed point. A skill slug still
+    // has to RESOLVE, though: an unknown one must fall through to the
+    // generic fallback rather than being labelled Reading.
     for (const skill of READING_SKILL_ORDER) {
-      const title = titleForPath(readingSkillPath(skill));
-      expect(title, skill).not.toBe('Musical Journey');
-      // Case-insensitive on BOTH sides: the claim is that the title
-      // names the skill, not that the label is stored lowercase — it
-      // is Title Case now, and `titleForPath` cases it either way.
-      expect(title.toLowerCase(), skill)
-        .toBe(READING_SKILL_LABELS[skill].toLowerCase());
+      expect(titleForPath(readingSkillPath(skill)), skill).toBe('Reading');
     }
+    expect(titleForPath('/reading/not-a-skill')).toBe('Musical Journey');
   });
 
   it('still falls back on a slug that names nothing', () => {

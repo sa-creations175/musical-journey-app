@@ -16,7 +16,6 @@
 
 import { CATEGORY_LABELS } from '../modules/harmonic-fluency/catalog';
 import { isCategory } from '../modules/harmonic-fluency/categoryRoutes';
-import { READING_SKILL_LABELS } from '../modules/reading/homeCards';
 import { SHAPES_SECTIONS } from '../modules/shapes-and-patterns/homeCards';
 import { readingSkillForSlug } from '../modules/reading/skillRoutes';
 import { titleCase } from './labelCase';
@@ -92,11 +91,20 @@ const DYNAMIC_TITLES: ReadonlyArray<{
     },
   },
   {
+    // READING'S BANNER HOLDS THE MODULE, NOT THE SKILL.
+    //
+    // It used to flip to the skill, so the one fixed point on the page
+    // moved every time the reader changed pool — and it was the fourth
+    // thing on screen already saying which skill this was, after the
+    // lit chip, the card title and the nav item. Three of those are
+    // about the skill and can say so; the banner is about where you
+    // are in the app, and where you are is Reading.
+    //
+    // Still resolved through the slug rather than hardcoded on the
+    // prefix, so `/reading/nonsense` falls through to the fallback the
+    // way it always did instead of being confidently mislabelled.
     prefix: '/reading/',
-    labelFor: slug => {
-      const skill = readingSkillForSlug(slug);
-      return skill === null ? null : titleCase(READING_SKILL_LABELS[skill]);
-    },
+    labelFor: slug => (readingSkillForSlug(slug) === null ? null : 'Reading'),
   },
 ];
 
