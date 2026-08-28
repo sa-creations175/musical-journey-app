@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db,
   type DrillSession,
+  type DrillType,
   type DrillSkill,
   type SpacingState,
   type DrillHand,
@@ -69,7 +70,9 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
   /** The Practice/Test shell, opened by a grid square. Holds only what
    *  the header needs — it writes nothing in commit 1, so there is no
    *  skill row to carry. */
-  const [openPractice, setOpenPractice] = useState<{ skillLabel: string } | null>(null);
+  const [openPractice, setOpenPractice] = useState<
+    { skill: DrillSkill; drillType: DrillType; hand: DrillHand; skillLabel: string } | null
+  >(null);
   // Self-assessment dismissal: hides the prompt for the lifetime of
   // the panel after the user picks "Not started" (no spacingState
   // rows get created in that case, so the persistence-based check
@@ -94,13 +97,22 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
     [keyName, quality],
   ) ?? [];
 
-  // THE DRILL-TYPE LOOKUP WENT WITH THE ROUTE THAT NEEDED IT. It
-  // existed to decide whether a square opened DrillListModal (several
-  // drills to pick from) or DrillSessionModal (one seed drill); a
-  // square opens the Practice/Test shell now and asks neither
-  // question. `skillIds` stays — the last-drilled reads below still
-  // need it.
   const skillIds = useMemo(() => new Set(skills.map(s => s.id)), [skills]);
+  // A chord-shape drill session hangs off a real skill AND a real
+  // drill type — `shapesTimeInvested` joins sessions to skills to
+  // attribute time to a section, so an itemRef standing in the way
+  // scales and voice-leading do it would lose the attribution.
+  const drillTypes = useLiveQuery<DrillType[]>(() => db.drillTypes.toArray(), []) ?? [];
+  const typesBySkill = useMemo(() => {
+    const m = new Map<string, DrillType[]>();
+    for (const t of drillTypes) {
+      if (!skillIds.has(t.skillId)) continue;
+      const arr = m.get(t.skillId) ?? [];
+      arr.push(t);
+      m.set(t.skillId, arr);
+    }
+    return m;
+  }, [drillTypes, skillIds]);
 
   // Last-practiced per skill, read directly from db.drillSessions —
   // the canonical "this drill happened" record. Earlier versions of
@@ -317,7 +329,17 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
                             // `skill` still gates the press so an
                             // un-materialised row cannot open one.
                             if (!skill) return;
+                            const types = typesBySkill.get(skill.id) ?? [];
+                            // The seed drill. A chord-shape row has one
+                            // unless the reader added their own, and the
+                            // shell does not ask which — it asks how
+                            // long and how fast instead.
+                            const drillType = types[0];
+                            if (!drillType) return;
                             setOpenPractice({
+                              skill,
+                              drillType,
+                              hand,
                               skillLabel: `${state ? inversionStateLabel(state) : 'Drills'} · ${HAND_COLUMN_LABEL[hand]}`,
                             });
                           }}
@@ -374,6 +396,9 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
         <PracticeTestPanel
           cellLabel={cellLabel}
           skillLabel={openPractice.skillLabel}
+          skill={openPractice.skill}
+          drillType={openPractice.drillType}
+          hand={openPractice.hand}
           onClose={() => setOpenPractice(null)}
         />
       )}

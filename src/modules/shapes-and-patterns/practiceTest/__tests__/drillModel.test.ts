@@ -5,9 +5,12 @@ import {
   CHORD_TARGET_RATE,
   DEFAULT_DRILL_SECONDS,
   DRILL_LENGTHS,
+  countsTowardTest,
   isAtTarget,
+  isTooShort,
   newDraft,
   rateFor,
+  type CompletedDrill,
 } from '../drillModel';
 
 /**
@@ -83,5 +86,36 @@ describe('the clock face', () => {
     // the session clock and a clock that could read -00:01 would be a
     // bug the reader sees before anyone else does.
     expect(formatClock(-5)).toBe('00:00');
+  });
+});
+
+describe('the floor, per run', () => {
+  it('is measured on the run, not on the session', () => {
+    expect(isTooShort(29, 30)).toBe(true);
+    expect(isTooShort(30, 30)).toBe(false);
+    expect(isTooShort(31, 30)).toBe(false);
+  });
+});
+
+describe('which reps count toward a test', () => {
+  const drill = (over: Partial<CompletedDrill>): CompletedDrill => ({
+    id: 'd', manner: 'blocked', ranSeconds: 60, bpm: 60, beatsPerShape: 1,
+    rate: 60, belowTarget: false, feel: 3, tooShort: false, ...over,
+  });
+
+  it('counts a rated, at-target run that cleared the floor', () => {
+    expect(countsTowardTest(drill({}))).toBe(true);
+  });
+
+  it('excludes a below-target run — logged, but not one of the three', () => {
+    expect(countsTowardTest(drill({ belowTarget: true }))).toBe(false);
+  });
+
+  it('excludes a run that was too short to have been real', () => {
+    expect(countsTowardTest(drill({ tooShort: true }))).toBe(false);
+  });
+
+  it('excludes an unrated run, which a test cannot produce anyway', () => {
+    expect(countsTowardTest(drill({ feel: null }))).toBe(false);
   });
 });

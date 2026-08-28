@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Practice, Then Test</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#F2F3F0; --surface:#FBFBFA; --surface-2:#F6F7F4;
+    --ink:#1E211F; --ink-2:#494E4A; --muted:#787E79; --faint:#9AA09B;
+    --line:#E1E3DE; --line-strong:#CFD2CC;
+    --accent:#2F7D5C; --accent-soft:#E4EFE8;
+    --flag:#B8791F; --flag-soft:#F7EEDC;
+    --r-needs:#C05548; --r-dev:#CE9530; --r-fluent:#4FA278; --r-mastered:#5386BE; --r-none:#A9AEA9;
+    --mod-shapes:#C2803A;
+    --fs-1:clamp(1.9rem,1.4rem + 1.6vw,2.6rem);
+    --fs-2:1.22rem; --fs-3:1rem; --fs-4:.875rem; --fs-5:.78rem; --fs-6:.69rem;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#16181A; --surface:#1D2022; --surface-2:#212527;
+      --ink:#ECEEEB; --ink-2:#C3C8C4; --muted:#939994; --faint:#767C77;
+      --line:#2C3134; --line-strong:#3C4245;
+      --accent:#6FBF97; --accent-soft:#1E332A;
+      --flag:#D9A653; --flag-soft:#33291A;
+      --r-needs:#DD7A6B; --r-dev:#E0AF52; --r-fluent:#6FC395; --r-mastered:#7CA9DC; --r-none:#787E7A;
+      --mod-shapes:#DA9E5C;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#16181A; --surface:#1D2022; --surface-2:#212527;
+    --ink:#ECEEEB; --ink-2:#C3C8C4; --muted:#939994; --faint:#767C77;
+    --line:#2C3134; --line-strong:#3C4245;
+    --accent:#6FBF97; --accent-soft:#1E332A;
+    --flag:#D9A653; --flag-soft:#33291A;
+    --r-needs:#DD7A6B; --r-dev:#E0AF52; --r-fluent:#6FC395; --r-mastered:#7CA9DC; --r-none:#787E7A;
+    --mod-shapes:#DA9E5C;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Instrument Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    font-size:var(--fs-3);line-height:1.55;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    max-width:1000px;margin:0 auto;
+    padding:clamp(2rem,5vw,4.5rem) clamp(1.1rem,4vw,2.5rem) 5rem;
+    display:flex;flex-direction:column;gap:3.25rem;
+  }
+  .eyebrow{font-size:var(--fs-6);letter-spacing:.13em;text-transform:uppercase;font-weight:600;color:var(--mod-shapes);margin:0 0 .65rem;}
+  h1{font-size:var(--fs-1);line-height:1.08;letter-spacing:-.02em;font-weight:600;margin:0 0 .7rem;text-wrap:balance;}
+  .lede{margin:0;max-width:62ch;color:var(--ink-2);font-size:1.03rem;}
+  h2{font-size:var(--fs-2);font-weight:600;letter-spacing:-.01em;margin:0 0 .35rem;}
+  .sub{margin:0 0 1.4rem;color:var(--muted);font-size:var(--fs-4);max-width:64ch;}
+  section{display:flex;flex-direction:column;}
+  hr.rule{border:0;border-top:1px solid var(--line);margin:0;}
+  .mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums;}
+
+  .two{display:grid;gap:1.1rem;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));}
+  .mode{
+    background:var(--surface);border:1px solid var(--line);border-radius:11px;
+    padding:1.15rem 1.25rem;display:flex;flex-direction:column;gap:.55rem;
+  }
+  .mode.test{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent-soft);}
+  .mode h3{margin:0;font-size:1.05rem;font-weight:600;letter-spacing:-.01em;}
+  .mode .oneline{margin:0;font-size:var(--fs-4);color:var(--ink-2);}
+  .mode ul{margin:.2rem 0 0;padding-left:1.05rem;display:flex;flex-direction:column;gap:.3rem;}
+  .mode li{font-size:var(--fs-4);color:var(--ink-2);}
+  .mode li b{color:var(--ink);font-weight:600;}
+  .ceil{
+    margin-top:.35rem;font-size:var(--fs-5);font-weight:600;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:7px;
+    padding:.4rem .65rem;color:var(--ink-2);
+  }
+  .mode.test .ceil{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+
+  table.t{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  table.t th,table.t td{padding:.65rem 1rem;text-align:left;border-bottom:1px solid var(--line);font-size:var(--fs-4);vertical-align:top;}
+  table.t thead th{font-size:var(--fs-6);letter-spacing:.11em;text-transform:uppercase;color:var(--faint);font-weight:600;}
+  table.t tbody tr:last-child th,table.t tbody tr:last-child td{border-bottom:0;}
+  .scroll{overflow-x:auto;}
+
+  .band{display:inline-flex;align-items:center;gap:.4rem;font-weight:600;white-space:nowrap;}
+  .dot{width:.5rem;height:.5rem;border-radius:2px;flex:none;}
+  .d-needs{background:var(--r-needs);} .t-needs{color:var(--r-needs);}
+  .d-dev{background:var(--r-dev);} .t-dev{color:var(--r-dev);}
+  .d-fluent{background:var(--r-fluent);} .t-fluent{color:var(--r-fluent);}
+  .d-mastered{background:var(--r-mastered);} .t-mastered{color:var(--r-mastered);}
+
+  .cards{display:grid;gap:1.1rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem;}
+  .card h3{margin:0 0 .3rem;font-size:var(--fs-5);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);font-weight:600;}
+  .card p{margin:0;font-size:var(--fs-4);color:var(--ink-2);}
+  .card p + p{margin-top:.5rem;}
+  .card em{color:var(--ink);font-style:normal;font-weight:600;}
+
+  .quote{
+    border-left:3px solid var(--accent);background:var(--accent-soft);
+    border-radius:0 8px 8px 0;padding:.85rem 1.1rem;font-size:var(--fs-4);color:var(--ink-2);
+  }
+  .quote b{color:var(--ink);}
+
+  ol.rules{margin:0;padding-left:1.25rem;display:flex;flex-direction:column;gap:.6rem;}
+  ol.rules li{font-size:var(--fs-4);color:var(--ink-2);}
+  ol.rules li b{color:var(--ink);font-weight:600;}
+
+  ul.builds{margin:0;padding-left:1.25rem;display:flex;flex-direction:column;gap:.5rem;}
+  ul.builds li{font-size:var(--fs-4);color:var(--ink-2);}
+  ul.builds li b{color:var(--ink);font-weight:600;}
+
+  .open{border-left:3px solid var(--flag);background:var(--flag-soft);border-radius:0 8px 8px 0;padding:.9rem 1.1rem;}
+  .open h3{margin:0 0 .25rem;font-size:var(--fs-6);letter-spacing:.11em;text-transform:uppercase;color:var(--flag);font-weight:700;}
+  .open p{margin:0 0 .5rem;font-size:var(--fs-4);color:var(--ink-2);}
+  .open p:last-child{margin-bottom:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">Shapes &amp; Patterns · Song Repertoire</p>
+    <h1>Practice, Then Test</h1>
+    <p class="lede">One pattern across every drill surface in the app. Practice is working it in — slowly, out of time, however you like. A test is playing it at tempo and saying so. Only one of them can call you Fluent.</p>
+  </header>
+
+  <section>
+    <h2>The Two Modes</h2>
+    <p class="sub">Chosen before the timer starts, because a test needs the metronome at your target before you play a note.</p>
+    <div class="two">
+
+      <div class="mode">
+        <h3>Practice</h3>
+        <p class="oneline">Getting it under the fingers.</p>
+        <ul>
+          <li>Any tempo, or none at all</li>
+          <li>Blocked, broken, hands apart, whatever the work needs</li>
+          <li>Timed and logged — moves last-drilled and freshness, counts toward coverage</li>
+          <li>Rate it at the end if you want to. <b>Optional.</b></li>
+        </ul>
+        <span class="ceil">Takes you as far as Developing</span>
+      </div>
+
+      <div class="mode test">
+        <h3>Test</h3>
+        <p class="oneline">Playing it at tempo and claiming it.</p>
+        <ul>
+          <li><b>Three reps</b>, each at or above your target tempo</li>
+          <li>Each rep rated on the same four words</li>
+          <li>The <b>lowest of the three</b> sets the band</li>
+          <li>A rep below target is logged honestly and doesn't count toward the three</li>
+        </ul>
+        <span class="ceil">The only way to Fluent or Mastered</span>
+      </div>
+
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>What A Test Gives You</h2>
+    <p class="sub">Unchanged from the Rules of the Game. Three reps, worst one wins.</p>
+    <div class="scroll">
+      <table class="t">
+        <thead><tr><th scope="col">Your three reps</th><th scope="col">You are</th></tr></thead>
+        <tbody>
+          <tr><td>In flow, In flow, In flow</td><td><span class="band t-mastered"><span class="dot d-mastered"></span>Mastered</span></td></tr>
+          <tr><td>In flow, In flow, Clean</td><td><span class="band t-fluent"><span class="dot d-fluent"></span>Fluent</span></td></tr>
+          <tr><td>Clean, Clean, Clean</td><td><span class="band t-fluent"><span class="dot d-fluent"></span>Fluent</span></td></tr>
+          <tr><td>Clean, Clean, Working on it</td><td><span class="band t-dev"><span class="dot d-dev"></span>Developing</span></td></tr>
+          <tr><td>Struggled anywhere in the three</td><td><span class="band t-needs"><span class="dot d-needs"></span>Needs Work</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="quote" style="margin-top:1.1rem;">
+      <b>Three feels harsh until you remember what the band actually does.</b> It doesn't grade you — it decides when the thing comes back. A test that lands on Developing brings this shape round again in a week instead of a month, which is exactly what you'd want after a rep went wrong. Nothing is lost. It just returns sooner.
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>Knowing When To Test</h2>
+    <p class="sub">You can test whenever you like — it is never gated. But you shouldn't have to guess, so the app says two things.</p>
+    <div class="cards">
+      <div class="card">
+        <h3>The ceiling is the prompt</h3>
+        <p>Practice carries a shape to Developing and stops. When it reads Developing, the surface says so plainly:</p>
+        <p><em>Practice has taken this as far as it goes. Fluent needs a test at tempo.</em></p>
+      </div>
+      <div class="card">
+        <h3>The nudge comes earlier</h3>
+        <p>Practice runs log the tempo you actually played at. Once a few recent ones are Clean and close to target:</p>
+        <p><em>Your last three practice runs were Clean at 85. Target is 90.</em></p>
+      </div>
+      <div class="card">
+        <h3>Nothing blocks you</h3>
+        <p>Test on day one if you want. A failed test isn't a penalty — it's a rating and a shorter wait, and the shape comes back sooner because of it.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>Target Tempo</h2>
+    <p class="sub">A BPM alone says nothing — it is the rate of the click, not the rate of the work. At 60, a shape every beat is twice the work of a shape every two beats. So the drill screen carries a dropdown beside the BPM, and the app multiplies.</p>
+
+    <div class="scroll" style="margin-bottom:1.4rem;">
+      <table class="t">
+        <thead><tr><th scope="col">You set</th><th scope="col">And pick</th><th scope="col">The app stores</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">60 BPM</td><td>One Shape Per Beat</td><td class="mono">60 changes / min</td></tr>
+          <tr><td class="mono">60 BPM</td><td>One Shape Every 2 Beats</td><td class="mono">30 changes / min</td></tr>
+          <tr><td class="mono">120 BPM</td><td>One Shape Every 2 Beats</td><td class="mono">60 changes / min</td></tr>
+          <tr><td class="mono">60 BPM</td><td>Four Notes Per Beat <span style="color:var(--muted);">(scales)</span></td><td class="mono">240 notes / min</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <ol class="rules">
+      <li><b>The target is a rate, not a BPM.</b> Rows one and three above are the same claim played two different ways, and both count. That is the point — it stops a slow dial reading as a fast hand.</li>
+      <li><b>It sits in the spacing settings tree</b> — module, submodule, skill — inheriting from the level above and marked as an exception where you change it. Set one figure for Shapes and override it on the shapes that turn out to be harder.</li>
+      <li><b>At tempo means at or above target.</b> One-sided: faster always counts. Songs already work this way.</li>
+      <li><b>The starting figure is 60 BPM at one shape per beat</b> — 60 changes a minute — set at the top of the tree and inherited down. A starting point, not a verdict; the reason it lives in the tree is that it moves as the playing does.</li>
+      <li><b>Hands get an adjustment, not their own targets.</b> The left hand is slower than the right across every shape, because it is the weaker hand — not because of any one chord. So one target rate per skill, and a percentage applied for left and for both. Set once high in the tree; when the left catches up, one figure moves every target with it. Percentages are Silas's to set and are deliberately blank here.</li>
+      <li><b>No target set means the tempo half is off.</b> Every rep counts toward the three, and the surface says so rather than failing silently.</li>
+      <li><b>A below-target rep is logged, not discarded.</b> It shows in the list marked below target, and it neither counts toward the three nor cancels what came before.</li>
+      <li><b>Practice logs its tempo too.</b> That is what makes the nudge above possible, and today no drill saves a BPM at all.</li>
+    </ol>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>The Floor — What Counts As A Run At All</h2>
+    <p class="sub">A run has to be long enough to have been real. That number is currently hardcoded, and it moves into the tree alongside the target rate.</p>
+    <ol class="rules">
+      <li><b>Thirty seconds today, in one place in the code.</b> Below it, Shapes refuses to save and the run never existed. Opening a cell and closing it writes nothing.</li>
+      <li><b>It becomes a setting per skill</b>, in the same tree, inheriting the same way. A scale and a two-handed seventh do not need the same floor.</li>
+      <li><b>Songs have no floor at all today.</b> Any duration logs. Whether they get one is a decision, not an oversight to fix silently.</li>
+      <li><b>Below the floor is still honest.</b> Tell me the run was too short to count and why, rather than a disabled button with no explanation. Nothing is discarded quietly.</li>
+    </ol>
+    <p class="sub" style="margin-top:1.1rem;margin-bottom:0;">Adjacent, and worth naming rather than doing now: the suggested drill lengths — 60 seconds for a single inversion, 120 for fluid, 90 for a scale — are hardcoded in the catalog too. Same argument, larger job.</p>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>How Each Surface Differs</h2>
+    <p class="sub">Same two modes everywhere. What varies is only what a single rep consists of.</p>
+    <div class="scroll">
+      <table class="t">
+        <thead>
+          <tr><th scope="col">Surface</th><th scope="col">A rep is</th><th scope="col">Practice adds</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Scales</b></td>
+            <td>One run of the scale, one hand</td>
+            <td>Slow work, hands apart, no metronome</td>
+          </tr>
+          <tr>
+            <td><b>Chord shapes</b></td>
+            <td>One inversion, one hand, blocked</td>
+            <td>Broken — finding the notes before owning the shape</td>
+          </tr>
+          <tr>
+            <td><b>Voice leading</b></td>
+            <td>One run of the sub-cell</td>
+            <td>Slow work through the movement</td>
+          </tr>
+          <tr>
+            <td><b>Song sections</b></td>
+            <td>One run of the section in that key</td>
+            <td>Lead sheet, tutorials, working a passage</td>
+          </tr>
+          <tr>
+            <td><b>Mental Visualization</b></td>
+            <td>One chord seen, then revealed</td>
+            <td>No tempo — the four words carry glosses instead</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub" style="margin-top:1rem;margin-bottom:1.6rem;">Broken lives in practice on chord shapes and is never tested there. The exception is the All Inversions row, where broken across the keyboard is the arpeggio — a skill in its own right, and tested as one.</p>
+
+    <div class="quote" style="margin-bottom:1.6rem;">
+      <b>Not everything drillable should be chasing you.</b> Every inversion fluent at tempo in the right hand is real playing. The same in the left hand alone is an exercise, and both hands on the same shape mostly is too — the musical two-handed thing is root in the left with the inversions moving in the right. The in-schedule switch already handles this: leave a combination drillable, keep its ratings, and take it out of due counts and generated sessions. Nothing here needs deciding up front — switch things off as they turn out to annoy you, which is cheaper than predicting it.
+    </div>
+
+    <h2 style="font-size:var(--fs-4);letter-spacing:.09em;text-transform:uppercase;color:var(--faint);">Mental Visualization's Four Words</h2>
+    <p class="sub">Same scale, same order, same bands. The words were written for hands on keys, so here they carry a gloss — the code currently ships three different words instead, and that is what changes.</p>
+    <div class="scroll">
+      <table class="t">
+        <thead><tr><th scope="col">The word</th><th scope="col">Reads as</th></tr></thead>
+        <tbody>
+          <tr><td><span class="band t-needs"><span class="dot d-needs"></span>Struggled</span></td><td>I'm Struggling To See It</td></tr>
+          <tr><td><span class="band t-dev"><span class="dot d-dev"></span>Working On It</span></td><td>I'm Working On Seeing It</td></tr>
+          <tr><td><span class="band t-fluent"><span class="dot d-fluent"></span>Clean</span></td><td>I Saw It Clearly</td></tr>
+          <tr><td><span class="band t-mastered"><span class="dot d-mastered"></span>In Flow</span></td><td>It Came To Me Instantly</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2>What This Needs That Doesn't Exist</h2>
+    <p class="sub">Named so the size of it is visible before anything starts.</p>
+    <ul class="builds">
+      <li><b>A Practice / Test chooser in the three Shapes modals.</b> There is none today — every drill is one unnamed mode that is both timed and rated.</li>
+      <li><b>A BPM on a drill session.</b> The metronome runs in all three modals and its value is never read at save time. There is no field to put it in.</li>
+      <li><b>A target rate per skill</b>, in the settings tree, inheriting — plus the beats-per-shape dropdown beside the BPM on the drill screen.</li>
+      <li><b>The thirty-second floor moved out of the code</b> and into the tree, per skill.</li>
+      <li><b>The Developing ceiling</b> on evidence that came only from practice.</li>
+      <li><b>Three-rep tests in Shapes</b>, with the rep list and the below-target marker songs already have.</li>
+      <li><b>A rating per rep in the song test.</b> It currently asks Clean or Not Clean, which is not what the rules say the band comes from. One four-button tap replaces both — Clean or In flow <em>is</em> a clean run.</li>
+    </ul>
+  </section>
+
+  <section style="gap:.9rem;">
+    <div class="open">
+      <h3>Settled — an unrated run reads Started</h3>
+      <p>No rating means no band. But the app still knows it happened, because it has the clock: a saved run is one that cleared the floor. That is what <em>Started</em> means — you have met it, there is simply no verdict yet. <em>Not Started</em> stays reserved for never having played it at all.</p>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>

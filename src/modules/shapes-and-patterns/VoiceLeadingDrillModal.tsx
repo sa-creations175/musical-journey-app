@@ -53,10 +53,10 @@ import {
   VOICE_LEADING_PATTERN_BY_ID,
   voiceLeadingSubCellLabel,
 } from './catalog';
-import type { DrillSession } from '../../lib/db';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
 import DrillAssessment from './DrillAssessment';
 import { spellKey } from '../../lib/spelling';
+import type { Feel } from '../../lib/fluencyScale';
 import { useSpelling } from '../../lib/spellingPref';
 
 interface Props {
@@ -125,7 +125,7 @@ export default function VoiceLeadingDrillModal({
   const [remainingSeconds, setRemainingSeconds] = useState(seed);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [phase, setPhase] = useState<Phase>(fromRunner ? 'running' : 'setup');
-  const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
+  const [feel, setFeel] = useState<Feel | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<number | null>(null);

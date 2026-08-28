@@ -15,7 +15,7 @@
  * because its controls depend on per-modal runner state.
  */
 import type { ReactNode } from 'react';
-import type { DrillSession } from '../../lib/db';
+import type { Feel } from '../../lib/fluencyScale';
 import {
   EXTEND_DRILL_OPTIONS,
   FEEL_CARD_OPTIONS,
@@ -27,8 +27,8 @@ interface Props {
   /** Actual elapsed drill time, shown under the "Drilled for" header. */
   elapsedSeconds: number;
   /** Current feel rating, or null when nothing is picked yet. */
-  feel: DrillSession['feelRating'] | null;
-  onFeelChange: (value: DrillSession['feelRating']) => void;
+  feel: Feel | null;
+  onFeelChange: (value: Feel) => void;
   /** Contextual "more time" section label — e.g. "More time on this scale?". */
   moreTimeLabel: string;
   /** Re-drill THIS item for exactly `seconds` more. */

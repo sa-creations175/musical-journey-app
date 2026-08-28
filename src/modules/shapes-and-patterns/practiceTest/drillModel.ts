@@ -83,6 +83,35 @@ export interface CompletedDrill {
   beatsPerShape: number;
   rate: number;
   belowTarget: boolean;
+  /** The four-point feel, or null when practice skipped the rating. */
+  feel: 1 | 2 | 3 | 4 | null;
+  /**
+   * True when the run was too short to count. It goes on the list and
+   * says so; nothing is written for it.
+   *
+   * ON THE LIST RATHER THAN DISCARDED, and rather than behind a
+   * disabled button. The spec is explicit: tell the reader the run was
+   * too short and why, instead of a control that refuses and explains
+   * nothing.
+   */
+  tooShort: boolean;
+}
+
+/**
+ * Whether a run was long enough to have been real.
+ *
+ * `MIN_REP_SECONDS` is the one place the floor lives — thirty seconds
+ * today, and headed for the spacing settings tree per skill. PER RUN,
+ * not per session: a session is made of runs, and it is the run that
+ * either happened or did not.
+ */
+export function isTooShort(ranSeconds: number, floorSeconds: number): boolean {
+  return ranSeconds < floorSeconds;
+}
+
+/** Reps that count toward a test's three: at target, rated, long enough. */
+export function countsTowardTest(d: CompletedDrill): boolean {
+  return !d.belowTarget && !d.tooShort && d.feel !== null;
 }
 
 export function newDraft(): DrillDraft {

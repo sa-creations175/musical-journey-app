@@ -1154,8 +1154,20 @@ export interface DrillSession {
    *  callers fall back to `drillType.suggestedSeconds` as a coarse
    *  proxy. */
   targetSeconds?: number;
-  /** 1 = struggled, 2 = working on it, 3 = clean, 4 = in flow. */
-  feelRating: 1 | 2 | 3 | 4;
+  /**
+   * 1 = struggled, 2 = working on it, 3 = clean, 4 = in flow.
+   *
+   * OPTIONAL, BECAUSE A RUN CAN HAPPEN WITHOUT A VERDICT. Practice
+   * lets you skip the rating, and the run still needs a row: the time
+   * was spent and the square's last-drilled has to move, or the panel
+   * says "3 days ago" about a drill you just finished. A row with no
+   * feel is the `Started` state the spec describes — you have met it,
+   * there is simply no verdict yet.
+   *
+   * Absent is NOT a neutral 3. Every reader must skip the row rather
+   * than default it, or an unrated run becomes evidence nobody gave.
+   */
+  feelRating?: 1 | 2 | 3 | 4;
   notes?: string;
   timestamp: number;
 }

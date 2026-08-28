@@ -48,8 +48,9 @@ import {
 import { relativeMajorOf } from './spTiers';
 import type { ScaleCell } from './scaleSkills';
 import { spellKey, type Spelling } from '../../lib/spelling';
+import type { Feel } from '../../lib/fluencyScale';
 import { useSpelling } from '../../lib/spellingPref';
-import type { DrillHand, DrillSession } from '../../lib/db';
+import type { DrillHand } from '../../lib/db';
 import DrillMetronomeSetup from './DrillMetronomeSetup';
 import DrillAssessment from './DrillAssessment';
 
@@ -165,7 +166,7 @@ export default function ScalesDrillModal({
   // Which hand of the left → right → both walk we're on for this item.
   const [handIndex, setHandIndex] = useState(0);
   const currentHand = hands[handIndex] ?? hands[0];
-  const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
+  const [feel, setFeel] = useState<Feel | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const intervalRef = useRef<number | null>(null);

@@ -1,4 +1,4 @@
-import { feelEmoji, feelLabel } from '../../lib/fluencyScale';
+import { feelEmoji, feelLabel, type Feel } from '../../lib/fluencyScale';
 import {
   db,
   type DrillHand,
@@ -536,8 +536,21 @@ export interface LogSessionInput {
    *  90 s drill the user ended at 47 s reads honestly as "47 of 90"
    *  rather than collapsing into one number. */
   targetSeconds?: number;
-  feelRating: DrillSession['feelRating'];
+  /** Omitted when practice skipped the rating: the session row is
+   *  still written, and no engagement is recorded for it. */
+  feelRating?: DrillSession['feelRating'];
   notes?: string;
+  /**
+   * True when this rep was given inside a TEST, false inside practice.
+   *
+   * Rides through to the spacing row's performance entry, where the
+   * band rule reads it: a test sets the band outright, practice is
+   * capped at Developing, and an OMITTED flag is legacy and is never
+   * capped. Omitted here too by callers that predate the two modes —
+   * the in-session runner still opens the old drill modal, which knows
+   * nothing about them.
+   */
+  fromTest?: boolean;
 }
 
 /**
@@ -552,7 +565,7 @@ export interface LogSessionInput {
  *   3 (clean)          → cruising
  *   4 (in flow)        → flying
  */
-export function feelToRating(feel: DrillSession['feelRating']): 'flying' | 'cruising' | 'crawling' {
+export function feelToRating(feel: Feel): 'flying' | 'cruising' | 'crawling' {
   if (feel >= 4) return 'flying';
   if (feel >= 3) return 'cruising';
   return 'crawling';
@@ -625,7 +638,10 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
     });
   });
   const itemRef = itemRefForSkill(input.skill);
-  if (itemRef !== null) {
+  // NO FEEL, NO ENGAGEMENT. The session above records that the run
+  // happened; a spacing engagement is a claim about how it went, and
+  // an unrated run makes none.
+  if (itemRef !== null && input.feelRating !== undefined) {
     await recordEngagement({
       itemRef,
       moduleRef: 'shapes-and-patterns',
@@ -636,6 +652,9 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
         rating: feelToRating(input.feelRating),
         // Four levels preserved; the collapse to three is lossy.
         feel: input.feelRating,
+        // PASSED ONLY WHEN THE CALLER KNOWS. Absent stays absent all
+        // the way to the stored entry — see the field's own note.
+        ...(input.fromTest !== undefined ? { fromTest: input.fromTest } : {}),
       },
       timestamp: session.timestamp,
     });
@@ -936,10 +955,10 @@ export function formatDuration(seconds: number): string {
 // THE WORDS COME FROM `fluencyScale`, which is the only definition.
 // These two maps used to be a private copy; so did the labels inside
 // FEEL_CARD_OPTIONS below.
-export const FEEL_LABEL: Record<DrillSession['feelRating'], string> = {
+export const FEEL_LABEL: Record<Feel, string> = {
   1: feelLabel(1), 2: feelLabel(2), 3: feelLabel(3), 4: feelLabel(4),
 };
-export const FEEL_EMOJI: Record<DrillSession['feelRating'], string> = {
+export const FEEL_EMOJI: Record<Feel, string> = {
   1: feelEmoji(1), 2: feelEmoji(2), 3: feelEmoji(3), 4: feelEmoji(4),
 };
 
@@ -951,7 +970,7 @@ export const FEEL_EMOJI: Record<DrillSession['feelRating'], string> = {
  * rating UI reads consistently with the rest of the app.
  */
 export const FEEL_CARD_OPTIONS: ReadonlyArray<{
-  value: DrillSession['feelRating'];
+  value: Feel;
   label: string;
   hint: string;
   activeClass: string;

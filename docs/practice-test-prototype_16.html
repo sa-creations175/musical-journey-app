@@ -245,7 +245,7 @@
         <ul>
           <li>Session clock up, drill clock down</li>
           <li>The mode chooser and its wording</li>
-          <li>The full metronome — groove, subdivision, preview. Never a reduced copy.</li>
+          <li>The full metronome the app already has — groove, preview, all of it. Never a reduced copy.</li>
           <li>The four rating words and their order</li>
           <li>Three test drills, at target, lowest wins</li>
           <li>The below-target marker</li>
@@ -658,11 +658,9 @@
 
   // ---------- the metronome, one component everywhere ----------
   var GROOVES = ["Click","Basic Drum Beat","Swing","Bossa","Waltz (3/4)","6/8 Shuffle"];
-  var SUBDIV = ["Quarter Notes","Eighth Notes","Triplets","Sixteenths"];
   function metroBox(d){
     var c=cfg();
     if (!d.groove) d.groove = GROOVES[1];
-    if (!d.subdiv) d.subdiv = SUBDIV[0];
     var box=el("div","box");
     var head=el("div","between");
     head.innerHTML="<span style='font-size:var(--fs-6);letter-spacing:.12em;text-transform:uppercase;color:var(--faint);font-weight:700'>Metronome</span>"+
@@ -689,7 +687,6 @@
     }
 
     box.appendChild(selectRow("Groove", GROOVES, d.groove, function(v){ d.groove=v; }));
-    box.appendChild(selectRow("Subdivision", SUBDIV, d.subdiv, function(v){ d.subdiv=v; }));
     box.appendChild(selectRow("Rate", c.rateOptions, d.per, function(v){ d.per=Number(v); }));
 
     var pv=btn("btn ghost","▶ Preview",function(){});
@@ -701,7 +698,7 @@
       "<span class='mono' style='font-size:.72rem;color:var(--muted)'>"+rateOf(d)+" "+c.rateLabel+"</span>"+
       "<span style='font-size:.69rem;font-weight:700;color:var(--"+(ok?"accent":"flag")+")'>"+(ok?"AT TARGET ("+c.target+")":"BELOW TARGET ("+c.target+")")+"</span>"));
 
-    box.appendChild(el("p","","<span style='font-size:.66rem;color:var(--faint)'>The same metronome the app already has — groove, subdivision, preview. Not a reduced copy.</span>"));
+    box.appendChild(el("p","","<span style='font-size:.66rem;color:var(--faint)'>The same metronome the app already has. Not a reduced copy.</span>"));
     return box;
   }
 

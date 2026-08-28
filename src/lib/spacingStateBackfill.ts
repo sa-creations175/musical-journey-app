@@ -241,6 +241,10 @@ async function backfillShapesAndPatterns(
   // Group sessions by skillId.
   const sessionsBySkill = new Map<string, Array<{ feel: 1 | 2 | 3 | 4; ts: number }>>();
   for (const s of sessions) {
+    // SKIPPED, NOT DEFAULTED. A session with no feel is a run that
+    // happened and was never rated; treating it as a 3 would seed a
+    // stage from a verdict nobody gave.
+    if (s.feelRating === undefined) continue;
     const list = sessionsBySkill.get(s.skillId) ?? [];
     list.push({ feel: s.feelRating, ts: s.timestamp });
     sessionsBySkill.set(s.skillId, list);

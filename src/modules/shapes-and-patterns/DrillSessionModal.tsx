@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import type { DrillHand, DrillSession, DrillSkill, DrillStyle, DrillType } from '../../lib/db';
 import Modal from '../../components/Modal';
+import type { Feel } from '../../lib/fluencyScale';
 import { useToast } from '../../components/Toaster';
 import { metronome } from '../../lib/metronome';
 import { useMetronomeState } from '../../lib/useMetronome';
@@ -168,7 +169,7 @@ export default function DrillSessionModal({
   const currentSkill = SKILLS[skillIndex] ?? SKILLS[0];
   const currentHand = currentSkill.hand;
   const currentStyle = currentSkill.style;
-  const [feel, setFeel] = useState<DrillSession['feelRating'] | null>(null);
+  const [feel, setFeel] = useState<Feel | null>(null);
   const [notes, setNotes] = useState('');
 
   const intervalRef = useRef<number | null>(null);

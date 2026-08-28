@@ -118,24 +118,95 @@ const BAND_FOR_LOWEST: Record<Feel, AccuracyBand> = {
   4: 'mastered',
 };
 
+/** The ceiling practice-only evidence cannot pass. */
+const PRACTICE_CEILING: AccuracyBand = 'developing';
+
+/** Where each band sits, worst first — for applying the ceiling. */
+const BAND_ORDER: ReadonlyArray<AccuracyBand> = [
+  'needs-work', 'developing', 'fluent', 'mastered',
+];
+
+/** A rated rep, with the mode that produced it where it is known. */
+export interface RatedRep {
+  feel: Feel;
+  /** True for a test rep, false for a practice one. ABSENT MEANS
+   *  LEGACY — written before the modes existed, and never capped. */
+  fromTest?: boolean;
+}
+
 /**
- * The lowest of the last three rated reps.
+ * The lowest of the last three rated reps, and which three those are.
  *
+ * =====================================================================
  * NOT AN AVERAGE, and the difference is the point. Averaging three
  * cleans and a struggle reads as Fluent; the rule reads it as Needs
  * Work, because a rep you struggled through is evidence that has not
  * been superseded by the two easy ones after it.
+ *
+ * =====================================================================
+ * ONCE TESTED, THE TEST IS THE BAND. PRACTICE STOPS COMPETING.
+ *
+ * The four states, in the order they are decided:
+ *
+ *   never tested   practice reps set the band, capped at Developing.
+ *                  Practice reaches Developing and no further.
+ *   once tested    the last three TEST reps set it. Practice can
+ *                  neither raise it nor drag it down.
+ *   past due       the same band, marked stale elsewhere. No decay
+ *                  happens here — a band is not lowered by time.
+ *   tested again   the newer three test reps replace it, up or down.
+ *
+ * THE REASON PRACTICE IS EXCLUDED RATHER THAN OUTVOTED. If the two
+ * shared a three-slot window, three practice reps after a passed test
+ * would push the test out of it and demote a Fluent shape for the
+ * crime of being practised. Filtering to test reps means the question
+ * of how to weigh a practice rep against a test rep never has to be
+ * answered, because it is never asked.
+ * =====================================================================
  */
 export function selfRatedVerdict(
-  reps: ReadonlyArray<{ feel: Feel }>,
+  reps: ReadonlyArray<RatedRep>,
 ): BandVerdict {
   if (reps.length === 0) return NOT_STARTED;
+
+  // TESTED AT ALL? Then only the tests are looked at. Fewer than three
+  // test reps is a test that never completed — it cannot set a band,
+  // and the practice path below carries on holding it.
+  const tests = reps.filter(r => r.fromTest === true);
+  if (tests.length >= SELF_RATED_FLOOR) {
+    return { kind: 'band', band: lowestBand(tests.slice(-SELF_RATED_WINDOW)) };
+  }
+
   if (reps.length < SELF_RATED_FLOOR) {
     return { kind: 'started', tries: reps.length };
   }
   const window = reps.slice(-SELF_RATED_WINDOW);
+  const band = lowestBand(window);
+
+  // THE CEILING APPLIES UNLESS SOMETHING IN THE WINDOW IS LEGACY.
+  //
+  // Phrased as "is anything here unknowable" rather than "is
+  // everything here practice", and the difference is load-bearing. An
+  // ABANDONED TEST leaves one or two test reps in the history — not
+  // enough to set a band, so the reader falls through to here — and
+  // asking "is everything practice" would answer no and lift the
+  // ceiling. Two reps of a test nobody finished would reach Fluent.
+  //
+  // A legacy entry is different in kind. It was written before the
+  // modes existed and its provenance cannot be recovered, so capping
+  // it would demote a card on a guess. That is the one case the
+  // ceiling stands down for.
+  const anyLegacy = window.some(r => r.fromTest === undefined);
+  return { kind: 'band', band: anyLegacy ? band : capAt(band, PRACTICE_CEILING) };
+}
+
+function lowestBand(window: ReadonlyArray<RatedRep>): AccuracyBand {
   const lowest = window.reduce<Feel>(
     (low, r) => (r.feel < low ? r.feel : low), window[0].feel,
   );
-  return { kind: 'band', band: BAND_FOR_LOWEST[lowest] };
+  return BAND_FOR_LOWEST[lowest];
+}
+
+function capAt(band: AccuracyBand, ceiling: AccuracyBand): AccuracyBand {
+  return BAND_ORDER.indexOf(band) > BAND_ORDER.indexOf(ceiling) ? ceiling : band;
 }

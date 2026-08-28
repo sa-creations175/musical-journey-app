@@ -79,6 +79,28 @@ export type PerformanceEntry =
        * practice session still counts for coverage and last-touched.
        */
       scores?: boolean;
+      /**
+       * Which mode produced this rep: a test, or practice.
+       *
+       * =================================================================
+       * ABSENT MEANS LEGACY, AND LEGACY IS NEVER CAPPED.
+       *
+       * The band rule caps practice-only evidence at Developing. Every
+       * rating entry written before this field existed has no value for
+       * it, and there is no way to find out which mode produced them —
+       * the modes did not exist yet. Reading absent as "practice" would
+       * drop every self-rated card in the database from Fluent or
+       * Mastered to Developing the moment this shipped, across shapes,
+       * mental visualisation, the chord-progression quiz and repertoire,
+       * with nothing on screen to explain it.
+       *
+       * So the rule applies only to entries that carry the flag. Absent
+       * participates in the band exactly as it always has and is never
+       * capped. See `selfRatedVerdict`, which is where the reading is
+       * done rather than guessed at.
+       * =================================================================
+       */
+      fromTest?: boolean;
     }
   | { t: number; kind: 'recency' };
 
@@ -93,6 +115,10 @@ export type EngagementSignal =
       feel?: Feel;
       /** False for an engagement that must not move the rating. */
       scores?: boolean;
+      /** True for a rep given inside a test, false for one given in
+       *  practice. Omitted by callers that have no such distinction —
+       *  omitted reads as legacy and is never capped. */
+      fromTest?: boolean;
     }
   | { kind: 'recency' };
 
@@ -338,6 +364,10 @@ function entryFromSignal(signal: EngagementSignal, t: number): PerformanceEntry 
       t, kind: 'rating', rating: signal.rating,
       ...(signal.feel !== undefined ? { feel: signal.feel } : {}),
       ...(signal.scores === false ? { scores: false } : {}),
+      // WRITTEN ONLY WHEN THE CALLER SAID. An omitted flag stays
+      // omitted rather than defaulting to false, because false means
+      // "practice, cap it" and absent means "legacy, leave it alone".
+      ...(signal.fromTest !== undefined ? { fromTest: signal.fromTest } : {}),
     };
     case 'recency': return { t, kind: 'recency' };
   }
