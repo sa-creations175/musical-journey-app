@@ -78,7 +78,39 @@ function matrixSection(
   };
 }
 
+
+/**
+ * A cell's band now lives in `spacingState`, not on the cell. The
+ * fixtures still say `cellState: 'comfortable'` to express intent, so
+ * this writes the rows that make that true under the new reader:
+ * three test reps at Clean, which the band rule reads as Fluent.
+ *
+ * Called after each seed rather than folded into `songCell` so the
+ * write is visible where the fixture is built.
+ */
+async function bandSeededCells(): Promise<void> {
+  const cells = await db.songCells.toArray();
+  const rows = cells
+    .filter(c => c.cellState === 'comfortable' || c.cellState === 'learning')
+    .map(c => ({
+      id: `sp-repertoire-both-songCell:${c.id}`,
+      itemRef: `songCell:${c.id}`,
+      moduleRef: 'repertoire',
+      hand: 'both' as const,
+      memoryType: 'integration' as const,
+      acquisitionStage: 'acquiring' as const,
+      currentIntervalDays: 0,
+      lastEngagedAt: 1,
+      nextDueAt: null,
+      performanceHistory: c.cellState === 'comfortable'
+        ? [1, 2, 3].map(t => ({ t, kind: 'rating', rating: 'cruising', feel: 3, fromTest: true }))
+        : [{ t: 1, kind: 'recency' }],
+    }));
+  if (rows.length > 0) await db.spacingState.bulkAdd(rows as never[]);
+}
+
 beforeEach(async () => {
+  await db.spacingState.clear();
   await db.songKeys.clear();
   await db.songCells.clear();
   await db.songMatrixSections.clear();
@@ -107,6 +139,7 @@ describe('isSongComfortableInOriginalKey', () => {
     await db.songCells.add(
       songCell({ id: 'c1', sectionId: 'sec-1', songKeyId: 'k-orig', cellState: 'comfortable' }),
     );
+    await bandSeededCells();
     expect(await isSongComfortableInOriginalKey('s1')).toBe(false);
   });
 
@@ -122,6 +155,7 @@ describe('isSongComfortableInOriginalKey', () => {
       songCell({ id: 'c2', sectionId: 'sec-2', songKeyId: 'k-orig', cellState: 'learning' }),
       songCell({ id: 'c3', sectionId: 'sec-3', songKeyId: 'k-orig', cellState: 'comfortable' }),
     ]);
+    await bandSeededCells();
     expect(await isSongComfortableInOriginalKey('s1')).toBe(false);
   });
 
@@ -135,6 +169,7 @@ describe('isSongComfortableInOriginalKey', () => {
       songCell({ id: 'c1', sectionId: 'sec-1', songKeyId: 'k-orig', cellState: 'comfortable' }),
       songCell({ id: 'c2', sectionId: 'sec-2', songKeyId: 'k-orig', cellState: 'comfortable' }),
     ]);
+    await bandSeededCells();
     expect(await isSongComfortableInOriginalKey('s1')).toBe(true);
   });
 
@@ -148,6 +183,7 @@ describe('isSongComfortableInOriginalKey', () => {
     await db.songCells.add(
       songCell({ id: 'c1', sectionId: 'sec-1', songKeyId: 'k-orig', cellState: 'comfortable' }),
     );
+    await bandSeededCells();
     expect(await isSongComfortableInOriginalKey('s1')).toBe(true);
   });
 
@@ -163,6 +199,7 @@ describe('isSongComfortableInOriginalKey', () => {
       // Empty at a non-original key — must NOT trip the predicate.
       songCell({ id: 'c2', sectionId: 'sec-1', songKeyId: 'k-other', cellState: 'empty' }),
     ]);
+    await bandSeededCells();
     expect(await isSongComfortableInOriginalKey('s1')).toBe(true);
   });
 
@@ -180,6 +217,7 @@ describe('isSongComfortableInOriginalKey', () => {
       // Other song's empty cell — must not bleed into s1's predicate.
       songCell({ id: 'c2', songId: 's2', sectionId: 'sec-s2', songKeyId: 'k-orig-2', cellState: 'empty' }),
     ]);
+    await bandSeededCells();
     expect(await isSongComfortableInOriginalKey('s1')).toBe(true);
     expect(await isSongComfortableInOriginalKey('s2')).toBe(false);
   });
@@ -205,6 +243,7 @@ describe('comfortableCellRatioInOriginalKey', () => {
     await db.songCells.add(
       songCell({ id: 'c1', sectionId: 'sec-1', songKeyId: 'k-orig', cellState: 'comfortable' }),
     );
+    await bandSeededCells();
     expect(await comfortableCellRatioInOriginalKey('s1')).toBe(0.5);
   });
 
@@ -222,6 +261,7 @@ describe('comfortableCellRatioInOriginalKey', () => {
       songCell({ id: 'c3', sectionId: 'sec-3', songKeyId: 'k-orig', cellState: 'learning' }),
       songCell({ id: 'c4', sectionId: 'sec-4', songKeyId: 'k-orig', cellState: 'empty' }),
     ]);
+    await bandSeededCells();
     expect(await comfortableCellRatioInOriginalKey('s1')).toBe(0.5);
   });
 
@@ -235,6 +275,7 @@ describe('comfortableCellRatioInOriginalKey', () => {
       songCell({ id: 'c1', sectionId: 'sec-1', songKeyId: 'k-orig', cellState: 'comfortable' }),
       songCell({ id: 'c2', sectionId: 'sec-2', songKeyId: 'k-orig', cellState: 'comfortable' }),
     ]);
+    await bandSeededCells();
     expect(await comfortableCellRatioInOriginalKey('s1')).toBe(1);
   });
 
@@ -255,6 +296,7 @@ describe('comfortableCellRatioInOriginalKey', () => {
       songCell({ id: 'c3', sectionId: 'sec-1', songKeyId: 'k-other', cellState: 'comfortable' }),
       songCell({ id: 'c4', sectionId: 'sec-2', songKeyId: 'k-other', cellState: 'comfortable' }),
     ]);
+    await bandSeededCells();
     expect(await comfortableCellRatioInOriginalKey('s1')).toBe(0.5);
   });
 });

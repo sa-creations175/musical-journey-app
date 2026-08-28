@@ -27,7 +27,6 @@ import {
   type SongPracticeLog,
   type SongSection,
 } from '../../lib/db';
-import { readSectionChips } from './sectionChips';
 import {
   STAGES,
   deriveStage,
@@ -302,14 +301,6 @@ export default function ActiveRepertoireView({
         advancementNow,
         windowsFrom(spacing),
       );
-      // One reading per song, shared by the chips and the counts under
-      // them — see `readSectionChips`.
-      const sectionReading = readSectionChips({
-        sections: sectionsBySong.get(song.id) ?? [],
-        matrixSections: matrixSectionsBySong.get(song.id) ?? [],
-        cells: cellsBySong.get(song.id) ?? [],
-        songKeys: keysBySong.get(song.id) ?? [],
-      });
       // NEGLECT, NOT DECAY — see `practiceWindowPrefs`. Derived beside
       // `retest` and deliberately not from it: a song whose keys are
       // all comfortably inside their intervals can still have been left
@@ -320,7 +311,6 @@ export default function ActiveRepertoireView({
       return {
         song, lastPractisedAt, freshness, derivedStage, retest, practiceStale,
         spelling: resolveSpelling(song.spelling, globalSpelling),
-        sectionReading,
       };
     });
   }, [
@@ -389,7 +379,6 @@ export default function ActiveRepertoireView({
     stage: row.derivedStage,
     retest: row.retest,
     practiceStale: row.practiceStale,
-    sections: row.sectionReading,
     accentHex,
     onOpen: () => onOpenSong(row.song.id),
     onOpenLeadSheet: () => onOpenLeadSheet(row.song.id),

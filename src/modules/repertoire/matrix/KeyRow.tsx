@@ -4,6 +4,7 @@ import HeatCell from '../../../components/HeatCell';
 import { cellHeat } from './cellHeat';
 import { keyDueState, type DueWindows, type KeyDueState } from './keySpacing';
 import { isKeyRowEngaged } from './songLevelState';
+import type { CellBands } from './cellBands';
 
 /**
  * One key: its name, its section cells, and its two actions — on ONE
@@ -37,6 +38,8 @@ interface Props {
   songKey: SongKey | null;
   sections: ReadonlyArray<SongMatrixSection>;
   cellsBySectionId: ReadonlyMap<string, SongCell>;
+  /** Bands for this row's cells. Not on the cell — see cellBands.ts. */
+  bands: CellBands;
   isOriginal: boolean;
   now: number;
   /** When this key is next due to be proven, or null. */
@@ -75,7 +78,7 @@ export function gridTemplate(sectionCount: number): string {
 }
 
 export default function KeyRow({
-  keyName, spelling, songKey, sections, cellsBySectionId, isOriginal,
+  keyName, spelling, songKey, sections, cellsBySectionId, bands, isOriginal,
   now, nextDueAt = null, dueWindows, onCellTap, onRunTest, onLogRun,
   runCounts = false,
 }: Props) {
@@ -133,7 +136,7 @@ export default function KeyRow({
 
       {sections.map(section => {
         const cell = cellsBySectionId.get(section.id) ?? null;
-        const heat = cellHeat(cell, now);
+        const heat = cellHeat(cell, now, bands);
         return (
           <div key={section.id} className="p-px">
               <HeatCell

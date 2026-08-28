@@ -8,6 +8,22 @@ import type {
   SongMatrixSection,
 } from '../../../lib/db';
 import { isSongPostComfortable } from '../songComfortable';
+import type { CellBands } from '../matrix/cellBands';
+
+/**
+ * Translate each fixture's `cellState` into the band that now carries
+ * the same meaning: comfortable → Fluent, learning → Started, empty →
+ * nothing. The fixtures keep expressing intent the way they always
+ * did; only the mechanism the code reads has moved.
+ */
+function comfyBands(cells: ReadonlyArray<{ id: string; cellState: string }>): CellBands {
+  const m = new Map<string, { kind: 'band'; band: 'fluent' } | { kind: 'started'; tries: number }>();
+  for (const c of cells) {
+    if (c.cellState === 'comfortable') m.set(c.id, { kind: 'band', band: 'fluent' });
+    else if (c.cellState === 'learning') m.set(c.id, { kind: 'started', tries: 0 });
+  }
+  return m;
+}
 
 /**
  * Synchronous variant — drives the session algorithm's per-song
@@ -103,7 +119,7 @@ describe('isSongPostComfortable', () => {
       mkCell({ id: 'c1', sectionId: 'sec-1' }),
       mkCell({ id: 'c2', sectionId: 'sec-2' }),
     ];
-    expect(isSongPostComfortable(song, keys, cells, sections)).toBe(true);
+    expect(isSongPostComfortable(song, keys, cells, sections, comfyBands(cells))).toBe(true);
   });
 
   it('false when any section\'s original-key cell is below comfortable', () => {
@@ -117,7 +133,7 @@ describe('isSongPostComfortable', () => {
       mkCell({ id: 'c1', sectionId: 'sec-1' }),
       mkCell({ id: 'c2', sectionId: 'sec-2', cellState: 'learning' }),
     ];
-    expect(isSongPostComfortable(song, keys, cells, sections)).toBe(false);
+    expect(isSongPostComfortable(song, keys, cells, sections, comfyBands(cells))).toBe(false);
   });
 
   it('false when a section has no cell at the original key', () => {
@@ -131,7 +147,7 @@ describe('isSongPostComfortable', () => {
       mkMatrixSection({ id: 'sec-3' }),
     ];
     const cells = [mkCell({ id: 'c1', sectionId: 'sec-1' })];
-    expect(isSongPostComfortable(song, keys, cells, sections)).toBe(false);
+    expect(isSongPostComfortable(song, keys, cells, sections, comfyBands(cells))).toBe(false);
   });
 
   it('false when the song has no original-key songKeys row', () => {
@@ -140,7 +156,7 @@ describe('isSongPostComfortable', () => {
     const keys = [mkKey({ id: 'k1', keyName: 'F', isOriginalKey: false })];
     const sections = [mkMatrixSection({ id: 'sec-1' })];
     const cells = [mkCell({ songKeyId: 'k1' })];
-    expect(isSongPostComfortable(song, keys, cells, sections)).toBe(false);
+    expect(isSongPostComfortable(song, keys, cells, sections, comfyBands(cells))).toBe(false);
   });
 
   it('false when the song has no non-archived matrix sections', () => {
@@ -148,14 +164,14 @@ describe('isSongPostComfortable', () => {
     const keys = [mkKey()];
     const sections = [mkMatrixSection({ id: 'sec-1', isArchived: true })];
     const cells = [mkCell({ id: 'c1', sectionId: 'sec-1' })];
-    expect(isSongPostComfortable(song, keys, cells, sections)).toBe(false);
+    expect(isSongPostComfortable(song, keys, cells, sections, comfyBands(cells))).toBe(false);
   });
 
   it('false when zero cells exist at the original key', () => {
     const song = mkSong();
     const keys = [mkKey()];
     const sections = [mkMatrixSection({ id: 'sec-1' })];
-    expect(isSongPostComfortable(song, keys, [], sections)).toBe(false);
+    expect(isSongPostComfortable(song, keys, [], sections, comfyBands([]))).toBe(false);
   });
 
   it('excludes archived sections from the denominator', () => {
@@ -167,7 +183,7 @@ describe('isSongPostComfortable', () => {
     ];
     // Only the non-archived section has a cell — still post-comfortable.
     const cells = [mkCell({ id: 'c1', sectionId: 'sec-1' })];
-    expect(isSongPostComfortable(song, keys, cells, sections)).toBe(true);
+    expect(isSongPostComfortable(song, keys, cells, sections, comfyBands(cells))).toBe(true);
   });
 
   it('ignores cells at non-original keys', () => {
@@ -183,7 +199,7 @@ describe('isSongPostComfortable', () => {
       mkCell({ id: 'c1', sectionId: 'sec-1', songKeyId: 'k1' }),
       mkCell({ id: 'c2', sectionId: 'sec-1', songKeyId: 'k2', cellState: 'empty' }),
     ];
-    expect(isSongPostComfortable(song, keys, cells, sections)).toBe(true);
+    expect(isSongPostComfortable(song, keys, cells, sections, comfyBands(cells))).toBe(true);
   });
 
   it('ignores cells and sections from other songs (multi-song fixture)', () => {
@@ -202,6 +218,6 @@ describe('isSongPostComfortable', () => {
       // s2's row is in the working set but shouldn't count toward s1.
       mkCell({ id: 'c99', songId: 's2', sectionId: 'sec-99', songKeyId: 'k99', cellState: 'empty' }),
     ];
-    expect(isSongPostComfortable(song, keys, cells, sections)).toBe(true);
+    expect(isSongPostComfortable(song, keys, cells, sections, comfyBands(cells))).toBe(true);
   });
 });

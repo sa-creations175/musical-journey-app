@@ -1,5 +1,6 @@
 import { db, type SongKeyState } from '../../lib/db';
 import { computeKeyStateFromCells } from './matrix/cellRollup';
+import { isCellTouched, loadCellBands } from './matrix/cellBands';
 import { decayStateAfterEngagement } from './matrix/solidDecay';
 import { reassignOriginalKey } from './matrix/reassignOriginalKey';
 import { ensureSongHasOriginalKey } from './matrixMigration';
@@ -245,15 +246,21 @@ export async function recomputeKeyStateFromCells(
     throw new Error('refusing to recompute: this row has no cells to derive from');
   }
 
+  const bands = await loadCellBands(cells.map(c => c.id));
   const derived = computeKeyStateFromCells(
     cells,
     sectionCount,
     row.wholeSongTestPassedAt ?? null,
+    bands,
   );
   if (derived === row.keyState) return null;
 
+  // TOUCHED, not comfortable — this guard exists to stop a demotion of
+  // a row the user has actually worked on. `lastRunAt` stays in the
+  // test until 4d wipes it: a cell with a run behind it is engaged
+  // whether or not that run left a band.
   const engaged = cells.filter(
-    c => c.cellState !== 'empty' || c.lastRunAt !== null,
+    c => isCellTouched(bands, c.id) || c.lastRunAt !== null,
   ).length;
   const isDemotion = STATE_RANK[derived] < STATE_RANK[row.keyState];
   if (isDemotion && engaged === 0 && !opts.force) {

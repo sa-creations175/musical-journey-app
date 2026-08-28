@@ -35,6 +35,7 @@ import {
 import { isSongPostComfortable } from '../repertoire/songComfortable';
 import { loadActiveSpotlight, type QueueSlot } from '../repertoire/songOfMonth';
 import { getSongReadiness, type SongReadiness } from '../repertoire/songReadiness';
+import { loadCellBands } from '../repertoire/matrix/cellBands';
 import { canonicaliseKey } from '../repertoire/circleOfFourths';
 import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
 import { SPELLING_PREF_KEY } from '../../lib/spellingPref';
@@ -147,6 +148,11 @@ export async function loadRepertoireSplitContext(
       db.songSections.toArray(),
       db.songMatrixSections.toArray(),
     ]);
+  // Bands for every cell in the library. Loaded once beside the other
+  // bulk reads rather than per-song: the maintenance picker walks every
+  // song in the worst case, and a query per song would put a Dexie
+  // round-trip inside that loop.
+  const allBands = await loadCellBands(allCells.map(c => c.id));
   const sorted = [...allSongs].sort(
     (a, b) =>
       (a.learningOrder ?? Number.MAX_SAFE_INTEGER) -
@@ -179,13 +185,14 @@ export async function loadRepertoireSplitContext(
     const sKeys = keysFor(s.id);
     const sCells = cellsFor(s.id);
     const readiness = getSongReadiness(s, sKeys, sectionsFor(s.id));
-    if (isSongPostComfortable(s, sKeys, sCells, matrixSectionsFor(s.id))) {
+    if (isSongPostComfortable(s, sKeys, sCells, matrixSectionsFor(s.id), allBands)) {
       const decision = decidePostComfortableBlock({
         song: s,
         songKeys: sKeys,
         songCells: sCells,
         lastEngagedAt: originalKeyEngagedAt(s.id),
         now,
+        bands: allBands,
       });
       if (decision.kind === 'skip') return null;
       return { readiness, postComfortable: decision };
@@ -246,6 +253,7 @@ export async function loadRepertoireSplitContext(
           sKeys,
           sCells,
           matrixSectionsFor(spotlightSong.id),
+          allBands,
         )
       ) {
         const decision = decidePostComfortableBlock({
@@ -254,6 +262,7 @@ export async function loadRepertoireSplitContext(
           songCells: sCells,
           lastEngagedAt: originalKeyEngagedAt(spotlightSong.id),
           now,
+        bands: allBands,
         });
         // Even a 'skip' decision still leaves the spotlight slot
         // populated — the spotlight is user-chosen and shouldn't

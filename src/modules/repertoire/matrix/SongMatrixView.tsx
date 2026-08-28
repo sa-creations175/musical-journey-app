@@ -17,6 +17,7 @@ import WholeSongTestModal from './WholeSongTestModal';
 import { computeSolidDecayState } from './solidDecay';
 import { hasCrossKeyEngagement } from './songLevelState';
 import { useSongSpelling } from '../useSongSpelling';
+import { useCellBands } from './useCellBands';
 
 /**
  * Section × key matrix view for a single song. Step 3a ships this
@@ -108,6 +109,7 @@ export default function SongMatrixView({
     [song.id, refreshKey],
     [] as SongCell[],
   );
+  const cellBands = useCellBands(songCells);
   // Whole-song test run-throughs — one query for all 12 keys,
   // grouped/derived once below. sortBy('createdAt') so the latest
   // row per key sits at the end of its group, ready to read for
@@ -218,7 +220,7 @@ export default function SongMatrixView({
   const eligibleForCrossKey =
     song.stage === 'cross-key'
     && visibleSections.length > 0
-    && !hasCrossKeyEngagement(songKeys, songCells);
+    && !hasCrossKeyEngagement(songKeys, songCells, cellBands);
 
   if (eligibleForCrossKey && !crossKeyAutoFired) {
     setCrossKeyAutoFired(true);
@@ -331,6 +333,7 @@ export default function SongMatrixView({
         sections={sections}
         songKeys={songKeys}
         songCells={songCells}
+        bands={cellBands}
         dueByKeyId={dueByKeyId}
         dueWindows={dueWindows}
         now={now}

@@ -1,4 +1,5 @@
 import type { SongCell } from '../../../lib/db';
+import { type CellBands, isCellComfortable, isCellTouched } from './cellBands';
 
 /**
  * What a matrix cell looks like, as two numbers.
@@ -48,8 +49,12 @@ export interface CellHeat {
   bordered: boolean;
 }
 
-export function cellHeat(cell: SongCell | null, now: number): CellHeat {
-  if (cell === null || cell.cellState === 'empty') {
+export function cellHeat(
+  cell: SongCell | null,
+  now: number,
+  bands: CellBands,
+): CellHeat {
+  if (cell === null || !isCellTouched(bands, cell.id)) {
     // `lastRunAt` on an empty cell is either null or history from
     // before a reset; either way there is nothing to be fresh about.
     return { fill: CELL_FILL_EMPTY, alpha: 1, bordered: false };
@@ -57,7 +62,7 @@ export function cellHeat(cell: SongCell | null, now: number): CellHeat {
 
   const alpha = cellFreshnessAlpha(cell.lastRunAt, now);
 
-  if (cell.cellState === 'comfortable') {
+  if (isCellComfortable(bands, cell.id)) {
     return { fill: CELL_FILL_COMFORTABLE, alpha, bordered: true };
   }
 

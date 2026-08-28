@@ -1,3 +1,4 @@
+import { useCellBands } from '../repertoire/matrix/useCellBands';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from '../../components/Modal';
@@ -322,11 +323,12 @@ export default function GoalFormModal({
 
   // Matrix-derived song level + per-key hints. Computed only when in
   // song mode so non-song goals don't pay the cost.
+  const cellBands = useCellBands(matrixSongCells);
   const songLevelState = useMemo(
     () => isSongMode
-      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now)
+      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now, cellBands)
       : null,
-    [isSongMode, matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now],
+    [isSongMode, matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now, cellBands],
   );
   const originalMatrixKey = useMemo(
     () => matrixSongKeys.find(k => k.isOriginalKey) ?? null,

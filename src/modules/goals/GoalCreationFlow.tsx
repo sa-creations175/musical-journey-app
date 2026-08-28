@@ -1,3 +1,4 @@
+import { useCellBands } from '../repertoire/matrix/useCellBands';
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from '../../components/Modal';
@@ -1395,9 +1396,10 @@ function Step2SongRepertoire({
   // pick section now and we'll validate at Step 3 / Step 4.
   const sectionWeeklyEligible = true;
 
+  const cellBands = useCellBands(matrixSongCells);
   const songLevelState = useMemo(
     () => songRecord
-      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now)
+      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now, cellBands)
       : null,
     [songRecord, matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now],
   );

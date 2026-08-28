@@ -1,5 +1,6 @@
 import type { SongCell, SongKey } from '../../../lib/db';
 import { computeSolidDecayState } from './solidDecay';
+import { type CellBands, isCellComfortable, isCellTouched } from './cellBands';
 
 /**
  * Song-level state per SONG_PROGRESSION_DESIGN_3.md lines 276-283.
@@ -100,8 +101,11 @@ function isLivedWith(key: SongKey): boolean {
  * Exported as the single definition of "engaged" so the state machine
  * and the cross-key prompt cannot drift apart on it.
  */
-export function isCellEngaged(cell: SongCell): boolean {
-  return cell.cellState !== 'empty' || cell.lastRunAt !== null;
+export function isCellEngaged(cell: SongCell, bands: CellBands): boolean {
+  // TOUCHED, read from the band. `lastRunAt` is still consulted: it
+  // survives until 4d, and a run that produced no rating is still a
+  // run the user played.
+  return isCellTouched(bands, cell.id) || cell.lastRunAt !== null;
 }
 
 /**
@@ -135,13 +139,14 @@ export function isKeyRowEngaged(songKey: SongKey | null): boolean {
 export function hasCrossKeyEngagement(
   songKeys: ReadonlyArray<SongKey>,
   songCells: ReadonlyArray<SongCell>,
+  bands: CellBands,
 ): boolean {
   const nonOriginalKeyIds = new Set(
     songKeys.filter(k => !k.isOriginalKey).map(k => k.id),
   );
   if (nonOriginalKeyIds.size === 0) return false;
   return songCells.some(
-    c => nonOriginalKeyIds.has(c.songKeyId) && isCellEngaged(c),
+    c => nonOriginalKeyIds.has(c.songKeyId) && isCellEngaged(c, bands),
   );
 }
 
@@ -159,6 +164,7 @@ export function computeSongLevelState(
   songCells: ReadonlyArray<SongCell>,
   totalSections: number,
   now: number,
+  bands: CellBands,
 ): SongLevelState {
   const originalKey = songKeys.find(k => k.isOriginalKey) ?? null;
   const nonOriginalKeyIds = new Set(
@@ -170,8 +176,12 @@ export function computeSongLevelState(
     : [];
   const nonOriginalKeyCells = songCells.filter(c => nonOriginalKeyIds.has(c.songKeyId));
 
-  const originalComfortable = originalKeyCells.filter(c => c.cellState === 'comfortable').length;
-  const nonOriginalComfortable = nonOriginalKeyCells.filter(c => c.cellState === 'comfortable').length;
+  // COMFORTABLE IS FLUENT-OR-BETTER, which only a test at tempo can
+  // reach — practice is capped at Developing. These percentages
+  // therefore now count proved sections rather than sections someone
+  // pressed a button on.
+  const originalComfortable = originalKeyCells.filter(c => isCellComfortable(bands, c.id)).length;
+  const nonOriginalComfortable = nonOriginalKeyCells.filter(c => isCellComfortable(bands, c.id)).length;
 
   const learningPercent = totalSections > 0
     ? Math.round((originalComfortable / totalSections) * 100)
@@ -201,7 +211,7 @@ export function computeSongLevelState(
     // played it in another key".
     if (
       originalKey?.keyState === 'comfortable'
-      && nonOriginalKeyCells.some(isCellEngaged)
+      && nonOriginalKeyCells.some(c => isCellEngaged(c, bands))
     ) {
       return 'cross_key';
     }

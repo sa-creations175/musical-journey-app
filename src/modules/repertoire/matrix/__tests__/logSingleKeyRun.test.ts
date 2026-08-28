@@ -270,6 +270,15 @@ describe('testing a key whose sections are not comfortable', () => {
   it('a pass records the test but does not make the key solid', async () => {
     const key = mkKey({ keyState: 'learning' });
     await db.songKeys.put(key);
+    const touched = mkCell({ consecutiveCleanCount: 0 });
+    await db.spacingState.put({
+      id: `sp-repertoire-both-songCell:${touched.id}`,
+      itemRef: `songCell:${touched.id}`,
+      moduleRef: 'repertoire', hand: 'both', memoryType: 'integration',
+      acquisitionStage: 'acquiring', currentIntervalDays: 0,
+      lastEngagedAt: 1, nextDueAt: null,
+      performanceHistory: [{ t: 1, kind: 'recency' }],
+    } as never);
 
     await saveKeyAttemptsAndRollup({
       songKey: key,
@@ -278,7 +287,9 @@ describe('testing a key whose sections are not comfortable', () => {
       performanceTempo: TEMPO,
       isRetest: false,
       // The section is NOT comfortable — that is the whole premise.
-      siblingCells: [mkCell({ cellState: 'learning', consecutiveCleanCount: 0 })],
+      // It HAS been touched, so the key still rolls up to 'learning';
+      // engagement and comfort are separate questions now.
+      siblingCells: [touched],
       expectedSectionCount: 1,
       now: NOW,
     });

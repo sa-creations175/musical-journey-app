@@ -42,6 +42,7 @@
  *     denominator — they're off the active surface, so their cells
  *     neither gate nor help the threshold.
  */
+import { type CellBands, isCellComfortable, loadCellBands } from './matrix/cellBands';
 import {
   db,
   type Song,
@@ -75,7 +76,10 @@ export async function isSongComfortableInOriginalKey(
     .equals(songId)
     .filter(c => c.songKeyId === originalKey.id && sectionIds.has(c.sectionId))
     .toArray();
-  const comfortable = cells.filter(c => c.cellState === 'comfortable').length;
+  // COMFORTABLE IS FLUENT-OR-BETTER — a band only a test at tempo can
+  // reach, since practice is capped at Developing.
+  const bands = await loadCellBands(cells.map(c => c.id));
+  const comfortable = cells.filter(c => isCellComfortable(bands, c.id)).length;
   // Every non-archived section must contribute a comfortable cell —
   // a section with no original-key cell falls short of the count.
   return comfortable === sectionIds.size;
@@ -98,7 +102,8 @@ export async function comfortableCellRatioInOriginalKey(
     .equals(songId)
     .filter(c => c.songKeyId === originalKey.id && sectionIds.has(c.sectionId))
     .toArray();
-  const comfy = cells.filter(c => c.cellState === 'comfortable').length;
+  const bands = await loadCellBands(cells.map(c => c.id));
+  const comfy = cells.filter(c => isCellComfortable(bands, c.id)).length;
   // Denominate by section count — sections with no original-key cell
   // drag the ratio down, same as a non-comfortable cell would.
   return comfy / sectionIds.size;
@@ -126,6 +131,7 @@ export function isSongPostComfortable(
   songKeys: ReadonlyArray<SongKey>,
   songCells: ReadonlyArray<SongCell>,
   matrixSections: ReadonlyArray<SongMatrixSection>,
+  bands: CellBands,
 ): boolean {
   const originalKey = songKeys.find(
     k => k.songId === song.id && k.isOriginalKey,
@@ -143,7 +149,7 @@ export function isSongPostComfortable(
       c.songKeyId === originalKey.id &&
       sectionIds.has(c.sectionId),
   );
-  const comfortable = cells.filter(c => c.cellState === 'comfortable').length;
+  const comfortable = cells.filter(c => isCellComfortable(bands, c.id)).length;
   return comfortable === sectionIds.size;
 }
 

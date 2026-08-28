@@ -75,7 +75,39 @@ function cell(songKeyId: string, sectionId: string, o: Partial<SongCell> = {}): 
   } as SongCell;
 }
 
+
+/**
+ * A cell's band now lives in `spacingState`, not on the cell. The
+ * fixtures still say `cellState: 'comfortable'` to express intent, so
+ * this writes the rows that make that true under the new reader:
+ * three test reps at Clean, which the band rule reads as Fluent.
+ *
+ * Called after each seed rather than folded into `songCell` so the
+ * write is visible where the fixture is built.
+ */
+async function bandSeededCells(): Promise<void> {
+  const cells = await db.songCells.toArray();
+  const rows = cells
+    .filter(c => c.cellState === 'comfortable' || c.cellState === 'learning')
+    .map(c => ({
+      id: `sp-repertoire-both-songCell:${c.id}`,
+      itemRef: `songCell:${c.id}`,
+      moduleRef: 'repertoire',
+      hand: 'both' as const,
+      memoryType: 'integration' as const,
+      acquisitionStage: 'acquiring' as const,
+      currentIntervalDays: 0,
+      lastEngagedAt: 1,
+      nextDueAt: null,
+      performanceHistory: c.cellState === 'comfortable'
+        ? [1, 2, 3].map(t => ({ t, kind: 'rating', rating: 'cruising', feel: 3, fromTest: true }))
+        : [{ t: 1, kind: 'recency' }],
+    }));
+  if (rows.length > 0) await db.spacingState.bulkAdd(rows as never[]);
+}
+
 beforeEach(async () => {
+  await db.spacingState.clear();
   await Promise.all([
     db.songs.clear(), db.songKeys.clear(), db.songCells.clear(),
     db.songCellRunThroughs.clear(), db.songMatrixSections.clear(),
@@ -241,6 +273,7 @@ describe('recomputeKeyStateFromCells', () => {
     await db.songKeys.put(key('Ab', true, 'not_started'));
     await db.songCells.bulkPut(SECTIONS.map(sec =>
       cell(`songkey-${SONG}-Ab`, sec, { cellState: 'comfortable' })));
+    await bandSeededCells();
 
     const out = await recomputeKeyStateFromCells(`songkey-${SONG}-Ab`);
     expect(out).toEqual({ from: 'not_started', to: 'comfortable' });
@@ -251,6 +284,7 @@ describe('recomputeKeyStateFromCells', () => {
     await seedSong();
     await db.songKeys.put(key('A', false, 'learning'));
     await db.songCells.bulkPut(SECTIONS.map(sec => cell(`songkey-${SONG}-A`, sec)));
+    await bandSeededCells();
 
     await expect(recomputeKeyStateFromCells(`songkey-${SONG}-A`))
       .rejects.toThrow(/no practice/);
@@ -263,6 +297,7 @@ describe('recomputeKeyStateFromCells', () => {
     await seedSong();
     await db.songKeys.put(key('A', false, 'learning'));
     await db.songCells.bulkPut(SECTIONS.map(sec => cell(`songkey-${SONG}-A`, sec)));
+    await bandSeededCells();
 
     const out = await recomputeKeyStateFromCells(`songkey-${SONG}-A`, { force: true });
     expect(out).toEqual({ from: 'learning', to: 'not_started' });
@@ -277,6 +312,7 @@ describe('recomputeKeyStateFromCells', () => {
       cell(`songkey-${SONG}-C`, 'chorus'),
       cell(`songkey-${SONG}-C`, 'bridge'),
     ]);
+    await bandSeededCells();
     const out = await recomputeKeyStateFromCells(`songkey-${SONG}-C`);
     expect(out).toEqual({ from: 'comfortable', to: 'learning' });
   });
@@ -300,6 +336,7 @@ describe('recomputeKeyStateFromCells', () => {
     await db.songKeys.put({ ...key('Ab', true, 'not_started'), lastEngagedAt: NOW - 999 });
     await db.songCells.bulkPut(SECTIONS.map(sec =>
       cell(`songkey-${SONG}-Ab`, sec, { cellState: 'comfortable' })));
+    await bandSeededCells();
 
     await recomputeKeyStateFromCells(`songkey-${SONG}-Ab`);
     expect((await db.songKeys.get(`songkey-${SONG}-Ab`))?.lastEngagedAt).toBe(NOW - 999);
@@ -318,6 +355,7 @@ describe('recomputeKeyStateFromCells', () => {
       cell(`songkey-${SONG}-C`, 'chorus'),
       cell(`songkey-${SONG}-C`, 'bridge'),
     ]);
+    await bandSeededCells();
 
     await recomputeKeyStateFromCells(`songkey-${SONG}-C`);
     const row = await db.songKeys.get(`songkey-${SONG}-C`);
@@ -330,6 +368,7 @@ describe('recomputeKeyStateFromCells', () => {
     await seedSong();
     await db.songKeys.put(key('Ab', true, 'not_started'));
     await db.songCells.bulkPut(SECTIONS.map(sec => cell(`songkey-${SONG}-Ab`, sec)));
+    await bandSeededCells();
     expect(await recomputeKeyStateFromCells(`songkey-${SONG}-Ab`)).toBeNull();
   });
 });
@@ -364,6 +403,7 @@ describe('addressing rows by their stored id', () => {
     await seedSong();
     await db.songKeys.put(key('Ab', true, 'not_started'));
     await db.songCells.bulkPut(SECTIONS.map(sec => cell(`songkey-${SONG}-Ab`, sec)));
+    await bandSeededCells();
     expect(await recomputeKeyStateFromCells(`songkey-${SONG}-Ab`)).toBeNull();
   });
 });

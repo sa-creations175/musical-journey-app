@@ -15,6 +15,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { SongCell, SongKey, SongKeyState } from '../../../../lib/db';
+import { type CellBands, NO_CELL_BANDS } from '../cellBands';
 import {
   computeSongLevelState,
   hasCrossKeyEngagement,
@@ -80,9 +81,17 @@ function fullGrid(originalKey = 'Ab', originalState: SongKeyState = 'comfortable
   return { songKeys, songCells };
 }
 
+/** Bands stand in for the retired `cellState`: `started` = touched,
+ *  `fluent` = comfortable. */
+function bandsFor(cells: ReadonlyArray<{ id: string }>, v: 'started' | 'fluent'): CellBands {
+  return new Map(cells.map(c => [c.id, v === 'fluent'
+    ? { kind: 'band' as const, band: 'fluent' as const }
+    : { kind: 'started' as const, tries: 0 }]));
+}
+
 describe('isCellEngaged', () => {
   it('a freshly materialised cell is NOT engaged', () => {
-    expect(isCellEngaged(cell('songkey-s1-C', 'verse'))).toBe(false);
+    expect(isCellEngaged(cell('songkey-s1-C', 'verse'), NO_CELL_BANDS)).toBe(false);
   });
 
   it('counts a run-through that left the state at empty', () => {
@@ -91,12 +100,15 @@ describe('isCellEngaged', () => {
     // on, so treating it as untouched under-reports the worst case.
     expect(isCellEngaged(cell('songkey-s1-C', 'verse', {
       lastRunAt: NOW, lastRunWasClean: false,
-    }))).toBe(true);
+    }), NO_CELL_BANDS)).toBe(true);
   });
 
   it('counts any advanced state', () => {
-    expect(isCellEngaged(cell('k', 'v', { cellState: 'learning' }))).toBe(true);
-    expect(isCellEngaged(cell('k', 'v', { cellState: 'comfortable' }))).toBe(true);
+    // Engagement is now a band, not a cellState. A cell with a
+    // Started verdict is touched; one with none is not.
+    const c = cell('k', 'v');
+    expect(isCellEngaged(c, bandsFor([c], 'started'))).toBe(true);
+    expect(isCellEngaged(c, bandsFor([c], 'fluent'))).toBe(true);
   });
 });
 
@@ -105,15 +117,15 @@ describe('hasCrossKeyEngagement', () => {
     // The whole point. 33 non-original cells exist; none was played.
     const { songKeys, songCells } = fullGrid();
     expect(songCells.filter(c => !c.songKeyId.endsWith('-Ab'))).toHaveLength(33);
-    expect(hasCrossKeyEngagement(songKeys, songCells)).toBe(false);
+    expect(hasCrossKeyEngagement(songKeys, songCells, NO_CELL_BANDS)).toBe(false);
   });
 
   it('ignores engagement in the ORIGINAL key', () => {
     const { songKeys, songCells } = fullGrid();
-    const played = songCells.map(c =>
-      c.songKeyId === 'songkey-s1-Ab' ? { ...c, cellState: 'comfortable' as const } : c,
-    );
-    expect(hasCrossKeyEngagement(songKeys, played)).toBe(false);
+    const original = songCells.filter(c => c.songKeyId === 'songkey-s1-Ab');
+    expect(hasCrossKeyEngagement(
+      songKeys, songCells, bandsFor(original, 'fluent'),
+    )).toBe(false);
   });
 
   it('is TRUE once a single non-original cell is played', () => {
@@ -121,13 +133,13 @@ describe('hasCrossKeyEngagement', () => {
     const played = songCells.map(c =>
       c.id === 'cell-songkey-s1-C-verse' ? { ...c, lastRunAt: NOW } : c,
     );
-    expect(hasCrossKeyEngagement(songKeys, played)).toBe(true);
+    expect(hasCrossKeyEngagement(songKeys, played, NO_CELL_BANDS)).toBe(true);
   });
 
   it('is false when there are no non-original keys at all', () => {
     const songKeys = [key('Ab', true, 'comfortable')];
     const songCells = SECTIONS.map(s => cell('songkey-s1-Ab', s));
-    expect(hasCrossKeyEngagement(songKeys, songCells)).toBe(false);
+    expect(hasCrossKeyEngagement(songKeys, songCells, NO_CELL_BANDS)).toBe(false);
   });
 });
 
@@ -136,20 +148,20 @@ describe('computeSongLevelState under a materialised grid', () => {
     // The silent inflation: comfortable original key + a full grid
     // must still read `comfortable`, not `cross_key`.
     const { songKeys, songCells } = fullGrid('Ab', 'comfortable');
-    expect(computeSongLevelState(songKeys, songCells, 3, NOW).state).toBe('comfortable');
+    expect(computeSongLevelState(songKeys, songCells, 3, NOW, NO_CELL_BANDS).state).toBe('comfortable');
   });
 
   it('reports cross_key once a non-original cell is actually played', () => {
     const { songKeys, songCells } = fullGrid('Ab', 'comfortable');
-    const played = songCells.map(c =>
-      c.id === 'cell-songkey-s1-C-verse' ? { ...c, cellState: 'learning' as const } : c,
-    );
-    expect(computeSongLevelState(songKeys, played, 3, NOW).state).toBe('cross_key');
+    const touched = songCells.filter(c => c.id === 'cell-songkey-s1-C-verse');
+    expect(computeSongLevelState(
+      songKeys, songCells, 3, NOW, bandsFor(touched, 'started'),
+    ).state).toBe('cross_key');
   });
 
   it('still reports learning when the original key is untouched', () => {
     const { songKeys, songCells } = fullGrid('Ab', 'not_started');
-    expect(computeSongLevelState(songKeys, songCells, 3, NOW).state).toBe('learning');
+    expect(computeSongLevelState(songKeys, songCells, 3, NOW, NO_CELL_BANDS).state).toBe('learning');
   });
 
   it('percentages are unmoved by materialisation', () => {
@@ -157,7 +169,7 @@ describe('computeSongLevelState under a materialised grid', () => {
     // their denominators (totalSections, 11 × totalSections) already
     // assumed a full grid — so empty rows must contribute nothing.
     const { songKeys, songCells } = fullGrid('Ab', 'comfortable');
-    const state = computeSongLevelState(songKeys, songCells, 3, NOW);
+    const state = computeSongLevelState(songKeys, songCells, 3, NOW, NO_CELL_BANDS);
     expect(state.learningPercent).toBe(0);
     expect(state.crossKeyPercent).toBe(0);
     expect(state.solidKeyCount).toBe(0);
@@ -165,12 +177,12 @@ describe('computeSongLevelState under a materialised grid', () => {
 
   it('learningPercent still tracks comfortable original-key cells', () => {
     const { songKeys, songCells } = fullGrid('Ab', 'comfortable');
-    const played = songCells.map(c =>
-      c.songKeyId === 'songkey-s1-Ab' && c.sectionId !== 'bridge'
-        ? { ...c, cellState: 'comfortable' as const }
-        : c,
+    const twoOfThree = songCells.filter(
+      c => c.songKeyId === 'songkey-s1-Ab' && c.sectionId !== 'bridge',
     );
-    expect(computeSongLevelState(songKeys, played, 3, NOW).learningPercent).toBe(67);
+    expect(computeSongLevelState(
+      songKeys, songCells, 3, NOW, bandsFor(twoOfThree, 'fluent'),
+    ).learningPercent).toBe(67);
   });
 });
 

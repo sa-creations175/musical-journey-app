@@ -8,6 +8,7 @@ import {
 } from '../../lib/db';
 import { isCanonicalSongKey } from './matrix/keys';
 import { computeKeyStateFromCells } from './matrix/cellRollup';
+import { type CellBands, NO_CELL_BANDS, isCellTouched } from './matrix/cellBands';
 
 /**
  * Why the matrix's original key disagrees with `Song.key` — for every
@@ -125,14 +126,18 @@ export function describeKeyRow(
   cells: ReadonlyArray<SongCell>,
   runThroughCount: number,
   sectionCount: number,
+  bands: CellBands,
 ): SongKeyRowInfo {
+  // TOUCHED, not comfortable. `lastRunAt` is kept alongside the band
+  // until 4d removes it — a cell with a run behind it is engaged
+  // whether or not that run produced a rating.
   const engagedCellCount = cells.filter(
-    c => c.cellState !== 'empty' || c.lastRunAt !== null,
+    c => isCellTouched(bands, c.id) || c.lastRunAt !== null,
   ).length;
   const hasHistory = engagedCellCount > 0 || runThroughCount > 0;
 
   const derivedState = cells.length > 0
-    ? computeKeyStateFromCells(cells, sectionCount, row.wholeSongTestPassedAt ?? null)
+    ? computeKeyStateFromCells(cells, sectionCount, row.wholeSongTestPassedAt ?? null, bands)
     : null;
 
   const flags: KeyRowFlag[] = [];
@@ -193,6 +198,7 @@ export function classifySongKeys(
   cells: ReadonlyArray<SongCell> = [],
   runThroughs: ReadonlyArray<SongCellRunThrough> = [],
   sectionCount = 0,
+  bands: CellBands = NO_CELL_BANDS,
 ): SongKeyDiagnostic {
   const cellsByKey = new Map<string, SongCell[]>();
   for (const c of cells) {
@@ -206,7 +212,7 @@ export function classifySongKeys(
   }
 
   const rows: SongKeyRowInfo[] = [...keyRows]
-    .map(r => describeKeyRow(r, cellsByKey.get(r.id) ?? [], runsByKey.get(r.id) ?? 0, sectionCount))
+    .map(r => describeKeyRow(r, cellsByKey.get(r.id) ?? [], runsByKey.get(r.id) ?? 0, sectionCount, bands))
     .sort((a, b) => {
       if (a.isOriginalKey !== b.isOriginalKey) return a.isOriginalKey ? -1 : 1;
       return a.keyName.localeCompare(b.keyName);

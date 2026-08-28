@@ -17,6 +17,12 @@ import {
   cellFreshnessAlpha,
   cellHeat,
 } from '../cellHeat';
+import { type CellBands, NO_CELL_BANDS } from '../cellBands';
+
+/** Engagement and comfort come from the band now, not from the cell.
+ *  `started` = touched, `fluent` = comfortable. */
+const started: CellBands = new Map([['c1', { kind: 'started', tries: 0 }]]);
+const fluent: CellBands = new Map([['c1', { kind: 'band', band: 'fluent' }]]);
 
 const NOW = 1_760_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -32,12 +38,12 @@ function cell(over: Partial<SongCell> = {}): SongCell {
 
 describe('the fill ramp reads how far it has got', () => {
   it('an absent cell and an empty one both read empty', () => {
-    expect(cellHeat(null, NOW).fill).toBe(CELL_FILL_EMPTY);
-    expect(cellHeat(cell({ cellState: 'empty' }), NOW).fill).toBe(CELL_FILL_EMPTY);
+    expect(cellHeat(null, NOW, NO_CELL_BANDS).fill).toBe(CELL_FILL_EMPTY);
+    expect(cellHeat(cell(), NOW, NO_CELL_BANDS).fill).toBe(CELL_FILL_EMPTY);
   });
 
   it('started but no clean run yet', () => {
-    expect(cellHeat(cell({ consecutiveCleanCount: 0 }), NOW).fill)
+    expect(cellHeat(cell({ consecutiveCleanCount: 0 }), NOW, started).fill)
       .toBe(CELL_FILL_STARTED);
   });
 
@@ -45,13 +51,13 @@ describe('the fill ramp reads how far it has got', () => {
     // Guard the guard: the fixture differs from the one above ONLY in
     // the streak, so nothing else can be producing the change.
     for (const n of [1, 2]) {
-      expect(cellHeat(cell({ consecutiveCleanCount: n }), NOW).fill)
+      expect(cellHeat(cell({ consecutiveCleanCount: n }), NOW, started).fill)
         .toBe(CELL_FILL_PARTWAY);
     }
   });
 
   it('full once comfortable', () => {
-    expect(cellHeat(cell({ cellState: 'comfortable' }), NOW).fill)
+    expect(cellHeat(cell(), NOW, fluent).fill)
       .toBe(CELL_FILL_COMFORTABLE);
   });
 
@@ -67,10 +73,10 @@ describe('comfortable is a threshold, not the top of the ramp', () => {
   it('draws a border, which no other state does', () => {
     // Opacity alone reads as a gradient, and "three clean in a row" is
     // a different KIND of fact from two.
-    expect(cellHeat(cell({ cellState: 'comfortable' }), NOW).bordered).toBe(true);
-    expect(cellHeat(cell({ consecutiveCleanCount: 2 }), NOW).bordered).toBe(false);
-    expect(cellHeat(cell({ cellState: 'empty' }), NOW).bordered).toBe(false);
-    expect(cellHeat(null, NOW).bordered).toBe(false);
+    expect(cellHeat(cell(), NOW, fluent).bordered).toBe(true);
+    expect(cellHeat(cell({ consecutiveCleanCount: 2 }), NOW, started).bordered).toBe(false);
+    expect(cellHeat(cell(), NOW, NO_CELL_BANDS).bordered).toBe(false);
+    expect(cellHeat(null, NOW, NO_CELL_BANDS).bordered).toBe(false);
   });
 });
 
@@ -87,7 +93,7 @@ describe('freshness is a separate axis', () => {
     // was finished" and "nobody has touched it in a month", and
     // collapsing them would make an abandoned cell indistinguishable
     // from an unstarted one.
-    const stale = cellHeat(cell({ cellState: 'comfortable', lastRunAt: NOW - 40 * DAY }), NOW);
+    const stale = cellHeat(cell({ lastRunAt: NOW - 40 * DAY }), NOW, fluent);
     expect(stale.fill).toBe(CELL_FILL_COMFORTABLE);
     expect(stale.alpha).toBe(0.5);
     expect(stale.bordered).toBe(true);
@@ -96,7 +102,7 @@ describe('freshness is a separate axis', () => {
   it('an empty cell does not pretend to be stale', () => {
     // There is nothing to be fresh about, and fading it would make
     // "never started" read as "abandoned".
-    expect(cellHeat(cell({ cellState: 'empty', lastRunAt: null }), NOW).alpha).toBe(1);
+    expect(cellHeat(cell({ lastRunAt: null }), NOW, NO_CELL_BANDS).alpha).toBe(1);
   });
 
   it('a never-run cell reads as stale rather than fresh', () => {

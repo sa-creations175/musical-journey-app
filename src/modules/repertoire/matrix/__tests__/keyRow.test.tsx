@@ -1,3 +1,4 @@
+import { NO_CELL_BANDS } from '../cellBands';
 // @vitest-environment jsdom
 /**
  * One key, one row.
@@ -73,6 +74,7 @@ function render(over: Partial<Parameters<typeof KeyRow>[0]> = {}) {
         songKey={key()}
         sections={SECTIONS}
         cellsBySectionId={new Map([['sec-1', cell('sec-1')]])}
+        bands={NO_CELL_BANDS}
         isOriginal={false}
         now={NOW}
         dueWindows={W}

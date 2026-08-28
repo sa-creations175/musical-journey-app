@@ -42,6 +42,7 @@ beforeEach(async () => {
   await Promise.all([
     db.songs.clear(), db.songKeys.clear(), db.songCells.clear(),
     db.songCellRunThroughs.clear(), db.songKeyRunThroughs.clear(),
+    db.spacingState.clear(),
   ]);
 });
 
@@ -197,5 +198,84 @@ describe('the repair', () => {
     await db.songKeys.add(keyRow({ isOriginalKey: true }));
     await clearSeededKeyRow('sk-C');
     expect((await db.songKeys.get('sk-C'))?.isOriginalKey).toBe(true);
+  });
+});
+
+/** A seeded phantom row with one cell hanging off it and no evidence
+ *  of any kind. Each test below then adds exactly one signal. */
+async function seedSeededRow(): Promise<void> {
+  await db.songs.add(song());
+  await db.songKeys.add(keyRow());
+  await db.songCells.add({
+    id: 'cell-sk-C-sec1', songId: 's1', sectionId: 'sec1', songKeyId: 'sk-C',
+    cellState: 'empty', comfortableAt: null, consecutiveCleanCount: 0,
+    lastRunAt: null, lastRunWasClean: null, notes: null, lastEngagedAt: null,
+    createdAt: ADDED, updatedAt: ADDED,
+  } as never);
+}
+
+describe('practice evidence after the band rewire — THIS ONE DELETES DATA', () => {
+  // `findSeededKeyRows` decides which key rows may be quietly removed.
+  // It used to read `cellState !== 'empty'`. If it kept reading a
+  // retired field, every row would look untouched and real practice
+  // would be offered for deletion. These pin both signals it now uses.
+
+  const spacingRow = (cellId: string, history: unknown[]) => ({
+    id: `sp-repertoire-both-songCell:${cellId}`,
+    itemRef: `songCell:${cellId}`,
+    moduleRef: 'repertoire',
+    hand: 'both',
+    memoryType: 'integration',
+    acquisitionStage: 'acquiring',
+    currentIntervalDays: 0,
+    lastEngagedAt: 1,
+    nextDueAt: null,
+    performanceHistory: history,
+  });
+
+  it('a row whose only evidence is a BAND is not offered for deletion', async () => {
+    await seedSeededRow();
+    const cells = await db.songCells.toArray();
+    expect(cells.length).toBeGreaterThan(0);
+    await db.spacingState.put(
+      spacingRow(cells[0].id, [
+        { t: 1, kind: 'rating', rating: 'cruising', feel: 3, fromTest: true },
+        { t: 2, kind: 'rating', rating: 'cruising', feel: 3, fromTest: true },
+        { t: 3, kind: 'rating', rating: 'cruising', feel: 3, fromTest: true },
+      ]) as never,
+    );
+    const found = await findSeededKeyRows();
+    expect(found.map(f => f.keyRowId)).not.toContain(cells[0].songKeyId);
+  });
+
+  it('a CHARTING signal alone is enough to refuse — Started is engagement', async () => {
+    // The weakest possible evidence: one recency entry, no band, no
+    // run. It still means the user did something here.
+    await seedSeededRow();
+    const cells = await db.songCells.toArray();
+    await db.spacingState.put(
+      spacingRow(cells[0].id, [{ t: 1, kind: 'recency' }]) as never,
+    );
+    const found = await findSeededKeyRows();
+    expect(found.map(f => f.keyRowId)).not.toContain(cells[0].songKeyId);
+  });
+
+  it('a lastRunAt with no band still refuses — the two signals are independent', async () => {
+    // `lastRunAt` survives until 4d. A run that produced no rating is
+    // still a run, and dropping it would be the exact regression this
+    // function must never have.
+    await seedSeededRow();
+    const cells = await db.songCells.toArray();
+    await db.songCells.update(cells[0].id, { lastRunAt: 123 });
+    const found = await findSeededKeyRows();
+    expect(found.map(f => f.keyRowId)).not.toContain(cells[0].songKeyId);
+  });
+
+  it('with NO evidence of any kind, the row is still offered', async () => {
+    // Guard the guard: if this stopped finding anything, the three
+    // above would pass vacuously.
+    await seedSeededRow();
+    const found = await findSeededKeyRows();
+    expect(found.length).toBeGreaterThan(0);
   });
 });

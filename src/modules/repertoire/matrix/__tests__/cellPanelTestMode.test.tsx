@@ -183,7 +183,12 @@ describe('three clean runs in a row', () => {
     h.unmount();
   });
 
-  it('offers it on the third, and it makes the cell comfortable', async () => {
+  it('offers it on the third, and it no longer advances anything', async () => {
+    // MARK COMFORTABLE IS RETIRED. It used to write
+    // `cellState: 'comfortable'`; comfortable is now Fluent-or-better,
+    // derived from rated reps, so no button can reach it. The control
+    // still renders — removing it is 4b's job — but the field it wrote
+    // is a placeholder nothing reads, and this asserts it stays put.
     const h = mount();
     h.toTest();
     h.runsClean(3);
@@ -191,7 +196,11 @@ describe('three clean runs in a row', () => {
     await h.clickAsync('Mark Comfortable');
 
     const stored = await db.songCells.get('cell-1');
-    expect(stored?.cellState).toBe('comfortable');
+    // The claim it used to make is the thing that is gone.
+    expect(stored?.cellState).not.toBe('comfortable');
+    expect(stored?.comfortableAt).toBeNull();
+    // The runs themselves are still recorded — only the state claim is gone.
+    expect(await db.songCellRunThroughs.count()).toBeGreaterThan(0);
     h.unmount();
   });
 

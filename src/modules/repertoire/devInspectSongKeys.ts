@@ -1,5 +1,4 @@
-import { db, type Song, type SongCell, type SongKey } from '../../lib/db';
-import { isSongComfortableInOriginalKey } from './songComfortable';
+import { db } from '../../lib/db';
 
 /**
  * Diagnostic: dump every `songKeys` row for a given song. Loud
@@ -87,127 +86,22 @@ export async function inspectSongKeysByTitle(
 }
 
 /**
- * Dev tool: manufacture the "comfortable in original key" state for
- * a song without actually practicing it. Used to test the three-path
- * song progression flow (deepen / expand / move-on) without grinding
- * through a real 3-run-through cycle on every section.
+ * `makeComfortableInOriginalKey` WAS HERE, AND IS GONE.
  *
- * Writes per non-archived matrix section: an upserted `songCells`
- * row at (sectionId, originalKey.id) with cellState='comfortable',
- * consecutiveCleanCount=3, lastRunWasClean=true. comfortableAt is
- * preserved if the cell was already comfortable (so we don't fast-
- * forward time-gated downstream logic); set to now otherwise.
- * Existing notes / lastEngagedAt / createdAt are preserved.
+ * It fabricated a comfortable cell for every section of a song's
+ * original key — `cellState: 'comfortable'`, `consecutiveCleanCount:
+ * 3`, a `lastRunAt` — so a song could be pushed past the gate without
+ * playing it.
  *
- * Bails (warns + returns) when:
- *   · Song doesn't exist
- *   · No isOriginalKey:true row in songKeys
- *   · Zero non-archived matrix sections
+ * Nothing reads `cellState` any more. Comfortable is Fluent or better,
+ * derived from rated reps through the shared reader, so the only way
+ * to fabricate it now would be to write synthetic reps — evidence of
+ * practice that never happened, which is exactly what the design
+ * refuses. A dev tool that could still do it would be a way to lie to
+ * the band rule from the console.
  *
- * Writes go through `db.songCells.bulkPut` → Dexie sync hooks fire
- * → Supabase + other tabs reflect the change.
- *
- * Console:
- *   await __makeComfortableInOriginalKey('<songId>')
- *
- * Look the songId up via __inspectSongKeysByTitle('<fragment>')
- * if you only know the title.
- *
- * Sibling to isSongComfortableInOriginalKey — this is the inverse
- * data-manufacturing path for testing. The predicate's data
- * contract is the source of truth; this helper writes exactly what
- * the predicate reads.
+ * The read-only inspectors above are untouched.
  */
-export async function makeComfortableInOriginalKey(songId: string): Promise<{
-  song: Song;
-  originalKey: SongKey;
-  sectionCount: number;
-  cellsCreated: number;
-  cellsUpdated: number;
-}> {
-  const song = await db.songs.get(songId);
-  if (!song) {
-    throw new Error(`[makeComfortableInOriginalKey] no song with id ${songId}`);
-  }
-
-  const keys = await db.songKeys.where('songId').equals(songId).toArray();
-  const originalKey = keys.find(k => k.isOriginalKey) ?? null;
-  if (!originalKey) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[makeComfortableInOriginalKey] "${song.title}" has no isOriginalKey:true row in songKeys — the predicate would return false anyway. Aborting.`,
-    );
-    throw new Error('no original key row');
-  }
-
-  const allSections = await db.songMatrixSections
-    .where('songId').equals(songId)
-    .toArray();
-  const sections = allSections.filter(s => !s.isArchived);
-  if (sections.length === 0) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[makeComfortableInOriginalKey] "${song.title}" has no non-archived matrix sections — the predicate would return false. Set the matrix up first. Aborting.`,
-    );
-    throw new Error('no matrix sections');
-  }
-
-  const now = Date.now();
-  const rows: SongCell[] = [];
-  let cellsCreated = 0;
-  let cellsUpdated = 0;
-  for (const section of sections) {
-    // SectionSetupModal uses the same `cell-${songKeyId}-${sectionId}`
-    // id convention; matching it ensures we upsert into the existing
-    // row when one is already there instead of orphaning it.
-    const id = `cell-${originalKey.id}-${section.id}`;
-    const existing = await db.songCells.get(id);
-    if (existing) cellsUpdated += 1;
-    else cellsCreated += 1;
-    rows.push({
-      id,
-      songId,
-      sectionId: section.id,
-      songKeyId: originalKey.id,
-      cellState: 'comfortable',
-      // Preserve the original transition timestamp if already comfy
-      // — fast-forwarding it would mess with time-gated downstream
-      // logic that reads "how long has this been comfortable?"
-      comfortableAt: existing?.comfortableAt ?? now,
-      consecutiveCleanCount: 3,
-      lastRunAt: now,
-      lastRunWasClean: true,
-      notes: existing?.notes ?? null,
-      lastEngagedAt: existing?.lastEngagedAt ?? null,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-    });
-  }
-
-  await db.songCells.bulkPut(rows);
-
-  const ok = await isSongComfortableInOriginalKey(songId);
-  // eslint-disable-next-line no-console
-  console.group(
-    `[makeComfortableInOriginalKey] "${song.title}" — ${originalKey.keyName}`,
-  );
-  // eslint-disable-next-line no-console
-  console.log(`Sections (non-archived): ${sections.length}`);
-  // eslint-disable-next-line no-console
-  console.log(`Cells created: ${cellsCreated}, updated: ${cellsUpdated}`);
-  // eslint-disable-next-line no-console
-  console.log(`isSongComfortableInOriginalKey now reports: ${ok}`);
-  // eslint-disable-next-line no-console
-  console.groupEnd();
-
-  return {
-    song,
-    originalKey,
-    sectionCount: sections.length,
-    cellsCreated,
-    cellsUpdated,
-  };
-}
 
 // Expose on window so the helpers are reachable from the browser
 // console without needing a module import path.
@@ -215,9 +109,7 @@ if (typeof window !== 'undefined') {
   const w = window as unknown as {
     __inspectSongKeys?: typeof inspectSongKeys;
     __inspectSongKeysByTitle?: typeof inspectSongKeysByTitle;
-    __makeComfortableInOriginalKey?: typeof makeComfortableInOriginalKey;
   };
   w.__inspectSongKeys = inspectSongKeys;
   w.__inspectSongKeysByTitle = inspectSongKeysByTitle;
-  w.__makeComfortableInOriginalKey = makeComfortableInOriginalKey;
 }

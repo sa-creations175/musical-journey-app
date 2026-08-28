@@ -19,6 +19,7 @@
  * decisions out.
  */
 import type { Song, SongCell, SongKey } from '../../lib/db';
+import { type CellBands, isCellComfortable } from './matrix/cellBands';
 
 /** Minimum cadence for the maintenance progression path. When the
  *  song hasn't been engaged in this long, the maintenance-path block
@@ -41,6 +42,9 @@ export interface PostComfortableInputs {
    *  staleness floor. */
   lastEngagedAt: number | null;
   now: number;
+  /** Bands for the song's cells. Comfortable is Fluent-or-better,
+   *  and that is not derivable from a `SongCell`. */
+  bands: CellBands;
 }
 
 /**
@@ -81,6 +85,7 @@ export function findNextExpansionKey(
   song: Song,
   songKeys: ReadonlyArray<SongKey>,
   songCells: ReadonlyArray<SongCell>,
+  bands: CellBands,
 ): string | null {
   const order = song.expandKeysOrder;
   if (!order || order.length === 0) return null;
@@ -93,7 +98,7 @@ export function findNextExpansionKey(
       c => c.songId === song.id && c.songKeyId === key.id,
     );
     if (cells.length === 0) return keyName;
-    if (!cells.every(c => c.cellState === 'comfortable')) return keyName;
+    if (!cells.every(c => isCellComfortable(bands, c.id))) return keyName;
   }
   return null;
 }
@@ -127,6 +132,7 @@ export function decidePostComfortableBlock(
         inputs.song,
         inputs.songKeys,
         inputs.songCells,
+        inputs.bands,
       );
       if (next) return { kind: 'cell-drill-expansion', keyName: next };
       return { kind: 'whole-song-run', keyName: originalKey };

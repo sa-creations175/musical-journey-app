@@ -30,6 +30,7 @@ import { cellForLeadSheetEdit } from './leadSheetNudge';
 import { readSongTimer } from './songTimer';
 import { effectiveTimeSignature, parseTimeSignature, songBeatAxis } from './barGrid';
 import { sectionHasChords } from './sectionChords';
+import { useCellBands } from './matrix/useCellBands';
 import { noteSectionCharted } from './chartingEngagement';
 import {
   LYRIC_FOLD_VERSION,
@@ -643,11 +644,14 @@ function SongDetailInner({
   // Recomputed here rather than plumbed out of SongMatrixView:
   // `computeSongLevelState` is pure and this component already holds
   // every input it takes.
+  // The bands live in spacingState, not on the cell, so they need
+  // their own live query — see useCellBands.
+  const cellBands = useCellBands(matrixCells);
   const rollup = useMemo(
     () => computeSongLevelState(
-      matrixKeys, matrixCells, visibleMatrixSections.length, advancementNow,
+      matrixKeys, matrixCells, visibleMatrixSections.length, advancementNow, cellBands,
     ),
-    [matrixKeys, matrixCells, visibleMatrixSections.length, advancementNow],
+    [matrixKeys, matrixCells, visibleMatrixSections.length, advancementNow, cellBands],
   );
 
   const openCellPanel = useCallback((cellId: string) => {

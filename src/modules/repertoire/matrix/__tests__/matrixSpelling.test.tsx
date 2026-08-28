@@ -1,3 +1,4 @@
+import { NO_CELL_BANDS } from '../cellBands';
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
@@ -73,6 +74,7 @@ function renderRow(spelling: Spelling, keyName: string, key = songKey(keyName)) 
       songKey={key}
       sections={NO_SECTIONS}
       cellsBySectionId={new Map()}
+      bands={NO_CELL_BANDS}
       isOriginal={false}
       now={NOW}
     />,

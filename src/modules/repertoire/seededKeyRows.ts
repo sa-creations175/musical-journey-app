@@ -3,6 +3,7 @@ import {
   type Song,
   type SongKey,
 } from '../../lib/db';
+import { isCellTouched, loadCellBands } from './matrix/cellBands';
 
 /**
  * Key rows the old matrix migration invented, and never cleaned up.
@@ -68,7 +69,16 @@ async function hasPracticeEvidence(row: SongKey): Promise<boolean> {
     db.songCells.where('songKeyId').equals(row.id).toArray(),
   ]);
   if (keyRuns > 0) return true;
-  if (cells.some(c => c.cellState !== 'empty')) return true;
+  // TOUCHED, read from the band — a cell with any recorded engagement
+  // counts, including a charted section nobody has played yet.
+  //
+  // THIS FUNCTION DECIDES WHETHER A KEY ROW CAN BE DELETED. Reading a
+  // retired field here would make every row look untouched and offer
+  // real practice for removal, so `lastRunAt` is kept alongside the
+  // band until 4d retires it: two independent signals, and evidence
+  // from either is enough to refuse.
+  const bands = await loadCellBands(cells.map(c => c.id));
+  if (cells.some(c => isCellTouched(bands, c.id) || c.lastRunAt !== null)) return true;
 
   const cellIds = cells.map(c => c.id);
   if (cellIds.length === 0) return false;

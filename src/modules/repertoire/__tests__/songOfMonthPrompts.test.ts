@@ -173,11 +173,37 @@ function matrixSection(
   };
 }
 
+
+/** Bands live in `spacingState` now; the fixtures still express intent
+ *  through `cellState`, so this writes the rows that make it true —
+ *  three test reps at Clean read as Fluent. */
+async function bandSeededCells(): Promise<void> {
+  const cells = await db.songCells.toArray();
+  const rows = cells
+    .filter(c => c.cellState === 'comfortable')
+    .map(c => ({
+      id: `sp-repertoire-both-songCell:${c.id}`,
+      itemRef: `songCell:${c.id}`,
+      moduleRef: 'repertoire',
+      hand: 'both' as const,
+      memoryType: 'integration' as const,
+      acquisitionStage: 'acquiring' as const,
+      currentIntervalDays: 0,
+      lastEngagedAt: 1,
+      nextDueAt: null,
+      performanceHistory: [1, 2, 3].map(t => ({
+        t, kind: 'rating', rating: 'cruising', feel: 3, fromTest: true,
+      })),
+    }));
+  if (rows.length > 0) await db.spacingState.bulkPut(rows as never[]);
+}
+
 beforeEach(async () => {
   await db.goals.clear();
   await db.songs.clear();
   await db.songKeys.clear();
   await db.songCells.clear();
+  await db.spacingState.clear();
   await db.songMatrixSections.clear();
   await db.prompts.clear();
 });
@@ -203,6 +229,7 @@ describe('evaluateSongOfMonthPrompts — congrats', () => {
       songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
       songCell('c2', 's1', 'k1', 'learning', 'sec-2'),
     ]);
+  await bandSeededCells();
     await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
     await evaluateSongOfMonthPrompts(NOW + 1);
     expect(await db.prompts.count()).toBe(0);
@@ -219,6 +246,7 @@ describe('evaluateSongOfMonthPrompts — congrats', () => {
       songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
       songCell('c2', 's1', 'k1', 'comfortable', 'sec-2'),
     ]);
+  await bandSeededCells();
     await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
 
     await evaluateSongOfMonthPrompts(NOW + 1);
@@ -242,6 +270,7 @@ describe('evaluateSongOfMonthPrompts — congrats', () => {
     await db.songKeys.add(songKey('k1', 's1'));
     await db.songMatrixSections.add(matrixSection('sec-1', 's1', 0));
     await db.songCells.add(songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'));
+  await bandSeededCells();
     await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
 
     await evaluateSongOfMonthPrompts(NOW + 1);
@@ -261,6 +290,7 @@ describe('evaluateSongOfMonthPrompts — congrats', () => {
       songCell('c1', 's1', 'k1', 'comfortable', 'sec-s1'),
       songCell('c2', 's2', 'k2', 'comfortable', 'sec-s2'),
     ]);
+  await bandSeededCells();
 
     // First spotlight = s1.
     await db.goals.bulkAdd([umbrella(), spotlightSongChild('s1')]);
@@ -295,6 +325,7 @@ describe('evaluateSongOfMonthPrompts — tbd nudge', () => {
       songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
       songCell('c2', 's1', 'k1', 'learning', 'sec-2'),
     ]);
+  await bandSeededCells();
     await db.goals.bulkAdd([
       umbrella(),
       spotlightSongChild('s1'),
@@ -313,6 +344,7 @@ describe('evaluateSongOfMonthPrompts — tbd nudge', () => {
       songCell('c1', 's1', 'k1', 'comfortable', 'sec-1'),
       songCell('c2', 's1', 'k1', 'learning', 'sec-2'),
     ]);
+  await bandSeededCells();
     await db.goals.bulkAdd([
       umbrella(),
       spotlightSongChild('s1'),
@@ -341,6 +373,7 @@ describe('evaluateSongOfMonthPrompts — tbd nudge', () => {
       songCell('c2', 's1', 'k1', 'learning', 'sec-2'),
       songCell('c3', 's1', 'k1', 'learning', 'sec-3'),
     ]);
+  await bandSeededCells();
     await db.goals.bulkAdd([
       umbrella(),
       spotlightSongChild('s1'),
@@ -406,6 +439,7 @@ describe('evaluateSongComfortablePathPrompts', () => {
     await db.songCells.add(
       songCell(`c-${songId}`, songId, keyId, 'comfortable', `sec-${songId}`),
     );
+  await bandSeededCells();
   }
 
   it('does nothing when no songs exist', async () => {
@@ -418,6 +452,7 @@ describe('evaluateSongComfortablePathPrompts', () => {
     await db.songKeys.add(songKey('k1', 's1'));
     await db.songMatrixSections.add(matrixSection('sec-1', 's1', 0));
     await db.songCells.add(songCell('c1', 's1', 'k1', 'learning', 'sec-1'));
+  await bandSeededCells();
     await evaluateSongComfortablePathPrompts(NOW + 1);
     expect(await db.prompts.count()).toBe(0);
   });

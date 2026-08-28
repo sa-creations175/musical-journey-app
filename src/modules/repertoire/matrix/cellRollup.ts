@@ -8,6 +8,7 @@ import {
   type SongRunThroughRating,
 } from '../../../lib/db';
 import { decayStateAfterEngagement } from './solidDecay';
+import { type CellBands, isCellComfortable, isCellTouched, loadCellBands } from './cellBands';
 
 /**
  * Cell-state machine helpers for the cell interaction modal.
@@ -115,12 +116,19 @@ export function computeKeyStateFromCells(
   cells: ReadonlyArray<SongCell>,
   expectedSectionCount: number,
   wholeSongTestPassedAt: number | null,
+  /**
+   * The cells' bands. REQUIRED — a defaulted empty map would make
+   * every key read `not_started` at any call site that forgot it, and
+   * silently, since `not_started` is a legitimate answer.
+   */
+  bands: CellBands,
 ): SongKeyState {
   if (expectedSectionCount === 0) return 'not_started';
 
-  const anyTouched = cells.some(
-    c => c.cellState === 'learning' || c.cellState === 'comfortable',
-  );
+  // TOUCHED, which is not the same as comfortable. Since the Started
+  // broadening this is true of a cell with any recorded engagement,
+  // including a charted section nobody has played yet.
+  const anyTouched = cells.some(c => isCellTouched(bands, c.id));
 
   if (cells.length < expectedSectionCount) {
     // Missing cells — at least one section has no cell row. Treat
@@ -128,7 +136,11 @@ export function computeKeyStateFromCells(
     return anyTouched ? 'learning' : 'not_started';
   }
 
-  const allComfortable = cells.every(c => c.cellState === 'comfortable');
+  // COMFORTABLE IS NOW FLUENT-OR-BETTER, so it can only be reached by
+  // testing at tempo — practice is capped at Developing. The old gate
+  // counted three clean runs, which is a test described in terms of
+  // runs; this reads the rating that test produces.
+  const allComfortable = cells.every(c => isCellComfortable(bands, c.id));
   if (allComfortable && wholeSongTestPassedAt !== null) return 'solid';
   if (allComfortable) return 'comfortable';
 
@@ -195,15 +207,27 @@ export function applyAttemptsToCell(
     createdAt: now + i,
   }));
 
-  // Cell-state transition.
-  let nextState = cell.cellState;
-  let nextComfortableAt = cell.comfortableAt;
-  if (markComfortable && projectedCount >= 3 && cell.cellState !== 'comfortable') {
-    nextState = 'comfortable';
-    nextComfortableAt = now;
-  } else if (cell.cellState === 'empty' && attempts.length > 0) {
-    nextState = 'learning';
-  }
+  // CELL-STATE TRANSITION — RETIRED, AND STILL WRITING.
+  //
+  // Nothing reads `cellState` any more: every site that did now reads
+  // the band through `cellBands`. The advancement this used to perform
+  // is gone with it — `markComfortable && projectedCount >= 3` was the
+  // Mark Comfortable gate, and Mark Comfortable retires. A cell reaches
+  // Fluent by being tested at tempo, not by a button.
+  //
+  // THE FIELD KEEPS BEING WRITTEN ANYWAY, and deliberately: `cellState`
+  // is a synced NOT NULL Postgres column (`song_cells.cell_state`), so
+  // a row without it fails every song-cell upsert. Dropping the column
+  // is its own pass with its own migration.
+  //
+  // So it is pinned to whatever it already was — a placeholder that
+  // travels, claims nothing, and advances never. `markComfortable` and
+  // `comfortableAt` are left untouched for the same reason: 4d removes
+  // them, and removing them here would mean two shapes of half-retired
+  // cell in the database at once.
+  const nextState = cell.cellState;
+  const nextComfortableAt = cell.comfortableAt;
+  void markComfortable;
 
   const lastAttempt = attempts.length > 0 ? attempts[attempts.length - 1] : null;
 
@@ -265,10 +289,15 @@ export async function saveAttemptsAndRollup(args: {
   const updatedSiblings = args.siblingCells.map(c =>
     c.id === updatedCell.id ? updatedCell : c,
   );
+  // Bands read fresh. They live in `spacingState`, not on the cell, so
+  // the rollup has to fetch them rather than derive them from the rows
+  // it is holding.
+  const bands = await loadCellBands(updatedSiblings.map(c => c.id));
   const newKeyState = computeKeyStateFromCells(
     updatedSiblings,
     args.expectedSectionCount,
     args.songKey.wholeSongTestPassedAt,
+    bands,
   );
 
   // Decay snapshot writeback. Cell engagement is non-pass, so honor
@@ -514,6 +543,7 @@ export async function saveKeyAttemptsAndRollup(args: {
       args.siblingCells,
       args.expectedSectionCount,
       args.now, // wholeSongTestPassedAt is being set right now
+      await loadCellBands(args.siblingCells.map(c => c.id)),
     );
     updatedSongKey = {
       ...updatedSongKey,

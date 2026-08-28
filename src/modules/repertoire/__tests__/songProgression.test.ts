@@ -7,6 +7,18 @@ import {
   MAINTENANCE_PATH_WEEK_MS,
   resolveProgressionPath,
 } from '../songProgression';
+import type { CellBands } from '../matrix/cellBands';
+
+/** The retired `cellState`, expressed as the band that now means the
+ *  same thing: comfortable -> Fluent, learning -> Started. */
+function comfyBands(cells: ReadonlyArray<{ id: string; cellState: string }>): CellBands {
+  const m = new Map<string, { kind: 'band'; band: 'fluent' } | { kind: 'started'; tries: number }>();
+  for (const c of cells) {
+    if (c.cellState === 'comfortable') m.set(c.id, { kind: 'band', band: 'fluent' });
+    else if (c.cellState === 'learning') m.set(c.id, { kind: 'started', tries: 0 });
+  }
+  return m;
+}
 
 const NOW = 1_700_000_000_000;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -101,18 +113,18 @@ describe('isMaintenanceDue', () => {
 
 describe('findNextExpansionKey', () => {
   it('returns null when expandKeysOrder is missing', () => {
-    expect(findNextExpansionKey(mkSong({}), [], [])).toBeNull();
+    expect(findNextExpansionKey(mkSong({}), [], [], comfyBands([]))).toBeNull();
   });
 
   it('returns null when expandKeysOrder is empty', () => {
-    expect(findNextExpansionKey(mkSong({ expandKeysOrder: [] }), [], [])).toBeNull();
+    expect(findNextExpansionKey(mkSong({ expandKeysOrder: [] }), [], [], comfyBands([]))).toBeNull();
   });
 
   it('returns the first key that has no songKeys row yet (fresh territory)', () => {
     const song = mkSong({ expandKeysOrder: ['F', 'Bb', 'Eb'] });
     // Only the original-key row exists.
     const keys = [mkKey()];
-    expect(findNextExpansionKey(song, keys, [])).toBe('F');
+    expect(findNextExpansionKey(song, keys, [], comfyBands([]))).toBe('F');
   });
 
   it('returns the first key whose cells are not all comfortable', () => {
@@ -127,7 +139,7 @@ describe('findNextExpansionKey', () => {
       mkCell({ id: 'c-F1', songKeyId: 'k-F', cellState: 'comfortable' }),
       mkCell({ id: 'c-Bb1', songKeyId: 'k-Bb', cellState: 'learning' }),
     ];
-    expect(findNextExpansionKey(song, keys, cells)).toBe('Bb');
+    expect(findNextExpansionKey(song, keys, cells, comfyBands(cells))).toBe('Bb');
   });
 
   it('returns null when every key in the walk is fully comfortable', () => {
@@ -141,7 +153,7 @@ describe('findNextExpansionKey', () => {
       mkCell({ id: 'c-F1', songKeyId: 'k-F', cellState: 'comfortable' }),
       mkCell({ id: 'c-Bb1', songKeyId: 'k-Bb', cellState: 'comfortable' }),
     ];
-    expect(findNextExpansionKey(song, keys, cells)).toBeNull();
+    expect(findNextExpansionKey(song, keys, cells, comfyBands(cells))).toBeNull();
   });
 });
 
@@ -153,6 +165,7 @@ describe('decidePostComfortableBlock', () => {
         song,
         songKeys: [mkKey()],
         songCells: [mkCell()],
+        bands: comfyBands([mkCell()]),
         lastEngagedAt: null,
         now: NOW,
       }),
@@ -166,6 +179,7 @@ describe('decidePostComfortableBlock', () => {
         song,
         songKeys: [mkKey()],
         songCells: [mkCell()],
+        bands: comfyBands([mkCell()]),
         lastEngagedAt: null,
         now: NOW,
       }),
@@ -182,6 +196,7 @@ describe('decidePostComfortableBlock', () => {
         song,
         songKeys: [mkKey()],
         songCells: [],
+        bands: comfyBands([]),
         lastEngagedAt: null,
         now: NOW,
       }),
@@ -204,6 +219,7 @@ describe('decidePostComfortableBlock', () => {
         song,
         songKeys: keys,
         songCells: cells,
+      bands: comfyBands(cells),
         lastEngagedAt: null,
         now: NOW,
       }),
@@ -217,6 +233,7 @@ describe('decidePostComfortableBlock', () => {
         song,
         songKeys: [mkKey()],
         songCells: [mkCell()],
+        bands: comfyBands([mkCell()]),
         lastEngagedAt: NOW - 8 * DAY_MS,
         now: NOW,
       }),
@@ -230,6 +247,7 @@ describe('decidePostComfortableBlock', () => {
         song,
         songKeys: [mkKey()],
         songCells: [mkCell()],
+        bands: comfyBands([mkCell()]),
         lastEngagedAt: null,
         now: NOW,
       }),
@@ -243,6 +261,7 @@ describe('decidePostComfortableBlock', () => {
         song,
         songKeys: [mkKey()],
         songCells: [mkCell()],
+        bands: comfyBands([mkCell()]),
         lastEngagedAt: NOW - 3 * DAY_MS,
         now: NOW,
       }),

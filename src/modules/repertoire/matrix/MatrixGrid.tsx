@@ -4,6 +4,7 @@ import { keysOrderedFromOriginal } from './keys';
 import KeyRow, { gridTemplate } from './KeyRow';
 import type { DueWindows } from './keySpacing';
 import type { Spelling } from '../../../lib/spelling';
+import type { CellBands } from './cellBands';
 
 /**
  * The 12-row matrix grid. Layout decisions:
@@ -38,6 +39,9 @@ interface Props {
   sections: ReadonlyArray<SongMatrixSection>;
   songKeys: ReadonlyArray<SongKey>;
   songCells: ReadonlyArray<SongCell>;
+  /** Bands for every cell in the grid, read once by the parent so
+   *  all twelve rows share one query. */
+  bands: CellBands;
   /** Map keyed by songKeyId → whole-song-test summary. Computed
    *  once in SongMatrixView from the run-throughs query so all 12
    *  rows share one read. Missing entries default to 0 attempts in
@@ -68,6 +72,7 @@ export default function MatrixGrid({
   sections,
   songKeys,
   songCells,
+  bands,
   dueByKeyId,
   dueWindows,
   now,
@@ -130,6 +135,7 @@ export default function MatrixGrid({
               songKey={songKey}
               sections={visibleSections}
               cellsBySectionId={cellsBySectionId}
+              bands={bands}
               isOriginal={originalKeyName === keyName}
               now={now}
               nextDueAt={songKey ? dueByKeyId?.get(songKey.id) ?? null : null}
