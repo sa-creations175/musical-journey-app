@@ -5,7 +5,13 @@ import VoiceLeadingPatternGrid from './VoiceLeadingPatternGrid';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { voiceLeadingSurface } from './practiceTest/makeSurfaces';
 import { parseVoiceLeadingItemRef, voiceLeadingSubCellLabel } from './catalog';
-import { VOICE_LEADING_PATTERNS, VOICE_LEADING_PATTERN_BY_ID } from './catalog';
+import { VOICE_LEADING_PATTERN_BY_ID } from './catalog';
+import {
+  applyRemove,
+  applyRename,
+  mergePatternList,
+  type CustomPattern,
+} from './voiceLeadingPatternList';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useToast } from '../../components/Toaster';
 import { spellKey, type Spelling } from '../../lib/spelling';
@@ -13,26 +19,9 @@ import { useSpelling } from '../../lib/spellingPref';
 
 const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
 
-/** User-added VL pattern. Decoupled from the strict catalog
- *  discriminated union so users can carry arbitrary string ids
- *  without participating in the per-pattern sub-cell fan-out. The
- *  heat grid renders these as a single row × 12 keys (no sub-cell
- *  drill flow). */
-interface CustomPattern {
-  id: string;
-  label: string;
-  description?: string;
-  createdAt: number;
-}
-
-/** UI-display shape — uniform projection of either a builtin
- *  (catalog) pattern or a custom one. */
-interface DisplayPattern {
-  id: string;
-  label: string;
-  description?: string;
-  builtin: boolean;
-}
+// The list, the override rules and the two writers all live in
+// `voiceLeadingPatternList` — pure, and tested there. This file draws
+// what that returns.
 
 /**
  * Voice-leading drills: one heat-grid per pattern, spread across 12
@@ -66,20 +55,10 @@ export default function VoiceLeadingDrills() {
     })();
   }, []);
 
-  const allPatterns: DisplayPattern[] = useMemo(() => [
-    ...VOICE_LEADING_PATTERNS.map(p => ({
-      id: p.id,
-      label: p.label,
-      description: p.description,
-      builtin: true,
-    })),
-    ...custom.map(c => ({
-      id: c.id,
-      label: c.label,
-      description: c.description,
-      builtin: false,
-    })),
-  ], [custom]);
+  // MERGED BY ID, NOT CONCATENATED. An override replaces fields on the
+  // built-in it names; it never becomes a second section. See the note
+  // at the top of `voiceLeadingPatternList`.
+  const allPatterns = useMemo(() => mergePatternList(custom), [custom]);
 
   const persistCustom = async (next: CustomPattern[]) => {
     setCustom(next);
@@ -106,23 +85,12 @@ export default function VoiceLeadingDrills() {
     const trimmed = nameDraft.trim();
     if (trimmed === '') { setRenamingId(null); return; }
 
-    // Update the catalog-side label.
-    const builtin = VOICE_LEADING_PATTERNS.find(p => p.id === patternId);
-    if (builtin) {
-      // Convert the built-in to a custom override with the new name.
-      const overriden = custom.filter(c => c.id !== builtin.id);
-      overriden.push({
-        id: builtin.id,
-        label: trimmed,
-        description: builtin.description,
-        createdAt: Date.now(),
-      });
-      await persistCustom(overriden);
-    } else {
-      await persistCustom(custom.map(c =>
-        c.id === patternId ? { ...c, label: trimmed } : c,
-      ));
-    }
+    // DELETE ON DEFAULT. A rename back to the shipped name removes the
+    // override rather than storing one that says nothing — which is
+    // what a stray click on a title, saved on blur, used to leave
+    // behind. `null` means there is nothing worth writing.
+    const next = applyRename(custom, patternId, trimmed, Date.now());
+    if (next !== null) await persistCustom(next);
 
     // Update any existing DrillSkill rows so the heat grid / drill
     // list re-show the new label immediately.
@@ -144,12 +112,14 @@ export default function VoiceLeadingDrills() {
   return (
     <div className="space-y-5">
       {allPatterns.map(pattern => {
-        // If user renamed a builtin, our custom list carries the
-        // override; pick the last matching entry (custom wins).
-        const effective = custom.find(c => c.id === pattern.id) ?? pattern;
+        // `pattern` is already the merged result — the override has
+        // been applied. There is exactly one entry per id, so this key
+        // is unique; it used to collide, because two sections shared
+        // an id and both keyed on it.
+        const effective = pattern;
         return (
           <section
-            key={effective.id}
+            key={pattern.id}
             className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3"
           >
             <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -179,12 +149,33 @@ export default function VoiceLeadingDrills() {
                   <p className="text-xs text-neutral-500 mt-0.5">{effective.description}</p>
                 )}
               </div>
-              {!pattern.builtin && (
+              {/* THE SAME LINK, TWO OUTCOMES, because there are two
+                  things it can be acting on now that a rename no
+                  longer forks a pattern.
+
+                  On a pattern of the reader's own it removes the
+                  pattern. On an OVERRIDDEN BUILT-IN it deletes the
+                  override, which restores the shipped name — the
+                  pattern itself cannot be removed, because it ships.
+
+                  THE WORDING IS UNCHANGED AND IS A SEPARATE CALL.
+                  "Remove" is honest for the first and arguably wrong
+                  for the second; that is Silas's to decide, so the
+                  behaviour moved and the word did not. */}
+              {(!pattern.builtin || pattern.overridden) && (
                 <button
                   onClick={async () => {
-                    if (!confirm(`Remove pattern "${effective.label}"? Existing drill data stays but is hidden from this tab.`)) return;
-                    await persistCustom(custom.filter(c => c.id !== pattern.id));
-                    toast({ message: 'Custom pattern removed.', variant: 'warning' });
+                    const question = pattern.builtin
+                      ? `Restore the shipped name for "${effective.label}"?`
+                      : `Remove pattern "${effective.label}"? Existing drill data stays but is hidden from this tab.`;
+                    if (!confirm(question)) return;
+                    await persistCustom(applyRemove(custom, pattern.id));
+                    toast({
+                      message: pattern.builtin
+                        ? 'Shipped name restored.'
+                        : 'Custom pattern removed.',
+                      variant: 'warning',
+                    });
                   }}
                   className="text-neutral-400 hover:text-needswork text-[11px]"
                 >
