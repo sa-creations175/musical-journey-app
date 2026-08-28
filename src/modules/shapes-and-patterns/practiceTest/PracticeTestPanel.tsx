@@ -120,6 +120,8 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       await surface.write({
         ranSeconds: d.ranSeconds,
         targetSeconds: (draft as DrillDraft).targetSeconds,
+        // The three drill surfaces do not scope a rep — see DrillRecord.
+        scope: null,
         style: d.style,
         feel: d.feel,
         fromTest: false,
@@ -145,6 +147,8 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         await surface.write({
           ranSeconds: d.ranSeconds,
           targetSeconds: d.ranSeconds,
+          // The three drill surfaces do not scope a rep — see DrillRecord.
+          scope: null,
           // A test drill is always blocked, where there is a style at
           // all. The writer drops it on surfaces that have none.
           style: surface.hasStyle ? 'blocked' : null,

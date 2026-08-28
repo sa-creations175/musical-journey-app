@@ -1,5 +1,7 @@
 import { SONG_KEY_ITEM_REF_PREFIX } from '../../practice/endOfSessionPersistence';
 import { getSpacingState, recordEngagement } from '../../../lib/spacingState';
+import type { Feel } from '../../../lib/fluencyScale';
+import { feelToRating } from '../../shapes-and-patterns/drillModel';
 
 /**
  * Recording that a key was, or was not, proven.
@@ -103,4 +105,52 @@ export async function dueByKeyId(
     }
   }));
   return out;
+}
+
+/**
+ * Record a rated RUN against the song in this key.
+ *
+ * =====================================================================
+ * THE SCHEDULE IS PER SONG-AND-KEY, NEVER PER SECTION.
+ *
+ * A `songCell:` row is a BAND — how well one section goes in one key.
+ * This row is the SCHEDULE — when the song in this key should come
+ * round again. They are different levels and must not be conflated:
+ * scheduling twelve sections independently would have the app ask for
+ * a verse on Tuesday and the chorus of the same song on Thursday,
+ * which is not how anybody practises a song.
+ *
+ * So a rated run writes a band at every section it covered AND one
+ * engagement here. `recordKeyProving` above writes to this same ref
+ * for the whole-song test — one ref minter, two callers, rather than
+ * a second namespace that would have to be kept in step.
+ *
+ * WHAT IT IS NOT: this does not move a key's status. It records that
+ * the song was played in this key and how it felt, and lets the
+ * scheduler decide when to ask again.
+ * =====================================================================
+ */
+export async function recordSongKeyRun(args: {
+  songKeyId: string;
+  feel: Feel;
+  /** True for a rep given inside a test. Rides into the band rule;
+   *  absent would mean legacy, and this is not legacy. */
+  fromTest: boolean;
+  timestamp?: number;
+}): Promise<void> {
+  try {
+    await recordEngagement({
+      itemRef: songKeyItemRef(args.songKeyId),
+      moduleRef: 'repertoire',
+      signal: {
+        kind: 'rating',
+        rating: feelToRating(args.feel),
+        feel: args.feel,
+        fromTest: args.fromTest,
+      },
+      ...(args.timestamp !== undefined ? { timestamp: args.timestamp } : {}),
+    });
+  } catch (err) {
+    console.warn('[repertoire] song key run signal failed', err);
+  }
 }

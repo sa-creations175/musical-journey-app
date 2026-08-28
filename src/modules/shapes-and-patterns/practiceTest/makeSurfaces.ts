@@ -18,8 +18,13 @@ import {
   logSession,
   logVoiceLeadingDrillSession,
 } from '../drillModel';
+import { recordSongKeyRun } from '../../repertoire/matrix/proveKey';
+import {
+  REPERTOIRE_MODULE_REF, songCellItemRef,
+} from '../../repertoire/chartingEngagement';
 import {
   CHORD_RATE_OPTIONS,
+  SONG_RATE_OPTIONS,
   RATE_SHAPE,
   SCALE_RATE_OPTIONS,
   TARGET_RATES,
@@ -67,6 +72,7 @@ export function chordShapeSurface(args: {
     id: 'chord-shapes',
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
+    countsUp: false,
     hasStyle: true,
     rateLabel: 'changes a minute',
     targetRate: TARGET_RATES['chord-shapes'],
@@ -98,6 +104,7 @@ export function scaleSurface(args: {
     id: 'scales',
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
+    countsUp: false,
     // A scale is a single line — nothing to block, nothing to break.
     hasStyle: false,
     rateLabel: 'notes a minute',
@@ -127,6 +134,7 @@ export function voiceLeadingSurface(args: {
     id: 'voice-leading',
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
+    countsUp: false,
     hasStyle: false,
     rateLabel: 'chord changes a minute',
     targetRate: TARGET_RATES['voice-leading'],
@@ -142,6 +150,99 @@ export function voiceLeadingSurface(args: {
         ...(record.feel !== null ? { feelRating: record.feel } : {}),
       });
       await engage(args.itemRef, 'both', record);
+    },
+  };
+}
+
+/**
+ * Songs.
+ *
+ * =====================================================================
+ * TWO LEVELS, WRITTEN AT ONCE, AND THEY ARE NOT THE SAME THING.
+ *
+ *   the BAND   — one `songCell:<cellId>` row per section this run
+ *                covered. How well that section goes in this key.
+ *   the CLOCK  — one `songKey:<songKeyId>` row. When the song in this
+ *                key should come round again.
+ *
+ * A section does not get its own schedule. Twelve sections scheduled
+ * independently would have the app ask for a verse on Tuesday and the
+ * chorus of the same song on Thursday, which is not how anyone
+ * practises a song. See `recordSongKeyRun`.
+ *
+ * =====================================================================
+ * THE WHOLE SONG FANS OUT, and that is the reason `scope` exists on
+ * the record at all. A run of the whole song is evidence about every
+ * section in it — the same rating, written once per section, because
+ * that is what the run actually demonstrated. A run scoped to one
+ * section writes one band.
+ *
+ * NO SCOPE MEANS THE CELL YOU OPENED. Not "everything": a rep that
+ * cannot say what it covered must claim the least, not the most.
+ *
+ * =====================================================================
+ * AN UNRATED RUN WRITES NO BAND AND NO CLOCK. Rating a practice run is
+ * optional, and an unrated run does not count toward the three — so
+ * there is no verdict to record and nothing to schedule from. The run
+ * still happened; recording THAT is the practice log's job, not this
+ * writer's.
+ * =====================================================================
+ */
+export function songSurface(args: {
+  cellLabel: string;
+  skillLabel: string;
+  /** The cell the panel was opened on — what an unscoped run covers. */
+  cellId: string;
+  songKeyId: string;
+  /** sectionId → cellId, for this key. What `scope` resolves through. */
+  cellIdBySectionId: ReadonlyMap<string, string>;
+  /** The song's own tempo. NOT a figure from the settings tree: a song
+   *  is played at the tempo it is written at, and the tree has no
+   *  opinion about that. Null means the song has none set, so every
+   *  run counts — the same rule the cell panel already applies. */
+  songTempo: number | null;
+}): DrillSurface {
+  return {
+    id: 'song',
+    cellLabel: args.cellLabel,
+    skillLabel: args.skillLabel,
+    // A section takes as long as it takes.
+    countsUp: true,
+    // Nothing to block or break — you play the section.
+    hasStyle: false,
+    rateLabel: 'BPM',
+    targetRate: args.songTempo ?? 0,
+    rateOptions: SONG_RATE_OPTIONS,
+    // The rate IS the tempo. No arithmetic: a song is not some number
+    // of anything per beat, it is played at a speed.
+    rateFrom: (bpm) => bpm,
+    write: async (record) => {
+      if (record.feel === null) return;
+
+      const cellIds = record.scope === null
+        ? [args.cellId]
+        : record.scope
+          .map(sectionId => args.cellIdBySectionId.get(sectionId))
+          .filter((id): id is string => id !== undefined);
+
+      for (const cellId of cellIds) {
+        await recordEngagement({
+          itemRef: songCellItemRef(cellId),
+          moduleRef: REPERTOIRE_MODULE_REF,
+          signal: {
+            kind: 'rating',
+            rating: feelToRating(record.feel),
+            feel: record.feel,
+            fromTest: record.fromTest,
+          },
+        });
+      }
+
+      await recordSongKeyRun({
+        songKeyId: args.songKeyId,
+        feel: record.feel,
+        fromTest: record.fromTest,
+      });
     },
   };
 }
