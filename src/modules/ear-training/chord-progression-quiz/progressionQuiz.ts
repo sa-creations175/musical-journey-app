@@ -21,12 +21,16 @@ import {
 } from '../../repertoire/barGrid';
 import {
   SEMI_BY_DEGREE,
-  isEmpty,
   parseChordFunction,
   renderConcrete,
   renderNumbers,
   renderRoman,
 } from '../../repertoire/chordFunction';
+import {
+  mostCompleteArrangementId,
+  readSectionChords,
+  sectionHasChords,
+} from '../../repertoire/sectionChords';
 import { intervalColor } from '../../../lib/voicingColors';
 import { DEFAULT_SPELLING, type Spelling } from '../../../lib/spelling';
 
@@ -87,74 +91,19 @@ export function parseQuizItemRef(
 
 // --- Progression extraction ------------------------------------------
 
-/** Whether a chord is meaningful (not a blank slot). Mirrors the bar-grid
- *  packer's filter so phrase-mode arrangement counts line up. */
-function isMeaningfulChord(c: ChordFunction): boolean {
-  return Boolean(c.unparsed) || c.function !== '' || c.quality !== '' || Boolean(c.bass);
-}
-
-/**
- * The arrangement to quiz from: the MOST COMPLETE one — the arrangement
- * with the most charted chords — so a half-finished alternate never wins
- * over the full chart. Ties break to the earliest-created arrangement
- * (earliest in `section.arrangements`). Falls back to the section's
- * selected/first arrangement, then the implicit 'basic', when nothing is
- * charted.
- */
-export function mostCompleteArrangementId(section: SongSection): string {
-  const counts = new Map<string, number>();
-  for (const p of section.chordPlacements ?? []) {
-    if (!isMeaningfulChord(p.chord)) continue;
-    counts.set(p.arrangementId, (counts.get(p.arrangementId) ?? 0) + 1);
-  }
-  // Legacy phrase-anchored sections: count chords per arrangement from
-  // the phrase beat maps.
-  if (counts.size === 0) {
-    for (const phrase of section.phrases ?? []) {
-      for (const [arrId, beatMap] of Object.entries(phrase.chordsByArrangement ?? {})) {
-        const n = Object.values(beatMap).filter(isMeaningfulChord).length;
-        if (n > 0) counts.set(arrId, (counts.get(arrId) ?? 0) + n);
-      }
-    }
-  }
-  const fallback =
-    section.activeArrangementId || section.arrangements?.[0]?.id || 'basic';
-  if (counts.size === 0) return fallback;
-
-  // Earliest-created order = position in section.arrangements.
-  const order = new Map((section.arrangements ?? []).map((a, i) => [a.id, i]));
-  let bestId = fallback;
-  let bestCount = -1;
-  let bestOrder = Number.POSITIVE_INFINITY;
-  for (const [id, count] of counts) {
-    const ord = order.get(id) ?? Number.POSITIVE_INFINITY;
-    if (count > bestCount || (count === bestCount && ord < bestOrder)) {
-      bestId = id;
-      bestCount = count;
-      bestOrder = ord;
-    }
-  }
-  return bestId;
-}
-
 /** Ordered chords charted in a section's most-complete arrangement,
  *  left-to-right across the bar grid (empty bar remainders dropped). This
  *  is the raw sequence as charted — repeats included — suitable for the
- *  bar-grid reveal. Use `collapseProgression` for the compact line. */
-export function sectionChords(song: Song, section: SongSection): ChordFunction[] {
-  const { beatsPerBar } = parseTimeSignature(
-    effectiveTimeSignature(song, section),
-  );
-  const bars = deriveBarGrid(section, mostCompleteArrangementId(section), beatsPerBar);
-  const chords: ChordFunction[] = [];
-  for (const bar of bars) {
-    for (const cell of bar.cells) {
-      if (isEmpty(cell.chord)) continue;
-      chords.push(cell.chord);
-    }
-  }
-  return chords;
-}
+ *  bar-grid reveal. Use `collapseProgression` for the compact line.
+ *
+ *  THE IMPLEMENTATION MOVED. It now lives in
+ *  `repertoire/sectionChords.ts` as `readSectionChords`, shared with the
+ *  readiness classifier and the section-delete guard, which each used to
+ *  carry their own field walk and disagreed with this one. Re-exported
+ *  under the old name so every quiz caller and test keeps working
+ *  against identical behaviour. */
+export { mostCompleteArrangementId };
+export { readSectionChords as sectionChords };
 
 /** Number of bars in a section's bar grid (filled + explicit empty bars),
  *  used by the Bar-Count question. Reads the same derivation the lead
@@ -168,10 +117,12 @@ export function sectionBarCount(song: Song, section: SongSection): number {
 
 /** A section is quizzable only when its active arrangement has chords
  *  actually entered (the Bar-Count type and the recall types all need a
- *  real progression). Incomplete / empty sections are excluded. */
-export function hasChartData(song: Song, section: SongSection): boolean {
-  return sectionChords(song, section).length > 0;
-}
+ *  real progression). Incomplete / empty sections are excluded.
+ *
+ *  Same derivation as before — "the reader came back empty" — now
+ *  shared. `sectionHasChords` IS `readSectionChords(...).length > 0`,
+ *  so this alias cannot drift from the sequence the quiz reveals. */
+export const hasChartData = sectionHasChords;
 
 // --- Harmonic line (collapsed, for display + comparison) -------------
 

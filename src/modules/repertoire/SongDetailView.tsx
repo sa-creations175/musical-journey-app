@@ -29,6 +29,7 @@ import LeadSheetPracticeNudge from './LeadSheetPracticeNudge';
 import { cellForLeadSheetEdit } from './leadSheetNudge';
 import { readSongTimer } from './songTimer';
 import { effectiveTimeSignature, parseTimeSignature, songBeatAxis } from './barGrid';
+import { sectionHasChords } from './sectionChords';
 import {
   LYRIC_FOLD_VERSION,
   buildCellIndex,
@@ -1639,26 +1640,23 @@ function SongDetailInner({
   // don't qualify (seeds ship with lyrics pre-populated); it's chords,
   // alternates, or notes that imply real effort.
   const sectionHasUserContent = (s: SongSection): boolean => {
-    const anyChordTokens = (s.phrases ?? []).some(p => {
-      // Legacy pre-beat chord blob.
-      if ((p.chords ?? '').trim() !== '') return true;
-      // Any arrangement has at least one non-empty ChordFunction
-      // placement. `function` or `raw` carrying content both count.
-      const placements = p.chordsByArrangement ?? {};
-      for (const perArrangement of Object.values(placements)) {
-        for (const chord of Object.values(perArrangement)) {
-          if (chord.function !== '' || (chord.raw ?? '').trim() !== '') return true;
-        }
-      }
-      return false;
-    });
-    const anyAlt = (s.alternateChords ?? '').trim() !== '' || (s.alternateNote ?? '').trim() !== '';
+    // Chord evidence comes from the shared reader — see
+    // repertoire/sectionChords.ts. This used to be a private walk over
+    // `phrases[].chords`, `phrases[].chordsByArrangement`, `basicChords`
+    // and `alternateChords`, which is the same list the readiness
+    // classifier carried and had the same hole: no `chordPlacements`.
+    // A section charted entirely in the bar grid therefore read as
+    // EMPTY here, and this is the gate that decides whether deleting it
+    // asks for confirmation at all — so a fully charted section could
+    // be deleted with no dialog, on the strength of a predicate that
+    // had never heard of the storage the editor writes.
+    const anyChords = sectionHasChords(song, s);
+    const anyAltNote = (s.alternateNote ?? '').trim() !== '';
     const anyNotes = (s.notes ?? '').trim() !== '';
-    const legacyChords = (s.basicChords ?? '').trim() !== '';
     // More than one arrangement means user has created additional
     // chord variations beyond the default — treat as user content.
     const multipleArrangements = (s.arrangements ?? []).length > 1;
-    return anyChordTokens || anyAlt || anyNotes || legacyChords || multipleArrangements;
+    return anyChords || anyAltNote || anyNotes || multipleArrangements;
   };
 
   // Wrap deleteSection to route through a confirm dialog when the
@@ -2491,6 +2489,14 @@ function SongDetailInner({
               <ul className="list-disc pl-5 text-xs text-neutral-600 dark:text-neutral-300 space-y-0.5">
                 {(() => {
                   const s = confirmDeleteSection;
+                  // Phrase LINES carrying their own content. The chord
+                  // half of this test used to walk
+                  // `p.chordsByArrangement` directly — a third private
+                  // copy of "does this have chords", blind to
+                  // `chordPlacements` like the other two. A migrated
+                  // section's chords are no longer phrase-anchored at
+                  // all, so they are not a property of a line: the
+                  // section-level reader answers for them, below.
                   const phraseCount = (s.phrases ?? []).filter(p => {
                     const beatCount = (p.beats ?? []).filter(
                       b => (b.type === 'word' && (b.text ?? '').trim() !== ''),
