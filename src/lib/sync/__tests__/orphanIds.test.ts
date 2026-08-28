@@ -26,7 +26,7 @@ describe('computeOrphanIdsForReplacePull', () => {
       { id: 'r-old', updatedAt: NOW - PENDING_PUSH_PROTECTION_MS - 1 },
     ];
     expect(
-      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW),
+      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>()),
     ).toEqual(['r-old']);
   });
 
@@ -35,7 +35,7 @@ describe('computeOrphanIdsForReplacePull', () => {
       { id: 'r-recent', updatedAt: NOW - 1_000 },
     ];
     expect(
-      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW),
+      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>()),
     ).toEqual([]);
   });
 
@@ -46,7 +46,7 @@ describe('computeOrphanIdsForReplacePull', () => {
       { id: 'r-boundary', updatedAt: NOW - PENDING_PUSH_PROTECTION_MS },
     ];
     expect(
-      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW),
+      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>()),
     ).toEqual(['r-boundary']);
   });
 
@@ -55,7 +55,7 @@ describe('computeOrphanIdsForReplacePull', () => {
       { id: 'r-nofield', someOther: 1 },
     ];
     expect(
-      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW),
+      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>()),
     ).toEqual(['r-nofield']);
   });
 
@@ -64,7 +64,7 @@ describe('computeOrphanIdsForReplacePull', () => {
       { id: 'r-known', updatedAt: NOW - 10 * PENDING_PUSH_PROTECTION_MS },
     ];
     expect(
-      computeOrphanIdsForReplacePull(local, new Set(['r-known']), 'id', NOW),
+      computeOrphanIdsForReplacePull(local, new Set(['r-known']), 'id', NOW, new Set<string>()),
     ).toEqual([]);
   });
 
@@ -74,7 +74,7 @@ describe('computeOrphanIdsForReplacePull', () => {
       { skillId: 's-known', updatedAt: NOW - PENDING_PUSH_PROTECTION_MS - 1 },
     ];
     expect(
-      computeOrphanIdsForReplacePull(local, new Set(['s-known']), 'skillId', NOW),
+      computeOrphanIdsForReplacePull(local, new Set(['s-known']), 'skillId', NOW, new Set<string>()),
     ).toEqual(['s-stale']);
   });
 
@@ -85,7 +85,7 @@ describe('computeOrphanIdsForReplacePull', () => {
       { id: 'real', updatedAt: NOW - PENDING_PUSH_PROTECTION_MS - 1 },
     ];
     expect(
-      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW),
+      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>()),
     ).toEqual(['real']);
   });
 
@@ -100,7 +100,7 @@ describe('computeOrphanIdsForReplacePull', () => {
     ];
     const cloud = new Set(['songkey-Other-Song-G']);
     expect(
-      computeOrphanIdsForReplacePull(local, cloud, 'id', NOW),
+      computeOrphanIdsForReplacePull(local, cloud, 'id', NOW, new Set<string>()),
     ).toEqual(['songkey-Old-Song-C']);
   });
 });
@@ -148,7 +148,7 @@ describe('pending-push protection across the real schema', () => {
       feelRating: 3,
       timestamp: fresh,
     }];
-    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW)).toEqual([]);
+    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>())).toEqual([]);
   });
 
   it('protects a just-logged songCellRunThrough, which carries createdAt not timestamp', () => {
@@ -163,7 +163,7 @@ describe('pending-push protection across the real schema', () => {
       wasClean: true,
       createdAt: fresh,
     }];
-    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW)).toEqual([]);
+    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>())).toEqual([]);
   });
 
   it('protects a just-written songPracticeLog and productionLessonSession', () => {
@@ -171,7 +171,7 @@ describe('pending-push protection across the real schema', () => {
       { id: 'plog-1', songId: 's1', durationMin: 20, feelRating: 4, timestamp: fresh },
       { id: 'pls-1', lessonId: 'wf-01', timestamp: fresh },
     ];
-    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW)).toEqual([]);
+    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>())).toEqual([]);
   });
 
   it('still deletes those same rows once they are genuinely stale', () => {
@@ -181,7 +181,7 @@ describe('pending-push protection across the real schema', () => {
       { id: 'dses-old', timestamp: stale },
       { id: 'scrt-old', createdAt: stale },
     ];
-    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW))
+    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>()))
       .toEqual(['dses-old', 'scrt-old']);
   });
 
@@ -194,7 +194,7 @@ describe('pending-push protection across the real schema', () => {
       { id: 'ske-future', engagedAt: NOW + 10 * PENDING_PUSH_PROTECTION_MS, createdAt: stale },
       { id: 'pls-started', startedAt: fresh, timestamp: stale },
     ];
-    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW))
+    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>()))
       .toEqual(['ske-backdated', 'ske-future', 'pls-started']);
   });
 
@@ -209,6 +209,49 @@ describe('pending-push protection across the real schema', () => {
       correct: true,
       timestamp: fresh,
     }];
-    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW)).toEqual([]);
+    expect(computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set<string>())).toEqual([]);
+  });
+});
+
+describe('a queued write is not an orphan', () => {
+  // The sweep used to ignore the sync queue entirely, while the
+  // bulkPut a few lines below it had consulted the queue for a long
+  // time. So a row with an un-drained write was protected from being
+  // OVERWRITTEN by cloud state and still eligible for DELETION for not
+  // being part of it.
+  it('protects a row with a pending write, even with no recency field', () => {
+    const local = [{ id: 'r-queued' }];
+    expect(
+      computeOrphanIdsForReplacePull(
+        local, new Set(), 'id', NOW, new Set(['r-queued']),
+      ),
+    ).toEqual([]);
+  });
+
+  it('still deletes an unqueued row beside a queued one', () => {
+    const local = [{ id: 'r-queued' }, { id: 'r-orphan' }];
+    expect(
+      computeOrphanIdsForReplacePull(
+        local, new Set(), 'id', NOW, new Set(['r-queued']),
+      ),
+    ).toEqual(['r-orphan']);
+  });
+
+  it('protects a spacingState-shaped row, which has no recency field at all', () => {
+    // The exact shape that lost ten rows: no updatedAt, no timestamp,
+    // no createdAt. Before this, nothing could protect it.
+    const local = [{ id: 'sp-repertoire-both-songCell:c1', itemRef: 'songCell:c1' }];
+    expect(
+      computeOrphanIdsForReplacePull(
+        local, new Set(), 'id', NOW, new Set(['sp-repertoire-both-songCell:c1']),
+      ),
+    ).toEqual([]);
+  });
+
+  it('an empty queue changes nothing about the old behaviour', () => {
+    const local = [{ id: 'r-nofield' }];
+    expect(
+      computeOrphanIdsForReplacePull(local, new Set(), 'id', NOW, new Set()),
+    ).toEqual(['r-nofield']);
   });
 });

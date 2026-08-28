@@ -6,6 +6,7 @@ import {
   type SyncTableConfig,
 } from './tables';
 import { beginPull, endPull } from './pullLock';
+import { registerPullWrites, releasePullWrites } from './pullWrites';
 import { getCurrentUserId } from './currentUser';
 import { getLastLocalWriteAt } from './hooks';
 import {
@@ -217,6 +218,13 @@ async function pullOneTable(
   // don't echo back to Supabase.
   //
   // NOTE the id set comes from its own full query — see fetchAllCloudIds.
+  // Computed BEFORE the sweep, because the sweep needs it too. It used
+  // to be read further down for the bulkPut alone, which meant a row
+  // sitting in the queue was protected from being overwritten by cloud
+  // state but not from being deleted for not being in it.
+  const pendingItems = await db.syncQueue.where('tableName').equals(cfg.dexie).toArray();
+  const pendingIds = new Set<string>(pendingItems.map(it => it.rowId));
+
   if (shouldSweepOrphans(mode, cfg.appendOnly, isSweepDue(userId, cfg.pg))) {
     const cloudIds = await fetchAllCloudIds(cfg, userId);
     if (cloudIds) {
@@ -226,6 +234,7 @@ async function pullOneTable(
         cloudIds,
         cfg.idField,
         Date.now(),
+        pendingIds,
       );
       if (orphanIds.length > 0) {
         await table.bulkDelete(orphanIds);
@@ -243,9 +252,6 @@ async function pullOneTable(
   //      newer `updatedAt` than the cloud copy (e.g. Song; epoch ms on
   //      both sides via the data blob). Tables without `updatedAt` fall
   //      through to the legacy unconditional overwrite.
-  const pendingItems = await db.syncQueue.where('tableName').equals(cfg.dexie).toArray();
-  const pendingIds = new Set<string>(pendingItems.map(it => it.rowId));
-
   const lookupIds = cloudRows
     .map(row => row[cfg.idField])
     .filter((id): id is string => typeof id === 'string' && id !== '');
@@ -258,7 +264,7 @@ async function pullOneTable(
   const rowsToPut = computeRowsToBulkPut(cloudRows, pendingIds, localById, cfg.idField);
 
   if (rowsToPut.length > 0) {
-    await table.bulkPut(rowsToPut);
+    await putFromCloud(table, cfg, rowsToPut);
   }
 
   // Advance ONLY after the write landed. Rows that computeRowsToBulkPut
@@ -267,6 +273,35 @@ async function pullOneTable(
   // copy is better, and a pending local write will re-push with a fresh
   // updated_at and come back down anyway.
   advanceWatermark(userId, cfg.pg, maxUpdatedAt);
+}
+
+/**
+ * Lay cloud rows into Dexie without them echoing back up.
+ *
+ * THE ONLY WAY THE PULL SHOULD WRITE. Registering the ids and calling
+ * `bulkPut` are one operation, so a future pull path cannot do the
+ * write and forget the registration — which would push every pulled
+ * row straight back to the cloud and pull it down again.
+ *
+ * The release is in a `finally`: a failed write that left its ids
+ * claimed would permanently suppress those rows, and the next genuine
+ * edit to one of them would silently stop syncing. That is a worse
+ * failure than the echo, because it is invisible.
+ */
+async function putFromCloud(
+  table: DexieMiniTable,
+  cfg: SyncTableConfig,
+  rows: ReadonlyArray<Record<string, unknown>>,
+): Promise<void> {
+  const ids = rows
+    .map(row => row[cfg.idField])
+    .filter((id): id is string => typeof id === 'string' && id !== '');
+  registerPullWrites(cfg.dexie, ids);
+  try {
+    await table.bulkPut(rows as unknown[]);
+  } finally {
+    releasePullWrites(cfg.dexie, ids);
+  }
 }
 
 /** The slice of the Dexie Table type we actually need inside pull. */
@@ -410,12 +445,28 @@ export function computeOrphanIdsForReplacePull(
   cloudIds: ReadonlySet<string>,
   idField: string,
   now: number,
+  /**
+   * Ids with an un-drained write in the sync queue.
+   *
+   * REQUIRED, NOT DEFAULTED. A caller that forgets it would silently
+   * get the old, unprotected behaviour back — and a safety argument
+   * that is easy to omit is the shape of the bug this closes. The
+   * `bulkPut` a few lines below has consulted the queue for a long
+   * time; the sweep did not, so a row could be protected from being
+   * overwritten by cloud state while remaining eligible for deletion
+   * for not being part of it.
+   */
+  pendingIds: ReadonlySet<string>,
 ): string[] {
   const orphans: string[] = [];
   for (const row of localRows) {
     const id = row[idField];
     if (typeof id !== 'string' || id === '') continue;
     if (cloudIds.has(id)) continue;
+    // Queued means the cloud has not been told about this row yet.
+    // Absence from the cloud is therefore expected, not evidence of a
+    // deletion elsewhere.
+    if (pendingIds.has(id)) continue;
     const recency = rowRecency(row);
     if (
       recency !== null

@@ -1,5 +1,6 @@
 import { db } from '../db';
 import { isPulling } from './pullLock';
+import { isPullWrite } from './pullWrites';
 import { enqueue } from './engine';
 import { SYNC_TABLES, type SyncTableConfig } from './tables';
 import { getCurrentUserId } from './currentUser';
@@ -35,9 +36,16 @@ export function getLastLocalWriteAt(): number {
  * ordinary Dexie writes (db.songs.put(...), etc.) are automatically
  * mirrored to Supabase — no refactor of existing call sites needed.
  *
- * Echo prevention: while the sync engine is pulling cloud data into
- * Dexie, `isPulling()` returns true and all hooks no-op. Otherwise
- * every pulled row would immediately re-push to the cloud.
+ * Echo prevention: the pull registers the ids it is about to write
+ * (`pullWrites.ts`) and the upsert hooks skip exactly those rows.
+ * Otherwise every pulled row would immediately re-push to the cloud.
+ *
+ * IT IS PER-ROW, NOT PER-PULL, and that is load-bearing. The old test
+ * was `isPulling()` — true for the whole of `pullAll`, which is a loop
+ * over every synced table each doing paged fetches plus an id sweep.
+ * An app write landing anywhere in those seconds was never enqueued,
+ * so it never reached the cloud, and the orphan sweep then deleted it
+ * for not being in the cloud it had never been offered to.
  *
  * --- IMPORTANT: why setTimeout(fn, 0) and NOT queueMicrotask ---
  *
@@ -77,8 +85,13 @@ export function installSyncHooks(): void {
 
     table.hook('creating', (...args: unknown[]) => {
       if (!shouldSync()) return;
-      lastLocalWriteAt = Date.now();
       const obj = args[1] as UnknownRow;
+      // args[0] is Dexie's primKey. Preferred only as a fallback: the
+      // id we sync on is `cfg.idField`, which is not always `id`
+      // (skillId, entryId, key, …), and that is the field the pull
+      // registered under.
+      if (isOwnPullWrite(cfg, obj, args[0])) return;
+      lastLocalWriteAt = Date.now();
       // Snapshot now — Dexie may mutate `obj` between the hook and
       // our deferred work (e.g. if downstream code fills fields).
       const snapshot = { ...obj };
@@ -89,25 +102,33 @@ export function installSyncHooks(): void {
 
     table.hook('updating', (...args: unknown[]) => {
       if (!shouldSync()) return;
-      lastLocalWriteAt = Date.now();
       const mods = (args[0] as UnknownRow) ?? {};
       const obj = (args[2] as UnknownRow) ?? {};
       // Post-update row = old obj merged with new mods.
       const merged = { ...obj, ...mods };
+      // args[1] is Dexie's primKey on this hook.
+      if (isOwnPullWrite(cfg, merged, args[1])) return;
+      lastLocalWriteAt = Date.now();
       setTimeout(() => {
         queueUpsert(cfg, merged);
       }, 0);
     });
 
     table.hook('deleting', (...args: unknown[]) => {
-      // Deletes always enqueue when a user is signed in, regardless
-      // of isPulling(). The pulling guard is correct for upserts —
-      // it prevents echo loops when replace-pull bulkPuts cloud
-      // rows into Dexie — but it was silently dropping explicit
-      // user deletes that raced a tab-focus pull (verified by
-      // diagnostic logs: confirmed-plan Re-plan + concurrent pull
-      // left the syncQueue empty and the next replace-pull
-      // restored the rows).
+      // Deletes always enqueue when a user is signed in. This hook
+      // hit the raced-pull bug first — a blanket `isPulling()` check
+      // was silently dropping explicit user deletes that raced a
+      // tab-focus pull (verified by diagnostic logs: confirmed-plan
+      // Re-plan + concurrent pull left the syncQueue empty and the
+      // next replace-pull restored the rows) — and could answer it by
+      // always enqueueing, because a Supabase delete of an
+      // already-absent row is a no-op.
+      //
+      // An upsert has no such property, so the same answer was not
+      // available to `creating`/`updating`; they identify the pull's
+      // own rows instead. See `pullWrites.ts`. Both hooks now ask the
+      // same question, one way each, rather than sharing a blunt flag
+      // that was wrong for both.
       //
       // Replace-pull's own orphan-bulkDelete also fires this hook
       // and will enqueue 'delete' ops for already-deleted cloud
@@ -134,8 +155,32 @@ export function installSyncHooks(): void {
   }
 }
 
+/**
+ * WHETHER THIS ROW IS THE PULL'S OWN, not whether a pull is happening.
+ *
+ * The distinction is the whole of the fix. `isPulling()` said "a pull
+ * is in flight somewhere", which suppressed every app write for the
+ * seconds a pull takes across forty tables — and a write suppressed
+ * here is never enqueued, so it never reaches the cloud at all. The
+ * pull now names the rows it is writing, and only those are skipped.
+ *
+ * See `pullWrites.ts` for why the `deleting` hook's always-enqueue
+ * answer could not be reused.
+ */
+function isOwnPullWrite(
+  cfg: SyncTableConfig,
+  row: UnknownRow,
+  primKey: unknown,
+): boolean {
+  const own = row[cfg.idField];
+  const id = typeof own === 'string' && own !== ''
+    ? own
+    : typeof primKey === 'string' ? primKey : '';
+  if (id === '') return false;
+  return isPullWrite(cfg.dexie, id);
+}
+
 function shouldSync(): boolean {
-  if (isPulling()) return false;
   if (!getCurrentUserId()) return false;
   return true;
 }

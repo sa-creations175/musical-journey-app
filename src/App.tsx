@@ -91,10 +91,18 @@ export default function App() {
         console.warn('[spacing] clearing declared stages failed', err);
       });
     // ONE-TIME, AND IT ONLY DELETES. Clears the duplicate spacing rows
-    // the charting backfill wrote before its insert was keyed. Runs
-    // BEFORE that backfill so the two never interleave: the backfill
-    // is now a no-op on a cell that already has a row, and this leaves
-    // exactly one.
+    // the charting backfill wrote before its insert was keyed.
+    //
+    // NOT ORDERED AGAINST THE BACKFILL BELOW. Both are void-ed
+    // promises in one effect body, so they are ordered in this source
+    // and not in time — an earlier version of this comment claimed
+    // otherwise, which is the kind of wrong comment that makes the
+    // next person reason from a guarantee that does not exist.
+    //
+    // They do not need ordering. The dedupe only deletes rows that
+    // already exist, and the backfill is a no-op on a cell that has
+    // one; interleaved, the worst case is a duplicate left for the
+    // next run to clear.
     void removeDuplicateSpacingRows()
       .then(r => { if (!r.skipped && r.removed > 0) console.info(describeDedupe(r)); })
       .catch(err => {
