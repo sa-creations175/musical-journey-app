@@ -197,7 +197,6 @@ export async function planFlashcardMigration(
       itemRef: state.cardId,
       moduleRef,
       hand: 'both',
-      style: 'solid',
       memoryType: memoryType as SpacingState['memoryType'],
       acquisitionStage: 'acquiring',
       currentIntervalDays: 0,

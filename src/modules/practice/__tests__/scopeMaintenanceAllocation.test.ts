@@ -177,7 +177,7 @@ describe('selection gate in aggregateGoalCandidatesByModule', () => {
     acquisitionStage: SpacingState['acquisitionStage'],
     nextDueAt: number | null,
   ): SpacingState => ({
-    id: itemRef, itemRef, moduleRef: HF, hand: 'both', style: 'solid',
+    id: itemRef, itemRef, moduleRef: HF, hand: 'both',
     memoryType: 'declarative', acquisitionStage, currentIntervalDays: 1,
     lastEngagedAt: 0, nextDueAt, performanceHistory: [],
   });

@@ -436,7 +436,6 @@ describe('buildBlockBudgetsFromWeeklyNeeds — Step 9a Part B spacing floor', ()
       moduleRef,
       memoryType: 'declarative',
       hand: 'both',
-      style: 'solid',
       acquisitionStage: 'acquiring',
       currentIntervalDays: 0,
       lastEngagedAt: nextDueAt,

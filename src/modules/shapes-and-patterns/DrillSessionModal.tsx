@@ -59,13 +59,18 @@ interface Props {
 
 type Phase = 'setup' | 'running' | 'paused' | 'assess';
 
-// Every chord-shape cell is drilled across SIX skills — each hand
-// (left → right → both) in each playing style (solid → arpeggiated),
-// hand-first: LH solid → LH arpeggio → RH solid → RH arpeggio → Both
-// solid → Both arpeggio. Each is its own timer + rating + spacing
-// state. The modal walks these in order, advancing on each "Save
-// rating"; only after the final skill (Both arpeggiated) does it call
-// onLogged (which advances the runner / closes the standalone modal).
+// IT WALKED SIX. IT WALKS THREE.
+//
+// Every chord-shape cell used to be drilled across six skills — each
+// hand in each playing style, LH solid → LH arpeggio → RH solid → RH
+// arpeggio → Both solid → Both arpeggio — because blocked and broken
+// were separate spacing rows with separate ratings. The arpeggiated
+// dimension is retired, so a cell is three passes: left, right, both.
+//
+// `style` is still written on the DrillSession row, and this path
+// always writes `solid`. That is honest rather than lossy: this modal
+// never asked which manner you were playing in, it just walked both.
+// The Practice/Test panel is the surface that asks.
 const HAND_LABEL: Record<DrillHand, string> = {
   left: 'Left hand',
   right: 'Right hand',
@@ -77,11 +82,8 @@ interface DrillSkillStep {
 }
 const ALL_SKILLS: ReadonlyArray<DrillSkillStep> = [
   { hand: 'left', style: 'solid' },
-  { hand: 'left', style: 'arpeggiated' },
   { hand: 'right', style: 'solid' },
-  { hand: 'right', style: 'arpeggiated' },
   { hand: 'both', style: 'solid' },
-  { hand: 'both', style: 'arpeggiated' },
 ];
 
 const ALL_HANDS: ReadonlyArray<DrillHand> = ['left', 'right', 'both'];
@@ -401,18 +403,17 @@ export default function DrillSessionModal({
       notes,
     });
     toast({
-      message: `Logged ${formatDuration(elapsedSeconds)} on "${drillType.name}" (${HAND_LABEL[currentHand]} · ${currentStyle}).`,
+      message: `Logged ${formatDuration(elapsedSeconds)} on "${drillType.name}" (${HAND_LABEL[currentHand]}).`,
       variant: 'success',
     });
     if (skillIndex < SKILLS.length - 1) {
-      // More skills to drill — refresh in place for the next skill
-      // (next style on this hand, or the first style of the next hand).
-      // Do NOT call onLogged yet (that advances the runner / unmounts
-      // the standalone modal).
+      // More hands to drill — refresh in place for the next one. Do
+      // NOT call onLogged yet (that advances the runner / unmounts the
+      // standalone modal).
       advanceToSkill(skillIndex + 1);
       return;
     }
-    // All six skills done → hand back to the caller.
+    // All three hands done → hand back to the caller.
     onLogged(session);
     // In-session: close so the runner advances to the next cell (its
     // onClose-after-log is swallowed via justLoggedRef). Standalone:
@@ -444,8 +445,8 @@ export default function DrillSessionModal({
       title={drillType.name}
       description={
         fromRunner
-          ? `${skill.label} · ${HAND_LABEL[currentHand]} · ${currentStyle} · ~${targetSeconds}s in this session`
-          : `${skill.label} · ${HAND_LABEL[currentHand]} · ${currentStyle}`
+          ? `${skill.label} · ${HAND_LABEL[currentHand]} · ~${targetSeconds}s in this session`
+          : `${skill.label} · ${HAND_LABEL[currentHand]}`
       }
       footer={phase === 'assess' ? (
         <div className="flex items-center justify-end gap-2">

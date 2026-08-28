@@ -173,16 +173,25 @@ export const TIME_PER_ATTEMPT_SECONDS: Readonly<
 export const HANDS_PER_SHAPE_ITEM = 3;
 
 /**
- * Chord shapes are drilled in TWO playing styles per hand — solid
- * (block) then arpeggiated — each its own timer, rating, and spacing
- * state. So a chord-shape item is 3 hands × 2 styles = 6 skill passes.
- * Scales have no style dimension (a scale is a single-note melodic
- * line) and stay at 3 passes; voice leading stays single-pass.
+ * IT WAS TWO, AND THE SECOND ONE IS GONE.
  *
- * The per-cell seed constants (CHORD_SHAPE_*) are PER-HAND-PER-STYLE
- * durations — multiply by the item's skill-pass count
+ * Chord shapes used to be drilled in two playing styles per hand —
+ * solid then arpeggiated — each with its own timer, rating and spacing
+ * row, so an item cost 3 hands × 2 styles = 6 passes. The arpeggiated
+ * dimension is retired: the manner describes a drill rather than a
+ * skill, and one square has one rating. A chord-shape item costs three
+ * passes, the same as a scale.
+ *
+ * KEPT AS A NAMED ONE RATHER THAN DELETED. Every call site multiplies
+ * by it, and a 1 that is visible at each of them says "styles are not
+ * a dimension any more" where a silent removal would just look like
+ * arithmetic somebody forgot. It also leaves one place to change if a
+ * second manner ever earns its own rating again.
+ *
+ * The per-cell seed constants (CHORD_SHAPE_*) are PER-HAND durations —
+ * multiply by the item's skill-pass count
  * (`shapesItemSkillPassCount`) for the full session budget. */
-export const STYLES_PER_CHORD_SHAPE_ITEM = 2;
+export const STYLES_PER_CHORD_SHAPE_ITEM = 1;
 
 /** Hand passes a given S&P itemRef costs: 3 for scales & chord shapes
  *  (left / right / both), 1 for voice leading and anything else.

@@ -17,7 +17,6 @@ async function seed(over: Partial<SpacingState> = {}): Promise<SpacingState> {
     itemRef: 'ks-4',
     moduleRef: 'harmonic-fluency',
     hand: 'both',
-    style: 'solid',
     memoryType: 'declarative',
     acquisitionStage: 'acquired',
     currentIntervalDays: 30,

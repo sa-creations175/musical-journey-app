@@ -30,7 +30,6 @@ function row(
     moduleRef,
     memoryType: 'declarative',
     hand: 'both',
-    style: 'solid',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 0,
     lastEngagedAt: nextDueAt,
@@ -107,25 +106,26 @@ describe('computeAlgoSpacingDemandSeconds — ear-training', () => {
 // ---------------------------------------------------------------------
 
 describe('computeAlgoSpacingDemandSeconds — shapes-and-patterns', () => {
-  it('chord-shape (non-fluid) → 90 s × 6 passes (3 hands × 2 styles) per due cell', () => {
+  it('chord-shape (non-fluid) → 90 s × 3 passes (one per hand) per due cell', () => {
     const rows: SpacingState[] = [
       row('chord-shape:maj7:C:root', 'shapes-and-patterns', PAST),
       row('chord-shape:min7:G:root', 'shapes-and-patterns', PAST),
       row('chord-shape:dim:D:root',  'shapes-and-patterns', FUTURE),
     ];
-    // Each due cell is drilled left / right / both × solid / arpeggiated
-    // → 6 × 90 s.
+    // Each due cell is drilled left / right / both → 3 × 90 s. It was
+    // six before the arpeggiated dimension was retired, which booked
+    // twice the time a session actually needed.
     expect(computeAlgoSpacingDemandSeconds('shapes-and-patterns', rows, NOW))
-      .toBe(6 * (2 * 90));
+      .toBe(3 * (2 * 90));
   });
 
-  it('chord-shape fluid → 120 s × 6 passes (3 hands × 2 styles)', () => {
+  it('chord-shape fluid → 120 s × 3 passes (one per hand)', () => {
     const rows: SpacingState[] = [
       row('chord-shape:maj7:C:fluid', 'shapes-and-patterns', PAST),
       row('chord-shape:min7:G:root',  'shapes-and-patterns', PAST),
     ];
     expect(computeAlgoSpacingDemandSeconds('shapes-and-patterns', rows, NOW))
-      .toBe(6 * (120 + 90));
+      .toBe(3 * (120 + 90));
   });
 
   it('scale rows use SCALE_KIND_SECONDS × 3 hands (major 30, natural-minor 90, pents 30)', () => {

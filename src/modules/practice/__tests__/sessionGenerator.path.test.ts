@@ -19,7 +19,6 @@ function row(partial: Partial<SpacingState>): SpacingState {
     id: 'row-x',
     itemRef: 'item-x',
     hand: 'both',
-    style: 'solid',
     moduleRef: 'shapes-and-patterns',
     memoryType: 'procedural',
     acquisitionStage: 'new',

@@ -2361,13 +2361,6 @@ export interface SpacingState {
    *  dimension. Part of the per-item uniqueness via the
    *  [moduleRef+itemRef+hand] index. */
   hand: DrillHand;
-  /** Playing style this spacing row tracks. Solid and arpeggiated are
-   *  separate skills for chord shapes, each with independent spacing
-   *  state. 'solid' for every non-chord-shape module (scales, voice
-   *  leading, intervals, repertoire, …) and for all rows migrated from
-   *  before the style dimension. Part of the per-item uniqueness via
-   *  the [moduleRef+itemRef+hand+style] index. */
-  style: DrillStyle;
   memoryType: MemoryType;
   acquisitionStage: AcquisitionStage;
   currentIntervalDays: number;
@@ -4292,6 +4285,62 @@ export class AppDB extends Dexie {
      * store does not drop that, and it is not to be dropped.
      */
     this.version(38).stores({ flashcardStates: null });
+
+    /**
+     * The arpeggiated dimension comes out of the spacing row.
+     *
+     * =================================================================
+     * `style` WAS PART OF A ROW'S IDENTITY AND IS NOT ANY MORE.
+     *
+     * Chord shapes were the only module that ever varied it: blocked
+     * and broken were two spacing rows with two ratings, and a square
+     * showed the lower of them. The decision that retires it is that
+     * practice can be broken or blocked, a test is always blocked and
+     * in time, and proficiency comes only from testing — so the manner
+     * describes a drill, not a skill, and one square has one rating.
+     *
+     * The four-part index goes; `[moduleRef+itemRef+hand]` was already
+     * declared alongside it and is now the identity. Old version
+     * blocks are untouched, as always.
+     *
+     * NO HISTORY IS MERGED, because there is none to merge — checked
+     * before this was written, and every arpeggiated row came back
+     * with no rated reps on it. If that had been false this would have
+     * been a migration with a decision inside it rather than an index
+     * change.
+     *
+     * THE UPGRADE STILL DELETES THE EMPTY ROWS, and that is not a
+     * migration so much as a tidy-up with a real reason. Without the
+     * style leg, two rows differing only by it become two rows with
+     * the same identity, and `getSpacingState` takes `.first()` of
+     * them — so a rating could land on the row the grid does not read.
+     * Only rows with an empty `performanceHistory` are removed; a row
+     * with anything on it is left alone and reported, because deleting
+     * evidence is not a schema change.
+     * =================================================================
+     */
+    this.version(39).stores({
+      spacingState:
+        'id, itemRef, moduleRef, nextDueAt, acquisitionStage, [moduleRef+itemRef], [moduleRef+itemRef+hand]',
+    }).upgrade(async tx => {
+      const spacing = tx.table('spacingState');
+      const rows = await spacing.toArray();
+      const empty = rows.filter(r =>
+        r.style === 'arpeggiated'
+        && Array.isArray(r.performanceHistory)
+        && r.performanceHistory.length === 0);
+      const kept = rows.filter(r =>
+        r.style === 'arpeggiated'
+        && !(Array.isArray(r.performanceHistory) && r.performanceHistory.length === 0));
+      if (empty.length > 0) await spacing.bulkDelete(empty.map(r => r.id));
+      if (kept.length > 0) {
+        console.warn(
+          `[spacing] ${kept.length} arpeggiated row(s) carry history and were LEFT IN PLACE. `
+          + 'They no longer have a dimension to live in and may now collide with their '
+          + 'blocked counterpart. Nothing was deleted — decide what happens to them.',
+        );
+      }
+    });
   }
 }
 

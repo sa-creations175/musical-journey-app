@@ -94,7 +94,7 @@ export async function dueByKeyId(
   const out = new Map<string, number | null>();
   await Promise.all(songKeyIds.map(async id => {
     try {
-      const row = await getSpacingState(songKeyItemRef(id), 'repertoire', 'both', 'solid');
+      const row = await getSpacingState(songKeyItemRef(id), 'repertoire', 'both');
       out.set(id, row?.nextDueAt ?? null);
     } catch {
       // A read failure must not demote a key. Absent reads as

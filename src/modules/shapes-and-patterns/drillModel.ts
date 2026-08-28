@@ -646,7 +646,10 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
       itemRef,
       moduleRef: 'shapes-and-patterns',
       hand: input.hand,
-      style: input.style,
+      // THE MANNER NO LONGER FORKS THE RATING. It is still written on
+      // the DrillSession row above, for the practice log; it stopped
+      // being part of a spacing row's identity when the arpeggiated
+      // dimension was retired. One square, one rating.
       signal: {
         kind: 'rating',
         rating: feelToRating(input.feelRating),

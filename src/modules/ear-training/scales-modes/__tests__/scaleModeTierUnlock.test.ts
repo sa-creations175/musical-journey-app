@@ -32,7 +32,6 @@ function row(itemRef: string, moduleRef = MODULE_REF): SpacingState {
     moduleRef,
     memoryType: 'declarative',
     hand: 'both',
-    style: 'solid',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 0,
     lastEngagedAt: null,

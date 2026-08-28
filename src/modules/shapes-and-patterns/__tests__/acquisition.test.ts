@@ -24,13 +24,11 @@ const row = (
   itemRef: string,
   hand: DrillHand,
   acquisitionStage: AcquisitionStage,
-  style: SpacingState['style'] = 'solid',
 ): SpacingState => ({
-  id: `ss-${itemRef}-${hand}-${style}`,
+  id: `ss-${itemRef}-${hand}`,
   itemRef,
   moduleRef: 'shapes-and-patterns',
   hand,
-  style,
   memoryType: 'procedural',
   acquisitionStage,
   currentIntervalDays: 3,
@@ -109,11 +107,22 @@ describe('a cell', () => {
     expect(acquisitionIndex([row(VL, 'both', 'acquired')]).cell(VL)).toBe('acquired');
   });
 
-  it('needs every row a hand holds, not just one of them', () => {
-    // Chord shapes are drilled solid AND arpeggiated, each its own row.
+  it('reads a chord-shape hand from its one row', () => {
+    // THIS USED TO PIN THE OPPOSITE. Chord shapes were drilled solid
+    // and arpeggiated with a spacing row each, and a hand counted as
+    // acquired only when both were. The arpeggiated dimension is
+    // retired, so the manner no longer forks the rating and a hand has
+    // one row again.
+    const index = acquisitionIndex([row(CHORD, 'left', 'acquired')]);
+    expect(index.hand(CHORD, 'left')).toBe('acquired');
+  });
+
+  it('still takes the lower answer if a duplicate row somehow exists', () => {
+    // Not a rule, a guard: a stray second row must not be able to
+    // promote a hand past what its worst row says.
     const index = acquisitionIndex([
-      row(CHORD, 'left', 'acquired', 'solid'),
-      row(CHORD, 'left', 'acquiring', 'arpeggiated'),
+      row(CHORD, 'left', 'acquired'),
+      row(CHORD, 'left', 'acquiring'),
     ]);
     expect(index.hand(CHORD, 'left')).toBe('in-progress');
   });

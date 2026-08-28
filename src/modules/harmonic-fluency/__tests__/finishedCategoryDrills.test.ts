@@ -45,7 +45,6 @@ function state(itemRef: string, nextDueAt: number): SpacingState {
     itemRef,
     moduleRef: 'harmonic-fluency',
     hand: 'both',
-    style: 'solid',
     memoryType: 'declarative',
     acquisitionStage: 'acquired',
     currentIntervalDays: 10,

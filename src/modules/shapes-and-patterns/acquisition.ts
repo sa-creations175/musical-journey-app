@@ -75,12 +75,18 @@ export interface AcquisitionCounts {
  * The rows, indexed so a surface can ask about a cell or one of its
  * hands without walking the table again.
  *
- * A HAND MAY HOLD MORE THAN ONE ROW. Chord shapes are drilled solid and
- * arpeggiated, each with its own spacing row, so "this hand is
- * acquired" means every row logged for it is — not that some particular
- * style has been. Requiring a style that has never been drilled would
- * be inventing a condition nobody set; requiring every row that exists
- * is the reader's own record of what they have done.
+ * ONE HAND, ONE ROW. This used to say a hand could hold more than one,
+ * because chord shapes were drilled solid AND arpeggiated with a
+ * spacing row each, and "this hand is acquired" meant every row logged
+ * for it was. The arpeggiated dimension is retired — practice can be
+ * broken or blocked, a test is always blocked, and proficiency comes
+ * only from testing — so the manner no longer forks the rating and a
+ * hand has exactly one row again.
+ *
+ * The reduce below is kept over the whole list rather than reading
+ * `[0]`, because a duplicate row is possible in principle and the
+ * lower answer is the safe one. It is not there to express a rule any
+ * more; it is there so a stray row cannot silently promote a hand.
  */
 export interface AcquisitionIndex {
   /** Every itemRef with at least one row. */

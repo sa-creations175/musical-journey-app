@@ -131,11 +131,11 @@ export default function PracticeTestPanel({
         skill,
         drillType,
         hand,
-        // Broken and blocked are the app's existing arpeggiated /
-        // solid. Whether they SHOULD be separate spacing rows is an
-        // open structural question; this follows what the rest of the
-        // app already means by those rows rather than inventing a
-        // third answer while the question is open.
+        // THE MANNER IS RECORDED, NOT ACTED ON. It rides onto the
+        // DrillSession row for the practice log and stops there —
+        // blocked and broken stopped being separate spacing rows when
+        // the arpeggiated dimension was retired. One square, one
+        // rating, whichever way you played it.
         style: d.manner === 'broken' ? 'arpeggiated' : 'solid',
         durationSeconds: d.ranSeconds,
         targetSeconds: (draft as DrillDraft).targetSeconds,
@@ -467,9 +467,8 @@ function SetupStep({
   const atTarget = isAtTarget(metro.bpm, draft.beatsPerShape);
   const isTest = mode === 'test';
 
-  // A test drill is always blocked, so the choice is made rather than
-  // offered. Done in an effect rather than by reading `mode` at save
-  // time so the screen shows what will be recorded.
+  // A test drill is always blocked and in time. Set once on entering
+  // the step rather than asked — see the panel below, which states it.
   useEffect(() => {
     if (isTest && draft.manner !== 'blocked') onChange({ ...draft, manner: 'blocked' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -479,19 +478,28 @@ function SetupStep({
     <div className="space-y-4">
       <SessionClockFace seconds={seconds} mode={mode} />
 
-      <div>
-        <SectionLabel>Manner</SectionLabel>
-        <div className="flex gap-1.5 flex-wrap">
-          {(['broken', 'blocked'] as const).map(m => {
-            const disabled = isTest && m === 'broken';
-            return (
+      {/* A TEST STATES ITS MANNER; PRACTICE PICKS ONE. Offering a
+          disabled Broken chip in a test was a control that existed
+          only to refuse — the sentence says the same thing and is
+          not a dead button. */}
+      {isTest ? (
+        <div>
+          <SectionLabel>Manner</SectionLabel>
+          <p className="text-sm text-neutral-700 dark:text-neutral-200 m-0">
+            Blocked, at tempo.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <SectionLabel>Manner</SectionLabel>
+          <div className="flex gap-1.5 flex-wrap">
+            {(['broken', 'blocked'] as const).map(m => (
               <button
                 key={m}
                 type="button"
-                disabled={disabled}
                 onClick={() => onChange({ ...draft, manner: m })}
                 aria-pressed={draft.manner === m}
-                className={`px-3 py-1 rounded-md border text-sm disabled:opacity-40 disabled:cursor-not-allowed ${
+                className={`px-3 py-1 rounded-md border text-sm ${
                   draft.manner === m
                     ? 'bg-fluent text-white border-fluent font-semibold'
                     : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent'
@@ -499,10 +507,10 @@ function SetupStep({
               >
                 {mannerLabel(m)}
               </button>
-            );
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       <div>
         <SectionLabel>How Long</SectionLabel>

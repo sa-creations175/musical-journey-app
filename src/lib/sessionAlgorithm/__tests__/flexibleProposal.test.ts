@@ -35,7 +35,6 @@ function mkRow(p: Partial<SpacingState> & { itemRef: string; moduleRef: string }
   return {
     id: 'row-' + p.itemRef,
     hand: 'both',
-    style: 'solid',
     memoryType: 'procedural',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 1,

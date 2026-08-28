@@ -26,7 +26,6 @@ function spacingRow(overrides: Partial<SpacingState>): SpacingState {
     itemRef: 'scale:major:C',
     moduleRef: 'shapes-and-patterns',
     hand: 'both',
-    style: 'solid',
     memoryType: 'procedural',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 3,
@@ -136,21 +135,20 @@ describe('what the rewrite preserves', () => {
     expect(migrated.performanceHistory).toEqual(row.performanceHistory);
   });
 
-  it('keeps each hand and style as its own row', () => {
-    // Uniqueness is [moduleRef+itemRef+hand+style]. Rewriting the ref
-    // moves six rows onto one new ref; collapsing any of them would
-    // silently merge two hands' progress.
-    const rows = (['left', 'right', 'both'] as const).flatMap(hand =>
-      (['solid', 'arpeggiated'] as const).map(style =>
-        spacingRow({ id: `sp-${hand}-${style}`, itemRef: 'scale:major:Gb', hand, style }),
-      ),
+  it('keeps each hand as its own row', () => {
+    // Uniqueness is [moduleRef+itemRef+hand]. Rewriting the ref moves
+    // three rows onto one new ref; collapsing any of them would
+    // silently merge two hands' progress. It was six rows and a
+    // four-part key before the arpeggiated dimension was retired.
+    const rows = (['left', 'right', 'both'] as const).map(hand =>
+      spacingRow({ id: `sp-${hand}`, itemRef: 'scale:major:Gb', hand }),
     );
     const migrated = rows.map(r => ({ ...r, itemRef: remap(r.itemRef) as string }));
     const slots = new Set(
-      migrated.map(r => `${r.moduleRef}|${r.itemRef}|${r.hand}|${r.style}`),
+      migrated.map(r => `${r.moduleRef}|${r.itemRef}|${r.hand}`),
     );
-    expect(migrated).toHaveLength(6);
-    expect(slots.size, 'two rows collapsed onto one slot').toBe(6);
+    expect(migrated).toHaveLength(3);
+    expect(slots.size, 'two rows collapsed onto one slot').toBe(3);
   });
 });
 

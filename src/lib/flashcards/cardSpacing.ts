@@ -69,7 +69,6 @@ function blankCardSpacing(cardId: string, moduleRef: string): SpacingState {
     itemRef: cardId,
     moduleRef,
     hand: 'both',
-    style: 'solid',
     memoryType: getMemoryType(moduleRef),
     acquisitionStage: 'new',
     currentIntervalDays: 0,
@@ -84,8 +83,8 @@ export async function getCardSpacing(
   cardId: string,
 ): Promise<SpacingState | undefined> {
   return db.spacingState
-    .where('[moduleRef+itemRef+hand+style]')
-    .equals([moduleRefForCardId(cardId), cardId, 'both', 'solid'])
+    .where('[moduleRef+itemRef+hand]')
+    .equals([moduleRefForCardId(cardId), cardId, 'both'])
     .first();
 }
 
@@ -113,7 +112,7 @@ export async function getCardSpacingMany(
       .where('moduleRef').equals(moduleRef)
       .toArray();
     for (const row of rows) {
-      if (row.hand !== 'both' || row.style !== 'solid') continue;
+      if (row.hand !== 'both') continue;
       if (!wanted.has(row.itemRef)) continue;
       out.set(row.itemRef, row);
     }

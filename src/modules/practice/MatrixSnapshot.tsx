@@ -55,13 +55,6 @@ interface BandTriple {
   both: BandStage;
 }
 
-/** Per-(hand × style) stages a six-slot chord-shape cell needs. */
-interface BandSextet extends BandTriple {
-  leftArp: BandStage;
-  rightArp: BandStage;
-  bothArp: BandStage;
-}
-
 /** One skill row across all 12 keys. `cells` maps keyName → cell. */
 interface BandRow {
   kind: 'band';
@@ -155,8 +148,8 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
   });
 
   /** Chord-shape band: aggregate across the cell's inversion rows, per
-   *  (hand × style) slot for the 6-slot split display. */
-  const chordBandFor = (baseRef: string): BandSextet => {
+   *  hand. */
+  const chordBandFor = (baseRef: string): BandTriple => {
     const matched: SpacingState[] = [];
     const exact = rowsByItemRef.get(baseRef);
     if (exact) matched.push(...exact);
@@ -165,12 +158,12 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
       if (ref.startsWith(prefix)) matched.push(...arr);
     }
     return {
-      left: aggregateHand(matched, 'left', 'solid'),
-      leftArp: aggregateHand(matched, 'left', 'arpeggiated'),
-      right: aggregateHand(matched, 'right', 'solid'),
-      rightArp: aggregateHand(matched, 'right', 'arpeggiated'),
-      both: aggregateHand(matched, 'both', 'solid'),
-      bothArp: aggregateHand(matched, 'both', 'arpeggiated'),
+      left: aggregateHand(matched, 'left'),
+
+      right: aggregateHand(matched, 'right'),
+
+      both: aggregateHand(matched, 'both'),
+
     };
   };
 
@@ -261,13 +254,9 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
                   return (
                     <div key={`${row.rowKey}-${k}`} className={wrap}>
                       <ThreeBandCell
-                        split
                         left={band.left}
-                        leftArp={band.leftArp}
                         right={band.right}
-                        rightArp={band.rightArp}
                         both={band.both}
-                        bothArp={band.bothArp}
                         title={itemRef}
                       />
                     </div>
@@ -475,9 +464,8 @@ function buildVoiceLeadingRows(itemRefs: readonly string[]): SnapshotRow[] {
 function aggregateHand(
   rows: SpacingState[],
   hand: SpacingState['hand'],
-  style: SpacingState['style'],
 ): BandStage {
-  const forSlot = rows.filter(r => r.hand === hand && r.style === style);
+  const forSlot = rows.filter(r => r.hand === hand);
   if (forSlot.length === 0) return 'not-started';
   return forSlot.every(r => bucketForStage(r.acquisitionStage) === 'acquired')
     ? 'acquired'

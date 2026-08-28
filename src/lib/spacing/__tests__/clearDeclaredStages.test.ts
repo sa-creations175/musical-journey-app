@@ -15,7 +15,6 @@ const row = (over: Partial<SpacingState> = {}): SpacingState => ({
   itemRef: 'chord-shape:maj:C:root',
   moduleRef: 'shapes-and-patterns',
   hand: 'both',
-  style: 'solid',
   memoryType: 'procedural',
   acquisitionStage: 'acquired',
   currentIntervalDays: 0,

@@ -65,7 +65,6 @@ function mkRow(
     id: `sp-${partial.itemRef}`,
     moduleRef: 'production-vocabulary',
     hand: 'both',
-    style: 'solid',
     memoryType: 'declarative',
     acquisitionStage: 'acquiring',
     currentIntervalDays: 1,
