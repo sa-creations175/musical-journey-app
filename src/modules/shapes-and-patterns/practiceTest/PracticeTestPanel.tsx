@@ -53,7 +53,7 @@ import {
   type SessionMode,
 } from './drillModel';
 
-type Step = 'choose' | 'session' | 'setup' | 'drilling' | 'drillrate';
+type Step = 'choose' | 'session' | 'setup' | 'drilling' | 'drillrate' | 'wrap';
 
 /** Reps a test is made of. */
 const TEST_REPS = 3;
@@ -183,7 +183,13 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           surface={surface}
           onStartDrill={() => { setDraft(newDraft()); setStep('setup'); }}
           onSaveTest={() => void saveTest()}
-          onEndSession={close}
+          onEndSession={() => {
+            // PRACTICE ENDS AT THE WRAP, not at the door. The session's
+            // own rating had nowhere to land before this — End Session
+            // called onClose and the sitting's verdict was dropped.
+            if (mode === 'practice') setStep('wrap');
+            else close();
+          }}
         />
       )}
 
@@ -207,6 +213,31 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           index={drills.length + 1}
           surface={surface}
           onFinish={ran => { setRanSeconds(ran); setStep('drillrate'); }}
+        />
+      )}
+
+      {step === 'wrap' && mode !== null && (
+        <WrapStep
+          seconds={sessionSeconds}
+          mode={mode}
+          drills={drills}
+          surface={surface}
+          saving={saving}
+          onLog={async (feel) => {
+            if (saving) return;
+            if (feel !== null) {
+              setSaving(true);
+              try {
+                // A REP LIKE ANY OTHER. The band rule is unchanged:
+                // practice caps at Developing, and only a test at
+                // tempo goes past it.
+                await surface.writeSessionRating(feel, false);
+              } finally {
+                setSaving(false);
+              }
+            }
+            close();
+          }}
         />
       )}
 
@@ -753,4 +784,168 @@ function useEffectOnInterval(fn: () => void): void {
     const id = window.setInterval(() => ref.current(), 250);
     return () => window.clearInterval(id);
   }, []);
+}
+
+// ---------------------------------------------------------------------
+
+/**
+ * The end of a practice sitting.
+ *
+ * =====================================================================
+ * THIS WAS MISSING. Practice shipped with `End Session` calling
+ * `onClose`, so the sitting's own rating had nowhere to land: the
+ * drills wrote their reps and the session itself wrote nothing. Every
+ * word here is the prototype's; the step is not.
+ *
+ * THE READING IS AVERAGED, AND A TEST IS NOT. A test takes the lowest
+ * of three, because the one that went wrong is the evidence that has
+ * not gone away. A practice sitting takes the average of what you did,
+ * because nothing is being claimed — which is also why the reading can
+ * be disagreed with and a test's cannot.
+ *
+ * THE CLOCK KEEPS RUNNING. It never pauses, and that includes here.
+ * `useSessionClock` is driven by `mode !== null`, which is still true,
+ * so this needs no code to be right — but it needs saying, because the
+ * prototype stopped the clock at this step and that was a bug in the
+ * prototype rather than a decision.
+ * =====================================================================
+ */
+function WrapStep({
+  seconds, mode, drills, surface, saving, onLog,
+}: {
+  seconds: number;
+  mode: SessionMode;
+  drills: CompletedDrill[];
+  surface: DrillSurface;
+  saving: boolean;
+  onLog: (feel: 1 | 2 | 3 | 4 | null) => void;
+}) {
+  const rated = drills.filter(d => d.feel !== null);
+  const derived = rated.length > 0
+    ? (Math.round(
+        rated.reduce((sum, d) => sum + (d.feel as number), 0) / rated.length,
+      ) as 1 | 2 | 3 | 4)
+    : null;
+
+  const [picked, setPicked] = useState<1 | 2 | 3 | 4 | null>(derived);
+  const [showOverride, setShowOverride] = useState(false);
+  const overrode = derived !== null && picked !== derived;
+
+  const wordFor = (feel: 1 | 2 | 3 | 4) =>
+    FEEL_CARD_OPTIONS.find(o => o.value === feel)?.label ?? '';
+
+  return (
+    <div className="space-y-4">
+      <SessionClockFace seconds={seconds} mode={mode} />
+
+      <div className="rounded-md border-l-[3px] border-developing bg-developing/5 px-3 py-2.5 text-xs text-neutral-700 dark:text-neutral-200">
+        <b>Practice stops at Developing.</b> However this session is rated, it
+        cannot claim <b>Fluent</b>. A test at target can.
+      </div>
+
+      {drills.length > 0 && (
+        <div>
+          <SectionLabel>This Session</SectionLabel>
+          <DrillList mode={mode} drills={drills} surface={surface} />
+        </div>
+      )}
+
+      {derived !== null ? (
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-3 space-y-2">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
+              This Session Reads
+            </span>
+            <span className="text-sm font-medium">
+              {picked !== null ? wordFor(picked) : ''}
+            </span>
+          </div>
+          <p className="text-[11px] text-neutral-500 leading-snug">
+            {overrode
+              ? <>You changed this from {wordFor(derived)}, which is what the drills averaged to.</>
+              : <>Averaged from your {rated.length} rated drill{rated.length > 1 ? 's' : ''}. A test takes the lowest of three; a practice session takes the average of what you did.</>}
+          </p>
+
+          {!showOverride ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (overrode) setPicked(derived);
+                else setShowOverride(true);
+              }}
+              className="text-[11px] font-medium text-neutral-500 hover:text-fluent"
+            >
+              {overrode ? 'Change It Back' : 'Disagree?'}
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <SectionLabel>Set It Yourself</SectionLabel>
+              <div className="grid grid-cols-1 gap-2">
+                {[...FEEL_CARD_OPTIONS].reverse().map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => { setPicked(opt.value); setShowOverride(false); }}
+                    className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${opt.inactiveClass}`}
+                  >
+                    <span className="font-medium">{opt.label}</span>
+                    <span className="ml-2 opacity-70 text-xs">
+                      {opt.hint}
+                      {opt.value === derived ? ' · what your drills averaged to' : ''}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div>
+          <SectionLabel
+            hint={drills.length > 0 ? 'None of your drills were rated' : 'No drills this session'}
+          >
+            How Did It Go
+          </SectionLabel>
+          <div className="grid grid-cols-1 gap-2">
+            {[...FEEL_CARD_OPTIONS].reverse().map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setPicked(picked === opt.value ? null : opt.value)}
+                className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${
+                  picked === opt.value ? opt.activeClass : opt.inactiveClass
+                }`}
+              >
+                <span className="font-medium">{opt.label}</span>
+                <span className="ml-2 opacity-70 text-xs">{opt.hint}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => onLog(picked)}
+          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium disabled:opacity-40"
+        >
+          {saving ? 'Saving…' : 'Log The Session'}
+        </button>
+        {/* ONLY WHERE THERE IS NOTHING TO SKIP. With a reading on
+            screen the button would offer to discard a number the user
+            can already change. */}
+        {picked === null && derived === null && (
+          <button
+            type="button"
+            onClick={() => onLog(null)}
+            className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
+          >
+            Skip The Rating
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }

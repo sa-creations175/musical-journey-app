@@ -599,7 +599,7 @@ export function feelToRating(feel: Feel): 'flying' | 'cruising' | 'crawling' {
  *   voice-leading → `vl:${patternId}:${keyName}`
  *   mental-viz    → null (skip)
  */
-function itemRefForSkill(skill: DrillSkill): string | null {
+export function itemRefForSkill(skill: DrillSkill): string | null {
   switch (skill.kind) {
     case 'chord-shape': {
       const base = `chord-shape:${skill.quality}:${skill.keyName}`;

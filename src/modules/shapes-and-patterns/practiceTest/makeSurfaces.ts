@@ -12,8 +12,10 @@
 
 import type { DrillHand, DrillSkill, DrillType } from '../../../lib/db';
 import { recordEngagement } from '../../../lib/spacingState';
+import type { Feel } from '../../../lib/fluencyScale';
 import {
   feelToRating,
+  itemRefForSkill,
   logScaleDrillSession,
   logSession,
   logVoiceLeadingDrillSession,
@@ -48,16 +50,19 @@ async function engage(
   itemRef: string, hand: DrillHand, record: DrillRecord,
 ): Promise<void> {
   if (record.feel === null) return;   // no verdict, no claim
+  await rate(itemRef, hand, record.feel, record.fromTest);
+}
+
+/** One rated rep against a shapes item. Shared by the per-drill writer
+ *  and the session rating, so the two cannot band differently. */
+async function rate(
+  itemRef: string, hand: DrillHand, feel: Feel, fromTest: boolean,
+): Promise<void> {
   await recordEngagement({
     itemRef,
     moduleRef: MODULE_REF,
     hand,
-    signal: {
-      kind: 'rating',
-      rating: feelToRating(record.feel),
-      feel: record.feel,
-      fromTest: record.fromTest,
-    },
+    signal: { kind: 'rating', rating: feelToRating(feel), feel, fromTest },
   });
 }
 
@@ -91,6 +96,14 @@ export function chordShapeSurface(args: {
           : {}),
       });
     },
+    // NO DRILL ROW. The drills already logged their own time and rep
+    // count; this is the verdict on the sitting, so it records the
+    // engagement and stops.
+    writeSessionRating: async (feel, fromTest) => {
+      const itemRef = itemRefForSkill(args.skill);
+      if (itemRef === null) return;
+      await rate(itemRef, args.hand, feel, fromTest);
+    },
   };
 }
 
@@ -122,6 +135,9 @@ export function scaleSurface(args: {
       });
       await engage(args.itemRef, args.hand, record);
     },
+    writeSessionRating: async (feel, fromTest) => {
+      await rate(args.itemRef, args.hand, feel, fromTest);
+    },
   };
 }
 
@@ -150,6 +166,9 @@ export function voiceLeadingSurface(args: {
         ...(record.feel !== null ? { feelRating: record.feel } : {}),
       });
       await engage(args.itemRef, 'both', record);
+    },
+    writeSessionRating: async (feel, fromTest) => {
+      await rate(args.itemRef, 'both', feel, fromTest);
     },
   };
 }
@@ -243,6 +262,18 @@ export function songSurface(args: {
         feel: record.feel,
         fromTest: record.fromTest,
       });
+    },
+    // The sitting's own verdict lands on the cell it was opened on and
+    // on the song-and-key clock — the same two levels a run writes,
+    // minus the fan-out, because a session rating is about the sitting
+    // rather than about a particular pass through the song.
+    writeSessionRating: async (feel, fromTest) => {
+      await recordEngagement({
+        itemRef: songCellItemRef(args.cellId),
+        moduleRef: REPERTOIRE_MODULE_REF,
+        signal: { kind: 'rating', rating: feelToRating(feel), feel, fromTest },
+      });
+      await recordSongKeyRun({ songKeyId: args.songKeyId, feel, fromTest });
     },
   };
 }

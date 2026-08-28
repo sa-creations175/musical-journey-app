@@ -114,6 +114,29 @@ export interface DrillSurface {
    */
   rateFrom: (bpm: number, per: number) => number;
   write: DrillWriter;
+  /**
+   * The SESSION's own rating, which is a rep and not a drill.
+   *
+   * =====================================================================
+   * WHY IT CANNOT GO THROUGH `write`.
+   *
+   * `write` records a run: for chord shapes that means a `DrillSession`
+   * row plus a bump to the drill type's `repCount` and `totalSeconds`.
+   * A session rating has no run behind it — the drills already recorded
+   * their own time — so putting it through `write` would count a rep
+   * that never happened and, with a duration, bill the same minutes
+   * twice.
+   *
+   * It IS a rep for the band rule, though: practice caps at Developing
+   * and only a test at tempo goes past, exactly as for a drill. So it
+   * records the engagement and nothing else.
+   *
+   * A SECOND FIELD RATHER THAN A FLAG ON THE FIRST, because the two
+   * write different things to different tables, and a boolean deciding
+   * which is the kind of fork this interface exists to avoid.
+   * =====================================================================
+   */
+  writeSessionRating: (feel: Feel, fromTest: boolean) => Promise<void>;
 }
 
 export function rateFor(surface: DrillSurface, bpm: number, per: number): number {
