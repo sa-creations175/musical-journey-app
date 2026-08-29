@@ -86,7 +86,7 @@ export const SONG_PAGE_GUIDANCE: Record<SongGuidanceKey, GuidanceGroup[]> = {
         'Tap a cell to log what you did on that section.',
         `A section becomes **comfortable** after ${TEST_RULE_CLAUSE}, at or within 10 BPM of the song’s target tempo. Slower runs are recorded but do not count toward it.`,
         `**Test song** on any key row plays the whole song in that key: ${TEST_RULE_CLAUSE}. It is available on every key whatever state its sections are in — some songs arrive already in your hands.`,
-        'Passing moves the song to **Comfortable**. It makes that key **Solid** only when every section in the key is already comfortable, because a key’s state is read from its cells.',
+        'Passing moves the song to **Comfortable**.',
         '**Log a run** records a single pass of the whole song in a key. It unlocks nothing — it is how you show you have taken the song into a key without working it section by section.',
       ],
     },
