@@ -357,15 +357,26 @@ describe('Cancel', () => {
     h.unmount();
   });
 
-  it('leaves a clock it merely ADOPTED running', async () => {
-    // Same rule practice mode follows. Cancelling out of a panel is
-    // not a reason to throw away time the user started elsewhere —
-    // and a test entered mid-practice is exactly that case.
+  it('DISCARDS a clock it merely adopted, and this one has a cost', async () => {
+    // WAS "leaves it running", on the same reasoning practice mode
+    // used: a test entered mid-practice adopts a live clock, and
+    // cancelling out should not throw that away.
+    //
+    // THE COST IS REAL AND IS ACCEPTED. Twenty minutes of practice,
+    // tab into Test, hit Cancel, and the twenty minutes are gone. The
+    // button says "Stops the timer and records nothing", and Done is
+    // one control away for anyone who wants to keep them.
+    //
+    // It is accepted because the rule that protected this case is the
+    // same rule that made a stale clock unstoppable: the panel cannot
+    // tell a live adopted sitting from an abandoned one, and getting
+    // it wrong the other way meant a clock counting for days with no
+    // way to end it.
     const h = mount({ minutes: 20 });
     h.toTest();
     h.click('Cancel');
 
-    expect(readSongTimer()?.songId).toBe('s1');
+    expect(readSongTimer()).toBeNull();
     expect(await db.songPracticeLog.count()).toBe(0);
     h.unmount();
   });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Song, SongCell, SongKey, SongMatrixSection } from '../../../lib/db';
 import { spellKey, type Spelling } from '../../../lib/spelling';
 import { useSongTimer } from '../useSongTimer';
@@ -110,9 +110,6 @@ export default function CellPanel({
   const [mode, setMode] = useState<CellPanelMode>('choose');
   const timer = useSongTimer(song.id);
   const [busy, setBusy] = useState(false);
-  /** Whether THIS panel started the clock, so Cancel knows what is
-   *  its to discard. */
-  const startedHere = useRef(false);
   // The tapped cell's section is pre-ticked because tapping it IS
   // saying you are working on it. Everything else is a claim the user
   // has to make.
@@ -164,7 +161,6 @@ export default function CellPanel({
     if (mode !== 'practice' && mode !== 'test') return;
     if (timer.isThisSong) return;
     if (otherSongRunning) return;   // the swap is offered, not forced
-    startedHere.current = true;
     timer.start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
@@ -318,14 +314,29 @@ export default function CellPanel({
    * this panel, keep timing" — is a legitimate thing to want, but it
    * cannot be called Cancel, and it would need its own wording.
    *
-   * Only discards a timer THIS panel started. One already running when
-   * the panel opened was adopted, not begun, and cancelling out of a
-   * panel is not a reason to throw away time the user started
-   * elsewhere.
-   * ---------------------------------------------------------------
+   * =================================================================
+   * IT USED TO REFUSE ON EXACTLY THE TIMER THAT MOST NEEDED STOPPING.
+   *
+   * The guard was `startedHere.current && timer.isThisSong`, so a
+   * timer this panel had ADOPTED — one already running at mount — was
+   * left alone. The reasoning was that cancelling out of a panel is
+   * not a reason to throw away time started elsewhere.
+   *
+   * There is no elsewhere. This panel is the only thing in the app
+   * that starts a song timer, and Done and Cancel here are the only
+   * things that stop one. So "already running at mount" could only
+   * ever mean "started in an earlier visit that never ended" — the
+   * stuck clock — and the guard made Cancel refuse to clear it, every
+   * time, forever. One left running counted for days.
+   *
+   * `isThisSong` is the half that was load-bearing: it stops Cancel
+   * discarding a clock belonging to a DIFFERENT song. That stays.
+   * `startedHere` only ever added "and I am the instance that started
+   * it", which no user can see and which a remount silently falsifies.
+   * =================================================================
    */
   const cancel = () => {
-    if (startedHere.current && timer.isThisSong) timer.discard();
+    if (timer.isThisSong) timer.discard();
     onClose();
   };
 
@@ -445,9 +456,16 @@ export default function CellPanel({
                 row makes it comfortable. Timed, and starts now.
               </div>
             </button>
+            {/* THE SAME WORD HAS TO MEAN THE SAME THING. This called
+                `onClose` directly while the other Cancel called
+                `cancel`, so on a song whose clock was already running,
+                closing from here left it running and closing from the
+                other stopped it — two buttons, one label, two
+                behaviours. */}
             <button
               type="button"
-              onClick={onClose}
+              onClick={cancel}
+              title="Stops the timer and records nothing."
               className="w-full px-3 py-2 text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200"
             >
               Cancel

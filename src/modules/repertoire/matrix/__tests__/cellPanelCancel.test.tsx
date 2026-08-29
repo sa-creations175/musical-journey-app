@@ -110,16 +110,49 @@ describe('Cancel', () => {
     h.unmount();
   });
 
-  it('does NOT discard a timer that was already running when it opened', async () => {
-    // Adopted, not begun. Cancelling out of a panel is not a reason to
-    // throw away time the user started somewhere else.
+  it('DISCARDS a timer that was already running when it opened', async () => {
+    // WAS "does NOT discard". The old rule spared an adopted clock, on
+    // the grounds that cancelling out of a panel should not throw away
+    // time started somewhere else.
+    //
+    // THERE IS NO SOMEWHERE ELSE. This panel is the only thing that
+    // starts a song timer and Done/Cancel here the only things that
+    // stop one, so "already running at mount" can only mean "started
+    // in an earlier visit that never ended". Sparing it made Cancel
+    // refuse on precisely the clock that needed stopping, every time,
+    // and one left running counted for days.
     writeSongTimer(startedRecord('s1', Date.now() - 20 * MIN));
     const h = mount();
     h.click('Practice');
     h.click('Cancel');
 
-    expect(readSongTimer()?.songId).toBe('s1');
+    expect(readSongTimer()).toBeNull();
+    // Still writes nothing. Cancel discards; it does not log.
     expect(await db.songPracticeLog.count()).toBe(0);
+    h.unmount();
+  });
+
+  it('discards from the choose step too — one label, one behaviour', async () => {
+    // The choose step's Cancel called `onClose` directly, so on a song
+    // whose clock was already running, closing from there left it
+    // running while closing from the practice step stopped it. Two
+    // buttons, one word, two behaviours.
+    writeSongTimer(startedRecord('s1', Date.now() - 20 * MIN));
+    const h = mount();
+    h.click('Cancel');
+
+    expect(readSongTimer()).toBeNull();
+    expect(await db.songPracticeLog.count()).toBe(0);
+    h.unmount();
+  });
+
+  it('leaves ANOTHER song s clock alone', async () => {
+    // The half of the old guard that was load-bearing, and is kept.
+    writeSongTimer(startedRecord('other-song', Date.now() - 20 * MIN));
+    const h = mount();
+    h.click('Cancel');
+
+    expect(readSongTimer()?.songId).toBe('other-song');
     h.unmount();
   });
 });
