@@ -36,6 +36,12 @@ function render(over: Partial<React.ComponentProps<typeof SessionStrip>> = {}) {
   const root = createRoot(host);
   const props: React.ComponentProps<typeof SessionStrip> = {
     kind: 'testing' as SessionKind,
+    metronomeOn: false,
+    blockReason: null,
+    awaitingVerdict: false,
+    onDiscardRun: () => {},
+    onMetronomeStopped: () => {},
+    discardedMessage: '',
     sessionSeconds: 1361,       // 22:41
     runSeconds: null,
     nextRunNumber: 1,
@@ -230,6 +236,119 @@ describe('the way back', () => {
     const r = render({ onBack: back });
     r.click('Back To The Session');
     expect(back).toHaveBeenCalledTimes(1);
+    r.unmount();
+  });
+});
+
+describe('the metronome names its own state', () => {
+  it('says Active when it is sounding', () => {
+    // The word travels with the state: in the strip there is no
+    // heading above the metronome, so a lit dot would be a colour with
+    // no noun attached.
+    expect(render({ metronomeOn: true }).text()).toContain('Metronome Active');
+  });
+
+  it('says Silent when it is not', () => {
+    expect(render({ metronomeOn: false }).text()).toContain('Metronome Silent');
+  });
+});
+
+describe('why a test run cannot start', () => {
+  it('is said ABOVE the button, not hidden on it', () => {
+    // A disabled control with its reason behind a hover is a dead end
+    // on a touch screen, and this is the one place someone is stuck.
+    const r = render({ blockReason: 'Start the metronome to begin a test run.' });
+    expect(r.text()).toContain('Start the metronome to begin a test run.');
+    r.unmount();
+  });
+
+  it('disables the button while it stands', () => {
+    const r = render({ blockReason: 'Start the metronome to begin a test run.' });
+    const btn = [...r.host.querySelectorAll('button')]
+      .find(b => (b.textContent ?? '').startsWith('Start Test Run'));
+    expect(btn?.hasAttribute('disabled')).toBe(true);
+    r.unmount();
+  });
+
+  it('goes away once a run is under way', () => {
+    // It is a reason a run cannot START. Leaving it on screen during
+    // the run it permitted would contradict the run.
+    const r = render({ blockReason: 'Start the metronome to begin a test run.', runSeconds: 30 });
+    expect(r.text()).not.toContain('Start the metronome to begin');
+    r.unmount();
+  });
+});
+
+describe('the metronome stopping mid-run asks rather than discarding', () => {
+  it('asks whether the run was finished, in full', () => {
+    // Only the player knows whether he had already got to the end, and
+    // the rating system already takes his word for Clean versus
+    // Struggled. This is the same order of trust.
+    expect(render({ awaitingVerdict: true }).text()).toContain(
+      'Did you finish that run? The metronome stopped, so the run stopped '
+      + 'with it. Rate it if you got to the end. If you did not, discarding '
+      + 'it costs you the run — your streak is untouched.',
+    );
+  });
+
+  it('offers the discard, and it reports', () => {
+    const discard = vi.fn();
+    const r = render({ awaitingVerdict: true, onDiscardRun: discard });
+    r.click('I didn’t finish it — discard this run');
+    expect(discard).toHaveBeenCalledTimes(1);
+    r.unmount();
+  });
+
+  it('THE RATING CHIPS ARE STILL THERE — they are the other answer', () => {
+    // "Rate it if you got to the end." A prompt offering only the
+    // discard would make the question rhetorical.
+    const r = render({ awaitingVerdict: true, runSeconds: 30 });
+    expect(r.labels()).toEqual(expect.arrayContaining(['Clean', 'In flow']));
+    r.unmount();
+  });
+});
+
+describe('what was discarded is named', () => {
+  it('says the RUN, never the session', () => {
+    // The session was paused, not discarded — its minutes are kept.
+    const msg = 'Test Run 2 was discarded. Start it again when you’re back.';
+    const r = render({ discardedMessage: msg });
+    expect(r.text()).toContain(msg);
+    r.unmount();
+  });
+
+  it('is not shown while the question is still open', () => {
+    // Two messages about the same run, one saying it is gone and one
+    // asking what to do with it.
+    const r = render({ discardedMessage: 'Test Run 2 was discarded.', awaitingVerdict: true });
+    expect(r.text()).not.toContain('was discarded');
+    r.unmount();
+  });
+});
+
+describe('the streak reset is visible', () => {
+  it('says why the count went back, and that nothing was lost', () => {
+    // The run number keeps climbing while the streak returns to zero.
+    // Without the sentence the two readings look like a contradiction.
+    expect(render({ streakBroken: true, streak: 0 }).text()).toContain(
+      'That run was below Clean, so the streak starts over — back to 0 of 3. '
+      + 'The runs before it are still logged.',
+    );
+  });
+
+  it('THE CIRCLES ARE DRAWN ANYWAY, with the count beside them', () => {
+    // They are drawn always during a test, never only once a run is
+    // banked. Circles that vanish on a reset take the count away at
+    // exactly the moment it matters most.
+    const r = render({ streak: 0, streakBroken: true });
+    expect(r.aria()).toContain('0 of 3 clean run-throughs in a row');
+    expect(r.text()).toContain('0 of 3');
+    r.unmount();
+  });
+
+  it('and at zero before any run, too', () => {
+    const r = render({ streak: 0, streakBroken: false });
+    expect(r.text()).toContain('0 of 3');
     r.unmount();
   });
 });

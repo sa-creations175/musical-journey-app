@@ -81,6 +81,44 @@ const WORDS: Record<SessionKind, {
 
 interface Props {
   kind: SessionKind;
+  /**
+   * Whether the metronome is sounding. Named on screen because in the
+   * strip there is no heading above it to say what the word refers to.
+   */
+  metronomeOn: boolean;
+  /**
+   * Why a test run cannot start, or null when it can.
+   *
+   * It sits ABOVE the button rather than in a tooltip on it: a
+   * disabled control with the reason hidden behind a hover is a dead
+   * end on a touch screen, and this is a screen used at a keyboard.
+   */
+  blockReason: string | null;
+  /**
+   * The run in progress ended because the metronome stopped, and the
+   * question has not been answered yet.
+   *
+   * Requiring the metronome to START a run means nothing if it can be
+   * stopped a second later, so stopping it ends the run. It does not
+   * DISCARD it — only the player knows whether he had already got to
+   * the end, and the whole rating system already takes his word for
+   * Clean versus Struggled.
+   */
+  awaitingVerdict: boolean;
+  /** Throw away the run in progress. See `awaitingVerdict`. */
+  onDiscardRun: () => void;
+  /** The metronome was stopped from the strip's own button. Reported
+   *  from the press rather than watched, so a `forceStop` from
+   *  elsewhere cannot end a run. */
+  onMetronomeStopped: () => void;
+  /**
+   * What was just discarded and why, or empty.
+   *
+   * Pause names the run it took, because the session was paused and
+   * the run was not — and the two would otherwise look like the same
+   * event.
+   */
+  discardedMessage: string;
   /** Whole seconds the session has run for. */
   sessionSeconds: number;
   /** Whole seconds into the run in progress, or null when none is. */
@@ -110,8 +148,11 @@ interface Props {
 }
 
 export default function SessionStrip({
-  kind, sessionSeconds, runSeconds, nextRunNumber, paused, onPauseToggle,
-  streak, streakBroken, onRate, onStartRun, onFinishRun, onSave, onBack,
+  kind, metronomeOn, blockReason, awaitingVerdict, onDiscardRun,
+  onMetronomeStopped,
+  discardedMessage, sessionSeconds, runSeconds, nextRunNumber, paused,
+  onPauseToggle, streak, streakBroken, onRate, onStartRun, onFinishRun,
+  onSave, onBack,
 }: Props) {
   const words = WORDS[kind];
   const inRun = runSeconds !== null;
@@ -147,7 +188,18 @@ export default function SessionStrip({
       )}
 
       <Divider />
-      <MetronomeControl />
+      <MetronomeControl onStoppedByUser={onMetronomeStopped} />
+      {/* THE WORD TRAVELS WITH THE STATE. In a panel there is a heading
+          above the metronome saying what it is; in a strip there is
+          not, so a lit dot would be a colour with no noun. */}
+      <span
+        className={[
+          'text-[10px] uppercase tracking-wider font-semibold',
+          metronomeOn ? 'text-fluent' : 'text-neutral-400',
+        ].join(' ')}
+      >
+        {metronomeOn ? 'Metronome Active' : 'Metronome Silent'}
+      </span>
 
       {/* THE STREAK, WHERE THERE IS ONE. No caption — the strip has no
           room for the sentence the panel carries, and the circles are
@@ -155,12 +207,20 @@ export default function SessionStrip({
       {streak !== null && (
         <>
           <Divider />
+          {/* DRAWN ALWAYS DURING A TEST, not once a run is banked.
+              Circles that appear on the first success and vanish on a
+              reset take the count away at exactly the moment it matters
+              most — and the run number keeps climbing either way, so
+              without them the two readings look like a contradiction. */}
           <StreakCircles
             count={streak}
             broken={streakBroken}
             size="sm"
             label={`${streak} of 3 clean run-throughs in a row`}
           />
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
+            {streak} of 3
+          </span>
         </>
       )}
 
@@ -196,7 +256,7 @@ export default function SessionStrip({
         <button
           type="button"
           onClick={onStartRun}
-          disabled={paused}
+          disabled={paused || blockReason !== null}
           className="px-2.5 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {kind === 'testing'
@@ -222,10 +282,62 @@ export default function SessionStrip({
       </button>
 
       {/* THE PAUSED STATE, SAID IN WORDS. The tinted bar alone is a
-          colour someone can miss; this is the sentence that cannot be. */}
+          colour someone can miss; this is the sentence that cannot be.
+          It also says what happens to the metronome, because that is
+          the part a returning player would otherwise have to discover
+          by finding the Start button still disabled. */}
       {paused && (
         <div className="w-full text-xs text-needswork font-medium pt-1">
-          Paused — the clock is stopped.
+          Paused — the clock is stopped. Metronome pauses with the session.
+          Resumes upon return.
+        </div>
+      )}
+
+      {/* THE METRONOME STOPPED MID-RUN. Not a discard — a question.
+          The chips above are still the way to answer "yes I finished
+          it"; this adds the other answer, which nothing else offers. */}
+      {awaitingVerdict && !paused && (
+        <div className="w-full pt-1 space-y-1.5">
+          <p className="text-xs text-neutral-700 dark:text-neutral-200 leading-snug">
+            <b>Did you finish that run?</b> The metronome stopped, so the run
+            stopped with it. Rate it if you got to the end. If you did not,
+            discarding it costs you the run — your streak is untouched.
+          </p>
+          <button
+            type="button"
+            onClick={onDiscardRun}
+            className="px-2.5 py-1 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            I didn&rsquo;t finish it — discard this run
+          </button>
+        </div>
+      )}
+
+      {/* WHAT WAS DISCARDED, NAMED. A run and a session are different
+          things and only one of them was thrown away. */}
+      {discardedMessage !== '' && !awaitingVerdict && (
+        <div className="w-full text-xs text-neutral-500 dark:text-neutral-400 pt-1">
+          {discardedMessage}
+        </div>
+      )}
+
+      {/* THE RESET, SAID OUT LOUD. The run number keeps climbing while
+          the streak returns to zero, and without a sentence the two
+          readings look like a contradiction rather than a rule. */}
+      {streakBroken && !awaitingVerdict && (
+        <div className="w-full text-xs text-needswork pt-1 leading-snug">
+          That run was below Clean, so the streak starts over — back to{' '}
+          <b>0 of 3</b>. The runs before it are still logged.
+        </div>
+      )}
+
+      {/* WHY THE RUN CANNOT START, ABOVE THE BUTTON RATHER THAN ON IT.
+          A disabled control with its reason behind a hover is a dead
+          end on a touch screen, and it is the one place someone is
+          actually stuck. */}
+      {blockReason !== null && !inRun && !paused && (
+        <div className="w-full text-xs text-neutral-600 dark:text-neutral-300 pt-1 leading-snug">
+          {blockReason}
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import TestPassedScreen from './TestPassedScreen';
 import StreakCircles from './StreakCircles';
+import { useMetronomeState } from '../../../lib/useMetronome';
 import SessionStrip from './SessionStrip';
 import { formatClock, useSessionClock } from '../../shapes-and-patterns/practiceTest/sessionClock';
 import Modal from '../../../components/Modal';
@@ -193,6 +194,16 @@ export default function WholeSongTestModal({
    */
   const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
   const [paused, setPaused] = useState(false);
+  const metro = useMetronomeState();
+  /**
+   * The metronome stopped mid-run and the question is unanswered.
+   *
+   * Set from the strip's own toggle press, never from watching the
+   * singleton — see `MetronomeControl`'s `onStoppedByUser`.
+   */
+  const [awaitingVerdict, setAwaitingVerdict] = useState(false);
+  /** What was just thrown away, and why. Cleared when a run starts. */
+  const [discardedMessage, setDiscardedMessage] = useState('');
   const runSeconds = useSessionClock(runStartedAt !== null && !paused);
   // Declared after `paused` because it reads it. The session clock runs
   // between runs and while a rating is chosen — see its own comment —
@@ -217,6 +228,8 @@ export default function WholeSongTestModal({
     setView('panel');
     setRunStartedAt(null);
     setPaused(false);
+    setAwaitingVerdict(false);
+    setDiscardedMessage('');
     onClose();
   }, [onClose]);
 
@@ -257,6 +270,8 @@ export default function WholeSongTestModal({
    */
   const handleStartRun = () => {
     if (!bpmValid || busy || passed || paused) return;
+    setAwaitingVerdict(false);
+    setDiscardedMessage('');
     setRunStartedAt(Date.now());
   };
 
@@ -269,6 +284,7 @@ export default function WholeSongTestModal({
   const handleAddAttempt = (feel: Feel) => {
     if (!bpmValid || busy || passed) return;
     setRunStartedAt(null);
+    setAwaitingVerdict(false);
     // A below-floor run neither advances nor resets the gate — see
     // projectConsecutiveCleanCount — so a slow not-clean pass must not
     // announce a reset that did not happen.
@@ -396,6 +412,34 @@ export default function WholeSongTestModal({
       <div className="fixed inset-x-0 top-0 z-40">
         <SessionStrip
           kind="testing"
+          metronomeOn={metro.playing}
+          /* THE GATE IS DARK ON THIS PANEL, and deliberately.
+             `blockReason` refuses a run whose metronome is silent or
+             out of the window — which is only coherent once the
+             metronome is where the tempo COMES from. Here the typed
+             field above still supplies the recorded number, so gating
+             on the metronome while recording the typed value would be
+             two rules about one run. This panel is replaced by the
+             shared one, and the gate switches on with it. */
+          blockReason={null}
+          awaitingVerdict={awaitingVerdict}
+          onMetronomeStopped={() => {
+            // ONLY MID-RUN. Stopping it between runs is just stopping
+            // it, and asking "did you finish that run?" about no run
+            // would be a question with no subject.
+            if (runStartedAt !== null) {
+              setRunStartedAt(null);
+              setAwaitingVerdict(true);
+            }
+          }}
+          onDiscardRun={() => {
+            setAwaitingVerdict(false);
+            setDiscardedMessage(
+              `Test Run ${attempts.length + 1} was discarded. `
+              + 'Start it again when you\u2019re back.',
+            );
+          }}
+          discardedMessage={discardedMessage}
           sessionSeconds={sessionSeconds}
           runSeconds={runStartedAt === null ? null : runSeconds}
           nextRunNumber={attempts.length + 1}
@@ -405,7 +449,19 @@ export default function WholeSongTestModal({
             // you walked away from is not a rep, and rating it later
             // would be rating a memory.
             setPaused(p => {
-              if (!p) setRunStartedAt(null);
+              if (!p) {
+                // The rep, not the minutes — and it is NAMED, because a
+                // paused session and a discarded run are different
+                // events and only one of them was thrown away.
+                if (runStartedAt !== null) {
+                  setDiscardedMessage(
+                    `Test Run ${attempts.length + 1} was discarded. `
+                    + 'Start it again when you\u2019re back.',
+                  );
+                }
+                setRunStartedAt(null);
+                setAwaitingVerdict(false);
+              }
               return !p;
             });
           }}

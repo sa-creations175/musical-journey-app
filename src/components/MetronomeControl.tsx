@@ -24,7 +24,29 @@ const TIME_SIG_IDS: TimeSig[] = ['4/4', '3/4', '6/8', '12/8'];
  * State persists via userPrefs so the metronome picks up the same
  * BPM / groove / time sig across reloads.
  */
-export default function MetronomeControl() {
+interface Props {
+  /**
+   * The metronome was stopped from this control's own button.
+   *
+   * =====================================================================
+   * IN THE TOGGLE, NEVER IN AN EFFECT WATCHING `state.playing`.
+   *
+   * A song's testing session ends the run in progress when the
+   * metronome stops, because requiring it to START a run means nothing
+   * if it can be stopped a second later. An effect watching the
+   * singleton's `playing` flag would look like the obvious way to
+   * notice — and would also fire for `forceStop` from the global
+   * session banner and for a count-in ending, killing a run for
+   * something the player did not do.
+   *
+   * So it is reported from the press, which is the only event that
+   * actually means "he stopped it".
+   * =====================================================================
+   */
+  onStoppedByUser?: () => void;
+}
+
+export default function MetronomeControl({ onStoppedByUser }: Props = {}) {
   const state = useMetronomeState();
   const [expanded, setExpanded] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -115,7 +137,11 @@ export default function MetronomeControl() {
     <div ref={rootRef} className="relative">
       <div className="inline-flex items-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 overflow-hidden">
         <button
-          onClick={() => metronome.toggle()}
+          onClick={() => {
+            const wasPlaying = state.playing;
+            metronome.toggle();
+            if (wasPlaying) onStoppedByUser?.();
+          }}
           aria-label={state.playing ? 'stop metronome' : 'start metronome'}
           title={state.playing ? 'Stop Metronome' : 'Start Metronome'}
           className={`px-2 py-1 text-xs transition ${

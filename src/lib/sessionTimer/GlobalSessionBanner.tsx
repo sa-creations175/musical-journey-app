@@ -26,6 +26,7 @@ import { formatActiveTime } from './formatActiveTime';
 import { moduleMetaById } from '../moduleMeta';
 import { formatDriftText, shouldShowDrift } from './drift';
 import { metronome } from '../metronome';
+import { scopedSongId } from '../metronomeScope';
 import { useMetronomeState } from '../useMetronome';
 import InstrumentSelector from '../../components/InstrumentSelector';
 import MetronomeControl from '../../components/MetronomeControl';
@@ -74,10 +75,33 @@ export function GlobalSessionBanner() {
   // (status stays 'running'), which is the whole point of a global
   // click during practice.
   const sessionActive = state.status === 'running' || state.status === 'paused';
+  /**
+   * IT ONLY FORCE-STOPS A METRONOME IT OWNS.
+   *
+   * =====================================================================
+   * The comment above says this banner is the only thing that starts the
+   * global click, and the safety net follows from that. It stopped being
+   * true when a song took the metronome over.
+   *
+   * A song's TESTING SESSION requires the metronome to be running before
+   * a test run can start, and stopping it mid-run ends that run and asks
+   * whether it was finished. A `forceStop` from here would fire that
+   * question at someone who did nothing — his global session happened to
+   * end while he was mid-run on a song — and cost him the run either
+   * way he answered.
+   *
+   * `scopedSongId()` is the ownership fact, and it is the same one that
+   * decides whose tempo is remembered. When a song holds the metronome,
+   * this banner is not the thing that started it and has no business
+   * ending it.
+   * =====================================================================
+   */
   useEffect(() => {
-    if (!sessionActive) metronome.forceStop();
+    if (!sessionActive && scopedSongId() === null) metronome.forceStop();
   }, [sessionActive]);
-  useEffect(() => () => metronome.forceStop(), []);
+  useEffect(() => () => {
+    if (scopedSongId() === null) metronome.forceStop();
+  }, []);
 
   // Reactive metronome state for the compact in-strip toggle. Reads the
   // same singleton the audio panel's full control uses, so the two stay
