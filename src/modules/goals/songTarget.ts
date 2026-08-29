@@ -1,5 +1,4 @@
 import type { Goal, Song, SongKey } from '../../lib/db';
-import { computeSolidDecayState } from '../repertoire/matrix/solidDecay';
 import type { RepertoireStage } from '../../lib/db';
 
 /**
@@ -111,16 +110,15 @@ export interface WholeOptionTags {
  */
 export function deriveWholeOptionTagsFromMatrix(
   stage: RepertoireStage,
-  originalKey: SongKey | null,
-  now: number,
+  _originalKey: SongKey | null,
+  _now: number,
 ): WholeOptionTags {
-  const originalKeyIsLapsed = originalKey !== null
-    && computeSolidDecayState(originalKey, now) === 'lapsed';
-
-  let solidTag: SongStateTag = null;
-  if (originalKey?.keyState === 'solid') {
-    solidTag = originalKeyIsLapsed ? 'current' : 'achieved';
-  }
+  // THE SOLID OPTION HAS NOTHING LEFT TO TAG. Its rung is retired and
+  // so is the decay clock that told a lapsed one from a held one. The
+  // option itself is still on screen — removing it is a copy change
+  // and belongs with the words — so the tag it reads is null rather
+  // than a claim about a state that no longer exists.
+  const solidTag: SongStateTag = null;
 
   // READS THE ONE LADDER NOW. The retired song-level ladder's `solid`
   // was its second word for Comfortable — the rung directly below
@@ -147,11 +145,13 @@ export function deriveWholeOptionTagsFromMatrix(
  * meaningful goal.
  */
 export function isSolidLockedFromMatrix(
-  originalKey: SongKey | null,
-  now: number,
+  _originalKey: SongKey | null,
+  _now: number,
 ): boolean {
-  if (!originalKey || originalKey.keyState !== 'solid') return false;
-  return computeSolidDecayState(originalKey, now) !== 'lapsed';
+  // Nothing is Solid-locked any more: there is no Solid to be locked
+  // at. Kept as a function rather than deleted because its one caller
+  // is goal-picker copy, and that is a later commit's to change.
+  return false;
 }
 
 /**
@@ -161,7 +161,9 @@ export function isSolidLockedFromMatrix(
  * still keyState='solid' under the hood).
  */
 export interface KeyStateHint {
-  state: 'untouched' | 'learning' | 'comfortable' | 'solid';
+  state: 'untouched' | 'learning' | 'comfortable';
+  /** Always false. The lapse flag was a sub-state of Solid and went
+   *  with it; whether a key is overdue is `keySpacing`'s question. */
   isLapsed: boolean;
 }
 
@@ -170,11 +172,11 @@ export function buildKeyStateHints(
   now: number,
 ): Map<string, KeyStateHint> {
   const m = new Map<string, KeyStateHint>();
+  void now;
   for (const k of songKeys) {
-    const decay = computeSolidDecayState(k, now);
     const state: KeyStateHint['state'] =
       k.keyState === 'not_started' ? 'untouched' : k.keyState;
-    m.set(k.keyName, { state, isLapsed: decay === 'lapsed' });
+    m.set(k.keyName, { state, isLapsed: false });
   }
   return m;
 }

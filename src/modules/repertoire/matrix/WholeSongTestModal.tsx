@@ -142,10 +142,11 @@ export default function WholeSongTestModal({
   // have to say so, or the screen promises something the save will
   // not do. This is a statement of what happens, not a warning about
   // taking a shortcut: nothing here is ahead of anything.
-  const sectionsIncomplete =
-    songKey.keyState !== 'comfortable' && songKey.keyState !== 'solid';
-  const canMarkSolid =
-    (songKey.keyState !== 'solid' || isRetest) && projectedCount >= 3;
+  const sectionsIncomplete = songKey.keyState !== 'comfortable';
+  // The test no longer writes a status, so nothing here can be
+  // "already at" it. What the control still does is record a PASS —
+  // the timestamp `stageCriteria` reads as the Comfortable criterion.
+  const canMarkSolid = projectedCount >= 3;
   const hasContent = attempts.length > 0;
 
   const parsedBpm = parseInt(bpmInput, 10);
@@ -218,7 +219,7 @@ export default function WholeSongTestModal({
             >
               Save Attempts
             </button>
-            {(songKey.keyState !== 'solid' || isRetest) && (
+            {(
               <button
                 type="button"
                 onClick={() => void handleSave(true)}
@@ -238,7 +239,7 @@ export default function WholeSongTestModal({
       <div className="flex flex-col gap-4">
         <RuleReminder
           performanceTempo={performanceTempo}
-          keyAlreadySolid={songKey.keyState === 'solid'}
+          keyAlreadySolid={false}
           isRetest={isRetest}
           sectionsIncomplete={sectionsIncomplete}
         />
@@ -246,7 +247,6 @@ export default function WholeSongTestModal({
         <StateHeader
           keyState={songKey.keyState}
           projectedCount={projectedCount}
-          canMarkSolid={canMarkSolid}
           isRetest={isRetest}
           performanceTempo={performanceTempo}
         />
@@ -350,7 +350,6 @@ function RuleReminder({
 // -------------------------------------------------------------------
 
 const KEY_STATE_BADGE: Record<SongKeyState, { label: string; className: string }> = {
-  solid:        { label: 'Solid',        className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
   comfortable:  { label: 'Comfortable',  className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200' },
   learning:     { label: 'Learning',     className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' },
   not_started:  { label: 'Not Started',  className: 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400' },
@@ -359,13 +358,11 @@ const KEY_STATE_BADGE: Record<SongKeyState, { label: string; className: string }
 function StateHeader({
   keyState,
   projectedCount,
-  canMarkSolid,
   isRetest,
   performanceTempo,
 }: {
   keyState: SongKeyState;
   projectedCount: number;
-  canMarkSolid: boolean;
   isRetest: boolean;
   performanceTempo: number | null;
 }) {
@@ -375,10 +372,11 @@ function StateHeader({
     ? ` at or above ♩ ${performanceTempo - 10}`
     : '';
 
-  // Hint shows when there's a gate to reach. Initial promotion (key
-  // not solid) and retest (key solid + lapsed) both surface it;
-  // solid+not-lapsed has no gate to display.
-  const showHint = canMarkSolid || keyState !== 'solid' || isRetest;
+  // There is always a gate to reach now: the test's pass timestamp is
+  // the Comfortable criterion, and it can be re-demonstrated. The old
+  // condition existed to hide the hint on a key that was already
+  // Solid, and that state no longer exists.
+  const showHint = true;
 
   // Readiness only. "1 more clean run needed" beside a meter reading
   // 2 of 3 is the same fact twice, and the meter states it better.

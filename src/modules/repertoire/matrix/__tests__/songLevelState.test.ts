@@ -181,7 +181,7 @@ describe('isKeyRowEngaged', () => {
   });
 
   it('any advanced key state is engaged', () => {
-    for (const state of ['learning', 'comfortable', 'solid'] as const) {
+    for (const state of ['learning', 'comfortable'] as const) {
       expect(isKeyRowEngaged(key('C', false, state)), state).toBe(true);
     }
   });

@@ -1,7 +1,6 @@
 import { db, type SongKeyState } from '../../lib/db';
 import { computeKeyStateFromCells } from './matrix/cellRollup';
 import { isCellTouched, loadCellBands } from './matrix/cellBands';
-import { decayStateAfterEngagement } from './matrix/solidDecay';
 import { reassignOriginalKey } from './matrix/reassignOriginalKey';
 import { ensureSongHasOriginalKey } from './matrixMigration';
 import type { SongKeyRowInfo } from './keyDiagnostics';
@@ -28,12 +27,11 @@ import type { SongKeyRowInfo } from './keyDiagnostics';
  * that has since changed.
  */
 
-/** not_started < learning < comfortable < solid. */
+/** not_started < learning < comfortable. */
 const STATE_RANK: Record<SongKeyState, number> = {
   not_started: 0,
   learning: 1,
   comfortable: 2,
-  solid: 3,
 };
 
 export type RecomputeSafety =
@@ -269,12 +267,13 @@ export async function recomputeKeyStateFromCells(
     );
   }
 
-  const decay = decayStateAfterEngagement(row.solidDecayState, derived);
+  // The decay clock went with Solid. Written empty so a repair also
+  // clears whatever a pre-retirement build left on the row.
   await db.songKeys.put({
     ...row,
     keyState: derived,
-    solidDecayState: decay,
-    isRetestRecommended: decay === 'lapsed',
+    solidDecayState: null,
+    isRetestRecommended: false,
     lastDecayCheckAt: Date.now(),
     updatedAt: Date.now(),
   });

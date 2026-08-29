@@ -7,7 +7,6 @@ import {
   type SongKeyState,
   type SongRunThroughRating,
 } from '../../../lib/db';
-import { decayStateAfterEngagement } from './solidDecay';
 import { type CellBands, isCellComfortable, isCellTouched, loadCellBands } from './cellBands';
 
 /**
@@ -115,7 +114,18 @@ export function isInTempoRange(
 export function computeKeyStateFromCells(
   cells: ReadonlyArray<SongCell>,
   expectedSectionCount: number,
-  wholeSongTestPassedAt: number | null,
+  /**
+   * UNUSED, AND KEPT ON PURPOSE. This is the whole-song test's pass
+   * timestamp, and it used to be the second half of the Solid rule.
+   * The test no longer writes a status — `stageCriteria` reads the
+   * timestamp directly — so nothing here consults it.
+   *
+   * The parameter stays because six call sites pass it, and because
+   * removing it would read as "the test is no longer recorded" when
+   * what changed is only where it is read. Drop it when the callers
+   * are next in hand.
+   */
+  _wholeSongTestPassedAt: number | null,
   /**
    * The cells' bands. REQUIRED — a defaulted empty map would make
    * every key read `not_started` at any call site that forgot it, and
@@ -140,8 +150,19 @@ export function computeKeyStateFromCells(
   // testing at tempo — practice is capped at Developing. The old gate
   // counted three clean runs, which is a test described in terms of
   // runs; this reads the rating that test produces.
+  //
+  // THE WHOLE-SONG TEST NO LONGER WRITES A STATUS. The line here used
+  // to read `allComfortable && wholeSongTestPassedAt !== null` and
+  // return 'solid' — the only place Solid was ever earned. It earned
+  // nothing the cells had not already earned: Comfortable is reached
+  // by the cells, and the test is what a key must ALREADY be
+  // comfortable to be offered.
+  //
+  // The timestamp is still the durable fact and is still written. It
+  // is read directly by `stageCriteria` as the Learning → Comfortable
+  // criterion, so the test is now evidence a criterion reads rather
+  // than a status this function caches.
   const allComfortable = cells.every(c => isCellComfortable(bands, c.id));
-  if (allComfortable && wholeSongTestPassedAt !== null) return 'solid';
   if (allComfortable) return 'comfortable';
 
   return anyTouched ? 'learning' : 'not_started';
@@ -303,20 +324,14 @@ export async function saveAttemptsAndRollup(args: {
     bands,
   );
 
-  // Decay snapshot writeback. Cell engagement is non-pass, so honor
-  // lapsed stickiness — only a passed retest clears 'lapsed'. Other
-  // decay states reset to 'solid' on engagement (clock resets).
-  const newDecayState = decayStateAfterEngagement(
-    args.songKey.solidDecayState,
-    newKeyState,
-  );
-  const newIsRetestRecommended = newDecayState === 'lapsed';
-
+  // The decay snapshot went with Solid — see the write in the test
+  // branch below. Written empty rather than skipped so a row carrying
+  // a pre-retirement value is cleared the next time it is touched.
   const updatedSongKey: SongKey = {
     ...args.songKey,
     keyState: newKeyState,
-    solidDecayState: newDecayState,
-    isRetestRecommended: newIsRetestRecommended,
+    solidDecayState: null,
+    isRetestRecommended: false,
     lastDecayCheckAt: args.now,
     lastEngagedAt: args.now,
     updatedAt: args.now,
@@ -551,30 +566,26 @@ export async function saveKeyAttemptsAndRollup(args: {
     updatedSongKey = {
       ...updatedSongKey,
       wholeSongTestPassedAt: args.now,
-      // solidAt is the timestamp at which keyState FIRST became
-      // 'solid'. Preserve prior solidAt across retests — a retest
-      // refreshes the demonstration but doesn't reset "when did this
-      // key originally graduate." Falsy → set now (initial promotion).
-      solidAt: args.songKey.solidAt ?? args.now,
+      // THE THREE VESTIGIAL FIELDS, written null/false rather than
+      // left alone. Solid is retired, so there is no status for them
+      // to describe; `solid_decay_state` and `is_retest_recommended`
+      // are still live synced columns, and a row that stopped writing
+      // them would keep whatever a pre-retirement build last put
+      // there. Writing the empty value is what makes them inert
+      // everywhere rather than only on new rows.
+      solidAt: null,
       keyState: nextKeyState,
-      // Pass clears all decay flags. If the key was lapsed before,
-      // it's now freshly re-demonstrated. If it was just-promoted,
-      // these are no-ops (already null/false).
-      solidDecayState: nextKeyState === 'solid' ? 'solid' : null,
+      solidDecayState: null,
       isRetestRecommended: false,
     };
   } else {
-    // Non-pass test save — same engagement-decay logic as a cell
-    // save. Lapsed sticks; other states reset to 'solid' on the
-    // clock-reset that lastEngagedAt = now produces.
-    const newDecayState = decayStateAfterEngagement(
-      args.songKey.solidDecayState,
-      args.songKey.keyState,
-    );
+    // A failed test has no decay clock to advance — there was never a
+    // Solid status for one to run against. Same empty write as the
+    // pass branch, for the same reason.
     updatedSongKey = {
       ...updatedSongKey,
-      solidDecayState: newDecayState,
-      isRetestRecommended: newDecayState === 'lapsed',
+      solidDecayState: null,
+      isRetestRecommended: false,
     };
   }
 

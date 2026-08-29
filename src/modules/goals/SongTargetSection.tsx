@@ -66,9 +66,10 @@ export default function SongTargetSection({
     [song, originalMatrixKey, now],
   );
   const solidLocked = isSolidLockedFromMatrix(originalMatrixKey, now);
-  const originalKeyIsLapsed = originalMatrixKey !== null
-    && originalMatrixKey.keyState === 'solid'
-    && wholeTags.solid === 'current'; // matrix helper assigns 'current' to lapsed-solid
+  // Nothing is lapsed-solid any more — Solid and its decay clock are
+  // both retired. The disclosure this drove stays on screen until the
+  // Solid option's copy is rewritten; it simply never fires.
+  const originalKeyIsLapsed = false;
 
   if (songMissing) {
     return (
@@ -335,15 +336,15 @@ function KeyTarget({
     : null;
   // Already-at-target check: if the picked state is already met,
   // soft-warn (not blocking — user might want to set a re-confirmation
-  // goal). Comfortable is met when state is comfortable or solid;
-  // Solid is met only when state === 'solid' (not lapsed).
+  // Comfortable is the top of the per-key ladder now, so both target
+  // options read the same state. The Solid option survives on screen
+  // until its copy is rewritten; it can no longer be "already at".
   const alreadyAt = (() => {
     if (!pickedHint) return false;
     if (selection.keyState === 'comfortable') {
-      return pickedHint.state === 'comfortable' || pickedHint.state === 'solid';
+      return pickedHint.state === 'comfortable';
     }
-    // 'solid'
-    return pickedHint.state === 'solid' && !pickedHint.isLapsed;
+    return false;
   })();
 
   return (
@@ -400,7 +401,6 @@ function KeyTarget({
  * "Solid · lapsed" / "Solid" / "Comfortable" / "Learning" / "untouched".
  */
 function formatKeyHint(hint: KeyStateHint): string {
-  if (hint.state === 'solid') return hint.isLapsed ? 'Solid · lapsed' : 'Solid';
   if (hint.state === 'comfortable') return 'Comfortable';
   if (hint.state === 'learning') return 'Learning';
   return 'untouched';

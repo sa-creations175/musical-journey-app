@@ -121,15 +121,15 @@ export function coveredQuadrants(keyNames: Iterable<string>): Set<number> {
 /**
  * Comfortable or better.
  *
- * `solid` MUST count. It is not a sibling of comfortable but a
- * superset of it: `computeKeyStateFromCells` returns 'solid' only
- * when every cell is comfortable AND the whole-song test has passed,
- * so a solid key is a comfortable key that has additionally proved
- * itself. A predicate written as `state === 'comfortable'` would
- * exclude precisely the keys the user has taken furthest.
+ * ONE COMPARISON NOW, and the second one was the retirement in
+ * miniature: `solid` had to be counted here because it was a
+ * comfortable key wearing a second name, so a predicate written as
+ * `state === 'comfortable'` excluded precisely the keys taken
+ * furthest. With Solid gone, comfortable IS the top of the per-key
+ * ladder and the name says what it means.
  */
 export function isComfortableOrBetter(state: SongKeyState): boolean {
-  return state === 'comfortable' || state === 'solid';
+  return state === 'comfortable';
 }
 
 /**

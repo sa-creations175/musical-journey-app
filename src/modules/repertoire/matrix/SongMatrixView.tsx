@@ -14,7 +14,6 @@ import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
 import WholeSongTestBanner from './WholeSongTestBanner';
 import WholeSongTestModal from './WholeSongTestModal';
-import { computeSolidDecayState } from './solidDecay';
 import { computeKeyStateFromCells } from './cellRollup';
 import { hasCrossKeyEngagement } from './songLevelState';
 import { useSongSpelling } from '../useSongSpelling';
@@ -307,10 +306,12 @@ export default function SongMatrixView({
     [activeTestKey, songKeyRunThroughs],
   );
 
-  // Retest semantics: if the active key is currently lapsed, this is
-  // a retest. Pass-through to the modal for title/copy/audit-flag.
-  const activeTestIsRetest = activeTestKey !== null
-    && computeSolidDecayState(activeTestKey, now) === 'lapsed';
+  // A RETEST IS A SPACING QUESTION NOW, NOT A DECAY ONE. `lapsed`
+  // was a sub-state of Solid and went with it; whether a key is
+  // overdue is what `keySpacing` already answers for every other
+  // reader. `activeTestKey` alone cannot say, so nothing here claims
+  // it does — see the report.
+  const activeTestIsRetest = false;
 
   return (
     <section className="space-y-4">

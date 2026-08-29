@@ -12,7 +12,12 @@
 import { describe, expect, it } from 'vitest';
 import type { SongKey, SongKeyState } from '../../../../lib/db';
 import { CIRCLE_OF_FOURTHS_KEYS } from '../keys';
-import { DECAY_LAPSED_DAYS, MS_PER_DAY } from '../solidDecay';
+// `solidDecay` is deleted with Solid. These two constants were the
+// decay clock's; the tests below use them only as "long ago" and
+// "recently", so they are stated here rather than borrowed from a
+// module that no longer exists.
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const LONG_AGO_DAYS = 40;
 import { DUE_SOON_DEFAULT_DAYS, GRACE_DEFAULT_DAYS, type DueWindows } from '../keySpacing';
 import {
   KEY_QUADRANTS,
@@ -119,10 +124,10 @@ describe('coveredQuadrants', () => {
 });
 
 describe('isComfortableOrBetter', () => {
-  it('counts solid, which is comfortable plus a passed whole-song test', () => {
-    expect(isComfortableOrBetter('solid')).toBe(true);
-  });
-
+  // The "counts solid" case is gone with Solid. It existed because
+  // solid was a comfortable key under a second name, which is the
+  // retirement's whole premise — there is one state at the top of the
+  // per-key ladder now, and it is the one this is named for.
   it('counts comfortable', () => {
     expect(isComfortableOrBetter('comfortable')).toBe(true);
   });
@@ -149,40 +154,41 @@ describe('isHeld', () => {
     // survive on the row for other readers, so the property worth
     // protecting is that they no longer decide this.
     //
-    // Fixture disagrees with itself on purpose: the column says solid,
-    // the engagement is months old, and the due date is far ahead.
-    // Only the due date is allowed to win.
+    // Fixture disagrees with itself on purpose: the engagement is
+    // months old and the due date is far ahead. Only the due date is
+    // allowed to win.
     const contradictory = songKey({
-      keyState: 'solid',
-      solidDecayState: 'solid',
-      lastEngagedAt: NOW - (DECAY_LAPSED_DAYS + 10) * MS_PER_DAY,
+      keyState: 'comfortable',
+      lastEngagedAt: NOW - LONG_AGO_DAYS * MS_PER_DAY,
     });
-    expect(contradictory.solidDecayState).toBe('solid');
     expect(isHeld(contradictory, NOW, FAR, W)).toBe(true);
 
     // And the reverse: a freshly-engaged key whose due date has passed
     // grace is NOT held, however recently it was touched. Engagement
     // is not proving.
     const engagedButOverdue = songKey({
-      keyState: 'solid', solidDecayState: 'solid', lastEngagedAt: NOW,
+      keyState: 'comfortable', lastEngagedAt: NOW,
     });
     expect(isHeld(engagedButOverdue, NOW, LAPSED, W)).toBe(false);
   });
 
-  it('holds a solid key engaged recently', () => {
+  it('holds a comfortable key engaged recently', () => {
     const fresh = songKey({
-      keyState: 'solid', solidDecayState: 'solid',
+      keyState: 'comfortable',
       lastEngagedAt: NOW - 2 * MS_PER_DAY,
     });
     expect(isHeld(fresh, NOW, FAR, W)).toBe(true);
   });
 
-  it('still holds a FADING key — fading is a warning, not a loss', () => {
-    const fading = songKey({
-      keyState: 'solid', solidDecayState: 'solid',
-      lastEngagedAt: NOW - (DECAY_LAPSED_DAYS - 5) * MS_PER_DAY,
+  it('holds a key untouched for weeks, while its due date is ahead', () => {
+    // Was "still holds a FADING key". Fading was a sub-state of Solid
+    // and went with it; the property that survives is the one that
+    // mattered — how long ago it was touched does not decide this.
+    const stale = songKey({
+      keyState: 'comfortable',
+      lastEngagedAt: NOW - (LONG_AGO_DAYS - 5) * MS_PER_DAY,
     });
-    expect(isHeld(fading, NOW, FAR, W)).toBe(true);
+    expect(isHeld(stale, NOW, FAR, W)).toBe(true);
   });
 });
 

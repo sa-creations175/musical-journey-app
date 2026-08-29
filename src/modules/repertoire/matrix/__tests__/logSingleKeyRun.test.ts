@@ -200,17 +200,22 @@ describe('logSingleKeyRun', () => {
     expect(after?.lastEngagedAt).toBe(NOW);
   });
 
-  it('does NOT clear a lapse — only a passed retest does that', async () => {
+  it('clears the vestigial decay fields it finds on a row', async () => {
+    // WAS "does NOT clear a lapse". Lapse was a sub-state of Solid and
+    // went with it, so there is nothing to preserve — and a row still
+    // carrying values from a pre-retirement build must not keep them.
+    // Writing the empty value is what makes them inert on old rows and
+    // not just on new ones.
     const key = mkKey({
-      keyState: 'solid', solidAt: NOW - 1, solidDecayState: 'lapsed',
+      keyState: 'comfortable', solidAt: NOW - 1, solidDecayState: 'lapsed',
       isRetestRecommended: true, wholeSongTestPassedAt: NOW - 1,
     });
     await db.songKeys.put(key);
     await logRun(key, true, TEMPO, NOW);
 
     const after = await db.songKeys.get('key-1');
-    expect(after?.solidDecayState).toBe('lapsed');
-    expect(after?.isRetestRecommended).toBe(true);
+    expect(after?.solidDecayState).toBeNull();
+    expect(after?.isRetestRecommended).toBe(false);
   });
 
   it('records a not-clean run honestly', async () => {

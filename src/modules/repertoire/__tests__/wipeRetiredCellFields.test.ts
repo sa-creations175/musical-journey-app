@@ -297,15 +297,16 @@ describe('the companions of a status that never existed', () => {
     expect(keys.filter(k => k.isRetestRecommended)).toHaveLength(0);
   });
 
-  it('leaves no key claiming a decay clock without a status', async () => {
-    // The schema's own invariant: solidDecayState is null whenever the
-    // state is not solid. Before this the rows only LOOKED consistent
-    // because every reader guarded on keyState first.
+  it('leaves no key claiming a decay clock at all', async () => {
+    // Was "…without a status", when a solid key could legitimately
+    // carry one. Solid is retired, so NO key may: the field is
+    // vestigial and the invariant is unconditional now.
     await seedAuthorisedCorpus();
     await wipeRetiredCellFields();
     const keys = await db.songKeys.toArray();
     for (const k of keys) {
-      if (k.keyState !== 'solid') expect(k.solidDecayState).toBeNull();
+      expect(k.solidDecayState).toBeNull();
+      expect(k.isRetestRecommended).toBe(false);
     }
   });
 });

@@ -2499,7 +2499,25 @@ export interface SongMatrixSection {
   updatedAt: number;
 }
 
-export type SongKeyState = 'not_started' | 'learning' | 'comfortable' | 'solid';
+/**
+ * SOLID IS RETIRED. It was a second word for Comfortable sitting on a
+ * parallel key-level ladder — comfortable in a key means comfortable
+ * in the song, and the rung above it is Cross-key, which is four keys
+ * one per quadrant. `stage.ts` is the ladder; this is the per-key
+ * reading it is built from.
+ */
+export type SongKeyState = 'not_started' | 'learning' | 'comfortable';
+
+/**
+ * VESTIGIAL. Nothing produces these values any more — the decay clock
+ * they described belonged to Solid and went with it.
+ *
+ * The type survives because `solid_decay_state` is a live synced
+ * Postgres column and `sync/tables.ts` maps this field onto it.
+ * Dropping the column is a schema decision that has not been made, so
+ * the field carries null forever and this names what it would have
+ * held. Do not write it.
+ */
 export type SongKeySolidDecayState = 'solid' | 'fading' | 'lapsed';
 
 export interface SongKey {
@@ -2512,11 +2530,12 @@ export interface SongKey {
    *  changes. */
   isOriginalKey: boolean;
   keyState: SongKeyState;
-  /** Set when keyState first transitions to 'solid'. Null otherwise. */
+  /** VESTIGIAL — always null. Solid is retired; see `SongKeyState`.
+   *  Dexie-only, so it can be dropped from this interface freely
+   *  whenever someone is in here. */
   solidAt: number | null;
-  /** 'solid' (recently touched) → 'fading' (past 14-day warning) →
-   *  'lapsed' (past 30-day threshold, retest recommended). Null
-   *  while keyState !== 'solid'. */
+  /** VESTIGIAL — always null. Kept because `solid_decay_state` is a
+   *  live synced column; see `SongKeySolidDecayState`. */
   solidDecayState: SongKeySolidDecayState | null;
   lastDecayCheckAt: number | null;
   /** Total sessions that have ever touched this key. */

@@ -133,7 +133,7 @@ describe('recomputeSafety', () => {
 
   it('calls a demotion backed by played cells evidenced', () => {
     expect(recomputeSafety(info({
-      keyState: 'solid', derivedState: 'learning', engagedCellCount: 2,
+      keyState: 'comfortable', derivedState: 'learning', engagedCellCount: 2,
     }))).toBe('evidenced-demotion');
   });
 
@@ -342,13 +342,13 @@ describe('recomputeKeyStateFromCells', () => {
     expect((await db.songKeys.get(`songkey-${SONG}-Ab`))?.lastEngagedAt).toBe(NOW - 999);
   });
 
-  it('clears solidDecayState when the state drops below solid', async () => {
-    // The schema documents solidDecayState as null whenever keyState
-    // is not solid; leaving a stale one would be a fresh
-    // inconsistency in place of the repaired one.
+  it('clears the vestigial decay fields on any repair', async () => {
+    // Solid is retired and so is its decay clock, so these fields
+    // describe nothing. A repair clears whatever a pre-retirement
+    // build left on the row rather than carrying it forward.
     await seedSong();
     await db.songKeys.put({
-      ...key('C', false, 'solid'), solidDecayState: 'fading', isRetestRecommended: true,
+      ...key('C', false, 'comfortable'), solidDecayState: 'fading', isRetestRecommended: true,
     });
     await db.songCells.bulkPut([
       cell(`songkey-${SONG}-C`, 'verse', { cellState: 'learning' }),
