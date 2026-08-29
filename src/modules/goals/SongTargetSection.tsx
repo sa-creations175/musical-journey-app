@@ -16,6 +16,7 @@ import {
 } from './songTarget';
 import Field from './Field';
 import { inputClass } from './formStyles';
+import { normaliseStage } from '../repertoire/stage';
 
 /**
  * Granularity-aware song target picker. Renders the granularity
@@ -52,13 +53,17 @@ export default function SongTargetSection({
   keyStateHints: ReadonlyMap<string, KeyStateHint>;
   now: number;
 }) {
-  // Whole-song option tags derived from matrix data — replaces the
-  // legacy RepertoireStage approximation.
+  // THE SONG'S OWN RUNG, from the one ladder. This used to read a
+  // second, parallel ladder computed from the matrix here — it
+  // disagreed with `stage.ts` about Cross-key, and its `solid` was a
+  // second word for Comfortable. `songs.stage` is the watermark the
+  // derivation last wrote, which is the app's own answer and is what
+  // every other surface shows.
   const wholeTags = useMemo(
-    () => songLevelState
-      ? deriveWholeOptionTagsFromMatrix(songLevelState.state, originalMatrixKey, now)
+    () => song
+      ? deriveWholeOptionTagsFromMatrix(normaliseStage(song.stage), originalMatrixKey, now)
       : { solid: null, crossKey: null, internalized: 'stretch' as const },
-    [songLevelState, originalMatrixKey, now],
+    [song, originalMatrixKey, now],
   );
   const solidLocked = isSolidLockedFromMatrix(originalMatrixKey, now);
   const originalKeyIsLapsed = originalMatrixKey !== null

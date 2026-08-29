@@ -673,9 +673,9 @@ function SongDetailInner({
   const cellBands = useCellBands(matrixCells);
   const rollup = useMemo(
     () => computeSongLevelState(
-      matrixKeys, matrixCells, visibleMatrixSections.length, advancementNow, cellBands,
+      matrixKeys, matrixCells, visibleMatrixSections.length, cellBands,
     ),
-    [matrixKeys, matrixCells, visibleMatrixSections.length, advancementNow, cellBands],
+    [matrixKeys, matrixCells, visibleMatrixSections.length, cellBands],
   );
 
   const openCellPanel = useCallback((cellId: string) => {

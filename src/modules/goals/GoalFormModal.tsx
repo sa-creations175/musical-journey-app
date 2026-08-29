@@ -326,9 +326,9 @@ export default function GoalFormModal({
   const cellBands = useCellBands(matrixSongCells);
   const songLevelState = useMemo(
     () => isSongMode
-      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now, cellBands)
+      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, cellBands)
       : null,
-    [isSongMode, matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now, cellBands],
+    [isSongMode, matrixSongKeys, matrixSongCells, visibleMatrixSections.length, cellBands],
   );
   const originalMatrixKey = useMemo(
     () => matrixSongKeys.find(k => k.isOriginalKey) ?? null,

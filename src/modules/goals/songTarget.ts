@@ -1,6 +1,6 @@
 import type { Goal, Song, SongKey } from '../../lib/db';
 import { computeSolidDecayState } from '../repertoire/matrix/solidDecay';
-import type { SongLevelStateName } from '../repertoire/matrix/songLevelState';
+import type { RepertoireStage } from '../../lib/db';
 
 /**
  * Song-goal targeting helpers. When a goal's related items resolve
@@ -96,13 +96,13 @@ export interface WholeOptionTags {
  *     null otherwise.
  *
  *   Cross-key:
- *     'achieved' when songLevelState is 'cross_key' or 'internalized'.
- *     'current' when at 'solid' (next natural milestone is cross-key).
+ *     'achieved' when the stage is 'cross-key' or 'internalized'.
+ *     'current' when at 'comfortable' (the next milestone is cross-key).
  *     null otherwise.
  *
  *   Internalized:
  *     'achieved' when at 'internalized'.
- *     'current' when at 'solid' or 'cross_key' (working toward it).
+ *     'current' when at 'comfortable' or 'cross-key' (working toward it).
  *     'stretch' when below.
  *
  * `originalKey` is the songKeys row with isOriginalKey=true; null
@@ -110,7 +110,7 @@ export interface WholeOptionTags {
  * promoted original-key data). All-null tags result in that case.
  */
 export function deriveWholeOptionTagsFromMatrix(
-  songLevelState: SongLevelStateName,
+  stage: RepertoireStage,
   originalKey: SongKey | null,
   now: number,
 ): WholeOptionTags {
@@ -122,16 +122,19 @@ export function deriveWholeOptionTagsFromMatrix(
     solidTag = originalKeyIsLapsed ? 'current' : 'achieved';
   }
 
+  // READS THE ONE LADDER NOW. The retired song-level ladder's `solid`
+  // was its second word for Comfortable — the rung directly below
+  // Cross-key — so every place that tested for it tests Comfortable.
   let crossKeyTag: SongStateTag = null;
-  if (songLevelState === 'cross_key' || songLevelState === 'internalized') {
+  if (stage === 'cross-key' || stage === 'internalized') {
     crossKeyTag = 'achieved';
-  } else if (songLevelState === 'solid') {
+  } else if (stage === 'comfortable') {
     crossKeyTag = 'current';
   }
 
   let internalizedTag: SongStateTag;
-  if (songLevelState === 'internalized') internalizedTag = 'achieved';
-  else if (songLevelState === 'solid' || songLevelState === 'cross_key') internalizedTag = 'current';
+  if (stage === 'internalized') internalizedTag = 'achieved';
+  else if (stage === 'comfortable' || stage === 'cross-key') internalizedTag = 'current';
   else internalizedTag = 'stretch';
 
   return { solid: solidTag, crossKey: crossKeyTag, internalized: internalizedTag };

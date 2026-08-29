@@ -140,36 +140,25 @@ describe('hasCrossKeyEngagement', () => {
   });
 });
 
-describe('computeSongLevelState under a materialised grid', () => {
-  it('does NOT report cross_key merely because 12 keys exist', () => {
-    // The silent inflation: comfortable original key + a full grid
-    // must still read `comfortable`, not `cross_key`.
-    const { songKeys, songCells } = fullGrid('Ab', 'comfortable');
-    expect(computeSongLevelState(songKeys, songCells, 3, NOW, NO_CELL_BANDS).state).toBe('comfortable');
-  });
-
-  it('reports cross_key once a non-original cell is actually played', () => {
-    const { songKeys, songCells } = fullGrid('Ab', 'comfortable');
-    const touched = songCells.filter(c => c.id === 'cell-songkey-s1-C-verse');
-    expect(computeSongLevelState(
-      songKeys, songCells, 3, NOW, bandsFor(touched, 'started'),
-    ).state).toBe('cross_key');
-  });
-
-  it('still reports learning when the original key is untouched', () => {
-    const { songKeys, songCells } = fullGrid('Ab', 'not_started');
-    expect(computeSongLevelState(songKeys, songCells, 3, NOW, NO_CELL_BANDS).state).toBe('learning');
-  });
-
+describe('the percentages under a materialised grid', () => {
+  /**
+   * THE LADDER ASSERTIONS THAT WERE HERE ARE GONE WITH THE LADDER.
+   * Three of them tested `state` — cross_key inflation, and the
+   * learning fallthrough — and that ladder is retired: `stage.ts` is
+   * the only one now, and its Cross-key rule is four keys one per
+   * quadrant rather than "any other key has a played cell". Those
+   * cases live in `stageAdvancement.test.ts` against the real rule.
+   *
+   * What survives here is the arithmetic, which never named a rung.
+   */
   it('percentages are unmoved by materialisation', () => {
     // learningPercent / crossKeyPercent count `comfortable` cells, and
     // their denominators (totalSections, 11 × totalSections) already
     // assumed a full grid — so empty rows must contribute nothing.
     const { songKeys, songCells } = fullGrid('Ab', 'comfortable');
-    const state = computeSongLevelState(songKeys, songCells, 3, NOW, NO_CELL_BANDS);
+    const state = computeSongLevelState(songKeys, songCells, 3, NO_CELL_BANDS);
     expect(state.learningPercent).toBe(0);
     expect(state.crossKeyPercent).toBe(0);
-    expect(state.solidKeyCount).toBe(0);
   });
 
   it('learningPercent still tracks comfortable original-key cells', () => {
@@ -178,7 +167,7 @@ describe('computeSongLevelState under a materialised grid', () => {
       c => c.songKeyId === 'songkey-s1-Ab' && c.sectionId !== 'bridge',
     );
     expect(computeSongLevelState(
-      songKeys, songCells, 3, NOW, bandsFor(twoOfThree, 'fluent'),
+      songKeys, songCells, 3, bandsFor(twoOfThree, 'fluent'),
     ).learningPercent).toBe(67);
   });
 });

@@ -1,5 +1,4 @@
 import type { SongCell, SongKey } from '../../../lib/db';
-import { computeSolidDecayState } from './solidDecay';
 import { type CellBands, isCellComfortable, isCellTouched } from './cellBands';
 
 /**
@@ -40,17 +39,24 @@ import { type CellBands, isCellComfortable, isCellTouched } from './cellBands';
  * ---------------------------------------------------------------
  */
 
-export type SongLevelStateName =
-  | 'learning'
-  | 'comfortable'
-  | 'solid'
-  | 'cross_key'
-  | 'internalized';
+// =====================================================================
+// THE LADDER THAT USED TO LIVE HERE IS GONE.
+//
+// `SongLevelStateName` ran learning → comfortable → solid → cross_key
+// → internalized, in parallel with `stage.ts`'s ladder, and the two
+// gave different answers for the same song: this one called Cross-key
+// "the original key is comfortable and ANY other key has an engaged
+// cell", where the designed rule is four keys, one per quadrant of the
+// circle of fourths. Solid was this ladder's second word for
+// Comfortable.
+//
+// `stage.ts` is the ladder. What survives here is the arithmetic that
+// was never part of it — two percentages and three engagement
+// predicates, none of which name a rung.
+// =====================================================================
 
 export interface SongLevelState {
-  state: SongLevelStateName;
-  /** Percent (0–100) of original-key cells at 'comfortable'. Always
-   *  computed; meaningful primarily when state === 'learning'. */
+  /** Percent (0–100) of original-key cells at 'comfortable'. */
   learningPercent: number;
   /** How many of the song's sections are at Comfortable in the
    *  ORIGINAL key, and how many there are. The same reading as
@@ -64,26 +70,8 @@ export interface SongLevelState {
   originalSectionCount: number;
   /** Percent (0–100) of non-original-key cells at 'comfortable',
    *  denominated by 11 keys × total sections per the cross-key
-   *  formula on spec line 47. Always computed; meaningful when
-   *  state === 'cross_key' OR (state === 'learning' AND value > 0). */
+   *  formula on spec line 47. */
   crossKeyPercent: number;
-  /** Number of keys currently at Solid (not lapsed). Surfaced for
-   *  the header summary; the Internalized gate check uses this. */
-  solidKeyCount: number;
-}
-
-/** Spec section "Internalized gate":
- *    - 3 or more keys are at Solid
- *    - Lived-with gate satisfied per key (>= 5 sessions in a rolling
- *      14-day window)
- *    - Decay has not lapsed any of those keys back below Solid
- *
- *  In step 3a there's no engagement data yet for migrated songs, so
- *  the lived-with check returns false for them and song-level state
- *  caps at Solid. Honest stance per spec — the user earns
- *  Internalized through fresh practice, not by virtue of migration. */
-function isLivedWith(key: SongKey): boolean {
-  return key.livedWithSessionsInWindow >= 5;
 }
 
 /**
@@ -150,20 +138,10 @@ export function hasCrossKeyEngagement(
   );
 }
 
-/** Live-derive lapsed status — the persisted solidDecayState column
- *  can lag behind real time during long unopened windows. In-view
- *  callers always pass `now` so the rollup uses fresh truth rather
- *  than the stale snapshot. */
-function isSolidNotLapsed(key: SongKey, now: number): boolean {
-  if (key.keyState !== 'solid') return false;
-  return computeSolidDecayState(key, now) !== 'lapsed';
-}
-
 export function computeSongLevelState(
   songKeys: ReadonlyArray<SongKey>,
   songCells: ReadonlyArray<SongCell>,
   totalSections: number,
-  now: number,
   bands: CellBands,
 ): SongLevelState {
   const originalKey = songKeys.find(k => k.isOriginalKey) ?? null;
@@ -193,49 +171,10 @@ export function computeSongLevelState(
     ? Math.round((nonOriginalComfortable / crossKeyDenominator) * 100)
     : 0;
 
-  const solidKeys = songKeys.filter(k => isSolidNotLapsed(k, now));
-  const solidLivedWithKeys = solidKeys.filter(isLivedWith);
-  const internalized = solidLivedWithKeys.length >= 3;
-
-  const state = ((): SongLevelStateName => {
-    if (internalized) return 'internalized';
-    if (originalKey?.keyState === 'solid') return 'solid';
-    // After the early-return above, the original key can no longer
-    // be 'solid'; TS narrows accordingly. Spec's "Cross-key" rule
-    // is "original Comfortable OR Solid" — the Solid arm is already
-    // handled, so checking 'comfortable' alone covers what reaches
-    // this point.
-    // ENGAGED non-original cells, not merely existing ones — see the
-    // header note. `nonOriginalKeyCells` is the materialised grid;
-    // filtering it is what separates "has 11 other rows" from "has
-    // played it in another key".
-    if (
-      originalKey?.keyState === 'comfortable'
-      && nonOriginalKeyCells.some(c => isCellEngaged(c, bands))
-    ) {
-      return 'cross_key';
-    }
-    if (originalKey?.keyState === 'comfortable') return 'comfortable';
-    return 'learning';
-  })();
-
   return {
-    state,
     learningPercent,
     originalComfortableCount: originalComfortable,
     originalSectionCount: totalSections,
     crossKeyPercent,
-    solidKeyCount: solidKeys.length,
   };
-}
-
-/** Display label for the song-level state pill. */
-export function songLevelStateLabel(state: SongLevelStateName): string {
-  switch (state) {
-    case 'learning':     return 'Learning';
-    case 'comfortable':  return 'Comfortable';
-    case 'solid':        return 'Solid';
-    case 'cross_key':    return 'Cross-key';
-    case 'internalized': return 'Internalized';
-  }
 }

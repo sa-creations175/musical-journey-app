@@ -1399,7 +1399,7 @@ function Step2SongRepertoire({
   const cellBands = useCellBands(matrixSongCells);
   const songLevelState = useMemo(
     () => songRecord
-      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now, cellBands)
+      ? computeSongLevelState(matrixSongKeys, matrixSongCells, visibleMatrixSections.length, cellBands)
       : null,
     [songRecord, matrixSongKeys, matrixSongCells, visibleMatrixSections.length, now],
   );
