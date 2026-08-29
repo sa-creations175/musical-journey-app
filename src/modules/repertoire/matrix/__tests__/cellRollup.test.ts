@@ -68,8 +68,8 @@ function mkKey(overrides: Partial<SongKey> = {}): SongKey {
 }
 
 const TWO_ATTEMPTS: AttemptDraft[] = [
-  { id: 'a1', bpm: 80, wasClean: true },
-  { id: 'a2', bpm: 80, wasClean: true },
+  { id: 'a1', bpm: 80, feel: 3 as const },
+  { id: 'a2', bpm: 80, feel: 3 as const },
 ];
 
 describe('applyAttemptsToCell — rating stamping', () => {
@@ -126,7 +126,7 @@ describe('saveAttemptsAndRollup — rating round-trip', () => {
       cell,
       songKey,
       siblingCells: [cell],
-      attempts: [{ id: 'a1', bpm: 80, wasClean: true }],
+      attempts: [{ id: 'a1', bpm: 80, feel: 3 as const }],
       notes: null,
       rating,
       markComfortable: false,
@@ -199,7 +199,7 @@ describe('optional tempo', () => {
     // say it was clean" — was the same friction one level down from
     // the one duration capture removes.
     const { runThroughRows } = applyAttemptsToCell(
-      mkCell(), [{ id: 'a1', bpm: null, wasClean: true }],
+      mkCell(), [{ id: 'a1', bpm: null, feel: 3 as const }],
       null, null, false, null, NOW,
     );
     expect(runThroughRows).toHaveLength(1);

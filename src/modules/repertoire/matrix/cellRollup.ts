@@ -39,7 +39,13 @@ export interface AttemptDraft {
    *  the friction, not the data model. A null tempo simply cannot be
    *  gate-relevant — see isInTempoRange. */
   bpm: number | null;
-  wasClean: boolean;
+  /**
+   * How the run went, on the app's four-step scale. Replaces a
+   * `wasClean` boolean for the same reason the key path did — see
+   * `KeyAttemptDraft`. `attemptWasClean` derives Clean-or-better; the
+   * stored row keeps its boolean and nothing is asked twice.
+   */
+  feel: Feel;
 }
 
 /**
@@ -76,7 +82,7 @@ export function projectConsecutiveCleanCount(
       // Below floor — gate-irrelevant. Don't advance, don't reset.
       continue;
     }
-    if (a.wasClean) count = Math.min(count + 1, 3);
+    if (attemptWasClean(a)) count = Math.min(count + 1, 3);
     else count = 0;
   }
   return count;
@@ -227,7 +233,7 @@ export function applyAttemptsToCell(
     songId: cell.songId,
     sectionId: cell.sectionId,
     songKeyId: cell.songKeyId,
-    wasClean: a.wasClean,
+    wasClean: attemptWasClean(a),
     tempoBpm: a.bpm == null ? null : Math.max(1, Math.floor(a.bpm)),
     notes: null, // per-attempt notes not surfaced in step 4; cell-level notes only
     ...(rating ? { rating } : {}),
@@ -406,11 +412,7 @@ export function projectKeyConsecutiveCleanCount(
   // The maths is identical; only where "clean" comes from differs. A
   // key attempt carries a feel and derives it; a cell attempt still
   // carries the boolean.
-  return projectConsecutiveCleanCount(
-    0,
-    attempts.map(a => ({ id: a.id, bpm: a.bpm, wasClean: attemptWasClean(a) })),
-    performanceTempo,
-  );
+  return projectConsecutiveCleanCount(0, attempts, performanceTempo);
 }
 
 /**

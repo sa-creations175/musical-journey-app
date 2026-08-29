@@ -2,11 +2,14 @@ import { useState } from 'react';
 import type { SongCell } from '../../../lib/db';
 import MetronomeControl from '../../../components/MetronomeControl';
 import {
+  attemptWasClean,
   isInTempoRange,
   projectConsecutiveCleanCount,
   type AttemptDraft,
 } from './cellRollup';
 import { type CellBands, isCellComfortable } from './cellBands';
+import type { Feel } from '../../../lib/fluencyScale';
+import { FEEL_CARD_OPTIONS } from '../../shapes-and-patterns/drillModel';
 
 /**
  * The cell test — one section, one key, at tempo.
@@ -76,12 +79,12 @@ export default function TestStep({
   // in the grid beside this panel: Fluent or better.
   const alreadyComfortable = isCellComfortable(bands, cell.id);
 
-  const add = (wasClean: boolean) => {
+  const add = (feel: Feel) => {
     if (!bpmValid) return;
     setAttempts(prev => [...prev, {
       id: `attempt-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`,
       bpm: hasBpm ? parsedBpm : null,
-      wasClean,
+      feel,
     }]);
   };
 
@@ -134,22 +137,21 @@ export default function TestStep({
                 : 'border-needswork'
             }`}
           />
-          <button
-            type="button"
-            onClick={() => add(true)}
-            disabled={!bpmValid}
-            className="flex-1 px-3 py-1.5 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90 disabled:opacity-40"
-          >
-            Clean
-          </button>
-          <button
-            type="button"
-            onClick={() => add(false)}
-            disabled={!bpmValid}
-            className="flex-1 px-3 py-1.5 rounded-md border border-needswork text-needswork text-xs font-medium hover:bg-needswork/10 disabled:opacity-40"
-          >
-            Not Clean
-          </button>
+          {/* THE SAME FOUR WORDS THE WHOLE-SONG TEST NOW USES. A
+              section test and a whole-song test are one act rated one
+              way; Clean / Not Clean was a second vocabulary for it. */}
+          {FEEL_CARD_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => add(opt.value)}
+              disabled={!bpmValid}
+              title={opt.hint}
+              className={`flex-1 px-2 py-1.5 rounded-md border text-[11px] font-medium disabled:opacity-40 ${opt.inactiveClass}`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -262,8 +264,8 @@ function AttemptList({
             className="flex items-center gap-2 text-xs text-neutral-700 dark:text-neutral-200"
           >
             <span className="text-neutral-400 w-4 tabular-nums">{i + 1}</span>
-            <span className={a.wasClean ? 'text-fluent' : 'text-needswork'}>
-              {a.wasClean ? 'clean' : 'not clean'}
+            <span className={attemptWasClean(a) ? 'text-fluent' : 'text-needswork'}>
+              {FEEL_CARD_OPTIONS.find(o => o.value === a.feel)?.label.toLowerCase() ?? ''}
             </span>
             <span className="text-neutral-500 tabular-nums">
               {a.bpm === null ? 'no tempo' : `${a.bpm} bpm`}

@@ -212,7 +212,9 @@ describe('the clean-run count, without a button behind it', () => {
     const h = mount();
     h.toTest();
     h.runsClean(2);
-    h.click('Not Clean');
+    // WAS 'Not Clean'. Struggled is the below-Clean end of the four
+    // words that replaced the pair.
+    h.click('Struggled');
     expect(h.text()).toContain('0 of 3 clean runs in a row');
     h.unmount();
   });
