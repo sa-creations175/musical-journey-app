@@ -91,6 +91,18 @@ export interface DrillSurface {
    */
   countsUp: boolean;
   /**
+   * Where this surface's session elapsed actually lives, for one whose
+   * clock outlives the panel.
+   *
+   * Songs store theirs (`mja.songTimer.v1`), so it survives a reload
+   * and may be hours older than this mount; counting from mount would
+   * show a session that had restarted while the record — the one that
+   * gets logged — said otherwise. Null on the three whose session
+   * begins and ends with the panel, where a ref is exactly as durable
+   * as the thing it measures.
+   */
+  readSessionElapsedMs: (() => number) | null;
+  /**
    * A metronome on the SESSION, not only inside a drill.
    *
    * Plenty of the work on a song happens between runs — reading the

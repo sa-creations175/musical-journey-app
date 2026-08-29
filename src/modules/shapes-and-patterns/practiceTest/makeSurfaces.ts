@@ -92,6 +92,8 @@ export function chordShapeSurface(args: {
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
     countsUp: false,
+    // Begins and ends with the panel — nothing to persist.
+    readSessionElapsedMs: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -142,6 +144,8 @@ export function scaleSurface(args: {
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
     countsUp: false,
+    // Begins and ends with the panel — nothing to persist.
+    readSessionElapsedMs: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -185,6 +189,8 @@ export function voiceLeadingSurface(args: {
     cellLabel: args.cellLabel,
     skillLabel: args.skillLabel,
     countsUp: false,
+    // Begins and ends with the panel — nothing to persist.
+    readSessionElapsedMs: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -266,6 +272,10 @@ export function songSurface(args: {
   sections: ReadonlyArray<{ id: string; label: string }>;
   /** Collapse the panel to a bar and show the chart. */
   onOpenLeadSheet: () => void;
+  /** Live elapsed from the song timer record. The host owns the hook;
+   *  the surface only forwards it, so there is one reader of the
+   *  record rather than two. */
+  readSessionElapsedMs: () => number;
   /** The song's own tempo. NOT a figure from the settings tree: a song
    *  is played at the tempo it is written at, and the tree has no
    *  opinion about that. Null means the song has none set, so every
@@ -278,6 +288,8 @@ export function songSurface(args: {
     skillLabel: args.skillLabel,
     // A section takes as long as it takes.
     countsUp: true,
+    // THE STORED RECORD, not this mount. See `readSessionElapsedMs`.
+    readSessionElapsedMs: args.readSessionElapsedMs,
     // Reading the chart and working a passage happen between runs.
     sessionMetronome: true,
     scopeOptions: args.sections,

@@ -84,7 +84,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    *  was opened on — see DrillRecord.scope. */
   const [scope, setScope] = useState<readonly string[]>([]);
 
-  const sessionSeconds = useSessionClock(mode !== null);
+  const sessionSeconds = useSessionClock(mode !== null, surface.readSessionElapsedMs);
 
   const close = () => {
     metronome.stop('drill');

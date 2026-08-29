@@ -23,8 +23,37 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-/** Whole seconds since the clock started. */
-export function useSessionClock(running: boolean): number {
+/**
+ * Whole seconds the session has run for.
+ *
+ * =====================================================================
+ * SOME SESSIONS OUTLIVE THE COMPONENT SHOWING THEM.
+ *
+ * The `startedAt` ref below is the right answer for a surface whose
+ * session begins when the panel opens: a drill session has no
+ * existence before that and none after it closes, so a ref is exactly
+ * as durable as the thing it measures.
+ *
+ * A SONG SESSION IS NOT LIKE THAT. Its clock is a persisted record
+ * (`mja.songTimer.v1`) that survives navigation, reload and a paused
+ * afternoon, and whose `startedAt` may be hours older than this
+ * component. Counting from mount would show a session that had
+ * restarted while the record said otherwise — and the record is the
+ * one that gets logged.
+ *
+ * So a surface with a durable clock passes a reader, and this counts
+ * what the reader says rather than what it remembers. The ref is not
+ * consulted at all in that case; there is nothing for it to be right
+ * about.
+ * =====================================================================
+ *
+ * @param readElapsedMs Where the elapsed actually lives, for a surface
+ *   that stores it. Null or omitted for one that does not.
+ */
+export function useSessionClock(
+  running: boolean,
+  readElapsedMs?: (() => number) | null,
+): number {
   const [seconds, setSeconds] = useState(0);
   /**
    * The wall-clock moment the session began.
@@ -38,13 +67,29 @@ export function useSessionClock(running: boolean): number {
    */
   const startedAt = useRef<number | null>(null);
 
+  // Held in a ref so a surface that supplies a reader does not have to
+  // supply the SAME function instance every render to avoid restarting
+  // the interval.
+  const reader = useRef(readElapsedMs ?? null);
+  reader.current = readElapsedMs ?? null;
+
   useEffect(() => {
     if (!running) return;
     if (startedAt.current === null) startedAt.current = Date.now();
-    const id = window.setInterval(() => {
+    const tick = () => {
+      const external = reader.current;
+      if (external !== null) {
+        setSeconds(Math.floor(external() / 1000));
+        return;
+      }
       if (startedAt.current === null) return;
       setSeconds(Math.floor((Date.now() - startedAt.current) / 1000));
-    }, 250);
+    };
+    // Once immediately: a durable clock already has a value, and
+    // showing 00:00 for a quarter second would be a session that
+    // appeared to restart.
+    tick();
+    const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
   }, [running]);
 

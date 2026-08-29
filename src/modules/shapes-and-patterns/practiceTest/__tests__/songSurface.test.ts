@@ -33,6 +33,7 @@ function surface(songTempo: number | null = 90) {
     cellIdBySectionId: BY_SECTION,
     sections: [...BY_SECTION.keys()].map(id => ({ id, label: id })),
     onOpenLeadSheet: () => {},
+    readSessionElapsedMs: () => 0,
     songTempo,
   });
 }
