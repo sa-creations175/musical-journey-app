@@ -1,9 +1,11 @@
 import { db, type SongCell, type SongCellRunThrough, type SongKey } from '../../lib/db';
 import {
   applyAttemptsToCell,
+  applyAttemptsToKey,
   computeKeyStateFromCells,
   type AttemptDraft,
 } from './matrix/cellRollup';
+import { recordKeyProving } from './matrix/proveKey';
 import { loadCellBands } from './matrix/cellBands';
 
 /**
@@ -155,4 +157,95 @@ export async function writeSongRun(args: SongRunWrite): Promise<void> {
       await db.songKeys.put(updatedKey);
     },
   );
+}
+
+/**
+ * A run that covered the whole song, at the key level.
+ *
+ * =====================================================================
+ * THE ROW IS THE WHOLE SONG IN ONE KEY. THE CELLS ARE ITS SECTIONS.
+ *
+ * `writeSongRun` above writes one `songCellRunThroughs` row per section
+ * the run covered — three sections, three rows, each a statement about
+ * that section. None of them says "and it was played start to finish".
+ *
+ * That claim is a `songKeyRunThroughs` row, and something reads it:
+ * `stage.ts`'s Internalized criterion asks for every key to have been
+ * run clean at tempo at least once, and it looks here. A whole-song run
+ * that wrote only section rows would satisfy nothing.
+ *
+ * WRITTEN PER RUN, NOT PER PASS. The criterion is "run clean at tempo,
+ * at least once" — a single good run counts toward it whether or not a
+ * test was ever completed. Waiting for a pass would lose that.
+ *
+ * The streak comes IN rather than being recomputed: the session owns
+ * it, and this writes one run at a time.
+ */
+export async function writeWholeSongRun(args: {
+  songKeyId: string;
+  attempt: AttemptDraft;
+  performanceTempo: number | null;
+  /** The streak before this run. See `applyAttemptsToKey`. */
+  streakBefore: number;
+  isRetest: boolean;
+  now?: number;
+}): Promise<number> {
+  const now = args.now ?? Date.now();
+  const songKey = await db.songKeys.get(args.songKeyId);
+  if (songKey === undefined) return args.streakBefore;
+
+  const { runThroughRows, finalCount } = applyAttemptsToKey(
+    songKey,
+    [{ id: args.attempt.id, bpm: args.attempt.bpm, feel: args.attempt.feel }],
+    args.performanceTempo,
+    args.isRetest,
+    now,
+    'test',
+    args.streakBefore,
+  );
+  await db.songKeyRunThroughs.bulkAdd(runThroughRows);
+  return finalCount;
+}
+
+/**
+ * The whole-song test was passed.
+ *
+ * =====================================================================
+ * TWO THINGS, AND ONLY THE FIRST IS OBVIOUS.
+ *
+ * `wholeSongTestPassedAt` is the durable fact. `stageCriteria` reads it
+ * directly as the Learning → Comfortable criterion — the test stopped
+ * writing a status in 831e38b, so this timestamp IS the record.
+ *
+ * The second is the retest clock, and it has not been moving.
+ * `recordKeyProving` had NO production caller: `logPractice.ts` and
+ * `stage.ts` both carry comments describing the whole-song test moving
+ * this key's schedule, and anyone reading them would have believed it.
+ * This is the caller.
+ *
+ * It writes a NON-SCORING engagement — see `recordKeyProving` for why a
+ * pass must not cast a fourth vote on a key its three runs already
+ * rated.
+ * =====================================================================
+ */
+export async function writeWholeSongTestPass(args: {
+  songKeyId: string;
+  now?: number;
+}): Promise<void> {
+  const now = args.now ?? Date.now();
+  const songKey = await db.songKeys.get(args.songKeyId);
+  if (songKey === undefined) return;
+
+  await db.songKeys.put({
+    ...songKey,
+    wholeSongTestPassedAt: now,
+    // A pass clears a pending retest, whatever prompted it.
+    isRetestRecommended: false,
+    lastEngagedAt: now,
+    updatedAt: now,
+  });
+
+  // Outside the write above, mirroring every other spacing call: a
+  // scheduling failure must not roll back the test result just earned.
+  await recordKeyProving({ songKeyId: args.songKeyId, passed: true, timestamp: now });
 }

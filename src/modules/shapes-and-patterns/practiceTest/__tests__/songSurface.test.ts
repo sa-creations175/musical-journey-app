@@ -37,6 +37,8 @@ function surface(songTempo: number | null = 90) {
     readSessionId: () => SESSION,
     expectedSectionCount: BY_SECTION.size,
     readRunTempo: () => RUN_BPM,
+    readTestStreak: () => STREAK_BEFORE,
+    isRetest: false,
     songTempo,
   });
 }
@@ -46,6 +48,11 @@ const SESSION = 'ss-test-1';
 /** What the metronome was at. Distinct from the song's tempo so the
  *  two cannot be confused in an assertion. */
 const RUN_BPM = 96;
+
+/** The streak the session was on before the run under test. Mutable so
+ *  a test can put the session mid-streak without rebuilding the
+ *  surface. */
+let STREAK_BEFORE = 0;
 
 const run = (over: Partial<DrillRecord> = {}): DrillRecord => ({
   ranSeconds: 140,
@@ -271,7 +278,8 @@ describe('a run writes the cell, the log and the key', () => {
       sections: SECTIONS.map(([id]) => ({ id, label: id })),
       onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => SESSION, expectedSectionCount: BY_SECTION.size,
-      readRunTempo: () => null, songTempo: 90,
+      readRunTempo: () => null, readTestStreak: () => 0, isRetest: false,
+      songTempo: 90,
     });
     await silent.write(run({ feel: 3 }));
     const rows = await db.songCellRunThroughs.where('cellId').equals(CELL).toArray();
@@ -330,5 +338,137 @@ describe('a run writes the cell, the log and the key', () => {
     await surface(90).write(run({ feel: null }));
     expect(await db.songCellRunThroughs.count()).toBe(0);
     expect((await db.songCells.get(CELL))?.lastRunAt).toBeNull();
+  });
+});
+
+/**
+ * The whole song, at the key level.
+ *
+ * =====================================================================
+ * `recordKeyProving` HAD NO PRODUCTION CALLER.
+ *
+ * `logPractice.ts` and `stage.ts` both carry comments describing the
+ * whole-song test moving that key's retest schedule. Nothing called it,
+ * so the clock has not been moving — and the comments are exactly the
+ * kind of thing a reader believes without checking.
+ *
+ * These pin the caller, and pin that the pass does NOT cast a fourth
+ * rating on a key its three runs already rated.
+ * =====================================================================
+ */
+describe('a run that covered the whole song', () => {
+  const ALL = [...BY_SECTION.keys()];
+
+  beforeEach(async () => {
+    await db.songCellRunThroughs.clear();
+    await db.songKeyRunThroughs.clear();
+    await db.songCells.clear();
+    await db.songKeys.clear();
+    await db.spacingState.clear();
+    STREAK_BEFORE = 0;
+    await db.songKeys.put({
+      id: KEY, songId: 's1', keyName: 'Ab', isOriginalKey: true,
+      keyState: 'learning', solidAt: null, solidDecayState: null,
+      lastDecayCheckAt: null, livedWithSessionCount: 0,
+      livedWithFirstSessionAt: null, livedWithWindowStartAt: null,
+      livedWithSessionsInWindow: 0, wholeSongTestPassedAt: null,
+      isRetestRecommended: true, lastEngagedAt: null,
+      createdAt: 1, updatedAt: 1,
+    } as never);
+    await db.songCells.bulkPut([...BY_SECTION.entries()].map(([sectionId, cellId]) => ({
+      id: cellId, songId: 's1', songKeyId: KEY, sectionId,
+      cellState: 'empty', consecutiveCleanCount: 0,
+      lastRunAt: null, notes: null, markComfortable: false,
+      comfortableAt: null, lastEngagedAt: null,
+      createdAt: 1, updatedAt: 1,
+    })) as never);
+  });
+
+  it('writes a key-level row, which the section rows cannot say between them', async () => {
+    // `stage.ts`'s Internalized criterion asks whether the key has been
+    // run clean at tempo at least once, and looks in songKeyRunThroughs.
+    await surface(90).write(run({ feel: 3, scope: ALL }));
+    const rows = await db.songKeyRunThroughs.toArray();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].wasClean).toBe(true);
+    expect(rows[0].tempoBpm).toBe(RUN_BPM);
+  });
+
+  it('A SECTION RUN DOES NOT — coverage is what decides it', async () => {
+    // Derived from what the run covered, not from a mode flag. A second
+    // field saying "this was the whole song" would be a way for the two
+    // to disagree.
+    await surface(90).write(run({ feel: 3 }));
+    expect(await db.songKeyRunThroughs.count()).toBe(0);
+  });
+
+  it('records the streak it was PART OF, not a fresh 1 each time', async () => {
+    // One run at a time means the session owns the count. Without it
+    // every stored row would read 1 and the log would show three
+    // separate first-runs where there was a streak.
+    STREAK_BEFORE = 2;
+    await surface(90).write(run({ feel: 3, scope: ALL }));
+    expect((await db.songKeyRunThroughs.toArray())[0].consecutiveCleanCount).toBe(3);
+  });
+
+  it('a below-Clean whole-song run resets the stored streak to zero', async () => {
+    STREAK_BEFORE = 2;
+    await surface(90).write(run({ feel: 1, scope: ALL }));
+    expect((await db.songKeyRunThroughs.toArray())[0].consecutiveCleanCount).toBe(0);
+  });
+});
+
+describe('passing the whole-song test', () => {
+  beforeEach(async () => {
+    await db.songKeys.clear();
+    await db.spacingState.clear();
+    await db.songKeys.put({
+      id: KEY, songId: 's1', keyName: 'Ab', isOriginalKey: true,
+      keyState: 'comfortable', solidAt: null, solidDecayState: null,
+      lastDecayCheckAt: null, livedWithSessionCount: 0,
+      livedWithFirstSessionAt: null, livedWithWindowStartAt: null,
+      livedWithSessionsInWindow: 0, wholeSongTestPassedAt: null,
+      isRetestRecommended: true, lastEngagedAt: null,
+      createdAt: 1, updatedAt: 1,
+    } as never);
+  });
+
+  it('is something the surface can record at all', () => {
+    // Three of the four surfaces supply null here — a passed shape test
+    // is entirely described by its reps. A song's is not.
+    expect(surface(90).recordTestPass).not.toBeNull();
+  });
+
+  it('writes wholeSongTestPassedAt, which is what stageCriteria reads', async () => {
+    // The test stopped writing a status in 831e38b, so this timestamp
+    // IS the Learning → Comfortable record.
+    await surface(90).recordTestPass!();
+    const key = await db.songKeys.get(KEY);
+    expect(key?.wholeSongTestPassedAt).not.toBeNull();
+    expect(key?.isRetestRecommended).toBe(false);
+  });
+
+  it('MOVES THE RETEST CLOCK — the caller recordKeyProving never had', async () => {
+    const before = await db.spacingState
+      .where('itemRef').equals(`songKey:${KEY}`).first();
+    expect(before).toBeUndefined();
+    await surface(90).recordTestPass!();
+    const after = await db.spacingState
+      .where('itemRef').equals(`songKey:${KEY}`).first();
+    expect(after).toBeDefined();
+    expect(after?.nextDueAt).not.toBeNull();
+  });
+
+  it('DOES NOT cast a fourth rating on the key', async () => {
+    // The three runs each wrote their own rating here. A pass adding a
+    // fourth would put a Clean rep on the row that nobody played — and
+    // under the streak rule that rep could complete a streak by itself.
+    await surface(90).recordTestPass!();
+    const row = await db.spacingState
+      .where('itemRef').equals(`songKey:${KEY}`).first();
+    const history = (row?.performanceHistory ?? []) as Array<Record<string, unknown>>;
+    expect(history).toHaveLength(1);
+    expect(history[0].kind).toBe('rating');
+    expect(history[0].scores).toBe(false);
   });
 });

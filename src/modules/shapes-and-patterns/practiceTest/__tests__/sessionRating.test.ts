@@ -106,6 +106,8 @@ describe('every surface has one', () => {
       readSessionId: () => 'ss-test-1',
       expectedSectionCount: 1,
       readRunTempo: () => null,
+      readTestStreak: () => 0,
+      isRetest: false,
       songTempo: 90,
     }).writeSessionRating(3, false, 'ss-test-1');
     const refs = (await db.spacingState.toArray()).map(r => r.itemRef).sort();
@@ -123,6 +125,8 @@ describe('every surface has one', () => {
       readSessionId: () => 'ss-test-1',
       expectedSectionCount: 1,
       readRunTempo: () => null,
+      readTestStreak: () => 0,
+      isRetest: false,
       songTempo: 90,
     }).writeSessionRating(3, false, 'ss-test-1');
     const refs = (await db.spacingState.toArray()).map(r => r.itemRef);
@@ -154,6 +158,8 @@ describe('readVerdict — what the done step reports', () => {
       readSessionId: () => 'ss-test-1',
       expectedSectionCount: 1,
       readRunTempo: () => null,
+      readTestStreak: () => 0,
+      isRetest: false,
       songTempo: 90,
     });
     for (let i = 0; i < 3; i++) await s.writeSessionRating(3, true, 'ss-test-1');

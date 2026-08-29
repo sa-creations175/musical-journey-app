@@ -458,8 +458,27 @@ export function applyAttemptsToKey(
   isRetest: boolean,
   now: number,
   kind: 'test' | 'single' = 'test',
+  /**
+   * The streak this session was already on.
+   *
+   * =================================================================
+   * DEFAULTS TO ZERO, WHICH IS THE BATCH CALLER'S WHOLE CONTRACT.
+   *
+   * A modal that saves every attempt at once genuinely starts at zero
+   * — the header above says why, and nothing about that changes.
+   *
+   * A surface that rates each run AS IT FINISHES writes one attempt at
+   * a time, and the session's streak lives outside this call. Without
+   * somewhere to put it, every stored row would read
+   * `consecutiveCleanCount: 1` and the run log would show three
+   * separate first-runs instead of a streak. Same parameter, same
+   * position and same default as `projectConsecutiveCleanCount`, which
+   * has taken one all along.
+   * =================================================================
+   */
+  startingCount = 0,
 ): { runThroughRows: SongKeyRunThrough[]; finalCount: number } {
-  let count = 0;
+  let count = startingCount;
   const rows: SongKeyRunThrough[] = attempts.map((a, i) => {
     if (isInTempoRange(a.bpm, performanceTempo)) {
       if (attemptWasClean(a)) count = Math.min(count + 1, 3);

@@ -79,6 +79,26 @@ export async function recordKeyProving(args: {
         kind: 'rating',
         rating: args.passed ? 'flying' : 'crawling',
         feel: args.passed ? 3 : 1,
+        // =============================================================
+        // IT MOVES THE CLOCK. IT DOES NOT CAST A FOURTH VOTE.
+        //
+        // The three runs of the test each wrote their own rating here
+        // through `recordSongKeyRun`. A pass writing a FOURTH rating
+        // would put a rep on the row that nobody played — and under the
+        // streak rule that rep is Clean, so it could extend or complete
+        // a streak on its own.
+        //
+        // What a pass is actually for at this level is the SCHEDULE:
+        // the key has been proven, so ask again later rather than soon.
+        // `recordEngagement` moves `nextDueAt` and `lastEngagedAt` for
+        // any engagement, scoring or not, so `scores: false` gets the
+        // clock moved and leaves the band to the runs.
+        //
+        // Same mechanism and same reasoning as `logPractice.ts`, which
+        // records that a song was sat down with without claiming how
+        // well it went.
+        // =============================================================
+        scores: false,
       },
       ...(args.timestamp !== undefined ? { timestamp: args.timestamp } : {}),
     });

@@ -229,6 +229,25 @@ export interface DrillSurface {
     feel: Feel, fromTest: boolean, sessionId: string,
   ) => Promise<void>;
   /**
+   * The test was passed — record the durable fact.
+   *
+   * =====================================================================
+   * NULL ON EVERY SURFACE THAT HAS NO SUCH FACT, and three of the four
+   * do not. A passed shape test is entirely described by the reps it
+   * wrote: the band moves and that is the whole of it.
+   *
+   * A song is not. Passing the whole-song test in a key writes
+   * `wholeSongTestPassedAt`, which `stageCriteria` reads as the
+   * Learning → Comfortable criterion, and it moves that key's retest
+   * schedule. Neither is derivable from the three reps.
+   *
+   * Absence is the check, as everywhere else on this interface — a
+   * surface with nothing to record supplies null rather than a
+   * do-nothing function that would look like a wired-up path.
+   * =====================================================================
+   */
+  recordTestPass: (() => Promise<void>) | null;
+  /**
    * What this item reads NOW, after whatever was just written.
    *
    * THE DONE STEP MUST NOT COMPUTE ITS OWN BAND. It would be a second

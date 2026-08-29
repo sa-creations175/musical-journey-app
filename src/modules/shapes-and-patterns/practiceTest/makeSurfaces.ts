@@ -23,7 +23,9 @@ import {
   logVoiceLeadingDrillSession,
 } from '../drillModel';
 import { recordSongKeyRun } from '../../repertoire/matrix/proveKey';
-import { writeSongRun } from '../../repertoire/songRunWriter';
+import {
+  writeSongRun, writeWholeSongRun, writeWholeSongTestPass,
+} from '../../repertoire/songRunWriter';
 import { logPracticeSession } from '../../repertoire/logPractice';
 import type { PracticeActivity } from '../../../lib/practiceActivities';
 import {
@@ -101,6 +103,8 @@ export function chordShapeSurface(args: {
     // The session IS the panel here, so the panel mints the id. See
     // `readSessionId` on the interface.
     readSessionId: null,
+    // Nothing beyond the reps to record — see `recordTestPass`.
+    recordTestPass: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -156,6 +160,8 @@ export function scaleSurface(args: {
     // The session IS the panel here, so the panel mints the id. See
     // `readSessionId` on the interface.
     readSessionId: null,
+    // Nothing beyond the reps to record — see `recordTestPass`.
+    recordTestPass: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -204,6 +210,8 @@ export function voiceLeadingSurface(args: {
     // The session IS the panel here, so the panel mints the id. See
     // `readSessionId` on the interface.
     readSessionId: null,
+    // Nothing beyond the reps to record — see `recordTestPass`.
+    recordTestPass: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -305,6 +313,13 @@ export function songSurface(args: {
    *  run is written. Null when nothing was sounding — a legitimate
    *  stored value, and not the same as the song's target. */
   readRunTempo: () => number | null;
+  /** The session's streak BEFORE this run, so a key run row records
+   *  the streak it was part of rather than reading 1 every time. The
+   *  session owns the count; this writes one run at a time. */
+  readTestStreak: () => number;
+  /** True when this key is being re-tested after lapsing. Rides onto
+   *  the key run rows, which already carry the flag. */
+  isRetest: boolean;
 }): DrillSurface {
   return {
     id: 'song',
@@ -390,18 +405,44 @@ export function songSurface(args: {
       // one that matters most and announces itself least: nothing else
       // recomputes it, so without this every key row would freeze at
       // whatever it said the day the shell took over.
+      const attempt = {
+        id: `run-${Math.random().toString(36).slice(2, 8)}`,
+        bpm: args.readRunTempo(),
+        feel: record.feel,
+      };
+
       await writeSongRun({
         cellIds,
         songKeyId: args.songKeyId,
-        attempt: {
-          id: `run-${Math.random().toString(36).slice(2, 8)}`,
-          bpm: args.readRunTempo(),
-          feel: record.feel,
-        },
+        attempt,
         performanceTempo: args.songTempo,
         expectedSectionCount: args.expectedSectionCount,
       });
+
+      // A RUN THAT COVERED EVERY SECTION IS A RUN OF THE SONG, and
+      // that is a claim the section rows cannot make between them.
+      // `stage.ts`'s Internalized criterion asks whether each key has
+      // been run clean at tempo at least once and looks in
+      // `songKeyRunThroughs`, so a whole-song run has to leave one.
+      //
+      // DERIVED FROM COVERAGE, not from a mode flag. The panel already
+      // says what a run covered; a second field saying "this was the
+      // whole song" would be a way for the two to disagree.
+      if (args.sections.length > 0 && cellIds.length === args.sections.length) {
+        await writeWholeSongRun({
+          songKeyId: args.songKeyId,
+          attempt,
+          performanceTempo: args.songTempo,
+          streakBefore: args.readTestStreak(),
+          isRetest: args.isRetest,
+        });
+      }
     },
+    // THE DURABLE FACT A PASS LEAVES, which is not any of the reps.
+    // `wholeSongTestPassedAt` is what `stageCriteria` reads for
+    // Learning → Comfortable, and the retest clock is what
+    // `recordKeyProving` moves — and had no caller until now.
+    recordTestPass: () => writeWholeSongTestPass({ songKeyId: args.songKeyId }),
     // The sitting's own verdict lands on the cell it was opened on and
     // on the song-and-key clock — the same two levels a run writes,
     // minus the fan-out, because a session rating is about the sitting
