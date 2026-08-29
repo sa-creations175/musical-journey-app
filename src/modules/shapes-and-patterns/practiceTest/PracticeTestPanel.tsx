@@ -43,6 +43,7 @@ import { metronome } from '../../../lib/metronome';
 import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS } from '../drillModel';
 import { isAtTarget, rateFor, type DrillSurface } from './surfaces';
 import { formatClock, useSessionClock } from './sessionClock';
+import { newSessionId } from '../../../lib/sessionId';
 import type { BandVerdict } from '../../../lib/spacing/banding';
 import { TIER_LABEL } from '../../../lib/tier';
 import { PRACTICE_ACTIVITY_OPTIONS, type PracticeActivity } from '../../../lib/practiceActivities';
@@ -110,6 +111,29 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   };
 
   /** Practice: one drill, written as it is rated. */
+  /**
+   * THIS PANEL'S SESSION, for the surfaces that have no session of
+   * their own.
+   *
+   * =====================================================================
+   * MINTED ONCE, IN A REF, AND THAT IS THE WHOLE REQUIREMENT.
+   *
+   * The band rule counts three clean runs in a row in one testing
+   * session, so an id that changed between two runs would break a
+   * streak the user did not break. `useRef` with an initialiser runs
+   * once per mount — `useState`'s lazy form would do as well, but the
+   * value is never rendered and never sets state, so a ref says so.
+   *
+   * A surface with a DURABLE session overrides it: a song's session is
+   * a stored record that survives a pause and a reload, and this mount
+   * is younger than it. Asked at write time rather than captured here,
+   * because the song's timer may start after the panel opens.
+   * =====================================================================
+   */
+  const panelSessionId = useRef(newSessionId());
+  const sessionIdNow = () =>
+    surface.readSessionId?.() ?? panelSessionId.current;
+
   const finishPracticeDrill = async (feel: CompletedDrill['feel']) => {
     if (saving) return;
     const d = completed(feel);
@@ -139,6 +163,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         style: d.style,
         feel: d.feel,
         fromTest: false,
+        sessionId: sessionIdNow(),
       });
       setScope([]);
     } finally {
@@ -171,6 +196,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           style: surface.hasStyle ? 'blocked' : null,
           feel: d.feel,
           fromTest: true,
+          sessionId: sessionIdNow(),
         });
       }
       setOutcome({
@@ -276,7 +302,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
                 // A REP LIKE ANY OTHER. The band rule is unchanged:
                 // practice caps at Developing, and only a test at
                 // tempo goes past it.
-                await surface.writeSessionRating(feel, false);
+                await surface.writeSessionRating(feel, false, sessionIdNow());
               }
               setOutcome({
                 kind: 'practice',

@@ -43,9 +43,14 @@ export function bandVerdictForRow(
       // legacy and must stay legacy all the way to the banding rule —
       // coercing it to a boolean here is exactly how a whole database
       // of Fluent cards would quietly become Developing.
-      reps.push(typeof entry.fromTest === 'boolean'
-        ? { feel, fromTest: entry.fromTest }
-        : { feel });
+      // Same rule for the session id, for the same reason: absent has
+      // to reach the banding rule as absent, so it can be read as
+      // "cannot be identified" rather than "differs from everything".
+      reps.push({
+        feel,
+        ...(typeof entry.fromTest === 'boolean' ? { fromTest: entry.fromTest } : {}),
+        ...(typeof entry.sessionId === 'string' ? { sessionId: entry.sessionId } : {}),
+      });
     }
     // 'recency' carries no verdict at all — expression items have no
     // correctness — and is skipped rather than counted as a zero.

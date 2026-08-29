@@ -40,7 +40,7 @@ beforeEach(async () => {
 
 describe('it bands like any other rep', () => {
   it('writes a spacing engagement', async () => {
-    await shapes().writeSessionRating(3, false);
+    await shapes().writeSessionRating(3, false, 'ss-test-1');
     const rows = await db.spacingState.toArray();
     expect(rows).toHaveLength(1);
     expect(bandVerdictForRow(rows[0])).toEqual({ kind: 'started', tries: 1 });
@@ -48,14 +48,14 @@ describe('it bands like any other rep', () => {
 
   it('three practice sessions cap at Developing, however they felt', async () => {
     const s = shapes();
-    for (let i = 0; i < 3; i++) await s.writeSessionRating(4, false);
+    for (let i = 0; i < 3; i++) await s.writeSessionRating(4, false, 'ss-test-1');
     const row = (await db.spacingState.toArray())[0];
     expect(bandVerdictForRow(row)).toEqual({ kind: 'band', band: 'developing' });
   });
 
   it('carries fromTest through, so the cap can be lifted by a test', async () => {
     const s = shapes();
-    for (let i = 0; i < 3; i++) await s.writeSessionRating(4, true);
+    for (let i = 0; i < 3; i++) await s.writeSessionRating(4, true, 'ss-test-1');
     const row = (await db.spacingState.toArray())[0];
     expect(bandVerdictForRow(row)).toEqual({ kind: 'band', band: 'mastered' });
   });
@@ -63,14 +63,14 @@ describe('it bands like any other rep', () => {
 
 describe('it is NOT a drill', () => {
   it('writes no drillSession row', async () => {
-    await shapes().writeSessionRating(3, false);
+    await shapes().writeSessionRating(3, false, 'ss-test-1');
     expect(await db.drillSessions.count()).toBe(0);
   });
 
   it('bills no time and no rep count', async () => {
     // The drills already recorded their own seconds. Putting the
     // session rating through `write` would count them twice.
-    await shapes().writeSessionRating(3, false);
+    await shapes().writeSessionRating(3, false, 'ss-test-1');
     const type = await db.drillTypes.get('dt-1');
     expect(type?.repCount).toBe(0);
     expect(type?.totalSeconds).toBe(0);
@@ -79,7 +79,7 @@ describe('it is NOT a drill', () => {
   it('a drill DOES bill time — the contrast is the point', async () => {
     await shapes().write({
       ranSeconds: 60, targetSeconds: 60, scope: null,
-      style: 'blocked', feel: 3, fromTest: false,
+      style: 'blocked', feel: 3, fromTest: false, sessionId: 'ss-test-1',
     });
     const type = await db.drillTypes.get('dt-1');
     expect(type?.repCount).toBe(1);
@@ -92,7 +92,7 @@ describe('every surface has one', () => {
   it('scales record against their own itemRef', async () => {
     await scaleSurface({
       cellLabel: 'C major', skillLabel: 'Left', itemRef: 'scale:c-major', hand: 'left',
-    }).writeSessionRating(2, false);
+    }).writeSessionRating(2, false, 'ss-test-1');
     const rows = await db.spacingState.toArray();
     expect(rows.map(r => r.itemRef)).toEqual(['scale:c-major']);
     expect(rows[0].hand).toBe('left');
@@ -103,8 +103,9 @@ describe('every surface has one', () => {
       cellLabel: 'Verse 1 · A♭', skillLabel: '',
       cellId: 'cell-1', songKeyId: 'key-1', songId: 's1', keyName: 'Ab',
       cellIdBySectionId: new Map(), sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
+      readSessionId: () => 'ss-test-1',
       songTempo: 90,
-    }).writeSessionRating(3, false);
+    }).writeSessionRating(3, false, 'ss-test-1');
     const refs = (await db.spacingState.toArray()).map(r => r.itemRef).sort();
     expect(refs).toEqual(['songCell:cell-1', 'songKey:key-1']);
   });
@@ -117,8 +118,9 @@ describe('every surface has one', () => {
       cellId: 'cell-1', songKeyId: 'key-1', songId: 's1', keyName: 'Ab',
       cellIdBySectionId: new Map([['sec-a', 'cell-1'], ['sec-b', 'cell-2']]),
       sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
+      readSessionId: () => 'ss-test-1',
       songTempo: 90,
-    }).writeSessionRating(3, false);
+    }).writeSessionRating(3, false, 'ss-test-1');
     const refs = (await db.spacingState.toArray()).map(r => r.itemRef);
     expect(refs).not.toContain('songCell:cell-2');
   });
@@ -134,7 +136,7 @@ describe('readVerdict — what the done step reports', () => {
     // Developing, because the ceiling is the reader's business and the
     // panel does not get its own opinion about it.
     const s = shapes();
-    for (let i = 0; i < 3; i++) await s.writeSessionRating(4, false);
+    for (let i = 0; i < 3; i++) await s.writeSessionRating(4, false, 'ss-test-1');
     expect(await s.readVerdict()).toEqual({ kind: 'band', band: 'developing' });
   });
 
@@ -145,9 +147,10 @@ describe('readVerdict — what the done step reports', () => {
       cellLabel: 'Verse 1 · A♭', skillLabel: '',
       cellId: 'cell-1', songKeyId: 'key-1', songId: 's1', keyName: 'Ab',
       cellIdBySectionId: new Map(), sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
+      readSessionId: () => 'ss-test-1',
       songTempo: 90,
     });
-    for (let i = 0; i < 3; i++) await s.writeSessionRating(3, true);
+    for (let i = 0; i < 3; i++) await s.writeSessionRating(3, true, 'ss-test-1');
     expect(await s.readVerdict()).toEqual({ kind: 'band', band: 'fluent' });
   });
 });

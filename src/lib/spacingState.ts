@@ -101,6 +101,34 @@ export type PerformanceEntry =
        * =================================================================
        */
       fromTest?: boolean;
+      /**
+       * The testing session this rep happened in.
+       *
+       * =================================================================
+       * WHAT "IN ONE TESTING SESSION" IS ACTUALLY BOUND TO.
+       *
+       * The streak rule is three clean run-throughs in a row in one
+       * testing session, and a session is not a duration. It survives a
+       * pause — walking away and coming back is the same session — so
+       * no gap between two `t` values can express it. `keyRunHistory`
+       * already tried with a sixty-second constant, and a whole song
+       * takes three or four minutes to play, so every streak would
+       * break on its second run.
+       *
+       * The id is minted once when the session starts and carried
+       * through pause and resume unchanged. See `songTimer.ts`, which
+       * is where a session actually lives.
+       *
+       * ABSENT MEANS PRE-CHANGE HISTORY — a rep written before this
+       * field existed, or by a surface that has no session of its own.
+       * It is NOT a session that differs from every other; it is a
+       * session that cannot be identified. `banding.ts` breaks a streak
+       * only on a KNOWN difference, so absent participates exactly as
+       * it did before this field, and no existing row is re-banded by
+       * its arrival.
+       * =================================================================
+       */
+      sessionId?: string;
     }
   | { t: number; kind: 'recency' };
 
@@ -119,6 +147,10 @@ export type EngagementSignal =
        *  practice. Omitted by callers that have no such distinction —
        *  omitted reads as legacy and is never capped. */
       fromTest?: boolean;
+      /** The testing session this rep happened in. Omitted by callers
+       *  that have no session; omitted is unknowable, never a
+       *  difference. See `PerformanceEntry`. */
+      sessionId?: string;
     }
   | { kind: 'recency' };
 
@@ -363,6 +395,10 @@ function entryFromSignal(signal: EngagementSignal, t: number): PerformanceEntry 
       // omitted rather than defaulting to false, because false means
       // "practice, cap it" and absent means "legacy, leave it alone".
       ...(signal.fromTest !== undefined ? { fromTest: signal.fromTest } : {}),
+      // Same rule, same reason: absent must stay absent. A defaulted
+      // id would make every session-less rep look like one shared
+      // session and stitch unrelated runs into a streak.
+      ...(signal.sessionId !== undefined ? { sessionId: signal.sessionId } : {}),
     };
     case 'recency': return { t, kind: 'recency' };
   }

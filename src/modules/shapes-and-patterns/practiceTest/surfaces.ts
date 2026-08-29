@@ -65,6 +65,19 @@ export interface DrillRecord {
   feel: Feel | null;
   /** True for a rep given inside a test. Rides into the band rule. */
   fromTest: boolean;
+  /**
+   * WHICH SESSION THIS REP HAPPENED IN.
+   *
+   * The band rule counts three clean runs in a row in ONE testing
+   * session, and this is the only thing that says which one. Required
+   * rather than optional: a rep written with no session cannot join a
+   * streak or break one, and a shell that silently omitted it would
+   * make a passing test impossible to reach with no error anywhere.
+   *
+   * Absent in the STORED history means pre-change, which is a
+   * different claim and not one a live writer may make.
+   */
+  sessionId: string;
 }
 
 /** Writes one rep wherever this surface's reps live. */
@@ -102,6 +115,25 @@ export interface DrillSurface {
    * as the thing it measures.
    */
   readSessionElapsedMs: (() => number) | null;
+  /**
+   * The session's OWN id, for a surface whose session outlives the
+   * panel.
+   *
+   * =====================================================================
+   * NULL MEANS THE PANEL OWNS THE SESSION, and the panel mints one.
+   * Same split as `readSessionElapsedMs` directly above, for the same
+   * reason and on the same surfaces: a song session is a stored record
+   * that survives navigation, reload and a paused afternoon, so its id
+   * has to come from the record. The other three begin and end with the
+   * panel, where a value minted at mount is exactly as durable as the
+   * session it names.
+   *
+   * A READER, NOT A VALUE, because a song's session can start after
+   * the panel opens — the id is asked for at the moment a rep is
+   * written, not captured once at mount.
+   * =====================================================================
+   */
+  readSessionId: (() => string | null) | null;
   /**
    * A metronome on the SESSION, not only inside a drill.
    *
@@ -193,7 +225,9 @@ export interface DrillSurface {
    * which is the kind of fork this interface exists to avoid.
    * =====================================================================
    */
-  writeSessionRating: (feel: Feel, fromTest: boolean) => Promise<void>;
+  writeSessionRating: (
+    feel: Feel, fromTest: boolean, sessionId: string,
+  ) => Promise<void>;
   /**
    * What this item reads NOW, after whatever was just written.
    *

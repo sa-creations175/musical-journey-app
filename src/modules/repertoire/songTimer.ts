@@ -51,6 +51,8 @@
  * reload recovers the exact elapsed with no recovery logic at all.
  */
 
+import { newSessionId } from '../../lib/sessionId';
+
 /** Bumped if the record shape changes; an unreadable version is
  *  discarded rather than migrated, because a timer is worth less than
  *  the risk of resurrecting one wrong. */
@@ -58,6 +60,35 @@ const STORAGE_KEY = 'mja.songTimer.v1';
 
 export interface SongTimerRecord {
   songId: string;
+  /**
+   * WHICH SESSION THIS IS — minted once, and never again.
+   *
+   * =================================================================
+   * A PAUSED SESSION STILL PASSES ITS TEST. That is the requirement
+   * this field exists to satisfy, and it is a stronger one than it
+   * looks.
+   *
+   * The test rule is three clean run-throughs in a row IN ONE TESTING
+   * SESSION. Without an id there is nothing to bind that to: a pause
+   * is indistinguishable from leaving and coming back, so either
+   * pausing silently breaks a streak or "one session" means nothing.
+   * Pause and the test rule would contradict each other and the user
+   * would find out by losing a passed test.
+   *
+   * So: minted in `startedRecord` and NOWHERE ELSE. Not per save, not
+   * per run, and NOT re-minted on resume — `pausedRecord` and
+   * `resumedRecord` both spread the record forward, which carries it
+   * through untouched and is exactly the behaviour wanted. A session
+   * ends when the record is cleared, and the next one is a new id.
+   *
+   * Optional because records written before this field existed have
+   * none, and a timer is discarded rather than migrated. A recovered
+   * record with no id is a session that cannot be identified; see
+   * `banding.ts`, which treats an absent id as unknowable rather than
+   * as a difference.
+   * =================================================================
+   */
+  sessionId?: string;
   /**
    * When the CURRENT running segment began. Meaningless while
    * paused — `accumulatedMs` holds everything in that case.
@@ -134,8 +165,10 @@ export function elapsedMinutes(record: SongTimerRecord, now: number): number {
 export function startedRecord(songId: string, now: number): SongTimerRecord {
   return {
     songId, startedAt: now, accumulatedMs: 0, running: true, lastActivityAt: now,
+    sessionId: newSessionId(now),
   };
 }
+
 
 /**
  * How long the app has seen nothing. Drives the amber state and the
@@ -310,6 +343,10 @@ function isRecord(value: unknown): value is SongTimerRecord {
   const v = value as Record<string, unknown>;
   // lastActivityAt is deliberately NOT required here — readSongTimer
   // fills it from startedAt. See the normalisation there.
+  // sessionId is NOT required: a record written before it existed is
+  // still a valid timer, and discarding it would throw away real
+  // minutes to enforce a field that only affects test streaks.
+  if (v.sessionId !== undefined && typeof v.sessionId !== 'string') return false;
   return typeof v.songId === 'string'
     && v.songId.length > 0
     && typeof v.startedAt === 'number'

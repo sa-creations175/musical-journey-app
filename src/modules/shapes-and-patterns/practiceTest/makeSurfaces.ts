@@ -54,7 +54,7 @@ async function engage(
   itemRef: string, hand: DrillHand, record: DrillRecord,
 ): Promise<void> {
   if (record.feel === null) return;   // no verdict, no claim
-  await rate(itemRef, hand, record.feel, record.fromTest);
+  await rate(itemRef, hand, record.feel, record.fromTest, record.sessionId);
 }
 
 /** What an item reads now. One reader, so the done step cannot
@@ -71,12 +71,15 @@ async function verdictFor(
  *  and the session rating, so the two cannot band differently. */
 async function rate(
   itemRef: string, hand: DrillHand, feel: Feel, fromTest: boolean,
+  sessionId: string,
 ): Promise<void> {
   await recordEngagement({
     itemRef,
     moduleRef: MODULE_REF,
     hand,
-    signal: { kind: 'rating', rating: feelToRating(feel), feel, fromTest },
+    signal: {
+      kind: 'rating', rating: feelToRating(feel), feel, fromTest, sessionId,
+    },
   });
 }
 
@@ -94,6 +97,9 @@ export function chordShapeSurface(args: {
     countsUp: false,
     // Begins and ends with the panel — nothing to persist.
     readSessionElapsedMs: null,
+    // The session IS the panel here, so the panel mints the id. See
+    // `readSessionId` on the interface.
+    readSessionId: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -124,10 +130,10 @@ export function chordShapeSurface(args: {
     // NO DRILL ROW. The drills already logged their own time and rep
     // count; this is the verdict on the sitting, so it records the
     // engagement and stops.
-    writeSessionRating: async (feel, fromTest) => {
+    writeSessionRating: async (feel, fromTest, sessionId) => {
       const itemRef = itemRefForSkill(args.skill);
       if (itemRef === null) return;
-      await rate(itemRef, args.hand, feel, fromTest);
+      await rate(itemRef, args.hand, feel, fromTest, sessionId);
     },
     readVerdict: () => verdictFor(itemRefForSkill(args.skill), MODULE_REF, args.hand),
   };
@@ -146,6 +152,9 @@ export function scaleSurface(args: {
     countsUp: false,
     // Begins and ends with the panel — nothing to persist.
     readSessionElapsedMs: null,
+    // The session IS the panel here, so the panel mints the id. See
+    // `readSessionId` on the interface.
+    readSessionId: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -172,8 +181,8 @@ export function scaleSurface(args: {
       });
       await engage(args.itemRef, args.hand, record);
     },
-    writeSessionRating: async (feel, fromTest) => {
-      await rate(args.itemRef, args.hand, feel, fromTest);
+    writeSessionRating: async (feel, fromTest, sessionId) => {
+      await rate(args.itemRef, args.hand, feel, fromTest, sessionId);
     },
     readVerdict: () => verdictFor(args.itemRef, MODULE_REF, args.hand),
   };
@@ -191,6 +200,9 @@ export function voiceLeadingSurface(args: {
     countsUp: false,
     // Begins and ends with the panel — nothing to persist.
     readSessionElapsedMs: null,
+    // The session IS the panel here, so the panel mints the id. See
+    // `readSessionId` on the interface.
+    readSessionId: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -216,8 +228,8 @@ export function voiceLeadingSurface(args: {
       });
       await engage(args.itemRef, 'both', record);
     },
-    writeSessionRating: async (feel, fromTest) => {
-      await rate(args.itemRef, 'both', feel, fromTest);
+    writeSessionRating: async (feel, fromTest, sessionId) => {
+      await rate(args.itemRef, 'both', feel, fromTest, sessionId);
     },
     readVerdict: () => verdictFor(args.itemRef, MODULE_REF, 'both'),
   };
@@ -276,6 +288,10 @@ export function songSurface(args: {
    *  the surface only forwards it, so there is one reader of the
    *  record rather than two. */
   readSessionElapsedMs: () => number;
+  /** The stored session's id, from the same record as the elapsed.
+   *  Null when no timer is running yet — the panel falls back to its
+   *  own, so a rep is never written without one. */
+  readSessionId: () => string | null;
   /** The song's own tempo. NOT a figure from the settings tree: a song
    *  is played at the tempo it is written at, and the tree has no
    *  opinion about that. Null means the song has none set, so every
@@ -290,6 +306,10 @@ export function songSurface(args: {
     countsUp: true,
     // THE STORED RECORD, not this mount. See `readSessionElapsedMs`.
     readSessionElapsedMs: args.readSessionElapsedMs,
+    // AND ITS ID, from the same record. A song session survives a
+    // pause, a reload and a walk away from the desk; an id minted at
+    // this mount would name a session that had already been running.
+    readSessionId: args.readSessionId,
     // Reading the chart and working a passage happen between runs.
     sessionMetronome: true,
     scopeOptions: args.sections,
@@ -339,6 +359,7 @@ export function songSurface(args: {
             rating: feelToRating(record.feel),
             feel: record.feel,
             fromTest: record.fromTest,
+            sessionId: record.sessionId,
           },
         });
       }
@@ -347,19 +368,24 @@ export function songSurface(args: {
         songKeyId: args.songKeyId,
         feel: record.feel,
         fromTest: record.fromTest,
+        sessionId: record.sessionId,
       });
     },
     // The sitting's own verdict lands on the cell it was opened on and
     // on the song-and-key clock — the same two levels a run writes,
     // minus the fan-out, because a session rating is about the sitting
     // rather than about a particular pass through the song.
-    writeSessionRating: async (feel, fromTest) => {
+    writeSessionRating: async (feel, fromTest, sessionId) => {
       await recordEngagement({
         itemRef: songCellItemRef(args.cellId),
         moduleRef: REPERTOIRE_MODULE_REF,
-        signal: { kind: 'rating', rating: feelToRating(feel), feel, fromTest },
+        signal: {
+          kind: 'rating', rating: feelToRating(feel), feel, fromTest, sessionId,
+        },
       });
-      await recordSongKeyRun({ songKeyId: args.songKeyId, feel, fromTest });
+      await recordSongKeyRun({
+        songKeyId: args.songKeyId, feel, fromTest, sessionId,
+      });
     },
     // THE CELL, not the clock. "Now Reads" is about how well this
     // section goes in this key; the song-and-key row is a schedule and

@@ -323,3 +323,65 @@ describe('an unwitnessed stretch is banked, never dropped', () => {
     expect(r.pendingGapMs ?? 0).toBe(0);
   });
 });
+
+/**
+ * The session id, and the one thing it has to survive.
+ *
+ * =====================================================================
+ * A PAUSED SESSION STILL PASSES ITS TEST.
+ *
+ * The band rule counts three clean run-throughs in a row in one
+ * testing session. Without a stable id, a pause is indistinguishable
+ * from leaving and coming back — so either pausing silently breaks a
+ * streak, or "one session" means nothing at all. Pause and the test
+ * rule would contradict each other, and the user would find out by
+ * losing a test they had passed.
+ *
+ * These pin the lifecycle rather than the format: minted once at
+ * start, unchanged by pause, unchanged by resume, unchanged by a
+ * reload, and new for the next session.
+ * =====================================================================
+ */
+describe('the session id', () => {
+  it('is minted when the session starts', () => {
+    expect(startedRecord('song-1', T0).sessionId).toMatch(/^ss-/);
+  });
+
+  it('SURVIVES A PAUSE AND A RESUME UNCHANGED', () => {
+    // The requirement, stated as one assertion chain. Re-minting on
+    // resume is the plausible-looking mistake this forbids.
+    const started = startedRecord('song-1', T0);
+    const paused = pausedRecord(started, T0 + 60_000);
+    const resumed = resumedRecord(paused, T0 + 3_600_000);
+    expect(paused.sessionId).toBe(started.sessionId);
+    expect(resumed.sessionId).toBe(started.sessionId);
+  });
+
+  it('survives a reload, because the record is where it lives', () => {
+    const started = startedRecord('song-1', T0);
+    writeSongTimer(started);
+    expect(readSongTimer()?.sessionId).toBe(started.sessionId);
+  });
+
+  it('a new session gets a new id', () => {
+    // Two sessions started in the SAME millisecond, which two tabs can
+    // genuinely do. An id built from the clock alone would collide and
+    // stitch them into one streak.
+    const a = startedRecord('song-1', T0);
+    const b = startedRecord('song-1', T0);
+    expect(b.sessionId).not.toBe(a.sessionId);
+  });
+
+  it('a record written before the field existed is still a valid timer', () => {
+    // Discarding it would throw away real minutes to enforce a field
+    // that only affects test streaks. It reads back with no id, which
+    // the band rule treats as unknowable rather than as a difference.
+    const legacy = { ...startedRecord('song-1', T0) } as Record<string, unknown>;
+    delete legacy.sessionId;
+    localStorage.setItem('mja.songTimer.v1', JSON.stringify(legacy));
+    const back = readSongTimer();
+    expect(back).not.toBeNull();
+    expect(back?.sessionId).toBeUndefined();
+    expect(back?.songId).toBe('song-1');
+  });
+});

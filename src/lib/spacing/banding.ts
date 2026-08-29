@@ -182,6 +182,37 @@ export interface RatedRep {
   /** True for a test rep, false for a practice one. ABSENT MEANS
    *  LEGACY — written before the modes existed, and never capped. */
   fromTest?: boolean;
+  /** Which testing session it happened in. ABSENT MEANS UNKNOWABLE —
+   *  pre-change history, or a surface with no session. Never treated
+   *  as a session that differs; see `sameSession`. */
+  sessionId?: string;
+}
+
+/**
+ * Could these two reps have been in the same testing session?
+ *
+ * =====================================================================
+ * ONLY A KNOWN DIFFERENCE BREAKS A STREAK.
+ *
+ * `a.sessionId === b.sessionId` would have been wrong in the one
+ * direction that matters. Two pre-change reps both carry `undefined`,
+ * which compares equal and would silently mean "same session" for
+ * every legacy row in the database — an answer this function has no
+ * business giving. And a legacy rep next to a new one would compare
+ * unequal and break a streak on the arrival of a field, re-banding
+ * rows for a reason no user could see.
+ *
+ * So the question is asked as "is there evidence these are different",
+ * and absence is not evidence. Existing history bands exactly as it
+ * did; only reps that both know their session can be told apart.
+ *
+ * Same shape as `fromTest`'s legacy rule two fields up, and for the
+ * same reason: a field that did not exist cannot be read as a value.
+ * =====================================================================
+ */
+function sameSession(a: RatedRep, b: RatedRep): boolean {
+  if (a.sessionId === undefined || b.sessionId === undefined) return true;
+  return a.sessionId === b.sessionId;
 }
 
 /**
@@ -280,14 +311,16 @@ export function selfRatedVerdict(
  * and keeping the LAST completed streak is what makes "tested again
  * replaces it" true.
  *
- * ONE SESSION IS NOT ENFORCED HERE, AND CANNOT BE. The spec binds the
- * streak to a testing session, and a stored rep carries no session
- * identity — only `t`, which the spec rules out explicitly, because a
- * whole song takes minutes to play and any gap constant would break
- * every real streak. The session bound is held where the session is:
- * in the surface running the test. What survives to here is the order
- * of the reps, which is strictly stricter than the rule it replaces
- * and never looser. See the note in the commit that added this.
+ * ONE SESSION IS ENFORCED, BY IDENTITY AND NOT BY TIME. A rep carries
+ * the id of the session it happened in, minted once when that session
+ * starts and carried through a pause unchanged — so a paused session
+ * still passes its test, which is the requirement the field exists for
+ * rather than a side benefit. Inferring it from `t` was ruled out and
+ * had to be: a whole song takes minutes to play, so any gap constant
+ * breaks every real streak on its second run.
+ *
+ * A rep with no id is pre-change history, and `sameSession` reads that
+ * as unknowable rather than as a difference. See it for why.
  * =====================================================================
  */
 function lastPassedTest(
@@ -300,6 +333,11 @@ function lastPassedTest(
     // failure either — practising between two test runs does not break
     // a test, it just is not part of one.
     if (r.fromTest !== true) continue;
+    // A NEW SESSION STARTS THE COUNT OVER, wherever the last one got
+    // to. Two clean runs on Tuesday and one on Wednesday are not three
+    // in a row. Checked against the run's first rep rather than its
+    // last so a streak cannot drift across sessions one rep at a time.
+    if (run.length > 0 && !sameSession(run[0], r)) run = [];
     if (isCleanFeel(r.feel)) {
       run.push(r);
       if (run.length === SELF_RATED_WINDOW) { won = run; run = []; }

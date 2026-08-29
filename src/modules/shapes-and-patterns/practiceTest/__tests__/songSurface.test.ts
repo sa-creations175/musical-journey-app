@@ -34,9 +34,12 @@ function surface(songTempo: number | null = 90) {
     sections: [...BY_SECTION.keys()].map(id => ({ id, label: id })),
     onOpenLeadSheet: () => {},
     readSessionElapsedMs: () => 0,
+    readSessionId: () => SESSION,
     songTempo,
   });
 }
+
+const SESSION = 'ss-test-1';
 
 const run = (over: Partial<DrillRecord> = {}): DrillRecord => ({
   ranSeconds: 140,
@@ -46,6 +49,7 @@ const run = (over: Partial<DrillRecord> = {}): DrillRecord => ({
   style: null,
   feel: 3,
   fromTest: false,
+  sessionId: SESSION,
   ...over,
 });
 

@@ -169,6 +169,10 @@ export async function recordSongKeyRun(args: {
   /** True for a rep given inside a test. Rides into the band rule;
    *  absent would mean legacy, and this is not legacy. */
   fromTest: boolean;
+  /** Which testing session it happened in. Required for the same
+   *  reason `fromTest` is: absent means pre-change history, and a live
+   *  writer must not make that claim. */
+  sessionId: string;
   timestamp?: number;
 }): Promise<void> {
   try {
@@ -180,6 +184,7 @@ export async function recordSongKeyRun(args: {
         rating: feelToRating(args.feel),
         feel: args.feel,
         fromTest: args.fromTest,
+        sessionId: args.sessionId,
       },
       ...(args.timestamp !== undefined ? { timestamp: args.timestamp } : {}),
     });

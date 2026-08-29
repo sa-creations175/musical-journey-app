@@ -131,6 +131,71 @@ describe('tested again — the newer test replaces it', () => {
   });
 });
 
+describe('the streak is bound to a session, not to a duration', () => {
+  const inSession = (id: string, feel: Feel): RatedRep =>
+    ({ feel, fromTest: true, sessionId: id });
+
+  it('three clean in ONE session passes', () => {
+    expect(selfRatedVerdict([inSession('s1', 3), inSession('s1', 3), inSession('s1', 3)]))
+      .toEqual({ kind: 'band', band: 'fluent' });
+  });
+
+  it('two clean in one session and one in the next DOES NOT pass', () => {
+    // The gap the id closes. The reps are consecutive in the history
+    // and would have banded on order alone; they are not three in a
+    // row in one testing session.
+    const reps = [inSession('s1', 4), inSession('s1', 4), inSession('s2', 4)];
+    expect(bandOf(selfRatedVerdict(reps))).not.toBe('mastered');
+  });
+
+  it('a session that starts again after a break of its own reaches the gate', () => {
+    // Leaving a streak unfinished costs it, and the next session gets
+    // a clean three of its own.
+    const reps = [
+      inSession('s1', 4), inSession('s1', 4),
+      inSession('s2', 3), inSession('s2', 3), inSession('s2', 3),
+    ];
+    expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'fluent' });
+  });
+
+  it('A PAUSED SESSION STILL PASSES — the id is what makes that true', () => {
+    // The requirement the field exists for. A pause keeps the session
+    // id, so the three runs either side of it are one streak. If the
+    // id were re-minted on resume, or minted per save, this would
+    // fail — and the user would find out by losing a passed test.
+    const beforePause = inSession('s1', 4);
+    const afterResume = inSession('s1', 4);
+    expect(selfRatedVerdict([beforePause, afterResume, afterResume]))
+      .toEqual({ kind: 'band', band: 'mastered' });
+  });
+
+  it('pre-change reps band exactly as they did — absent is not a difference', () => {
+    // The whole legacy database has no session id. Reading undefined
+    // as "differs from everything" would break every streak in it on
+    // the day the field shipped; reading two undefineds as "same
+    // session" would be a claim this code cannot support either. It
+    // asks only whether there is EVIDENCE of a difference.
+    expect(selfRatedVerdict([test(3), test(3), test(3)]))
+      .toEqual({ kind: 'band', band: 'fluent' });
+  });
+
+  it('a legacy rep beside a session-tagged one does not break the streak', () => {
+    // The mixed case, which is what the database will actually look
+    // like for a while. Nothing is demoted by the arrival of a field.
+    const reps = [test(4), inSession('s1', 4), inSession('s1', 4)];
+    expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'mastered' });
+  });
+
+  it('one clean run in each of three sessions is not a streak', () => {
+    // Three clean test runs, none of them in a row. This is the
+    // "played it well once a week for three weeks" case, which the
+    // rule has always meant to exclude and could not see before.
+    const reps = [inSession('s1', 4), inSession('s2', 4), inSession('s3', 4)];
+    expect(bandOf(selfRatedVerdict(reps))).not.toBe('mastered');
+    expect(bandOf(selfRatedVerdict(reps))).not.toBe('fluent');
+  });
+});
+
 describe('the streak — three IN A ROW, and a bad run costs it', () => {
   it('three clean in a row passes', () => {
     expect(selfRatedVerdict([test(3), test(3), test(3)]))
