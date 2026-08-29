@@ -134,6 +134,19 @@ describe('the third clean run ends it', () => {
     r.unmount();
   });
 
+  it('reports the TESTING SESSION time, frozen at the pass', async () => {
+    // The clock runs from opening the test; the screen shows what it
+    // said at the moment the third clean run landed. A live number
+    // behind a screen saying "recorded" would disagree with the record
+    // within a second.
+    const r = render();
+    await r.rate('Clean');
+    await r.rate('Clean');
+    await r.rate('Clean');
+    expect(r.text()).toMatch(/Testing session time \d+:\d\d, recorded\./);
+    r.unmount();
+  });
+
   it('the result screen shows the caller\'s row and ONE exit', async () => {
     const r = render();
     await r.rate('Clean');

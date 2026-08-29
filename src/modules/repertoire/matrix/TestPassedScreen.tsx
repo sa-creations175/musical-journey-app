@@ -3,6 +3,7 @@ import { feelLabel, type Feel } from '../../../lib/fluencyScale';
 import { STAGE_LABEL } from '../stage';
 import { TIER_LABEL } from '../../../lib/tier';
 import type { AccuracyBand } from '../../../lib/spacing/bands';
+import { formatClock } from '../../shapes-and-patterns/practiceTest/sessionClock';
 
 /**
  * What the test says when you pass it.
@@ -43,10 +44,17 @@ import type { AccuracyBand } from '../../../lib/spacing/bands';
  * a placeholder promoted to a shipped string is how a screen ends up
  * saying something nobody agreed to.
  *
- * NOT SHIPPED, AND DELIBERATELY: the session time. Spec §4 asks the
- * result screen to show it, and the copy file has no words for it. A
- * number with a label I invented would be worse than the omission,
- * which is visible and fixable. Flagged rather than filled in.
+ * =====================================================================
+ * THE TIME IS THE TESTING SESSION'S, NOT THE RUN'S.
+ *
+ * They are minutes apart — a run is one pass through the song, a
+ * session is everything from opening the test to passing it — and the
+ * screen appears when the SESSION is over, so the session is what it
+ * reports. The two numbers look alike enough that a reader would not
+ * catch the wrong one, which is why the test asserts which.
+ *
+ * And it says "Testing session", never "session". The app names which
+ * kind every time; see the addendum's naming rule.
  * =====================================================================
  */
 
@@ -87,6 +95,15 @@ interface Props {
    *  — this screen has no opinion about sharps and flats. */
   keyName: string;
   /**
+   * How long the TESTING SESSION ran, in whole seconds.
+   *
+   * The session, not the run that passed it. Required rather than
+   * optional: a defaulted 0 would render "00:00, recorded" on a
+   * session that took twenty minutes, and read as a fact rather than
+   * as a missing prop.
+   */
+  sessionSeconds: number;
+  /**
    * The matrix row as it reads NOW, drawn by whoever owns the grid.
    *
    * A ReactNode rather than data, because the row is `KeyRow` and
@@ -100,7 +117,7 @@ interface Props {
 }
 
 export default function TestPassedScreen({
-  earned, keyName, preview, onClose,
+  earned, keyName, sessionSeconds, preview, onClose,
 }: Props) {
   const statusWord = earned.kind === 'whole-song'
     ? STAGE_LABEL[earned.status]
@@ -148,6 +165,13 @@ export default function TestPassedScreen({
           so it lands on <b>{statusWord}</b>.
         </p>
       )}
+
+      {/* THE TIME, AS RECORDED. Past tense and no verb for the reader
+          to act on: the session is already written, and this is the
+          receipt rather than a prompt. */}
+      <p className="text-xs text-center text-neutral-500 dark:text-neutral-400">
+        Testing session time {formatClock(sessionSeconds)}, recorded.
+      </p>
 
       {/* THE BADGE, SO CLOSING IS NOT A LEAP OF FAITH. The row is the
           real one; only the caption belongs to this screen. */}

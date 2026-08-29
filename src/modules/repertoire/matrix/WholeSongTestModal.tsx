@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import TestPassedScreen from './TestPassedScreen';
+import { useSessionClock } from '../../shapes-and-patterns/practiceTest/sessionClock';
 import Modal from '../../../components/Modal';
 import {
   type Song,
@@ -142,6 +143,26 @@ export default function WholeSongTestModal({
    * =====================================================================
    */
   const [passed, setPassed] = useState(false);
+  /**
+   * The testing session's clock.
+   *
+   * =====================================================================
+   * IT RUNS FROM OPENING THE TEST TO PASSING IT, AND DOES NOT STOP.
+   *
+   * Not between runs, not while the rating is being chosen. The minute
+   * spent deciding how a run went is a minute at the keyboard, and a
+   * clock that paused for the bits between would report less than
+   * happened, silently. Same reasoning as the shell's session clock,
+   * which is where this comes from rather than a second one.
+   *
+   * It keeps running while the result screen shows, and the result
+   * screen freezes the number it was handed at the moment of the pass —
+   * see `passedAtSeconds`. A live clock behind a screen that says
+   * "recorded" would disagree with the record within a second.
+   * =====================================================================
+   */
+  const sessionSeconds = useSessionClock(open && !passed);
+  const [passedAtSeconds, setPassedAtSeconds] = useState(0);
   // Captured once per open rather than read during render, and it is
   // the boundary of a 30-day window — a modal left open overnight
   // showing yesterday's window is not a problem worth a ticking clock.
@@ -157,6 +178,7 @@ export default function WholeSongTestModal({
     setBusy(false);
     setStreakBroken(false);
     setPassed(false);
+    setPassedAtSeconds(0);
     onClose();
   }, [onClose]);
 
@@ -239,6 +261,9 @@ export default function WholeSongTestModal({
         now: Date.now(),
       });
       onSaved?.();
+      // Captured BEFORE the flag that stops the clock, so the number on
+      // the screen is the session as it stood when the test was passed.
+      setPassedAtSeconds(sessionSeconds);
       setPassed(true);
     } catch (err) {
       console.warn('[matrix] whole-song test pass failed', err);
@@ -298,6 +323,7 @@ export default function WholeSongTestModal({
             status: 'comfortable',
           }}
           keyName={spellKey(songKey.keyName, spelling)}
+          sessionSeconds={passedAtSeconds}
           preview={renderPassedPreview()}
           onClose={handleClose}
         />

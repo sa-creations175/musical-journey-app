@@ -38,10 +38,15 @@ function render(node: React.ReactNode) {
 
 const PREVIEW = <div data-testid="row">the matrix row</div>;
 
+/** 22:41. Deliberately not a round number and not a plausible RUN
+ *  length: a three-minute song's run cannot be mistaken for this. */
+const SESSION_SECONDS = 22 * 60 + 41;
+
 const wholeSong = (over: Record<string, unknown> = {}) => (
   <TestPassedScreen
     earned={{ kind: 'whole-song', songTitle: 'No Weapon', status: 'comfortable' }}
     keyName="A♭"
+    sessionSeconds={SESSION_SECONDS}
     preview={PREVIEW}
     onClose={() => {}}
     {...over}
@@ -52,6 +57,7 @@ const section = (lowestFeel: 3 | 4 = 3, band: 'fluent' | 'mastered' = 'fluent') 
   <TestPassedScreen
     earned={{ kind: 'section', sectionLabel: 'Verse 1', band, lowestFeel }}
     keyName="A♭"
+    sessionSeconds={SESSION_SECONDS}
     preview={PREVIEW}
     onClose={() => {}}
   />
@@ -146,13 +152,26 @@ describe('a section pass', () => {
   });
 });
 
-describe('the session time is NOT shown', () => {
-  it('shows no clock, because no words for one were approved', () => {
-    // Spec §4 asks for the session time and the copy file has no
-    // string for it. Pinned so the omission is a recorded decision
-    // rather than something that looks forgotten — and so that filling
-    // it in with invented copy fails a test rather than shipping.
+describe('the session time', () => {
+  it('reports it in the approved words, naming which kind of session', () => {
+    // "Testing session time", never "Session time". The app names
+    // which kind every time — see the addendum's naming rule.
+    expect(render(wholeSong()).text())
+      .toContain('Testing session time 22:41, recorded.');
+  });
+
+  it('IS THE SESSION\'S NUMBER, NOT THE RUN\'S', () => {
+    // The two are minutes apart and look alike, so a test that only
+    // checked "a time appears" would pass on the wrong one. This one
+    // renders a session length no single run-through could be, and
+    // asserts no other clock is on the screen.
     const t = render(wholeSong()).text();
-    expect(t).not.toMatch(/\d+:\d\d/);
+    const clocks = t.match(/\d+:\d\d/g) ?? [];
+    expect(clocks).toEqual(['22:41']);
+  });
+
+  it('never says the bare word Session', () => {
+    const t = render(wholeSong()).text();
+    expect(t).not.toMatch(/(^|[^a-z])Session time/);
   });
 });
