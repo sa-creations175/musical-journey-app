@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   GROOVE_LABEL,
   PREF_BPM,
@@ -29,6 +29,10 @@ export default function MetronomeControl() {
   const [expanded, setExpanded] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Ties the trigger to the panel it opens. Generated rather than
+  // hard-coded because this control appears more than once on a page —
+  // the header has one, and so does a song's strip.
+  const panelId = useId();
 
   // Hydrate persisted settings once on mount. Groove is owned + restored
   // by the singleton's per-meter memory (passing timeSig without a groove
@@ -69,6 +73,35 @@ export default function MetronomeControl() {
     return () => window.removeEventListener('mousedown', handle);
   }, [expanded]);
 
+  /**
+   * Escape closes the settings, and ONLY the settings.
+   *
+   * =====================================================================
+   * THE HALF OF "NO MODAL INSIDE A MODAL" THAT IS NOT A ROLE.
+   *
+   * Before this, Escape inside the open settings reached whatever
+   * modal the control was sitting in and closed THAT — settings and
+   * all. Someone nudging a tempo and hitting Escape to dismiss the
+   * little panel lost the test session behind it.
+   *
+   * `stopPropagation` is what makes it only the settings: the listener
+   * runs in the capture phase and stops the event before the host
+   * modal's own key handler sees it. When the settings are shut this
+   * effect is not mounted at all, so Escape closes the modal exactly
+   * as it always did.
+   * =====================================================================
+   */
+  useEffect(() => {
+    if (!expanded) return;
+    const handle = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setExpanded(false);
+    };
+    window.addEventListener('keydown', handle, true);
+    return () => window.removeEventListener('keydown', handle, true);
+  }, [expanded]);
+
   return (
     <div ref={rootRef} className="relative">
       <div className="inline-flex items-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 overflow-hidden">
@@ -86,6 +119,7 @@ export default function MetronomeControl() {
           onClick={() => setExpanded(v => !v)}
           className="px-2 py-1 text-xs font-mono tabular-nums text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 border-l border-neutral-200 dark:border-neutral-700"
           aria-expanded={expanded}
+          aria-controls={panelId}
           title="Metronome Settings"
         >
           {state.bpm}
@@ -95,7 +129,23 @@ export default function MetronomeControl() {
 
       {expanded && (
         <div
-          role="dialog"
+          id={panelId}
+          /* A DISCLOSURE, NOT A DIALOG.
+             =============================================================
+             It was `role="dialog"`, and it is not one. Nothing here traps
+             focus, nothing dims the page behind it, and it is dismissed by
+             clicking anywhere else — which is a popover. The role was the
+             only part claiming otherwise, and it claimed it to assistive
+             technology, which then announced a dialog opening INSIDE the
+             test modal and offered its dialog navigation for a panel with
+             no dialog behaviour to navigate.
+
+             Spec §5 forbids a modal inside a modal, and this control lives
+             in every surface that will have one. `group` describes what it
+             is: a labelled cluster of related controls, reached by the
+             button that says `aria-expanded` and now names it.
+             ============================================================= */
+          role="group"
           aria-label="metronome settings"
           // z-50 keeps the popover above page-level sticky bars,
           // backdrop-blur surfaces, and any transform/filter ancestors
