@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import {
   GROOVE_LABEL,
-  PREF_BPM,
   PREF_TIME_SIG,
   PREF_VOLUME,
   TIME_SIG_BEATS,
@@ -12,6 +11,7 @@ import {
 } from '../lib/metronome';
 import { useMetronomeState } from '../lib/useMetronome';
 import { getPref, setPref } from '../lib/userPrefs';
+import { currentPrefKey, writeScopedBpm } from '../lib/metronomeScope';
 
 const TIME_SIG_IDS: TimeSig[] = ['4/4', '3/4', '6/8', '12/8'];
 
@@ -39,7 +39,11 @@ export default function MetronomeControl() {
   // lets update() restore the right groove for that meter).
   useEffect(() => {
     (async () => {
-      const bpm = await getPref<number>(PREF_BPM, 90);
+      // THROUGH THE SCOPE, not straight at `PREF_BPM`. While a song
+      // owns the metronome this reads the song's remembered tempo; the
+      // rest of the time it is the app-wide key and nothing has
+      // changed. See `lib/metronomeScope`.
+      const bpm = await getPref<number>(currentPrefKey(), 90);
       const timeSig = await getPref<TimeSig>(PREF_TIME_SIG, '4/4');
       const volume = await getPref<number>(PREF_VOLUME, 0.5);
       metronome.update({
@@ -56,7 +60,12 @@ export default function MetronomeControl() {
   // can't clobber another meter's saved groove.
   useEffect(() => {
     if (!prefsLoaded) return;
-    void setPref(PREF_BPM, state.bpm);
+    // SCOPE-AWARE, and this is the half that would have been missed.
+    // A scoped READ with an unscoped write means the song's tempo
+    // lands on `metronomeBpm` at the first tap of a stepper — the
+    // drill's value overwritten by a song, which is the exact failure
+    // the scoping exists to prevent, arriving through the back door.
+    void writeScopedBpm(state.bpm);
     void setPref(PREF_TIME_SIG, state.timeSig);
     void setPref(PREF_VOLUME, state.volume);
   }, [prefsLoaded, state.bpm, state.timeSig, state.volume]);
