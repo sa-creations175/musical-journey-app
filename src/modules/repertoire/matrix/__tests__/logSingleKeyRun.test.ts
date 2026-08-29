@@ -319,6 +319,10 @@ describe('testing a key whose sections are not comfortable', () => {
 
     expect(criteriaAllMet({
       currentStage: 'learning',
+      // This case is about the Learning → Comfortable rule; the two
+      // rungs below it are already behind this song.
+      hasChartedSection: true,
+      hasRatedRun: true,
       songKeys: [after],
       keyRunThroughs: [],
       performanceTempo: TEMPO,

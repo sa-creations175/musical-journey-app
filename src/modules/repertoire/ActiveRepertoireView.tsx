@@ -38,7 +38,7 @@ import { moduleMetaById } from '../../lib/moduleMeta';
 import SongCard, { formatAddedDate, type SongCardProps } from './SongCard';
 import AddSongModal from './AddSongModal';
 import { getPref, setPref } from '../../lib/userPrefs';
-import { dueByKeyId } from './matrix/proveKey';
+import { dueByKeyId, ratedKeyIds } from './matrix/proveKey';
 import { songRetestState } from './songRetestState';
 import {
   PRACTICE_WINDOW_DEFAULTS,
@@ -205,6 +205,18 @@ export default function ActiveRepertoireView({
     return () => { live = false; };
   }, [allKeyIds]);
 
+  // The Started → Learning evidence, read once for every key on the
+  // page. `dueByKeyId` cannot answer it: it sets an entry for every id
+  // it is asked about, so a never-played key and an unscheduled one
+  // look the same in its map.
+  const [ratedKeys, setRatedKeys] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    let live = true;
+    const ids = allKeyIds === '' ? [] : allKeyIds.split(',');
+    void ratedKeyIds(ids).then(set => { if (live) setRatedKeys(set); });
+    return () => { live = false; };
+  }, [allKeyIds]);
+
   const logsBySong = useMemo(() => {
     const m = new Map<string, SongPracticeLog[]>();
     for (const l of logs) {
@@ -283,8 +295,17 @@ export default function ActiveRepertoireView({
       // what rung a song is on, and they can only do that by computing
       // it from the same evidence rather than by reading a value one
       // of them wrote.
+      const songKeyRows = keysBySong.get(song.id) ?? [];
+      // THE SAME CHORD READER THE CARD ALREADY USES, three lines
+      // below for `sectionsNeedingChords`. One answer to "is this
+      // charted", not two.
+      const hasChartedSection = (sectionsBySong.get(song.id) ?? [])
+        .some(sec => sectionHasChords(song, sec));
+      const hasRatedRun = songKeyRows.some(k => ratedKeys.has(k.id));
       const derivedStage = deriveStage({
-        songKeys: keysBySong.get(song.id) ?? [],
+        songKeys: songKeyRows,
+        hasChartedSection,
+        hasRatedRun,
         keyRunThroughs: runsBySong.get(song.id) ?? [],
         performanceTempo: song.tempo ?? null,
         now: advancementNow,
@@ -322,6 +343,10 @@ export default function ActiveRepertoireView({
   }, [
     songs, logsBySong, keysBySong, runsBySong, advancementNow, globalSpelling,
     sectionsBySong, matrixSectionsBySong, cellsBySong, practiceWindows,
+    // `ratedKeys` arrives after a read, and the rung it decides is the
+    // difference between Started and Learning — without it here the
+    // list would keep showing Started until something else changed.
+    ratedKeys,
   ]);
 
   const sortedSongs = useMemo(() => {

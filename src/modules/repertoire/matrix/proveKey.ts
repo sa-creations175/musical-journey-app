@@ -108,6 +108,39 @@ export async function dueByKeyId(
 }
 
 /**
+ * Which of these keys carry a rating at all.
+ *
+ * =====================================================================
+ * PRESENCE, WHICH `dueByKeyId` CANNOT ANSWER.
+ *
+ * That function sets an entry for every id it is asked about — null
+ * where there is no row — so a key that has never been played and a
+ * key played but not yet scheduled look identical in its map. The
+ * Started → Learning rung turns on exactly that difference: whether a
+ * rated run has ever happened.
+ *
+ * Reads the same `songKey:<id>` ref, minted by the same function, so
+ * the two readers cannot drift onto different namespaces. A read
+ * failure omits the key, which HOLDS the song at Started rather than
+ * promoting it on an error.
+ * =====================================================================
+ */
+export async function ratedKeyIds(
+  songKeyIds: ReadonlyArray<string>,
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  await Promise.all(songKeyIds.map(async id => {
+    try {
+      const row = await getSpacingState(songKeyItemRef(id), 'repertoire', 'both');
+      if (row) out.add(id);
+    } catch {
+      // Absent reads as never-rated. See the note above.
+    }
+  }));
+  return out;
+}
+
+/**
  * Record a rated RUN against the song in this key.
  *
  * =====================================================================

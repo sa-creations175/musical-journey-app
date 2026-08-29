@@ -132,6 +132,10 @@ export interface SongStageDemotion {
 }
 
 export type RepertoireStage =
+  // Evidence, no verdict: the lead sheet is charted for the original
+  // key and nothing has been rated yet. See `stageCriteria`.
+  | 'not_started'
+  | 'started'
   | 'learning'
   | 'comfortable'
   | 'cross-key'

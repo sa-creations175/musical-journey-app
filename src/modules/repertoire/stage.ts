@@ -24,6 +24,8 @@ import { spellKey, type Spelling } from '../../lib/spelling';
 // Color tokens (badge / dot below) follow the new order so the
 // visual progression matches.
 export const STAGES: RepertoireStage[] = [
+  'not_started',
+  'started',
   'learning',
   'comfortable',
   'cross-key',
@@ -57,6 +59,8 @@ export function normaliseStage(raw: string | null | undefined): RepertoireStage 
 }
 
 export const STAGE_LABEL: Record<RepertoireStage, string> = {
+  'not_started': 'Not Started',
+  'started': 'Started',
   'learning': 'Learning',
   'comfortable': 'Comfortable',
   'cross-key': 'Cross-key',
@@ -66,6 +70,15 @@ export const STAGE_LABEL: Record<RepertoireStage, string> = {
 /** Multi-sentence coaching guidance shown on Song Detail and as a
  *  tooltip on Active Repertoire. Tone is coaching, not nagging. */
 export const STAGE_GUIDANCE: Record<RepertoireStage, string> = {
+  // PLACEHOLDER COPY, and the only two lines in this file that are.
+  // Every other rung's guidance is Silas's writing; these two rungs
+  // are new and their coaching lines have not been written yet. They
+  // state the fact and nothing more, so they read as unfinished
+  // rather than as a voice that is not his.
+  'not_started':
+    'Nothing charted yet. Add the chords for a section to begin.',
+  'started':
+    'Charted, not yet played. Rate a practice run to start tracking it.',
   'learning':
     'Focus on accuracy at slow tempo. Break sections apart. Aim for clean play-throughs before increasing tempo.',
   'comfortable':
@@ -88,6 +101,10 @@ export const STAGE_GUIDANCE: Record<RepertoireStage, string> = {
  *  `mastered` (deeper green) lives on the final stage. The info-blue
  *  that used to carry 'maintenance' left with that rung. */
 export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> = {
+  // Neutral until the ladder gets its colour scale — that is its own
+  // job, and guessing here would mean two answers to restyle later.
+  'not_started': 'bg-neutral-100 text-neutral-500 border-neutral-300',
+  'started': 'bg-neutral-100 text-neutral-600 border-neutral-300',
   'learning': 'bg-needswork/10 text-needswork border-needswork/30',
   'comfortable': 'bg-developing/10 text-developing border-developing/30',
   'cross-key': 'bg-fluent/10 text-fluent border-fluent/30',
@@ -95,14 +112,28 @@ export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> = {
 };
 
 export const STAGE_DOT_CLASS: Record<RepertoireStage, string> = {
+  'not_started': 'bg-neutral-300',
+  'started': 'bg-neutral-400',
   'learning': 'bg-needswork',
   'comfortable': 'bg-developing',
   'cross-key': 'bg-fluent',
   'internalized': 'bg-mastered',
 };
 
-/** Default stage for newly-seeded / newly-added songs. */
-export const DEFAULT_STAGE: RepertoireStage = 'learning';
+/**
+ * Default stage for newly-seeded / newly-added songs.
+ *
+ * NOT_STARTED NOW, AND IT IS THE HONEST ONE. A song added a second ago
+ * has no chart and no rated run, so `deriveStage` reads it as
+ * not_started the moment anything asks. Stamping 'learning' on
+ * creation put a rung on it that the evidence did not support, and the
+ * watermark existed to notice CHANGES — seeding it wrong meant the
+ * first honest reading looked like a demotion.
+ *
+ * Existing rows are untouched: every previously stored value is still
+ * on the ladder, so `normaliseStage` passes them through unchanged.
+ */
+export const DEFAULT_STAGE: RepertoireStage = 'not_started';
 
 export function nextStage(stage: RepertoireStage): RepertoireStage | null {
   const idx = STAGES.indexOf(stage);
@@ -151,6 +182,35 @@ export function nextStage(stage: RepertoireStage): RepertoireStage | null {
 
 export interface AdvancementInputs {
   currentStage: RepertoireStage;
+  /**
+   * Any section of this song's lead sheet has chords on it.
+   *
+   * ORIGINAL KEY ONLY, and that is a property of the chart rather than
+   * a filter applied here: a song has ONE lead sheet, written in its
+   * original key. Read through `sectionHasChords` — the app's single
+   * answer to "is this section charted" — and never re-derived. A
+   * second chord test is how two screens come to disagree about
+   * whether a song has been started.
+   *
+   * NOT "a cell exists". `materialise` creates all twelve keys up
+   * front, so cell existence would make every song read Started on the
+   * day it was added.
+   */
+  hasChartedSection: boolean;
+  /**
+   * A rated run has been recorded for this song in its original key.
+   *
+   * A `songKey:<songKeyId>` spacing row exists. That ref is minted by
+   * `recordSongKeyRun` for a rated practice run and by
+   * `recordKeyProving` for the whole-song test — one ref, two writers,
+   * and both mean the song has been played and rated in that key.
+   *
+   * AN UNRATED RUN IS NOT ENOUGH, and the writer already agrees: an
+   * unrated run writes no band and no clock, so no row appears. Rating
+   * is the opt-in, and it is the same act that puts the song into the
+   * accountability scheduler.
+   */
+  hasRatedRun: boolean;
   /**
    * How key names in the criteria COPY are spelled. The rules
    * themselves compare `keyName` identities and are unaffected — this
@@ -451,6 +511,36 @@ const EMPTY_KEY_SET: ReadonlySet<string> = new Set<string>();
 
 export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
   switch (input.currentStage) {
+    // NOT STARTED → STARTED. Evidence, no verdict: the chart exists.
+    case 'not_started':
+      return [{
+        label: 'A section of the lead sheet has chords on it',
+        met: input.hasChartedSection,
+        have: input.hasChartedSection ? 1 : 0,
+        need: 1,
+        unit: 'charted section',
+        ...(input.hasChartedSection ? {} : {
+          detail: 'Charting a section is what starts the song. Nothing has '
+            + 'to be played yet.',
+        }),
+      }];
+
+    // STARTED → LEARNING. The first RATED run, which is also what puts
+    // the song into the accountability scheduler — so this rung is
+    // where a song stops being a document and starts being practice.
+    case 'started':
+      return [{
+        label: 'A practice run has been rated in the original key',
+        met: input.hasRatedRun,
+        have: input.hasRatedRun ? 1 : 0,
+        need: 1,
+        unit: 'rated run',
+        ...(input.hasRatedRun ? {} : {
+          detail: 'Rating a run is the opt-in. An unrated run still happened '
+            + 'and is still logged; it just does not move the ladder.',
+        }),
+      }];
+
     case 'learning': {
       const original = input.songKeys.find(k => k.isOriginalKey);
       if (!original) {

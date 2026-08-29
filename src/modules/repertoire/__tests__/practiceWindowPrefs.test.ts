@@ -29,8 +29,14 @@ afterEach(async () => {
 const daysAgo = (n: number) => NOW - n * DAY;
 
 describe('the starting values', () => {
-  it('ships the four Silas asked for', () => {
+  it('ships the four Silas asked for, plus the two rungs below them', () => {
+    // The four he chose are unchanged. `not_started` and `started`
+    // carry Learning's figure so the record is total — a song at
+    // either has never had a rated run, so `lastPractisedAt` is null
+    // and the neglect rule never reaches them. See the constant.
     expect(PRACTICE_WINDOW_DEFAULTS).toEqual({
+      'not_started': 7,
+      'started': 7,
       'learning': 7,
       'comfortable': 14,
       'cross-key': 14,

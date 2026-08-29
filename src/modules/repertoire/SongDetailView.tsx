@@ -81,7 +81,7 @@ import { isComfortableOrBetter, quadrantHoldings } from './matrix/keyProgress';
 import { daysUntilDue, keyDueState } from './matrix/keySpacing';
 import SectionGuidance from './SectionGuidance';
 import CellPanel, { type CellPanelLayout } from './matrix/CellPanel';
-import { dueByKeyId } from './matrix/proveKey';
+import { dueByKeyId, ratedKeyIds } from './matrix/proveKey';
 import { stageReconciliation } from './stageTransition';
 import {
   SPACING_DEFAULTS,
@@ -562,10 +562,32 @@ function SongDetailInner({
     void dueByKeyId(ids).then(m => { if (live) setDueMap(m); });
     return () => { live = false; };
   }, [keyIds]);
+
+  // THE TWO BOTTOM RUNGS' EVIDENCE. Charted comes from the shared
+  // chord reader — a second chord test is how two screens come to
+  // disagree about whether a song has been started. Rated comes from
+  // the `songKey:` spacing rows, which only a RATED run writes.
+  const [ratedKeys, setRatedKeys] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    let live = true;
+    const ids = keyIds === '' ? [] : keyIds.split(',');
+    void ratedKeyIds(ids).then(set => { if (live) setRatedKeys(set); });
+    return () => { live = false; };
+  }, [keyIds]);
+  const hasChartedSection = useMemo(
+    () => sections.some(sec => sectionHasChords(song, sec)),
+    [sections, song],
+  );
+  const hasRatedRun = useMemo(
+    () => matrixKeys.some(k => ratedKeys.has(k.id)),
+    [matrixKeys, ratedKeys],
+  );
   // DERIVED, never read off the song. Play it, prove it, three times.
   const currentStage: RepertoireStage = useMemo(
     () => deriveStage({
       songKeys: matrixKeys,
+      hasChartedSection,
+      hasRatedRun,
       keyRunThroughs,
       performanceTempo: song?.tempo ?? null,
       now: advancementNow,
@@ -579,6 +601,8 @@ function SongDetailInner({
   const advancementInputs = useMemo(() => ({
     currentStage,
     songKeys: matrixKeys,
+    hasChartedSection,
+    hasRatedRun,
     keyRunThroughs,
     performanceTempo: song?.tempo ?? null,
     now: advancementNow,

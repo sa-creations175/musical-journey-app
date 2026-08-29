@@ -43,6 +43,14 @@ export function practiceWindowKey(stage: RepertoireStage): string {
  * can be argued with.
  */
 export const PRACTICE_WINDOW_DEFAULTS: Record<RepertoireStage, number> = {
+  // NOT_STARTED AND STARTED HAVE NO WINDOW TO GO STALE IN. A song
+  // nobody has rated a run of cannot be overdue for one — there is no
+  // practice to be N days since. They carry the Learning figure so the
+  // record is total and the settings row has something to show, and
+  // the neglect rule never reaches them: it reads `lastPractisedAt`,
+  // which is null until the first rated run, and a null is not late.
+  'not_started': 7,
+  'started': 7,
   'learning': 7,
   'comfortable': 14,
   'cross-key': 14,

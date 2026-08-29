@@ -95,6 +95,12 @@ const ALL_HELD: ReadonlyMap<string, number | null> = new Map();
 function inputs(over: Partial<AdvancementInputs> = {}): AdvancementInputs {
   return {
     currentStage: 'learning',
+    // PAST THE BOTTOM TWO BY DEFAULT. Every case in this file was
+    // written about the rungs above, and a fixture that started at
+    // not_started would make each of them fail for a reason it is not
+    // about. The two rungs get their own cases below.
+    hasChartedSection: true,
+    hasRatedRun: true,
     songKeys: [],
     keyRunThroughs: [],
     performanceTempo: TEMPO,
@@ -133,6 +139,14 @@ describe('no rule names its own destination', () => {
     comfortable: inputs({
       currentStage: 'comfortable',
       songKeys: ONE_PER_QUADRANT.map(k => key(k)),
+    }),
+    'not_started': inputs({
+      currentStage: 'not_started',
+      hasChartedSection: true,
+    }),
+    'started': inputs({
+      currentStage: 'started',
+      hasRatedRun: true,
     }),
     'cross-key': inputs({
       currentStage: 'cross-key',
@@ -401,14 +415,25 @@ describe('normaliseStage', () => {
     for (const stage of STAGES) expect(normaliseStage(stage)).toBe(stage);
   });
 
-  it('falls back to learning for unset and unrecognised values', () => {
-    expect(normaliseStage(undefined)).toBe('learning');
-    expect(normaliseStage(null)).toBe('learning');
-    expect(normaliseStage('nonsense')).toBe('learning');
+  it('falls back to not_started for unset and unrecognised values', () => {
+    // The honest default: a row with no readable stage has shown no
+    // evidence, and not_started is what no evidence means.
+    expect(normaliseStage(undefined)).toBe('not_started');
+    expect(normaliseStage(null)).toBe('not_started');
+    expect(normaliseStage('nonsense')).toBe('not_started');
+  });
+
+  it('still passes every previously stored stage through unchanged', () => {
+    // The two new rungs widen the ladder; they do not invalidate a row.
+    for (const stage of ['learning', 'comfortable', 'cross-key', 'internalized']) {
+      expect(normaliseStage(stage)).toBe(stage);
+    }
   });
 
   it('STAGES no longer carries maintenance', () => {
-    expect(STAGES).toEqual(['learning', 'comfortable', 'cross-key', 'internalized']);
+    expect(STAGES).toEqual([
+      'not_started', 'started', 'learning', 'comfortable', 'cross-key', 'internalized',
+    ]);
   });
 });
 
@@ -530,9 +555,35 @@ describe('deriveStage — play it, prove it, three times', () => {
   const quadrantKeys = () =>
     allTwelve(k => ONE_PER_QUADRANT.includes(k) ? {} : { keyState: 'learning' });
 
-  it('a song with nothing proven is learning', () => {
-    expect(deriveStage(inputs({ songKeys: allTwelve(() => ({ keyState: 'not_started' })) })))
-      .toBe('learning');
+  it('a song with nothing charted and nothing rated is not_started', () => {
+    expect(deriveStage(inputs({
+      hasChartedSection: false,
+      hasRatedRun: false,
+      songKeys: allTwelve(() => ({ keyState: 'not_started' })),
+    }))).toBe('not_started');
+  });
+
+  it('charting a section reaches started, and stops there', () => {
+    expect(deriveStage(inputs({
+      hasChartedSection: true,
+      hasRatedRun: false,
+      songKeys: allTwelve(() => ({ keyState: 'not_started' })),
+    }))).toBe('started');
+  });
+
+  it('a rated run reaches learning', () => {
+    expect(deriveStage(inputs({
+      songKeys: allTwelve(() => ({ keyState: 'not_started' })),
+    }))).toBe('learning');
+  });
+
+  it('an unrated run is not enough — it holds at started', () => {
+    // The writer already agrees: an unrated run writes no band and no
+    // clock, so no `songKey:` row appears and `hasRatedRun` is false.
+    expect(deriveStage(inputs({
+      hasRatedRun: false,
+      songKeys: allTwelve(() => ({ keyState: 'not_started' })),
+    }))).toBe('started');
   });
 
   it('climbs to comfortable on a passed whole-song test in the original key', () => {
@@ -730,9 +781,11 @@ describe('ladderCriteria — the panel accumulates', () => {
     // done became invisible exactly when it became true.
     const groups = ladderCriteria(atComfortable);
     const earned = groups.filter(g => g.status === 'earned');
-    expect(earned).toHaveLength(1);
-    expect(earned[0].earns).toBe('comfortable');
-    expect(earned[0].criteria.every(c => c.met)).toBe(true);
+    // THREE, not one, since the ladder gained its two bottom rungs: a
+    // song at Comfortable has also earned Started and Learning, and
+    // the panel accumulating means it says so.
+    expect(earned.map(g => g.earns)).toEqual(['started', 'learning', 'comfortable']);
+    expect(earned.every(g => g.criteria.every(c => c.met))).toBe(true);
   });
 
   it('names the rung each group EARNS, never the rung you stand on', () => {
@@ -741,14 +794,15 @@ describe('ladderCriteria — the panel accumulates', () => {
     // first group "Learning", which reads as the goal being to learn.
     const groups = ladderCriteria(atComfortable);
     expect(groups.map(g => g.earns))
-      .toEqual(['comfortable', 'cross-key', 'internalized']);
+      .toEqual(['started', 'learning', 'comfortable', 'cross-key', 'internalized']);
     expect(groups.map(g => g.status))
-      .toEqual(['earned', 'current', 'ahead']);
+      .toEqual(['earned', 'earned', 'earned', 'current', 'ahead']);
   });
 
   it('omits the terminal rung, which earns nothing', () => {
     const groups = ladderCriteria(inputs({ currentStage: 'internalized' }));
-    expect(groups.every(g => g.earns !== 'learning')).toBe(true);
+    // No group EARNS not_started — it is the floor, not something won.
+    expect(groups.every(g => g.earns !== 'not_started')).toBe(true);
     expect(groups.some(g => g.status === 'current')).toBe(false);
   });
 
@@ -758,7 +812,11 @@ describe('ladderCriteria — the panel accumulates', () => {
     // number quietly getting worse.
     const total = ladderCriteria(atComfortable)
       .reduce((n, g) => n + g.criteria.length, 0);
-    expect(total).toBeLessThanOrEqual(8);
+    // Two rungs added, one criterion each — the ceiling moves by two
+    // and no further. If it grows past this, the collapse-the-far-ones
+    // decision needs revisiting rather than the number quietly getting
+    // worse.
+    expect(total).toBeLessThanOrEqual(10);
     expect(total).toBeGreaterThanOrEqual(4);
   });
 
