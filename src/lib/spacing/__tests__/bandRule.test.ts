@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { selfRatedVerdict, type RatedRep } from '../banding';
+import { bandOf, selfRatedVerdict, type RatedRep } from '../banding';
 import { bandVerdictForRow, lastTestAt } from '../row';
 import type { Feel } from '../../fluencyScale';
 
@@ -107,9 +107,97 @@ describe('tested again — the newer test replaces it', () => {
     expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'mastered' });
   });
 
-  it('lowers the band, because a test is a claim either way', () => {
+  it('lowers the band when the newer test also PASSES', () => {
+    // Down is as real as up, but only a pass moves it. Three In flow,
+    // then three Clean, is two completed tests and the second one is
+    // the current claim.
+    const reps = [test(4), test(4), test(4), test(3), test(3), test(3)];
+    expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'fluent' });
+  });
+
+  it('DOES NOT lower the band when the newer test fails', () => {
+    // This inverted when the streak rule landed, and the inversion is
+    // the decision rather than a side effect: a failed test does not
+    // demote. The old rule read the last three reps — 3, 3, 1 — and
+    // banded Needs Work, so an attempt that went badly was punished
+    // harder than not attempting at all.
+    //
+    // Now the three In flow runs are a pass that stands, and the
+    // failed attempt after it leaves the band where it was. What
+    // marks the row as due again is staleness, which is elsewhere and
+    // unaffected by this.
     const reps = [test(4), test(4), test(4), test(3), test(3), test(1)];
-    expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'needs-work' });
+    expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'mastered' });
+  });
+});
+
+describe('the streak — three IN A ROW, and a bad run costs it', () => {
+  it('three clean in a row passes', () => {
+    expect(selfRatedVerdict([test(3), test(3), test(3)]))
+      .toEqual({ kind: 'band', band: 'fluent' });
+  });
+
+  it('THREE CLEAN RUNS WITH A FAILURE BETWEEN THEM DO NOT PASS', () => {
+    // The claim the rule exists to make, and the case the old window
+    // got wrong: it read the last three — 3, 3, 3 — and passed. Four
+    // clean runs here, and it is not the same achievement as three in
+    // a row.
+    const reps = [test(3), test(1), test(3), test(1), test(3), test(3)];
+    expect(reps.filter(r => r.feel >= 3)).toHaveLength(4);
+    // No pass, so nothing reached the test path at all. The band is
+    // whatever the fall-through holds — which is emphatically NOT
+    // Fluent, the answer the old last-three window gave.
+    expect(bandOf(selfRatedVerdict(reps))).not.toBe('fluent');
+    expect(bandOf(selfRatedVerdict(reps))).not.toBe('mastered');
+  });
+
+  it('the streak can be restarted in the same session and still pass', () => {
+    // The other half of the reset: it costs the two before it AND
+    // offers a way back. A rule with only the cost would make a bad
+    // first run a reason to stop.
+    const reps = [test(4), test(1), test(4), test(4), test(4)];
+    expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'mastered' });
+  });
+
+  it('the lowest of the three WINNERS sets the height, not the lowest overall', () => {
+    // A Struggled run earlier in the session is not in the winning
+    // three, so it does not drag the result down to Needs Work. It
+    // already cost the streak; charging for it twice would mean one
+    // bad run permanently capped the session.
+    const reps = [test(1), test(4), test(4), test(4)];
+    expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'mastered' });
+  });
+
+  it('a passing test can only reach Fluent or Mastered', () => {
+    // Structural: every run in a passing streak is Clean or better, so
+    // the lowest is 3 or 4. There is no arrangement of test reps that
+    // bands Needs Work or Developing THROUGH A PASS.
+    const feels = [1, 2, 3, 4] as const;
+    for (const a of feels) for (const b of feels) for (const c of feels) {
+      const v = selfRatedVerdict([test(a), test(b), test(c)]);
+      if (a >= 3 && b >= 3 && c >= 3) {
+        expect(bandOf(v)).toBe(Math.min(a, b, c) === 4 ? 'mastered' : 'fluent');
+      } else {
+        // No pass — whatever holds it, it did not come from a test.
+        expect(bandOf(v)).not.toBe('mastered');
+      }
+    }
+  });
+
+  it('a practice rep between two test runs does not break the streak', () => {
+    // Practice is not part of a test and is not a failure of one.
+    // Practising between two runs is not a fourth kind of outcome.
+    const reps = [test(3), practice(1), test(3), test(3)];
+    expect(selfRatedVerdict(reps)).toEqual({ kind: 'band', band: 'fluent' });
+  });
+
+  it('four clean in a row is a pass plus one run, not a pass over four', () => {
+    // The third clean run IS the pass, so the streak closes there and
+    // the fourth run opens the next test. If the window were still
+    // four wide, the trailing In flow would raise a Fluent pass to
+    // Mastered without a test having been passed at that height.
+    expect(selfRatedVerdict([test(3), test(3), test(3), test(4)]))
+      .toEqual({ kind: 'band', band: 'fluent' });
   });
 });
 

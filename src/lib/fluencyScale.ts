@@ -161,3 +161,26 @@ export function feelForRating(rating: 'flying' | 'cruising' | 'crawling'): Feel 
   if (rating === 'cruising') return 3;
   return 1;
 }
+
+/**
+ * Clean, as an ordinal.
+ *
+ * =====================================================================
+ * "CLEAN OR BETTER" IS A RULE, AND IT WAS A LITERAL 3 IN TWO PLACES.
+ *
+ * The streak rule turns on it — three runs at Clean or better in a row
+ * — and so does the whole-song test's per-attempt gate. Both wrote
+ * `feel >= 3`, which is correct and says nothing: a reader has to come
+ * here to find out that 3 is Clean, and a future step inserted into
+ * the scale would silently move the rule.
+ *
+ * The scale is the only place that knows what 3 means, so the rule's
+ * threshold lives here beside it.
+ * =====================================================================
+ */
+export const CLEAN_FEEL: Feel = 3;
+
+/** Clean or better — the bar a run has to clear to advance a streak. */
+export function isCleanFeel(feel: Feel): boolean {
+  return feel >= CLEAN_FEEL;
+}

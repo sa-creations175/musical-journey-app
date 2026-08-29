@@ -12,10 +12,14 @@
  *   TWENTY answers on that card.
  *
  *   SELF-RATED modules — shapes & patterns including mental
- *   visualisation, and song repertoire — take the LOWEST of the last
- *   THREE rated reps. Not an average. Three cleans and one struggle is
- *   Needs Work, because the struggle is the thing that has not gone
- *   away.
+ *   visualisation, and song repertoire — take the LOWEST of three
+ *   reps. Not an average. Three cleans and one struggle is Needs Work,
+ *   because the struggle is the thing that has not gone away.
+ *
+ *   WHICH three depends on where the evidence came from. A passed test
+ *   is three runs IN A ROW, all Clean or better, and its lowest sets
+ *   the band. Practice has no streak: the last three rated reps, and a
+ *   ceiling at Developing. See `selfRatedVerdict`.
  *
  * Getting this wrong is not cosmetic: the band picks the multiplier
  * and the ceiling, so a card that should be capped at 2 days drifts to
@@ -32,7 +36,7 @@
 
 import type { AccuracyBand } from './bands';
 import { bandForAccuracyPercent } from './bands';
-import type { Feel } from '../fluencyScale';
+import { isCleanFeel, type Feel } from '../fluencyScale';
 
 /** Answers over which a measured card is scored. */
 export const MEASURED_WINDOW = 20;
@@ -149,6 +153,13 @@ export function measuredVerdict(
  *   Clean, Clean, Clean               → lowest 3 → Fluent
  *   In flow, In flow, Clean           → lowest 3 → Fluent
  *   In flow, In flow, In flow         → lowest 4 → Mastered
+ *
+ * ALL FOUR ROWS ARE STILL REACHABLE, but no longer by the same route.
+ * The first two are practice outcomes now — a streak with a below-Clean
+ * run in it is not a passing test, so a test never arrives here with a
+ * lowest of 1 or 2. The map stays whole because the practice path uses
+ * every row of it, and because a ladder with two rungs sawn off would
+ * have to be explained at each of its readers.
  */
 const BAND_FOR_LOWEST: Record<Feel, AccuracyBand> = {
   1: 'needs-work',
@@ -174,7 +185,8 @@ export interface RatedRep {
 }
 
 /**
- * The lowest of the last three rated reps, and which three those are.
+ * The band, from a passed test where there is one and from practice
+ * where there is not.
  *
  * =====================================================================
  * NOT AN AVERAGE, and the difference is the point. Averaging three
@@ -189,11 +201,11 @@ export interface RatedRep {
  *
  *   never tested   practice reps set the band, capped at Developing.
  *                  Practice reaches Developing and no further.
- *   once tested    the last three TEST reps set it. Practice can
- *                  neither raise it nor drag it down.
+ *   once tested    the last PASSED test sets it. Practice can neither
+ *                  raise it nor drag it down.
  *   past due       the same band, marked stale elsewhere. No decay
  *                  happens here — a band is not lowered by time.
- *   tested again   the newer three test reps replace it, up or down.
+ *   tested again   a newer pass replaces it, up or down.
  *
  * THE REASON PRACTICE IS EXCLUDED RATHER THAN OUTVOTED. If the two
  * shared a three-slot window, three practice reps after a passed test
@@ -208,13 +220,11 @@ export function selfRatedVerdict(
 ): BandVerdict {
   if (reps.length === 0) return NOT_STARTED;
 
-  // TESTED AT ALL? Then only the tests are looked at. Fewer than three
-  // test reps is a test that never completed — it cannot set a band,
-  // and the practice path below carries on holding it.
-  const tests = reps.filter(r => r.fromTest === true);
-  if (tests.length >= SELF_RATED_FLOOR) {
-    return { kind: 'band', band: lowestBand(tests.slice(-SELF_RATED_WINDOW)) };
-  }
+  // A PASSED TEST OUTRANKS EVERYTHING. No pass, and the practice path
+  // below carries on holding whatever it held — an abandoned or failed
+  // test does not demote.
+  const won = lastPassedTest(reps);
+  if (won !== null) return { kind: 'band', band: lowestBand(won) };
 
   if (reps.length < SELF_RATED_FLOOR) {
     return { kind: 'started', tries: reps.length };
@@ -237,6 +247,67 @@ export function selfRatedVerdict(
   // ceiling stands down for.
   const anyLegacy = window.some(r => r.fromTest === undefined);
   return { kind: 'band', band: anyLegacy ? band : capAt(band, PRACTICE_CEILING) };
+}
+
+/**
+ * The three runs of the most recent PASSED test, or null if no test
+ * has been passed.
+ *
+ * =====================================================================
+ * A STREAK, NOT A WINDOW — AND THE RESET IS THE WHOLE CHANGE.
+ *
+ * The rule used to be "the lowest of the last three test reps", with no
+ * reset. Under it a bad first run made the rest of the test pointless:
+ * rate run one Working on it and the ceiling for the session is
+ * Developing, which the user already had, so runs two and three were
+ * theatre. Worse, the three did not have to be in a row — a struggle,
+ * a clean, a clean and a clean would band on the last three and quietly
+ * forget the struggle it was supposed to remember.
+ *
+ * Now a below-Clean run costs the streak and offers a way back. That
+ * cuts both ways and both are intended: a failed run genuinely undoes
+ * the two before it, and the user can start again in the same session.
+ *
+ * WHAT A TEST CAN NOW REACH. Every run in a passing streak is Clean or
+ * better, so the lowest is 3 or 4 and a passed test lands on Fluent or
+ * Mastered — never lower. That is not a lost capability: a test that
+ * would have banded Needs Work is a test that was failed, and a failed
+ * test does not demote. It leaves the band where practice had it.
+ *
+ * THE THIRD CLEAN RUN IS THE PASS, so a completed streak closes and the
+ * next clean run begins a new one. Four in a row is a pass and one run
+ * into the next test, not a pass measured over four. Scanning forward
+ * and keeping the LAST completed streak is what makes "tested again
+ * replaces it" true.
+ *
+ * ONE SESSION IS NOT ENFORCED HERE, AND CANNOT BE. The spec binds the
+ * streak to a testing session, and a stored rep carries no session
+ * identity — only `t`, which the spec rules out explicitly, because a
+ * whole song takes minutes to play and any gap constant would break
+ * every real streak. The session bound is held where the session is:
+ * in the surface running the test. What survives to here is the order
+ * of the reps, which is strictly stricter than the rule it replaces
+ * and never looser. See the note in the commit that added this.
+ * =====================================================================
+ */
+function lastPassedTest(
+  reps: ReadonlyArray<RatedRep>,
+): ReadonlyArray<RatedRep> | null {
+  let run: RatedRep[] = [];
+  let won: RatedRep[] | null = null;
+  for (const r of reps) {
+    // Practice reps are not in the streak at all. They are not a
+    // failure either — practising between two test runs does not break
+    // a test, it just is not part of one.
+    if (r.fromTest !== true) continue;
+    if (isCleanFeel(r.feel)) {
+      run.push(r);
+      if (run.length === SELF_RATED_WINDOW) { won = run; run = []; }
+    } else {
+      run = [];
+    }
+  }
+  return won;
 }
 
 function lowestBand(window: ReadonlyArray<RatedRep>): AccuracyBand {

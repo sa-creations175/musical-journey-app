@@ -8,7 +8,7 @@ import {
   type SongRunThroughRating,
 } from '../../../lib/db';
 import { type CellBands, isCellComfortable, isCellTouched, loadCellBands } from './cellBands';
-import type { Feel } from '../../../lib/fluencyScale';
+import { isCleanFeel, type Feel } from '../../../lib/fluencyScale';
 
 /**
  * Cell-state machine helpers for the cell interaction modal.
@@ -393,7 +393,10 @@ export interface KeyAttemptDraft {
 
 /** Clean or better. The gate's condition, from the four-step scale. */
 export function attemptWasClean(attempt: { feel: Feel }): boolean {
-  return attempt.feel >= 3;
+  // The threshold is the scale's, not this file's. It used to be a
+  // literal 3 here and another literal 3 in `banding.ts`, which is two
+  // places to change a rule that has one meaning.
+  return isCleanFeel(attempt.feel);
 }
 
 /**
