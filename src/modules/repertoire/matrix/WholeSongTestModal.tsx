@@ -16,11 +16,14 @@ import {
 import {
   type KeyAttemptDraft,
   isInTempoRange,
+  attemptWasClean,
   projectKeyConsecutiveCleanCount,
   saveKeyAttemptsAndRollup,
 } from './cellRollup';
 import { spellKey } from '../../../lib/spelling';
 import { useSongSpelling } from '../useSongSpelling';
+import type { Feel } from '../../../lib/fluencyScale';
+import { FEEL_CARD_OPTIONS } from '../../shapes-and-patterns/drillModel';
 
 /**
  * Whole-song test modal — the gate from comfortable → solid at the
@@ -152,19 +155,19 @@ export default function WholeSongTestModal({
   const parsedBpm = parseInt(bpmInput, 10);
   const bpmValid = Number.isFinite(parsedBpm) && parsedBpm > 0;
 
-  const handleAddAttempt = (wasClean: boolean) => {
+  const handleAddAttempt = (feel: Feel) => {
     if (!bpmValid) return;
     // A below-floor run neither advances nor resets the gate — see
     // projectConsecutiveCleanCount — so a slow not-clean pass must not
     // announce a reset that did not happen.
     const gateRelevant = isInTempoRange(parsedBpm, performanceTempo);
-    setStreakBroken(!wasClean && gateRelevant && projectedCount > 0);
+    setStreakBroken(feel < 3 && gateRelevant && projectedCount > 0);
     setAttempts(prev => [
       ...prev,
       {
         id: `keyattempt-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`,
         bpm: parsedBpm,
-        wasClean,
+        feel,
       },
     ]);
   };
@@ -267,8 +270,7 @@ export default function WholeSongTestModal({
           bpmInput={bpmInput}
           onBpmChange={setBpmInput}
           bpmValid={bpmValid}
-          onClean={() => handleAddAttempt(true)}
-          onNotClean={() => handleAddAttempt(false)}
+          onRate={handleAddAttempt}
         />
 
         {/* Last, and collapsed. The sitting above is what you are
@@ -554,10 +556,14 @@ function AttemptRow({
       <span className="text-neutral-400 tabular-nums w-5 text-right">{index + 1}.</span>
       <span className="text-neutral-700 dark:text-neutral-200 tabular-nums">♩ {attempt.bpm}</span>
       <span className="text-neutral-400">·</span>
-      {attempt.wasClean ? (
-        <span className="text-emerald-600 dark:text-emerald-400 font-medium">✓ Clean</span>
+      {attemptWasClean(attempt) ? (
+        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+          {FEEL_CARD_OPTIONS.find(o => o.value === attempt.feel)?.label ?? ''}
+        </span>
       ) : (
-        <span className="text-needswork font-medium">✗ Not Clean</span>
+        <span className="text-needswork font-medium">
+          {FEEL_CARD_OPTIONS.find(o => o.value === attempt.feel)?.label ?? ''}
+        </span>
       )}
       {belowFloor && (
         <span
@@ -585,14 +591,12 @@ function AddAttemptArea({
   bpmInput,
   onBpmChange,
   bpmValid,
-  onClean,
-  onNotClean,
+  onRate,
 }: {
   bpmInput: string;
   onBpmChange: (next: string) => void;
   bpmValid: boolean;
-  onClean: () => void;
-  onNotClean: () => void;
+  onRate: (feel: Feel) => void;
 }) {
   return (
     <div>
@@ -614,22 +618,24 @@ function AddAttemptArea({
             aria-label="Tempo BPM"
           />
         </label>
-        <button
-          type="button"
-          onClick={onClean}
-          disabled={!bpmValid}
-          className="px-3 py-2 text-sm rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
-        >
-          ✓ Clean
-        </button>
-        <button
-          type="button"
-          onClick={onNotClean}
-          disabled={!bpmValid}
-          className="px-3 py-2 text-sm rounded-md bg-neutral-200 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-300 dark:hover:bg-neutral-600 disabled:opacity-40 disabled:cursor-not-allowed font-medium"
-        >
-          ✗ Not Clean
-        </button>
+        {/* THE APP'S FOUR WORDS, not a pair of this modal's own. Clean
+            or Not Clean was a second vocabulary for an act every other
+            surface already rates on four steps, and it could not tell
+            a run that fell apart from one that was nearly there.
+            Chips rather than slabs: four buttons the width of the old
+            two would push the tempo field off the row. */}
+        {FEEL_CARD_OPTIONS.map(opt => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onRate(opt.value)}
+            disabled={!bpmValid}
+            title={opt.hint}
+            className={`px-2.5 py-2 text-xs rounded-md border font-medium disabled:opacity-40 disabled:cursor-not-allowed ${opt.inactiveClass}`}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
     </div>
   );

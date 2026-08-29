@@ -8,6 +8,7 @@ import {
   type SongRunThroughRating,
 } from '../../../lib/db';
 import { type CellBands, isCellComfortable, isCellTouched, loadCellBands } from './cellBands';
+import type { Feel } from '../../../lib/fluencyScale';
 
 /**
  * Cell-state machine helpers for the cell interaction modal.
@@ -368,7 +369,25 @@ export async function saveAttemptsAndRollup(args: {
 export interface KeyAttemptDraft {
   id: string;
   bpm: number;
-  wasClean: boolean;
+  /**
+   * How the run went, on the app's four-step scale.
+   *
+   * REPLACES A `wasClean` BOOLEAN. Clean-or-not was a second
+   * vocabulary for an act the rest of the app already had four words
+   * for, and it could not tell a run that fell apart from one that was
+   * nearly there.
+   *
+   * `wasClean` is DERIVED from it — `feel >= 3`, which is Clean or In
+   * flow — and nothing stores both. The gate still asks "was this run
+   * clean at tempo"; it just no longer needs its own question to find
+   * out.
+   */
+  feel: Feel;
+}
+
+/** Clean or better. The gate's condition, from the four-step scale. */
+export function attemptWasClean(attempt: { feel: Feel }): boolean {
+  return attempt.feel >= 3;
 }
 
 /**
@@ -384,7 +403,14 @@ export function projectKeyConsecutiveCleanCount(
   attempts: ReadonlyArray<KeyAttemptDraft>,
   performanceTempo: number | null,
 ): number {
-  return projectConsecutiveCleanCount(0, attempts, performanceTempo);
+  // The maths is identical; only where "clean" comes from differs. A
+  // key attempt carries a feel and derives it; a cell attempt still
+  // carries the boolean.
+  return projectConsecutiveCleanCount(
+    0,
+    attempts.map(a => ({ id: a.id, bpm: a.bpm, wasClean: attemptWasClean(a) })),
+    performanceTempo,
+  );
 }
 
 /**
@@ -410,14 +436,17 @@ export function applyAttemptsToKey(
   let count = 0;
   const rows: SongKeyRunThrough[] = attempts.map((a, i) => {
     if (isInTempoRange(a.bpm, performanceTempo)) {
-      if (a.wasClean) count = Math.min(count + 1, 3);
+      if (attemptWasClean(a)) count = Math.min(count + 1, 3);
       else count = 0;
     }
     return {
       id: `keyrun-${Math.random().toString(36).slice(2, 8)}-${(now + i).toString(36)}`,
       songKeyId: songKey.id,
       songId: songKey.songId,
-      wasClean: a.wasClean,
+      // DERIVED, never asked twice. The row keeps the boolean it has
+      // always had; what changed is that the user answers with one of
+      // four words and this reads Clean-or-better out of it.
+      wasClean: attemptWasClean(a),
       consecutiveCleanCount: count,
       tempoBpm: Math.max(1, Math.floor(a.bpm)),
       notes: null,

@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 import type { SongKey } from '../../../../lib/db';
 import {
   applyAttemptsToKey,
+  attemptWasClean,
   projectKeyConsecutiveCleanCount,
   type KeyAttemptDraft,
 } from '../cellRollup';
@@ -26,7 +27,8 @@ const FLOOR = TEMPO - 10;
 
 let seq = 0;
 function at(wasClean: boolean, bpm: number = TEMPO): KeyAttemptDraft {
-  return { id: `a${seq++}`, bpm, wasClean };
+  // Clean and Struggled — the two ends the old boolean stood for.
+  return { id: `a${seq++}`, bpm, feel: wasClean ? 3 : 1 };
 }
 const clean = () => at(true);
 const dirty = () => at(false);
@@ -81,7 +83,7 @@ describe('a not-clean run resets to zero', () => {
     // the passing case above — four, in fact — and it is not the same
     // achievement.
     const scattered = [clean(), dirty(), clean(), dirty(), clean(), clean()];
-    expect(scattered.filter(a => a.wasClean)).toHaveLength(4);
+    expect(scattered.filter(attemptWasClean)).toHaveLength(4);
     expect(count(scattered)).toBe(2);
   });
 

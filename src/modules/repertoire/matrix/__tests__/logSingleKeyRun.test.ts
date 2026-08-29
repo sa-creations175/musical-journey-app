@@ -76,7 +76,7 @@ function mkCell(overrides: Partial<SongCell> = {}): SongCell {
 async function logRun(songKey: SongKey, wasClean: boolean, bpm: number, at: number) {
   await logSingleKeyRun({
     songKey,
-    attempt: { id: `a-${at}`, bpm, wasClean },
+    attempt: { id: `a-${at}`, bpm, feel: wasClean ? 3 : 1 },
     performanceTempo: TEMPO,
     siblingCells: [mkCell()],
     expectedSectionCount: 1,
@@ -152,7 +152,7 @@ describe('logSingleKeyRun', () => {
     // where it IS binding: three clean at-tempo attempts in one call.
     // Same input, the flag the only difference.
     const key = mkKey({ keyState: 'comfortable' });
-    const three = [1, 2, 3].map(i => ({ id: `a${i}`, bpm: TEMPO, wasClean: true }));
+    const three = [1, 2, 3].map(i => ({ id: `a${i}`, bpm: TEMPO, feel: 3 as const }));
     const call = (markSolid: boolean) => saveKeyAttemptsAndRollup({
       songKey: key, attempts: three, markSolid, performanceTempo: TEMPO,
       isRetest: false, siblingCells: [mkCell()], expectedSectionCount: 1, now: NOW,
@@ -236,7 +236,7 @@ describe('kind separates the two events', () => {
 
     await saveKeyAttemptsAndRollup({
       songKey: key,
-      attempts: [{ id: 't1', bpm: TEMPO, wasClean: true }],
+      attempts: [{ id: 't1', bpm: TEMPO, feel: 3 }],
       markSolid: false,
       performanceTempo: TEMPO,
       isRetest: false,
@@ -254,7 +254,7 @@ describe('kind separates the two events', () => {
 
   it('applyAttemptsToKey defaults to test, so pre-existing callers are unchanged', () => {
     const { runThroughRows } = applyAttemptsToKey(
-      mkKey(), [{ id: 'a1', bpm: TEMPO, wasClean: true }], TEMPO, false, NOW,
+      mkKey(), [{ id: 'a1', bpm: TEMPO, feel: 3 }], TEMPO, false, NOW,
     );
     expect(runThroughRows[0].kind).toBe('test');
   });
@@ -286,7 +286,7 @@ describe('testing a key whose sections are not comfortable', () => {
 
     await saveKeyAttemptsAndRollup({
       songKey: key,
-      attempts: [1, 2, 3].map(i => ({ id: `a${i}`, bpm: TEMPO, wasClean: true })),
+      attempts: [1, 2, 3].map(i => ({ id: `a${i}`, bpm: TEMPO, feel: 3 })),
       markSolid: true,
       performanceTempo: TEMPO,
       isRetest: false,
@@ -312,7 +312,7 @@ describe('testing a key whose sections are not comfortable', () => {
     await db.songKeys.put(key);
     await saveKeyAttemptsAndRollup({
       songKey: key,
-      attempts: [1, 2, 3].map(i => ({ id: `b${i}`, bpm: TEMPO, wasClean: true })),
+      attempts: [1, 2, 3].map(i => ({ id: `b${i}`, bpm: TEMPO, feel: 3 })),
       markSolid: true,
       performanceTempo: TEMPO,
       isRetest: false,
@@ -345,7 +345,7 @@ describe('testing a key whose sections are not comfortable', () => {
     await db.songKeys.put(key);
     await saveKeyAttemptsAndRollup({
       songKey: key,
-      attempts: [1, 2, 3].map(i => ({ id: `c${i}`, bpm: TEMPO, wasClean: true })),
+      attempts: [1, 2, 3].map(i => ({ id: `c${i}`, bpm: TEMPO, feel: 3 })),
       markSolid: true, performanceTempo: TEMPO, isRetest: false,
       siblingCells: [mkCell({ cellState: 'learning' })],
       expectedSectionCount: 1, now: NOW,

@@ -75,7 +75,12 @@ export default function SingleRunModal({
         attempt: {
           id: `singlerun-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`,
           bpm: parsedBpm,
-          wasClean,
+          // A single run still asks clean-or-not; the draft speaks the
+          // four-step scale, so the answer is mapped rather than a
+          // second vocabulary being kept alive. Clean is the honest
+          // floor for a pass — the question does not ask how it felt,
+          // so it cannot claim the top step.
+          feel: wasClean ? 3 : 1,
         },
         performanceTempo,
         siblingCells,
