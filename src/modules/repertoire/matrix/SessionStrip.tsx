@@ -1,0 +1,257 @@
+import MetronomeControl from '../../../components/MetronomeControl';
+import StreakCircles from './StreakCircles';
+import { formatClock } from '../../shapes-and-patterns/practiceTest/sessionClock';
+import { FEEL_OPTIONS, type Feel } from '../../../lib/fluencyScale';
+
+/**
+ * The session, as a bar across the top of the lead sheet.
+ *
+ * =====================================================================
+ * OPEN LEAD SHEET BREAKS THE PANEL APART. IT DOES NOT STACK.
+ *
+ * The sheet is not opened inside the panel or on top of it — the
+ * panel's controls become this strip and the sheet gets the rest of
+ * the screen. Anything else means reading a chart through a window,
+ * which is not reading a chart.
+ *
+ * The strip is sticky, so it survives scrolling to bar 40. A session
+ * you can only end by scrolling back to the top is a session that gets
+ * left running.
+ *
+ * =====================================================================
+ * THE APP NEVER SAYS "SESSION" OR "RUN" ON ITS OWN.
+ *
+ * Every label here names which kind: Practice Session / Testing
+ * Session, Practice Run / Test Run. Not shorthand, not once the
+ * context "makes it obvious" — the two modes sit one tap apart and
+ * produce different records, and a bar reading "Session 04:12" is the
+ * same bar in both.
+ *
+ * "Testing session", not "test session", so it matches the rule
+ * sentence the rest of the app states.
+ *
+ * =====================================================================
+ * HOW A RUN ENDS DIFFERS BY MODE, AND THAT IS TWO MODELS.
+ *
+ *   TEST RUN       ends by rating it. Rating is required on a test, so
+ *                  the four chips ARE the finish. There is no Finish
+ *                  Run button, and adding one would offer a way to end
+ *                  a test run without the rating the test is made of.
+ *   PRACTICE RUN   ends by rating it OR by Finish Run. Rating is
+ *                  optional in practice, so there has to be a way to
+ *                  stop without one.
+ *
+ * `onFinishRun` is null on a test rather than a `kind` check inside
+ * this component, so the absence of the button is the absence of a
+ * handler and the two cannot drift.
+ *
+ * =====================================================================
+ * PAUSE IS DRAWN HERE. WHAT HAPPENS ON REOPENING IS NOT.
+ *
+ * Pausing acts on the session, and the paused state says the clock has
+ * stopped. The three choices offered when a paused session is REOPENED
+ * — resume, bank the time, discard — are unwritten and belong to the
+ * Pause build. This component does not know about them and must not
+ * grow a guess at them.
+ * =====================================================================
+ *
+ * Copy: `docs/WHOLE_SONG_TEST_COPY.md` and its 29 Aug 2026 addendum.
+ */
+
+export type SessionKind = 'testing' | 'practice';
+
+/** Which words each mode uses, in one place, so no label is composed
+ *  at a call site. */
+const WORDS: Record<SessionKind, {
+  session: string;
+  run: string;
+  save: string;
+}> = {
+  testing: {
+    session: 'Testing Session',
+    run: 'Test Run',
+    save: 'Save Runs',
+  },
+  practice: {
+    session: 'Practice Session',
+    run: 'Practice Run',
+    save: 'Log Practice Session',
+  },
+};
+
+interface Props {
+  kind: SessionKind;
+  /** Whole seconds the session has run for. */
+  sessionSeconds: number;
+  /** Whole seconds into the run in progress, or null when none is. */
+  runSeconds: number | null;
+  /** Which run is next, for `Start Test Run {n}`. Testing only. */
+  nextRunNumber: number;
+  paused: boolean;
+  onPauseToggle: () => void;
+  /**
+   * The streak so far, 0–3, or null where there is no streak to show.
+   *
+   * Null on practice — practice has no streak, and an empty set of
+   * three slots would promise one.
+   */
+  streak: number | null;
+  /** True when the last gate-relevant run was not clean. */
+  streakBroken: boolean;
+  /** End the run in progress by rating it. */
+  onRate: (feel: Feel) => void;
+  onStartRun: () => void;
+  /** End the run WITHOUT rating it. Null on a test — see the header. */
+  onFinishRun: (() => void) | null;
+  /** `Save Runs`, or `Log Practice Session`. */
+  onSave: () => void;
+  /** Back to the panel the strip came from. */
+  onBack: () => void;
+}
+
+export default function SessionStrip({
+  kind, sessionSeconds, runSeconds, nextRunNumber, paused, onPauseToggle,
+  streak, streakBroken, onRate, onStartRun, onFinishRun, onSave, onBack,
+}: Props) {
+  const words = WORDS[kind];
+  const inRun = runSeconds !== null;
+
+  return (
+    <div
+      className={[
+        'sticky top-0 z-10 flex items-center gap-2 flex-wrap',
+        'px-3 py-2 border-b',
+        paused
+          ? 'bg-needswork/10 border-needswork/30'
+          : 'bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700',
+      ].join(' ')}
+    >
+      <button
+        type="button"
+        onClick={onPauseToggle}
+        className="px-2.5 py-1 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+      >
+        {paused ? 'Resume' : 'Pause'}
+      </button>
+
+      <Clock label={words.session} seconds={sessionSeconds} />
+
+      {/* THE RUN CLOCK EXISTS ONLY WHILE A RUN DOES. A 00:00 sitting
+          there between runs would read as a run that had not started
+          rather than as no run at all. */}
+      {inRun && (
+        <>
+          <Divider />
+          <Clock label={words.run} seconds={runSeconds} />
+        </>
+      )}
+
+      <Divider />
+      <MetronomeControl />
+
+      {/* THE STREAK, WHERE THERE IS ONE. No caption — the strip has no
+          room for the sentence the panel carries, and the circles are
+          the same circles. */}
+      {streak !== null && (
+        <>
+          <Divider />
+          <StreakCircles
+            count={streak}
+            broken={streakBroken}
+            size="sm"
+            label={`${streak} of 3 clean run-throughs in a row`}
+          />
+        </>
+      )}
+
+      <div className="flex-1" />
+
+      {inRun ? (
+        <>
+          {/* THE FOUR CHIPS ARE HOW A RUN FINISHES. On a test that is
+              the only way, which is why they sit where a Finish button
+              would otherwise be. */}
+          {FEEL_OPTIONS.map(o => (
+            <button
+              key={o.feel}
+              type="button"
+              onClick={() => onRate(o.feel)}
+              className="px-2 py-1 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              {o.label}
+            </button>
+          ))}
+          {/* PRACTICE ONLY. Null handler, null button — see the header. */}
+          {onFinishRun !== null && (
+            <button
+              type="button"
+              onClick={onFinishRun}
+              className="px-2.5 py-1 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
+              Finish Run
+            </button>
+          )}
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={onStartRun}
+          disabled={paused}
+          className="px-2.5 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {kind === 'testing'
+            ? `Start Test Run ${nextRunNumber}`
+            : 'Start A Practice Run'}
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={onSave}
+        className="px-2.5 py-1 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+      >
+        {words.save}
+      </button>
+
+      <button
+        type="button"
+        onClick={onBack}
+        className="px-2.5 py-1 text-xs rounded-md text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+      >
+        Back To The Session
+      </button>
+
+      {/* THE PAUSED STATE, SAID IN WORDS. The tinted bar alone is a
+          colour someone can miss; this is the sentence that cannot be. */}
+      {paused && (
+        <div className="w-full text-xs text-needswork font-medium pt-1">
+          Paused — the clock is stopped.
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A labelled clock. The label always names which kind of session or
+ *  run it is; there is no unlabelled variant to reach for. */
+function Clock({ label, seconds }: { label: string; seconds: number }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="text-sm font-mono tabular-nums text-neutral-800 dark:text-neutral-100">
+        {formatClock(seconds)}
+      </span>
+      <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
+        {label}
+      </span>
+    </span>
+  );
+}
+
+function Divider() {
+  return (
+    <span
+      aria-hidden
+      className="w-px h-5 bg-neutral-200 dark:bg-neutral-700"
+    />
+  );
+}

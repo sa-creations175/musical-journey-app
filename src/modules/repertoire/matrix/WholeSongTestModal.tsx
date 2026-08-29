@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import TestPassedScreen from './TestPassedScreen';
+import StreakCircles from './StreakCircles';
 import { useSessionClock } from '../../shapes-and-patterns/practiceTest/sessionClock';
 import Modal from '../../../components/Modal';
 import {
@@ -582,26 +583,11 @@ function StreakMeter({
       ].join(' ')}
     >
       <div className="flex items-center gap-3 flex-wrap">
-        <span
-          className="inline-flex items-center gap-2"
-          role="img"
-          aria-label={`${count} of 3 clean run-throughs in a row`}
-        >
-          {[0, 1, 2].map(i => (
-            <span
-              key={i}
-              aria-hidden
-              className={[
-                'w-5 h-5 rounded-full border-2 transition-colors',
-                streakBroken
-                  ? 'border-needswork/50 bg-transparent'
-                  : i < count
-                    ? 'border-blue-500 bg-blue-500'
-                    : 'border-neutral-300 dark:border-neutral-600 bg-transparent',
-              ].join(' ')}
-            />
-          ))}
-        </span>
+        <StreakCircles
+          count={count}
+          broken={streakBroken}
+          label={`${count} of 3 clean run-throughs in a row`}
+        />
         <span className={[
           'text-sm font-medium tabular-nums',
           streakBroken ? 'text-needswork' : 'text-neutral-700 dark:text-neutral-200',
