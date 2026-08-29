@@ -176,7 +176,7 @@ const PROFICIENCY_SEED: ProficiencyDefinition[] = [
     scope: 'song',
     shortLabel: 'Taking it further',
     description: 'Extending the song into new keys beyond the original.',
-    example: 'Working "Mirror" in F and G after Solid in C.',
+    example: 'Working "Mirror" in F and G after Comfortable in C.',
     displayOrder: 4,
   },
   {

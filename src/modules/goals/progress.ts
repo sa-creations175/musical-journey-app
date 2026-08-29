@@ -903,15 +903,16 @@ export const SONG_DEFAULT_RATE_PER_WEEK = 0.25;
 
 /**
  * Format a song goal's targetUnit as a display label injected
- * into recommendation strings ("Comfortable", "Solid",
- * "Internalized"). Returns null for `cross_key` (uses % math,
+ * into recommendation strings ("Comfortable", "Internalized").
+ * Returns null for `cross_key` (uses % math,
  * deferred) or any unknown unit so the caller can fall back to
  * `{ kind: 'unknown' }`.
  */
 function formatSongStageLabel(unit: string | null): string | null {
   if (!unit) return null;
-  if (unit === 'comfortable') return 'Comfortable';
-  if (unit === 'solid') return 'Solid';
+  // 'solid' is a legacy stored unit — Solid was Comfortable under
+  // another name, so an old goal reads as the rung it always meant.
+  if (unit === 'comfortable' || unit === 'solid') return 'Comfortable';
   if (unit === 'internalized') return 'Internalized';
   // cross_key + anything unrecognized → no label, no projection.
   return null;

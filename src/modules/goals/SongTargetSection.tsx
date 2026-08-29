@@ -7,7 +7,6 @@ import {
   CROSS_KEY_PERCENT_STEP,
   MAJOR_KEYS,
   deriveWholeOptionTagsFromMatrix,
-  isSolidLockedFromMatrix,
   previewSongTarget,
   type KeyStateHint,
   type SongGranularity,
@@ -62,14 +61,11 @@ export default function SongTargetSection({
   const wholeTags = useMemo(
     () => song
       ? deriveWholeOptionTagsFromMatrix(normaliseStage(song.stage), originalMatrixKey, now)
-      : { solid: null, crossKey: null, internalized: 'stretch' as const },
+      : { comfortable: null, crossKey: null, internalized: 'stretch' as const },
     [song, originalMatrixKey, now],
   );
-  const solidLocked = isSolidLockedFromMatrix(originalMatrixKey, now);
-  // Nothing is lapsed-solid any more — Solid and its decay clock are
-  // both retired. The disclosure this drove stays on screen until the
-  // Solid option's copy is rewritten; it simply never fires.
-  const originalKeyIsLapsed = false;
+  // The lock and the lapse disclosure both belonged to Solid's decay
+  // clock, which is retired. Neither could fire, so neither is drawn.
 
   if (songMissing) {
     return (
@@ -131,15 +127,11 @@ export default function SongTargetSection({
       {selection.granularity === 'whole' && (
         <div className="flex flex-col gap-2">
           <WholeTargetRow
-            title="Solid in Original Key"
+            title="Comfortable in Original Key"
             hint={`Prove the whole song end-to-end in ${song?.key ?? 'the original key'}`}
-            tag={wholeTags.solid}
-            selected={selection.wholeOption === 'solid'}
-            disabled={solidLocked}
-            note={originalKeyIsLapsed
-              ? `${song?.key ?? 'Original key'} is currently lapsed — pass a retest to clear.`
-              : undefined}
-            onSelect={() => setWholeOption('solid')}
+            tag={wholeTags.comfortable}
+            selected={selection.wholeOption === 'comfortable'}
+            onSelect={() => setWholeOption('comfortable')}
           />
 
           <WholeTargetRow

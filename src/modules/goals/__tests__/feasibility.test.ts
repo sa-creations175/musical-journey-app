@@ -196,14 +196,18 @@ describe('song_whole_at_level — coverage with stage injection', () => {
     }
   });
 
-  it('at_risk recommendation injects the stage (Solid — different goal, same shape)', () => {
+  it('a legacy Solid goal reads as the rung it always meant', () => {
+    // 'solid' is never written now — Solid was Comfortable under
+    // another name. A goal saved before the retirement still has to
+    // render, and it renders as Comfortable rather than as an unknown
+    // unit with no label at all.
     const out = getGoalFeasibility(
       songGoal(10, 'solid', DEC_31),
       { currentValue: 0, today: TODAY },
     );
     if (out.kind === 'measurable') {
       expect(out.status).toBe('at_risk');
-      expect(out.recommendation).toMatch(/of 10 songs at Solid by/);
+      expect(out.recommendation).toMatch(/of 10 songs at Comfortable by/);
     }
   });
 

@@ -16,7 +16,7 @@ import type { RepertoireStage } from '../../lib/db';
  *
  *   targetMetric                    targetValue   targetUnit
  *   ─────────────────────────────   ───────────   ──────────────────────
- *   song_whole_at_level             null          'solid'
+ *   song_whole_at_level             null          'comfortable'
  *   song_whole_at_level             null          'internalized'
  *   song_whole_at_level             20–100 (%)    'cross_key'
  *   song_key_at_state               null          '<KEY>:<state>'
@@ -64,7 +64,7 @@ export const MAJOR_KEYS: readonly string[] = [
 ];
 
 export type SongGranularity = 'whole' | 'section' | 'key';
-export type SongWholeOption = 'solid' | 'cross_key' | 'internalized';
+export type SongWholeOption = 'comfortable' | 'cross_key' | 'internalized';
 export type SongKeyState = 'comfortable' | 'solid';
 
 /** Cross-key % slider bounds per the addendum spec. */
@@ -78,7 +78,7 @@ export const CROSS_KEY_PERCENT_DEFAULT = 50;
 export type SongStateTag = 'achieved' | 'current' | 'stretch' | null;
 
 export interface WholeOptionTags {
-  solid: SongStateTag;
+  comfortable: SongStateTag;
   crossKey: SongStateTag;
   internalized: SongStateTag;
 }
@@ -113,12 +113,13 @@ export function deriveWholeOptionTagsFromMatrix(
   _originalKey: SongKey | null,
   _now: number,
 ): WholeOptionTags {
-  // THE SOLID OPTION HAS NOTHING LEFT TO TAG. Its rung is retired and
-  // so is the decay clock that told a lapsed one from a held one. The
-  // option itself is still on screen — removing it is a copy change
-  // and belongs with the words — so the tag it reads is null rather
-  // than a claim about a state that no longer exists.
-  const solidTag: SongStateTag = null;
+  // Comfortable-in-original-key: achieved once the song is at that
+  // rung or past it. The lapse distinction went with Solid's decay
+  // clock, so there is no 'current' arm any more.
+  const comfortableTag: SongStateTag =
+    stage === 'comfortable' || stage === 'cross-key' || stage === 'internalized'
+      ? 'achieved'
+      : null;
 
   // READS THE ONE LADDER NOW. The retired song-level ladder's `solid`
   // was its second word for Comfortable — the rung directly below
@@ -135,23 +136,7 @@ export function deriveWholeOptionTagsFromMatrix(
   else if (stage === 'comfortable' || stage === 'cross-key') internalizedTag = 'current';
   else internalizedTag = 'stretch';
 
-  return { solid: solidTag, crossKey: crossKeyTag, internalized: internalizedTag };
-}
-
-/**
- * Lock the Solid-in-original-key option only when the user is
- * already there and not lapsed. Lapsed solid is unlocked because
- * setting "Take to Solid" implicitly = run the retest, which is a
- * meaningful goal.
- */
-export function isSolidLockedFromMatrix(
-  _originalKey: SongKey | null,
-  _now: number,
-): boolean {
-  // Nothing is Solid-locked any more: there is no Solid to be locked
-  // at. Kept as a function rather than deleted because its one caller
-  // is goal-picker copy, and that is a later commit's to change.
-  return false;
+  return { comfortable: comfortableTag, crossKey: crossKeyTag, internalized: internalizedTag };
 }
 
 /**
@@ -207,8 +192,8 @@ export interface EncodedSongTarget {
  *  caller should disable Save / preview rendering). */
 export function encodeSongTarget(sel: SongTargetSelection): EncodedSongTarget | null {
   if (sel.granularity === 'whole') {
-    if (sel.wholeOption === 'solid') {
-      return { targetMetric: SONG_METRIC.WHOLE, targetValue: null, targetUnit: 'solid' };
+    if (sel.wholeOption === 'comfortable') {
+      return { targetMetric: SONG_METRIC.WHOLE, targetValue: null, targetUnit: 'comfortable' };
     }
     if (sel.wholeOption === 'internalized') {
       return { targetMetric: SONG_METRIC.WHOLE, targetValue: null, targetUnit: 'internalized' };
@@ -258,8 +243,13 @@ export function decodeSongTarget(goal: Goal): SongTargetSelection | null {
 
   if (goal.targetMetric === SONG_METRIC.WHOLE) {
     const unit = goal.targetUnit ?? '';
-    if (unit === 'solid') {
-      return baseSelection({ granularity: 'whole', wholeOption: 'solid' });
+    // 'solid' IS READ, NEVER WRITTEN. Goals saved before the
+    // retirement carry it, and Solid was Comfortable under another
+    // name — so an old row decodes onto the rung it always meant.
+    // Read-through rather than a migration, the same way
+    // `normaliseStage` handles the retired 'maintenance'.
+    if (unit === 'comfortable' || unit === 'solid') {
+      return baseSelection({ granularity: 'whole', wholeOption: 'comfortable' });
     }
     if (unit === 'internalized') {
       return baseSelection({ granularity: 'whole', wholeOption: 'internalized' });
@@ -325,11 +315,11 @@ interface PreviewSong {
  * null when the selection isn't fully specified.
  *
  * Examples:
- *   "Take Mirror to Solid status in the key of C"
+ *   "Take Mirror to Comfortable status in the key of C"
  *   "Take Mirror to Cross-key status at 50%"
  *   "Take Mirror to Internalized status"
  *   "Get Mirror to Comfortable status in the key of F"
- *   "Get Mirror to Solid status in the key of F"
+ *   "Get Mirror to Comfortable status in the key of F"
  *   "Get the Bridge of Mirror to Comfortable status in the key of F"
  */
 export function previewSongTarget(
@@ -342,8 +332,8 @@ export function previewSongTarget(
     : 'the original key';
 
   if (sel.granularity === 'whole') {
-    if (sel.wholeOption === 'solid') {
-      return `Take ${title} to Solid status in ${originalKey}`;
+    if (sel.wholeOption === 'comfortable') {
+      return `Take ${title} to Comfortable status in ${originalKey}`;
     }
     if (sel.wholeOption === 'internalized') {
       return `Take ${title} to Internalized status`;
@@ -386,7 +376,7 @@ export function describeSongGoalTarget(
   // Generic fallback when the caller didn't resolve the song record
   // (e.g. song was deleted). Keeps the line readable without a name.
   if (sel.granularity === 'whole') {
-    if (sel.wholeOption === 'solid') return 'Take song to Solid status in the original key';
+    if (sel.wholeOption === 'comfortable') return 'Take song to Comfortable status in the original key';
     if (sel.wholeOption === 'internalized') return 'Take song to Internalized status';
     if (sel.wholeOption === 'cross_key') {
       return `Take song to Cross-key status at ${clampCrossKeyPercent(sel.crossKeyPercent)}%`;

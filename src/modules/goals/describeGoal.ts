@@ -25,9 +25,9 @@ import type { GoalFlowModuleId } from './goalVocabulary';
  *   targetMetric: 'custom', targetValue: 25, targetUnit: 'reps'
  *     → "25 reps"
  *
- *   targetMetric: 'song_whole_at_level', targetUnit: 'solid'
- *     → "Take Mirror to Solid in C" (when songLookup is supplied)
- *     → "Take song to Solid in original key" (fallback)
+ *   targetMetric: 'song_whole_at_level', targetUnit: 'comfortable'
+ *     → "Take Mirror to Comfortable in C" (when songLookup is supplied)
+ *     → "Take song to Comfortable in original key" (fallback)
  *
  * `proficiencyDefinitions` is an optional lookup that lets the
  * formatter render the proper short_label for an `items_at_level`
@@ -43,7 +43,7 @@ export function describeGoalTarget(
   proficiencyDefinitions?: ReadonlyArray<ProficiencyDefinition>,
   songLookup?: (songId: string) => Pick<Song, 'title' | 'key'> | undefined,
 ): string | null {
-  // Song-mode goals are non-numeric for some shapes (Solid in
+  // Song-mode goals are non-numeric for some shapes (Comfortable in
   // original key, Internalized, Key targets carry no targetValue),
   // so they short-circuit before the generic null-targetValue check.
   if (isSongMetric(goal.targetMetric)) {

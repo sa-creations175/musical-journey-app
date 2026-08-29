@@ -218,7 +218,7 @@ const MODULE_CARDS: ModuleCard[] = [
     id: 'repertoire',
     name: 'Song Repertoire',
     description: 'Grow and deepen your playable song library',
-    example: 'I want to get Mirror Solid in the original key',
+    example: 'I want to get Mirror Comfortable in the original key',
   },
   {
     id: 'shapes-and-patterns',
