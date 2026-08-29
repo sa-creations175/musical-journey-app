@@ -141,3 +141,66 @@ describe('the audit trail records the reset', () => {
     expect(runThroughRows.map(r => r.consecutiveCleanCount)).toEqual([1, 2, 0, 1]);
   });
 });
+
+/**
+ * A run with no tempo.
+ *
+ * =====================================================================
+ * THE TYPE SAID `number` AND THE WRITER BELIEVED IT.
+ *
+ * `applyAttemptsToKey` wrote `Math.max(1, Math.floor(a.bpm))` with no
+ * null guard, while the CELL writer in the same file has had one all
+ * along. Nothing reached it with a null, because the only caller gated
+ * on a typed tempo field being valid — and that gate is exactly what
+ * the metronome-as-tempo-source work removes.
+ *
+ * `Math.floor(null)` is 0 and `Math.max(1, 0)` is 1, so the first run
+ * played with the metronome silent would have stored a tempo of ONE
+ * BPM. Not a crash, not a NaN on screen: a plausible-looking number in
+ * a synced column, read by `isInTempoRange` and by the Internalized
+ * criterion in `stage.ts`.
+ *
+ * A run with no tempo is a legitimate stored value — `tempoBpm` is
+ * `number | null` in the schema and always has been. Only the draft
+ * type disagreed.
+ * =====================================================================
+ */
+describe('a run played with no tempo', () => {
+  const noTempo = (feel: 1 | 2 | 3 | 4): KeyAttemptDraft =>
+    ({ id: `nt${seq++}`, bpm: null, feel });
+
+  it('stores null, not 1 bpm', () => {
+    const { runThroughRows } = applyAttemptsToKey(
+      mkKey(), [noTempo(3)], TEMPO, false, NOW,
+    );
+    expect(runThroughRows[0].tempoBpm).toBeNull();
+  });
+
+  it('is invisible to the gate, like any other below-floor run', () => {
+    // `isInTempoRange` already answers false for a null bpm — a run at
+    // a tempo you did not state cannot be verified at the target. So a
+    // silent run neither advances the streak nor resets it, which is
+    // the same treatment a slow run gets.
+    expect(count([clean(), clean()])).toBe(2);
+    expect(count([clean(), clean(), noTempo(1)])).toBe(2);
+    expect(count([clean(), clean(), noTempo(4)])).toBe(2);
+  });
+
+  it('with no performance tempo either, it still stores null', () => {
+    // Two different nulls: no target to measure against, and no tempo
+    // played. Neither is a reason to invent a number.
+    const { runThroughRows } = applyAttemptsToKey(
+      mkKey(), [noTempo(4)], null, false, NOW,
+    );
+    expect(runThroughRows[0].tempoBpm).toBeNull();
+  });
+
+  it('a real tempo still rounds down to a whole number', () => {
+    // The guard must not have swallowed the flooring it was wrapped
+    // around.
+    const { runThroughRows } = applyAttemptsToKey(
+      mkKey(), [{ id: 'f1', bpm: 100.7, feel: 3 }], TEMPO, false, NOW,
+    );
+    expect(runThroughRows[0].tempoBpm).toBe(100);
+  });
+});

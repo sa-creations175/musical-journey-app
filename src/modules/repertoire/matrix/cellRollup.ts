@@ -374,7 +374,28 @@ export async function saveAttemptsAndRollup(args: {
 
 export interface KeyAttemptDraft {
   id: string;
-  bpm: number;
+  /**
+   * The tempo the run was played at, or null when there was none.
+   *
+   * =================================================================
+   * NULLABLE, LIKE `AttemptDraft.bpm` TWO HUNDRED LINES DOWN.
+   *
+   * It was `number`, and the writer below matched it with a bare
+   * `Math.max(1, Math.floor(a.bpm))` — no null guard, unlike the cell
+   * writer which has had one all along. Nothing reached it with a null
+   * yet, because the only caller gates on a typed field being valid.
+   *
+   * That gate is what is going away: a run's tempo comes from the
+   * metronome, and a run played with the metronome silent has none.
+   * `Math.floor(null)` is 0, `Math.max(1, 0)` is 1, so the first such
+   * run would have written a tempo of ONE BPM into a synced column —
+   * silently, and gate-relevantly, since `isInTempoRange` reads it.
+   *
+   * A run with no tempo is a legitimate thing to store and the schema
+   * has always allowed it. The type is what disagreed.
+   * =================================================================
+   */
+  bpm: number | null;
   /**
    * How the run went, on the app's four-step scale.
    *
@@ -453,7 +474,9 @@ export function applyAttemptsToKey(
       // four words and this reads Clean-or-better out of it.
       wasClean: attemptWasClean(a),
       consecutiveCleanCount: count,
-      tempoBpm: Math.max(1, Math.floor(a.bpm)),
+      // The same guard the cell writer has. Null is a run with no
+      // tempo, not a run at 1 bpm.
+      tempoBpm: a.bpm == null ? null : Math.max(1, Math.floor(a.bpm)),
       notes: null,
       isRetest,
       kind,
