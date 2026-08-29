@@ -1,5 +1,6 @@
 import { db, type ProficiencyDefinition } from '../../lib/db';
 import { whenSyncReady } from '../../lib/sync/syncReady';
+import { TEST_RULE_SENTENCE } from '../repertoire/testRule';
 
 /** Module-level in-flight guard — second concurrent caller awaits the
  *  same in-flight promise instead of starting a parallel seed. Mirrors
@@ -212,7 +213,7 @@ const PROFICIENCY_SEED: ProficiencyDefinition[] = [
     level: 'solid',
     scope: 'song_key',
     shortLabel: 'Whole song proven',
-    description: 'Played the full song through cleanly, 3 times in a row, at tempo, in this key.',
+    description: `Played the full song through. ${TEST_RULE_SENTENCE} At tempo, in this key.`,
     example: '"Mirror" start to finish at tempo in F, three times back-to-back.',
     displayOrder: 3,
   },

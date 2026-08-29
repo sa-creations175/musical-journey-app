@@ -6,6 +6,7 @@ import { NOT_STARTED } from '../../../lib/spacing/banding';
 import { keyDueState, type DueWindows, type KeyDueState } from './keySpacing';
 import { isKeyRowEngaged } from './songLevelState';
 import type { CellBands } from './cellBands';
+import { TEST_RULE_CLAUSE, TEST_RULE_SENTENCE } from '../testRule';
 
 /**
  * One key: its name, its section cells, and its two actions — on ONE
@@ -184,8 +185,8 @@ export default function KeyRow({
             type="button"
             onClick={() => onRunTest(songKey.id)}
             title={isRetest
-              ? 'This key is overdue. Three clean run-throughs in a row, in one sitting, restores it.'
-              : 'Play the whole song in this key: three clean run-throughs in a row, in one sitting.'}
+              ? `This key is overdue. ${TEST_RULE_SENTENCE} Playing it again restores it.`
+              : `Play the whole song in this key: ${TEST_RULE_CLAUSE}.`}
             className={[
               'px-1.5 py-0.5 text-[9px] whitespace-nowrap tracking-wide font-medium rounded',
               isRetest
@@ -195,9 +196,12 @@ export default function KeyRow({
                   : 'text-neutral-400 hover:text-fluent',
             ].join(' ')}
           >
-            {/* Named by what it is, with the shape of the work beside
-                it. "test" alone was a word you had to already know. */}
-            {isRetest ? 'test again · 3 clean in a row' : 'test · 3 clean in a row'}
+            {/* A NAME, NOT A RULE. It used to carry "· 3 clean in a
+                row" because "test" alone was a word you had to already
+                know — but the rule now sits in full on the line below,
+                in the same row, in the app's one wording. Said twice in
+                two wordings, it read as two requirements. */}
+            {isRetest ? 'test again' : 'test'}
           </button>
         )}
       </div>
@@ -212,7 +216,7 @@ export default function KeyRow({
           eight does not have to find it. */}
       <div className="flex items-center px-2 min-w-0">
         <span className="text-[10px] leading-tight text-neutral-500 dark:text-neutral-400 truncate">
-          Prove <b className="font-bold text-neutral-700 dark:text-neutral-200">Comfortable</b> status by 3 clean tests in a row.
+          Prove <b className="font-bold text-neutral-700 dark:text-neutral-200">Comfortable</b> status: {TEST_RULE_CLAUSE}.
         </span>
       </div>
     </div>

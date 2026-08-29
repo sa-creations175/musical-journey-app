@@ -159,12 +159,16 @@ describe('the two key-level actions', () => {
 
   it('name what they are, not a word you have to already know', () => {
     // "test" and "run" were two cryptic words doing very different
-    // jobs — depth versus breadth — and neither said which. The count
-    // beside each is the difference: three in a row versus one pass.
-    // The FULL rule (at or above tempo minus 10, back to back, one
-    // sitting) belongs in the modal, which has room to state it.
+    // jobs — depth versus breadth — and neither said which.
+    //
+    // The count used to ride on both labels to tell them apart. The
+    // test button has since given its half back: the rule is stated in
+    // full on the row's own line, in the app's ONE wording, and a chip
+    // repeating it in a shorter wording read as a second requirement.
+    // The run button keeps its count because nothing else on the row
+    // says one pass, so it is still the only thing distinguishing them.
     const r = render({ runCounts: true });
-    expect(find(r, 'test · 3 clean in a row')).toBeDefined();
+    expect(find(r, 'test')).toBeDefined();
     expect(find(r, 'Run at Tempo · 1 Clean Pass')).toBeDefined();
     r.unmount();
   });
@@ -174,7 +178,7 @@ describe('the two key-level actions', () => {
     // would mean picking an arbitrary section to reach something that
     // has nothing to do with sections.
     const r = render({ runCounts: true });
-    const test = find(r, 'test · 3 clean in a row');
+    const test = find(r, 'test');
     const run = find(r, 'Run at Tempo · 1 Clean Pass');
     act(() => { test!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     act(() => { run!.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
@@ -185,7 +189,7 @@ describe('the two key-level actions', () => {
 
   it('says "test again" once the key is overdue', () => {
     const r = render({ nextDueAt: NOW - (GRACE_DEFAULT_DAYS + 5) * DAY });
-    expect(find(r, 'test again · 3 clean in a row')).toBeDefined();
+    expect(find(r, 'test again')).toBeDefined();
     r.unmount();
   });
 });

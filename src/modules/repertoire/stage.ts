@@ -8,6 +8,7 @@ import {
 } from './matrix/keyProgress';
 import type { DueWindows } from './matrix/keySpacing';
 import { spellKey, type Spelling } from '../../lib/spelling';
+import { TEST_RULE_SENTENCE } from './testRule';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
 // stage above any given one is just STAGES[indexOf(stage)+1].
@@ -563,7 +564,7 @@ export function stageCriteria(input: AdvancementInputs): StageCriterion[] {
         need: 1,
         unit: 'test',
         ...(passed ? {} : {
-          detail: 'Three clean run-throughs in a row, in one sitting. Open it '
+          detail: `${TEST_RULE_SENTENCE} Open it `
             + `from the row for the key of ${spellKey(original.keyName, input.spelling)} in the matrix.`,
         }),
       }];

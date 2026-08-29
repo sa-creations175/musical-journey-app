@@ -10,6 +10,7 @@ import {
 import { type CellBands, isCellComfortable } from './cellBands';
 import type { Feel } from '../../../lib/fluencyScale';
 import { FEEL_CARD_OPTIONS } from '../../shapes-and-patterns/drillModel';
+import { TEST_RULE_SENTENCE } from '../testRule';
 
 /**
  * The cell test — one section, one key, at tempo.
@@ -193,7 +194,7 @@ export default function TestStep({
           whole song in a key; this names the one section in front of
           you. */}
       <p className="text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
-        Improve this section&rsquo;s status with 3 clean tests in a row.
+        Improve this section&rsquo;s status. {TEST_RULE_SENTENCE}
       </p>
     </div>
   );
@@ -228,7 +229,7 @@ function StreakLine({
   return (
     <div className="space-y-0.5">
       <p className="text-xs font-medium text-neutral-800 dark:text-neutral-100">
-        {projected} of 3 clean runs in a row
+        {projected} of 3 clean run-throughs in a row
       </p>
       <p className="text-[11px] text-neutral-500 leading-snug">
         {performanceTempo === null

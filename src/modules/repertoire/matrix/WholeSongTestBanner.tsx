@@ -1,5 +1,6 @@
 import type { SongKey } from '../../../lib/db';
 import { spellKey, type Spelling } from '../../../lib/spelling';
+import { TEST_RULE_SENTENCE } from '../testRule';
 
 /**
  * Non-blocking banner shown above the matrix grid when at least one
@@ -51,7 +52,7 @@ export default function WholeSongTestBanner({ eligibleKeys, onRunTest, spelling 
           {headline}
         </div>
         <div className="text-xs text-blue-800 dark:text-blue-200 mt-0.5">
-          Ready to run the whole-song test? 3 consecutive clean run-throughs
+          Ready to run the whole-song test? {TEST_RULE_SENTENCE}
           unlocks Solid.
         </div>
       </div>

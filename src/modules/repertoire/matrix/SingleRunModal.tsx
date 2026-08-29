@@ -4,6 +4,7 @@ import type { Song, SongCell, SongKey } from '../../../lib/db';
 import { isInTempoRange, logSingleKeyRun } from './cellRollup';
 import { spellKey } from '../../../lib/spelling';
 import { useSongSpelling } from '../useSongSpelling';
+import { TEST_RULE_CLAUSE } from '../testRule';
 
 /**
  * Log ONE run-through of the whole song in one key.
@@ -119,7 +120,7 @@ export default function SingleRunModal({
           {' '}
           <span className="text-neutral-500">
             This does not unlock Solid — that needs the whole-song test, which is
-            three clean runs in a row in one sitting.
+            {TEST_RULE_CLAUSE}.
           </span>
         </p>
 

@@ -1,6 +1,7 @@
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { daysUntilDue } from './matrix/keySpacing';
 import type { SongDueReading } from './songDueState';
+import { TEST_RULE_SENTENCE } from './testRule';
 
 /**
  * That a key is coming due, before it costs anything.
@@ -60,7 +61,7 @@ export default function DueBanner({
         {/* WHAT TO PLAY, not just that something is wrong. A warning
             you cannot act on is a warning you learn to scroll past,
             and the action here is one sentence long. */}
-        Three clean run-throughs in a row, in one sitting, holds it —
+        {TEST_RULE_SENTENCE} That holds it —
         and pushes the next one further out.
       </span>
     </div>

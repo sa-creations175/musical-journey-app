@@ -24,6 +24,7 @@ import { spellKey } from '../../../lib/spelling';
 import { useSongSpelling } from '../useSongSpelling';
 import type { Feel } from '../../../lib/fluencyScale';
 import { FEEL_CARD_OPTIONS } from '../../shapes-and-patterns/drillModel';
+import { TEST_RULE_SENTENCE } from '../testRule';
 
 /**
  * Whole-song test modal — the gate from comfortable → solid at the
@@ -228,7 +229,7 @@ export default function WholeSongTestModal({
                 onClick={() => void handleSave(true)}
                 disabled={!canMarkSolid || busy}
                 className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={canMarkSolid ? undefined : 'Reach 3 consecutive clean run-throughs to enable'}
+                title={canMarkSolid ? undefined : TEST_RULE_SENTENCE}
               >
                 {sectionsIncomplete
                   ? 'Pass the test'
@@ -445,8 +446,13 @@ function StreakMeter({
   streakBroken: boolean;
   performanceTempo: number | null;
 }) {
+  // A SENTENCE, NOT A FRAGMENT. It used to slot inside the rule
+  // ("Three clean run-throughs at or above ♩ 90, ...") — impossible now
+  // that the rule is one fixed string. The words are TestStep's, which
+  // already stated this same floor its own way; there is no new copy
+  // here, only a different join.
   const floorText = performanceTempo !== null
-    ? ` at or above ♩ ${performanceTempo - 10}`
+    ? ` At or above ${performanceTempo - 10} bpm counts.`
     : '';
   return (
     <div
@@ -461,7 +467,7 @@ function StreakMeter({
         <span
           className="inline-flex items-center gap-2"
           role="img"
-          aria-label={`${count} of 3 consecutive clean run-throughs`}
+          aria-label={`${count} of 3 clean run-throughs in a row`}
         >
           {[0, 1, 2].map(i => (
             <span
@@ -492,9 +498,8 @@ function StreakMeter({
           rule you only find out about by losing progress to it is not
           a rule the user agreed to. */}
       <p className="text-[11px] text-neutral-500 dark:text-neutral-400 leading-snug">
-        Three clean run-throughs{floorText}, <span className="font-medium">Back to Back</span>,
-        in this one sitting. Any not-clean run puts it back to zero, and closing
-        this window starts the count over.
+        {TEST_RULE_SENTENCE}{floorText} Any not-clean run puts it back to
+        zero, and closing this window starts the count over.
       </p>
     </div>
   );

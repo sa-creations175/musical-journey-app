@@ -11,6 +11,7 @@ import TestStep from './TestStep';
 import {
   saveAttemptsAndRollup, type AttemptDraft,
 } from './cellRollup';
+import { TEST_RULE_SENTENCE } from '../testRule';
 
 /**
  * What opens when you tap a cell.
@@ -452,8 +453,8 @@ export default function CellPanel({
                 Test
               </div>
               <div className="text-[11px] text-neutral-600 dark:text-neutral-300 leading-snug">
-                Run this section at tempo, clean or not. Three clean in a
-                row makes it comfortable. Timed, and starts now.
+                Run this section at tempo, clean or not. {TEST_RULE_SENTENCE}{' '}
+                Timed, and starts now.
               </div>
             </button>
             {/* THE SAME WORD HAS TO MEAN THE SAME THING. This called

@@ -18,6 +18,7 @@ import { computeKeyStateFromCells } from './cellRollup';
 import { hasCrossKeyEngagement } from './songLevelState';
 import { useSongSpelling } from '../useSongSpelling';
 import { useCellBands } from './useCellBands';
+import { TEST_RULE_CLAUSE } from '../testRule';
 
 /**
  * Section × key matrix view for a single song. Step 3a ships this
@@ -355,7 +356,7 @@ export default function SongMatrixView({
       <p className="px-1 pb-2 text-[11px] leading-snug text-neutral-500 dark:text-neutral-400 max-w-[62ch]">
         Prove you have this song in your repertoire by getting it to{' '}
         <b className="font-bold text-neutral-700 dark:text-neutral-200">Comfortable</b> status.
-        To achieve that status, you must complete 3 clean test runs of the full song at tempo.
+        To achieve that status: {TEST_RULE_CLAUSE}.
       </p>
 
       <WholeSongTestBanner

@@ -28,6 +28,7 @@ import { readSongTimer, startedRecord, writeSongTimer } from '../../songTimer';
 import { getSpacingState } from '../../../../lib/spacingState';
 import { songKeyItemRef } from '../proveKey';
 import CellPanel from '../CellPanel';
+import { TEST_RULE_SENTENCE } from '../../testRule';
 
 const NOW = 1_760_000_000_000;
 const MIN = 60_000;
@@ -193,7 +194,7 @@ describe('the clean-run count, without a button behind it', () => {
     const h = mount();
     h.toTest();
     h.runsClean(3);
-    expect(h.text()).toContain('3 of 3 clean runs in a row');
+    expect(h.text()).toContain('3 of 3 clean run-throughs in a row');
     await h.clickAsync('Save Runs');
 
     const stored = await db.songCells.get('cell-1');
@@ -215,7 +216,7 @@ describe('the clean-run count, without a button behind it', () => {
     // WAS 'Not Clean'. Struggled is the below-Clean end of the four
     // words that replaced the pair.
     h.click('Struggled');
-    expect(h.text()).toContain('0 of 3 clean runs in a row');
+    expect(h.text()).toContain('0 of 3 clean run-throughs in a row');
     h.unmount();
   });
 
@@ -226,9 +227,9 @@ describe('the clean-run count, without a button behind it', () => {
     // went with it, so a cell no longer carries one in from last week.
     const h = mount();
     h.toTest();
-    expect(h.text()).toContain('0 of 3 clean runs in a row');
+    expect(h.text()).toContain('0 of 3 clean run-throughs in a row');
     h.runsClean(2);
-    expect(h.text()).toContain('2 of 3 clean runs in a row');
+    expect(h.text()).toContain('2 of 3 clean run-throughs in a row');
     h.unmount();
   });
 
@@ -236,7 +237,7 @@ describe('the clean-run count, without a button behind it', () => {
     const h = mount();
     h.toTest();
     expect(h.text()).toContain('Improve this section');
-    expect(h.text()).toContain('3 clean tests in a row');
+    expect(h.text()).toContain(TEST_RULE_SENTENCE);
     h.unmount();
   });
 });
@@ -250,7 +251,7 @@ describe('the tempo floor', () => {
     h.toTest();
     h.setBpm('60');           // floor is 90 for a 100bpm song
     h.runsClean(3);
-    expect(h.text()).toContain('0 of 3 clean runs in a row');
+    expect(h.text()).toContain('0 of 3 clean run-throughs in a row');
 
     await h.clickAsync('Save Runs');
     expect(await db.songCellRunThroughs.count()).toBe(3);
@@ -264,7 +265,7 @@ describe('the tempo floor', () => {
     h.runsClean(2);
     h.setBpm('60');
     h.runsClean(1);
-    expect(h.text()).toContain('2 of 3 clean runs in a row');
+    expect(h.text()).toContain('2 of 3 clean run-throughs in a row');
     h.unmount();
   });
 
@@ -274,7 +275,7 @@ describe('the tempo floor', () => {
     const h = mount({ tempo: null });
     h.toTest();
     h.runsClean(3);
-    expect(h.text()).toContain('3 of 3 clean runs in a row');
+    expect(h.text()).toContain('3 of 3 clean run-throughs in a row');
     h.unmount();
   });
 });
