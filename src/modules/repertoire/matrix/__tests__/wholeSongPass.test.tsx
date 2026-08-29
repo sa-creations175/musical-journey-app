@@ -32,6 +32,12 @@ vi.mock('../cellRollup', async () => {
   return { ...actual, saveKeyAttemptsAndRollup: (a: never) => saveKeyAttemptsAndRollup(a) };
 });
 vi.mock('../../useSongSpelling', () => ({ useSongSpelling: () => 'flats' }));
+// The strip embeds the real MetronomeControl, which persists through
+// Dexie. There is no IndexedDB here and this file is not about prefs.
+vi.mock('../../../../lib/userPrefs', () => ({
+  getPref: async (_k: string, d: unknown) => d,
+  setPref: async () => {},
+}));
 
 const { default: WholeSongTestModal } = await import('../WholeSongTestModal');
 
@@ -69,21 +75,36 @@ function render() {
       />,
     );
   });
+  // document.body, not `host`: `Modal` renders through a portal, so
+  // the panel's buttons are not inside the mount point.
   const text = () => (document.body.textContent ?? '').replace(/\s+/g, ' ').trim();
   const labels = () =>
     [...document.body.querySelectorAll('button')]
       .map(b => (b.textContent ?? '').replace(/\s+/g, ' ').trim());
-  /** Rate one run at tempo. The BPM box is pre-filled from the song. */
-  const rate = async (label: string) => {
+  const press = async (label: string) => {
     const btn = [...document.body.querySelectorAll('button')]
-      .find(b => (b.textContent ?? '').trim() === label);
-    if (!btn) throw new Error(`no rating button "${label}" — have ${labels().join(' | ')}`);
+      .find(b => (b.textContent ?? '').replace(/\s+/g, ' ').trim() === label);
+    if (!btn) throw new Error(`no button "${label}" — have ${labels().join(' | ')}`);
     await act(async () => {
       btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
   };
+  /**
+   * Play one run and rate it. Two presses, because that is now the
+   * model: a run is STARTED, then rated. The rating chips do nothing
+   * until a run is in progress, which this helper's existence records.
+   */
+  const rate = async (label: string) => {
+    const start = [...document.body.querySelectorAll('button')]
+      .find(b => (b.textContent ?? '').trim().startsWith('Start Test Run'));
+    if (!start) throw new Error(`no start button — have ${labels().join(' | ')}`);
+    await act(async () => {
+      start.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await press(label);
+  };
   return {
-    text, labels, rate,
+    text, labels, rate, press,
     unmount: () => { act(() => { root.unmount(); }); host.remove(); },
   };
 }
@@ -189,6 +210,83 @@ describe('the third clean run ends it', () => {
     await r.rate('Clean');
     await r.rate('Clean');
     expect(saveKeyAttemptsAndRollup.mock.calls[0]?.[0].attempts).toHaveLength(3);
+    r.unmount();
+  });
+});
+
+describe('a run is started, then rated', () => {
+  it('the rating chips do nothing until a run is in progress', async () => {
+    // The run's LENGTH is part of the record and cannot be recovered
+    // after the fact, so rating alone cannot be the whole of a run.
+    const r = render();
+    const clean = [...document.body.querySelectorAll('button')]
+      .find(b => (b.textContent ?? '').trim() === 'Clean');
+    expect(clean?.hasAttribute('disabled')).toBe(true);
+    r.unmount();
+  });
+
+  it('starting a run enables them', async () => {
+    const r = render();
+    await r.press('Start Test Run 1');
+    const clean = [...document.body.querySelectorAll('button')]
+      .find(b => (b.textContent ?? '').trim() === 'Clean');
+    expect(clean?.hasAttribute('disabled')).toBe(false);
+    r.unmount();
+  });
+
+  it('the runs are numbered, and the number advances', async () => {
+    const r = render();
+    expect(r.labels()).toContain('Start Test Run 1');
+    await r.rate('Clean');
+    expect(r.labels()).toContain('Start Test Run 2');
+    r.unmount();
+  });
+});
+
+describe('Open Lead Sheet takes the panel away', () => {
+  it('replaces the panel with the strip', async () => {
+    // Not a chart drawn inside the modal and not a layer on top of it:
+    // the page already renders the lead sheet, and the session becomes
+    // a bar across the top of it.
+    const r = render();
+    await r.press('Open Lead Sheet');
+    expect(r.labels()).toContain('Back To The Session');
+    expect(r.labels()).not.toContain('Open Lead Sheet');
+    expect(r.text()).toContain('Testing Session');
+    r.unmount();
+  });
+
+  it('the streak survives the move, in both directions', async () => {
+    // The session is one session whichever surface is showing it. A
+    // streak that reset on opening the sheet would punish reading the
+    // chart.
+    const r = render();
+    await r.rate('Clean');
+    await r.rate('Clean');
+    await r.press('Open Lead Sheet');
+    await r.rate('Clean');
+    expect(saveKeyAttemptsAndRollup).toHaveBeenCalledTimes(1);
+    r.unmount();
+  });
+
+  it('Back To The Session returns to the panel', async () => {
+    const r = render();
+    await r.press('Open Lead Sheet');
+    await r.press('Back To The Session');
+    expect(r.labels()).toContain('Open Lead Sheet');
+    r.unmount();
+  });
+
+  it('PAUSING MID-RUN DISCARDS THE RUN, not the minutes', async () => {
+    // A rep you walked away from is not a rep, and rating it on return
+    // would be rating a memory. The session clock is untouched.
+    const r = render();
+    await r.press('Open Lead Sheet');
+    await r.press('Start Test Run 1');
+    await r.press('Pause');
+    expect(r.text()).toContain('Paused — the clock is stopped.');
+    // Back to "not in a run": the start button is offered again.
+    expect(r.labels()).toContain('Start Test Run 1');
     r.unmount();
   });
 });

@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import TestPassedScreen from './TestPassedScreen';
 import StreakCircles from './StreakCircles';
-import { useSessionClock } from '../../shapes-and-patterns/practiceTest/sessionClock';
+import SessionStrip from './SessionStrip';
+import { formatClock, useSessionClock } from '../../shapes-and-patterns/practiceTest/sessionClock';
 import Modal from '../../../components/Modal';
 import {
   type Song,
@@ -162,8 +163,41 @@ export default function WholeSongTestModal({
    * "recorded" would disagree with the record within a second.
    * =====================================================================
    */
-  const sessionSeconds = useSessionClock(open && !passed);
   const [passedAtSeconds, setPassedAtSeconds] = useState(0);
+  /**
+   * Where the session is being run from.
+   *
+   * =====================================================================
+   * THE SHEET IS NOT OPENED INSIDE THE PANEL. THE PANEL GETS OUT OF
+   * THE WAY.
+   *
+   * `sheet` renders no Modal at all — just the strip, fixed to the top
+   * of the page the lead sheet is already on. There is no overlay, no
+   * second scroll container and no chart drawn in here: `SongDetailView`
+   * renders the sections and this must not become a second thing that
+   * draws a lead sheet.
+   *
+   * The session state stays here rather than being hoisted to the page,
+   * because nothing on the page needs to read it — the strip is the
+   * only consumer, and hoisting it would put a test session into a
+   * component that has no other business with one.
+   * =====================================================================
+   */
+  const [view, setView] = useState<'panel' | 'sheet'>('panel');
+  /**
+   * A run in progress: when it started, or null.
+   *
+   * A TIMESTAMP, NOT A TICKING COUNTER, for the reason the song timer
+   * gives at length — a counter loses everything on unmount and drifts
+   * whenever the tab is throttled.
+   */
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const [paused, setPaused] = useState(false);
+  const runSeconds = useSessionClock(runStartedAt !== null && !paused);
+  // Declared after `paused` because it reads it. The session clock runs
+  // between runs and while a rating is chosen — see its own comment —
+  // and stops only for a pause or the pass.
+  const sessionSeconds = useSessionClock(open && !passed && !paused);
   // Captured once per open rather than read during render, and it is
   // the boundary of a 30-day window — a modal left open overnight
   // showing yesterday's window is not a problem worth a ticking clock.
@@ -180,6 +214,9 @@ export default function WholeSongTestModal({
     setStreakBroken(false);
     setPassed(false);
     setPassedAtSeconds(0);
+    setView('panel');
+    setRunStartedAt(null);
+    setPaused(false);
     onClose();
   }, [onClose]);
 
@@ -211,8 +248,27 @@ export default function WholeSongTestModal({
   const parsedBpm = parseInt(bpmInput, 10);
   const bpmValid = Number.isFinite(parsedBpm) && parsedBpm > 0;
 
+  /**
+   * Start a test run. The clock starts; nothing is written yet.
+   *
+   * A run has to be STARTED rather than implied by rating one, because
+   * the run's length is part of the record and there is no way to
+   * recover it after the fact.
+   */
+  const handleStartRun = () => {
+    if (!bpmValid || busy || passed || paused) return;
+    setRunStartedAt(Date.now());
+  };
+
+  /**
+   * End the run in progress by rating it.
+   *
+   * A TEST RUN ENDS BY RATING IT — there is no Finish Run on a test,
+   * because rating is what a test is made of. See `SessionStrip`.
+   */
   const handleAddAttempt = (feel: Feel) => {
     if (!bpmValid || busy || passed) return;
+    setRunStartedAt(null);
     // A below-floor run neither advances nor resets the gate — see
     // projectConsecutiveCleanCount — so a slow not-clean pass must not
     // announce a reset that did not happen.
@@ -332,6 +388,40 @@ export default function WholeSongTestModal({
     );
   }
 
+  // THE SHEET HAS THE PAGE. No Modal, no overlay — `SongDetailView`
+  // is already rendering the lead sheet underneath, and this is the
+  // session laid across the top of it.
+  if (view === 'sheet') {
+    return (
+      <div className="fixed inset-x-0 top-0 z-40">
+        <SessionStrip
+          kind="testing"
+          sessionSeconds={sessionSeconds}
+          runSeconds={runStartedAt === null ? null : runSeconds}
+          nextRunNumber={attempts.length + 1}
+          paused={paused}
+          onPauseToggle={() => {
+            // PAUSING MID-RUN DISCARDS THE RUN, not the minutes. A rep
+            // you walked away from is not a rep, and rating it later
+            // would be rating a memory.
+            setPaused(p => {
+              if (!p) setRunStartedAt(null);
+              return !p;
+            });
+          }}
+          streak={projectedCount}
+          streakBroken={streakBroken}
+          onRate={handleAddAttempt}
+          onStartRun={handleStartRun}
+          // A TEST RUN HAS NO Finish Run. Null, not a no-op.
+          onFinishRun={null}
+          onSave={() => void handleSave(false)}
+          onBack={() => setView('panel')}
+        />
+      </div>
+    );
+  }
+
   return (
     <Modal
       open={open}
@@ -390,8 +480,23 @@ export default function WholeSongTestModal({
           bpmInput={bpmInput}
           onBpmChange={setBpmInput}
           bpmValid={bpmValid}
+          inRun={runStartedAt !== null}
+          runSeconds={runSeconds}
+          nextRunNumber={attempts.length + 1}
+          onStartRun={handleStartRun}
           onRate={handleAddAttempt}
         />
+
+        {/* THE SHEET, WHEN YOU NEED IT IN FRONT OF YOU. Named by the
+            spec; it takes the panel away rather than layering a chart
+            on top of it. */}
+        <button
+          type="button"
+          onClick={() => setView('sheet')}
+          className="self-start px-3 py-1.5 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
+          Open Lead Sheet
+        </button>
 
         {/* Last, and collapsed. The sitting above is what you are
             doing; this is context for it. */}
@@ -700,18 +805,47 @@ function AddAttemptArea({
   bpmInput,
   onBpmChange,
   bpmValid,
+  inRun,
+  runSeconds,
+  nextRunNumber,
+  onStartRun,
   onRate,
 }: {
   bpmInput: string;
   onBpmChange: (next: string) => void;
   bpmValid: boolean;
+  /** True while a test run is being played. */
+  inRun: boolean;
+  runSeconds: number;
+  nextRunNumber: number;
+  onStartRun: () => void;
   onRate: (feel: Feel) => void;
 }) {
   return (
     <div>
-      <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 mb-1.5">
-        Add Attempt
+      {/* NAMED, LIKE EVERY OTHER CLOCK AND BUTTON IN THIS SESSION. The
+          app never says the bare word — see `SessionStrip`. */}
+      <div className="text-xs font-medium text-neutral-700 dark:text-neutral-200 mb-1.5 flex items-center gap-2">
+        <span>Test Run {nextRunNumber}</span>
+        {inRun && (
+          <span className="font-mono tabular-nums text-neutral-500">
+            {formatClock(runSeconds)}
+          </span>
+        )}
       </div>
+      {/* A RUN IS STARTED, THEN RATED. The length is part of the record
+          and there is no recovering it after the fact, so rating alone
+          cannot be the whole of a run. */}
+      {!inRun && (
+        <button
+          type="button"
+          onClick={onStartRun}
+          disabled={!bpmValid}
+          className="mb-2 px-3 py-1.5 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Start Test Run {nextRunNumber}
+        </button>
+      )}
       <div className="flex items-stretch gap-2">
         <label className="flex items-center gap-1.5 px-3 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900">
           <span className="text-sm text-neutral-500 dark:text-neutral-400">♩</span>
@@ -738,7 +872,7 @@ function AddAttemptArea({
             key={opt.value}
             type="button"
             onClick={() => onRate(opt.value)}
-            disabled={!bpmValid}
+            disabled={!bpmValid || !inRun}
             title={opt.hint}
             className={`px-2.5 py-2 text-xs rounded-md border font-medium disabled:opacity-40 disabled:cursor-not-allowed ${opt.inactiveClass}`}
           >
