@@ -14,6 +14,7 @@ import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
 import WholeSongTestBanner from './WholeSongTestBanner';
 import WholeSongTestModal from './WholeSongTestModal';
+import KeyRow from './KeyRow';
 import { computeKeyStateFromCells } from './cellRollup';
 import { hasCrossKeyEngagement } from './songLevelState';
 import { useSongSpelling } from '../useSongSpelling';
@@ -416,6 +417,29 @@ export default function SongMatrixView({
           totalSections={visibleSections.length}
           pastRuns={activeTestPastRuns}
           isRetest={activeTestIsRetest}
+          renderPassedPreview={() => (
+            /* THE REAL ROW, from the real grid data, so the preview
+               cannot say something the matrix behind it does not. It is
+               drawn WITHOUT the action callbacks — a preview of what
+               you are about to see is not a place to start another
+               test — and `KeyRow` reads that absence as "no actions"
+               already, so nothing had to be added to it.
+
+               Evaluated on render rather than captured, so it picks up
+               the reload `onSaved` triggered a moment earlier. */
+            <KeyRow
+              keyName={activeTestKey.keyName}
+              spelling={spelling}
+              songKey={activeTestKey}
+              sections={visibleSections}
+              cellsBySectionId={
+                new Map(activeTestSiblingCells.map(c => [c.sectionId, c]))
+              }
+              bands={cellBands}
+              isOriginal={activeTestKey.isOriginalKey}
+              now={now}
+            />
+          )}
         />
       )}
     </section>

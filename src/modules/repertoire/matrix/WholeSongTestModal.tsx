@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import TestPassedScreen from './TestPassedScreen';
 import Modal from '../../../components/Modal';
 import {
   type Song,
@@ -64,6 +65,15 @@ interface Props {
    *  songKeys array stays stale even though the row was persisted,
    *  so KeyStrip's live-derive sees pre-save decay state. */
   onSaved?: () => void;
+  /**
+   * The matrix row for this key, as it reads after a pass.
+   *
+   * Owned by the caller because the caller owns the grid: it has the
+   * sections, the cells and the bands, and `KeyRow` is the one thing
+   * that draws a matrix row. Rendered lazily so it is evaluated after
+   * `onSaved` has refreshed the data behind it.
+   */
+  renderPassedPreview: () => ReactNode;
   songKey: SongKey;
   song: Song;
   /** All cells for this songKey. The rollup needs them to recompute
@@ -89,6 +99,7 @@ export default function WholeSongTestModal({
   open,
   onClose,
   onSaved,
+  renderPassedPreview,
   songKey,
   song,
   siblingCells,
@@ -111,6 +122,26 @@ export default function WholeSongTestModal({
    */
   const [streakBroken, setStreakBroken] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  /**
+   * The test has been passed and this window is now the result screen.
+   *
+   * =====================================================================
+   * THE THIRD CLEAN RUN IS THE PASS. There is no Save step, and the
+   * button that used to be one is gone.
+   *
+   * It was called "Mark solid", then "Pass the test", and either way it
+   * asked the user to confirm something they had already done. Worse,
+   * it was reachable and ignorable: three clean runs with the button
+   * left unpressed was a passed test the app did not record, and the
+   * only sign was a modal that closed like any other.
+   *
+   * So passing ends the test where it happens. `Save Attempts` stays,
+   * because leaving a session with runs logged and the streak
+   * unfinished is a real thing to want — it is a way out, not a way to
+   * pass.
+   * =====================================================================
+   */
+  const [passed, setPassed] = useState(false);
   // Captured once per open rather than read during render, and it is
   // the boundary of a 30-day window — a modal left open overnight
   // showing yesterday's window is not a problem worth a ticking clock.
@@ -125,6 +156,7 @@ export default function WholeSongTestModal({
     setBpmInput('');
     setBusy(false);
     setStreakBroken(false);
+    setPassed(false);
     onClose();
   }, [onClose]);
 
@@ -147,30 +179,72 @@ export default function WholeSongTestModal({
   // not do. This is a statement of what happens, not a warning about
   // taking a shortcut: nothing here is ahead of anything.
   const sectionsIncomplete = songKey.keyState !== 'comfortable';
-  // The test no longer writes a status, so nothing here can be
-  // "already at" it. What the control still does is record a PASS —
-  // the timestamp `stageCriteria` reads as the Comfortable criterion.
-  const canMarkSolid = projectedCount >= 3;
+  // `canMarkSolid` used to live here and gate a button. There is no
+  // button: the third clean run IS the pass, so the only reader of
+  // "has the streak reached three" is `handleAddAttempt`, which asks
+  // the projection directly about the run just rated.
   const hasContent = attempts.length > 0;
 
   const parsedBpm = parseInt(bpmInput, 10);
   const bpmValid = Number.isFinite(parsedBpm) && parsedBpm > 0;
 
   const handleAddAttempt = (feel: Feel) => {
-    if (!bpmValid) return;
+    if (!bpmValid || busy || passed) return;
     // A below-floor run neither advances nor resets the gate — see
     // projectConsecutiveCleanCount — so a slow not-clean pass must not
     // announce a reset that did not happen.
     const gateRelevant = isInTempoRange(parsedBpm, performanceTempo);
     setStreakBroken(feel < 3 && gateRelevant && projectedCount > 0);
-    setAttempts(prev => [
-      ...prev,
+    const next = [
+      ...attempts,
       {
         id: `keyattempt-${Math.random().toString(36).slice(2, 8)}-${Date.now().toString(36)}`,
         bpm: parsedBpm,
         feel,
       },
-    ]);
+    ];
+    setAttempts(next);
+
+    // THE PASS IS DECIDED HERE, FROM `next`, NOT FROM STATE.
+    // `projectedCount` above is last render's answer and does not
+    // include the run just rated; asking it would pass the test one
+    // run late, which on a three-run streak is the difference between
+    // ending at three and ending at four.
+    if (projectKeyConsecutiveCleanCount(next, performanceTempo) >= 3) {
+      void handlePass(next);
+    }
+  };
+
+  /**
+   * Record the pass and take the window over.
+   *
+   * The save is not optional and not offered: the runs are already
+   * played, and a failure to write them must not look like a test that
+   * did not happen. On a write failure the result screen does NOT
+   * appear — the runs stay in the log and `Save Attempts` is still
+   * there, which is a recoverable state rather than a congratulation
+   * for something unrecorded.
+   */
+  const handlePass = async (finalAttempts: KeyAttemptDraft[]) => {
+    setBusy(true);
+    try {
+      await saveKeyAttemptsAndRollup({
+        songKey,
+        attempts: finalAttempts,
+        markSolid: true,
+        performanceTempo,
+        isRetest,
+        siblingCells,
+        expectedSectionCount: totalSections,
+        now: Date.now(),
+      });
+      onSaved?.();
+      setPassed(true);
+    } catch (err) {
+      console.warn('[matrix] whole-song test pass failed', err);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleDeleteAttempt = (id: string) => {
@@ -200,6 +274,37 @@ export default function WholeSongTestModal({
     }
   };
 
+  // PASSED: THE RESULT SCREEN TAKES OVER THE WINDOW. Not a banner
+  // above the log and not a step after it — §4 says it takes over from
+  // whichever view was showing, and a log of the runs still sitting
+  // underneath would invite one more.
+  //
+  // NO FOOTER either, because the screen has the single exit the spec
+  // asks for. Leaving Cancel and Save Attempts below it would offer
+  // three ways out of a window that is finished.
+  if (passed) {
+    return (
+      <Modal
+        open={open}
+        onClose={handleClose}
+        title={`${song.title} · ${spellKey(songKey.keyName, spelling)}`}
+      >
+        <TestPassedScreen
+          earned={{
+            kind: 'whole-song',
+            songTitle: song.title,
+            // FIXED, not derived. There is no higher rung one key's
+            // test can reach — Cross-key needs other keys.
+            status: 'comfortable',
+          }}
+          keyName={spellKey(songKey.keyName, spelling)}
+          preview={renderPassedPreview()}
+          onClose={handleClose}
+        />
+      </Modal>
+    );
+  }
+
   return (
     <Modal
       open={open}
@@ -223,19 +328,6 @@ export default function WholeSongTestModal({
             >
               Save Attempts
             </button>
-            {(
-              <button
-                type="button"
-                onClick={() => void handleSave(true)}
-                disabled={!canMarkSolid || busy}
-                className="px-3 py-1.5 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={canMarkSolid ? undefined : TEST_RULE_SENTENCE}
-              >
-                {sectionsIncomplete
-                  ? 'Pass the test'
-                  : isRetest ? 'Mark solid (re-pass)' : 'Mark solid'}
-              </button>
-            )}
           </div>
         </div>
       }
