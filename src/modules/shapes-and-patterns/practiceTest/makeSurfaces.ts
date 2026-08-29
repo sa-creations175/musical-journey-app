@@ -23,6 +23,7 @@ import {
   logVoiceLeadingDrillSession,
 } from '../drillModel';
 import { recordSongKeyRun } from '../../repertoire/matrix/proveKey';
+import { writeSongRun } from '../../repertoire/songRunWriter';
 import { logPracticeSession } from '../../repertoire/logPractice';
 import type { PracticeActivity } from '../../../lib/practiceActivities';
 import {
@@ -297,6 +298,13 @@ export function songSurface(args: {
    *  opinion about that. Null means the song has none set, so every
    *  run counts — the same rule the cell panel already applies. */
   songTempo: number | null;
+  /** How many sections the key has, so the rollup can tell "not all
+   *  comfortable" from "not all present". */
+  expectedSectionCount: number;
+  /** The tempo the run was actually played at, read at the moment the
+   *  run is written. Null when nothing was sounding — a legitimate
+   *  stored value, and not the same as the song's target. */
+  readRunTempo: () => number | null;
 }): DrillSurface {
   return {
     id: 'song',
@@ -369,6 +377,29 @@ export function songSurface(args: {
         feel: record.feel,
         fromTest: record.fromTest,
         sessionId: record.sessionId,
+      });
+
+      // AFTER the reps, never before. `writeSongRun` recomputes
+      // `keyState` from the cells' BANDS, and a band read before the
+      // rating above was recorded would roll the key up from the run
+      // before this one. The ordering is the contract; see the note on
+      // `writeSongRun`.
+      //
+      // THE RUN LOG, THE CELL AND THE KEY — the three things
+      // `CellPanel` does that this surface did not. `keyState` is the
+      // one that matters most and announces itself least: nothing else
+      // recomputes it, so without this every key row would freeze at
+      // whatever it said the day the shell took over.
+      await writeSongRun({
+        cellIds,
+        songKeyId: args.songKeyId,
+        attempt: {
+          id: `run-${Math.random().toString(36).slice(2, 8)}`,
+          bpm: args.readRunTempo(),
+          feel: record.feel,
+        },
+        performanceTempo: args.songTempo,
+        expectedSectionCount: args.expectedSectionCount,
       });
     },
     // The sitting's own verdict lands on the cell it was opened on and

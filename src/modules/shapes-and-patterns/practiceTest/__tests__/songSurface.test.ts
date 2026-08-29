@@ -35,11 +35,17 @@ function surface(songTempo: number | null = 90) {
     onOpenLeadSheet: () => {},
     readSessionElapsedMs: () => 0,
     readSessionId: () => SESSION,
+    expectedSectionCount: BY_SECTION.size,
+    readRunTempo: () => RUN_BPM,
     songTempo,
   });
 }
 
 const SESSION = 'ss-test-1';
+
+/** What the metronome was at. Distinct from the song's tempo so the
+ *  two cannot be confused in an assertion. */
+const RUN_BPM = 96;
 
 const run = (over: Partial<DrillRecord> = {}): DrillRecord => ({
   ranSeconds: 140,
@@ -195,5 +201,134 @@ describe('the clock is per song-and-key, never per section', () => {
     await surface().write(run({ scope: ['sec-verse', 'sec-chorus'] }));
     const keyRefs = await refsUnder('songKey:');
     expect(keyRefs).toEqual([`songKey:${KEY}`]);
+  });
+});
+
+/**
+ * The three things `CellPanel` did that this surface did not.
+ *
+ * =====================================================================
+ * THE SWAP CANNOT HAPPEN WITHOUT THESE, AND ONLY ONE OF THEM WOULD
+ * ANNOUNCE ITSELF.
+ *
+ * A missing run row is visible — the run history is empty. A stale
+ * `lastRunAt` is visible — the cell says it has not been touched.
+ *
+ * `keyState` is neither. It is a STORED value derived from the cells'
+ * bands, and nothing else in the app recomputes it. Swap the panel
+ * without carrying the rollup and every key row freezes at whatever it
+ * said the day the swap landed — permanently, silently, and looking
+ * exactly like a correct value. So it is pinned hardest.
+ * =====================================================================
+ */
+describe('a run writes the cell, the log and the key', () => {
+  const SECTIONS = [...BY_SECTION.entries()];
+
+  async function seedCells(keyState: 'not_started' | 'learning' | 'comfortable') {
+    await db.songKeys.put({
+      id: KEY, songId: 's1', keyName: 'Ab', isOriginalKey: true,
+      keyState, solidAt: null, solidDecayState: 'fine',
+      lastDecayCheckAt: null, livedWithSessionCount: 0,
+      livedWithFirstSessionAt: null, livedWithWindowStartAt: null,
+      livedWithSessionsInWindow: 0, wholeSongTestPassedAt: null,
+      isRetestRecommended: true, lastEngagedAt: null,
+      createdAt: 1, updatedAt: 1,
+    } as never);
+    await db.songCells.bulkPut(SECTIONS.map(([sectionId, cellId]) => ({
+      id: cellId, songId: 's1', songKeyId: KEY, sectionId,
+      cellState: 'empty', consecutiveCleanCount: 0,
+      lastRunAt: null, notes: null, markComfortable: false,
+      comfortableAt: null, lastEngagedAt: null,
+      createdAt: 1, updatedAt: 1,
+    })) as never);
+  }
+
+  beforeEach(async () => {
+    // The outer beforeEach clears only `spacingState`; the run log and
+    // the cells persist across tests in this file, so counts here would
+    // otherwise include every earlier test's rows.
+    await db.songCellRunThroughs.clear();
+    await db.songCells.clear();
+    await db.songKeys.clear();
+    await seedCells('not_started');
+  });
+
+  it('logs the run with the tempo it was PLAYED at', async () => {
+    // 96, the metronome's number — not 90, the song's target. The two
+    // are different on purpose here: a run row that recorded the target
+    // is the exact defect the tempo work exists to remove.
+    await surface(90).write(run({ feel: 3 }));
+    const rows = await db.songCellRunThroughs.where('cellId').equals(CELL).toArray();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].tempoBpm).toBe(RUN_BPM);
+    expect(rows[0].wasClean).toBe(true);
+  });
+
+  it('a run with the metronome silent logs no tempo, not a made-up one', async () => {
+    const silent = songSurface({
+      cellLabel: '', skillLabel: '', cellId: CELL, songKeyId: KEY, songId: 's1',
+      keyName: 'Ab', cellIdBySectionId: BY_SECTION,
+      sections: SECTIONS.map(([id]) => ({ id, label: id })),
+      onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
+      readSessionId: () => SESSION, expectedSectionCount: BY_SECTION.size,
+      readRunTempo: () => null, songTempo: 90,
+    });
+    await silent.write(run({ feel: 3 }));
+    const rows = await db.songCellRunThroughs.where('cellId').equals(CELL).toArray();
+    expect(rows[0].tempoBpm).toBeNull();
+  });
+
+  it('moves lastRunAt — and it is the SURFACE that moves it now', async () => {
+    // Never two writers of songCells. When the shell owns a surface,
+    // `CellPanel` stops writing for it, or two `lastRunAt` values race
+    // on one row and the winner is whichever transaction commits last.
+    const before = await db.songCells.get(CELL);
+    expect(before?.lastRunAt).toBeNull();
+    await surface(90).write(run({ feel: 3 }));
+    const after = await db.songCells.get(CELL);
+    expect(after?.lastRunAt).not.toBeNull();
+    expect(after?.lastEngagedAt).not.toBeNull();
+  });
+
+  it('RECOMPUTES keyState FROM THE CELLS — the one that would freeze', async () => {
+    // One rated run on one section: the key has been touched, so it is
+    // learning, not not_started. Nothing else in the app would have
+    // moved it.
+    expect((await db.songKeys.get(KEY))?.keyState).toBe('not_started');
+    await surface(90).write(run({ feel: 3 }));
+    expect((await db.songKeys.get(KEY))?.keyState).toBe('learning');
+  });
+
+  it('the key rollup sees EVERY cell, not just the covered one', async () => {
+    // A section run covers one cell and still moves the key it belongs
+    // to, so the rollup has to load the siblings rather than judge the
+    // key from the run's own scope. Two sections untouched means the
+    // key is not comfortable, however well this one went.
+    await surface(90).write(run({ feel: 4 }));
+    expect((await db.songKeys.get(KEY))?.keyState).toBe('learning');
+  });
+
+  it('clears the retired decay fields on the way past, like the cell path', async () => {
+    await surface(90).write(run({ feel: 3 }));
+    const key = await db.songKeys.get(KEY);
+    expect(key?.solidDecayState).toBeNull();
+    expect(key?.isRetestRecommended).toBe(false);
+    expect(key?.lastEngagedAt).not.toBeNull();
+  });
+
+  it('a whole-song run logs a row against every section it covered', async () => {
+    await surface(90).write(run({ feel: 3, scope: SECTIONS.map(([id]) => id) }));
+    for (const [, cellId] of SECTIONS) {
+      const rows = await db.songCellRunThroughs.where('cellId').equals(cellId).toArray();
+      expect(rows).toHaveLength(1);
+    }
+  });
+
+  it('an unrated run writes nothing at all', async () => {
+    // No verdict, no claim — the same rule the band reps follow. A run
+    // row without a rating would be a run the matrix could not read.
+    await surface(90).write(run({ feel: null }));
+    expect(await db.songCellRunThroughs.count()).toBe(0);
+    expect((await db.songCells.get(CELL))?.lastRunAt).toBeNull();
   });
 });

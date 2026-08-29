@@ -104,6 +104,8 @@ describe('every surface has one', () => {
       cellId: 'cell-1', songKeyId: 'key-1', songId: 's1', keyName: 'Ab',
       cellIdBySectionId: new Map(), sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => 'ss-test-1',
+      expectedSectionCount: 1,
+      readRunTempo: () => null,
       songTempo: 90,
     }).writeSessionRating(3, false, 'ss-test-1');
     const refs = (await db.spacingState.toArray()).map(r => r.itemRef).sort();
@@ -119,6 +121,8 @@ describe('every surface has one', () => {
       cellIdBySectionId: new Map([['sec-a', 'cell-1'], ['sec-b', 'cell-2']]),
       sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => 'ss-test-1',
+      expectedSectionCount: 1,
+      readRunTempo: () => null,
       songTempo: 90,
     }).writeSessionRating(3, false, 'ss-test-1');
     const refs = (await db.spacingState.toArray()).map(r => r.itemRef);
@@ -148,6 +152,8 @@ describe('readVerdict — what the done step reports', () => {
       cellId: 'cell-1', songKeyId: 'key-1', songId: 's1', keyName: 'Ab',
       cellIdBySectionId: new Map(), sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => 'ss-test-1',
+      expectedSectionCount: 1,
+      readRunTempo: () => null,
       songTempo: 90,
     });
     for (let i = 0; i < 3; i++) await s.writeSessionRating(3, true, 'ss-test-1');
