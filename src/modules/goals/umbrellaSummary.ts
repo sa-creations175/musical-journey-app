@@ -46,7 +46,7 @@ function isConsistencyMetricLocal(metric: string): boolean {
  *
  * Songs are a special case: `song_whole_at_level` is reused
  * across breadth / depth / mastery dimensions, distinguished by
- * `targetUnit` ('comfortable' / 'solid' / 'internalized'). The
+ * `targetUnit` ('comfortable' / 'cross_key' / 'internalized'). The
  * dimension classifier reads the unit on song goals.
  */
 
@@ -147,6 +147,11 @@ export function dimensionForGoal(goal: Goal): GoalDimension | null {
   // by targetUnit. See yearlyAnchorMetrics.ts header note.
   if (metric === 'song_whole_at_level') {
     if (goal.targetUnit === 'comfortable') return 'Breadth';
+    if (goal.targetUnit === 'cross_key') return 'Depth';
+    // LEGACY. Anchors saved before the retirement wrote 'solid' for
+    // Depth. Kept in Depth rather than moved to Breadth: the row was
+    // authored as a Depth ambition, and re-filing someone's existing
+    // anchor under a different dimension is not a rename.
     if (goal.targetUnit === 'solid') return 'Depth';
     if (goal.targetUnit === 'internalized') return 'Mastery';
   }

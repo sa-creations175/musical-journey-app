@@ -56,7 +56,7 @@ describe('songCumulativeNudge', () => {
     });
     expect(result).not.toBeNull();
     expect(result).toContain('3 at Comfortable');
-    expect(result).toContain('1 at Solid');
+    expect(result).toContain('1 at Cross-key');
     expect(result).toContain('2 at Internalized');
   });
 
@@ -66,7 +66,7 @@ describe('songCumulativeNudge', () => {
     });
     expect(result).not.toBeNull();
     expect(result).toContain('1 at Comfortable');
-    expect(result).toContain('3 at Solid');
+    expect(result).toContain('3 at Cross-key');
   });
 
   it('returns a single combined nudge when both relationships are violated', () => {
@@ -81,7 +81,7 @@ describe('songCumulativeNudge', () => {
     expect(typeof result).toBe('string');
     // Contains all three numbers in the canonical order.
     expect(result).toContain('1 at Comfortable');
-    expect(result).toContain('2 at Solid');
+    expect(result).toContain('2 at Cross-key');
     expect(result).toContain('5 at Internalized');
   });
 

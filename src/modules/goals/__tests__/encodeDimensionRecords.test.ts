@@ -257,7 +257,9 @@ describe('encodeDimensionRecords — Song Repertoire', () => {
     expect(records[0].targetMetric).toBe('song_whole_at_level');
     expect(records[0].targetUnit).toBe('comfortable');
     expect(records[0].targetValue).toBe(5);
-    expect(records[1].targetUnit).toBe('solid');
+    // Depth points at Cross-key. The Shapes Depth row two tests up
+    // still writes ':solid' — that is a different ladder.
+    expect(records[1].targetUnit).toBe('cross_key');
     expect(records[1].targetValue).toBe(3);
     expect(records[2].targetUnit).toBe('internalized');
     expect(records[2].targetValue).toBe(1);

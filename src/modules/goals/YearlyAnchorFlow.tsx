@@ -371,7 +371,7 @@ function isShapesPatternsValid(sp: ShapesPatternsAnchor): boolean {
  *
  *   Breadth  (Comfortable)  — "How many songs do you want to know
  *                              how to play by year end?"
- *   Depth    (Solid)        — "How many songs do you want to be
+ *   Depth    (Cross-key)    — "How many songs do you want to be
  *                              performance-ready?"
  *   Mastery  (Internalized) — "How many songs do you want to own so
  *                              deeply you could make someone cry,
@@ -380,7 +380,8 @@ function isShapesPatternsValid(sp: ShapesPatternsAnchor): boolean {
  *                              every other module.
  *
  * Cumulative validation: levels are nested — every Internalized
- * song is also Solid, and every Solid song is also Comfortable. The
+ * song is also Cross-key, and every Cross-key song is also
+ * Comfortable. The
  * design call is a **gentle non-blocking nudge** if the numbers
  * violate that ordering. Fires when masteryCount > depthCount or
  * depthCount > breadthCount; surfaces as an amber tip below the
@@ -389,7 +390,7 @@ function isShapesPatternsValid(sp: ShapesPatternsAnchor): boolean {
 export interface SongRepertoireAnchor {
   /** Songs at Comfortable. */
   breadthCount: number;
-  /** Songs at Solid. */
+  /** Songs at Cross-key. */
   depthCount: number;
   /** Songs at Internalized. */
   masteryCount: number;
@@ -420,7 +421,7 @@ function isSongRepertoireValid(_sr: SongRepertoireAnchor): boolean {
 
 /**
  * Returns a non-blocking nudge string when the cumulative ordering
- * (Internalized ≤ Solid ≤ Comfortable) is violated, or null when
+ * (Internalized ≤ Cross-key ≤ Comfortable) is violated, or null when
  * the numbers are coherent. Pure function; testable without React.
  *
  * Edge cases that are NOT a violation:
@@ -429,7 +430,7 @@ function isSongRepertoireValid(_sr: SongRepertoireAnchor): boolean {
  *     unusual but coherent; the user is committing to a single set
  *     they want to bring to Internalized)
  *   - Partial fills with zeros at the deeper levels (5/3/0 — three
- *     of the five comfortable songs targeted for Solid, none for
+ *     of the five comfortable songs targeted for Cross-key, none for
  *     Internalized this year)
  *
  * Single combined message rather than per-violation — the design
@@ -609,9 +610,9 @@ export function songCumulativeNudge(
   if (!violated) return null;
   return (
     `Heads up — songs at Internalized status are usually a subset of ` +
-    `those at Solid status, which are a subset of those at ` +
+    `those at Cross-key status, which are a subset of those at ` +
     `Comfortable status. Your numbers ` +
-    `(${c} at Comfortable / ${s} at Solid / ${i} at Internalized) ` +
+    `(${c} at Comfortable / ${s} at Cross-key / ${i} at Internalized) ` +
     `suggest otherwise.`
   );
 }
@@ -922,10 +923,13 @@ function encodeSongRepertoireDimensions(sr: SongRepertoireAnchor): DimensionReco
   }
   if (sr.depthCount > 0) {
     records.push({
-      description: `Reach Solid status on ${sr.depthCount} song${sr.depthCount === 1 ? '' : 's'} by year-end`,
+      description: `Reach Cross-key status on ${sr.depthCount} song${sr.depthCount === 1 ? '' : 's'} by year-end`,
       targetMetric: SONG_METRIC.WHOLE,
       targetValue: sr.depthCount,
-      targetUnit: 'solid',
+      // DEPTH POINTS AT CROSS-KEY NOW. Comfortable belongs to Breadth
+      // and Internalized to Mastery, so nothing owned Cross-key — and
+      // depth in a song genuinely is knowing it in more keys.
+      targetUnit: 'cross_key',
       relatedItems: [],
     });
   }
@@ -1939,7 +1943,7 @@ function Screen1ShapesPatterns({
  *
  *   - **No group multi-pick.** Each dimension is a single count
  *     input that maps to a canonical proficiency level
- *     (Comfortable / Solid / Internalized).
+ *     (Comfortable / Cross-key / Internalized).
  *
  *   - **Order matches escalating ownership** (Breadth → Depth →
  *     Mastery → Consistency) per the design doc — different from
@@ -1947,14 +1951,14 @@ function Screen1ShapesPatterns({
  *     read most naturally as "play it / perform it / own it" from
  *     top to bottom.
  *
- *   - **Cumulative-ordering soft nudge.** Internalized ≤ Solid ≤
+ *   - **Cumulative-ordering soft nudge.** Internalized ≤ Cross-key ≤
  *     Comfortable per the spec. Renders an amber non-blocking tip
  *     beneath the count inputs when the numbers violate. Save is
  *     never blocked — the design call wants gentle guidance, not a
  *     scolding gate.
  *
  *   - **No coordinated state coupling** — counts are independent.
- *     Editing Comfortable does not auto-adjust Solid or
+ *     Editing Comfortable does not auto-adjust Cross-key or
  *     Internalized.
  */
 function Screen1SongRepertoire({
@@ -1984,12 +1988,12 @@ function Screen1SongRepertoire({
       </DimensionSection>
 
       <DimensionSection
-        title="Depth (Solid)"
+        title="Depth (Cross-key)"
         id="depth"
         question="How many songs do you want to be performance-ready? Impress your friends, family, and loved ones."
       >
         <CountInput
-          label="Songs at Solid"
+          label="Songs at Cross-key"
           value={state.depthCount}
           onChange={n => onChange({ ...state, depthCount: n })}
           suffix="songs"

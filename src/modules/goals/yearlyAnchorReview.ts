@@ -289,7 +289,7 @@ function summarizeShapes(sp: ShapesPatternsAnchor, year: number): string {
 function dimensionRowsForSongRepertoire(sr: SongRepertoireAnchor): DimensionReviewRow[] {
   return [
     { dimension: 'breadth',     title: 'Breadth (Comfortable)',     value: sr.breadthCount === 0 ? '—' : `${sr.breadthCount} songs`  },
-    { dimension: 'depth',       title: 'Depth (Solid)',             value: sr.depthCount === 0 ? '—' : `${sr.depthCount} songs`     },
+    { dimension: 'depth',       title: 'Depth (Cross-key)',         value: sr.depthCount === 0 ? '—' : `${sr.depthCount} songs`     },
     { dimension: 'mastery',     title: 'Mastery (Internalized)',    value: sr.masteryCount === 0 ? '—' : `${sr.masteryCount} songs` },
     { dimension: 'consistency', title: 'Consistency',               value: `${sr.consistency.count}× per ${cadenceLabel(sr.consistency.cadence)}` },
   ];

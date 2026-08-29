@@ -228,7 +228,7 @@ describe('dimensionRowsFor — Song Repertoire', () => {
     const rows = dimensionRowsFor(draftFor('repertoire', { songRepertoire: baseSr }));
     expect(rows.map(r => r.title)).toEqual([
       'Breadth (Comfortable)',
-      'Depth (Solid)',
+      'Depth (Cross-key)',
       'Mastery (Internalized)',
       'Consistency',
     ]);
