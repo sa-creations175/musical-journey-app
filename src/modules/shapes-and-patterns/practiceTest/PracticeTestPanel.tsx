@@ -154,6 +154,24 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   /** Whether the metronome was sounding when the pause began, so
    *  resuming restores what was there rather than a default. */
   const metronomeWasOn = useRef(false);
+  /**
+   * Whether it was already going when this panel opened.
+   *
+   * =====================================================================
+   * LEAVING THE PANEL LEAVES SILENCE — UNLESS IT WAS ALREADY NOISY.
+   *
+   * `close` used to call `stop('drill')`, which cannot pop a `'user'`
+   * driver, so a metronome started from inside the panel kept running
+   * after it closed. Harmless while nothing made you start one; the
+   * test gate now requires it, so it would happen on every single test.
+   *
+   * But `forceStop` would be too much: a click started in the header
+   * before this panel opened belongs to whatever was going on then, and
+   * closing a panel is not a reason to end it. So the panel stops only
+   * what it can tell it caused.
+   * =====================================================================
+   */
+  const metronomeOnAtOpen = useRef(metronome.state.playing);
   // Declared after `paused` because it reads it: the clock stops when
   // the session does, which is the whole of what a pause means here.
   const sessionSeconds = useSessionClock(
@@ -188,7 +206,16 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   };
 
   const reallyClose = () => {
+    // READ BEFORE THE FIRST STOP, not after. `stop('drill')` is not the
+    // no-op it looks like: with an EMPTY driver stack it falls past the
+    // "someone else still holds it" guard and clears `playing` outright.
+    // Asking afterwards would therefore see a metronome that had just
+    // been marked stopped and leave the real one sounding.
+    const causedHere = metronome.state.playing && !metronomeOnAtOpen.current;
+    // The historical pop stays: it is the match for a driver the panel
+    // might one day push.
     metronome.stop('drill');
+    if (causedHere) metronome.stop('user');
     onClose();
   };
 

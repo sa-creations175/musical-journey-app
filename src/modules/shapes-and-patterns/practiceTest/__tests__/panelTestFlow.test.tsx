@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import PracticeTestPanel from '../PracticeTestPanel';
+import { metronome } from '../../../../lib/metronome';
 import type { DrillRecord, DrillSurface } from '../surfaces';
 
 vi.mock('../../../../lib/userPrefs', () => ({
@@ -553,5 +554,36 @@ describe('Pause — the third exit', () => {
     expect(r.text()).not.toContain('Log It And Close');
     expect(r.text()).not.toContain('Discard It');
     r.unmount();
+  });
+});
+
+describe('leaving the panel leaves silence', () => {
+  it('stops a metronome the panel caused', async () => {
+    // `stop('drill')` cannot pop a `'user'` driver, so a click started
+    // inside the panel used to keep running after it closed. Harmless
+    // while nothing made you start one — the test gate now requires
+    // it, so it would happen on every single test.
+    metronome.state = { ...metronome.state, playing: false };
+    const r = render();
+    metronome.state = { ...metronome.state, playing: true };
+    const stop = vi.spyOn(metronome, 'stop');
+    await r.press('Close');
+    expect(stop).toHaveBeenCalledWith('user');
+    stop.mockRestore();
+    r.unmount();
+  });
+
+  it('LEAVES ONE THAT WAS ALREADY GOING', async () => {
+    // A click started in the header before this panel opened belongs
+    // to whatever was going on then. Closing a panel is not a reason
+    // to end it, which is why this is not a `forceStop`.
+    metronome.state = { ...metronome.state, playing: true };
+    const r = render();
+    const stop = vi.spyOn(metronome, 'stop');
+    await r.press('Close');
+    expect(stop).not.toHaveBeenCalledWith('user');
+    stop.mockRestore();
+    r.unmount();
+    metronome.state = { ...metronome.state, playing: false };
   });
 });

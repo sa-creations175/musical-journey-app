@@ -616,9 +616,25 @@ class Metronome {
     this.emit();
   }
 
+  /**
+   * Start or stop, from a user's press.
+   *
+   * THE START IS CAUGHT, NOT VOIDED. `start` rejects when there is no
+   * Web Audio to reach — a tab that has never had a gesture, a browser
+   * blocking autoplay, a device with no output — and `void` on a
+   * rejecting promise is an unhandled rejection, not a handled one.
+   * Every caller of this is a button press, so the failure surfaces as
+   * a click that does not come on; a crash in the console on top of
+   * that helps nobody.
+   */
   toggle() {
-    if (this.state.playing) this.stop('user');
-    else void this.start('user');
+    if (this.state.playing) {
+      this.stop('user');
+      return;
+    }
+    this.start('user').catch(err => {
+      console.warn('[metronome] could not start', err);
+    });
   }
 
   // --- Count-in (prep-flow Phase 4) --------------------------------
