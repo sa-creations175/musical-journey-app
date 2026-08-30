@@ -34,7 +34,7 @@
  * Commit 2 of 4. Still absent: the other three surfaces, the practice
  * log, and any Settings UI.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Modal from '../../../components/Modal';
 import DrillMetronomeSetup from '../DrillMetronomeSetup';
 import { useMetronomeState } from '../../../lib/useMetronome';
@@ -56,6 +56,7 @@ import TestPassedScreen, {
   type TestPassEarned,
 } from '../../repertoire/matrix/TestPassedScreen';
 import TestLadderBand from './TestLadderBand';
+import RatingChips from './RatingChips';
 import SessionStrip from '../../repertoire/matrix/SessionStrip';
 import { formatClock, useSessionClock } from './sessionClock';
 import { newSessionId } from '../../../lib/sessionId';
@@ -737,7 +738,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         </div>
       )}
 
-      {!confirmingCancel && step === 'session' && mode !== null && (
+      {/* THE SESSION STAYS ON SCREEN WHILE YOU RATE. `drillrate` is no
+          longer a page of its own — it is the session screen with the
+          rating box where the Start button was. */}
+      {!confirmingCancel && (step === 'session' || step === 'drillrate') && mode !== null && (
         <SessionStep
           mode={mode}
           seconds={sessionSeconds}
@@ -747,6 +751,26 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           testDraft={testDraft}
           onTestDraftChange={setTestDraft}
           metronomeOn={metronomePlaying}
+          /* RATED WHERE IT WAS PLAYED — under the run-throughs list and
+             above Open Lead Sheet, exactly as the prototype draws it. */
+          rating={step === 'drillrate' && draft !== null ? (
+            <RunRatingBox
+              awaitingVerdict={awaitingVerdict}
+              onDiscardRun={discardRun}
+              surface={surface}
+              openedOn={surface.scopeOptions?.find(o => o.id === surface.openedOnScopeId)?.label ?? null}
+              scope={scope}
+              onScope={setScope}
+              mode={mode}
+              ranSeconds={ranSeconds}
+              index={drills.length + 1}
+              onRate={(feel: Feel) => {
+                if (mode === 'test') void finishTestDrill(feel);
+                else void finishPracticeDrill(feel);
+              }}
+              onSkip={() => void finishPracticeDrill(null)}
+            />
+          ) : null}
           ladder={ladder}
           paused={paused}
           onTogglePause={togglePause}
@@ -860,25 +884,6 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         />
       )}
 
-      {!confirmingCancel && step === 'drillrate' && draft !== null && mode !== null && (
-        <DrillRateStep
-          awaitingVerdict={awaitingVerdict}
-          onDiscardRun={discardRun}
-          surface={surface}
-          openedOn={surface.scopeOptions?.find(o => o.id === surface.openedOnScopeId)?.label ?? null}
-          scope={scope}
-          onScope={setScope}
-          mode={mode}
-          seconds={sessionSeconds}
-          ranSeconds={ranSeconds}
-          index={drills.length + 1}
-          onRate={feel => {
-            if (mode === 'test') finishTestDrill(feel);
-            else void finishPracticeDrill(feel);
-          }}
-          onSkip={() => void finishPracticeDrill(null)}
-        />
-      )}
     </Modal>
   );
 }
@@ -999,7 +1004,7 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 
 function SessionStep({
   mode, seconds, drills, saving, surface, testDraft, onTestDraftChange,
-  metronomeOn, ladder, paused, onTogglePause, onStartDrill, onEndSession,
+  metronomeOn, rating, ladder, paused, onTogglePause, onStartDrill, onEndSession,
 }: {
   mode: SessionMode;
   seconds: number;
@@ -1010,6 +1015,11 @@ function SessionStep({
   testDraft: DrillDraft | null;
   onTestDraftChange: (next: DrillDraft) => void;
   metronomeOn: boolean;
+  /** The rating box for the run just played, or null when no run is
+   *  waiting to be rated. It sits where the Start button goes, because
+   *  they are the two answers to "what now" and only one is ever
+   *  true. */
+  rating: ReactNode | null;
   /** The rungs this test moves between, or null before the item's
    *  current standing has been read. */
   ladder: LadderRungs | null;
@@ -1089,13 +1099,19 @@ function SessionStep({
           surface and not the others. Said above rather than in a
           tooltip — a disabled control with its reason behind a hover
           is a dead end, and this is the one place someone is stuck. */}
-      {mode === 'test' && !metronomeOn && !paused && (
+      {rating === null && mode === 'test' && !metronomeOn && !paused && (
         <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-snug">
           Start the metronome to begin a test run.
         </p>
       )}
 
+      {/* ONE OR THE OTHER. A run waiting to be rated and an offer to
+          start another are two answers to "what now", and only one of
+          them is ever true. */}
+      {rating}
+
       <div className="flex items-center gap-2 flex-wrap">
+        {rating === null && (
         <button
           type="button"
           onClick={onStartDrill}
@@ -1106,6 +1122,7 @@ function SessionStep({
             ? `Start Test Run ${drills.length + 1}`
             : 'Start A Practice Drill'}
         </button>
+        )}
         {/* THE THIRD EXIT. Done ends it, Cancel throws it away, and
             this is the one for walking away from the piano — which is
             neither, and had nowhere to go. */}
@@ -1458,16 +1475,31 @@ function DrillingStep({
 
 // ---------------------------------------------------------------------
 
-function DrillRateStep({
+/**
+ * Rating the run you just played, where you played it.
+ *
+ * =====================================================================
+ * IT WAS A SCREEN. NOW IT IS A BOX UNDER THE RUN LIST.
+ *
+ * A separate rate step meant the session vanished at the moment you
+ * were asked about it — the clock, the streak, the runs behind it, all
+ * replaced by a page asking one question. The prototype rates in place
+ * and keeps the session on screen, which is also the only way the same
+ * box can appear in the strip.
+ *
+ * The clock face went with the step: the session screen already has
+ * one, and two clocks on one screen is one too many.
+ * =====================================================================
+ */
+function RunRatingBox({
   awaitingVerdict, onDiscardRun,
-  mode, seconds, ranSeconds, index, surface, openedOn, scope, onScope, onRate, onSkip,
+  mode, ranSeconds, index, surface, openedOn, scope, onScope, onRate, onSkip,
 }: {
   /** The run ended because the metronome stopped, and the question
    *  has not been answered. */
   awaitingVerdict: boolean;
   onDiscardRun: () => void;
   mode: SessionMode;
-  seconds: number;
   ranSeconds: number;
   index: number;
   surface: DrillSurface;
@@ -1479,11 +1511,16 @@ function DrillRateStep({
   onSkip: () => void;
 }) {
   const tooShort = isTooShort(ranSeconds, MIN_REP_SECONDS);
-  const options = surface.scopeOptions;
+  // A TEST'S COVERAGE IS FIXED WHEN THE TEST IS OPENED. `entry` decides
+  // it, and nothing after the run may widen it — the writer has always
+  // enforced this by sending `scope: null` on a test, so the control
+  // was visible and inert there. Practice is the opposite case: seeing
+  // afterwards that a run covered the chorus too is a real thing to
+  // want, and the picker is how you say so.
+  const options = mode === 'practice' ? surface.scopeOptions : null;
   const wholeSong = options !== null && scope.length === options.length;
   return (
-    <div className="space-y-4">
-      <SessionClockFace seconds={seconds} mode={mode} />
+    <div className="space-y-4 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
 
       {/* THE METRONOME STOPPED, SO THE RUN DID. Not a discard — a
           question. The chips below are still the way to answer "yes I
@@ -1562,23 +1599,11 @@ function DrillRateStep({
       )}
 
       <div>
-        <SectionLabel hint={mode === 'test' ? 'Required' : 'Optional'}>How Did That Go</SectionLabel>
-        {/* BEST FIRST. The four words and their order are the same on
-            every surface; only the direction differs from the block
-            wrap-up, which reads worst-first. */}
-        <div className="grid grid-cols-1 gap-2">
-          {[...FEEL_CARD_OPTIONS].reverse().map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onRate(opt.value)}
-              className={`w-full px-3 py-2 rounded-md border text-sm text-left transition-colors ${opt.inactiveClass}`}
-            >
-              <span className="font-medium">{opt.label}</span>
-              <span className="ml-2 opacity-70 text-xs">{opt.hint}</span>
-            </button>
-          ))}
-        </div>
+        <SectionLabel hint={mode === 'test' ? 'Required' : 'Optional'}>Rate That Run</SectionLabel>
+        {/* BEST FIRST, and the one rendering of the four ratings. The
+            block wrap-up reads worst-first and says so; the direction
+            is the caller's, not the component's. */}
+        <RatingChips onRate={onRate} order="best-first" />
       </div>
 
       {/* NO SKIP IN A TEST. Every one of the three is rated — that is

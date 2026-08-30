@@ -1,7 +1,8 @@
 import MetronomeControl from '../../../components/MetronomeControl';
 import StreakCircles from './StreakCircles';
 import { formatClock } from '../../shapes-and-patterns/practiceTest/sessionClock';
-import { FEEL_OPTIONS, type Feel } from '../../../lib/fluencyScale';
+import type { Feel } from '../../../lib/fluencyScale';
+import RatingChips from '../../shapes-and-patterns/practiceTest/RatingChips';
 
 /**
  * The session, as a bar across the top of the lead sheet.
@@ -230,17 +231,10 @@ export default function SessionStrip({
         <>
           {/* THE FOUR CHIPS ARE HOW A RUN FINISHES. On a test that is
               the only way, which is why they sit where a Finish button
-              would otherwise be. */}
-          {FEEL_OPTIONS.map(o => (
-            <button
-              key={o.feel}
-              type="button"
-              onClick={() => onRate(o.feel)}
-              className="px-2 py-1 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            >
-              {o.label}
-            </button>
-          ))}
+              would otherwise be. The same component the panel uses —
+              one rendering of the four ratings, so a run rated here and
+              a run rated there are visibly the same question. */}
+          <RatingChips onRate={onRate} dense />
           {/* PRACTICE ONLY. Null handler, null button — see the header. */}
           {onFinishRun !== null && (
             <button

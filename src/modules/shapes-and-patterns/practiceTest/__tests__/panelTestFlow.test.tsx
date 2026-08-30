@@ -790,3 +790,167 @@ describe('stopping the metronome ends the run and asks — in both views', () =>
     r.unmount();
   });
 });
+
+describe('one rendering of the four ratings', () => {
+  const withSheet = () => surface({
+    openItem: () => {},
+    sessionMetronome: true,
+    scopeOptions: [{ id: 's1', label: 'Verse 1' }, { id: 's2', label: 'Chorus' }],
+    openedOnScopeId: 's1',
+  });
+
+  it('rates in place, with the session still on screen', async () => {
+    // It used to be a page of its own, so the clock, the streak and the
+    // runs behind it all vanished at the moment you were asked about
+    // them.
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Done');
+    expect(r.text()).toContain('Rate That Run');
+    expect(r.text()).toContain('0 of 3');
+    r.unmount();
+  });
+
+  it('offers Start OR the rating, never both', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Done');
+    expect(r.labels().some(l => l.startsWith('Start Test Run'))).toBe(false);
+    r.unmount();
+  });
+
+  it('the retired label is gone', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Done');
+    expect(r.text()).not.toContain('How Did That Go');
+    r.unmount();
+  });
+
+  it('PANEL AND STRIP REACH THE SAME RESULT from the same four chips', async () => {
+    // The point of the extraction: not that they look alike, but that
+    // a run rated either side goes through one renderer and one
+    // handler.
+    const inPanel = render(withSheet());
+    await inPanel.pressStartingWith('Test');
+    await inPanel.run('Clean');
+    const panelWrite = { ...written[0] };
+    inPanel.unmount();
+
+    written.length = 0;
+    document.body.innerHTML = '';
+    const inStrip = render(withSheet());
+    await inStrip.pressStartingWith('Test');
+    await inStrip.press('Open Lead Sheet');
+    await inStrip.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await inStrip.pressStartingWith('Clean');
+
+    expect(written).toHaveLength(1);
+    expect(written[0].feel).toBe(panelWrite.feel);
+    expect(written[0].fromTest).toBe(panelWrite.fromTest);
+    expect(written[0].scope).toBe(panelWrite.scope);
+    inStrip.unmount();
+  });
+
+  it('the third clean run ends the test from the PANEL', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.run('Clean');
+    expect(passes).toHaveBeenCalledTimes(1);
+    r.unmount();
+  });
+
+  it('and from the STRIP', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.press('Open Lead Sheet');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Clean');
+    expect(passes).toHaveBeenCalledTimes(1);
+    r.unmount();
+  });
+
+  it('a shapes run still rates and records — no surface is gated out', async () => {
+    // Chord shapes, scales and voice-leading got the chips too. Same
+    // four ratings, same moment, same order — smaller.
+    const shapes = surface({
+      hasStyle: true, countsUp: false, scopeOptions: null,
+      openItem: null, sessionMetronome: false,
+      rateOptions: [{ per: 1, label: 'One Shape Per Beat' }],
+    });
+    const r = render(shapes);
+    await r.pressStartingWith('Practice');
+    await r.pressStartingWith('Start A Practice');
+    // A shapes drill has something to set up, so the form still opens
+    // in practice — that is unchanged and deliberate. Practice picks
+    // its own style, and Start stays disabled until it has.
+    await r.press('Blocked');
+    await r.press('Start Drill');
+    // A count-DOWN drill finishes itself when the countdown fires, so
+    // there is nothing to press: the rating box is already there.
+    await act(async () => { vi.advanceTimersByTime(61_000); });
+    expect(r.text()).toContain('Rate That Run');
+    await r.pressStartingWith('Clean');
+    expect(written).toHaveLength(1);
+    expect(written[0].feel).toBe(3);
+    r.unmount();
+  });
+});
+
+describe('the scope picker is a practice control', () => {
+  const withSections = () => surface({
+    sessionMetronome: true,
+    scopeOptions: [{ id: 's1', label: 'Verse 1' }, { id: 's2', label: 'Chorus' }],
+    openedOnScopeId: 's1',
+  });
+
+  it('A PRACTICE RUN CAN WIDEN WHAT IT COUNTED FOR, after playing it', async () => {
+    // Seeing afterwards that a run covered the chorus too is a real
+    // thing to want, and this is how you say so.
+    const r = render(withSections());
+    await r.pressStartingWith('Practice');
+    await r.pressStartingWith('Start A Practice');
+    await act(async () => { vi.advanceTimersByTime(61_000); });
+    await r.pressStartingWith('Done');
+    expect(r.text()).toContain('What Was That Run');
+    await r.press('Chorus');
+    await r.pressStartingWith('Clean');
+    expect(written[0].scope).toEqual(['s2']);
+    r.unmount();
+  });
+
+  it('A TEST RUN HAS NO SCOPE CONTROL', async () => {
+    // What a test counts for is fixed when the test is opened. `entry`
+    // decides it and nothing after the run may widen it.
+    const r = render(withSections());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Done');
+    expect(r.text()).toContain('Rate That Run');
+    expect(r.text()).not.toContain('What Was That Run');
+    r.unmount();
+  });
+
+  it('and records only what it was opened for', async () => {
+    // Unchanged by this commit: the writer has always sent `scope:
+    // null` on a test, so the control was visible and inert there.
+    const r = render(withSections());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    expect(written[0].scope).toBeNull();
+    r.unmount();
+  });
+});
