@@ -56,6 +56,7 @@ import TestPassedScreen, {
   type TestPassEarned,
 } from '../../repertoire/matrix/TestPassedScreen';
 import TestLadderBand from './TestLadderBand';
+import SessionStrip from '../../repertoire/matrix/SessionStrip';
 import { formatClock, useSessionClock } from './sessionClock';
 import { newSessionId } from '../../../lib/sessionId';
 import type { BandVerdict } from '../../../lib/spacing/banding';
@@ -154,6 +155,56 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    * =====================================================================
    */
   const [paused, setPaused] = useState(false);
+  /**
+   * Which shape the panel is wearing.
+   *
+   * =====================================================================
+   * THE PANEL WAS ONLY EVER A DIALOG, AND THAT WAS THE BUG.
+   *
+   * `Modal` was returned unconditionally, so the only way to reveal the
+   * page behind it was to unmount — and the session state lives here,
+   * so unmounting ENDED THE SESSION. Open Lead Sheet therefore threw
+   * away the clock, the streak and every banked run to show a chart.
+   *
+   * A view is the fix rather than a patch: in `sheet` the same mounted
+   * component returns `SessionStrip` in a fixed wrapper instead of the
+   * modal. Nothing about the session is touched, because nothing about
+   * the session unmounts.
+   *
+   * Only the song surface has an `openItem`, so `sheet` is a song's
+   * shape — and songs count up, which is why the strip's run clock
+   * never needs a countdown.
+   * =====================================================================
+   */
+  const [view, setView] = useState<'panel' | 'sheet'>('panel');
+  /**
+   * The run in progress, as a timestamp the SESSION owns.
+   *
+   * It used to live inside `DrillingStep`, which is not rendered in
+   * sheet view — so the strip would have had no clock, or a second one
+   * that drifted from the first. One run, one start time, both shapes
+   * reading it.
+   */
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  /**
+   * The metronome stopped mid-run, so the run stopped with it, and the
+   * question has not been answered.
+   *
+   * =====================================================================
+   * THE RULE WAS CLAIMED AND NOT ENFORCED. It lived only in
+   * `WholeSongTestModal`, which was deleted in the flip — the strip
+   * kept all four pieces and this panel had none of them, so an app
+   * that told the user a test must be played to a running metronome
+   * stopped checking.
+   *
+   * It ends the run and ASKS rather than discarding: only the player
+   * knows whether he had already got to the end, and the rating system
+   * already takes his word for Clean versus Struggled.
+   * =====================================================================
+   */
+  const [awaitingVerdict, setAwaitingVerdict] = useState(false);
+  /** What was just thrown away, and why. Cleared when a run starts. */
+  const [discardedMessage, setDiscardedMessage] = useState('');
   /** Whether the metronome was sounding when the pause began, so
    *  resuming restores what was there rather than a default. */
   const metronomeWasOn = useRef(false);
@@ -196,6 +247,9 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   const sessionSeconds = useSessionClock(
     mode !== null && !paused, surface.readSessionElapsedMs,
   );
+  // The run's own clock, stopped by a pause and by the metronome's
+  // verdict — both of which end a run rather than pausing one.
+  const runSeconds = useSessionClock(runStartedAt !== null && !paused);
   const clockHasRun = mode !== null && step !== 'done';
 
   /**
@@ -231,6 +285,58 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       emphasised: false,
     };
   })();
+
+  /**
+   * A run starts. One path, whichever shape asked for it.
+   *
+   * The step still moves to `drilling` in sheet view even though no
+   * step renders there — it is what the panel returns to on Back To
+   * The Session, and a run that vanished on the way back would be a
+   * run the strip and the panel disagreed about.
+   */
+  const beginRun = () => {
+    setRanSeconds(0);
+    setAwaitingVerdict(false);
+    setDiscardedMessage('');
+    setRunStartedAt(Date.now());
+    setStep('drilling');
+  };
+
+  /**
+   * The metronome stopped while a run was going.
+   *
+   * ENDS THE RUN, DOES NOT DISCARD IT. The clock freezes where it
+   * stopped — `ranSeconds` takes the frozen value, and `runStartedAt`
+   * is cleared so nothing keeps counting — and the four chips stay
+   * available beside an explicit discard. Practice is unaffected: the
+   * metronome is optional there, so stopping it means nothing.
+   */
+  const onMetronomeStopped = () => {
+    if (mode !== 'test' || runStartedAt === null) return;
+    setRanSeconds(runSeconds);
+    setRunStartedAt(null);
+    setAwaitingVerdict(true);
+    setStep('drillrate');
+  };
+
+  /**
+   * "I didn't finish it."
+   *
+   * THE RUN IS GONE AND THE STREAK IS NOT TOUCHED. Nothing is written
+   * and nothing joins `drills`, so the streak reads exactly as it did
+   * before the run started. A run you abandoned is not a run you
+   * failed — failing is what the chips are for, and Struggled already
+   * costs the streak.
+   */
+  const discardRun = () => {
+    setAwaitingVerdict(false);
+    setRunStartedAt(null);
+    setDiscardedMessage(
+      `Test Run ${drills.length + 1} was discarded. `
+      + 'Start it again when you\u2019re back.',
+    );
+    setStep('session');
+  };
 
   const togglePause = () => {
     // THE SURFACE HEARS IT TOO, where its clock is a stored record.
@@ -278,19 +384,31 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
 
   /** Everything one finished drill needs, before it is known whether
    *  it will be written. */
-  const completed = (feel: CompletedDrill['feel']): CompletedDrill => {
+  const completed = (
+    feel: CompletedDrill['feel'],
+    // HOW LONG IT RAN, PASSED IN. The panel's rate step banks it in
+    // state on the way through; the strip rates a run without one, so
+    // it hands over the live figure. A default reading state would
+    // have made a strip-rated run zero seconds long — and therefore
+    // "too short", and therefore never written.
+    ran: number = ranSeconds,
+  ): CompletedDrill => {
     const d = draft as DrillDraft;
     const bpm = metronome.state.bpm;
     return {
       id: `drill-${drills.length + 1}`,
       style: d.style,
-      ranSeconds,
+      ranSeconds: ran,
       bpm,
       per: d.per,
       rate: rateFor(surface, bpm, d.per),
       belowTarget: !isAtTarget(surface, bpm, d.per),
       feel,
-      tooShort: isTooShort(ranSeconds, MIN_REP_SECONDS),
+      // FROM THE SAME NUMBER THE ROW RECORDS. Reading state here while
+      // the row recorded `ran` would have made a strip-rated run "too
+      // short" on a length it did not have — and a too-short run is
+      // silently not written.
+      tooShort: isTooShort(ran, MIN_REP_SECONDS),
     };
   };
 
@@ -318,9 +436,11 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   const sessionIdNow = () =>
     surface.readSessionId?.() ?? panelSessionId.current;
 
-  const finishPracticeDrill = async (feel: CompletedDrill['feel']) => {
+  const finishPracticeDrill = async (
+    feel: CompletedDrill['feel'], ran: number = ranSeconds,
+  ) => {
     if (saving) return;
-    const d = completed(feel);
+    const d = completed(feel, ran);
     setDrills(prev => [...prev, d]);
     setDraft(null);
     setStep('session');
@@ -379,12 +499,16 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    * There is no Save step. The third clean run is the pass.
    * =====================================================================
    */
-  const finishTestDrill = async (feel: CompletedDrill['feel']) => {
+  const finishTestDrill = async (
+    feel: CompletedDrill['feel'], ran: number = ranSeconds,
+  ) => {
     if (saving) return;
-    const d = completed(feel);
+    const d = completed(feel, ran);
     const next = [...drills, d];
     setDrills(next);
     setDraft(null);
+    setRunStartedAt(null);
+    setAwaitingVerdict(false);
     setStep('session');
 
     // A run too short to have been real is on the list saying so, and
@@ -450,6 +574,57 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
     }
   };
 
+  // THE SHEET HAS THE PAGE. No Modal, no overlay — the host is already
+  // rendering the lead sheet underneath, and this is the session laid
+  // across the top of it. Same mounted component, so the clock, the
+  // streak and every banked run survive the switch and survive coming
+  // back.
+  if (view === 'sheet' && mode !== null) {
+    return (
+      <div className="fixed inset-x-0 top-0 z-40">
+        <SessionStrip
+          kind={mode === 'test' ? 'testing' : 'practice'}
+          metronomeOn={metronomePlaying}
+          blockReason={mode === 'test' && !metronomePlaying && runStartedAt === null
+            ? 'Start the metronome to begin a test run.'
+            : null}
+          awaitingVerdict={awaitingVerdict}
+          onDiscardRun={discardRun}
+          onMetronomeStopped={onMetronomeStopped}
+          discardedMessage={discardedMessage}
+          sessionSeconds={sessionSeconds}
+          runSeconds={runStartedAt === null && !awaitingVerdict ? null : runSeconds}
+          nextRunNumber={drills.length + 1}
+          paused={paused}
+          onPauseToggle={togglePause}
+          streak={mode === 'test' ? projectTestStreak(drills.map(streakRun)) : null}
+          streakBroken={mode === 'test'
+            && projectTestStreak(drills.map(streakRun)) === 0
+            && drills.length > 0
+            && streakRun(drills[drills.length - 1]).counts}
+          onRate={feel => {
+            // THE LIVE FIGURE, because the strip has no rate step to
+            // bank it in on the way through.
+            if (mode === 'test') void finishTestDrill(feel, runSeconds);
+            else void finishPracticeDrill(feel, runSeconds);
+          }}
+          onStartRun={() => {
+            if (mode === 'test' && testDraft !== null) setDraft(testDraft);
+            else setDraft(newDraft());
+            beginRun();
+          }}
+          // A TEST RUN ENDS BY RATING IT. Null is the absence of a
+          // handler, which is what makes the button absent.
+          onFinishRun={mode === 'practice'
+            ? () => void finishPracticeDrill(null, runSeconds)
+            : null}
+          onSave={() => { setView('panel'); setStep(mode === 'practice' ? 'wrap' : 'session'); }}
+          onBack={() => setView('panel')}
+        />
+      </div>
+    );
+  }
+
   return (
     <Modal
       open
@@ -508,22 +683,47 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           happens between runs — reading the chart, finding a voicing,
           playing a passage over — and a click that only exists inside
           a timed drill is not available for any of it. */}
-      {!confirmingCancel && step === 'session' && mode !== null && surface.sessionMetronome && (
+      {/* ON SCREEN THROUGHOUT, not only between runs. The prototype's
+          panel keeps the metronome visible for the whole session, and
+          it has to be: stopping it mid-run ends the run, and a control
+          that vanished the moment a run began would make that rule
+          unreachable from the panel. */}
+      {!confirmingCancel && mode !== null && surface.sessionMetronome
+        && (step === 'session' || step === 'drilling' || step === 'drillrate') && (
         // THE SONG'S BOX WHERE THERE IS ONE. It carries the tempo
         // window, the clamping stepper and the no-tempo prompt — none
         // of which a bare control has, and all of which are what makes
         // the gate visible rather than merely enforced.
-        surface.renderMetronome?.() ?? <MetronomeControl />
+        // THE INTERCEPT HOLDS IN BOTH SHAPES. Reported from the press
+        // rather than watched, so a `forceStop` from the global
+        // session banner cannot end a run the player is in.
+        surface.renderMetronome?.(onMetronomeStopped)
+          ?? <MetronomeControl onStoppedByUser={onMetronomeStopped} />
       )}
 
       {!confirmingCancel && step === 'session' && mode !== null && surface.openItem !== null && (
         <button
           type="button"
-          onClick={surface.openItem}
+          onClick={() => {
+            // REVEAL, NOT LEAVE. The panel changes its own shape and
+            // the host scrolls the sheet into view; it used to close
+            // the panel, which ended the session to show a chart.
+            setView('sheet');
+            surface.openItem?.();
+          }}
           className="w-full px-3 py-2.5 rounded-lg bg-info text-white text-sm font-medium hover:opacity-90"
         >
           Open Lead Sheet
         </button>
+      )}
+
+      {/* WHAT WAS DISCARDED, NAMED — in the panel as well as the
+          strip. A run and a session are different things and only one
+          of them was thrown away. */}
+      {!confirmingCancel && discardedMessage !== '' && !awaitingVerdict && mode !== null && (
+        <div className="text-xs text-neutral-500 dark:text-neutral-400">
+          {discardedMessage}
+        </div>
       )}
 
       {/* THE PAUSED STATE, SAID IN WORDS. A stopped clock is something
@@ -557,8 +757,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
             // Start.
             if (mode === 'test' && testDraft !== null) {
               setDraft(testDraft);
-              setRanSeconds(0);
-              setStep('drilling');
+              beginRun();
               return;
             }
             const draft = newDraft();
@@ -573,8 +772,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
             // option was not 1 would otherwise start a run at a rate
             // nobody chose and nothing displayed.
             setDraft({ ...draft, per: surface.rateOptions[0]?.per ?? draft.per });
-            setRanSeconds(0);
-            setStep('drilling');
+            beginRun();
           }}
           onEndSession={() => {
             // PRACTICE ENDS AT THE WRAP, not at the door. The session's
@@ -664,6 +862,8 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
 
       {!confirmingCancel && step === 'drillrate' && draft !== null && mode !== null && (
         <DrillRateStep
+          awaitingVerdict={awaitingVerdict}
+          onDiscardRun={discardRun}
           surface={surface}
           openedOn={surface.scopeOptions?.find(o => o.id === surface.openedOnScopeId)?.label ?? null}
           scope={scope}
@@ -1259,8 +1459,13 @@ function DrillingStep({
 // ---------------------------------------------------------------------
 
 function DrillRateStep({
+  awaitingVerdict, onDiscardRun,
   mode, seconds, ranSeconds, index, surface, openedOn, scope, onScope, onRate, onSkip,
 }: {
+  /** The run ended because the metronome stopped, and the question
+   *  has not been answered. */
+  awaitingVerdict: boolean;
+  onDiscardRun: () => void;
   mode: SessionMode;
   seconds: number;
   ranSeconds: number;
@@ -1279,6 +1484,27 @@ function DrillRateStep({
   return (
     <div className="space-y-4">
       <SessionClockFace seconds={seconds} mode={mode} />
+
+      {/* THE METRONOME STOPPED, SO THE RUN DID. Not a discard — a
+          question. The chips below are still the way to answer "yes I
+          finished it"; this adds the other answer, which nothing else
+          offers. */}
+      {awaitingVerdict && (
+        <div className="space-y-2">
+          <p className="text-xs leading-snug text-neutral-700 dark:text-neutral-200">
+            <b>Did you finish that run?</b> The metronome stopped, so the run
+            stopped with it. Rate it if you got to the end. If you did not,
+            discarding it costs you the run — your streak is untouched.
+          </p>
+          <button
+            type="button"
+            onClick={onDiscardRun}
+            className="px-3 py-1.5 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            I didn&rsquo;t finish it — discard this run
+          </button>
+        </div>
+      )}
 
       {tooShort && (
         <div className="rounded-md border-l-[3px] border-developing bg-developing/5 px-3 py-2.5 text-xs text-neutral-700 dark:text-neutral-200">

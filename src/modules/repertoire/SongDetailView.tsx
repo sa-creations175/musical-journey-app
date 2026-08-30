@@ -2489,8 +2489,10 @@ function SongDetailInner({
           entry="section"
           isRetest={false}
           spelling={songSpelling}
+          /* REVEAL, NOT CLOSE. The panel wears the strip itself now;
+             all the page has to do is put the chart under it. Closing
+             here is what used to end the session. */
           onOpenLeadSheet={() => {
-            closeCellPanel();
             leadSheetRef.current?.scrollIntoView({ behavior: 'smooth' });
           }}
           onClose={closeCellPanel}

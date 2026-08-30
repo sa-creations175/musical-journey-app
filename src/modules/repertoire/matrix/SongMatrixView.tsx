@@ -407,7 +407,10 @@ export default function SongMatrixView({
           entry="whole-song"
           isRetest={activeTestIsRetest}
           spelling={spelling}
-          onOpenLeadSheet={closeTestModal}
+          /* REVEAL, NOT CLOSE. The matrix does not own the chart —
+             the song page below it does — so there is nothing to
+             scroll from here. Closing was what ended the session. */
+          onOpenLeadSheet={() => {}}
           onClose={() => { closeTestModal(); bumpRefresh(); }}
         />
       )}

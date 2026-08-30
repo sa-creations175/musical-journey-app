@@ -371,7 +371,7 @@ export function songSurface(args: {
   /** The song's metronome box — the gate, the window sentence and the
    *  no-tempo prompt. Owned by the caller because setting a song's
    *  tempo is a write to the song. */
-  renderMetronome: () => ReactNode;
+  renderMetronome: (onStoppedByUser: () => void) => ReactNode;
   /** The song's sections, in order, for the scope chips and the wrap. */
   sections: ReadonlyArray<{ id: string; label: string }>;
   /** Collapse the panel to a bar and show the chart. */

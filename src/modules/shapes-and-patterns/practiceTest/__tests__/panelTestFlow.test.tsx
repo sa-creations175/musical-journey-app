@@ -630,3 +630,163 @@ describe('the ladder band — where you are, and what it gets you', () => {
     r.unmount();
   });
 });
+
+describe('Open Lead Sheet reveals the chart without ending the session', () => {
+  /** The song surface is the only one with an `openItem`, so it is the
+   *  only one that can wear the sheet. */
+  const withSheet = (onOpen = () => {}) => surface({
+    openItem: onOpen,
+    sessionMetronome: true,
+    scopeOptions: [{ id: 's1', label: 'Verse 1' }],
+    openedOnScopeId: 's1',
+  });
+
+  it('swaps the panel for the strip', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.press('Open Lead Sheet');
+    expect(r.labels()).toContain('Back To The Session');
+    expect(r.labels()).not.toContain('Open Lead Sheet');
+    r.unmount();
+  });
+
+  it('tells the host to reveal the item — it does not close', async () => {
+    // `openItem` used to mean "leave". The host scrolls; the panel
+    // stays mounted, which is the whole of the fix.
+    const onOpen = vi.fn();
+    const r = render(withSheet(onOpen));
+    await r.pressStartingWith('Test');
+    await r.press('Open Lead Sheet');
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    r.unmount();
+  });
+
+  it('THE BANKED RUNS AND THE STREAK SURVIVE THE SWITCH, AND SURVIVE COMING BACK', async () => {
+    // The bug: the panel could only ever be a dialog, so revealing the
+    // page behind it meant unmounting — and the session state lives in
+    // the panel, so two clean runs died to show a chart.
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    expect(r.text()).toContain('2 of 3');
+
+    await r.press('Open Lead Sheet');
+    expect(r.text()).toContain('2 of 3');
+
+    await r.press('Back To The Session');
+    expect(r.text()).toContain('2 of 3');
+    expect(r.labels()).toContain('Open Lead Sheet');
+    r.unmount();
+  });
+
+  it('and a third clean run from the STRIP still passes the test', async () => {
+    // Proof the session is one session: two runs rated in the panel,
+    // the third in the strip, and the streak completes across both.
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.press('Open Lead Sheet');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Clean');
+    expect(passes).toHaveBeenCalledTimes(1);
+    r.unmount();
+  });
+});
+
+describe('stopping the metronome ends the run and asks — in both views', () => {
+  const withSheet = () => surface({
+    openItem: () => {},
+    sessionMetronome: true,
+    scopeOptions: [{ id: 's1', label: 'Verse 1' }],
+    openedOnScopeId: 's1',
+  });
+
+  /** Stop it the way a user does: from the control's own button. */
+  const stopMetronome = async () => {
+    metronomePlaying = false;
+    const btn = [...document.body.querySelectorAll('button')]
+      .find(b => b.getAttribute('aria-label') === 'stop metronome');
+    if (!btn) throw new Error('no metronome stop button');
+    await act(async () => { btn.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+  };
+
+  it('asks in the PANEL', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await stopMetronome();
+    expect(r.text()).toContain(
+      'Did you finish that run? The metronome stopped, so the run stopped '
+      + 'with it. Rate it if you got to the end. If you did not, discarding '
+      + 'it costs you the run — your streak is untouched.',
+    );
+    r.unmount();
+  });
+
+  it('asks in the STRIP', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.press('Open Lead Sheet');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await stopMetronome();
+    expect(r.text()).toContain('Did you finish that run?');
+    r.unmount();
+  });
+
+  it('THE CHIPS ARE STILL THERE — they are the other answer', async () => {
+    // "Rate it if you got to the end." A prompt offering only the
+    // discard would make the question rhetorical.
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await stopMetronome();
+    expect(r.labels().some(l => l.startsWith('Clean'))).toBe(true);
+    r.unmount();
+  });
+
+  it('DISCARDING COSTS THE RUN AND NOT THE STREAK', async () => {
+    // A run you abandoned is not a run you failed. Failing is what the
+    // chips are for, and Struggled already costs the streak.
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await stopMetronome();
+    written.length = 0;
+    await r.pressStartingWith('I didn');
+    expect(r.text()).toContain('2 of 3');
+    expect(written).toHaveLength(0);
+    expect(r.text()).toContain('was discarded');
+    r.unmount();
+  });
+
+  it('rating it instead keeps the run', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await stopMetronome();
+    await r.pressStartingWith('Clean');
+    expect(written).toHaveLength(1);
+    expect(r.text()).toContain('1 of 3');
+    r.unmount();
+  });
+
+  it('DOES NOT ASK IN PRACTICE — the metronome is optional there', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Practice');
+    await r.pressStartingWith('Start A Practice');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await stopMetronome();
+    expect(r.text()).not.toContain('Did you finish that run?');
+    r.unmount();
+  });
+});

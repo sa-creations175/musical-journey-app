@@ -140,8 +140,12 @@ export default function SongPracticePanel({
         if (paused) live.current.timer.pause();
         else live.current.timer.resume();
       },
-      renderMetronome: () => (
+      // THE STOP INTERCEPT REACHES THE SONG'S BOX TOO. Without it the
+      // rule would hold on three surfaces and not on the one it was
+      // written for.
+      renderMetronome: (onStoppedByUser) => (
         <SongMetronomeBox
+          onStoppedByUser={onStoppedByUser}
           /* TESTING'S RULES, BECAUSE THEY ARE THE STRICTER ONES AND
              THE PANEL HAS NOT SAID WHICH MODE YET WHEN THIS IS BUILT.
              A practice session under a test-shaped box sees a floor it

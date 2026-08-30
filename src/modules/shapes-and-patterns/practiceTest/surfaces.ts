@@ -284,7 +284,7 @@ export interface DrillSurface {
    * set. So the box is the song's and the three others use the control
    * they always did.
    */
-  renderMetronome: (() => ReactNode) | null;
+  renderMetronome: ((onStoppedByUser: () => void) => ReactNode) | null;
   /**
    * Tell the surface the session paused or resumed.
    *
