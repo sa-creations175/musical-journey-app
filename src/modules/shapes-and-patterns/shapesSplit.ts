@@ -64,7 +64,7 @@ import {
   isTrackedShape,
   type SPTier,
 } from './spTiers';
-import { canonicaliseKey } from '../repertoire/circleOfFourths';
+import { circleOfFourthsIndex } from '../repertoire/circleOfFourths';
 import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
 import {
   SCALES_SEGMENT_LONG_BLOCK_SECONDS,
@@ -812,21 +812,25 @@ interface VLCell {
   blockIndex: number;
 }
 
-/** Circle-of-fourths key ordering for VL sort tiebreak. Unstarted
- *  VL cells within the same pattern/type/position group surface in
- *  C → F → Bb → Eb → Ab → Db → Gb → B → E → A → D → G order rather
- *  than chromatic — the design wants users walking the wheel as
- *  they extend a pattern across keys. */
-const VL_CIRCLE_KEY_INDEX: ReadonlyMap<string, number> = new Map(
-  CIRCLE_OF_FOURTHS.map((k, i) => [k, i]),
-);
-
-/** Lookup a key's circle-of-fourths position. Canonicalises sharp
- *  spellings (e.g. 'F#' → 'Gb') so VL cells enumerated from the
- *  chromatic KEYS array match the flat-side circle of fourths. */
+/**
+ * A key's circle-of-fourths position, for the VL sort tiebreak.
+ *
+ * Unstarted VL cells within the same pattern/type/position group
+ * surface in wheel order rather than chromatic — the design wants the
+ * reader walking the wheel as they extend a pattern across keys.
+ *
+ * THE LAST LOCAL COPY OF THIS ORDERING, now folded in. It built its
+ * own index over `CIRCLE_OF_FOURTHS` and canonicalised before looking
+ * up, which is `circleOfFourthsIndex` exactly — same canonicalisation,
+ * same out-of-wheel fallback of `length` so an unknown key sorts last.
+ * Four copies of one ordering is how three chord readers happened, and
+ * a rule that holds only for charts is not a rule.
+ *
+ * Kept as a named function rather than inlined: it says WHICH field
+ * carries the key, which is the only thing local about it.
+ */
 function vlKeyIndex(keyName: string): number {
-  const canonical = canonicaliseKey(keyName) ?? keyName;
-  return VL_CIRCLE_KEY_INDEX.get(canonical) ?? CIRCLE_OF_FOURTHS.length;
+  return circleOfFourthsIndex(keyName);
 }
 
 /** Compute (typeIndex, positionIndex) for a descriptor against its
