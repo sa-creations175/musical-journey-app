@@ -22,7 +22,12 @@ const BY_SECTION = new Map([
   ['sec-bridge', 'cell-bridge-Ab'],
 ]);
 
-function surface(songTempo: number | null = 90) {
+/**
+ * The panel opened on a CELL — a section test — unless told otherwise.
+ * The entry decides what a pass claims, so it is a parameter rather
+ * than something the fixture guesses.
+ */
+function surface(songTempo: number | null = 90, entry: 'section' | 'whole-song' = 'section') {
   return songSurface({
     cellLabel: 'Verse 1 · A♭',
     skillLabel: '',
@@ -40,7 +45,7 @@ function surface(songTempo: number | null = 90) {
     songTitle: 'No Weapon',
     spelledKeyName: 'A\u266d',
     renderBadgePreview: () => null, renderMetronome: () => null,
-    readTestStreak: () => STREAK_BEFORE,
+      entry, sectionLabel: 'Verse 1', onSessionPause: () => {},
     isRetest: false,
     songTempo,
   });
@@ -66,6 +71,7 @@ const run = (over: Partial<DrillRecord> = {}): DrillRecord => ({
   feel: 3,
   fromTest: false,
   sessionId: SESSION,
+  streakBefore: STREAK_BEFORE,
   ...over,
 });
 
@@ -281,8 +287,9 @@ describe('a run writes the cell, the log and the key', () => {
       sections: SECTIONS.map(([id]) => ({ id, label: id })),
       onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => SESSION, expectedSectionCount: BY_SECTION.size,
-      readRunTempo: () => null, readTestStreak: () => 0, isRetest: false,
+      readRunTempo: () => null, isRetest: false,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d', renderBadgePreview: () => null, renderMetronome: () => null,
+      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {},
       songTempo: 90,
     });
     await silent.write(run({ feel: 3 }));
@@ -437,16 +444,32 @@ describe('passing the whole-song test', () => {
     } as never);
   });
 
-  it('is something the surface can record at all', () => {
-    // Three of the four surfaces supply null here — a passed shape test
-    // is entirely described by its reps. A song's is not.
-    expect(surface(90).recordTestPass).not.toBeNull();
+  it('ONLY A WHOLE-SONG PASS LEAVES A DURABLE FACT', () => {
+    // A section test is entirely described by the band its three runs
+    // set — there is no `sectionTestPassedAt` and there should not be,
+    // because a second record could disagree with the band. A
+    // whole-song pass writes `wholeSongTestPassedAt`, which
+    // `stageCriteria` reads, and moves the key's retest clock.
+    expect(surface(90, 'section').recordTestPass).toBeNull();
+    expect(surface(90, 'whole-song').recordTestPass).not.toBeNull();
+  });
+
+  it('and the two entries claim different things', () => {
+    // The section variant of the result screen gets its first live
+    // writer here: nothing wrote a `songCell:` band outside this
+    // surface, and this surface had no caller.
+    expect(surface(90, 'section').describeTestPass('fluent', 3)).toEqual({
+      kind: 'section', sectionLabel: 'Verse 1', band: 'fluent', lowestFeel: 3,
+    });
+    expect(surface(90, 'whole-song').describeTestPass('fluent', 3)).toEqual({
+      kind: 'whole-song', songTitle: 'No Weapon', status: 'comfortable',
+    });
   });
 
   it('writes wholeSongTestPassedAt, which is what stageCriteria reads', async () => {
     // The test stopped writing a status in 831e38b, so this timestamp
     // IS the Learning → Comfortable record.
-    await surface(90).recordTestPass!();
+    await surface(90, 'whole-song').recordTestPass!();
     const key = await db.songKeys.get(KEY);
     expect(key?.wholeSongTestPassedAt).not.toBeNull();
     expect(key?.isRetestRecommended).toBe(false);
@@ -456,7 +479,7 @@ describe('passing the whole-song test', () => {
     const before = await db.spacingState
       .where('itemRef').equals(`songKey:${KEY}`).first();
     expect(before).toBeUndefined();
-    await surface(90).recordTestPass!();
+    await surface(90, 'whole-song').recordTestPass!();
     const after = await db.spacingState
       .where('itemRef').equals(`songKey:${KEY}`).first();
     expect(after).toBeDefined();
@@ -467,7 +490,7 @@ describe('passing the whole-song test', () => {
     // The three runs each wrote their own rating here. A pass adding a
     // fourth would put a Clean rep on the row that nobody played — and
     // under the streak rule that rep could complete a streak by itself.
-    await surface(90).recordTestPass!();
+    await surface(90, 'whole-song').recordTestPass!();
     const row = await db.spacingState
       .where('itemRef').equals(`songKey:${KEY}`).first();
     const history = (row?.performanceHistory ?? []) as Array<Record<string, unknown>>;

@@ -5,7 +5,6 @@ import {
   type Song,
   type SongCell,
   type SongKey,
-  type SongKeyRunThrough,
   type SongMatrixSection,
 } from '../../../lib/db';
 import type { DueWindows } from './keySpacing';
@@ -13,8 +12,7 @@ import SingleRunModal from './SingleRunModal';
 import CrossKeyFollowupModal from './CrossKeyFollowupModal';
 import MatrixGrid from './MatrixGrid';
 import WholeSongTestBanner from './WholeSongTestBanner';
-import WholeSongTestModal from './WholeSongTestModal';
-import KeyRow from './KeyRow';
+import SongPracticePanel from './SongPracticePanel';
 import { computeKeyStateFromCells } from './cellRollup';
 import { hasCrossKeyEngagement } from './songLevelState';
 import { useSongSpelling } from '../useSongSpelling';
@@ -117,12 +115,6 @@ export default function SongMatrixView({
   // row per key sits at the end of its group, ready to read for
   // the streak. Reverse-sort would also work; this matches the
   // append-only semantics of the log.
-  const songKeyRunThroughs = useLiveQuery(
-    () => db.songKeyRunThroughs.where('songId').equals(song.id).sortBy('createdAt'),
-    [song.id, refreshKey],
-    [] as SongKeyRunThrough[],
-  );
-
   // Cross-key follow-up modal — auto-fires once per mount when the
   // song was migrated from legacy `stage: 'cross-key'`, sections
   // exist, and no non-original songKeys rows exist yet. Same close-
@@ -301,12 +293,6 @@ export default function SongMatrixView({
   // Every run-through recorded against the key under test, for the
   // modal's 30-day history. Filtered from the query the strip
   // counters already use rather than subscribing again.
-  const activeTestPastRuns = useMemo(
-    () => activeTestKey
-      ? songKeyRunThroughs.filter(r => r.songKeyId === activeTestKey.id)
-      : [],
-    [activeTestKey, songKeyRunThroughs],
-  );
 
   // A RETEST IS A SPACING QUESTION NOW, NOT A DECAY ONE. `lapsed`
   // was a sub-state of Solid and went with it; whether a key is
@@ -405,41 +391,24 @@ export default function SongMatrixView({
         />
       )}
 
+      {/* THE SHARED PANEL, opened on the KEY ROW rather than a cell.
+          `WholeSongTestModal` ran its own test with its own typed
+          tempo box and its own streak; all three are the panel's now,
+          so what is left is telling it which key and that the claim is
+          the whole song. */}
       {activeTestKey && (
-        <WholeSongTestModal
-          key={activeTestKey.id}
-          open={true}
-          onClose={closeTestModal}
-          onSaved={bumpRefresh}
-          songKey={activeTestKey}
+        <SongPracticePanel
+          key={`${activeTestKey.id}-whole-song`}
           song={song}
-          siblingCells={activeTestSiblingCells}
-          totalSections={visibleSections.length}
-          pastRuns={activeTestPastRuns}
+          songKey={activeTestKey}
+          cells={activeTestSiblingCells}
+          sections={visibleSections}
+          cell={null}
+          entry="whole-song"
           isRetest={activeTestIsRetest}
-          renderPassedPreview={() => (
-            /* THE REAL ROW, from the real grid data, so the preview
-               cannot say something the matrix behind it does not. It is
-               drawn WITHOUT the action callbacks — a preview of what
-               you are about to see is not a place to start another
-               test — and `KeyRow` reads that absence as "no actions"
-               already, so nothing had to be added to it.
-
-               Evaluated on render rather than captured, so it picks up
-               the reload `onSaved` triggered a moment earlier. */
-            <KeyRow
-              keyName={activeTestKey.keyName}
-              spelling={spelling}
-              songKey={activeTestKey}
-              sections={visibleSections}
-              cellsBySectionId={
-                new Map(activeTestSiblingCells.map(c => [c.sectionId, c]))
-              }
-              bands={cellBands}
-              isOriginal={activeTestKey.isOriginalKey}
-              now={now}
-            />
-          )}
+          spelling={spelling}
+          onOpenLeadSheet={closeTestModal}
+          onClose={() => { closeTestModal(); bumpRefresh(); }}
         />
       )}
     </section>

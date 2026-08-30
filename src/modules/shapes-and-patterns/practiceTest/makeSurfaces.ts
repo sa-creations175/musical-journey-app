@@ -122,6 +122,8 @@ export function chordShapeSurface(args: {
     // The plain control is the whole of a drill's metronome: its
     // target rate is always set, so there is nothing to prompt for.
     renderMetronome: null,
+    // The session IS the panel here, so there is no record to tell.
+    onSessionPause: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -195,6 +197,8 @@ export function scaleSurface(args: {
     // The plain control is the whole of a drill's metronome: its
     // target rate is always set, so there is nothing to prompt for.
     renderMetronome: null,
+    // The session IS the panel here, so there is no record to tell.
+    onSessionPause: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -261,6 +265,8 @@ export function voiceLeadingSurface(args: {
     // The plain control is the whole of a drill's metronome: its
     // target rate is always set, so there is nothing to prompt for.
     renderMetronome: null,
+    // The session IS the panel here, so there is no record to tell.
+    onSessionPause: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -338,6 +344,23 @@ export function songSurface(args: {
   songId: string;
   /** The key's name, for the practice log's `keys`. */
   keyName: string;
+  /**
+   * WHAT THE PANEL WAS OPENED ON, which decides what a pass earns.
+   *
+   * A cell opens a SECTION test: three clean runs of that section move
+   * its band. A key row's Test opens a WHOLE-SONG test: three clean
+   * runs of the whole song move the song ladder to Comfortable.
+   *
+   * They are the same act at two scales and the same panel runs both.
+   * What differs is the claim, so it is stated at construction rather
+   * than inferred later from how many sections a run happened to
+   * cover — a run that covered every section by choice is still a
+   * section test's run, and would otherwise be mistaken for the
+   * bigger claim.
+   */
+  entry: 'section' | 'whole-song';
+  /** The section's own name, for the result screen's section line. */
+  sectionLabel: string;
   /** The song's title, for the result screen. */
   songTitle: string;
   /** The key as this song spells it, for the result screen. Distinct
@@ -373,13 +396,20 @@ export function songSurface(args: {
    *  run is written. Null when nothing was sounding — a legitimate
    *  stored value, and not the same as the song's target. */
   readRunTempo: () => number | null;
-  /** The session's streak BEFORE this run, so a key run row records
-   *  the streak it was part of rather than reading 1 every time. The
-   *  session owns the count; this writes one run at a time. */
-  readTestStreak: () => number;
   /** True when this key is being re-tested after lapsing. Rides onto
    *  the key run rows, which already carry the flag. */
   isRetest: boolean;
+  /**
+   * The session was paused or resumed.
+   *
+   * A SONG'S CLOCK IS A STORED RECORD, so pausing the panel has to
+   * reach it: the panel's clock reads that record, and a pause that
+   * only stopped the display would let the minutes keep accruing
+   * underneath and jump on resume. The three shapes surfaces have no
+   * such record — their session is the panel — so this is theirs
+   * alone.
+   */
+  onSessionPause: (paused: boolean) => void;
 }): DrillSurface {
   return {
     id: 'song',
@@ -493,7 +523,7 @@ export function songSurface(args: {
           songKeyId: args.songKeyId,
           attempt,
           performanceTempo: args.songTempo,
-          streakBefore: args.readTestStreak(),
+          streakBefore: record.streakBefore,
           isRetest: args.isRetest,
         });
       }
@@ -501,19 +531,30 @@ export function songSurface(args: {
     // THE SONG LADDER'S RUNG, not a band. A whole-song test lands on
     // Comfortable and cannot reach higher — Cross-key needs other
     // keys — so the height was never chosen and is not reported.
-    describeTestPass: () => ({
-      kind: 'whole-song',
-      songTitle: args.songTitle,
-      status: 'comfortable',
-    }),
+    // THE SECTION VARIANT'S FIRST LIVE WRITER. It has been built and
+    // tested since the result screen landed and nothing could reach
+    // it, because nothing wrote a `songCell:` band outside this
+    // surface and this surface had no caller.
+    describeTestPass: (band, lowestFeel) => (
+      args.entry === 'whole-song'
+        ? { kind: 'whole-song', songTitle: args.songTitle, status: 'comfortable' }
+        : { kind: 'section', sectionLabel: args.sectionLabel, band, lowestFeel }
+    ),
     passKeyName: args.spelledKeyName,
     renderMetronome: args.renderMetronome,
+    onSessionPause: args.onSessionPause,
     renderBadgePreview: args.renderBadgePreview,
     // THE DURABLE FACT A PASS LEAVES, which is not any of the reps.
     // `wholeSongTestPassedAt` is what `stageCriteria` reads for
     // Learning → Comfortable, and the retest clock is what
     // `recordKeyProving` moves — and had no caller until now.
-    recordTestPass: () => writeWholeSongTestPass({ songKeyId: args.songKeyId }),
+    // ONLY A WHOLE-SONG PASS LEAVES A DURABLE FACT. A section test is
+    // entirely described by the band its three runs set; there is no
+    // `sectionTestPassedAt` and there should not be — the band IS the
+    // record, and a second one could disagree with it.
+    recordTestPass: args.entry === 'whole-song'
+      ? () => writeWholeSongTestPass({ songKeyId: args.songKeyId })
+      : null,
     // The sitting's own verdict lands on the cell it was opened on and
     // on the song-and-key clock — the same two levels a run writes,
     // minus the fan-out, because a session rating is about the sitting

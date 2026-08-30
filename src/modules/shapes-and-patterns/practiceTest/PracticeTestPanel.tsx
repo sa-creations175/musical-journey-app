@@ -233,6 +233,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   })();
 
   const togglePause = () => {
+    // THE SURFACE HEARS IT TOO, where its clock is a stored record.
+    // A pause that only stopped the display would let the record keep
+    // counting underneath and jump on resume.
+    surface.onSessionPause?.(!paused);
     setPaused(now => {
       if (now) {
         // CAUGHT, NOT VOIDED. `start` rejects when there is no Web
@@ -344,6 +348,9 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         feel: d.feel,
         fromTest: false,
         sessionId: sessionIdNow(),
+        // Practice has no streak; zero is the honest value rather than
+        // a number borrowed from a test.
+        streakBefore: 0,
       });
       setScope([]);
     } finally {
@@ -387,6 +394,9 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
 
     setSaving(true);
     try {
+      // BEFORE this run, which is what the stored row records: the
+      // streak it was part of, not the one it produced.
+      const streakBefore = projectTestStreak(drills.map(streakRun));
       await surface.write({
         ranSeconds: d.ranSeconds,
         targetSeconds: surface.countsUp ? 0 : d.ranSeconds,
@@ -400,6 +410,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         feel: d.feel,
         fromTest: true,
         sessionId: sessionIdNow(),
+        streakBefore,
       });
 
       if (!streakPassed(next.map(streakRun))) return;

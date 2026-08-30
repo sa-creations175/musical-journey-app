@@ -80,6 +80,7 @@ describe('it is NOT a drill', () => {
     await shapes().write({
       ranSeconds: 60, targetSeconds: 60, scope: null,
       style: 'blocked', feel: 3, fromTest: false, sessionId: 'ss-test-1',
+      streakBefore: 0,
     });
     const type = await db.drillTypes.get('dt-1');
     expect(type?.repCount).toBe(1);
@@ -108,7 +109,7 @@ describe('every surface has one', () => {
       readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
-      readTestStreak: () => 0,
+      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {},
       isRetest: false,
       songTempo: 90,
     }).writeSessionRating(3, false, 'ss-test-1');
@@ -129,7 +130,7 @@ describe('every surface has one', () => {
       readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
-      readTestStreak: () => 0,
+      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {},
       isRetest: false,
       songTempo: 90,
     }).writeSessionRating(3, false, 'ss-test-1');
@@ -164,7 +165,7 @@ describe('readVerdict — what the done step reports', () => {
       readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
-      readTestStreak: () => 0,
+      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {},
       isRetest: false,
       songTempo: 90,
     });

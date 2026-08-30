@@ -80,7 +80,7 @@ import { useSongSpelling } from './useSongSpelling';
 import { isComfortableOrBetter, quadrantHoldings } from './matrix/keyProgress';
 import { daysUntilDue, keyDueState } from './matrix/keySpacing';
 import SectionGuidance from './SectionGuidance';
-import CellPanel, { type CellPanelLayout } from './matrix/CellPanel';
+import SongPracticePanel from './matrix/SongPracticePanel';
 import { dueByKeyId, ratedKeyIds } from './matrix/proveKey';
 import { stageReconciliation } from './stageTransition';
 import {
@@ -622,7 +622,6 @@ function SongDetailInner({
   // the matrix only reports the tap.
   // ---------------------------------------------------------------
   const [panelCellId, setPanelCellId] = useState<string | null>(null);
-  const [panelLayout, setPanelLayout] = useState<CellPanelLayout>('full');
   // `scroll-mt-28` keeps the heading clear of the pinned bar — without
   // it the bar sits on top of the first line of what it just revealed.
   const leadSheetRef = useRef<HTMLElement | null>(null);
@@ -648,9 +647,6 @@ function SongDetailInner({
   const panelSiblingCells = panelCell
     ? matrixCells.filter(c => c.songKeyId === panelCell.songKeyId)
     : [];
-  const panelSection = panelCell
-    ? matrixSections.find(sec => sec.id === panelCell.sectionId) ?? null
-    : null;
   const visibleMatrixSections = useMemo(
     () => matrixSections
       .filter(sec => !sec.isArchived)
@@ -680,21 +676,15 @@ function SongDetailInner({
 
   const openCellPanel = useCallback((cellId: string) => {
     setPanelCellId(cellId);
-    setPanelLayout('full');
   }, []);
   const closeCellPanel = useCallback(() => {
     setPanelCellId(null);
-    setPanelLayout('full');
   }, []);
 
-  // Collapsing to the bar scrolls the lead sheet under it. Without
-  // this the panel would shrink over whatever happened to be on
-  // screen — usually the matrix it was opened from — and the button
-  // would appear to do nothing.
-  useEffect(() => {
-    if (panelLayout !== 'bar') return;
-    leadSheetRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [panelLayout]);
+  // THE COLLAPSE-TO-A-BAR LAYOUT WENT WITH `CellPanel`. It was that
+  // panel's own way of getting out of the chart's way; the shared one
+  // closes and scrolls instead, which is the same intent with one
+  // fewer state to keep in step.
 
   // ARRIVED FROM A CARD'S LEAD SHEET BUTTON. The same scroll the line
   // above performs, asked for from outside — the button opens this page
@@ -2484,25 +2474,26 @@ function SongDetailInner({
       </section>
 
 
-      {panelCell && panelKey && panelSection && (
-        <CellPanel
-          key={panelCell.id}
+      {/* THE SHARED PANEL, not a song-shaped one. A cell opens a
+          section's practice or test; a key row's Test opens the whole
+          song's. Both run the same three-in-a-row test the shapes
+          surfaces run, on the same screen. */}
+      {panelCell && panelKey && (
+        <SongPracticePanel
+          key={`${panelCell.id}-section`}
           song={song}
-          cell={panelCell}
-          siblingCells={panelSiblingCells}
           songKey={panelKey}
-          section={panelSection}
+          cells={panelSiblingCells}
           sections={visibleMatrixSections}
+          cell={panelCell}
+          entry="section"
+          isRetest={false}
           spelling={songSpelling}
-          layout={panelLayout}
-          onLayoutChange={setPanelLayout}
+          onOpenLeadSheet={() => {
+            closeCellPanel();
+            leadSheetRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }}
           onClose={closeCellPanel}
-          onFinished={(minutes, sectionCount) => toast({
-            message: sectionCount > 0
-              ? `${minutes}m logged across ${sectionCount} section${sectionCount === 1 ? '' : 's'}.`
-              : `${minutes}m logged.`,
-            variant: 'success',
-          })}
         />
       )}
 

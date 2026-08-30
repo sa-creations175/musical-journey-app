@@ -82,6 +82,16 @@ export interface DrillRecord {
    * different claim and not one a live writer may make.
    */
   sessionId: string;
+  /**
+   * The streak this session was on BEFORE this run.
+   *
+   * The panel owns the count — it is the thing watching the runs go
+   * by — so it travels with the run rather than being read back
+   * through a callback the surface would have to be handed. A writer
+   * that asked for it afterwards would be asking the panel to still
+   * be in the state it was in when the run finished.
+   */
+  streakBefore: number;
 }
 
 /** Writes one rep wherever this surface's reps live. */
@@ -275,6 +285,27 @@ export interface DrillSurface {
    * they always did.
    */
   renderMetronome: (() => ReactNode) | null;
+  /**
+   * Tell the surface the session paused or resumed.
+   *
+   * =====================================================================
+   * THE TWO PAUSES, RESOLVED: THE PANEL'S IS THE SESSION'S.
+   *
+   * There were two — this panel's `paused`, and `songTimer`'s durable
+   * `pausedRecord` that survives a reload. After the flip there is one
+   * panel, so there is one pause, and it is this one: the panel is
+   * where a session is run and where the three exits live.
+   *
+   * The durable record does not go away and is not demoted. It still
+   * owns the MINUTES — it always did — and this is how it hears that
+   * they should stop accruing. A pause that only stopped the display
+   * would let the record keep counting underneath and jump on resume,
+   * which is the bug this closes rather than a subtlety it introduces.
+   *
+   * Null on a surface whose session is the panel and ends with it.
+   * =====================================================================
+   */
+  onSessionPause: ((paused: boolean) => void) | null;
   /**
    * The item's own row, as the grid draws it, for the result screen's
    * badge preview.

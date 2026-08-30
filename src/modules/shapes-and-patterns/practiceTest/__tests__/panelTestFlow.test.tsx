@@ -68,6 +68,8 @@ function surface(over: Partial<DrillSurface> = {}): DrillSurface {
     }),
     passKeyName: null,
     renderBadgePreview: null,
+    renderMetronome: null,
+    onSessionPause: null,
     readVerdict: async () => ({ kind: 'band', band: 'fluent' } as const),
     ...over,
   } as DrillSurface;
