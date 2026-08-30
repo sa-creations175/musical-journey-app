@@ -36,48 +36,28 @@ import { useSpelling } from '../../lib/spellingPref';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { scaleSurface } from './practiceTest/makeSurfaces';
 import HandChooser from './HandChooser';
-import ThreeBandCell from './ThreeBandCell';
+import BandCell, { bandCellClasses } from './BandCell';
+import { itemCellTargets, rowsByRefHand, verdictForTargets } from './cellTargets';
+import { bandVerdictLabel, type BandVerdict } from '../../lib/spacing/banding';
 import {
   acquisitionIndex,
-  type AcquisitionBucket,
   type AcquisitionCounts,
   type AcquisitionIndex,
 } from './acquisition';
 import type { DrillHand } from '../../lib/db';
 
-/** THE BUCKETS COME FROM `acquisition.ts` NOW. This file used to carry
- *  its own `bucketFor` and its own idea of what a cell's state was —
- *  one of the three answers the module gave about the same cell. */
-const STAGE_BG: Readonly<Record<AcquisitionBucket, string>> = {
-  'acquired':    'bg-mastered/35 hover:bg-mastered/50 border-mastered/40',
-  'in-progress': 'bg-developing/25 hover:bg-developing/40 border-developing/40',
-  'not-started': 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
-};
+/** WHAT A SQUARE SAYS LIVES IN `BandCell` NOW. This file used to
+ *  carry its own bucket palette and its own three legend words — the
+ *  last place the retired acquisition vocabulary was drawn on a grid.
+ *
+ *  The Progress line, the per-group heading and the hand chooser still
+ *  speak it, and are deliberately left: their replacements are copy,
+ *  and copy is not mine to write. */
 
-/** The three swatch labels, Title Cased because a legend item is a
- *  label like any other chip — no `uppercase` class renders these, so
- *  what is written here is what appears.
- *
- *  The status-word rule is satisfied by the row's HEADING rather than
- *  by marking each of these, which is the whole reason the heading
- *  reads "Status" and not "Legend". See `Legend` below.
- *
- *  KNOWN AND NOT THIS COMMIT'S TO FIX: "In Progress" and "Acquired"
- *  are the old acquisition-stage vocabulary rather than the six
- *  rating words, and this legend is the last place they are still on
- *  screen — the chord cell modal dropped them. The wording belongs to
- *  the Practice/Test job, which is changing what these grids display;
- *  casing them here does not endorse them. */
 const HAND_LABEL: Readonly<Record<DrillHand, string>> = {
   left: 'Left Hand',
   right: 'Right Hand',
   both: 'Both Hands',
-};
-
-const STAGE_LEGEND_LABEL: Readonly<Record<AcquisitionBucket, string>> = {
-  'acquired':    'Acquired',
-  'in-progress': 'In Progress',
-  'not-started': 'Not Started',
 };
 
 interface ScaleRow {
@@ -197,6 +177,10 @@ export default function ScaleDrills() {
    * arrive at different ones — see `acquisition.ts`.
    */
   const index = useMemo(() => acquisitionIndex(spacingRows), [spacingRows]);
+  // What the SQUARES read. The index above still answers the Progress
+  // line, the group headings and the hand chooser, all of which are
+  // still in the retired vocabulary and are owed copy.
+  const byRefHand = useMemo(() => rowsByRefHand(spacingRows), [spacingRows]);
   // The chooser names the cell it is about, so this page needs the
   // spelling the group blocks already read.
   const [spelling] = useSpelling();
@@ -242,7 +226,7 @@ export default function ScaleDrills() {
             key={group.kind}
             group={group}
             index={index}
-            handStagesOf={handStagesOf}
+            byRefHand={byRefHand}
             onCellClick={setChoosing}
           />
         ))}
@@ -311,14 +295,12 @@ function ProgressSummary({ counts }: { counts: AcquisitionCounts }) {
 function ScaleGroupBlock({
   group,
   index,
-  handStagesOf,
+  byRefHand,
   onCellClick,
 }: {
   group: ScaleGroup;
   index: AcquisitionIndex;
-  handStagesOf: (itemRef: string) => {
-    left: AcquisitionBucket; right: AcquisitionBucket; both: AcquisitionBucket;
-  };
+  byRefHand: ReadonlyMap<string, SpacingState>;
   onCellClick: (cell: ScaleCell) => void;
 }) {
   const [spelling] = useSpelling();
@@ -343,7 +325,7 @@ function ScaleGroupBlock({
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `minmax(110px, 140px) repeat(${CIRCLE_OF_FOURTHS.length}, minmax(34px, 44px))`,
+              gridTemplateColumns: `minmax(110px, 140px) repeat(${CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
             }}
           >
             <div />
@@ -364,21 +346,24 @@ function ScaleGroupBlock({
               key={row.rowKey}
               className="grid items-center"
               style={{
-                gridTemplateColumns: `minmax(110px, 140px) repeat(${CIRCLE_OF_FOURTHS.length}, minmax(34px, 44px))`,
+                gridTemplateColumns: `minmax(110px, 140px) repeat(${CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
               }}
             >
               <div className="text-xs pr-2 py-0.5 truncate text-neutral-600 dark:text-neutral-300">
                 {row.rowLabel}
               </div>
               {row.cells.map(cell => {
-                const hands = handStagesOf(cell.itemRef);
+                // A scale square is its three hands. `itemCellTargets`
+                // asks `handsFor`, so a kind with no hand dimension
+                // gets one target rather than two it can never fill.
+                const verdict = verdictForTargets(
+                  itemCellTargets(cell.itemRef), byRefHand,
+                );
                 return (
-                  <ThreeBandCell
+                  <BandCell
                     key={cell.itemRef}
-                    left={hands.left}
-                    right={hands.right}
-                    both={hands.both}
-                    title={`${scaleCellLabel(cell, spelling)} — LH / RH / Both`}
+                    verdict={verdict}
+                    title={`${scaleCellLabel(cell, spelling)} — ${bandVerdictLabel(verdict)}`}
                     onClick={() => onCellClick(cell)}
                   />
                 );
@@ -399,18 +384,35 @@ function Legend() {
           list, rather than bolding every item in a three-item row
           where there is no ordinary English for them to hide in. */}
       <span>Status</span>
-      <LegendChip bucket="not-started" />
-      <LegendChip bucket="in-progress" />
-      <LegendChip bucket="acquired" />
+      {LEGEND_VERDICTS.map(v => (
+        <LegendChip key={bandVerdictLabel(v)} verdict={v} />
+      ))}
     </div>
   );
 }
 
-function LegendChip({ bucket }: { bucket: AcquisitionBucket }) {
+/** The six, worst to best. Not Started and Started come first because
+ *  neither is a score and both sit below every band — the order the
+ *  squares themselves resolve in. */
+const LEGEND_VERDICTS: ReadonlyArray<BandVerdict> = [
+  { kind: 'not-started' },
+  { kind: 'started', tries: 0 },
+  { kind: 'band', band: 'needs-work' },
+  { kind: 'band', band: 'developing' },
+  { kind: 'band', band: 'fluent' },
+  { kind: 'band', band: 'mastered' },
+];
+
+function LegendChip({ verdict }: { verdict: BandVerdict }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={`inline-block w-3 h-3 rounded-sm border ${STAGE_BG[bucket]}`} aria-hidden />
-      <span>{STAGE_LEGEND_LABEL[bucket]}</span>
+      {/* Painted by the square's own lookup, so the legend cannot
+          drift from the grid it explains. */}
+      <span
+        className={`inline-block w-3 h-3 rounded-sm border ${bandCellClasses(verdict)}`}
+        aria-hidden
+      />
+      <span>{bandVerdictLabel(verdict)}</span>
     </span>
   );
 }

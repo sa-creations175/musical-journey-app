@@ -19,7 +19,7 @@
  */
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SpacingState, type AcquisitionStage } from '../../lib/db';
+import { db, type SpacingState } from '../../lib/db';
 import {
   KEYS_CIRCLE_OF_FOURTHS,
   VOICE_LEADING_PATTERN_BY_ID,
@@ -27,7 +27,9 @@ import {
 } from './catalog';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
-import { bucketForStage, type AcquisitionBucket } from './acquisition';
+import BandCell from './BandCell';
+import { itemCellTargets, rowsByRefHand, verdictForTargets } from './cellTargets';
+import { bandVerdictLabel } from '../../lib/spacing/banding';
 
 interface Props {
   /** Pattern id — built-in or custom. Custom ids aren't in the
@@ -38,29 +40,6 @@ interface Props {
    *  patterns. */
   onCellOpen?: (itemRef: string) => void;
 }
-
-/** The palette every S&P grid paints with. The collapse itself lives
- *  in `acquisition.ts` — this file used to carry its own copy, one of
- *  four saying the same thing in slightly different words. */
-const STAGE_BG: Readonly<Record<AcquisitionBucket, string>> = {
-  'acquired':    'bg-mastered/35 hover:bg-mastered/50 border-mastered/40',
-  'in-progress': 'bg-developing/25 hover:bg-developing/40 border-developing/40',
-  'not-started': 'bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border-neutral-300 dark:border-neutral-700',
-};
-
-/** The status word in a cell's tooltip.
- *
- *  Title Case because it is a status, not a description of one, and
- *  the tooltip sweep did not reach it — the string is assembled from
- *  a lookup inside a template literal, so there is no `title="..."`
- *  for a sweep to see. Despite the old name there is no legend in
- *  this file rendering these; ScaleDrills has its own copy that a
- *  legend DOES render, and it is deliberately not touched here. */
-const STAGE_STATUS_LABEL: Readonly<Record<AcquisitionBucket, string>> = {
-  'acquired':    'Acquired',
-  'in-progress': 'In Progress',
-  'not-started': 'Not Started',
-};
 
 export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props) {
   const [spelling] = useSpelling();
@@ -78,11 +57,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
     [patternId],
   ) ?? [];
 
-  const stageByItemRef = useMemo(() => {
-    const m = new Map<string, AcquisitionStage>();
-    for (const r of spacingRows) m.set(r.itemRef, r.acquisitionStage);
-    return m;
-  }, [spacingRows]);
+  const byRefHand = useMemo(() => rowsByRefHand(spacingRows), [spacingRows]);
 
   const rows = useMemo(
     () => (pattern ? voiceLeadingGridRows(pattern) : []),
@@ -107,7 +82,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(34px, 44px))`,
+            gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
           }}
         >
           <div />
@@ -129,7 +104,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             key={row.rowId}
             className="grid items-center"
             style={{
-              gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(34px, 44px))`,
+              gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
             }}
           >
             <div
@@ -148,20 +123,23 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
             </div>
             {KEYS_CIRCLE_OF_FOURTHS.map(k => {
               const itemRef = row.itemRefForKey(k);
-              const bucket = bucketForStage(stageByItemRef.get(itemRef));
+              // ONE ROW, AND THAT IS THE WHOLE SQUARE. Voice leading is
+              // two-handed by nature and only ever writes `both`, so
+              // `itemCellTargets` returns a single target and the
+              // rollup is the row — no aggregation, same rule.
+              const verdict = verdictForTargets(itemCellTargets(itemRef), byRefHand);
               // "Seventh Chords · Position 1 · the key of Eb — Not Started".
               // A bare key letter after "in" read as a stray word, and
               // a lowercase "not started" read as a description rather
               // than the status it is. Both are marked; the separator
               // is a middot so the three facts read as three facts.
-              const title = `${row.label} · the key of ${spellKey(k, spelling)} — ${STAGE_STATUS_LABEL[bucket]}`;
+              const title = `${row.label} · the key of ${spellKey(k, spelling)} — ${bandVerdictLabel(verdict)}`;
               return (
-                <button
+                <BandCell
                   key={k}
-                  onClick={onCellOpen ? () => onCellOpen(itemRef) : undefined}
+                  verdict={verdict}
                   title={title}
-                  aria-label={title}
-                  className={`aspect-square mx-0.5 my-0.5 rounded-sm border transition focus:outline-none focus:ring-2 focus:ring-fluent/50 ${STAGE_BG[bucket]}`}
+                  onClick={onCellOpen ? () => onCellOpen(itemRef) : undefined}
                 />
               );
             })}

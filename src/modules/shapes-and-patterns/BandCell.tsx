@@ -49,7 +49,14 @@ const NOT_STARTED_CLASS =
   'border-dashed border-neutral-300 dark:border-neutral-700 '
   + 'text-neutral-400 dark:text-neutral-500';
 
-function classesFor(verdict: BandVerdict): string {
+/**
+ * Fill, border and word colour for a verdict.
+ *
+ * Exported so a legend swatch is painted by the same lookup the square
+ * is, rather than by a second copy that drifts the first time one of
+ * them is retuned.
+ */
+export function bandCellClasses(verdict: BandVerdict): string {
   if (verdict.kind === 'band') return BAND_CLASS[verdict.band];
   return verdict.kind === 'started' ? STARTED_CLASS : NOT_STARTED_CLASS;
 }
@@ -68,6 +75,11 @@ export default function BandCell({ verdict, title, onClick }: BandCellProps) {
     'w-full min-h-[3.1rem] px-0.5 mx-0.5 my-0.5 rounded-md border '
     + 'flex items-center justify-center text-center '
     + 'text-[10px] font-semibold leading-tight tracking-tight '
+    // A square is ~56px wide and "Developing" is one word wider than
+    // that. It wraps rather than overflowing; `min-h` leaves room for
+    // the second line so a two-line square is not taller than a
+    // one-line one.
+    + 'break-words hyphens-auto '
     + 'transition focus:outline-none focus:ring-2 focus:ring-fluent/50';
 
   const Tag = onClick ? 'button' : 'div';
@@ -76,7 +88,7 @@ export default function BandCell({ verdict, title, onClick }: BandCellProps) {
       {...(onClick ? { onClick, type: 'button' as const } : {})}
       title={title}
       aria-label={title}
-      className={`${base} ${classesFor(verdict)} ${onClick ? 'hover:brightness-95' : ''}`}
+      className={`${base} ${bandCellClasses(verdict)} ${onClick ? 'hover:brightness-95' : ''}`}
     >
       {bandVerdictLabel(verdict)}
     </Tag>
