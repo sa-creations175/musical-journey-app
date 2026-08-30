@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type DrillSkill, type DrillType, type SpacingState, type AcquisitionStage } from '../../lib/db';
+import { db, type DrillSkill, type DrillType, type SpacingState } from '../../lib/db';
 import {
   aggregateCell,
   findOrCreateSkill,
@@ -9,15 +9,15 @@ import {
   heatTierFor,
   humanAgo,
   formatDuration,
-  parseShapesItemRef,
   type CellAggregate,
   type SkillDescriptor,
 } from './drillModel';
 import DrillListModal from './DrillListModal';
 import InversionBreakdownPanel from './InversionBreakdownPanel';
-import ThreeBandCell, { type BandStage } from './ThreeBandCell';
-import { bucketForStage } from './acquisition';
+import BandCell from './BandCell';
+import { chordCellTargets, rowsByRefHand, verdictForTargets } from './cellTargets';
 import { KEYS_CIRCLE_OF_FOURTHS } from './catalog';
+import { bandVerdictLabel } from '../../lib/spacing/banding';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 
@@ -76,42 +76,18 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
     return m;
   }, [allTypes]);
 
-  // Per-(quality × key × hand) acquisition stages — a chord-shape cell
-  // renders three bands (LH / RH / Both), each coloured by that hand's
-  // acquisition state aggregated across the cell's inversion rows.
-  // Keyed `${quality} ${keyName} ${hand}`. It was six slots while
-  // blocked and broken were separate ratings.
+  // ONE WORD PER SQUARE, THE LOWEST OF WHAT IS UNDER IT.
+  //
+  // This used to draw three per-hand bands from acquisition stages,
+  // with its own copy of the aggregation. The hands moved to the
+  // breakdown panel, the stage vocabulary is retired, and the rule is
+  // `rollUpTargets` now — one place, and it counts targets that have
+  // no row rather than only the rows that exist.
   const allSpacing = useLiveQuery<SpacingState[]>(
     () => db.spacingState.where('moduleRef').equals('shapes-and-patterns').toArray(),
     [],
   ) ?? [];
-  const chordStagesByCellSlot = useMemo(() => {
-    const m = new Map<string, AcquisitionStage[]>();
-    for (const r of allSpacing) {
-      const d = parseShapesItemRef(r.itemRef);
-      if (!d || d.kind !== 'chord-shape') continue;
-      const key = `${d.quality} ${d.keyName} ${r.hand}`;
-      const arr = m.get(key) ?? [];
-      arr.push(r.acquisitionStage);
-      m.set(key, arr);
-    }
-    return m;
-  }, [allSpacing]);
-  // A band is one HAND now, not one hand × style. It reads `acquired`
-  // only when every drilled inversion for that hand is acquired+, in
-  // progress if any is started, not started when it has no rows. The
-  // collapse itself is `bucketForStage` — one rule, one place.
-  const chordBandStage = (
-    quality: string,
-    keyName: string,
-    hand: string,
-  ): BandStage => {
-    const stages = chordStagesByCellSlot.get(`${quality} ${keyName} ${hand}`);
-    if (!stages || stages.length === 0) return 'not-started';
-    return stages.every(s => bucketForStage(s) === 'acquired')
-      ? 'acquired'
-      : 'in-progress';
-  };
+  const spacingByRefHand = useMemo(() => rowsByRefHand(allSpacing), [allSpacing]);
 
   const openCell = async (desc: SkillDescriptor) => {
     if (desc.kind === 'chord-shape') {
@@ -159,16 +135,18 @@ export default function HeatGrid({ rows, keyList = KEYS_CIRCLE_OF_FOURTHS, rowAc
             </div>
             {keyList.map(k => {
               const desc = row.descriptorFor(k);
-              // Chord-shape cells show three per-hand acquisition bands
-              // (LH / RH / Both); other kinds keep the heat cell.
+              // Chord-shape cells say where the square stands; the
+              // other kinds keep the heat cell until their own commit.
               if (desc.kind === 'chord-shape') {
+                const verdict = verdictForTargets(
+                  chordCellTargets(desc.quality, desc.keyName),
+                  spacingByRefHand,
+                );
                 return (
-                  <ThreeBandCell
+                  <BandCell
                     key={k}
-                    left={chordBandStage(desc.quality, desc.keyName, 'left')}
-                    right={chordBandStage(desc.quality, desc.keyName, 'right')}
-                    both={chordBandStage(desc.quality, desc.keyName, 'both')}
-                    title={`${desc.quality} ${spellKey(desc.keyName, spelling)} — LH / RH / Both`}
+                    verdict={verdict}
+                    title={`${row.label} · the key of ${spellKey(desc.keyName, spelling)} — ${bandVerdictLabel(verdict)}`}
                     onClick={() => { void openCell(desc); }}
                   />
                 );

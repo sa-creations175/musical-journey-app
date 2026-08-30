@@ -56,6 +56,31 @@ export function rollUpVerdict(rows: readonly BandableRow[]): BandVerdict {
 }
 
 /**
+ * The verdict for a cell's TARGETS, where a target may have no row.
+ *
+ * =====================================================================
+ * A TARGET WITH NO ROW HAS NOT BEEN STARTED, AND IT STILL COUNTS.
+ *
+ * `rollUpVerdict` takes the rows that exist. For a square that is the
+ * wrong question: a chord square covers four inversion states across
+ * three hands whether or not any of them has been drilled, and rolling
+ * up only the rows that exist would let one Mastered target speak for
+ * eleven untouched ones — the exact failure Lowest is chosen to
+ * prevent, arriving through the back door.
+ *
+ * So the caller enumerates what the square is FOR, and hands over
+ * `undefined` for each target it has no row for.
+ * =====================================================================
+ */
+export function rollUpTargets(
+  rows: ReadonlyArray<BandableRow | undefined>,
+): BandVerdict {
+  return rollUpVerdicts(
+    rows.map(r => (r === undefined ? NOT_STARTED : bandVerdictForRow(r))),
+  );
+}
+
+/**
  * The same rule over verdicts that have already been computed.
  *
  * Separate so a caller that already holds per-row verdicts — the chord

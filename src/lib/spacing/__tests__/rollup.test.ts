@@ -54,10 +54,10 @@ const practice3 = (feel: 1 | 2 | 3 | 4) =>
 const ROWS = {
   'Not Started': row([]),
   'Started': row([rep(3, { fromTest: false })]),
-  'needs-work': row(practice3(1)),
-  'developing': row(practice3(3)),
-  'fluent': row(test3(3)),
-  'mastered': row(test3(4)),
+  'Needs Work': row(practice3(1)),
+  'Developing': row(practice3(3)),
+  'Fluent': row(test3(3)),
+  'Mastered': row(test3(4)),
 } as const;
 
 // Guard the fixtures themselves: if the banding rule ever moves, this
@@ -213,7 +213,7 @@ describe('lowest, not furthest', () => {
   it('one untouched target holds the whole square back', () => {
     // The case the decision turns on: Furthest would call this
     // Mastered and hide eleven untouched targets behind one good one.
-    const rows = [ROWS['mastered'], ROWS['Not Started']];
+    const rows = [ROWS['Mastered'], ROWS['Not Started']];
     expect(bandVerdictLabel(rollUpVerdict(rows))).toBe('Started');
   });
 
@@ -223,19 +223,19 @@ describe('lowest, not furthest', () => {
   });
 
   it('a banded square reads as low as its weakest target', () => {
-    const rows = [ROWS['mastered'], ROWS['fluent'], ROWS['needs-work']];
-    expect(bandVerdictLabel(rollUpVerdict(rows))).toBe('needs-work');
+    const rows = [ROWS['Mastered'], ROWS['Fluent'], ROWS['Needs Work']];
+    expect(bandVerdictLabel(rollUpVerdict(rows))).toBe('Needs Work');
   });
 
   it('a square where every target is banded gets a band', () => {
-    const rows = [ROWS['fluent'], ROWS['mastered']];
-    expect(bandVerdictLabel(rollUpVerdict(rows))).toBe('fluent');
+    const rows = [ROWS['Fluent'], ROWS['Mastered']];
+    expect(bandVerdictLabel(rollUpVerdict(rows))).toBe('Fluent');
   });
 
   it('an unjudged target outranks a bad one — Started, not Needs Work', () => {
     // Started is not a score. A square holding one struggling target
     // and one nobody has judged has not earned Needs Work either.
-    const rows = [ROWS['needs-work'], ROWS['Started']];
+    const rows = [ROWS['Needs Work'], ROWS['Started']];
     expect(bandVerdictLabel(rollUpVerdict(rows))).toBe('Started');
   });
 });

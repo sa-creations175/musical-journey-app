@@ -106,12 +106,32 @@ export function bandOf(verdict: BandVerdict): AccuracyBand | null {
   return verdict.kind === 'band' ? verdict.band : null;
 }
 
-/** What a surface shows. */
+/**
+ * What a surface shows.
+ *
+ * THE BAND CASE USED TO RETURN THE ID. `verdict.band` is
+ * `'needs-work'`, and the chord panel rendered it straight onto the
+ * screen — so the one surface already speaking this vocabulary was
+ * showing a hyphenated identifier where a status word belongs.
+ *
+ * The words are the six the grids use. `ACCURACY_BANDS[].label` is
+ * NOT reused for them: it says "Needs work", the settings screen
+ * renders it, and a status word is Title Cased wherever it appears.
+ * Reconciling those two is part of the palette job, which owns that
+ * table.
+ */
+const BAND_LABEL: Readonly<Record<AccuracyBand, string>> = {
+  'needs-work': 'Needs Work',
+  'developing': 'Developing',
+  'fluent':     'Fluent',
+  'mastered':   'Mastered',
+};
+
 export function bandVerdictLabel(verdict: BandVerdict): string {
   switch (verdict.kind) {
     case 'not-started': return 'Not Started';
     case 'started': return 'Started';
-    case 'band': return verdict.band;
+    case 'band': return BAND_LABEL[verdict.band];
   }
 }
 
