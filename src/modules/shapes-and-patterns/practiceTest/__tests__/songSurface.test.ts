@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../../../../lib/db';
 import { bandVerdictForRow } from '../../../../lib/spacing/row';
 import { songSurface } from '../makeSurfaces';
-import type { DrillRecord } from '../surfaces';
+import { setupHasSomethingToSet, type DrillRecord } from '../surfaces';
 
 const CELL = 'cell-verse-Ab';
 const KEY = 'songkey-s1-Ab';
@@ -470,5 +470,23 @@ describe('passing the whole-song test', () => {
     expect(history).toHaveLength(1);
     expect(history[0].kind).toBe('rating');
     expect(history[0].scores).toBe(false);
+  });
+});
+
+/**
+ * The song's setup screen would be a title and a Start button.
+ *
+ * Pinned on the REAL surface rather than a fixture, because the
+ * predicate is only useful if the surface it was built for actually
+ * answers no — and each of the three answers comes from a field set
+ * for its own reasons, any of which could drift.
+ */
+describe('a song has nothing to set up', () => {
+  it('no style, no target length, and one rate option', () => {
+    const s = surface(90);
+    expect(s.hasStyle).toBe(false);
+    expect(s.countsUp).toBe(true);
+    expect(s.rateOptions).toHaveLength(1);
+    expect(setupHasSomethingToSet(s)).toBe(false);
   });
 });

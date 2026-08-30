@@ -41,7 +41,9 @@ import { useMetronomeState } from '../../../lib/useMetronome';
 import MetronomeControl from '../../../components/MetronomeControl';
 import { metronome } from '../../../lib/metronome';
 import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS } from '../drillModel';
-import { isAtTarget, rateFor, type DrillSurface } from './surfaces';
+import {
+  isAtTarget, rateFor, setupHasSomethingToSet, type DrillSurface,
+} from './surfaces';
 import { formatClock, useSessionClock } from './sessionClock';
 import { newSessionId } from '../../../lib/sessionId';
 import type { BandVerdict } from '../../../lib/spacing/banding';
@@ -248,7 +250,22 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           drills={drills}
           saving={saving}
           surface={surface}
-          onStartDrill={() => { setDraft(newDraft()); setStep('setup'); }}
+          onStartDrill={() => {
+            const draft = newDraft();
+            if (setupHasSomethingToSet(surface)) {
+              setDraft(draft);
+              setStep('setup');
+              return;
+            }
+            // NOTHING TO SET, SO NOTHING TO SHOW. The rate comes from
+            // the surface's sole option rather than from `newDraft`'s
+            // default — they agree today, and a surface whose single
+            // option was not 1 would otherwise start a run at a rate
+            // nobody chose and nothing displayed.
+            setDraft({ ...draft, per: surface.rateOptions[0]?.per ?? draft.per });
+            setRanSeconds(0);
+            setStep('drilling');
+          }}
           onSaveTest={() => void saveTest()}
           onEndSession={() => {
             // PRACTICE ENDS AT THE WRAP, not at the door. The session's
