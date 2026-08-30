@@ -104,7 +104,6 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    *  was opened on — see DrillRecord.scope. */
   const [scope, setScope] = useState<readonly string[]>([]);
 
-  const sessionSeconds = useSessionClock(mode !== null, surface.readSessionElapsedMs);
   // THE GATE READS THE LIVE METRONOME. A test run cannot start with
   // nothing sounding — see `SessionStep`.
   const metronomePlaying = useMetronomeState().playing;
@@ -130,7 +129,58 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    * =====================================================================
    */
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  /**
+   * The session is paused: the clock is stopped and the metronome with
+   * it.
+   *
+   * =====================================================================
+   * EVERY SESSION HAS THREE EXITS — DONE, PAUSE, CANCEL. This panel had
+   * two. Walking away from the piano therefore meant either logging a
+   * sitting that was not finished or throwing it away, and neither is
+   * what happened.
+   *
+   * PAUSING STOPS THE METRONOME, and resuming brings it back if it was
+   * going. Without that, every resume on a test would need the
+   * metronome manually restarted before the Start button would even
+   * enable — a pause that turned into a setup task.
+   *
+   * THIS IS THE PANEL'S PAUSE, and it lives as long as the panel does.
+   * Which record OWNS a session — this, or `songTimer`'s durable
+   * `pausedRecord` — is a separate question, sequenced after the flip.
+   * Nothing here decides it.
+   * =====================================================================
+   */
+  const [paused, setPaused] = useState(false);
+  /** Whether the metronome was sounding when the pause began, so
+   *  resuming restores what was there rather than a default. */
+  const metronomeWasOn = useRef(false);
+  // Declared after `paused` because it reads it: the clock stops when
+  // the session does, which is the whole of what a pause means here.
+  const sessionSeconds = useSessionClock(
+    mode !== null && !paused, surface.readSessionElapsedMs,
+  );
   const clockHasRun = mode !== null && step !== 'done';
+
+  const togglePause = () => {
+    setPaused(now => {
+      if (now) {
+        // CAUGHT, NOT VOIDED. `start` rejects when there is no Web
+        // Audio to reach — a browser that blocks autoplay, a tab that
+        // never had a gesture — and an unhandled rejection there would
+        // be a resume that appeared to fail. The session resumes
+        // either way; the click is the part that may not come back.
+        if (metronomeWasOn.current) {
+          metronome.start('user').catch(err => {
+            console.warn('[practice-test] metronome did not resume', err);
+          });
+        }
+        return false;
+      }
+      metronomeWasOn.current = metronomePlaying;
+      metronome.stop('user');
+      return true;
+    });
+  };
 
   const close = () => {
     if (clockHasRun) { setConfirmingCancel(true); return; }
@@ -381,6 +431,17 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         </button>
       )}
 
+      {/* THE PAUSED STATE, SAID IN WORDS. A stopped clock is something
+          a reader can miss; this cannot be. It also says what happened
+          to the metronome, because otherwise a returning player finds
+          the Start button disabled and has to work out why. */}
+      {!confirmingCancel && paused && mode !== null && (
+        <div className="rounded-md border-l-[3px] border-needswork bg-needswork/5 px-3 py-2.5 text-xs leading-snug text-neutral-700 dark:text-neutral-200">
+          <b>Paused — the clock is stopped.</b> Metronome pauses with the
+          session. Resumes upon return.
+        </div>
+      )}
+
       {!confirmingCancel && step === 'session' && mode !== null && (
         <SessionStep
           mode={mode}
@@ -391,6 +452,8 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           testDraft={testDraft}
           onTestDraftChange={setTestDraft}
           metronomeOn={metronomePlaying}
+          paused={paused}
+          onTogglePause={togglePause}
           onStartDrill={() => {
             // A TEST'S SETTINGS ARE ALREADY ANSWERED. They were asked
             // once above the circles, so pressing Start starts a run
@@ -640,7 +703,7 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 
 function SessionStep({
   mode, seconds, drills, saving, surface, testDraft, onTestDraftChange,
-  metronomeOn, onStartDrill, onEndSession,
+  metronomeOn, paused, onTogglePause, onStartDrill, onEndSession,
 }: {
   mode: SessionMode;
   seconds: number;
@@ -651,6 +714,8 @@ function SessionStep({
   testDraft: DrillDraft | null;
   onTestDraftChange: (next: DrillDraft) => void;
   metronomeOn: boolean;
+  paused: boolean;
+  onTogglePause: () => void;
   onStartDrill: () => void;
   onEndSession: () => void;
 }) {
@@ -719,7 +784,7 @@ function SessionStep({
           surface and not the others. Said above rather than in a
           tooltip — a disabled control with its reason behind a hover
           is a dead end, and this is the one place someone is stuck. */}
-      {mode === 'test' && !metronomeOn && (
+      {mode === 'test' && !metronomeOn && !paused && (
         <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-snug">
           Start the metronome to begin a test run.
         </p>
@@ -729,17 +794,28 @@ function SessionStep({
         <button
           type="button"
           onClick={onStartDrill}
-          disabled={saving || (mode === 'test' && !metronomeOn)}
+          disabled={saving || paused || (mode === 'test' && !metronomeOn)}
           className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
         >
           {mode === 'test'
             ? `Start Test Run ${drills.length + 1}`
             : 'Start A Practice Drill'}
         </button>
+        {/* THE THIRD EXIT. Done ends it, Cancel throws it away, and
+            this is the one for walking away from the piano — which is
+            neither, and had nowhere to go. */}
+        <button
+          type="button"
+          onClick={onTogglePause}
+          className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
+        >
+          {paused ? 'Resume' : 'Pause'}
+        </button>
         <button
           type="button"
           onClick={onEndSession}
-          className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
+          disabled={paused}
+          className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-45 disabled:cursor-not-allowed"
         >
           End Session
         </button>

@@ -481,3 +481,77 @@ describe('closing asks when there is time to lose', () => {
     r.unmount();
   });
 });
+
+describe('Pause — the third exit', () => {
+  it('exists at all', async () => {
+    // Done ends a session, Cancel throws it away, and walking away
+    // from the piano is neither. It had nowhere to go.
+    const r = render();
+    await r.pressStartingWith('Test');
+    expect(r.labels()).toContain('Pause');
+    r.unmount();
+  });
+
+  it('says the clock is stopped, and what happened to the metronome', async () => {
+    // A stopped clock is something a reader can miss. And a returning
+    // player would otherwise find Start disabled and have to work out
+    // why.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Pause');
+    expect(r.text()).toContain(
+      'Paused — the clock is stopped. Metronome pauses with the session. '
+      + 'Resumes upon return.',
+    );
+    r.unmount();
+  });
+
+  it('A PAUSED SESSION CANNOT START A RUN OR BE ENDED', async () => {
+    // Both would be acting on a session that is not running. Ending
+    // one is what Resume-then-Done is for.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Pause');
+    const start = [...document.body.querySelectorAll('button')]
+      .find(b => (b.textContent ?? '').startsWith('Start Test Run'));
+    const end = [...document.body.querySelectorAll('button')]
+      .find(b => (b.textContent ?? '').trim() === 'End Session');
+    expect(start?.hasAttribute('disabled')).toBe(true);
+    expect(end?.hasAttribute('disabled')).toBe(true);
+    r.unmount();
+  });
+
+  it('Resume puts it back', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Pause');
+    expect(r.labels()).toContain('Resume');
+    await r.press('Resume');
+    expect(r.labels()).toContain('Pause');
+    expect(r.text()).not.toContain('Paused — the clock is stopped.');
+    r.unmount();
+  });
+
+  it('cancelling a paused session still asks — the minutes are real', async () => {
+    // The condition is that the clock HAS run, not that it is running
+    // at this instant. A paused session has banked time to lose.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Pause');
+    await r.press('Close');
+    expect(r.text()).toContain('Are you sure you want to cancel this session?');
+    r.unmount();
+  });
+
+  it('DOES NOT show the reopening prompt while you are still here', async () => {
+    // Resume / Log It And Close / Discard It are what a session asks
+    // when you COME BACK to it. Offering them beside a live Pause
+    // button would be two ways to end one session.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Pause');
+    expect(r.text()).not.toContain('Log It And Close');
+    expect(r.text()).not.toContain('Discard It');
+    r.unmount();
+  });
+});
