@@ -11,11 +11,22 @@
  * Dexie prefs that MetronomeControl persists. The setup widget here
  * just surfaces the controls in a second location; nothing else.
  *
- * The metronome doesn't auto-start when this component mounts.
- * Toggle is user-initiated (preview before drilling). When the user
- * taps "start drill", the modal calls `metronome.start('drill')` on
- * top of any active `'user'` driver — both stack cleanly per the
- * driver-stack rule (metronome.ts:303-316).
+ * THE METRONOME IS NEVER STARTED FOR YOU, AND THAT IS NOW A RULE
+ * RATHER THAN AN OMISSION.
+ *
+ * This comment used to say the modal calls `metronome.start('drill')`
+ * when you tap start. It does not, and no caller ever did — the only
+ * reference in `PracticeTestPanel` is a `stop('drill')` on close,
+ * popping a driver nothing pushed. So the click only ever sounded if
+ * you pressed play here or in the header, and this described a caller
+ * that did not exist.
+ *
+ * It is not being added. A test run requires the metronome to be
+ * ALREADY RUNNING before it can start, which is what makes "was it on"
+ * a fact at one instant with nothing to police afterwards. A panel
+ * that started it for you would satisfy that gate automatically and
+ * prove nothing. The gate says "Start the metronome to begin a test
+ * run" and refuses until you do.
  */
 import {
   GROOVE_LABEL,

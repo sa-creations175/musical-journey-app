@@ -412,3 +412,72 @@ describe('a test asks its settings once, not before every run', () => {
     r.unmount();
   });
 });
+
+describe('closing asks when there is time to lose', () => {
+  it('DOES NOT ask before a mode is picked', async () => {
+    // Nothing recorded and nothing running: closing is as if the panel
+    // never opened, so a prompt would be asking about nothing.
+    const r = render();
+    await r.press('Close');
+    expect(r.text()).not.toContain('Are you sure you want to cancel this session?');
+    r.unmount();
+  });
+
+  it('asks once a session has started', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Close');
+    expect(r.text()).toContain('Are you sure you want to cancel this session?');
+    r.unmount();
+  });
+
+  it('asks in practice too — the condition is the clock, not the mode', async () => {
+    const r = render();
+    await r.pressStartingWith('Practice');
+    await r.press('Close');
+    expect(r.text()).toContain('Are you sure you want to cancel this session?');
+    r.unmount();
+  });
+
+  it('Continue Session puts you back with the session intact', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.press('Close');
+    await r.press('Continue Session');
+    expect(r.text()).not.toContain('Are you sure');
+    expect(r.text()).toContain('1 of 3');
+    r.unmount();
+  });
+
+  it('OFFERS NOTHING ELSE WHILE IT ASKS', async () => {
+    // The confirmation replaces the body rather than sitting over it,
+    // and the footer's Close goes with it: a question you can read the
+    // session through invites answering it by looking away.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Close');
+    expect(r.labels().filter(l => l !== '×'))
+      .toEqual(['Cancel The Session', 'Continue Session']);
+    r.unmount();
+  });
+
+  it('does NOT include the unapproved middle line', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Close');
+    expect(r.text()).not.toContain("won't be recorded");
+    r.unmount();
+  });
+
+  it('does not ask on the result screen — the session is already written', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.press('Close And See It');
+    expect(r.text()).not.toContain('Are you sure');
+    r.unmount();
+  });
+});

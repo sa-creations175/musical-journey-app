@@ -109,7 +109,35 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   // nothing sounding — see `SessionStep`.
   const metronomePlaying = useMetronomeState().playing;
 
+  /**
+   * Leaving. Asks first when there is time on the clock to lose.
+   *
+   * =====================================================================
+   * THE CONDITION IS THE CLOCK, NOT THE SCREEN.
+   *
+   * Before a mode is picked, nothing has been recorded and nothing is
+   * running — closing is as if the panel never opened, so a prompt
+   * would be asking about nothing. Once a session has started there
+   * are minutes that vanish silently, which is what this stops.
+   *
+   * NOT `step`, and that distinction is the whole rule: the panel has
+   * six screens and only one fact matters, so a list of steps to
+   * exempt would be a list to forget to update.
+   *
+   * The DONE step is the exception, and for the same reason rather
+   * than in spite of it: the session is already written by then, so
+   * there is nothing left to lose and asking would imply otherwise.
+   * =====================================================================
+   */
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const clockHasRun = mode !== null && step !== 'done';
+
   const close = () => {
+    if (clockHasRun) { setConfirmingCancel(true); return; }
+    reallyClose();
+  };
+
+  const reallyClose = () => {
     metronome.stop('drill');
     onClose();
   };
@@ -292,11 +320,42 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
          choose between two ways of agreeing with a screen that is
          finished. The Modal's own × stays — it is chrome on every
          modal and calls the same handler. */
-      footer={outcome?.passed != null
+      footer={outcome?.passed != null || confirmingCancel
         ? undefined
         : <PanelFooter step={step} mode={mode} onClose={close} />}
     >
-      {step === 'choose' && (
+      {/* ONE QUESTION, TWO ANSWERS, AND NOTHING ELSE ON SCREEN. It
+          replaces the body rather than sitting over it: a confirmation
+          you can read the session through invites answering it by
+          looking away.
+
+          There is a proposed middle line — "The time on the clock
+          won't be recorded." — which is NOT approved and is not here. */}
+      {confirmingCancel && (
+        <div className="space-y-4">
+          <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
+            Are you sure you want to cancel this session?
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={reallyClose}
+              className="px-4 py-2 rounded-lg bg-needswork text-white text-sm font-medium hover:opacity-90"
+            >
+              Cancel The Session
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingCancel(false)}
+              className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
+            >
+              Continue Session
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!confirmingCancel && step === 'choose' && (
         <ModeChooser onPick={next => {
           setMode(next);
           setTestDraft(next === 'test' ? newDraft() : null);
@@ -308,11 +367,11 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           happens between runs — reading the chart, finding a voicing,
           playing a passage over — and a click that only exists inside
           a timed drill is not available for any of it. */}
-      {step === 'session' && mode !== null && surface.sessionMetronome && (
+      {!confirmingCancel && step === 'session' && mode !== null && surface.sessionMetronome && (
         <MetronomeControl />
       )}
 
-      {step === 'session' && mode !== null && surface.openItem !== null && (
+      {!confirmingCancel && step === 'session' && mode !== null && surface.openItem !== null && (
         <button
           type="button"
           onClick={surface.openItem}
@@ -322,7 +381,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         </button>
       )}
 
-      {step === 'session' && mode !== null && (
+      {!confirmingCancel && step === 'session' && mode !== null && (
         <SessionStep
           mode={mode}
           seconds={sessionSeconds}
@@ -368,7 +427,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         />
       )}
 
-      {step === 'setup' && draft !== null && mode !== null && (
+      {!confirmingCancel && step === 'setup' && draft !== null && mode !== null && (
         <SetupStep
           mode={mode}
           seconds={sessionSeconds}
@@ -380,7 +439,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         />
       )}
 
-      {step === 'drilling' && draft !== null && mode !== null && (
+      {!confirmingCancel && step === 'drilling' && draft !== null && mode !== null && (
         <DrillingStep
           mode={mode}
           seconds={sessionSeconds}
@@ -395,7 +454,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           runs the same test now, so every surface says so the same
           way. `DoneStep` still handles a session that ended without a
           pass — a practice sitting, or a test walked away from. */}
-      {step === 'done' && outcome !== null && (
+      {!confirmingCancel && step === 'done' && outcome !== null && (
         outcome.passed !== null
           ? (
             <TestPassedScreen
@@ -409,7 +468,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           : <DoneStep outcome={outcome} onClose={close} />
       )}
 
-      {step === 'wrap' && mode !== null && (
+      {!confirmingCancel && step === 'wrap' && mode !== null && (
         <WrapStep
           seconds={sessionSeconds}
           mode={mode}
@@ -444,7 +503,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         />
       )}
 
-      {step === 'drillrate' && draft !== null && mode !== null && (
+      {!confirmingCancel && step === 'drillrate' && draft !== null && mode !== null && (
         <DrillRateStep
           surface={surface}
           openedOn={surface.scopeOptions?.find(o => o.id === surface.openedOnScopeId)?.label ?? null}
@@ -557,9 +616,17 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
           className="text-left rounded-lg border border-neutral-200 dark:border-neutral-700 px-3.5 py-3 hover:border-fluent transition"
         >
           <div className="text-[0.96rem] font-semibold">Test</div>
+          {/* IT NOW SAYS THE RESET, which is the one thing it lacked.
+              Every clause of the old sentence was true — three drills
+              at target, each rated, the lowest setting the rating — so
+              it was incomplete rather than false, and incomplete about
+              the exact rule the streak change added. Someone reading
+              it would have learned the rule by losing a streak to it. */}
           <div className="text-xs text-neutral-500 leading-snug mt-0.5">
-            Three drills, each at or above your target rate, each one rated. The
-            lowest of the three sets the rating. The only way to{' '}
+            Three drills in a row, each at or above your target rate, each one
+            rated Clean or better. Anything lower puts the count back to zero
+            and you go again. The lowest of the three sets the rating. Testing
+            is the only way to{' '}
             <b className="text-neutral-700 dark:text-neutral-200">Fluent</b> or{' '}
             <b className="text-neutral-700 dark:text-neutral-200">Mastered</b>.
           </div>
