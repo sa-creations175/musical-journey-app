@@ -28,6 +28,22 @@ vi.mock('../../../../lib/userPrefs', () => ({
   setPref: async () => {},
 }));
 
+/**
+ * The metronome, reported as sounding.
+ *
+ * A test run cannot start with nothing sounding — that is the gate, and
+ * it has its own test below. Everything else in this file is about what
+ * happens AFTER a run starts, so the metronome is mocked as running
+ * rather than each test being about switching it on. Starting the real
+ * one needs an AudioContext jsdom does not have.
+ */
+let metronomePlaying = true;
+vi.mock('../../../../lib/useMetronome', () => ({
+  useMetronomeState: () => ({
+    playing: metronomePlaying, bpm: 90, timeSig: '4/4', groove: 'straight', volume: 0.5,
+  }),
+}));
+
 const written: DrillRecord[] = [];
 const passes = vi.fn(async () => {});
 
@@ -86,7 +102,13 @@ function render(s: DrillSurface = surface()) {
   const run = async (feel: string) => {
     await pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await pressStartingWith('Done');
+    // "Done — Rate It" on a count-up surface, "Finish Now" on a
+    // count-down one. Both end the run; the label follows the clock.
+    const finish = [...document.body.querySelectorAll('button')]
+      .map(b => (b.textContent ?? '').trim())
+      .find(l => l.startsWith('Done') || l.startsWith('Finish'));
+    if (!finish) throw new Error(`no finish button — have ${labels().join(' | ')}`);
+    await pressStartingWith(finish);
     // The feel chips carry their hint in the same button, so this
     // matches the leading word rather than the whole label.
     await pressStartingWith(feel);
@@ -99,6 +121,7 @@ function render(s: DrillSurface = surface()) {
 }
 
 beforeEach(() => {
+  metronomePlaying = true;
   vi.useFakeTimers();
   written.length = 0;
   passes.mockClear();
@@ -106,6 +129,37 @@ beforeEach(() => {
 });
 
 afterEach(() => { vi.useRealTimers(); });
+
+describe('the metronome gates a test run — on every surface', () => {
+  it('refuses to start one with nothing sounding, and says why', async () => {
+    // The rule stopped being song-only when the test model became
+    // shared. A test that requires the metronome running cannot
+    // require it on one surface and not the others.
+    metronomePlaying = false;
+    const r = render();
+    await r.pressStartingWith('Test');
+    expect(r.text()).toContain('Start the metronome to begin a test run.');
+    const btn = [...document.body.querySelectorAll('button')]
+      .find(b => (b.textContent ?? '').startsWith('Start Test Run'));
+    expect(btn?.hasAttribute('disabled')).toBe(true);
+    r.unmount();
+  });
+
+  it('lets one start once it is', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    expect(r.text()).not.toContain('Start the metronome to begin');
+    r.unmount();
+  });
+
+  it('DOES NOT GATE PRACTICE — the metronome is optional there', async () => {
+    metronomePlaying = false;
+    const r = render();
+    await r.pressStartingWith('Practice');
+    expect(r.text()).not.toContain('Start the metronome to begin');
+    r.unmount();
+  });
+});
 
 describe('entering a test', () => {
   it('still asks what you are about to do', async () => {
@@ -305,6 +359,56 @@ describe('a pass reports through the one result screen', () => {
     await r.run('Clean');
     await r.press('End Session');
     expect(r.text()).not.toContain('That’s the test passed.');
+    r.unmount();
+  });
+});
+
+describe('a test asks its settings once, not before every run', () => {
+  /** A surface with something to set, so the form exists at all. */
+  const withSetup = () => surface({
+    hasStyle: true,
+    countsUp: false,
+    rateOptions: [{ per: 1, label: 'One Shape Per Beat' }, { per: 2, label: 'One Shape Every 2 Beats' }],
+    targetRate: 0,
+  });
+
+  it('shows the form on the session screen, beside the circles', async () => {
+    const r = render(withSetup());
+    await r.pressStartingWith('Test');
+    expect(r.text()).toContain('How Long');
+    expect(r.text()).toContain('0 of 3');
+    r.unmount();
+  });
+
+  it('START MEANS START — it does not open a form', async () => {
+    // Pressing a button that says Start and getting a form you have to
+    // scroll past is the thing this removes.
+    const r = render(withSetup());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    expect(r.labels().some(l => l === 'Start Drill')).toBe(false);
+    expect(r.labels().some(l => l.startsWith('Finish'))).toBe(true);
+    r.unmount();
+  });
+
+  it('THE THREE RUNS SHARE ONE SETTING, which is what makes them three of one', async () => {
+    // Thirty seconds then ninety at two rates are two drills, and
+    // "three in a row" says nothing about two drills.
+    const r = render(withSetup());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    expect(written).toHaveLength(2);
+    expect(written[0].targetSeconds).toBe(written[1].targetSeconds);
+    expect(written[0].style).toBe(written[1].style);
+    r.unmount();
+  });
+
+  it('PRACTICE KEEPS THE PER-DRILL FORM — varying it is the point there', async () => {
+    const r = render(withSetup());
+    await r.pressStartingWith('Practice');
+    await r.pressStartingWith('Start A Practice Drill');
+    expect(r.labels().some(l => l === 'Start Drill')).toBe(true);
     r.unmount();
   });
 });

@@ -85,6 +85,16 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   const [mode, setMode] = useState<SessionMode | null>(null);
   const [drills, setDrills] = useState<CompletedDrill[]>([]);
   const [draft, setDraft] = useState<DrillDraft | null>(null);
+  /**
+   * The settings this TEST session's runs all share.
+   *
+   * A test's three runs have to be three runs of one thing — thirty
+   * seconds then ninety at two rates are two drills, and "three in a
+   * row" says nothing about those. So it is settled once, at the top
+   * of the session, and every run inherits it. Null in practice, where
+   * varying it between drills is the point.
+   */
+  const [testDraft, setTestDraft] = useState<DrillDraft | null>(null);
   const [ranSeconds, setRanSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
   /** What the item reads after the session was written, and how it was
@@ -95,6 +105,9 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   const [scope, setScope] = useState<readonly string[]>([]);
 
   const sessionSeconds = useSessionClock(mode !== null, surface.readSessionElapsedMs);
+  // THE GATE READS THE LIVE METRONOME. A test run cannot start with
+  // nothing sounding — see `SessionStep`.
+  const metronomePlaying = useMetronomeState().playing;
 
   const close = () => {
     metronome.stop('drill');
@@ -284,7 +297,11 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         : <PanelFooter step={step} mode={mode} onClose={close} />}
     >
       {step === 'choose' && (
-        <ModeChooser onPick={next => { setMode(next); setStep('session'); }} />
+        <ModeChooser onPick={next => {
+          setMode(next);
+          setTestDraft(next === 'test' ? newDraft() : null);
+          setStep('session');
+        }} />
       )}
 
       {/* A METRONOME ON THE SESSION. Plenty of the work on a song
@@ -312,7 +329,20 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           drills={drills}
           saving={saving}
           surface={surface}
+          testDraft={testDraft}
+          onTestDraftChange={setTestDraft}
+          metronomeOn={metronomePlaying}
           onStartDrill={() => {
+            // A TEST'S SETTINGS ARE ALREADY ANSWERED. They were asked
+            // once above the circles, so pressing Start starts a run
+            // rather than opening a form behind a button that said
+            // Start.
+            if (mode === 'test' && testDraft !== null) {
+              setDraft(testDraft);
+              setRanSeconds(0);
+              setStep('drilling');
+              return;
+            }
             const draft = newDraft();
             if (setupHasSomethingToSet(surface)) {
               setDraft(draft);
@@ -542,13 +572,18 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 // ---------------------------------------------------------------------
 
 function SessionStep({
-  mode, seconds, drills, saving, surface, onStartDrill, onEndSession,
+  mode, seconds, drills, saving, surface, testDraft, onTestDraftChange,
+  metronomeOn, onStartDrill, onEndSession,
 }: {
   mode: SessionMode;
   seconds: number;
   drills: ReadonlyArray<CompletedDrill>;
   saving: boolean;
   surface: DrillSurface;
+  /** The settings this test session's runs share. Null in practice. */
+  testDraft: DrillDraft | null;
+  onTestDraftChange: (next: DrillDraft) => void;
+  metronomeOn: boolean;
   onStartDrill: () => void;
   onEndSession: () => void;
 }) {
@@ -589,6 +624,17 @@ function SessionStep({
         </div>
       )}
 
+      {/* ASKED ONCE, ABOVE THE RUNS THEY GOVERN. A test's three runs
+          have to be three runs of ONE thing; see `DrillSettings`. */}
+      {mode === 'test' && testDraft !== null && setupHasSomethingToSet(surface) && (
+        <DrillSettings
+          mode={mode}
+          draft={testDraft}
+          surface={surface}
+          onChange={onTestDraftChange}
+        />
+      )}
+
       <div>
         <SectionLabel
           hint={mode === 'test'
@@ -600,12 +646,24 @@ function SessionStep({
         <DrillList mode={mode} drills={drills} surface={surface} />
       </div>
 
+      {/* WHY IT CANNOT START, ABOVE THE BUTTON. The rule stopped being
+          song-only when the test model became shared: a test that
+          requires the metronome running cannot require it on one
+          surface and not the others. Said above rather than in a
+          tooltip — a disabled control with its reason behind a hover
+          is a dead end, and this is the one place someone is stuck. */}
+      {mode === 'test' && !metronomeOn && (
+        <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-snug">
+          Start the metronome to begin a test run.
+        </p>
+      )}
+
       <div className="flex items-center gap-2 flex-wrap">
         <button
           type="button"
           onClick={onStartDrill}
-          disabled={saving}
-          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45"
+          disabled={saving || (mode === 'test' && !metronomeOn)}
+          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
         >
           {mode === 'test'
             ? `Start Test Run ${drills.length + 1}`
@@ -701,13 +759,65 @@ function SetupStep({
   onStart: () => void;
   onCancel: () => void;
 }) {
+  return (
+    <div className="space-y-4">
+      <SessionClockFace seconds={seconds} mode={mode} />
+      <DrillSettings mode={mode} draft={draft} surface={surface} onChange={onChange} />
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onStart}
+          disabled={draft.style === null}
+          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
+        >
+          Start Drill
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * How long, how fast, and in what manner.
+ *
+ * =====================================================================
+ * A TEST ASKS THIS ONCE. PRACTICE ASKS IT EVERY TIME.
+ *
+ * A test's three runs have to be THREE RUNS OF ONE THING. Thirty
+ * seconds, then ninety, then a hundred and twenty, at three different
+ * rates, are three different drills — and "three in a row" says nothing
+ * about three different drills. So a test session settles this at the
+ * top, on the screen that shows the circles, and every run inherits it.
+ *
+ * Practice is the opposite case and keeps the per-drill form: varying
+ * it between drills is the point of practising.
+ *
+ * IT CHANGES NOTHING ABOUT WHAT A RUN STORES. Each run still records
+ * its own `ranSeconds` — what was actually played — alongside the
+ * settings it inherited. What changes is how often the question is
+ * asked, not what the answer is attached to.
+ * =====================================================================
+ */
+function DrillSettings({ mode, draft, surface, onChange }: {
+  mode: SessionMode;
+  draft: DrillDraft;
+  surface: DrillSurface;
+  onChange: (next: DrillDraft) => void;
+}) {
   const metro = useMetronomeState();
   const rate = rateFor(surface, metro.bpm, draft.per);
   const atTarget = isAtTarget(surface, metro.bpm, draft.per);
   const isTest = mode === 'test';
 
   // A test drill is always blocked and in time. Set once on entering
-  // the step rather than asked — see the panel below, which states it.
+  // rather than asked — the sentence below states it.
   useEffect(() => {
     if (isTest && draft.style !== 'blocked') onChange({ ...draft, style: 'blocked' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -715,8 +825,6 @@ function SetupStep({
 
   return (
     <div className="space-y-4">
-      <SessionClockFace seconds={seconds} mode={mode} />
-
       {/* A TEST STATES ITS MANNER; PRACTICE PICKS ONE. Offering a
           disabled Broken chip in a test was a control that existed
           only to refuse — the sentence says the same thing and is
@@ -812,24 +920,6 @@ function SetupStep({
           shape gets.
         </div>
       )}
-
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onStart}
-          disabled={draft.style === null}
-          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
-        >
-          Start Drill
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
-        >
-          Cancel
-        </button>
-      </div>
     </div>
   );
 }
