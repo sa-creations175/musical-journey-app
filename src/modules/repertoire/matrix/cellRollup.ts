@@ -9,6 +9,7 @@ import {
 } from '../../../lib/db';
 import { type CellBands, isCellComfortable, isCellTouched, loadCellBands } from './cellBands';
 import { isCleanFeel, type Feel } from '../../../lib/fluencyScale';
+import { meetsFloor } from '../../../lib/spacing/testStreak';
 
 /**
  * Cell-state machine helpers for the cell interaction modal.
@@ -97,16 +98,15 @@ export function isInTempoRange(
   bpm: number | null,
   performanceTempo: number | null,
 ): boolean {
-  // No target to measure against — every run-through counts.
-  if (performanceTempo == null) return true;
-  // A run-through logged without a tempo cannot be VERIFIED at the
-  // performance target, so it does not advance the gate. It is still
-  // recorded honestly, exactly like a below-floor attempt: the gate
-  // asks "clean at tempo", and "clean at a tempo you didn't say" is
-  // not an answer to it. Counting it would let the comfortable
-  // threshold be reached on unverified runs.
-  if (bpm == null) return false;
-  return bpm >= performanceTempo - 10;
+  // THE SHARED GATE, with the song's floor. `meetsFloor` carries the
+  // two null rules that used to live here — no target means everything
+  // counts, no measured tempo means nothing does — because they are the
+  // same rules the shapes surfaces need and were only written once.
+  //
+  // The FLOOR stays here: ten below is the song's tolerance and does
+  // not transfer to a rate measured in reps per minute. See
+  // `testStreak.meetsFloor`.
+  return meetsFloor(bpm, performanceTempo == null ? null : performanceTempo - 10);
 }
 
 /**

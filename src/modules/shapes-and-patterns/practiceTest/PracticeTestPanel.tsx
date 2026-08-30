@@ -44,6 +44,10 @@ import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS } from '../drillModel';
 import {
   isAtTarget, rateFor, setupHasSomethingToSet, type DrillSurface,
 } from './surfaces';
+import {
+  projectTestStreak, streakPassed, type StreakRun,
+} from '../../../lib/spacing/testStreak';
+import StreakCircles from '../../repertoire/matrix/StreakCircles';
 import { formatClock, useSessionClock } from './sessionClock';
 import { newSessionId } from '../../../lib/sessionId';
 import type { BandVerdict } from '../../../lib/spacing/banding';
@@ -51,7 +55,6 @@ import { TIER_LABEL } from '../../../lib/tier';
 import { PRACTICE_ACTIVITY_OPTIONS, type PracticeActivity } from '../../../lib/practiceActivities';
 import {
   DRILL_LENGTHS,
-  countsTowardTest,
   isTooShort,
   styleLabel,
   newDraft,
@@ -63,7 +66,6 @@ import {
 type Step = 'choose' | 'session' | 'setup' | 'drilling' | 'drillrate' | 'wrap' | 'done';
 
 /** Reps a test is made of. */
-const TEST_REPS = 3;
 
 interface Props {
   /** Everything that differs by surface: the labels, the rate, and the
@@ -173,34 +175,65 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
     }
   };
 
-  /** Test: the three are collected, then written together at Save. */
-  const finishTestDrill = (feel: CompletedDrill['feel']) => {
-    setDrills(prev => [...prev, completed(feel)]);
+  /**
+   * Test: each run is written AS IT FINISHES, and the third clean one
+   * ends the test.
+   *
+   * =====================================================================
+   * IT USED TO COLLECT THREE AND WRITE THEM AT SAVE, AND THAT IS WHY
+   * THE PANEL AND THE BAND DISAGREED.
+   *
+   * `countsTowardTest` never looked at the feel's VALUE, so three
+   * at-target rated drills — one of them Struggled — made the panel say
+   * the test was done. `banding.ts` then read the same three reps, hit
+   * the Struggled one, reset, and refused the pass.
+   *
+   * Writing each run as it finishes is what makes the two agree. The
+   * FAILURES GET WRITTEN TOO, and that is required rather than
+   * incidental: banding reconstructs the streak from the stored reps,
+   * so a reset it cannot see is a reset that did not happen.
+   *
+   * There is no Save step. The third clean run is the pass.
+   * =====================================================================
+   */
+  const finishTestDrill = async (feel: CompletedDrill['feel']) => {
+    if (saving) return;
+    const d = completed(feel);
+    const next = [...drills, d];
+    setDrills(next);
     setDraft(null);
     setStep('session');
-  };
 
-  const saveTest = async () => {
-    if (saving) return;
+    // A run too short to have been real is on the list saying so, and
+    // nothing is written for it — unchanged, and the one case where a
+    // run leaves no rep.
+    if (d.tooShort) return;
+
     setSaving(true);
     try {
-      const reps = drills.filter(countsTowardTest).slice(0, TEST_REPS);
-      for (const d of reps) {
-        await surface.write({
-          ranSeconds: d.ranSeconds,
-          targetSeconds: surface.countsUp ? 0 : d.ranSeconds,
-          // A test is three runs of the thing being tested. Scoping one
-          // of them to something else would make the three not be three
-          // reps of one item.
-          scope: null,
-          // A test drill is always blocked, where there is a style at
-          // all. The writer drops it on surfaces that have none.
-          style: surface.hasStyle ? 'blocked' : null,
-          feel: d.feel,
-          fromTest: true,
-          sessionId: sessionIdNow(),
-        });
-      }
+      await surface.write({
+        ranSeconds: d.ranSeconds,
+        targetSeconds: surface.countsUp ? 0 : d.ranSeconds,
+        // A test is three runs of the thing being tested. Scoping one
+        // of them to something else would make the three not be three
+        // reps of one item.
+        scope: null,
+        // A test drill is always blocked, where there is a style at
+        // all. The writer drops it on surfaces that have none.
+        style: surface.hasStyle ? 'blocked' : null,
+        feel: d.feel,
+        fromTest: true,
+        sessionId: sessionIdNow(),
+      });
+
+      if (!streakPassed(next.map(streakRun))) return;
+
+      // THE DURABLE FACT, where the surface has one. Null on the three
+      // shapes surfaces: a passed shapes test is entirely described by
+      // its reps. A song also writes `wholeSongTestPassedAt` and moves
+      // the key's retest clock, neither of which the reps imply.
+      await surface.recordTestPass?.();
+
       setOutcome({
         kind: 'test',
         feel: null,
@@ -266,7 +299,6 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
             setRanSeconds(0);
             setStep('drilling');
           }}
-          onSaveTest={() => void saveTest()}
           onEndSession={() => {
             // PRACTICE ENDS AT THE WRAP, not at the door. The session's
             // own rating had nowhere to land before this — End Session
@@ -461,7 +493,7 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 // ---------------------------------------------------------------------
 
 function SessionStep({
-  mode, seconds, drills, saving, surface, onStartDrill, onSaveTest, onEndSession,
+  mode, seconds, drills, saving, surface, onStartDrill, onEndSession,
 }: {
   mode: SessionMode;
   seconds: number;
@@ -469,59 +501,67 @@ function SessionStep({
   saving: boolean;
   surface: DrillSurface;
   onStartDrill: () => void;
-  onSaveTest: () => void;
   onEndSession: () => void;
 }) {
-  const counting = drills.filter(countsTowardTest);
-  const testComplete = mode === 'test' && counting.length >= TEST_REPS;
-  const lowest = counting.slice(0, TEST_REPS)
-    .reduce((low, d) => Math.min(low, d.feel ?? 4), 4);
+  const runs = drills.map(streakRun);
+  const streak = projectTestStreak(runs);
+  // THE LAST RUN BROKE IT, and only the last one — a streak sitting at
+  // zero because nothing has been run yet is not a reset.
+  const broken = mode === 'test'
+    && streak === 0
+    && runs.length > 0
+    && runs[runs.length - 1].counts;
 
   return (
     <div className="space-y-4">
       <SessionClockFace seconds={seconds} mode={mode} />
 
+      {/* THE CIRCLES ARE DRAWN ALWAYS DURING A TEST, not once a run is
+          banked. The run number keeps climbing while the streak returns
+          to zero, and circles that vanish on a reset take the count
+          away at exactly the moment it matters most. */}
+      {mode === 'test' && (
+        <div className="flex items-center gap-2.5">
+          <StreakCircles
+            count={streak}
+            broken={broken}
+            label={`${streak} of 3 clean run-throughs in a row`}
+          />
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
+            {streak} of 3
+          </span>
+        </div>
+      )}
+
+      {broken && (
+        <div className="rounded-md border-l-[3px] border-needswork bg-needswork/5 px-3 py-2.5 text-xs leading-snug text-neutral-700 dark:text-neutral-200">
+          That run was below Clean, so the streak starts over — back to{' '}
+          <b>0 of 3</b>. The runs before it are still logged.
+        </div>
+      )}
+
       <div>
         <SectionLabel
           hint={mode === 'test'
-            ? 'All three at target, all three rated'
+            ? 'Three in a row, at target, all rated'
             : 'Optional — the session counts either way'}
         >
-          {mode === 'test' ? 'The Three Test Drills' : 'Drills In This Session'}
+          {mode === 'test' ? 'Runs In This Testing Session' : 'Drills In This Session'}
         </SectionLabel>
         <DrillList mode={mode} drills={drills} surface={surface} />
       </div>
 
-      {testComplete && (
-        <div className="rounded-md border-l-[3px] border-fluent bg-fluent/5 px-3 py-2.5 text-xs text-neutral-700 dark:text-neutral-200">
-          <b>Three drills at target, all rated.</b> The lowest of them was{' '}
-          {FEEL_CARD_OPTIONS.find(o => o.value === lowest)?.label}, and that is
-          what this will read.
-        </div>
-      )}
-
       <div className="flex items-center gap-2 flex-wrap">
-        {!testComplete && (
-          <button
-            type="button"
-            onClick={onStartDrill}
-            className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
-          >
-            {mode === 'test'
-              ? `Start Test ${counting.length + 1}`
-              : 'Start A Practice Drill'}
-          </button>
-        )}
-        {testComplete && (
-          <button
-            type="button"
-            onClick={onSaveTest}
-            disabled={saving}
-            className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45"
-          >
-            {saving ? 'Saving…' : 'Save The Test'}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onStartDrill}
+          disabled={saving}
+          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45"
+        >
+          {mode === 'test'
+            ? `Start Test Run ${drills.length + 1}`
+            : 'Start A Practice Drill'}
+        </button>
         <button
           type="button"
           onClick={onEndSession}
@@ -532,6 +572,19 @@ function SessionStep({
       </div>
     </div>
   );
+}
+
+/**
+ * A completed drill, as the streak sees it.
+ *
+ * `belowTarget` and `tooShort` both make a run not count rather than
+ * fail: a warm-up under tempo is a different activity, and a run that
+ * was too short never happened. Neither advances the streak and neither
+ * resets it — the same treatment `isInTempoRange` has always given a
+ * slow run on a song.
+ */
+function streakRun(d: CompletedDrill): StreakRun {
+  return { counts: !d.belowTarget && !d.tooShort, feel: d.feel };
 }
 
 function DrillList({ mode, drills, surface }: {

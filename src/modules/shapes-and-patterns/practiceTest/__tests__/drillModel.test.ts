@@ -3,10 +3,8 @@ import { formatClock } from '../sessionClock';
 import {
   DEFAULT_DRILL_SECONDS,
   DRILL_LENGTHS,
-  countsTowardTest,
   isTooShort,
   newDraft,
-  type CompletedDrill,
 } from '../drillModel';
 import {
   CHORD_RATE_OPTIONS,
@@ -147,32 +145,6 @@ describe('the floor, per run', () => {
   });
 });
 
-describe('which reps count toward a test', () => {
-  const drill = (over: Partial<CompletedDrill>): CompletedDrill => ({
-    id: 'd', style: 'blocked', ranSeconds: 60, bpm: 60, per: 1,
-    rate: 60, belowTarget: false, feel: 3, tooShort: false, ...over,
-  });
-
-  it('counts a rated, at-target run that cleared the floor', () => {
-    expect(countsTowardTest(drill({}))).toBe(true);
-  });
-
-  it('excludes a below-target run — logged, but not one of the three', () => {
-    expect(countsTowardTest(drill({ belowTarget: true }))).toBe(false);
-  });
-
-  it('excludes a run that was too short to have been real', () => {
-    expect(countsTowardTest(drill({ tooShort: true }))).toBe(false);
-  });
-
-  it('excludes an unrated run, which a test cannot produce anyway', () => {
-    expect(countsTowardTest(drill({ feel: null }))).toBe(false);
-  });
-
-  it('counts a run with no style — scales and voice leading have none', () => {
-    expect(countsTowardTest(drill({ style: null }))).toBe(true);
-  });
-});
 
 describe('the clock face', () => {
   it('shows mm:ss below an hour', () => {

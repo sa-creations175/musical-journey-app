@@ -20,6 +20,7 @@
 
 import type { DrillStyle } from '../../../lib/db';
 import type { Feel } from '../../../lib/fluencyScale';
+import { meetsFloor } from '../../../lib/spacing/testStreak';
 import type { BandVerdict } from '../../../lib/spacing/banding';
 import type { Style } from './drillModel';
 
@@ -329,8 +330,18 @@ export function rateFor(surface: DrillSurface, bpm: number, per: number): number
   return surface.rateFrom(bpm, per);
 }
 
+/**
+ * Is this run fast enough to count toward a test?
+ *
+ * The same question `isInTempoRange` answers for a song, through the
+ * same function — but with THIS surface's floor. A shapes floor is the
+ * target rate exactly; a song's is ten bpm below its tempo, and "ten
+ * below" does not transfer to a rate measured in reps per minute. See
+ * `meetsFloor`, which carries the question and leaves the floor to the
+ * caller.
+ */
 export function isAtTarget(surface: DrillSurface, bpm: number, per: number): boolean {
-  return rateFor(surface, bpm, per) >= surface.targetRate;
+  return meetsFloor(rateFor(surface, bpm, per), surface.targetRate);
 }
 
 // ---------------------------------------------------------------------

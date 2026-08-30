@@ -83,11 +83,6 @@ export function isTooShort(ranSeconds: number, floorSeconds: number): boolean {
   return ranSeconds < floorSeconds;
 }
 
-/** Reps that count toward a test's three: at target, rated, long enough. */
-export function countsTowardTest(d: CompletedDrill): boolean {
-  return !d.belowTarget && !d.tooShort && d.feel !== null;
-}
-
 export function newDraft(): DrillDraft {
   return {
     style: null,
