@@ -5,7 +5,7 @@ import MetronomeControl from '../../../components/MetronomeControl';
 import {
   clampTestBpm,
   noTempoText,
-  testTempoWindowText,
+  tempoWindowText,
 } from '../tempoGate';
 
 /**
@@ -42,13 +42,14 @@ import {
  * test with no yardstick.
  *
  * =====================================================================
- * NOT WRITTEN, AND SO NOT SHOWN: the standing explainer under a
- * PRACTICE metronome. The test's equivalent is approved
- * (`testTempoWindowText`); the practice one is not, and the prototype's
- * wording for it has never been signed off. A box with one mode
- * explained and the other silent is visibly incomplete, which is the
- * correct state for something unwritten — an invented sentence would
- * not be.
+ * BOTH MODES EXPLAIN THEMSELVES, AND THE TWO LINES ARE A PAIR.
+ *
+ * The practice explainer was unwritten for a while and this box showed
+ * nothing in its place — visibly incomplete, which was the correct
+ * state for something unwritten. Now that it exists, both lines open on
+ * the same fact (the song's target) and then say what the mode does
+ * about it, so reading one after the other gives two answers to one
+ * question rather than two paragraphs. See `tempoWindowText`.
  * =====================================================================
  *
  * Copy: `TEMPO_SOURCE_SPEC.md` §10.
@@ -163,13 +164,12 @@ export default function SongMetronomeBox({
 
       {/* THE WINDOW, STATED BEFORE IT BITES. Someone who finds out
           about the floor by hitting it has learned the same rule in the
-          worse order. Test only — the practice equivalent is unwritten,
-          see the header. */}
-      {mode === 'testing' && (
-        <p className="text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
-          {testTempoWindowText(songTempo)}
-        </p>
-      )}
+          worse order — and practice needs its half as much, because
+          "you may go slower" is not obvious from a metronome that
+          simply lets you. */}
+      <p className="text-[11px] leading-snug text-neutral-500 dark:text-neutral-400">
+        {tempoWindowText(mode, songTempo)}
+      </p>
 
       {clampedWhy !== '' && (
         <p className="text-[11px] leading-snug text-needswork">{clampedWhy}</p>

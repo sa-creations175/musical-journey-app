@@ -110,7 +110,8 @@ describe('a test clamps at the floor and says why', () => {
     // Someone who finds out about the floor by hitting it has learned
     // the same rule in the worse order.
     expect(render({ mode: 'testing', songTempo: 100 }).text()).toContain(
-      'This song is at 100 bpm. A test runs at 90 bpm or faster — ten below is the floor.',
+      'The target bpm for this song is 100bpm. A test run must be no lower '
+      + 'than 90bpm (10 below the target).',
     );
   });
 });
@@ -126,9 +127,15 @@ describe('practice moves anywhere', () => {
     r.unmount();
   });
 
-  it('shows no test window, because there is no test', () => {
-    expect(render({ mode: 'practice', songTempo: 100 }).text())
-      .not.toContain('A test runs at');
+  it('EXPLAINS ITSELF TOO, and does not borrow the test\'s words', () => {
+    // Practice needs its half as much: "you may go slower" is not
+    // obvious from a metronome that simply lets you.
+    const t = render({ mode: 'practice', songTempo: 100 }).text();
+    expect(t).toContain(
+      'The target bpm for this song is 100bpm. Practice can run at any tempo '
+      + 'as you build up to target. Slow it down if that’s what you need to start.',
+    );
+    expect(t).not.toContain('A test run must be no lower');
   });
 });
 
@@ -173,15 +180,17 @@ describe('the state word', () => {
   });
 });
 
-describe('the practice explainer is NOT written, so it is NOT shown', () => {
-  it('leaves the practice box visibly without one', () => {
-    // The test's window text is approved; the practice equivalent is
-    // not, and the prototype's wording for it was never signed off. A
-    // box with one mode explained and the other silent is visibly
-    // incomplete, which is the correct state for something unwritten.
-    // An invented sentence would not be, and would not fail a test.
-    const t = render({ mode: 'practice', songTempo: 100 }).text();
-    expect(t).not.toContain('Opens at the song');
-    expect(t).not.toContain('slow it down as much as you like');
+describe('the prototype\'s placeholder wording never shipped', () => {
+  it('is absent from both modes', () => {
+    // This test used to assert the practice box had NO explainer,
+    // because none was written and an invented one would have looked
+    // finished. One is written now, and it is not the prototype's —
+    // that draft was never signed off and must not creep back in as
+    // "close enough".
+    for (const mode of ['practice', 'testing'] as const) {
+      const t = render({ mode, songTempo: 100 }).text();
+      expect(t).not.toContain('Opens at the song');
+      expect(t).not.toContain('slow it down as much as you like');
+    }
   });
 });

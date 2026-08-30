@@ -24,7 +24,7 @@ import {
   noTempoText,
   testFloorBpm,
   testRunBlockReason,
-  testTempoWindowText,
+  tempoWindowText,
 } from '../tempoGate';
 
 const TEMPO = 100;
@@ -100,11 +100,35 @@ describe('the stepper clamps rather than refusing', () => {
   });
 });
 
-describe('the standing explainer', () => {
-  it('names both numbers, because they are different numbers', () => {
-    expect(testTempoWindowText(TEMPO)).toBe(
-      'This song is at 100 bpm. A test runs at 90 bpm or faster — ten below is the floor.',
+describe('the standing explainer, which is a pair', () => {
+  it('a test names both numbers, because they are different numbers', () => {
+    expect(tempoWindowText('testing', TEMPO)).toBe(
+      'The target bpm for this song is 100bpm. A test run must be no lower '
+      + 'than 90bpm (10 below the target).',
     );
+  });
+
+  it('practice gives permission to go slow, without hedging it', () => {
+    expect(tempoWindowText('practice', TEMPO)).toBe(
+      'The target bpm for this song is 100bpm. Practice can run at any tempo '
+      + 'as you build up to target. Slow it down if that’s what you need to start.',
+    );
+  });
+
+  it('BOTH OPEN ON THE SAME FACT — that is what makes them a pair', () => {
+    // The old test line led with "This song is at {n} bpm" and worked
+    // alone. Beside a practice line it did not: the two started from
+    // different places and read as two paragraphs rather than two
+    // answers to one question.
+    const target = 'The target bpm for this song is 100bpm.';
+    expect(tempoWindowText('testing', TEMPO).startsWith(target)).toBe(true);
+    expect(tempoWindowText('practice', TEMPO).startsWith(target)).toBe(true);
+  });
+
+  it('the retired wording is gone', () => {
+    for (const mode of ['testing', 'practice'] as const) {
+      expect(tempoWindowText(mode, TEMPO)).not.toContain('ten below is the floor');
+    }
   });
 });
 

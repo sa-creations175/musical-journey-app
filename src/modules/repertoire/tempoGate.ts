@@ -111,10 +111,40 @@ export function clampTestBpm(
   };
 }
 
-/** The standing explainer above a test's metronome. */
-export function testTempoWindowText(songTempo: number): string {
-  return `This song is at ${songTempo} bpm. A test runs at `
-    + `${songTempo - FLOOR_BELOW} bpm or faster — ten below is the floor.`;
+/**
+ * The standing explainer above the metronome, in the mode's own words.
+ *
+ * =====================================================================
+ * A PAIR, WRITTEN TOGETHER, AND THAT IS WHY THE TEST LINE CHANGED.
+ *
+ * The test's explainer used to read "This song is at {n} bpm. A test
+ * runs at {n} bpm or faster — ten below is the floor." Same rule, and
+ * it worked alone. It did not work beside a practice line, because the
+ * two started from different places: one led with the song's tempo, the
+ * other would have led with the freedom to leave it.
+ *
+ * Both now open on the same fact — what the song's target is — and then
+ * say what the mode does about it. Read one after the other they are
+ * two answers to one question rather than two paragraphs.
+ *
+ * The practice line is not a softer version of the test line. It says
+ * "as you build up to target", which is what practice is FOR, and then
+ * gives permission to go slow without hedging it.
+ * =====================================================================
+ *
+ * The apostrophe in "that’s" is the app's, not the copy file's plain
+ * one — the words are approved, the glyph matches every other sentence
+ * on screen. Same call as the result screen's headline.
+ */
+export function tempoWindowText(
+  mode: 'testing' | 'practice', songTempo: number,
+): string {
+  const target = `The target bpm for this song is ${songTempo}bpm.`;
+  return mode === 'testing'
+    ? `${target} A test run must be no lower than `
+      + `${songTempo - FLOOR_BELOW}bpm (10 below the target).`
+    : `${target} Practice can run at any tempo as you build up to `
+      + 'target. Slow it down if that’s what you need to start.';
 }
 
 /**
