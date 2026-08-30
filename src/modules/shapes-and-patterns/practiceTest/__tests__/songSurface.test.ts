@@ -37,6 +37,9 @@ function surface(songTempo: number | null = 90) {
     readSessionId: () => SESSION,
     expectedSectionCount: BY_SECTION.size,
     readRunTempo: () => RUN_BPM,
+    songTitle: 'No Weapon',
+    spelledKeyName: 'A\u266d',
+    renderBadgePreview: () => null,
     readTestStreak: () => STREAK_BEFORE,
     isRetest: false,
     songTempo,
@@ -279,6 +282,7 @@ describe('a run writes the cell, the log and the key', () => {
       onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => SESSION, expectedSectionCount: BY_SECTION.size,
       readRunTempo: () => null, readTestStreak: () => 0, isRetest: false,
+      songTitle: 'No Weapon', spelledKeyName: 'A\u266d', renderBadgePreview: () => null,
       songTempo: 90,
     });
     await silent.write(run({ feel: 3 }));

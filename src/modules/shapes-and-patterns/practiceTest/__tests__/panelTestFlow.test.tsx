@@ -46,6 +46,11 @@ function surface(over: Partial<DrillSurface> = {}): DrillSurface {
     write: async (r: DrillRecord) => { written.push(r); },
     writeSessionRating: async () => {},
     recordTestPass: passes,
+    describeTestPass: (band, lowestFeel) => ({
+      kind: 'cell', cellLabel: 'Cmaj7 · Root position · Left hand', band, lowestFeel,
+    }),
+    passKeyName: null,
+    renderBadgePreview: null,
     readVerdict: async () => ({ kind: 'band', band: 'fluent' } as const),
     ...over,
   } as DrillSurface;
@@ -230,6 +235,76 @@ describe('a bad run resets the streak, visibly', () => {
     await r.run('Clean');
     await r.run('Clean');
     expect(passes).toHaveBeenCalledTimes(1);
+    r.unmount();
+  });
+});
+
+describe('a pass reports through the one result screen', () => {
+  it('says the test is passed, and names the item without a key', () => {
+    // Every surface runs the same test now, so every surface says so
+    // the same way. A chord shape is not played in a key, so the
+    // sentence ends where the fact does.
+    return (async () => {
+      const r = render();
+      await r.pressStartingWith('Test');
+      await r.run('Clean');
+      await r.run('Clean');
+      await r.run('Clean');
+      expect(r.text()).toContain('That’s the test passed.');
+      expect(r.text()).toContain(
+        'Cmaj7 · Root position · Left hand is now at Fluent status.',
+      );
+      expect(r.text()).not.toContain('in the key of');
+      r.unmount();
+    })();
+  });
+
+  it('names what set it — the lowest of the three WINNERS', async () => {
+    // Not the lowest of the whole session. The Struggled run already
+    // cost the streak once; charging it again would cap the session
+    // for one mistake.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.run('Struggled');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.run('Clean');
+    expect(r.text()).toContain('Your lowest was Clean');
+    r.unmount();
+  });
+
+  it('offers exactly one exit', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.run('Clean');
+    expect(r.labels().filter(l => l !== '×')).toEqual(['Close And See It']);
+    r.unmount();
+  });
+
+  it('OMITS THE BADGE BLOCK where there is no row to draw yet', async () => {
+    // Shapes and patterns has no matrix row of its own; it is adopting
+    // the song repertoire's face as separate work. Absent rather than
+    // approximated — a stand-in would be a third row to reconcile when
+    // that lands.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    await r.run('Clean');
+    expect(r.text()).not.toContain('What the matrix says now');
+    r.unmount();
+  });
+
+  it('a session that ends WITHOUT a pass does not use it', async () => {
+    // A test walked away from is an ordinary ending, not a failure to
+    // report. It still goes to the done step.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.press('End Session');
+    expect(r.text()).not.toContain('That’s the test passed.');
     r.unmount();
   });
 });

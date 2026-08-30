@@ -27,6 +27,7 @@ import {
   writeSongRun, writeWholeSongRun, writeWholeSongTestPass,
 } from '../../repertoire/songRunWriter';
 import { logPracticeSession } from '../../repertoire/logPractice';
+import type { ReactNode } from 'react';
 import type { PracticeActivity } from '../../../lib/practiceActivities';
 import {
   REPERTOIRE_MODULE_REF, songCellItemRef,
@@ -105,6 +106,19 @@ export function chordShapeSurface(args: {
     readSessionId: null,
     // Nothing beyond the reps to record — see `recordTestPass`.
     recordTestPass: null,
+    // A CELL, not a section: a shape is the item, not a part of one.
+    // The two labels joined the way the panel's own header joins them,
+    // so the result screen names it the way the screen behind it did.
+    describeTestPass: (band, lowestFeel) => ({
+      kind: 'cell',
+      cellLabel: [args.cellLabel, args.skillLabel].filter(Boolean).join(' · '),
+      band,
+      lowestFeel,
+    }),
+    // A chord shape is not played in a key — it IS one.
+    passKeyName: null,
+    // No row to draw yet. See `renderBadgePreview`.
+    renderBadgePreview: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -162,6 +176,19 @@ export function scaleSurface(args: {
     readSessionId: null,
     // Nothing beyond the reps to record — see `recordTestPass`.
     recordTestPass: null,
+    // A CELL, not a section: a shape is the item, not a part of one.
+    // The two labels joined the way the panel's own header joins them,
+    // so the result screen names it the way the screen behind it did.
+    describeTestPass: (band, lowestFeel) => ({
+      kind: 'cell',
+      cellLabel: [args.cellLabel, args.skillLabel].filter(Boolean).join(' · '),
+      band,
+      lowestFeel,
+    }),
+    // A chord shape is not played in a key — it IS one.
+    passKeyName: null,
+    // No row to draw yet. See `renderBadgePreview`.
+    renderBadgePreview: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -212,6 +239,19 @@ export function voiceLeadingSurface(args: {
     readSessionId: null,
     // Nothing beyond the reps to record — see `recordTestPass`.
     recordTestPass: null,
+    // A CELL, not a section: a shape is the item, not a part of one.
+    // The two labels joined the way the panel's own header joins them,
+    // so the result screen names it the way the screen behind it did.
+    describeTestPass: (band, lowestFeel) => ({
+      kind: 'cell',
+      cellLabel: [args.cellLabel, args.skillLabel].filter(Boolean).join(' · '),
+      band,
+      lowestFeel,
+    }),
+    // A chord shape is not played in a key — it IS one.
+    passKeyName: null,
+    // No row to draw yet. See `renderBadgePreview`.
+    renderBadgePreview: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -289,6 +329,13 @@ export function songSurface(args: {
   songId: string;
   /** The key's name, for the practice log's `keys`. */
   keyName: string;
+  /** The song's title, for the result screen. */
+  songTitle: string;
+  /** The key as this song spells it, for the result screen. Distinct
+   *  from `keyName`, which is the stored name the log records. */
+  spelledKeyName: string;
+  /** The matrix row for this key, drawn by whoever owns the grid. */
+  renderBadgePreview: () => ReactNode;
   /** The song's sections, in order, for the scope chips and the wrap. */
   sections: ReadonlyArray<{ id: string; label: string }>;
   /** Collapse the panel to a bar and show the chart. */
@@ -438,6 +485,16 @@ export function songSurface(args: {
         });
       }
     },
+    // THE SONG LADDER'S RUNG, not a band. A whole-song test lands on
+    // Comfortable and cannot reach higher — Cross-key needs other
+    // keys — so the height was never chosen and is not reported.
+    describeTestPass: () => ({
+      kind: 'whole-song',
+      songTitle: args.songTitle,
+      status: 'comfortable',
+    }),
+    passKeyName: args.spelledKeyName,
+    renderBadgePreview: args.renderBadgePreview,
     // THE DURABLE FACT A PASS LEAVES, which is not any of the reps.
     // `wholeSongTestPassedAt` is what `stageCriteria` reads for
     // Learning → Comfortable, and the retest clock is what

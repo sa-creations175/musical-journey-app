@@ -21,17 +21,25 @@ import { formatClock } from '../../shapes-and-patterns/practiceTest/sessionClock
  * the third clean run and the grid.
  *
  * =====================================================================
- * THE TWO TESTS SHARE THIS SCREEN AND DIFFER IN TWO PLACES.
+ * EVERY TEST SHARES THIS SCREEN. THE APP HAS ONE TEST MODEL, SO IT
+ * REPORTS THE RESULT ONE WAY.
  *
- * A section test and a whole-song test are the same act at two scales,
- * so a second implementation of this would be two screens drifting
- * apart. What actually differs is named on `Props` and nowhere else:
+ * A chord shape, a section and a whole song are the same act at three
+ * scales — three in a row, a bad run costs it — so a second
+ * implementation of this would be two screens drifting apart. What
+ * actually differs is named on `Props` and nowhere else:
  *
- *   what set it   SECTION ONLY. A whole-song test always lands on
- *                 Comfortable, so a line explaining which height was
- *                 chosen would explain a choice nobody made.
+ *   what set it   EVERYWHERE A HEIGHT WAS CHOSEN — a section test and
+ *                 a cell test both land on the lowest of their three.
+ *                 Absent on a whole-song pass, which always lands on
+ *                 Comfortable, so the line would explain a choice
+ *                 nobody made.
  *   what's next   WHOLE SONG ONLY. Cross-key needs other keys, so it
- *                 is not a thing one section can be invited toward.
+ *                 is not a thing one section or one shape can be
+ *                 invited toward.
+ *   the key       A song and a section are played IN a key. A chord
+ *                 shape is not — it is one — so its sentence ends
+ *                 where the fact does, and `keyName` is null.
  *
  * Neither is a flag on a shared line. They are separate fields, absent
  * where they do not apply, so a caller cannot half-supply one.
@@ -61,9 +69,34 @@ import { formatClock } from '../../shapes-and-patterns/practiceTest/sessionClock
 /** The song ladder's rung, for a whole-song pass. */
 export type SongStatus = 'comfortable';
 
+/**
+ * What a passed test earned, in the shape its own surface has.
+ *
+ * Exported because the surface builds it: only a chord-shape surface
+ * knows how a chord shape reads, and only a song knows it has a key.
+ */
+export type TestPassEarned =
+  | {
+      kind: 'whole-song';
+      songTitle: string;
+      status: SongStatus;
+    }
+  | {
+      kind: 'section';
+      sectionLabel: string;
+      band: AccuracyBand;
+      lowestFeel: Feel;
+    }
+  | {
+      kind: 'cell';
+      cellLabel: string;
+      band: AccuracyBand;
+      lowestFeel: Feel;
+    };
+
 interface Props {
   /**
-   * WHAT WAS EARNED, and its two shapes.
+   * WHAT WAS EARNED, and its three shapes.
    *
    * A discriminated union rather than "songTitle plus optional
    * sectionLabel", because the two are not a general case and a
@@ -71,29 +104,37 @@ interface Props {
    * an object that could carry both would let a caller build a result
    * screen for a test that does not exist.
    */
-  earned:
-    | {
-        kind: 'whole-song';
-        songTitle: string;
-        /** Fixed at Comfortable. There is no higher rung one key's
-         *  test can reach, because Cross-key needs other keys. */
-        status: SongStatus;
-      }
-    | {
-        kind: 'section';
-        sectionLabel: string;
-        /** The band the three winning runs landed on. Fluent or
-         *  Mastered — every run in a passing streak is Clean or
-         *  better, so nothing lower is reachable through a pass. */
-        band: AccuracyBand;
-        /** The lowest of the three winning runs, which is what chose
-         *  the band. Named on screen because a height arrived at
-         *  without a reason reads as arbitrary. */
-        lowestFeel: Feel;
-      };
-  /** The key, already spelled for this song. Spelling is the caller's
-   *  — this screen has no opinion about sharps and flats. */
-  keyName: string;
+  /**
+   * WHAT WAS EARNED, and its three shapes.
+   *
+   * A discriminated union rather than "a label plus optional extras",
+   * because the three are not one general case with omissions — they
+   * earn different things on different ladders, and an object that
+   * could carry all of it would let a caller build a result screen for
+   * a test that does not exist.
+   *
+   * The DIFFERENCES, named here and nowhere else:
+   *
+   *   what set it   Present on a section and a cell — both land on the
+   *                 lowest of their three. Absent on a whole-song
+   *                 pass, which always lands on Comfortable, so the
+   *                 line would explain a choice nobody made.
+   *   what's next   Whole song only. Cross-key needs other keys, so it
+   *                 is not a thing one section or one shape can be
+   *                 invited toward.
+   *   the key       A song and a section are played IN a key. A chord
+   *                 shape is not — it is one — so `keyName` is null
+   *                 and the sentence ends where the fact does.
+   */
+  earned: TestPassEarned;
+  /**
+   * The key, already spelled for this song, or null.
+   *
+   * NULL FOR A CELL, and that is not an omission to default away. A
+   * chord shape is not played in a key — it IS one — so a sentence
+   * naming a key would invent a fact.
+   */
+  keyName: string | null;
   /**
    * How long the TESTING SESSION ran, in whole seconds.
    *
@@ -110,8 +151,14 @@ interface Props {
    * there must not be a second thing that draws a matrix row. The
    * caller has the sections, cells and bands; this screen has the
    * caption and the frame.
+   *
+   * NULL WHERE THERE IS NO ROW YET, and then the block — caption and
+   * all — is absent rather than an empty frame. Shapes and patterns is
+   * adopting the song repertoire's face as separate work; a stand-in
+   * drawn here would be a third row to reconcile when that lands, and
+   * a caption over nothing would promise one.
    */
-  preview: ReactNode;
+  preview: ReactNode | null;
   /** The single exit. */
   onClose: () => void;
 }
@@ -122,6 +169,9 @@ export default function TestPassedScreen({
   const statusWord = earned.kind === 'whole-song'
     ? STAGE_LABEL[earned.status]
     : bandWord(earned.band);
+  // What set it, where there is a lowest to name. A whole-song test
+  // always lands on Comfortable, so it has none.
+  const lowest = earned.kind === 'whole-song' ? null : earned.lowestFeel;
 
   return (
     <div className="space-y-5">
@@ -145,23 +195,27 @@ export default function TestPassedScreen({
           English otherwise — "comfortable in A" is a sentence about a
           mood, not a claim about a song. */}
       <p className="text-sm text-center text-neutral-700 dark:text-neutral-200">
-        {earned.kind === 'whole-song' ? (
+        {earned.kind === 'cell' ? (
+          // NO KEY CLAUSE. A chord shape is not played in a key, so
+          // the sentence ends where the fact does.
           <>
-            <b>{earned.songTitle}</b> is now at <b>{statusWord}</b> status in
-            the key of <b>{keyName}</b>.
+            <b>{earned.cellLabel}</b> is now at <b>{statusWord}</b> status.
           </>
         ) : (
           <>
-            <b>{earned.sectionLabel}</b> is now at <b>{statusWord}</b> status in
-            the key of <b>{keyName}</b>.
+            <b>
+              {earned.kind === 'whole-song' ? earned.songTitle : earned.sectionLabel}
+            </b>{' '}
+            is now at <b>{statusWord}</b> status in the key of <b>{keyName}</b>.
           </>
         )}
       </p>
 
-      {/* WHAT SET IT — SECTION ONLY. See the header. */}
-      {earned.kind === 'section' && (
+      {/* WHAT SET IT — wherever there was a choice of height. See the
+          header: a whole-song test always lands on Comfortable. */}
+      {lowest !== null && (
         <p className="text-xs text-center text-neutral-500 dark:text-neutral-400">
-          Three in a row. Your lowest was <b>{feelLabel(earned.lowestFeel)}</b>,
+          Three in a row. Your lowest was <b>{feelLabel(lowest)}</b>,
           so it lands on <b>{statusWord}</b>.
         </p>
       )}
@@ -175,7 +229,13 @@ export default function TestPassedScreen({
 
       {/* THE BADGE, SO CLOSING IS NOT A LEAP OF FAITH. The row is the
           real one; only the caption belongs to this screen. */}
+      {preview !== null && (
       <div className="space-y-1.5">
+        {/* THE SAME CAPTION ON EVERY SURFACE, and that is a ruling
+            rather than an oversight. Shapes and patterns is adopting
+            the song repertoire's face, matrix included; calling the
+            same thing two names here would be the app disagreeing with
+            itself while that work is in flight. */}
         <div className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400 text-center">
           What the matrix says now
         </div>
@@ -183,6 +243,7 @@ export default function TestPassedScreen({
           {preview}
         </div>
       </div>
+      )}
 
       {/* WHAT'S NEXT — WHOLE SONG ONLY, and phrased as an invitation.
           "No rush, the song is yours either way" is the half that

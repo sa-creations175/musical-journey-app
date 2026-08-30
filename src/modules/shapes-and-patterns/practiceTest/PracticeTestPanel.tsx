@@ -41,12 +41,17 @@ import { useMetronomeState } from '../../../lib/useMetronome';
 import MetronomeControl from '../../../components/MetronomeControl';
 import { metronome } from '../../../lib/metronome';
 import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS } from '../drillModel';
+import type { Feel } from '../../../lib/fluencyScale';
 import {
   isAtTarget, rateFor, setupHasSomethingToSet, type DrillSurface,
 } from './surfaces';
 import {
+  TEST_REPS as TEST_REPS_FOR_PASS,
   projectTestStreak, streakPassed, type StreakRun,
 } from '../../../lib/spacing/testStreak';
+import TestPassedScreen, {
+  type TestPassEarned,
+} from '../../repertoire/matrix/TestPassedScreen';
 import StreakCircles from '../../repertoire/matrix/StreakCircles';
 import { formatClock, useSessionClock } from './sessionClock';
 import { newSessionId } from '../../../lib/sessionId';
@@ -234,11 +239,28 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       // the key's retest clock, neither of which the reps imply.
       await surface.recordTestPass?.();
 
+      // THE LOWEST OF THE THREE WINNERS, which is what chose the
+      // height. Read off the runs that formed the streak rather than
+      // off all of them: a bad run earlier in the session already cost
+      // the streak once, and charging it again would cap the session
+      // for one mistake.
+      const winners = next.slice(-TEST_REPS_FOR_PASS);
+      const lowestFeel = winners.reduce<Feel>(
+        (low, d) => (d.feel !== null && d.feel < low ? d.feel : low), 4,
+      );
+      const verdict = await surface.readVerdict();
       setOutcome({
         kind: 'test',
         feel: null,
         derived: false,
-        verdict: await surface.readVerdict(),
+        verdict,
+        passed: {
+          earned: surface.describeTestPass(
+            verdict.kind === 'band' ? verdict.band : 'fluent',
+            lowestFeel,
+          ),
+          keyName: surface.passKeyName,
+        },
       });
       setStep('done');
     } finally {
@@ -252,7 +274,14 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       onClose={close}
       title={surface.cellLabel}
       description={surface.skillLabel}
-      footer={<PanelFooter step={step} mode={mode} onClose={close} />}
+      /* NO FOOTER ON THE RESULT SCREEN. §4 asks for one exit and means
+         it: a Close beside "Close And See It" would make the user
+         choose between two ways of agreeing with a screen that is
+         finished. The Modal's own × stays — it is chrome on every
+         modal and calls the same handler. */
+      footer={outcome?.passed != null
+        ? undefined
+        : <PanelFooter step={step} mode={mode} onClose={close} />}
     >
       {step === 'choose' && (
         <ModeChooser onPick={next => { setMode(next); setStep('session'); }} />
@@ -332,8 +361,22 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         />
       )}
 
+      {/* A PASS REPORTS THROUGH THE ONE RESULT SCREEN. Every surface
+          runs the same test now, so every surface says so the same
+          way. `DoneStep` still handles a session that ended without a
+          pass — a practice sitting, or a test walked away from. */}
       {step === 'done' && outcome !== null && (
-        <DoneStep outcome={outcome} onClose={close} />
+        outcome.passed !== null
+          ? (
+            <TestPassedScreen
+              earned={outcome.passed.earned}
+              keyName={outcome.passed.keyName}
+              sessionSeconds={sessionSeconds}
+              preview={surface.renderBadgePreview?.() ?? null}
+              onClose={close}
+            />
+          )
+          : <DoneStep outcome={outcome} onClose={close} />
       )}
 
       {step === 'wrap' && mode !== null && (
@@ -355,6 +398,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
               }
               setOutcome({
                 kind: 'practice',
+                // A practice sitting passes nothing — practice is
+                // capped at Developing, and the result screen is for a
+                // test that was passed.
+                passed: null,
                 feel,
                 derived: derivedFeelOf(drills) !== null,
                 verdict: await surface.readVerdict(),
@@ -393,8 +440,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
 function PanelFooter({ step, mode, onClose }: {
   step: Step; mode: SessionMode | null; onClose: () => void;
 }) {
+  // "Save" is gone from the test path: the third clean run is the
+  // pass, so there is no save step to be at.
   const names = mode === 'test'
-    ? ['Skill', 'Mode', 'Test Drills', 'Save', 'Done']
+    ? ['Skill', 'Mode', 'Test Runs', 'Done']
     : ['Skill', 'Mode', 'Practice', 'Wrap Up', 'Done'];
   const position = step === 'choose' ? 1 : 2;
   return (
@@ -1268,6 +1317,10 @@ interface WrapExtras {
 /** What the session did, as the done step reports it. */
 interface Outcome {
   kind: SessionMode;
+  /** Set only when a test was PASSED. Null for a practice sitting and
+   *  for a test that ended without three in a row — both of which are
+   *  ordinary endings, not failures to report. */
+  passed: { earned: TestPassEarned; keyName: string | null } | null;
   /** The session's own rating, where practice gave one. */
   feel: 1 | 2 | 3 | 4 | null;
   /** Whether that rating came from averaging the drills. */

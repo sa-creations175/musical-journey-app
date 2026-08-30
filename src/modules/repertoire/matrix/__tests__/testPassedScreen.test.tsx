@@ -175,3 +175,54 @@ describe('the session time', () => {
     expect(t).not.toMatch(/(^|[^a-z])Session time/);
   });
 });
+
+describe('a cell pass — a chord shape, a scale, a voice-leading move', () => {
+  const cell = (lowestFeel: 3 | 4 = 3, band: 'fluent' | 'mastered' = 'fluent') => (
+    <TestPassedScreen
+      earned={{
+        kind: 'cell',
+        cellLabel: 'Cmaj7 · Root position · Left hand',
+        band,
+        lowestFeel,
+      }}
+      keyName={null}
+      sessionSeconds={SESSION_SECONDS}
+      preview={PREVIEW}
+      onClose={() => {}}
+    />
+  );
+
+  it('names the item and the status, and stops there', () => {
+    expect(render(cell()).text())
+      .toContain('Cmaj7 · Root position · Left hand is now at Fluent status.');
+  });
+
+  it('SAYS NOTHING ABOUT A KEY', () => {
+    // A chord shape is not played in a key — it IS one. A sentence
+    // naming a key here would invent a fact, and "in the key of" is
+    // the phrase that would arrive if the three variants shared one
+    // template.
+    expect(render(cell()).text()).not.toContain('in the key of');
+  });
+
+  it('says what set it, like any test with a height to choose', () => {
+    expect(render(cell(4, 'mastered')).text())
+      .toContain('Three in a row. Your lowest was In flow, so it lands on Mastered.');
+  });
+
+  it('does not invite Cross-key', () => {
+    expect(render(cell()).text()).not.toContain('Cross-key');
+  });
+
+  it('KEEPS THE CAPTION "What the matrix says now"', () => {
+    // A ruling, not an oversight. Shapes and patterns is adopting the
+    // song repertoire's face, matrix included; calling the same thing
+    // two names would be the app disagreeing with itself while that
+    // work is in flight.
+    expect(render(cell()).text()).toContain('What the matrix says now');
+  });
+
+  it('reports the testing session time like every other pass', () => {
+    expect(render(cell()).text()).toContain('Testing session time 22:41, recorded.');
+  });
+});

@@ -19,7 +19,10 @@
  */
 
 import type { DrillStyle } from '../../../lib/db';
+import type { ReactNode } from 'react';
 import type { Feel } from '../../../lib/fluencyScale';
+import type { AccuracyBand } from '../../../lib/spacing/bands';
+import type { TestPassEarned } from '../../repertoire/matrix/TestPassedScreen';
 import { meetsFloor } from '../../../lib/spacing/testStreak';
 import type { BandVerdict } from '../../../lib/spacing/banding';
 import type { Style } from './drillModel';
@@ -248,6 +251,38 @@ export interface DrillSurface {
    * =====================================================================
    */
   recordTestPass: (() => Promise<void>) | null;
+  /**
+   * What a pass earned, in this surface's own words.
+   *
+   * The surface builds it because only it knows how its item reads —
+   * a chord shape is "Cmaj7 · Root position · Left hand", a song is a
+   * title and a key, and a whole-song pass lands on a rung rather than
+   * a band. A shared template would have needed a key clause it could
+   * leave blank, and a blank key clause on a chord shape is the app
+   * inventing a fact.
+   */
+  describeTestPass: (band: AccuracyBand, lowestFeel: Feel) => TestPassEarned;
+  /** The key, spelled, or null where the item is not played in one. */
+  passKeyName: string | null;
+  /**
+   * The item's own row, as the grid draws it, for the result screen's
+   * badge preview.
+   *
+   * =====================================================================
+   * NULL WHERE THERE IS NO ROW TO DRAW YET.
+   *
+   * The preview exists so closing is not a leap of faith, and it must
+   * be the REAL row — a second thing that draws one is how two of them
+   * start disagreeing. Songs have `KeyRow`. Shapes and patterns does
+   * not have an equivalent yet; it is adopting the song repertoire's
+   * face as separate work, and inventing a stand-in here would be a
+   * third row to reconcile when that lands.
+   *
+   * So the block is absent rather than approximated, and the caption
+   * stays "What the matrix says now" for whoever does have one.
+   * =====================================================================
+   */
+  renderBadgePreview: (() => ReactNode) | null;
   /**
    * What this item reads NOW, after whatever was just written.
    *
