@@ -53,6 +53,30 @@ export function accuracyBandDef(id: AccuracyBand): AccuracyBandDef {
 }
 
 /**
+ * Where a band sits on the ladder, worst = 0.
+ *
+ * THE ORDER IS THE TABLE'S, NOT A SECOND LIST. `ACCURACY_BANDS` is
+ * already declared worst to best and says so; a parallel array of ids
+ * would be a second place to get the order wrong, and there were two
+ * of those before this existed — one in `banding.ts` for the practice
+ * ceiling, one inside the chord panel for its lowest-of rollup.
+ */
+const RANK: ReadonlyMap<AccuracyBand, number> = new Map(
+  ACCURACY_BANDS.map((b, i) => [b.id, i]),
+);
+
+export function bandRank(band: AccuracyBand): number {
+  const rank = RANK.get(band);
+  if (rank === undefined) throw new Error(`[spacing] unknown accuracy band: ${band}`);
+  return rank;
+}
+
+/** The lower of two bands. Ties return the first. */
+export function lowerBand(a: AccuracyBand, b: AccuracyBand): AccuracyBand {
+  return bandRank(b) < bandRank(a) ? b : a;
+}
+
+/**
  * Which band a percentage falls in.
  *
  * Takes WHOLE PERCENT, not a fraction. The bands are written in

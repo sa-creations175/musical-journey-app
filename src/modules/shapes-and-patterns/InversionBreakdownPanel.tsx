@@ -9,9 +9,9 @@ import {
   type DrillHand,
 } from '../../lib/db';
 import Modal from '../../components/Modal';
-import { bandVerdictForRow } from '../../lib/spacing/row';
+import { rollUpVerdict } from '../../lib/spacing/rollup';
 import { bandVerdictLabel, NOT_STARTED, type BandVerdict } from '../../lib/spacing/banding';
-import { accuracyBandDef, type AccuracyBand } from '../../lib/spacing/bands';
+import { accuracyBandDef } from '../../lib/spacing/bands';
 import { HAND_ORDER } from './acquisition';
 import DrillListModal from './DrillListModal';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
@@ -191,7 +191,6 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
    * =====================================================================
    */
   const verdictByItemRefHand = useMemo(() => {
-    const order: ReadonlyArray<AccuracyBand> = ['needs-work', 'developing', 'fluent', 'mastered'];
     const rowsFor = new Map<string, SpacingState[]>();
     for (const r of spacingRows) {
       if (r.itemRef !== itemRefPrefix && !r.itemRef.startsWith(`${itemRefPrefix}:`)) continue;
@@ -201,21 +200,12 @@ export default function InversionBreakdownPanel({ keyName, quality, onClose }: P
       rowsFor.set(key, arr);
     }
     const m = new Map<string, BandVerdict>();
-    for (const [key, rows] of rowsFor) {
-      const verdicts = rows.map(r => bandVerdictForRow(r));
-      const banded = verdicts.filter(
-        (v): v is { kind: 'band'; band: AccuracyBand } => v.kind === 'band',
-      );
-      if (banded.length < verdicts.length) {
-        // A style that has not earned a band means the square has not
-        // either — Started when anything has been logged at all.
-        const anyStarted = verdicts.some(v => v.kind !== 'not-started');
-        m.set(key, anyStarted ? { kind: 'started', tries: 0 } : NOT_STARTED);
-        continue;
-      }
-      m.set(key, banded.reduce((low, v) =>
-        order.indexOf(v.band) < order.indexOf(low.band) ? v : low, banded[0]));
-    }
+    // THE RULE MOVED OUT, THE RULE DID NOT CHANGE. `rollUpVerdict` is
+    // this reduce, extracted so the grids can take it — see its header
+    // for what the other two copies said. A square that has not earned
+    // a band is Started when anything has been logged at all, which is
+    // what the branch here used to spell out.
+    for (const [key, rows] of rowsFor) m.set(key, rollUpVerdict(rows));
     return m;
   }, [spacingRows, itemRefPrefix]);
 
