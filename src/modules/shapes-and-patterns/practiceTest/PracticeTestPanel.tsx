@@ -47,12 +47,15 @@ import {
 } from './surfaces';
 import {
   TEST_REPS as TEST_REPS_FOR_PASS,
-  projectTestStreak, streakPassed, type StreakRun,
+  projectTestStreak, streakLowestFeel, streakPassed, type StreakRun,
 } from '../../../lib/spacing/testStreak';
+import { BAND_FOR_LOWEST } from '../../../lib/spacing/banding';
+import type { AccuracyBand } from '../../../lib/spacing/bands';
+import { STAGE_LABEL } from '../../repertoire/stage';
 import TestPassedScreen, {
   type TestPassEarned,
 } from '../../repertoire/matrix/TestPassedScreen';
-import StreakCircles from '../../repertoire/matrix/StreakCircles';
+import TestLadderBand from './TestLadderBand';
 import { formatClock, useSessionClock } from './sessionClock';
 import { newSessionId } from '../../../lib/sessionId';
 import type { BandVerdict } from '../../../lib/spacing/banding';
@@ -172,12 +175,62 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    * =====================================================================
    */
   const metronomeOnAtOpen = useRef(metronome.state.playing);
+  /**
+   * What the item read when the session began.
+   *
+   * READ ONCE, not per render: it is the "from" rung, and a from that
+   * moved while you were looking at it would make the band a picture
+   * of nothing. The reps written during the session change the stored
+   * verdict; this deliberately keeps the standing you walked in with.
+   */
+  const [startingVerdict, setStartingVerdict] = useState<BandVerdict | null>(null);
+  useEffect(() => {
+    if (mode === null) return;
+    let live = true;
+    void surface.readVerdict().then(v => { if (live) setStartingVerdict(v); });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
   // Declared after `paused` because it reads it: the clock stops when
   // the session does, which is the whole of what a pause means here.
   const sessionSeconds = useSessionClock(
     mode !== null && !paused, surface.readSessionElapsedMs,
   );
   const clockHasRun = mode !== null && step !== 'done';
+
+  /**
+   * The two rungs the band draws, or null until the standing is known.
+   *
+   * THE DESTINATION IS PROJECTED FROM THE STREAK SO FAR, so the prize
+   * is the one actually on offer: three In flow runs promise Mastered,
+   * three Cleans promise Fluent. With no streak yet it shows the best
+   * a test can reach, because that is what is still available.
+   *
+   * WHICH VOCABULARY comes from `describeTestPass`, not from a second
+   * `kind` here. One place decides what an item earns; the band and the
+   * result screen both read it, so they cannot disagree about whether
+   * a pass is a rung or a band.
+   */
+  const ladder = ((): LadderRungs | null => {
+    if (mode !== 'test' || startingVerdict === null) return null;
+    const shape = surface.describeTestPass('fluent', 4);
+    if (shape.kind === 'whole-song') {
+      return {
+        from: STAGE_LABEL.learning,
+        to: STAGE_LABEL.comfortable,
+        toneClass: 'bg-fluent',
+        emphasised: true,
+      };
+    }
+    const lowest = streakLowestFeel(drills.map(streakRun));
+    const projected = BAND_FOR_LOWEST[lowest ?? 4];
+    return {
+      from: verdictWord(startingVerdict),
+      to: bandWord(projected),
+      toneClass: BAND_TONE[projected],
+      emphasised: false,
+    };
+  })();
 
   const togglePause = () => {
     setPaused(now => {
@@ -445,7 +498,11 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           playing a passage over — and a click that only exists inside
           a timed drill is not available for any of it. */}
       {!confirmingCancel && step === 'session' && mode !== null && surface.sessionMetronome && (
-        <MetronomeControl />
+        // THE SONG'S BOX WHERE THERE IS ONE. It carries the tempo
+        // window, the clamping stepper and the no-tempo prompt — none
+        // of which a bare control has, and all of which are what makes
+        // the gate visible rather than merely enforced.
+        surface.renderMetronome?.() ?? <MetronomeControl />
       )}
 
       {!confirmingCancel && step === 'session' && mode !== null && surface.openItem !== null && (
@@ -479,6 +536,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           testDraft={testDraft}
           onTestDraftChange={setTestDraft}
           metronomeOn={metronomePlaying}
+          ladder={ladder}
           paused={paused}
           onTogglePause={togglePause}
           onStartDrill={() => {
@@ -730,7 +788,7 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 
 function SessionStep({
   mode, seconds, drills, saving, surface, testDraft, onTestDraftChange,
-  metronomeOn, paused, onTogglePause, onStartDrill, onEndSession,
+  metronomeOn, ladder, paused, onTogglePause, onStartDrill, onEndSession,
 }: {
   mode: SessionMode;
   seconds: number;
@@ -741,6 +799,9 @@ function SessionStep({
   testDraft: DrillDraft | null;
   onTestDraftChange: (next: DrillDraft) => void;
   metronomeOn: boolean;
+  /** The rungs this test moves between, or null before the item's
+   *  current standing has been read. */
+  ladder: LadderRungs | null;
   paused: boolean;
   onTogglePause: () => void;
   onStartDrill: () => void;
@@ -759,20 +820,26 @@ function SessionStep({
     <div className="space-y-4">
       <SessionClockFace seconds={seconds} mode={mode} />
 
-      {/* THE CIRCLES ARE DRAWN ALWAYS DURING A TEST, not once a run is
-          banked. The run number keeps climbing while the streak returns
-          to zero, and circles that vanish on a reset take the count
-          away at exactly the moment it matters most. */}
-      {mode === 'test' && (
-        <div className="flex items-center gap-2.5">
-          <StreakCircles
+      {/* THE BAND, DRAWN ALWAYS DURING A TEST — never only once a run
+          is banked. The run number keeps climbing while the streak
+          returns to zero, and circles that vanish on a reset take the
+          count away at exactly the moment it matters most.
+
+          Where you are, the three filling, and what it gets you: the
+          progress bar and the prize in one picture. */}
+      {mode === 'test' && ladder !== null && (
+        <div className="space-y-1.5">
+          <TestLadderBand
+            from={ladder.from}
+            to={ladder.to}
+            toneClass={ladder.toneClass}
+            emphasised={ladder.emphasised}
             count={streak}
             broken={broken}
-            label={`${streak} of 3 clean run-throughs in a row`}
           />
-          <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
+          <div className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400 text-center">
             {streak} of 3
-          </span>
+          </div>
         </div>
       )}
 
@@ -860,6 +927,31 @@ function SessionStep({
  * resets it — the same treatment `isInTempoRange` has always given a
  * slow run on a song.
  */
+interface LadderRungs {
+  from: string;
+  to: string;
+  toneClass: string;
+  emphasised: boolean;
+}
+
+/** The grids' own colours, so the band does not introduce a second set
+ *  for the same rungs. */
+const BAND_TONE: Record<AccuracyBand, string> = {
+  'needs-work': 'bg-needswork',
+  'developing': 'bg-developing',
+  'fluent': 'bg-fluent',
+  'mastered': 'bg-mastered',
+};
+
+function bandWord(band: AccuracyBand): string {
+  switch (band) {
+    case 'needs-work': return TIER_LABEL.needsWork;
+    case 'developing': return TIER_LABEL.developing;
+    case 'fluent': return TIER_LABEL.fluent;
+    case 'mastered': return TIER_LABEL.mastered;
+  }
+}
+
 function streakRun(d: CompletedDrill): StreakRun {
   return { counts: !d.belowTarget && !d.tooShort, feel: d.feel };
 }

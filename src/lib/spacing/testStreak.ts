@@ -117,3 +117,30 @@ export function meetsFloor(value: number | null, floor: number | null): boolean 
   if (value === null) return false;
   return value >= floor;
 }
+
+/**
+ * The lowest feel of the streak SO FAR, or null when there is none.
+ *
+ * =====================================================================
+ * IT READS BACKWARDS FROM THE END, because a streak is the run of
+ * clean runs you are currently on — not the best three of the session
+ * and not all of them. A Struggled run four runs ago is not in it; it
+ * already cost the streak once, and it is not owed a second bite.
+ *
+ * Runs that do not count are stepped over rather than stopping the
+ * walk, exactly as they are invisible to the streak itself: a warm-up
+ * under tempo between two clean runs did not interrupt anything.
+ * =====================================================================
+ */
+export function streakLowestFeel(runs: ReadonlyArray<StreakRun>): Feel | null {
+  let lowest: Feel | null = null;
+  let taken = 0;
+  for (let i = runs.length - 1; i >= 0 && taken < TEST_REPS; i -= 1) {
+    const r = runs[i];
+    if (!r.counts) continue;
+    if (r.feel === null || !isCleanFeel(r.feel)) break;
+    lowest = lowest === null || r.feel < lowest ? r.feel : lowest;
+    taken += 1;
+  }
+  return lowest;
+}

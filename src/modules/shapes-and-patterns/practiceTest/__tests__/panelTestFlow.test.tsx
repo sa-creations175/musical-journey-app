@@ -587,3 +587,44 @@ describe('leaving the panel leaves silence', () => {
     metronome.state = { ...metronome.state, playing: false };
   });
 });
+
+describe('the ladder band — where you are, and what it gets you', () => {
+  it('shows the standing you walked in with, and the prize', async () => {
+    // The circles alone say how far through you are; the rungs alone
+    // say what a pass is worth. The question three runs in is "is this
+    // worth finishing", and only both together answer it.
+    const r = render();
+    await r.pressStartingWith('Test');
+    expect(r.text()).toContain('Fluent');
+    r.unmount();
+  });
+
+  it('PROJECTS THE PRIZE FROM THE STREAK SO FAR', async () => {
+    // Three In flow runs promise Mastered; three Cleans promise
+    // Fluent. A band that always showed the ceiling would be offering
+    // something not on the table.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.run('In flow');
+    expect(r.text()).toContain('Mastered');
+    r.unmount();
+  });
+
+  it('drops back with the streak when a run goes wrong', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.run('In flow');
+    await r.run('Clean');
+    // The lowest of the streak so far is Clean, so Fluent is what is
+    // on offer — not the Mastered the first run alone suggested.
+    expect(r.text()).toContain('Fluent');
+    r.unmount();
+  });
+
+  it('is not drawn in practice — there is no rung to reach', async () => {
+    const r = render();
+    await r.pressStartingWith('Practice');
+    expect(r.text()).not.toContain('0 of 3');
+    r.unmount();
+  });
+});

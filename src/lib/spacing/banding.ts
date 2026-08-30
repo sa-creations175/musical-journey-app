@@ -35,7 +35,7 @@
  */
 
 import type { AccuracyBand } from './bands';
-import { bandForAccuracyPercent } from './bands';
+import { bandForAccuracyPercent, bandRank } from './bands';
 import { isCleanFeel, type Feel } from '../fluencyScale';
 
 /** Answers over which a measured card is scored. */
@@ -161,7 +161,7 @@ export function measuredVerdict(
  * every row of it, and because a ladder with two rungs sawn off would
  * have to be explained at each of its readers.
  */
-const BAND_FOR_LOWEST: Record<Feel, AccuracyBand> = {
+export const BAND_FOR_LOWEST: Record<Feel, AccuracyBand> = {
   1: 'needs-work',
   2: 'developing',
   3: 'fluent',
@@ -170,11 +170,6 @@ const BAND_FOR_LOWEST: Record<Feel, AccuracyBand> = {
 
 /** The ceiling practice-only evidence cannot pass. */
 const PRACTICE_CEILING: AccuracyBand = 'developing';
-
-/** Where each band sits, worst first — for applying the ceiling. */
-const BAND_ORDER: ReadonlyArray<AccuracyBand> = [
-  'needs-work', 'developing', 'fluent', 'mastered',
-];
 
 /** A rated rep, with the mode that produced it where it is known. */
 export interface RatedRep {
@@ -356,5 +351,7 @@ function lowestBand(window: ReadonlyArray<RatedRep>): AccuracyBand {
 }
 
 function capAt(band: AccuracyBand, ceiling: AccuracyBand): AccuracyBand {
-  return BAND_ORDER.indexOf(band) > BAND_ORDER.indexOf(ceiling) ? ceiling : band;
+  // The ordering is the band table's own — see `bandRank`. This file
+  // used to keep a fourth copy of the list.
+  return bandRank(band) > bandRank(ceiling) ? ceiling : band;
 }

@@ -119,6 +119,9 @@ export function chordShapeSurface(args: {
     passKeyName: null,
     // No row to draw yet. See `renderBadgePreview`.
     renderBadgePreview: null,
+    // The plain control is the whole of a drill's metronome: its
+    // target rate is always set, so there is nothing to prompt for.
+    renderMetronome: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -189,6 +192,9 @@ export function scaleSurface(args: {
     passKeyName: null,
     // No row to draw yet. See `renderBadgePreview`.
     renderBadgePreview: null,
+    // The plain control is the whole of a drill's metronome: its
+    // target rate is always set, so there is nothing to prompt for.
+    renderMetronome: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -252,6 +258,9 @@ export function voiceLeadingSurface(args: {
     passKeyName: null,
     // No row to draw yet. See `renderBadgePreview`.
     renderBadgePreview: null,
+    // The plain control is the whole of a drill's metronome: its
+    // target rate is always set, so there is nothing to prompt for.
+    renderMetronome: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -336,6 +345,10 @@ export function songSurface(args: {
   spelledKeyName: string;
   /** The matrix row for this key, drawn by whoever owns the grid. */
   renderBadgePreview: () => ReactNode;
+  /** The song's metronome box — the gate, the window sentence and the
+   *  no-tempo prompt. Owned by the caller because setting a song's
+   *  tempo is a write to the song. */
+  renderMetronome: () => ReactNode;
   /** The song's sections, in order, for the scope chips and the wrap. */
   sections: ReadonlyArray<{ id: string; label: string }>;
   /** Collapse the panel to a bar and show the chart. */
@@ -494,6 +507,7 @@ export function songSurface(args: {
       status: 'comfortable',
     }),
     passKeyName: args.spelledKeyName,
+    renderMetronome: args.renderMetronome,
     renderBadgePreview: args.renderBadgePreview,
     // THE DURABLE FACT A PASS LEAVES, which is not any of the reps.
     // `wholeSongTestPassedAt` is what `stageCriteria` reads for

@@ -265,6 +265,17 @@ export interface DrillSurface {
   /** The key, spelled, or null where the item is not played in one. */
   passKeyName: string | null;
   /**
+   * The song's metronome, with its tempo window and its no-tempo
+   * prompt — or null where the plain control is the whole of it.
+   *
+   * A song's metronome is gated (a test may only sit at the song's
+   * tempo or above, floor ten below) and can be missing a target
+   * entirely, which a shapes drill cannot: its target rate is always
+   * set. So the box is the song's and the three others use the control
+   * they always did.
+   */
+  renderMetronome: (() => ReactNode) | null;
+  /**
    * The item's own row, as the grid draws it, for the result screen's
    * badge preview.
    *
