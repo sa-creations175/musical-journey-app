@@ -7,6 +7,7 @@ import {
   MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
   noteList, pentatonicCardId, pentatonicDecoys, relativeMinorRoot, scaleName,
 } from './pentatonics';
+import { canonicaliseKey } from '../repertoire/circleOfFourths';
 // Harmonic Fluency flashcard catalog.
 // Static data — no audio, no keys in the DB beyond per-user SM-2 state.
 // Programmatic generators fill systematic categories (scale-degree math,
@@ -1758,6 +1759,13 @@ const RELATIVE_PENT_CONTEXT =
   + "relative-minor relationship applied to the pentatonic subset. Which one "
   + "you are playing is decided by the chord underneath, not by the notes.";
 
+/** The identity name for a root. Ids, axis coordinates and skill tags
+ *  take this; every displayed string keeps the root as written. See
+ *  `pentatonicCardId`. */
+function identityRoot(root: string): string {
+  return canonicaliseKey(root) ?? root;
+}
+
 function generatePentatonicKeyCards(): Flashcard[] {
   const cards: Flashcard[] = [];
   const base = {
@@ -1771,14 +1779,14 @@ function generatePentatonicKeyCards(): Flashcard[] {
     cards.push({
       ...base,
       id: pentatonicCardId('minor', root),
-      axis: { root, shape: 'minor' },
+      axis: { root: identityRoot(root), shape: 'minor' },
       question: `In ${scaleName(root, 'minor')} minor pentatonic, the notes are _____`,
       correctAnswer: noteList(notes),
       decoys: pentatonicDecoys(root, 'minor'),
       explanation: `${scaleName(root, 'minor')} minor pentatonic: ${noteList(notes)} — `
         + `the intervals 1, ♭3, 4, 5, ♭7 applied to ${noteLabel(root)} as root. `
         + MINOR_PENT_CONTEXT,
-      skillTag: `pent-minor-${root}`,
+      skillTag: `pent-minor-${identityRoot(root)}`,
     });
   }
 
@@ -1788,14 +1796,14 @@ function generatePentatonicKeyCards(): Flashcard[] {
     cards.push({
       ...base,
       id: pentatonicCardId('major', root),
-      axis: { root, shape: 'major' },
+      axis: { root: identityRoot(root), shape: 'major' },
       question: `In ${scaleName(root, 'major')} major pentatonic, the notes are _____`,
       correctAnswer: noteList(notes),
       decoys: pentatonicDecoys(root, 'major'),
       explanation: `${scaleName(root, 'major')} major pentatonic: ${noteList(notes)} — `
         + `the intervals 1, 2, 3, 5, 6 applied to ${noteLabel(root)} as root. `
         + MAJOR_PENT_CONTEXT,
-      skillTag: `pent-major-${root}`,
+      skillTag: `pent-major-${identityRoot(root)}`,
     });
   }
 
@@ -1807,7 +1815,7 @@ function generatePentatonicKeyCards(): Flashcard[] {
     cards.push({
       ...base,
       id: pentatonicCardId('relative', root),
-      axis: { root, shape: 'relative' },
+      axis: { root: identityRoot(root), shape: 'relative' },
       question: `${scaleName(root, 'major')} major pentatonic and `
         + `${scaleName(rel, 'minor')} minor pentatonic share the same _____`,
       correctAnswer: '5 notes (identical pitch set)',
@@ -1816,7 +1824,7 @@ function generatePentatonicKeyCards(): Flashcard[] {
         + `${noteList(majorNotes)}. Start on the 6th and you are in `
         + `${scaleName(rel, 'minor')} minor pentatonic — the same five notes. `
         + RELATIVE_PENT_CONTEXT,
-      skillTag: `pent-relative-${root}`,
+      skillTag: `pent-relative-${identityRoot(root)}`,
     });
   }
 

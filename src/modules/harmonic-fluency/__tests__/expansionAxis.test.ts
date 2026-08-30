@@ -13,6 +13,7 @@ import { HARMONIC_FLUENCY_GRIDS } from '../progressGrids';
 import { placeItems } from '../../../components/moduleHome/placeItems';
 import { resolveView, SINGLE_ROW } from '../../../components/moduleHome/axis';
 import type { SkillRecord } from '../../skills/registry';
+import { canonicaliseKey } from '../../repertoire/circleOfFourths';
 
 const byPrefix = (re: RegExp) => FLASHCARDS.filter(c => re.test(c.id));
 
@@ -145,12 +146,13 @@ describe('the axis order is the passed list', () => {
     // offers twelve, because it is a claim about the key set rather
     // than a picture of which cards exist.
     const { grid } = place(CATEGORY_LABELS['key-signatures']);
-    // Thirteen, not twelve: F♯ and G♭ are separate columns because the
-    // two generator families spell the sixth key differently and each
-    // writes its own spelling into the card. See progressGrids.ts.
-    expect(grid!.columns).toHaveLength(13);
-    expect(grid!.columns).toContain('Gb');
+    // TWELVE, AND IT WAS THIRTEEN. F♯ and G♭ were separate columns
+    // while the two generator families each wrote their own spelling
+    // into a card's coordinates. Both write the identity now, so one
+    // column holds the pitch and the header spells it.
+    expect(grid!.columns).toHaveLength(12);
     expect(grid!.columns).toContain('F#');
+    expect(grid!.columns).not.toContain('Gb');
     const used = new Set(byPrefix(/^ks-relative-/).map(c => String(c.axis!.key)));
     expect(used.size).toBe(9);
   });
@@ -166,12 +168,15 @@ describe('the axis order is the passed list', () => {
     expect(modes.rows!.views[0].values).toEqual(MODE_BY_DEGREE.map(m => Number(m.degree)));
   });
 
-  it('uses FLAT_TWELVE where the generator looped over it', () => {
-    // The generators walk FLAT_TWELVE, so an axis on HF_MAJOR_KEYS
-    // would put Gb-keyed cards in the tail — the two lists spell the
-    // sixth key differently.
+  it('uses the IDENTITY of whatever list the generator looped over', () => {
+    // The generators still walk FLAT_TWELVE — the flat spelling is a
+    // teaching choice and every word of every card still comes from it
+    // — but a card's COORDINATE is the identity, so the axis and the
+    // card cannot disagree about which column a G♭ card belongs in.
     const keyed = byPrefix(/^fh-ii-v-i-/).map(c => String(c.axis!.key));
-    expect(keyed).toEqual(FLAT_TWELVE.filter(k => keyed.includes(k)));
-    expect(keyed).toContain('Gb');
+    const identities = FLAT_TWELVE.map(k => canonicaliseKey(k) ?? k);
+    expect(keyed).toEqual(identities.filter(k => keyed.includes(k)));
+    expect(keyed).toContain('F#');
+    expect(keyed).not.toContain('Gb');
   });
 });

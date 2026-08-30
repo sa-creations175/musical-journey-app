@@ -24,9 +24,9 @@ import {
 import {
   FLAT_TWELVE, MODE_BY_DEGREE, SLASH_SHAPES,
 } from './catalogExpansions';
-import { MAJOR_ROOTS, MINOR_ROOTS } from './pentatonics';
 import { DEGREE_MOVEMENTS } from './scaleDegreeQualityCards';
-import { sortByCircleOfFourths } from '../repertoire/circleOfFourths';
+import { canonicaliseKey, sortByCircleOfFourths } from '../repertoire/circleOfFourths';
+import { spellKey } from '../../lib/spelling';
 
 const axis = (
   field: string,
@@ -49,34 +49,42 @@ const axis = (
  * what makes the toggle display-only — see `viewsAgree`.
  */
 const CHROMATIC_INDEX = new Map(
-  FLAT_TWELVE.map((k, i) => [k, i] as const),
+  // Keyed by IDENTITY, because that is what the axis holds now.
+  FLAT_TWELVE.map((k, i) => [canonicaliseKey(k) ?? k, i] as const),
 );
 
-/** F♯ and G♭ are the same pitch class spelled two ways; the key list
- *  says F♯ and `FLAT_TWELVE` says G♭, so the lookup needs both. */
-const ENHARMONIC: Readonly<Record<string, string>> = { 'F#': 'Gb' };
+/**
+ * TWELVE COLUMNS FOR TWELVE PITCHES.
+ *
+ * It was THIRTEEN, and the extra one was a disagreement made visible:
+ * `catalog.ts` wrote F♯ into a card's coordinates and the expansion
+ * generators wrote G♭, so no twelve-key axis could hold both and the
+ * union was the only honest picture. Picking one silently dropped the
+ * other's cards into the tail — how three mode cards and one
+ * progression card went missing the first time this was wired.
+ *
+ * The generators agree now: every id and axis coordinate is minted
+ * from the identity vocabulary, so there is one spelling to hold. The
+ * axis is the identity twelve, and the column is LABELLED by
+ * `spellKey` rather than by whichever string a generator happened to
+ * use.
+ */
+const HF_KEY_COLUMNS: ReadonlyArray<string> = HF_MAJOR_KEYS;
 
 /**
- * THIRTEEN COLUMNS FOR TWELVE PITCHES, AND THAT IS THE HONEST PICTURE.
+ * The column header. HARDCODED FLAT, AND THAT IS A NARROWING RATHER
+ * THAN A LIMITATION.
  *
- * The generators disagree about how to spell the sixth key.
- * `catalog.ts` walks `HF_MAJOR_KEYS`, which says F♯; every generator in
- * `catalogExpansions.ts` walks `FLAT_TWELVE`, which says G♭. Both write
- * that string into the card's coordinates, so no single twelve-key axis
- * can hold both — and picking one SILENTLY DROPS the other's cards into
- * the tail, which is exactly how three mode cards and one progression
- * card went missing the first time this was wired.
- *
- * So the axis is the union, and F♯ and G♭ appear as separate columns.
- * That makes the disagreement visible on the screen it affects rather
- * than hiding it behind a mapping. It is not the fix — the fix is for
- * the two generators to agree, which is a change to stored card ids and
- * therefore its own decision. See the report.
+ * The whole harmonic-fluency corpus is flat by design — `FLAT_TWELVE`
+ * and the argument above it — so a spelling channel here would be a
+ * setting with one correct value. If HF ever gains a sharp-side view,
+ * this is where it changes: the axis needs the reader's `Spelling`
+ * threaded in, which `AxisSpec.labelFor` has no parameter for today,
+ * so that view would add one.
  */
-const HF_KEY_COLUMNS: ReadonlyArray<string> = [
-  ...FLAT_TWELVE,
-  ...HF_MAJOR_KEYS.filter(k => !FLAT_TWELVE.includes(k)),
-];
+function spellKeyColumn(v: string | number): string {
+  return spellKey(String(v), 'flat');
+}
 
 /**
  * THE CIRCLE VIEW DID NOT ORDER BY THE CIRCLE.
@@ -95,6 +103,7 @@ const HF_KEY_COLUMNS: ReadonlyArray<string> = [
 const keyAxis: AxisSpec = {
   field: 'key',
   label: 'key',
+  labelFor: spellKeyColumn,
   views: [
     {
       id: 'fifths',
@@ -104,12 +113,10 @@ const keyAxis: AxisSpec = {
     {
       id: 'chromatic',
       label: 'Chromatic',
+      // No enharmonic lookup any more: the axis holds one spelling of
+      // each pitch, so a pitch-class sort is total on its own.
       values: [...HF_KEY_COLUMNS].sort((a, b) =>
-        (CHROMATIC_INDEX.get(ENHARMONIC[a] ?? a) ?? 99)
-        - (CHROMATIC_INDEX.get(ENHARMONIC[b] ?? b) ?? 99)
-        // F♯ and G♭ tie on pitch class; order them by spelling so the
-        // sort is total and the two views stay stable.
-        || a.localeCompare(b)),
+        (CHROMATIC_INDEX.get(a) ?? 99) - (CHROMATIC_INDEX.get(b) ?? 99)),
     },
   ],
 };
@@ -197,9 +204,19 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   // (C#, F#, G#) and major roots flat (Db, Gb, Ab) — the same pitches
   // under two spellings — so one root axis would drop half the deck
   // into the tail. The union, in the generator's own orders.
+  // FIFTEEN COLUMNS FOR TWELVE PITCHES, until the ids canonicalised.
+  // `MAJOR_ROOTS` spells the flat side and `MINOR_ROOTS` the sharp —
+  // each scale reads the way it is written — so the union carried C♯,
+  // F♯ and G♯ as extra columns beside D♭, G♭ and A♭. The card's ROOT
+  // coordinate is the identity now, so one column holds both shapes
+  // and the header is labelled rather than inherited.
   [CATEGORY_LABELS['pentatonic-scales']]: {
-    columns: axis('root', 'root',
-      [...MAJOR_ROOTS, ...MINOR_ROOTS.filter(r => !MAJOR_ROOTS.includes(r))]),
+    columns: {
+      field: 'root',
+      label: 'root',
+      labelFor: spellKeyColumn,
+      views: [{ id: 'default', label: 'root', values: HF_KEY_COLUMNS }],
+    },
     rows: axis('shape', 'shape', ['minor', 'major', 'relative']),
   },
 

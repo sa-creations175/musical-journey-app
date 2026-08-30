@@ -4,6 +4,7 @@ import {
 import type { Flashcard } from './catalog';
 import { chooseDecoys } from './decoyGuard';
 import { PRACTICAL_NAME as PRACTICAL_SPELLINGS } from '../../lib/theoreticalSpellings';
+import { canonicaliseKey } from '../repertoire/circleOfFourths';
 
 /**
  * The twelve keys, generated rather than hand-written.
@@ -35,6 +36,32 @@ import { PRACTICAL_NAME as PRACTICAL_SPELLINGS } from '../../lib/theoreticalSpel
 export const FLAT_TWELVE: ReadonlyArray<string> = [
   'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B',
 ];
+
+/**
+ * The identity name for a root — what an ID may be built from.
+ *
+ * =====================================================================
+ * THE LIST STAYS FLAT. ONLY THE ID CANONICALISES.
+ *
+ * `FLAT_TWELVE` says G♭, and that is deliberate: the header above it
+ * argues the flat spelling as a TEACHING choice and asks, in terms,
+ * that it not be simplified to the sharp side later. That comment was
+ * read and is honoured here — every question, answer, decoy and
+ * explanation still derives from the root as written, because
+ * `degreeAscii` spells the degrees FROM the root and swapping the
+ * constant would have turned G♭ – D♭ – E♭m – C♭ into the sharp-side
+ * spelling silently.
+ *
+ * What was wrong was narrower: the display spelling was reaching card
+ * ids and axis coordinates, where the app has exactly one vocabulary.
+ * `lib/spelling.ts` states it — the identity never reaches a screen,
+ * and it is the only thing an id may be built from. So ids, axis keys
+ * and skill tags take this; nothing the reader sees does.
+ * =====================================================================
+ */
+function identityRoot(root: string): string {
+  return canonicaliseKey(root) ?? root;
+}
 
 /** (diatonic steps, semitones) from the tonic, per scale degree. */
 const DEGREE: Readonly<Record<string, readonly [number, number]>> = {
@@ -209,10 +236,10 @@ export function generateIiViCards(): Flashcard[] {
     const three = degreeLabel(root, '3');
     out.push({
       ...base('functional-harmony', 'Functional Harmony'),
-      id: `fh-ii-v-i-${root}`,
+      id: `fh-ii-v-i-${identityRoot(root)}`,
       // `shape` separates the three functional-harmony generators, which
       // all key on root and would otherwise share a cell.
-      axis: { key: root, shape: 'ii-V-I' },
+      axis: { key: identityRoot(root), shape: 'ii-V-I' },
       question: `The ii-V-I cadence in ${noteLabel(root)} major is _____`,
       correctAnswer: `${two}m7 - ${five}7 - ${one}maj7`,
       decoys: [
@@ -225,7 +252,7 @@ export function generateIiViCards(): Flashcard[] {
         + `major scale gives it.`
         + keyboardNote(degreeAscii(root, '2'), degreeAscii(root, '5'), degreeAscii(root, '1'))
         + ` ${II_V_I_CONTEXT}`,
-      skillTag: `ii-v-i-${root}`,
+      skillTag: `ii-v-i-${identityRoot(root)}`,
     });
   }
   return out;
@@ -242,8 +269,8 @@ export function generateVofVCards(): Flashcard[] {
     const three = degreeLabel(root, '3');
     out.push({
       ...base('functional-harmony', 'Functional Harmony'),
-      id: `fh-v-of-v-${root}`,
-      axis: { key: root, shape: 'V/V' },
+      id: `fh-v-of-v-${identityRoot(root)}`,
+      axis: { key: identityRoot(root), shape: 'V/V' },
       question: `A secondary dominant V/V in ${noteLabel(root)} major is which chord?`,
       correctAnswer: `${two}7`,
       // The other three dominants a player might reach for: the real V,
@@ -254,7 +281,7 @@ export function generateVofVCards(): Flashcard[] {
         + `and sevenths, resolving to ${five}7.`
         + keyboardNote(degreeAscii(root, '2'), degreeAscii(root, '5'))
         + ` ${SECONDARY_DOMINANT_CONTEXT}`,
-      skillTag: `v-of-v-${root}`,
+      skillTag: `v-of-v-${identityRoot(root)}`,
     });
   }
   return out;
@@ -271,8 +298,8 @@ export function generateVofViCards(): Flashcard[] {
     const four = degreeLabel(root, '4');
     out.push({
       ...base('functional-harmony', 'Functional Harmony'),
-      id: `fh-v-of-vi-${root}`,
-      axis: { key: root, shape: 'V/vi' },
+      id: `fh-v-of-vi-${identityRoot(root)}`,
+      axis: { key: identityRoot(root), shape: 'V/vi' },
       question: `V/vi in ${noteLabel(root)} major resolves to _____`,
       correctAnswer: `${six}m`,
       decoys: [`${three}m`, `${two}m`, `${four}maj7`],
@@ -281,7 +308,7 @@ export function generateVofViCards(): Flashcard[] {
         + `${degreeLabel(root, '3')}7 → ${six}m. You hear it whenever a song `
         + `pivots into its relative minor for a bridge before drifting home.`
         + keyboardNote(degreeAscii(root, '6'), degreeAscii(root, '3')),
-      skillTag: `v-of-vi-${root}`,
+      skillTag: `v-of-vi-${identityRoot(root)}`,
     });
   }
   return out;
@@ -343,8 +370,8 @@ export function generateModeOfCards(): Flashcard[] {
       const startGlossed = degreeLabelGlossed(root, degree);
       out.push({
         ...base('modes', 'Modes'),
-        id: `mo-mode-of-${root}-${degree}`,
-        axis: { key: root, degree: Number(degree) },
+        id: `mo-mode-of-${identityRoot(root)}-${degree}`,
+        axis: { key: identityRoot(root), degree: Number(degree) },
         question: `The mode of ${noteLabel(root)} major starting on ${startGlossed} is _____`,
         correctAnswer: `${start} ${mode}`,
         // The same starting note under three other mode names — the
@@ -364,7 +391,7 @@ export function generateModeOfCards(): Flashcard[] {
           + `${start} ${mode}.`
           + keyboardNote(degreeAscii(root, degree))
           + ` ${MODE_CONTEXT}`,
-        skillTag: `mode-of-${root}-${degree}`,
+        skillTag: `mode-of-${identityRoot(root)}-${degree}`,
       });
     }
   }
@@ -428,8 +455,8 @@ export function generateSlashCards(): Flashcard[] {
         .map(d => `${chord}/${degreeLabel(root, d)}`);
       out.push({
         ...base('slash-chords', 'Slash Chords'),
-        id: `sc-${shape.id}-${root}`,
-        axis: { key: root, shape: shape.id },
+        id: `sc-${shape.id}-${identityRoot(root)}`,
+        axis: { key: identityRoot(root), shape: shape.id },
         question: `What is ${shape.label} in ${noteLabel(root)} major?`,
         correctAnswer: `${chord}/${bass}`,
         decoys,
@@ -438,7 +465,7 @@ export function generateSlashCards(): Flashcard[] {
           + `that is ${chord}/${bass}.`
           + keyboardNote(degreeAscii(root, shape.bass), degreeAscii(root, shape.chord))
           + ` ${SLASH_CONTEXT}`,
-        skillTag: `slash-${shape.id}-${root}`,
+        skillTag: `slash-${shape.id}-${identityRoot(root)}`,
       });
     }
   }
@@ -474,14 +501,14 @@ export function generatePivotTopUps(): Flashcard[] {
     const wrong = FLAT_TWELVE.filter(k => k !== root).slice(0, 3);
     return {
       ...base('reverse-key-pivots', 'Reverse Key Pivots'),
-      id: `rkp-${root}-${degree}`,
-      axis: { key: root, degree: Number(degree) },
+      id: `rkp-${identityRoot(root)}-${degree}`,
+      axis: { key: identityRoot(root), degree: Number(degree) },
       question: `${note} is the ${degree} of which major key?`,
       correctAnswer: `${noteLabel(root)} major`,
       decoys: wrong.map(k => `${noteLabel(k)} major`),
       explanation: `${note} sits on the ${degree} of ${noteLabel(root)} major. `
         + PIVOT_CONTEXT,
-      skillTag: `pivot-${root}-${degree}`,
+      skillTag: `pivot-${identityRoot(root)}-${degree}`,
     };
   });
 }
@@ -498,8 +525,8 @@ export function generateProgressionTopUps(): Flashcard[] {
     const [one, five, six, four] = ['1', '5', '6', '4'].map(d => degreeLabel(root, d));
     return {
       ...base('progressions', 'Progressions'),
-      id: `pr-1564-${root}`,
-      axis: { key: root, shape: '1-5-6-4' },
+      id: `pr-1564-${identityRoot(root)}`,
+      axis: { key: identityRoot(root), shape: '1-5-6-4' },
       question: `The 1-5-6-4 progression in ${noteLabel(root)} major is _____`,
       correctAnswer: `${one} - ${five} - ${six}m - ${four}`,
       decoys: [
@@ -511,7 +538,7 @@ export function generateProgressionTopUps(): Flashcard[] {
         + `${six}m → ${four}.`
         + keyboardNote(...['1', '5', '6', '4'].map(d => degreeAscii(root, d)))
         + ` ${PROGRESSION_CONTEXT}`,
-      skillTag: `prog-1564-${root}`,
+      skillTag: `prog-1564-${identityRoot(root)}`,
     };
   });
 }
@@ -555,8 +582,8 @@ export function generateRelativeMinorTopUps(): Flashcard[] {
     const six = degreeLabel(root, '6');
     return {
       ...base('key-signatures', 'Key Signatures'),
-      id: `ks-relative-${root}`,
-      axis: { key: root, relation: 'relative' },
+      id: `ks-relative-${identityRoot(root)}`,
+      axis: { key: identityRoot(root), relation: 'relative' },
       question: `The relative minor of ${noteLabel(root)} major is _____`,
       correctAnswer: `${six} minor`,
       decoys: chooseDecoys(
@@ -573,7 +600,7 @@ export function generateRelativeMinorTopUps(): Flashcard[] {
         + `major.`
         + keyboardNote(degreeAscii(root, '6'))
         + ` ${RELATIVE_CONTEXT}`,
-      skillTag: `relative-minor-${root}`,
+      skillTag: `relative-minor-${identityRoot(root)}`,
     };
   });
 }
@@ -582,8 +609,8 @@ export function generateParallelMinorTopUps(): Flashcard[] {
   const have = new Set(['Bb', 'D', 'F', 'G']);
   return FLAT_TWELVE.filter(r => !have.has(r)).map(root => ({
     ...base('key-signatures', 'Key Signatures'),
-    id: `ks-parallel-${root}`,
-    axis: { key: root, relation: 'parallel' },
+    id: `ks-parallel-${identityRoot(root)}`,
+    axis: { key: identityRoot(root), relation: 'parallel' },
     question: `The parallel minor of ${noteLabel(root)} major is _____`,
     correctAnswer: `${noteLabel(root)} minor`,
     decoys: chooseDecoys(
@@ -598,7 +625,7 @@ export function generateParallelMinorTopUps(): Flashcard[] {
     ),
     explanation: `${noteLabel(root)} minor — same root, opposite quality. `
       + PARALLEL_CONTEXT,
-    skillTag: `parallel-minor-${root}`,
+    skillTag: `parallel-minor-${identityRoot(root)}`,
   }));
 }
 
@@ -654,6 +681,12 @@ export function generateIntervalTopUps(): Flashcard[] {
     );
     return {
       ...base('intervals', 'Intervals'),
+      // NOT CANONICALISED, AND THAT IS THE POINT OF THE COMMENT BELOW.
+      // `from` here is a NOTE in an interval, not a key: the intervals
+      // grid's row axis is `FLAT_TWELVE`, so a canonicalised `from`
+      // would fall off it into the tail — the exact failure this
+      // generator's coordinates were aligned to avoid. The note
+      // vocabulary has its own spelling question; it is not this one.
       id: `iv-${from}-${degree}`,
       // Same coordinates as the catalog's own interval generator, so
       // the top-ups land in the SAME grid rather than a parallel one.

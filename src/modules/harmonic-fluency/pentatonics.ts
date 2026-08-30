@@ -1,6 +1,7 @@
 import {
   spellInterval, type Accidental, type Letter, type Pitch,
 } from '../reading/pitch';
+import { canonicaliseKey } from '../repertoire/circleOfFourths';
 
 /**
  * Pentatonic scales in twelve keys, spelled by interval.
@@ -267,9 +268,27 @@ const LEGACY_IDS: Readonly<Record<string, string>> = {
   'relative:C': 'pent-10',
 };
 
+/**
+ * THE ID TAKES THE IDENTITY, THE SCREEN TAKES THE SPELLING.
+ *
+ * `MAJOR_ROOTS` says G♭ and `MINOR_ROOTS` says C♯ and G♯. Those are
+ * display spellings, chosen so each scale reads the way it is written
+ * — and they were reaching card ids, which is where the app's ONE
+ * identity vocabulary belongs. `lib/spelling.ts` states the rule: the
+ * identity never reaches a screen, and it is the only thing an id may
+ * be built from.
+ *
+ * The root list is unchanged and every string the reader sees still
+ * derives from it. Only the id canonicalises.
+ *
+ * `LEGACY_IDS` is looked up AFTER canonicalising, and both its pins
+ * are on root C, which is already an identity — so no pinned id moves
+ * and no rename can collide with one.
+ */
 export function pentatonicCardId(
   shape: 'minor' | 'major' | 'relative',
   root: string,
 ): string {
-  return LEGACY_IDS[`${shape}:${root}`] ?? `pent-${shape}-${root}`;
+  const identity = canonicaliseKey(root) ?? root;
+  return LEGACY_IDS[`${shape}:${identity}`] ?? `pent-${shape}-${identity}`;
 }

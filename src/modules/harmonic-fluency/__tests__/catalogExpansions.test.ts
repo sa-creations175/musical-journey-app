@@ -79,7 +79,10 @@ describe('but the teaching survives the move', () => {
   it('keeps a question-side gloss, which cannot give anything away', () => {
     // The answer here is a KEY NAME, so a glossed note in the question
     // is pure teaching.
-    const card = FLASHCARDS.find(c => c.id === 'rkp-Gb-4')!;
+    // The id is the IDENTITY now (F#), while every word in the card
+    // still reads the flat side — which is exactly what the two
+    // assertions below check.
+    const card = FLASHCARDS.find(c => c.id === 'rkp-F#-4')!;
     expect(card.question).toContain('C♭ (B)');
     expect(card.correctAnswer).toBe('G♭ major');
   });

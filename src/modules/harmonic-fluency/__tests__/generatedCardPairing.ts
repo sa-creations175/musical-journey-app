@@ -41,6 +41,29 @@
  *
  * Captured 24 August 2026, extended the same day to cover the
  * twelve-key expansions. Format is `id|question`.
+ *
+ * ---------------------------------------------------------------
+ * 29 AUGUST 2026 — EIGHTEEN IDS UPDATED, AND THIS IS THE "ALMOST
+ * NEVER" THE RULE ABOVE ALLOWS FOR.
+ *
+ * The header says a rename is possible even where a renumber is not,
+ * and that is what happened: `MAJOR_ROOTS` spelled the sixth key G♭
+ * and `MINOR_ROOTS` spelled the ninth G♯, both display choices, and
+ * both were reaching card ids. Ids mint from the identity vocabulary
+ * now — the rule `lib/spelling.ts` states.
+ *
+ * WHAT MAKES THIS SAFE TO RE-PIN, checked rather than assumed: all
+ * eighteen changes are one id swapped for another with the QUESTION
+ * BYTE-IDENTICAL. Nothing was repointed, nothing added, nothing lost —
+ * 18 removals, 18 additions, every one matched by its question. The
+ * whole 649-card corpus was hashed over question, answer, decoys and
+ * explanation before and after: unchanged.
+ *
+ * Four of the eighteen had history behind them —
+ * `pent-major-Gb`, `pent-relative-Gb`, `pr-1564-Gb`, `pent-minor-G#` —
+ * and `identityIdMigration.ts` carries their rows across. The other
+ * fourteen had none.
+ * ---------------------------------------------------------------
  */
 export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   // --- scale-degree-math ---
@@ -272,7 +295,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'rkp-23|Db is the 4 of which major key?',
   'rkp-24|Eb is the 5 of which major key?',
   'rkp-Db-3|F is the 3 of which major key?',
-  'rkp-Gb-4|C♭ (B) is the 4 of which major key?',
+  'rkp-F#-4|C♭ (B) is the 4 of which major key?',
   'rkp-B-6|G♯ is the 6 of which major key?',
   // --- intervals ---
   'iv-1|The interval from C to G ascending = ?',
@@ -371,14 +394,14 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pent-6|The minor pentatonic scale is the natural minor scale with which two notes removed?',
   'pent-9|The minor pentatonic scale starting on the ___ of the major pentatonic gives you the relative minor pentatonic',
   'pent-8|In C minor pentatonic, the notes are _____',
-  'pent-minor-C#|In C♯ (D♭) minor pentatonic, the notes are _____',
+  'pent-minor-Db|In C♯ (D♭) minor pentatonic, the notes are _____',
   'pent-minor-D|In D minor pentatonic, the notes are _____',
   'pent-minor-Eb|In E♭ minor pentatonic, the notes are _____',
   'pent-minor-E|In E minor pentatonic, the notes are _____',
   'pent-minor-F|In F minor pentatonic, the notes are _____',
   'pent-minor-F#|In F♯ (G♭) minor pentatonic, the notes are _____',
   'pent-minor-G|In G minor pentatonic, the notes are _____',
-  'pent-minor-G#|In G♯ (A♭) minor pentatonic, the notes are _____',
+  'pent-minor-Ab|In G♯ (A♭) minor pentatonic, the notes are _____',
   'pent-minor-A|In A minor pentatonic, the notes are _____',
   'pent-minor-Bb|In B♭ minor pentatonic, the notes are _____',
   'pent-minor-B|In B minor pentatonic, the notes are _____',
@@ -388,7 +411,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pent-major-Eb|In E♭ major pentatonic, the notes are _____',
   'pent-major-E|In E major pentatonic, the notes are _____',
   'pent-major-F|In F major pentatonic, the notes are _____',
-  'pent-major-Gb|In G♭ major pentatonic, the notes are _____',
+  'pent-major-F#|In G♭ major pentatonic, the notes are _____',
   'pent-major-G|In G major pentatonic, the notes are _____',
   'pent-major-Ab|In A♭ major pentatonic, the notes are _____',
   'pent-major-A|In A major pentatonic, the notes are _____',
@@ -400,7 +423,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pent-relative-Eb|E♭ major pentatonic and C minor pentatonic share the same _____',
   'pent-relative-E|E major pentatonic and C♯ (D♭) minor pentatonic share the same _____',
   'pent-relative-F|F major pentatonic and D minor pentatonic share the same _____',
-  'pent-relative-Gb|G♭ major pentatonic and E♭ minor pentatonic share the same _____',
+  'pent-relative-F#|G♭ major pentatonic and E♭ minor pentatonic share the same _____',
   'pent-relative-G|G major pentatonic and E minor pentatonic share the same _____',
   'pent-relative-Ab|A♭ major pentatonic and F minor pentatonic share the same _____',
   'pent-relative-A|A major pentatonic and F♯ (G♭) minor pentatonic share the same _____',
@@ -431,7 +454,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'fh-ii-v-i-Eb|The ii-V-I cadence in E♭ major is _____',
   'fh-ii-v-i-E|The ii-V-I cadence in E major is _____',
   'fh-ii-v-i-F|The ii-V-I cadence in F major is _____',
-  'fh-ii-v-i-Gb|The ii-V-I cadence in G♭ major is _____',
+  'fh-ii-v-i-F#|The ii-V-I cadence in G♭ major is _____',
   'fh-ii-v-i-G|The ii-V-I cadence in G major is _____',
   'fh-ii-v-i-Ab|The ii-V-I cadence in A♭ major is _____',
   'fh-ii-v-i-A|The ii-V-I cadence in A major is _____',
@@ -442,7 +465,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'fh-v-of-v-Eb|A secondary dominant V/V in E♭ major is which chord?',
   'fh-v-of-v-E|A secondary dominant V/V in E major is which chord?',
   'fh-v-of-v-F|A secondary dominant V/V in F major is which chord?',
-  'fh-v-of-v-Gb|A secondary dominant V/V in G♭ major is which chord?',
+  'fh-v-of-v-F#|A secondary dominant V/V in G♭ major is which chord?',
   'fh-v-of-v-G|A secondary dominant V/V in G major is which chord?',
   'fh-v-of-v-Ab|A secondary dominant V/V in A♭ major is which chord?',
   'fh-v-of-v-A|A secondary dominant V/V in A major is which chord?',
@@ -453,7 +476,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'fh-v-of-vi-Eb|V/vi in E♭ major resolves to _____',
   'fh-v-of-vi-E|V/vi in E major resolves to _____',
   'fh-v-of-vi-F|V/vi in F major resolves to _____',
-  'fh-v-of-vi-Gb|V/vi in G♭ major resolves to _____',
+  'fh-v-of-vi-F#|V/vi in G♭ major resolves to _____',
   'fh-v-of-vi-G|V/vi in G major resolves to _____',
   'fh-v-of-vi-Ab|V/vi in A♭ major resolves to _____',
   'fh-v-of-vi-A|V/vi in A major resolves to _____',
@@ -494,9 +517,9 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'mo-mode-of-F-2|The mode of F major starting on G is _____',
   'mo-mode-of-F-5|The mode of F major starting on C is _____',
   'mo-mode-of-F-6|The mode of F major starting on D is _____',
-  'mo-mode-of-Gb-2|The mode of G♭ major starting on A♭ is _____',
-  'mo-mode-of-Gb-5|The mode of G♭ major starting on D♭ is _____',
-  'mo-mode-of-Gb-6|The mode of G♭ major starting on E♭ is _____',
+  'mo-mode-of-F#-2|The mode of G♭ major starting on A♭ is _____',
+  'mo-mode-of-F#-5|The mode of G♭ major starting on D♭ is _____',
+  'mo-mode-of-F#-6|The mode of G♭ major starting on E♭ is _____',
   'mo-mode-of-G-2|The mode of G major starting on A is _____',
   'mo-mode-of-G-5|The mode of G major starting on D is _____',
   'mo-mode-of-G-6|The mode of G major starting on E is _____',
@@ -549,10 +572,10 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'sc-5-7-F|What is 5/7 in F major?',
   'sc-4-5-F|What is 4/5 in F major?',
   'sc-6-b7-F|What is 6/b7 in F major?',
-  'sc-1-3-Gb|What is 1/3 in G♭ major?',
-  'sc-5-7-Gb|What is 5/7 in G♭ major?',
-  'sc-4-5-Gb|What is 4/5 in G♭ major?',
-  'sc-6-b7-Gb|What is 6/b7 in G♭ major?',
+  'sc-1-3-F#|What is 1/3 in G♭ major?',
+  'sc-5-7-F#|What is 5/7 in G♭ major?',
+  'sc-4-5-F#|What is 4/5 in G♭ major?',
+  'sc-6-b7-F#|What is 6/b7 in G♭ major?',
   'sc-1-3-G|What is 1/3 in G major?',
   'sc-5-7-G|What is 5/7 in G major?',
   'sc-4-5-G|What is 4/5 in G major?',
@@ -597,7 +620,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-1564-Db|The 1-5-6-4 progression in D♭ major is _____',
   'pr-1564-Eb|The 1-5-6-4 progression in E♭ major is _____',
   'pr-1564-E|The 1-5-6-4 progression in E major is _____',
-  'pr-1564-Gb|The 1-5-6-4 progression in G♭ major is _____',
+  'pr-1564-F#|The 1-5-6-4 progression in G♭ major is _____',
   'pr-1564-Ab|The 1-5-6-4 progression in A♭ major is _____',
   'pr-1564-B|The 1-5-6-4 progression in B major is _____',
   // --- key-signatures ---
@@ -646,7 +669,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'ks-relative-Eb|The relative minor of E♭ major is _____',
   'ks-relative-E|The relative minor of E major is _____',
   'ks-relative-F|The relative minor of F major is _____',
-  'ks-relative-Gb|The relative minor of G♭ major is _____',
+  'ks-relative-F#|The relative minor of G♭ major is _____',
   'ks-relative-A|The relative minor of A major is _____',
   'ks-relative-Bb|The relative minor of B♭ major is _____',
   'ks-relative-B|The relative minor of B major is _____',
@@ -654,7 +677,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'ks-parallel-Db|The parallel minor of D♭ major is _____',
   'ks-parallel-Eb|The parallel minor of E♭ major is _____',
   'ks-parallel-E|The parallel minor of E major is _____',
-  'ks-parallel-Gb|The parallel minor of G♭ major is _____',
+  'ks-parallel-F#|The parallel minor of G♭ major is _____',
   'ks-parallel-Ab|The parallel minor of A♭ major is _____',
   'ks-parallel-A|The parallel minor of A major is _____',
   'ks-parallel-B|The parallel minor of B major is _____',

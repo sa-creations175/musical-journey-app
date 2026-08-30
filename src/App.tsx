@@ -6,6 +6,10 @@ import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
 import { backfillChartingEngagement } from './modules/repertoire/chartingEngagement';
 import { describeWipe, wipeRetiredCellFields } from './modules/repertoire/wipeRetiredCellFields';
 import {
+  describeIdentityMigration,
+  migrateIdentityCardIds,
+} from './modules/harmonic-fluency/identityIdMigration';
+import {
   describeDedupe, removeDuplicateSpacingRows,
 } from './lib/spacing/dedupeSpacingRows';
 import {
@@ -143,6 +147,18 @@ export default function App() {
       .then(r => { if (!r.skipped) console.info(describeWipe(r)); })
       .catch(err => {
         console.warn('[repertoire] retired-field wipe failed', err);
+      });
+    // Four harmonic-fluency cards whose ids carried a display spelling
+    // move onto their identity. It VERIFIES BEFORE IT WRITES and
+    // refuses if the row shape is not the one that was authorised —
+    // see the header. A refusal logs and leaves the pref unset, so it
+    // is a state to come back to rather than a step taken.
+    void migrateIdentityCardIds()
+      .then(r => {
+        if (!r.skipped) console.info(describeIdentityMigration(r));
+      })
+      .catch(err => {
+        console.warn('[hf] identity id migration failed', err);
       });
     // ONE-TIME, AND DELIBERATELY NOT ARMED YET.
     //
