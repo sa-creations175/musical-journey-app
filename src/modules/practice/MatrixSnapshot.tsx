@@ -12,18 +12,26 @@
  * highlighted (fluent ring/underline on the column header + a subtle
  * column tint) to distinguish them from the surrounding context.
  *
- * Cells reflect live db.spacingState acquisition stages. The view is
- * READ-ONLY: cells are not clickable; the only interactive element is
- * the "Continue →" button. Scales + chord shapes use the shared
- * three-band (L/R/Both) cell; voice leading uses a single-fill cell
- * (it's two-handed by nature).
+ * Every cell says where that square stands, in the six words the rest
+ * of the app uses. The view is READ-ONLY: cells are not clickable; the
+ * only interactive element is the "Continue →" button.
+ *
+ * IT USED TO CARRY ITS OWN RULE, TWICE. `aggregateHand` was a copy of
+ * HeatGrid's per-hand acquisition aggregation, and `bucketFor` was a
+ * fourth copy of the three-way collapse, kept for the voice-leading
+ * cell. Both are gone: the rollup is `verdictForTargets`, the same one
+ * the grids read, so a square cannot say one thing on the module page
+ * and another here — mid-session, where a stale vocabulary is worst.
  */
 import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SpacingState, type AcquisitionStage } from '../../lib/db';
+import { db, type SpacingState } from '../../lib/db';
 import { CIRCLE_OF_FOURTHS } from '../shapes-and-patterns/spTiers';
-import ThreeBandCell, { type BandStage } from '../shapes-and-patterns/ThreeBandCell';
-import { bucketForStage } from '../shapes-and-patterns/acquisition';
+import BandCell from '../shapes-and-patterns/BandCell';
+import {
+  chordCellTargets, itemCellTargets, rowsByRefHand, verdictForTargets,
+} from '../shapes-and-patterns/cellTargets';
+import { bandVerdictLabel } from '../../lib/spacing/banding';
 import {
   parseScaleItemRef,
   itemRefForScale,
@@ -48,40 +56,20 @@ interface Props {
 
 type Activity = 'scales' | 'chord-shapes' | 'voice-leading';
 
-/** Per-hand stages a three-band cell needs (scales — single fill). */
-interface BandTriple {
-  left: BandStage;
-  right: BandStage;
-  both: BandStage;
-}
-
-/** One skill row across all 12 keys. `cells` maps keyName → cell. */
-interface BandRow {
-  kind: 'band';
+/**
+ * One skill row across all 12 keys. `cellRefByKey` maps keyName →
+ * itemRef.
+ *
+ * IT WAS TWO TYPES. `band` rows drew three hand strips and `single`
+ * rows drew one fill, which is a distinction about how a square was
+ * PAINTED rather than about what it holds. One word paints them all,
+ * and what differs — three hands, or one — is answered by the targets.
+ */
+interface SnapshotRow {
   rowKey: string;
   label: string;
-  cellRefByKey: Map<string, string>; // keyName → itemRef
+  cellRefByKey: Map<string, string>;
 }
-interface SingleRow {
-  kind: 'single';
-  rowKey: string;
-  label: string;
-  cellRefByKey: Map<string, string>; // keyName → itemRef
-}
-type SnapshotRow = BandRow | SingleRow;
-
-// --- Single-fill (voice-leading) palette — mirrors ThreeBandCell ----
-type Bucket = 'empty' | 'acquiring' | 'acquired';
-function bucketFor(stage: AcquisitionStage | null): Bucket {
-  if (stage === 'acquired' || stage === 'consolidated' || stage === 'mastered') return 'acquired';
-  if (stage === 'acquiring') return 'acquiring';
-  return 'empty';
-}
-const BUCKET_BG: Readonly<Record<Bucket, string>> = {
-  acquired:  'bg-mastered/35',
-  acquiring: 'bg-developing/25',
-  empty:     'bg-neutral-100 dark:bg-neutral-800',
-};
 
 function activityFor(firstRef: string | undefined): Activity | null {
   if (!firstRef) return null;
@@ -104,23 +92,7 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
 
   const activity = activityFor(itemRefs[0]);
 
-  /** O(1) per-hand stage lookup: `${itemRef} ${hand}` → acquisitionStage. */
-  const stageByRefHand = useMemo(() => {
-    const m = new Map<string, AcquisitionStage>();
-    for (const r of spacingRows) m.set(`${r.itemRef} ${r.hand}`, r.acquisitionStage);
-    return m;
-  }, [spacingRows]);
-
-  /** All spacing rows whose itemRef starts with a given prefix — used
-   *  by the chord-shape inversion aggregation. */
-  const rowsByItemRef = useMemo(() => {
-    const m = new Map<string, SpacingState[]>();
-    for (const r of spacingRows) {
-      const arr = m.get(r.itemRef);
-      if (arr) arr.push(r); else m.set(r.itemRef, [r]);
-    }
-    return m;
-  }, [spacingRows]);
+  const byRefHand = useMemo(() => rowsByRefHand(spacingRows), [spacingRows]);
 
   /** The keys drilled this session (highlighted columns). */
   const sessionKeys = useMemo(() => {
@@ -140,35 +112,19 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
     return [];
   }, [itemRefs, activity]);
 
-  // --- Per-cell stage resolution -----------------------------------
-  const bandFor = (itemRef: string): BandTriple => ({
-    left: bucketForStage(stageByRefHand.get(`${itemRef} left`)),
-    right: bucketForStage(stageByRefHand.get(`${itemRef} right`)),
-    both: bucketForStage(stageByRefHand.get(`${itemRef} both`)),
-  });
-
-  /** Chord-shape band: aggregate across the cell's inversion rows, per
-   *  hand. */
-  const chordBandFor = (baseRef: string): BandTriple => {
-    const matched: SpacingState[] = [];
-    const exact = rowsByItemRef.get(baseRef);
-    if (exact) matched.push(...exact);
-    const prefix = `${baseRef}:`;
-    for (const [ref, arr] of rowsByItemRef) {
-      if (ref.startsWith(prefix)) matched.push(...arr);
-    }
-    return {
-      left: aggregateHand(matched, 'left'),
-
-      right: aggregateHand(matched, 'right'),
-
-      both: aggregateHand(matched, 'both'),
-
-    };
+  /**
+   * The square's targets — what it is waiting on, not what has been
+   * drilled. A chord square is its quality's inversion states across
+   * three hands; everything else is the itemRef's own hands, which is
+   * three for a scale and one for voice leading.
+   */
+  const targetsFor = (itemRef: string) => {
+    if (activity !== 'chord-shapes') return itemCellTargets(itemRef);
+    const d = parseShapesItemRef(itemRef);
+    return d && d.kind === 'chord-shape'
+      ? chordCellTargets(d.quality, d.keyName)
+      : itemCellTargets(itemRef);
   };
-
-  const singleBucketFor = (itemRef: string): Bucket =>
-    bucketFor(stageByRefHand.get(`${itemRef} both`) ?? null);
 
   if (!activity || rows.length === 0) {
     return (
@@ -181,7 +137,6 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
     );
   }
 
-  const isVL = activity === 'voice-leading';
   const keys = CIRCLE_OF_FOURTHS;
 
   return (
@@ -234,42 +189,12 @@ export default function MatrixSnapshot({ itemRefs, onContinue }: Props) {
                 if (!itemRef) {
                   return <div key={`${row.rowKey}-${k}`} className={wrap} />;
                 }
-                if (isVL) {
-                  const bucket = singleBucketFor(itemRef);
-                  return (
-                    <div key={`${row.rowKey}-${k}`} className={wrap}>
-                      <div
-                        title={itemRef}
-                        className={
-                          'aspect-square mx-0.5 my-0.5 rounded-sm border ' +
-                          'border-neutral-300/70 dark:border-neutral-700 ' +
-                          BUCKET_BG[bucket]
-                        }
-                      />
-                    </div>
-                  );
-                }
-                if (activity === 'chord-shapes') {
-                  const band = chordBandFor(itemRef);
-                  return (
-                    <div key={`${row.rowKey}-${k}`} className={wrap}>
-                      <ThreeBandCell
-                        left={band.left}
-                        right={band.right}
-                        both={band.both}
-                        title={itemRef}
-                      />
-                    </div>
-                  );
-                }
-                const band = bandFor(itemRef);
+                const verdict = verdictForTargets(targetsFor(itemRef), byRefHand);
                 return (
                   <div key={`${row.rowKey}-${k}`} className={wrap}>
-                    <ThreeBandCell
-                      left={band.left}
-                      right={band.right}
-                      both={band.both}
-                      title={itemRef}
+                    <BandCell
+                      verdict={verdict}
+                      title={`${row.label} · the key of ${spellKey(k, spelling)} — ${bandVerdictLabel(verdict)}`}
                     />
                   </div>
                 );
@@ -360,7 +285,7 @@ function buildScaleRows(itemRefs: readonly string[]): SnapshotRow[] {
     for (const k of CIRCLE_OF_FOURTHS) {
       cellRefByKey.set(k, scaleItemRefForRow(desc.kind, sp, k));
     }
-    rows.push({ kind: 'band', rowKey, label, cellRefByKey });
+    rows.push({ rowKey, label, cellRefByKey });
   }
   return rows;
 }
@@ -412,7 +337,7 @@ function buildChordRows(itemRefs: readonly string[]): SnapshotRow[] {
     for (const k of CIRCLE_OF_FOURTHS) {
       cellRefByKey.set(k, `chord-shape:${d.quality}:${k}`);
     }
-    rows.push({ kind: 'band', rowKey: `q-${d.quality}`, label, cellRefByKey });
+    rows.push({ rowKey: `q-${d.quality}`, label, cellRefByKey });
   }
   return rows;
 }
@@ -443,7 +368,6 @@ function buildVoiceLeadingRows(itemRefs: readonly string[]): SnapshotRow[] {
         cellRefByKey.set(k, gridRow.itemRefForKey(k));
       }
       rows.push({
-        kind: 'single',
         rowKey: `${patternId}:${gridRow.rowId}`,
         label: `${pattern.label} · ${gridRow.label}`,
         cellRefByKey,
@@ -453,21 +377,3 @@ function buildVoiceLeadingRows(itemRefs: readonly string[]): SnapshotRow[] {
   return rows;
 }
 
-/**
- * Aggregate a set of inversion-row spacing rows for one (hand × style)
- * slot into a single band stage. Mirrors the spec exactly:
- *   · null    when no row exists for that slot;
- *   · 'acquired' when every row for that slot is acquired+ (acquired /
- *     consolidated / mastered);
- *   · 'acquiring' otherwise.
- */
-function aggregateHand(
-  rows: SpacingState[],
-  hand: SpacingState['hand'],
-): BandStage {
-  const forSlot = rows.filter(r => r.hand === hand);
-  if (forSlot.length === 0) return 'not-started';
-  return forSlot.every(r => bucketForStage(r.acquisitionStage) === 'acquired')
-    ? 'acquired'
-    : 'in-progress';
-}
