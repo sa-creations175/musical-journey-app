@@ -60,14 +60,18 @@
  * one's clothes.
  *
  * =====================================================================
- * NOT IN HERE, AND LEFT ALONE ON PURPOSE.
+ * NOTHING ABOUT RECENCY IS IN HERE, AND THAT IS NOW A RULE.
  *
- * `FRESHNESS_DOT_CLASS` in `stage.ts` paints how recently you practised
- * in three of these colours, and the voice-leading heat grid shades the
- * Fluent green by hours invested. Both give a colour a second meaning
- * on top of the one it already has. Both are real problems and neither
- * is this one; they are Silas's to rule on separately, and tidying them
- * up on the way past would be deciding for him.
+ * How recently you practised used to be painted in three of these
+ * colours — a green, amber or red dot on the song card. It is a LENGTH
+ * now: `FreshnessBar`, six sixths, one neutral. A colour that means a
+ * standing does not also get to mean a date.
+ *
+ * ONE THING STILL DOES, AND IS LEFT ALONE ON PURPOSE. The
+ * voice-leading heat grid shades the Fluent green by hours invested.
+ * It goes when voice leading gets the face the scales grid now has —
+ * build order, not colour — and pulling it forward here would be doing
+ * that job badly on the way past.
  * =====================================================================
  */
 

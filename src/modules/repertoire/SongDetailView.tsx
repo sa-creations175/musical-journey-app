@@ -15,6 +15,7 @@ import {
 } from '../../lib/db';
 import { upsertDiaryEntry } from '../harmonic-diary/data';
 import { canonicalSkillId } from '../skills/registry';
+import CrossKeyMarks from './CrossKeyMarks';
 import {
   STAGE_BADGE_CLASS,
   STAGE_GUIDANCE,
@@ -2183,8 +2184,9 @@ function SongDetailInner({
               about what the user was willing to assert rather than
               about the song. */}
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            <span className={`text-sm font-medium rounded-full px-3 py-1 border ${STAGE_BADGE_CLASS[currentStage]}`}>
+            <span className={`inline-flex items-center text-sm font-medium rounded-full px-3 py-1 border ${STAGE_BADGE_CLASS[currentStage]}`}>
               {STAGE_LABEL[currentStage]}
+              <CrossKeyMarks stage={currentStage} />
             </span>
             {currentStage === 'learning' && visibleMatrixSections.length > 0 && (
               /* A COUNT, NOT A PERCENTAGE. "0% original" named neither

@@ -9,6 +9,7 @@ import {
 import type { DueWindows } from './matrix/keySpacing';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { TEST_RULE_SENTENCE } from './testRule';
+import { freshnessSixthsFor } from '../../lib/spacing/bands';
 import { statusColour, type StatusKey } from '../../lib/spacing/statusColour';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
@@ -104,33 +105,68 @@ export const STAGE_GUIDANCE: Record<RepertoireStage, string> = {
  *  that used to carry 'maintenance' left with that rung. */
 /**
  * =====================================================================
- * THE SONG LADDER RIDES THE STATUS PALETTE, AND FOLLOWS IT.
+ * THE SONG LADDER SITS ONE STEP ABOVE THE CELL LADDER.
  *
- * Six rungs onto the six statuses, in order. Cross-key keeps the Fluent
- * green; Internalized takes the royal blue Mastered moved to, so the
- * top of a song's ladder and the top of a cell's ladder stop being two
- * shades of the same green.
+ * It borrowed cell colours arbitrarily — Learning in the Needs Work
+ * red, Comfortable in the Developing amber — which put a warning
+ * colour on a song you had just started and made a song at Comfortable
+ * look worse than a cell at Fluent that it had already outgrown.
+ *
+ * THE SHIFT IS ONE RUNG, AND IT IS EARNED. Comfortable in a key is
+ * three clean run-throughs in one testing session: exactly the bar a
+ * cell clears to read Fluent. So Comfortable takes the Fluent green,
+ * Learning takes the amber below it, and everything moves up one.
+ *
+ * RED LEAVES THE SONG LADDER ENTIRELY. Nothing about learning a song
+ * is a warning.
+ *
+ * CROSS-KEY KEEPS COMFORTABLE'S GREEN. It is Comfortable in MORE KEYS,
+ * not a different quality — green in four quadrants rather than one —
+ * so it carries four small marks instead of a sixth colour. A deeper
+ * green was considered and rejected: it would imply a difference in
+ * kind that is not there. See `CROSS_KEY_MARKS`.
  *
  * ONE SOURCE, so a rung cannot end up a colour the cells below it do
- * not use. This file used to spell the classes out and had already
- * drifted once — Started was grey here while the matrix painted it
- * blue, one status reading two ways on one screen.
+ * not use, and this file names no hex.
  * =====================================================================
  */
 const STATUS_FOR_STAGE: Readonly<Record<RepertoireStage, StatusKey>> = {
   'not_started': 'not-started',
   'started': 'started',
-  'learning': 'needs-work',
-  'comfortable': 'developing',
+  'learning': 'developing',
+  'comfortable': 'fluent',
+  // The same green as Comfortable, plus the marks — see above.
   'cross-key': 'fluent',
   'internalized': 'mastered',
 };
 
+/**
+ * How many marks Cross-key carries: one per quadrant of the circle.
+ *
+ * A NUMBER, NOT A LABEL. The marks say what earned the rung — green in
+ * four quadrants — and a word beside them would be copy nobody has
+ * written or approved. The badge already says "Cross-key".
+ */
+export const CROSS_KEY_MARKS = 4;
+
+/** Which rungs carry the marks. Cross-key alone, today; asked as a
+ *  question rather than compared to a literal at three render sites. */
+export function stageCarriesMarks(stage: RepertoireStage): boolean {
+  return stage === 'cross-key';
+}
+
 export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> =
   mapStages(c => c.badge);
 
-export const STAGE_DOT_CLASS: Record<RepertoireStage, string> =
-  mapStages(c => c.bar);
+/**
+ * `STAGE_DOT_CLASS` LIVED HERE AND IS GONE.
+ *
+ * A dot form of the ladder, with no render site left in the app — and
+ * one the ladder can no longer be drawn in. Comfortable and Cross-key
+ * are the same green now, and a dot has no room for the four marks
+ * that tell them apart, so anyone who wired this up would have shipped
+ * two indistinguishable rungs. Badges only.
+ */
 
 function mapStages(
   pick: (c: ReturnType<typeof statusColour>) => string,
@@ -786,12 +822,26 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type Freshness = 'fresh' | 'recent' | 'aging' | 'stale';
 
-export const FRESHNESS_DOT_CLASS: Record<Freshness, string> = {
-  fresh: 'bg-fluent',
-  recent: 'bg-developing',
-  aging: 'bg-[#E88943]', // orange between amber and red
-  stale: 'bg-needswork',
-};
+/**
+ * =====================================================================
+ * `FRESHNESS_DOT_CLASS` LIVED HERE AND IS GONE.
+ *
+ * It painted how recently you practised in three of the four status
+ * colours — fresh green, recent amber, stale red — and rendered as a
+ * dot on the song card. So an amber dot sat beside amber cells meaning
+ * something else entirely, and a red dot said "warning" about nothing
+ * worse than a fortnight.
+ *
+ * FRESHNESS IS A LENGTH, NOT A COLOUR. `FRESHNESS_LADDER` in
+ * `bands.ts` has said so all along and already carries the scale: full
+ * width today, five sixths within a week, down to one sixth beyond
+ * four. `FreshnessBar` draws it, in one neutral. Nothing about how
+ * recently you practised resolves to a status colour anywhere.
+ *
+ * `Freshness` and `freshnessFor` STAY. They are a sort key — "stalest
+ * first" in the repertoire list — and a sort key is not a colour.
+ * =====================================================================
+ */
 
 export const FRESHNESS_LABEL: Record<Freshness, string> = {
   fresh: 'last 3 days',
@@ -799,6 +849,19 @@ export const FRESHNESS_LABEL: Record<Freshness, string> = {
   aging: '11–20 days ago',
   stale: '20+ days ago',
 };
+
+/**
+ * How full the freshness bar is, out of six, as of now.
+ *
+ * A CLOCK-READING SIBLING OF `freshnessFor`, in the same file and for
+ * the same reason: every caller here wants "how stale is this, right
+ * now", and the list already reads the clock through the function
+ * above. `freshnessSixthsFor` in `bands.ts` takes `now` explicitly and
+ * is what a test pins an age against; this is the app's everyday call.
+ */
+export function freshnessSixthsNow(lastPracticedAt: number | null): number {
+  return freshnessSixthsFor(lastPracticedAt, Date.now());
+}
 
 export function freshnessFor(lastPracticedAt: number | null): Freshness {
   if (lastPracticedAt === null) return 'stale';

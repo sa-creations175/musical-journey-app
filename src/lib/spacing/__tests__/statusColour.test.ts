@@ -22,7 +22,7 @@ import {
 import { statusKeyForVerdict } from '../verdictColour';
 import { ACCURACY_BANDS, type AccuracyBandDef } from '../bands';
 import { TIER_BADGE_CLASS, TIER_BAR_CLASS, TIER_FILL_CLASS, TIER_TEXT_CLASS } from '../../tier';
-import { STAGE_BADGE_CLASS, STAGE_DOT_CLASS } from '../../../modules/repertoire/stage';
+import { STAGE_BADGE_CLASS } from '../../../modules/repertoire/stage';
 import { bandCellClasses } from '../../../modules/shapes-and-patterns/BandCell';
 import { FEEL_CARD_OPTIONS } from '../../../modules/shapes-and-patterns/drillModel';
 import { BLOCK_RATING_FEEL_OPTIONS } from '../../sessionTimer/blockRatingOptions';
@@ -106,9 +106,8 @@ describe('the ratings stay aligned to the statuses', () => {
 
 describe('the song ladder follows', () => {
   it('Internalized takes the royal blue and Cross-key keeps the green', () => {
-    expect(STAGE_DOT_CLASS.internalized).toBe(statusColour('mastered').bar);
-    expect(STAGE_DOT_CLASS['cross-key']).toBe(statusColour('fluent').bar);
     expect(STAGE_BADGE_CLASS.internalized).toBe(statusColour('mastered').badge);
+    expect(STAGE_BADGE_CLASS['cross-key']).toBe(statusColour('fluent').badge);
   });
 
   it('and every rung comes off the palette', () => {

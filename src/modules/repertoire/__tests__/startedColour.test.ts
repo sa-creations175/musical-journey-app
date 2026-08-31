@@ -14,16 +14,12 @@
  * =====================================================================
  */
 import { describe, expect, it } from 'vitest';
-import { TIER_BADGE_CLASS, TIER_BAR_CLASS } from '../../../lib/tier';
-import { STAGE_BADGE_CLASS, STAGE_DOT_CLASS } from '../stage';
+import { TIER_BADGE_CLASS } from '../../../lib/tier';
+import { STAGE_BADGE_CLASS } from '../stage';
 
 describe('Started', () => {
   it('the pill takes the tier badge it always should have', () => {
     expect(STAGE_BADGE_CLASS.started).toBe(TIER_BADGE_CLASS.started);
-  });
-
-  it('and the dot takes the cells own fill', () => {
-    expect(STAGE_DOT_CLASS.started).toBe(TIER_BAR_CLASS.started);
   });
 
   it('ITS FILL IS NOT GREY', () => {
@@ -37,7 +33,6 @@ describe('Started', () => {
     // question and has a different answer.
     expect(STAGE_BADGE_CLASS.started).toContain('bg-started');
     expect(STAGE_BADGE_CLASS.started).not.toContain('bg-neutral');
-    expect(STAGE_DOT_CLASS.started).toBe('bg-started');
   });
 
   it('Not Started stays neutral — it is the empty one', () => {

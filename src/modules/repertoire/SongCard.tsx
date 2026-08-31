@@ -10,11 +10,11 @@ import {
 import type { Song } from '../../lib/db';
 import { retestSuffix, type SongRetestState } from './songRetestState';
 import {
-  FRESHNESS_DOT_CLASS,
   STAGE_BADGE_CLASS,
   STAGE_LABEL,
-  type Freshness,
 } from './stage';
+import FreshnessBar from '../../components/FreshnessBar';
+import CrossKeyMarks from './CrossKeyMarks';
 import type { RepertoireStage } from '../../lib/db';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -45,7 +45,9 @@ export interface SongCardProps {
   lastPractisedAt: number | null;
   lastPractisedLabel: string;
   addedLabel: string;
-  freshness: Freshness;
+  /** How fresh, in sixths — derived by the list, which already derives
+   *  every other time-dependent value a card shows. */
+  freshnessSixths: number;
   /** The DERIVED stage, passed in rather than read off the song. The
    *  song row carries a watermark of the last derivation, and a card
    *  reading that directly would show a stale rung for one paint after
@@ -95,10 +97,9 @@ export interface SongCardProps {
 
 export default function SongCard({
   song,
-  lastPractisedAt,
   lastPractisedLabel,
   addedLabel,
-  freshness,
+  freshnessSixths,
   stage,
   retest,
   sectionsNeedingChords,
@@ -108,8 +109,6 @@ export default function SongCard({
   accentHex,
   dragHandle,
 }: SongCardProps) {
-  void lastPractisedAt;
-
   const suffix = retestSuffix(retest);
 
   return (
@@ -123,10 +122,13 @@ export default function SongCard({
       >
         <CardTitleBlock
           trailing={(
-            <span
-              aria-hidden
-              className={`float-right ml-2 mt-1.5 inline-block w-2 h-2 rounded-full ${FRESHNESS_DOT_CLASS[freshness]}`}
+            /* HOW RECENTLY, AS A LENGTH. It was a coloured dot in three
+               of the status colours — an amber dot beside amber cells
+               meaning something else. See `FreshnessBar`. */
+            <FreshnessBar
+              sixths={freshnessSixths}
               title={`last practised ${lastPractisedLabel}`}
+              className="float-right ml-2 mt-2"
             />
           )}
         >
@@ -164,6 +166,7 @@ export default function SongCard({
               : 'past grace — this rung has dropped'}
         >
           {STAGE_LABEL[stage]}
+          <CrossKeyMarks stage={stage} />
           {suffix !== null && (
             <>
               <span aria-hidden className="opacity-50">·</span>

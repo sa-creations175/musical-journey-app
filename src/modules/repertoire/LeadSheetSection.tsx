@@ -61,6 +61,7 @@ import {
   STAGE_BADGE_CLASS,
   STAGE_LABEL,
 } from './stage';
+import CrossKeyMarks from './CrossKeyMarks';
 import { parseChord } from './chordParser';
 import {
   detectPatterns,
@@ -2146,9 +2147,10 @@ export default function LeadSheetSection({
             </select>
           </label>
           <span
-            className={`text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${STAGE_BADGE_CLASS[stage]}`}
+            className={`inline-flex items-center text-[10px] uppercase tracking-wide rounded-full px-2 py-0.5 border ${STAGE_BADGE_CLASS[stage]}`}
           >
             {STAGE_LABEL[stage]}
+            <CrossKeyMarks stage={stage} />
           </span>
           {section.lyricsNeedsVerification && (
             <span

@@ -31,6 +31,7 @@ import {
   STAGES,
   deriveStage,
   freshnessFor,
+  freshnessSixthsNow,
   humanAgo,
 } from './stage';
 import { CardGrid, NO_MODULE_ACCENT } from '../../components/moduleHome/cardShell';
@@ -291,6 +292,10 @@ export default function ActiveRepertoireView({
       const songLogs = logsBySong.get(song.id) ?? [];
       const lastPractisedAt = songLogs[0]?.timestamp ?? null;
       const freshness = freshnessFor(lastPractisedAt);
+      // HOW FULL THE BAR IS, derived here with everything else the card
+      // needs the clock for. `freshnessFor` above already reads it; the
+      // card itself stays pure and takes a number.
+      const freshnessSixths = freshnessSixthsNow(lastPractisedAt);
       // DERIVED here too. The list and the song page must agree about
       // what rung a song is on, and they can only do that by computing
       // it from the same evidence rather than by reading a value one
@@ -335,8 +340,8 @@ export default function ActiveRepertoireView({
       const sectionsNeedingChords = (sectionsBySong.get(song.id) ?? [])
         .filter(sec => !sectionHasChords(song, sec)).length;
       return {
-        song, lastPractisedAt, freshness, derivedStage, retest, practiceStale,
-        sectionsNeedingChords,
+        song, lastPractisedAt, freshness, freshnessSixths, derivedStage, retest,
+        practiceStale, sectionsNeedingChords,
         spelling: resolveSpelling(song.spelling, globalSpelling),
       };
     });
@@ -406,7 +411,7 @@ export default function ActiveRepertoireView({
     lastPractisedAt: row.lastPractisedAt,
     lastPractisedLabel: humanAgo(row.lastPractisedAt),
     addedLabel: formatAddedDate(row.song.addedDate),
-    freshness: row.freshness,
+    freshnessSixths: row.freshnessSixths,
     stage: row.derivedStage,
     retest: row.retest,
     practiceStale: row.practiceStale,
