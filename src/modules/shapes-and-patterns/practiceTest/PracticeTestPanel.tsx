@@ -73,7 +73,23 @@ import {
   type SessionMode,
 } from './drillModel';
 
-type Step = 'choose' | 'session' | 'setup' | 'drilling' | 'drillrate' | 'wrap' | 'done';
+/**
+ * =====================================================================
+ * PLAYING A RUN IS NOT A SCREEN.
+ *
+ * There used to be a `drilling` step and a `drillrate` step. Between
+ * them they replaced the whole session with a stopwatch page — one big
+ * number, a target readout and a button — so the circles, the rungs,
+ * the metronome and the runs already played all vanished for the
+ * duration of the thing they were there to measure.
+ *
+ * The prototype has neither. A run's clock appears BESIDE the session's
+ * and everything else stays put, which is also why the same session can
+ * be run from the lead-sheet strip: there was never a second screen to
+ * find room for there.
+ * =====================================================================
+ */
+type Step = 'choose' | 'session' | 'setup' | 'wrap' | 'done';
 
 /** Reps a test is made of. */
 
@@ -204,6 +220,15 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    * =====================================================================
    */
   const [awaitingVerdict, setAwaitingVerdict] = useState(false);
+  /**
+   * A run has ended and is waiting to be rated.
+   *
+   * Distinct from being IN one: a count-down drill reaches its target
+   * and stops, and the metronome verdict stops a run where it stands.
+   * Both leave a run that happened and has no rating yet, and the box
+   * stays for it.
+   */
+  const [awaitingRating, setAwaitingRating] = useState(false);
   /** What was just thrown away, and why. Cleared when a run starts. */
   const [discardedMessage, setDiscardedMessage] = useState('');
   /** Whether the metronome was sounding when the pause began, so
@@ -298,9 +323,35 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   const beginRun = () => {
     setRanSeconds(0);
     setAwaitingVerdict(false);
+    setAwaitingRating(false);
     setDiscardedMessage('');
     setRunStartedAt(Date.now());
-    setStep('drilling');
+    setStep('session');
+  };
+
+  /**
+   * A run is over, however it ended, and wants a rating.
+   *
+   * The clock stops where it was — a run's length is what it was
+   * played for, not what it was aimed at — and the box stays.
+   */
+  /**
+   * A DRILL WITH A TARGET STILL STOPS AT IT, without a screen to host
+   * the countdown. The clock counts up either way; a count-down surface
+   * shows what is left and ends the run when it reaches nothing.
+   */
+  const runTarget = surface.countsUp ? null : (draft?.targetSeconds ?? null);
+  useEffect(() => {
+    if (runStartedAt === null || runTarget === null) return;
+    if (runSeconds < runTarget) return;
+    endRun(runTarget);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runSeconds, runStartedAt, runTarget]);
+
+  const endRun = (ran: number) => {
+    setRanSeconds(ran);
+    setRunStartedAt(null);
+    setAwaitingRating(true);
   };
 
   /**
@@ -314,10 +365,8 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    */
   const onMetronomeStopped = () => {
     if (mode !== 'test' || runStartedAt === null) return;
-    setRanSeconds(runSeconds);
-    setRunStartedAt(null);
+    endRun(runSeconds);
     setAwaitingVerdict(true);
-    setStep('drillrate');
   };
 
   /**
@@ -331,6 +380,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
    */
   const discardRun = () => {
     setAwaitingVerdict(false);
+    setAwaitingRating(false);
     setRunStartedAt(null);
     setDiscardedMessage(
       `Test Run ${drills.length + 1} was discarded. `
@@ -510,6 +560,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
     setDraft(null);
     setRunStartedAt(null);
     setAwaitingVerdict(false);
+    setAwaitingRating(false);
     setStep('session');
 
     // A run too short to have been real is on the list saying so, and
@@ -639,15 +690,22 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
          modal and calls the same handler. */
       footer={outcome?.passed != null || confirmingCancel
         ? undefined
-        : <PanelFooter step={step} mode={mode} onClose={close} />}
+        : (
+          <PanelFooter
+            mode={mode}
+            paused={paused}
+            onTogglePause={togglePause}
+            onEndSession={() => {
+              // PRACTICE ENDS AT THE WRAP, not at the door: the
+              // sitting's own rating has somewhere to land. A test has
+              // already written every run as it finished.
+              if (mode === 'practice') setStep('wrap');
+              else close();
+            }}
+            onClose={close}
+          />
+        )}
     >
-      {/* ONE QUESTION, TWO ANSWERS, AND NOTHING ELSE ON SCREEN. It
-          replaces the body rather than sitting over it: a confirmation
-          you can read the session through invites answering it by
-          looking away.
-
-          There is a proposed middle line — "The time on the clock
-          won't be recorded." — which is NOT approved and is not here. */}
       {confirmingCancel && (
         <div className="space-y-4">
           <p className="text-sm font-medium text-neutral-900 dark:text-neutral-50">
@@ -690,7 +748,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           that vanished the moment a run began would make that rule
           unreachable from the panel. */}
       {!confirmingCancel && mode !== null && surface.sessionMetronome
-        && (step === 'session' || step === 'drilling' || step === 'drillrate') && (
+        && step === 'session' && (
         // THE SONG'S BOX WHERE THERE IS ONE. It carries the tempo
         // window, the clamping stepper and the no-tempo prompt — none
         // of which a bare control has, and all of which are what makes
@@ -741,7 +799,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       {/* THE SESSION STAYS ON SCREEN WHILE YOU RATE. `drillrate` is no
           longer a page of its own — it is the session screen with the
           rating box where the Start button was. */}
-      {!confirmingCancel && (step === 'session' || step === 'drillrate') && mode !== null && (
+      {!confirmingCancel && step === 'session' && mode !== null && (
         <SessionStep
           mode={mode}
           seconds={sessionSeconds}
@@ -753,7 +811,8 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           metronomeOn={metronomePlaying}
           /* RATED WHERE IT WAS PLAYED — under the run-throughs list and
              above Open Lead Sheet, exactly as the prototype draws it. */
-          rating={step === 'drillrate' && draft !== null ? (
+          runSeconds={runStartedAt === null ? null : runSeconds}
+          rating={(runStartedAt !== null || awaitingRating) && draft !== null ? (
             <RunRatingBox
               awaitingVerdict={awaitingVerdict}
               onDiscardRun={discardRun}
@@ -762,18 +821,23 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
               scope={scope}
               onScope={setScope}
               mode={mode}
-              ranSeconds={ranSeconds}
+              /* THE LENGTH IT ACTUALLY HAD. While the run is going
+                 that is the live clock; once it has stopped it is
+                 whatever it stopped at. */
+              ranSeconds={runStartedAt !== null ? runSeconds : ranSeconds}
               index={drills.length + 1}
               onRate={(feel: Feel) => {
-                if (mode === 'test') void finishTestDrill(feel);
-                else void finishPracticeDrill(feel);
+                const ran = runStartedAt !== null ? runSeconds : ranSeconds;
+                if (mode === 'test') void finishTestDrill(feel, ran);
+                else void finishPracticeDrill(feel, ran);
               }}
-              onSkip={() => void finishPracticeDrill(null)}
+              onSkip={() => void finishPracticeDrill(
+                null, runStartedAt !== null ? runSeconds : ranSeconds,
+              )}
             />
           ) : null}
           ladder={ladder}
           paused={paused}
-          onTogglePause={togglePause}
           onStartDrill={() => {
             // A TEST'S SETTINGS ARE ALREADY ANSWERED. They were asked
             // once above the circles, so pressing Start starts a run
@@ -798,13 +862,6 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
             setDraft({ ...draft, per: surface.rateOptions[0]?.per ?? draft.per });
             beginRun();
           }}
-          onEndSession={() => {
-            // PRACTICE ENDS AT THE WRAP, not at the door. The session's
-            // own rating had nowhere to land before this — End Session
-            // called onClose and the sitting's verdict was dropped.
-            if (mode === 'practice') setStep('wrap');
-            else close();
-          }}
         />
       )}
 
@@ -815,21 +872,11 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           draft={draft}
           surface={surface}
           onChange={setDraft}
-          onStart={() => { setRanSeconds(0); setStep('drilling'); }}
+          onStart={beginRun}
           onCancel={() => { setDraft(null); setStep('session'); }}
         />
       )}
 
-      {!confirmingCancel && step === 'drilling' && draft !== null && mode !== null && (
-        <DrillingStep
-          mode={mode}
-          seconds={sessionSeconds}
-          draft={draft}
-          index={drills.length + 1}
-          surface={surface}
-          onFinish={ran => { setRanSeconds(ran); setStep('drillrate'); }}
-        />
-      )}
 
       {/* A PASS REPORTS THROUGH THE ONE RESULT SCREEN. Every surface
           runs the same test now, so every surface says so the same
@@ -890,15 +937,30 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
 
 // ---------------------------------------------------------------------
 
-function PanelFooter({ step, mode, onClose }: {
-  step: Step; mode: SessionMode | null; onClose: () => void;
+/**
+ * The row along the bottom of the panel.
+ *
+ * =====================================================================
+ * THE STEP TRAIL IS GONE, AND IT HAD TO BE.
+ *
+ * It read `Skill › Mode › Test Runs › Done` and highlighted a position
+ * — a breadcrumb through screens the panel no longer has. With
+ * `drilling` and `drillrate` retired there are two steps left worth
+ * naming, and a trail through two is not a trail.
+ *
+ * What sits here instead is what the prototype puts here: the ways out
+ * of a session, together, where they are reachable whatever the session
+ * is doing. Pause and End Session used to be halfway up the session
+ * screen, which meant they scrolled away exactly when a run was going.
+ * =====================================================================
+ */
+function PanelFooter({ mode, paused, onTogglePause, onEndSession, onClose }: {
+  mode: SessionMode | null;
+  paused: boolean;
+  onTogglePause: () => void;
+  onEndSession: () => void;
+  onClose: () => void;
 }) {
-  // "Save" is gone from the test path: the third clean run is the
-  // pass, so there is no save step to be at.
-  const names = mode === 'test'
-    ? ['Skill', 'Mode', 'Test Runs', 'Done']
-    : ['Skill', 'Mode', 'Practice', 'Wrap Up', 'Done'];
-  const position = step === 'choose' ? 1 : 2;
   return (
     <div className="flex items-center justify-between gap-3 w-full">
       <button
@@ -908,14 +970,27 @@ function PanelFooter({ step, mode, onClose }: {
       >
         Close
       </button>
-      <div className="flex flex-wrap items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
-        {names.map((name, i) => (
-          <span key={name} className="flex items-center gap-1">
-            {i > 0 && <span aria-hidden className="opacity-50">›</span>}
-            <span className={i <= position ? 'text-fluent' : undefined}>{name}</span>
-          </span>
-        ))}
-      </div>
+      {/* ONLY ONCE A SESSION IS RUNNING. Before a mode is picked there
+          is nothing to pause and nothing to end. */}
+      {mode !== null && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onTogglePause}
+            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
+          >
+            {paused ? 'Resume' : 'Pause'}
+          </button>
+          <button
+            type="button"
+            onClick={onEndSession}
+            disabled={paused}
+            className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-45 disabled:cursor-not-allowed"
+          >
+            End Session
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -944,12 +1019,23 @@ function SectionLabel({ children, hint }: {
   );
 }
 
-function SessionClockFace({ seconds, mode }: { seconds: number; mode: SessionMode }) {
+/**
+ * A clock, named.
+ *
+ * THE APP NEVER SAYS "SESSION" OR "RUN" ON ITS OWN, so the default is
+ * the session's own kind and a run passes its own. "This Test Session"
+ * became "Testing Session" to match the rule sentence and the strip —
+ * the same clock should not be called two things depending on which
+ * shape the panel is wearing.
+ */
+function SessionClockFace({ seconds, mode, label }: {
+  seconds: number; mode: SessionMode; label?: string;
+}) {
   return (
     <div className="rounded-lg border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40 p-4 text-center">
       <div className="font-mono tabular-nums text-3xl sm:text-4xl">{formatClock(seconds)}</div>
       <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mt-1">
-        {mode === 'test' ? 'This Test Session' : 'This Practice Session'}
+        {label ?? (mode === 'test' ? 'Testing Session' : 'Practice Session')}
       </div>
     </div>
   );
@@ -1004,7 +1090,7 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 
 function SessionStep({
   mode, seconds, drills, saving, surface, testDraft, onTestDraftChange,
-  metronomeOn, rating, ladder, paused, onTogglePause, onStartDrill, onEndSession,
+  metronomeOn, rating, runSeconds, ladder, paused, onStartDrill,
 }: {
   mode: SessionMode;
   seconds: number;
@@ -1020,13 +1106,14 @@ function SessionStep({
    *  they are the two answers to "what now" and only one is ever
    *  true. */
   rating: ReactNode | null;
+  /** Seconds into the run being played, or null when none is. It sits
+   *  BESIDE the session's clock rather than replacing the screen. */
+  runSeconds: number | null;
   /** The rungs this test moves between, or null before the item's
    *  current standing has been read. */
   ladder: LadderRungs | null;
   paused: boolean;
-  onTogglePause: () => void;
   onStartDrill: () => void;
-  onEndSession: () => void;
 }) {
   const runs = drills.map(streakRun);
   const streak = projectTestStreak(runs);
@@ -1039,7 +1126,19 @@ function SessionStep({
 
   return (
     <div className="space-y-4">
-      <SessionClockFace seconds={seconds} mode={mode} />
+      {/* TWO CLOCKS, SIDE BY SIDE. The run's appears next to the
+          session's while it is being played and goes when it is over —
+          it never takes the screen. */}
+      <div className={runSeconds === null ? '' : 'grid grid-cols-2 gap-2'}>
+        <SessionClockFace seconds={seconds} mode={mode} />
+        {runSeconds !== null && (
+          <SessionClockFace
+            seconds={runSeconds}
+            mode={mode}
+            label={mode === 'test' ? 'Test Run' : 'Practice Run'}
+          />
+        )}
+      </div>
 
       {/* THE BAND, DRAWN ALWAYS DURING A TEST — never only once a run
           is banked. The run number keeps climbing while the streak
@@ -1123,24 +1222,6 @@ function SessionStep({
             : 'Start A Practice Drill'}
         </button>
         )}
-        {/* THE THIRD EXIT. Done ends it, Cancel throws it away, and
-            this is the one for walking away from the piano — which is
-            neither, and had nowhere to go. */}
-        <button
-          type="button"
-          onClick={onTogglePause}
-          className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
-        >
-          {paused ? 'Resume' : 'Pause'}
-        </button>
-        <button
-          type="button"
-          onClick={onEndSession}
-          disabled={paused}
-          className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-45 disabled:cursor-not-allowed"
-        >
-          End Session
-        </button>
       </div>
     </div>
   );
@@ -1273,6 +1354,9 @@ function SetupStep({
     </div>
   );
 }
+
+
+// ---------------------------------------------------------------------
 
 /**
  * How long, how fast, and in what manner.
@@ -1410,65 +1494,6 @@ function DrillSettings({ mode, draft, surface, onChange }: {
           shape gets.
         </div>
       )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------
-
-function DrillingStep({
-  mode, seconds, draft, index, surface, onFinish,
-}: {
-  mode: SessionMode;
-  seconds: number;
-  draft: DrillDraft;
-  index: number;
-  surface: DrillSurface;
-  onFinish: (ranSeconds: number) => void;
-}) {
-  const metro = useMetronomeState();
-  // A COUNT-UP SURFACE HAS NOTHING TO COUNT DOWN TO. The countdown is
-  // still mounted so the hook order does not change between surfaces,
-  // but it is handed 0 — which never fires — and the elapsed clock is
-  // what is shown and what is recorded.
-  const remaining = useDrillCountdown(
-    surface.countsUp ? 0 : draft.targetSeconds,
-    () => { if (!surface.countsUp) onFinish(draft.targetSeconds); },
-  );
-  const elapsed = useElapsed(surface.countsUp);
-  const rate = rateFor(surface, metro.bpm, draft.per);
-  const atTarget = isAtTarget(surface, metro.bpm, draft.per);
-
-  return (
-    <div className="space-y-4">
-      <SessionClockFace seconds={seconds} mode={mode} />
-
-      <div className="rounded-lg border border-fluent p-4 text-center">
-        <div className="font-mono tabular-nums text-4xl sm:text-5xl text-fluent">
-          {formatClock(surface.countsUp ? elapsed : remaining)}
-        </div>
-        <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mt-1">
-          {mode === 'test' ? 'Test' : 'Drill'} {index}
-          {draft.style ? ` · ${styleLabel(draft.style)}` : ''}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-mono text-[0.72rem] text-neutral-500">
-          {metro.bpm} BPM · {rate} {surface.rateLabel}
-        </span>
-        <span className={`text-[0.69rem] font-bold ${atTarget ? 'text-fluent' : 'text-developing'}`}>
-          {atTarget ? 'AT TARGET' : 'BELOW TARGET'}
-        </span>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => onFinish(surface.countsUp ? elapsed : draft.targetSeconds - remaining)}
-        className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
-      >
-        {surface.countsUp ? 'Done — Rate It' : 'Finish Now'}
-      </button>
     </div>
   );
 }
@@ -1623,51 +1648,7 @@ function RunRatingBox({
   );
 }
 
-/**
- * The drill's own countdown.
- *
- * Separate from the session clock and stopped by reaching zero, which
- * is the one difference between them that matters. Counted off a
- * timestamp for the same reason the session clock is — a throttled
- * background tab must not be able to lengthen a drill.
- */
-/** Seconds since this run started. The mirror of the countdown, for a
- *  surface where the run has no set length. */
-function useElapsed(active: boolean): number {
-  const [seconds, setSeconds] = useState(0);
-  useEffectOnInterval(() => { if (active) setSeconds(s => s + 1); });
-  return seconds;
-}
 
-function useDrillCountdown(targetSeconds: number, onZero: () => void): number {
-  const [remaining, setRemaining] = useState(targetSeconds);
-  const startedAt = useState(() => Date.now())[0];
-  const fired = useState(() => ({ done: false }))[0];
-
-  useEffectOnInterval(() => {
-    const elapsed = Math.floor((Date.now() - startedAt) / 1000);
-    const left = Math.max(0, targetSeconds - elapsed);
-    setRemaining(left);
-    if (left === 0 && !fired.done) {
-      fired.done = true;
-      onZero();
-    }
-  });
-
-  return remaining;
-}
-
-/** A 250 ms interval that cleans itself up. The callback changes
- *  identity every render, so it is held in a ref rather than made a
- *  dependency, which would restart the timer on every tick. */
-function useEffectOnInterval(fn: () => void): void {
-  const ref = useRef(fn);
-  ref.current = fn;
-  useEffect(() => {
-    const id = window.setInterval(() => ref.current(), 250);
-    return () => window.clearInterval(id);
-  }, []);
-}
 
 // ---------------------------------------------------------------------
 

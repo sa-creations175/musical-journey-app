@@ -102,18 +102,18 @@ function render(s: DrillSurface = surface()) {
    * clock would assert against an empty log and pass for the wrong
    * reason.
    */
+  /**
+   * One run, played long enough to be real, then rated.
+   *
+   * TWO PRESSES, NOT THREE. There is no "Done — Rate It" any more: the
+   * rating chips are on screen while the run is going, so rating one
+   * IS finishing it. The 31 seconds are not decoration — a run under
+   * `MIN_REP_SECONDS` writes nothing, so a test that skipped the clock
+   * would assert against an empty log and pass for the wrong reason.
+   */
   const run = async (feel: string) => {
     await pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    // "Done — Rate It" on a count-up surface, "Finish Now" on a
-    // count-down one. Both end the run; the label follows the clock.
-    const finish = [...document.body.querySelectorAll('button')]
-      .map(b => (b.textContent ?? '').trim())
-      .find(l => l.startsWith('Done') || l.startsWith('Finish'));
-    if (!finish) throw new Error(`no finish button — have ${labels().join(' | ')}`);
-    await pressStartingWith(finish);
-    // The feel chips carry their hint in the same button, so this
-    // matches the leading word rather than the whole label.
     await pressStartingWith(feel);
   };
   return {
@@ -390,7 +390,9 @@ describe('a test asks its settings once, not before every run', () => {
     await r.pressStartingWith('Test');
     await r.pressStartingWith('Start Test Run');
     expect(r.labels().some(l => l === 'Start Drill')).toBe(false);
-    expect(r.labels().some(l => l.startsWith('Finish'))).toBe(true);
+    // In a run: the chips are on screen, because rating one is how a
+    // run finishes now.
+    expect(r.labels().some(l => l.startsWith('Clean'))).toBe(true);
     r.unmount();
   });
 
@@ -402,8 +404,11 @@ describe('a test asks its settings once, not before every run', () => {
     await r.run('Clean');
     await r.run('Clean');
     expect(written).toHaveLength(2);
-    expect(written[0].targetSeconds).toBe(written[1].targetSeconds);
+    // The SETTINGS are shared — the style both runs were played in.
+    // Their lengths are their own: a run records what it was played
+    // for, and rating one early is allowed.
     expect(written[0].style).toBe(written[1].style);
+    expect(written[0].style).toBe('blocked');
     r.unmount();
   });
 
@@ -807,7 +812,6 @@ describe('one rendering of the four ratings', () => {
     await r.pressStartingWith('Test');
     await r.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('Done');
     expect(r.text()).toContain('Rate That Run');
     expect(r.text()).toContain('0 of 3');
     r.unmount();
@@ -818,7 +822,6 @@ describe('one rendering of the four ratings', () => {
     await r.pressStartingWith('Test');
     await r.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('Done');
     expect(r.labels().some(l => l.startsWith('Start Test Run'))).toBe(false);
     r.unmount();
   });
@@ -828,7 +831,6 @@ describe('one rendering of the four ratings', () => {
     await r.pressStartingWith('Test');
     await r.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('Done');
     expect(r.text()).not.toContain('How Did That Go');
     r.unmount();
   });
@@ -923,7 +925,6 @@ describe('the scope picker is a practice control', () => {
     await r.pressStartingWith('Practice');
     await r.pressStartingWith('Start A Practice');
     await act(async () => { vi.advanceTimersByTime(61_000); });
-    await r.pressStartingWith('Done');
     expect(r.text()).toContain('What Was That Run');
     await r.press('Chorus');
     await r.pressStartingWith('Clean');
@@ -938,7 +939,6 @@ describe('the scope picker is a practice control', () => {
     await r.pressStartingWith('Test');
     await r.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('Done');
     expect(r.text()).toContain('Rate That Run');
     expect(r.text()).not.toContain('What Was That Run');
     r.unmount();
@@ -951,6 +951,125 @@ describe('the scope picker is a practice control', () => {
     await r.pressStartingWith('Test');
     await r.run('Clean');
     expect(written[0].scope).toBeNull();
+    r.unmount();
+  });
+});
+
+describe('playing a run does not take the screen', () => {
+  const withEverything = () => surface({
+    openItem: () => {},
+    sessionMetronome: true,
+    scopeOptions: [{ id: 's1', label: 'Verse 1' }, { id: 's2', label: 'Chorus' }],
+    openedOnScopeId: 's1',
+  });
+
+  it('THE SESSION STAYS PUT WHILE A RUN IS PLAYED', async () => {
+    // It used to be replaced by a stopwatch page: one big number, a
+    // target readout and a button. The circles, the runs already
+    // played and the metronome all vanished for the duration of the
+    // thing they were there to measure.
+    const r = render(withEverything());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+
+    expect(r.text()).toContain('1 of 3');                    // the circles
+    expect(r.text()).toContain('Runs In This Testing Session'); // the run list
+    expect(r.text()).toContain('Rate That Run');             // the rating box
+    // The metronome: this fixture uses the plain control, whose face
+    // is its tempo rather than the word.
+    expect(r.labels().some(l => l.endsWith('bpm'))).toBe(true);
+    expect(r.labels()).toContain('Open Lead Sheet');
+    r.unmount();
+  });
+
+  it('the run clock appears beside the session clock, named', async () => {
+    const r = render(withEverything());
+    await r.pressStartingWith('Test');
+    expect(r.text()).toContain('Testing Session');
+    expect(r.text()).not.toContain('Test Run ');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    expect(r.text()).toContain('Testing Session');
+    expect(r.text()).toContain('Test Run');
+    r.unmount();
+  });
+
+  it('THE STOPWATCH PAGE IS GONE', async () => {
+    // Its parts, one by one: the big unlabelled clock's caption, the
+    // rate readout, and the button that finished a run.
+    const r = render(withEverything());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    expect(r.text()).not.toContain('AT TARGET');
+    expect(r.text()).not.toContain('BELOW TARGET');
+    expect(r.labels().some(l => l.startsWith('Done'))).toBe(false);
+    expect(r.labels().some(l => l.startsWith('Finish Now'))).toBe(false);
+    r.unmount();
+  });
+
+  it('rating a live run finishes it, and the clock goes', async () => {
+    const r = render(withEverything());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Clean');
+    expect(written).toHaveLength(1);
+    expect(r.text()).not.toContain('Rate That Run');
+    expect(r.labels().some(l => l.startsWith('Start Test Run'))).toBe(true);
+    r.unmount();
+  });
+
+  it('a count-down drill still stops at its target on its own', async () => {
+    // No screen hosts the countdown any more, so the run has to end
+    // itself. A drill with a target still gets one.
+    const shapes = surface({
+      hasStyle: true, countsUp: false, scopeOptions: null,
+      openItem: null, sessionMetronome: false,
+      rateOptions: [{ per: 1, label: 'One Shape Per Beat' }],
+    });
+    const r = render(shapes);
+    await r.pressStartingWith('Practice');
+    await r.pressStartingWith('Start A Practice');
+    await r.press('Blocked');
+    await r.press('Start Drill');
+    await act(async () => { vi.advanceTimersByTime(61_000); });
+    expect(r.text()).toContain('Rate That Run');
+    await r.pressStartingWith('Clean');
+    expect(written[0].ranSeconds).toBe(60);
+    r.unmount();
+  });
+});
+
+describe('the ways out sit along the bottom', () => {
+  it('the step trail is gone', async () => {
+    // It read `Skill › Mode › Test Runs › Done` — a breadcrumb through
+    // screens the panel no longer has.
+    const r = render();
+    await r.pressStartingWith('Test');
+    expect(r.text()).not.toContain('Skill');
+    expect(r.text()).not.toContain('Wrap Up');
+    r.unmount();
+  });
+
+  it('Pause and End Session are reachable while a run is going', async () => {
+    // They used to sit halfway up the session screen, so they scrolled
+    // away exactly when a run was in progress.
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    expect(r.labels()).toContain('Pause');
+    expect(r.labels()).toContain('End Session');
+    r.unmount();
+  });
+
+  it('and are absent before a mode is picked', async () => {
+    const r = render();
+    expect(r.labels()).not.toContain('Pause');
+    expect(r.labels()).not.toContain('End Session');
     r.unmount();
   });
 });
