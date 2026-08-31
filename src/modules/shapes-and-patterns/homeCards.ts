@@ -18,7 +18,7 @@
  *
  * =====================================================================
  * THE CARD COUNTS CELLS. THE GOAL COUNTS ITEMS. THEY ARE NOT THE SAME
- * NUMBER FOR CHORD SHAPES, AND THAT IS DELIBERATE.
+ * NUMBER FOR CHORD SHAPES, AND THAT IS STILL OPEN.
  *
  * The Fluent+ figure and its denominator both come from
  * `sectionCells()`, which is the grid's own enumeration — so the card
@@ -28,37 +28,33 @@
  *
  * For chord shapes it is not. `shapesCounts().chordShapeDrills`
  * multiplies quality × key × inversion state, because that is what a
- * COVERAGE GOAL counts — every drillable item. The grid draws quality
- * × key and keeps the inversion states inside a cell. So the card's
- * denominator is the smaller of the two now, and `shapesCounts()` is
- * untouched: the goals it feeds are not this commit's to move.
+ * COVERAGE GOAL counts. The grid draws quality × key and keeps the
+ * inversion states inside a cell. Making the two one number is a rule
+ * change with an unresolved question inside it — see
+ * `cc-scratch/tab1b-2026-08-31-counting-and-card.md` — so it is not
+ * done here and this file no longer reads `shapesCounts` at all.
  *
- * The per-hand bars still read `acquisitionIndex`, the retired
- * three-bucket rule. They are unapproved pending a prototype and were
- * left exactly as they were rather than half-moved.
+ * =====================================================================
+ * THE PER-HAND BARS ARE GONE.
+ *
+ * They were coverage per hand drawn in the accuracy bar's shape, and
+ * they read `acquisitionIndex` — the retired three-bucket rule — long
+ * after the grids stopped speaking it. See `CategoryCard`, where the
+ * markup was, for what they said that nothing else does: nothing.
+ *
+ * WHAT REPLACES THEM IS NOT ANOTHER PICTURE. Two labelled lines: how
+ * long has gone in, split into practice and testing, and when the
+ * section was last touched. `4d ago · 7m` on one line reads as though
+ * all seven minutes happened four days ago.
  * =====================================================================
  */
 import type { SpacingState } from '../../lib/db';
 import type { CategoryCardModel } from '../../components/moduleHome/model';
-import { shapesCounts } from '../../lib/moduleItemCounts';
 import { countsTowardShapesCoverage } from './drillModel';
-import { acquisitionIndex, handCounts, handsFor } from './acquisition';
 import { countFluentPlus, rowsByRefHand, sectionCells, type SectionId } from './cellTargets';
-import type { DrillHand } from '../../lib/db';
+import { totalSeconds, type TimeSplit } from './timeInvested';
 
-/** What a per-hand bar is called. Silas's three letters. */
-const HAND_BAR_LABEL: Readonly<Record<DrillHand, string>> = {
-  left: 'L',
-  right: 'R',
-  both: 'BOTH',
-};
-
-/** Mental visualisation has no `itemRefPrefix` — it lives under its own
- *  moduleRef entirely — so `handsFor` is asked with a stand-in that
- *  matches none of the hand-dimension prefixes, which is the true
- *  answer for it. */
-const MENTAL_VIZ_PREFIX = 'mv:';
-import { MENTAL_VIZ_ITEMS, MENTAL_VIZ_MODULE_REF } from './mentalVizLibrary';
+import { MENTAL_VIZ_MODULE_REF } from './mentalVizLibrary';
 import { daysBetween, localDayKey } from '../../lib/dailyGoal';
 
 export const SHAPES_MODULE_ID = 'shapes-and-patterns';
@@ -101,19 +97,13 @@ export function shapesCards(
    *  separate read; merging them would let two itemRefs collide. */
   mentalVizRows: readonly SpacingState[],
   now: number,
-  /** Seconds per section, from `shapesTimeInvested`. Omitted where the
-   *  caller has not read the sessions; a section with none stays
-   *  absent rather than showing a zero it has not measured. */
-  timeBySection: ReadonlyMap<ShapesSectionId, number> = new Map(),
+  /** Practice and testing seconds per section, from
+   *  `shapesTimeInvested` — which adds up the same cells' targets
+   *  Progress Details adds up one cell's. Omitted where the caller has
+   *  not read the sessions; a section with none stays absent rather
+   *  than showing a zero it has not measured. */
+  timeBySection: ReadonlyMap<ShapesSectionId, TimeSplit> = new Map(),
 ): CategoryCardModel[] {
-  const counts = shapesCounts();
-  const totalFor: Readonly<Record<ShapesSectionId, number>> = {
-    'scales': counts.scaleDrills,
-    'chord-shapes': counts.chordShapeDrills,
-    'voice-leading': counts.voiceLeading,
-    'mental-viz': MENTAL_VIZ_ITEMS.length,
-  };
-
   return SHAPES_SECTIONS.map(section => {
     const rows = section.itemRefPrefix === null
       ? [...mentalVizRows]
@@ -147,52 +137,7 @@ export function shapesCards(
     );
     const cells = sectionCells(section.id);
     const { total: cellTotal, fluentPlus } = countFluentPlus(cells, byRefHand);
-    // The bars, and only the bars. See the header.
-    const index = acquisitionIndex(rows);
-    const touched = [...index.touched];
-
-    /**
-     * ONE BAR PER HAND THE SECTION IS DRILLED ON.
-     *
-     * Which hands those are comes from the items themselves, not from
-     * this list — scales and chord shapes run three, voice leading is
-     * two-handed by nature and mental visualisation has none. Drawing
-     * L and R for the last two would put two permanently empty bars on
-     * a card and read as work not done rather than work that does not
-     * exist.
-     *
-     * The DENOMINATOR is the section's full catalog count; the
-     * numerators can only come from items with rows, so `touched` is
-     * the whole walk.
-     */
-    // ASKED OF THE SECTION, NOT OF WHATEVER HAPPENS TO BE LOGGED. The
-    // prefix is what `handsFor` matches on, and it is a fact about the
-    // section — so an empty section draws the same bars it will draw
-    // once it has rows, rather than growing two of them on first use.
-    const hands = handsFor(section.itemRefPrefix ?? MENTAL_VIZ_PREFIX);
-    // THE BARS KEEP THE OLD DENOMINATOR AS WELL AS THE OLD RULE. They
-    // count items at an acquisition stage against the item total, and
-    // both halves are left alone together — moving one would give the
-    // bar a numerator and a denominator counting different things.
-    const total = totalFor[section.id];
-    const bars = hands.length > 1
-      ? hands.map(hand => {
-        const counts = handCounts(index, touched, hand);
-        return {
-          label: HAND_BAR_LABEL[hand],
-          acquired: counts.acquired,
-          inProgress: counts.inProgress,
-          total,
-        };
-      })
-      // NO LABEL ON A LONE BAR. There is no other bar to tell it apart
-      // from, and naming it would invent a hand the section has not
-      // got.
-      : [{
-        acquired: touched.filter(ref => index.cell(ref) === 'acquired').length,
-        inProgress: touched.filter(ref => index.cell(ref) === 'in-progress').length,
-        total,
-      }];
+    const time = timeBySection.get(section.id);
     const latest = rows.reduce<number | null>(
       (max, r) => (r.lastEngagedAt !== null && (max === null || r.lastEngagedAt > max)
         ? r.lastEngagedAt
@@ -214,16 +159,14 @@ export function shapesCards(
       // Duration and a self-rating, never right/wrong — see the header.
       accuracy: null,
       itemsSeen,
-      // THE FIELD STILL CARRIES THE RETIRED WORD, and the number in it
-      // is Fluent+ cells. `CategoryCard` renders it into a sentence
-      // that also still says "acquired"; the word and the field are
-      // one change and belong to the rebuild that replaces the
-      // sentence. Renaming the field alone would edit that line for
-      // no visible gain.
-      acquired: fluentPlus,
-      bars,
-      ...(timeBySection.has(section.id)
-        ? { timeInvestedSeconds: timeBySection.get(section.id)! }
+      // FLUENT+ CELLS. The field and the sentence it prints now use
+      // the app's own word; "acquired" is retired everywhere.
+      fluentPlus,
+      // ABSENT, NOT ZERO. A section with nothing logged shows no time
+      // rather than a measured nothing — and a split of two zeroes
+      // would be exactly that.
+      ...(time !== undefined && totalSeconds(time) > 0
+        ? { timeInvested: time }
         : {}),
       lastPracticedDaysAgo: latest === null
         ? null

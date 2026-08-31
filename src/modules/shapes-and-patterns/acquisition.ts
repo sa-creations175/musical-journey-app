@@ -145,24 +145,14 @@ export function acquisitionIndex(
 }
 
 /**
- * One hand's share of a group, for the per-hand bars on a card.
+ * `handCounts` LIVED HERE AND IS GONE WITH THE BARS IT FED.
  *
- * Reported as counts rather than percentages so the bar and any number
- * beside it are drawn from the same figures.
+ * Its only caller was the module card's per-hand bar — coverage per
+ * hand, in the three retired buckets, drawn in the shape the accuracy
+ * modules use. The bars were removed because nobody could tell what
+ * they meant; the function that filled them goes with them rather than
+ * sitting here as the next thing somebody wires up.
+ *
+ * `index.hand()` is untouched: the per-hand question is still asked,
+ * cell by cell, where a cell can answer it.
  */
-export function handCounts(
-  index: AcquisitionIndex,
-  itemRefs: readonly string[],
-  hand: DrillHand,
-): AcquisitionCounts {
-  const out: AcquisitionCounts = {
-    total: itemRefs.length, acquired: 0, inProgress: 0, notStarted: 0,
-  };
-  for (const ref of itemRefs) {
-    const bucket = index.hand(ref, hand);
-    if (bucket === 'acquired') out.acquired += 1;
-    else if (bucket === 'in-progress') out.inProgress += 1;
-    else out.notStarted += 1;
-  }
-  return out;
-}

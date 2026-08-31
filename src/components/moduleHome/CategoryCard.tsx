@@ -53,7 +53,7 @@ import {
   CardTitleBlock,
   cardTint,
 } from './cardShell';
-import type { CategoryCardBar, CategoryCardModel } from './model';
+import type { CategoryCardModel } from './model';
 
 export { CARD_ACTION_LABEL, PROGRESS_TRACKER_LABEL };
 
@@ -127,14 +127,19 @@ export default function CategoryCard({
               className="float-right ml-2 text-[11px] leading-5 text-neutral-500 tabular-nums whitespace-nowrap"
               data-testid="category-card-count"
             >
-            {/* ACQUIRED WHERE THE MODULE HAS ONE, seen otherwise. The
+            {/* FLUENT+ WHERE THE MODULE HAS ONE, seen otherwise. The
                 two are different questions in Shapes & Patterns and
                 the same everywhere else; a module says which it means
                 by supplying the field or not — and says so in words,
                 because "12/96" alone cannot tell the reader which of
-                the two it is counting. */}
-              {card.acquired !== undefined
-                ? `${card.acquired} of ${card.itemCount} acquired`
+                the two it is counting.
+
+                THE WORD WAS "acquired" AND IS RETIRED. The six status
+                words are Not Started, Started, Needs Work, Developing,
+                Fluent and Mastered; **Fluent+** is the approved
+                shorthand for the top two and the only one. */}
+              {card.fluentPlus !== undefined
+                ? `${card.fluentPlus} of ${card.itemCount} Fluent+`
                 : `${card.itemsSeen}/${card.itemCount}`}
             </span>
           )}
@@ -161,44 +166,59 @@ export default function CategoryCard({
         {/* RESERVED WHETHER IT HAS ANYTHING IN IT OR NOT. A card with a
             countDetail and one without must split at the same height. */}
         <CardSubLine className="text-neutral-400">{card.countDetail}</CardSubLine>
-        <CardSubLine>
-          {acc !== null && (
-            pending !== null
-              ? <span className="text-neutral-400">{pending}</span>
-              : <>{acc.rollingCorrect}/{acc.rollingTotal} right</>
-          )}
-          {card.lastPracticedDaysAgo !== null && (
-            <>
-              {acc !== null && ' · '}
-              {card.lastPracticedDaysAgo === 0
-                ? 'today'
-                : card.lastPracticedDaysAgo === 1
-                  ? 'yesterday'
-                  : `${card.lastPracticedDaysAgo}d ago`}
-            </>
-          )}
-          {/* ABSENT, NOT ZERO, where nothing has been measured — see
-              `timeInvestedSeconds`. */}
-          {card.timeInvestedSeconds !== undefined && (
-            <>
-              {(acc !== null || card.lastPracticedDaysAgo !== null) && ' · '}
-              <span data-testid="category-card-time">
-                {formatSeconds(card.timeInvestedSeconds)}
-              </span>
-            </>
-          )}
-        </CardSubLine>
+        {/* =====================================================
+            A TIME AND A DATE ON ONE LINE READ AS ONE FACT.
 
-        {/* ONE BAR PER HAND, where the module drills the same item more
-            than one way. Two segments over a neutral track: acquired,
-            then under way. The tokens are the matrix's own, so a bar
-            and the grid it summarises cannot drift to two palettes. */}
-        {card.bars !== undefined && card.bars.length > 0 && (
-          <div className="mt-1.5 space-y-1" data-testid="category-card-bars">
-            {card.bars.map((bar, i) => (
-              <HandBar key={bar.label ?? i} bar={bar} />
-            ))}
-          </div>
+            This was `4d ago · 7m`, and it says that all seven of
+            those minutes happened four days ago. They are two
+            different measurements — everything ever spent, and when
+            it was last touched — so they get a line and a label each.
+
+            **Total time** is the phrase Progress Details uses one
+            level down. One word for one thing, not a second name per
+            surface.
+
+            A MODULE WITH NO DURATION KEEPS THE OLD SUB-LINE. The pair
+            that misleads only occurs where both exist, which today is
+            Shapes & Patterns alone; giving every other card a labelled
+            block would be rewriting cards that read correctly.
+            ===================================================== */}
+        {card.timeInvested !== undefined ? (
+          <>
+            <CardSubLine>
+              <span data-testid="category-card-time">
+                <span className="font-medium">Total time</span>{' '}
+                {formatSeconds(
+                  card.timeInvested.practiceSeconds + card.timeInvested.testingSeconds,
+                )}
+                {' — '}
+                {formatSeconds(card.timeInvested.practiceSeconds)} practice,{' '}
+                {formatSeconds(card.timeInvested.testingSeconds)} testing
+              </span>
+            </CardSubLine>
+            <CardSubLine>
+              {card.lastPracticedDaysAgo !== null && (
+                <span data-testid="category-card-last-practiced">
+                  <span className="font-medium">Last practiced</span>{' '}
+                  {agoWord(card.lastPracticedDaysAgo)}
+                </span>
+              )}
+            </CardSubLine>
+          </>
+        ) : (
+          <CardSubLine>
+            {acc !== null && (
+              pending !== null
+                ? <span className="text-neutral-400">{pending}</span>
+                : <>{acc.rollingCorrect}/{acc.rollingTotal} right</>
+            )}
+            {card.lastPracticedDaysAgo !== null && (
+              <>
+                {acc !== null && ' · '}
+                {agoWord(card.lastPracticedDaysAgo)}
+              </>
+            )}
+          </CardSubLine>
         )}
       </button>
 
@@ -270,22 +290,27 @@ function formatSeconds(seconds: number): string {
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
-function HandBar({ bar }: { bar: CategoryCardBar }) {
-  const pct = (n: number) => (bar.total === 0 ? 0 : (n / bar.total) * 100);
-  return (
-    <div className="flex items-center gap-1.5" data-testid="category-card-bar" data-bar={bar.label ?? ''}>
-      {bar.label !== undefined && (
-        <span className="w-8 shrink-0 text-[9px] uppercase tracking-wide text-neutral-400">
-          {bar.label}
-        </span>
-      )}
-      <span
-        aria-hidden
-        className="flex-1 h-1 rounded-full overflow-hidden flex bg-neutral-200 dark:bg-neutral-800"
-      >
-        <span className="bg-mastered" style={{ width: `${pct(bar.acquired)}%` }} />
-        <span className="bg-developing" style={{ width: `${pct(bar.inProgress)}%` }} />
-      </span>
-    </div>
-  );
+/**
+ * THE PER-HAND BARS USED TO SIT HERE, AND THEY ARE GONE.
+ *
+ * Three bars — L, R, BOTH — each drawn in two segments over a neutral
+ * track. What they measured was COVERAGE per hand: how many of the
+ * section's patterns had been touched at all with that hand. What they
+ * looked like was the accuracy bar the modules that mark answers right
+ * or wrong use, borrowed wholesale, and nothing on the card said which
+ * of those it was. Silas could not tell what they meant, and there is
+ * no reading of them that survives being explained.
+ *
+ * WHAT THEY SAID THAT NOTHING ELSE DOES: nothing. Per-hand standing is
+ * on the grid, cell by cell, and inside Progress Details hand by hand;
+ * the section's own numerator is the Fluent+ line above. The bars were
+ * a fourth telling of a story already told twice, in a shape borrowed
+ * from a question this module does not ask.
+ */
+
+/** How long ago, in the words the card has always used. */
+function agoWord(daysAgo: number): string {
+  if (daysAgo === 0) return 'today';
+  if (daysAgo === 1) return 'yesterday';
+  return `${daysAgo}d ago`;
 }

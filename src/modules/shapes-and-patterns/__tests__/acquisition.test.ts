@@ -16,7 +16,6 @@ import {
   HAND_ORDER,
   acquisitionIndex,
   bucketForStage,
-  handCounts,
   handsFor,
 } from '../acquisition';
 
@@ -148,13 +147,12 @@ describe('counting a group', () => {
       .toBe(counts.total);
   });
 
-  it('counts one hand across the group for that hand alone', () => {
-    // The per-hand bars: left is ahead of both, which is exactly the
-    // shape a reader drilling hands separately produces.
+  it('still answers the per-hand question one item at a time', () => {
+    // `handCounts` — the group roll-up this used to assert — went with
+    // the per-hand bars it fed. The per-hand FACT is unchanged and is
+    // still asked cell by cell, which is where a reader can act on it.
     const index = acquisitionIndex(rows);
-    expect(handCounts(index, refs, 'left'))
-      .toEqual({ total: 4, acquired: 2, inProgress: 1, notStarted: 1 });
-    expect(handCounts(index, refs, 'both'))
-      .toEqual({ total: 4, acquired: 1, inProgress: 0, notStarted: 3 });
+    expect(index.hand(refs[0], 'left')).toBe('acquired');
+    expect(index.hand(refs[0], 'both')).toBe('acquired');
   });
 });

@@ -13,21 +13,39 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { DrillSession, DrillSkill } from '../../../lib/db';
-import { sectionForSession, shapesTimeInvested } from '../timeInvested';
+import {
+  sectionForSession, sessionsByTarget, shapesTimeInvested, splitOf, timeForTargets,
+} from '../timeInvested';
+import { sectionCells, itemCellTargets } from '../cellTargets';
+import { CHORD_QUALITIES, KEYS } from '../catalog';
+import { SCALE_CELLS } from '../scaleSkills';
 
-const session = (skillId: string, durationSeconds: number): DrillSession => ({
-  id: `dses-${skillId}-${durationSeconds}`,
+const session = (
+  skillId: string,
+  durationSeconds: number,
+  over: Partial<DrillSession> = {},
+): DrillSession => ({
+  id: `dses-${skillId}-${durationSeconds}-${over.fromTest ? 't' : 'p'}`,
   drillTypeId: skillId,
   skillId,
   hand: 'both',
   durationSeconds,
   feelRating: 3,
   timestamp: 1_800_000_000_000,
+  ...over,
 });
 
-const skill = (id: string, kind: DrillSkill['kind']): DrillSkill => ({
-  id, kind, createdAt: 1,
-} as DrillSkill);
+/** A real chord-shape skill, so its itemRef lands on a real target. */
+const CHORD_Q = CHORD_QUALITIES[0].id;
+const CHORD_KEY = KEYS[0];
+const chordSkill: DrillSkill = {
+  id: 'skill-1',
+  kind: 'chord-shape',
+  quality: CHORD_Q,
+  keyName: CHORD_KEY,
+  inversionState: 'root',
+  createdAt: 1,
+} as DrillSkill;
 
 describe('which section a session belongs to', () => {
   const kinds = new Map([['skill-1', 'chord-shape' as const]]);
@@ -50,28 +68,36 @@ describe('which section a session belongs to', () => {
 });
 
 describe('the sum', () => {
-  it('adds each section’s own seconds, and nobody else’s', () => {
-    const time = shapesTimeInvested(
-      [
-        session('scale:major:C', 90),
-        session('scale:major:G', 30),
-        session('vl:aba-251:Bb', 60),
-        session('skill-1', 120),
-        session('skill-1', 45),
-        session('mv:seventh:maj7:root:C', 15),
-      ],
-      [skill('skill-1', 'chord-shape')],
-    );
-    expect(time.get('scales')).toBe(120);
-    expect(time.get('voice-leading')).toBe(60);
-    expect(time.get('chord-shapes')).toBe(165);
-    expect(time.get('mental-viz')).toBe(15);
+  const rows = [
+    session(SCALE_CELLS[0].itemRef, 90),
+    session(SCALE_CELLS[1].itemRef, 30, { fromTest: true }),
+    session(sectionCells('voice-leading')[0][0].itemRef, 60),
+    session('skill-1', 120),
+    session('skill-1', 45, { fromTest: true }),
+  ];
+
+  it('adds each section\u2019s own seconds, and nobody else\u2019s', () => {
+    const time = shapesTimeInvested(rows, [chordSkill]);
+    expect(time.get('scales')).toEqual({ practiceSeconds: 90, testingSeconds: 30 });
+    expect(time.get('voice-leading')).toEqual({ practiceSeconds: 60, testingSeconds: 0 });
+    expect(time.get('chord-shapes')).toEqual({ practiceSeconds: 120, testingSeconds: 45 });
+  });
+
+  it('SPLITS PRACTICE FROM TESTING, and reads an absent flag as practice', () => {
+    // Absent is the row's own rule: a run written before `fromTest`
+    // existed is a practice run, and `!== false` would put every one of
+    // them in the testing half.
+    const legacy = session(SCALE_CELLS[0].itemRef, 40);
+    delete (legacy as { fromTest?: boolean }).fromTest;
+    expect(splitOf([legacy])).toEqual({ practiceSeconds: 40, testingSeconds: 0 });
+    expect(splitOf([session(SCALE_CELLS[0].itemRef, 40, { fromTest: true })]))
+      .toEqual({ practiceSeconds: 0, testingSeconds: 40 });
   });
 
   it('leaves a section with nothing logged ABSENT, not zero', () => {
     // A card shows a time it has measured or shows none; `0s` is a
     // measurement, and the wrong one.
-    const time = shapesTimeInvested([session('scale:major:C', 60)], []);
+    const time = shapesTimeInvested([session(SCALE_CELLS[0].itemRef, 60)], []);
     expect(time.has('scales')).toBe(true);
     expect(time.has('voice-leading')).toBe(false);
     expect(time.get('voice-leading')).toBeUndefined();
@@ -80,6 +106,30 @@ describe('the sum', () => {
   it('drops an orphaned session from every total', () => {
     const time = shapesTimeInvested([session('skill-gone', 999)], []);
     expect([...time.values()]).toEqual([]);
+  });
+
+  it('THE SECTION IS THE SUM OF ITS CELLS, exactly', () => {
+    // The card adds up the section's targets; Progress Details adds up
+    // one cell's. Both read the same grouping, so the card can never
+    // hold more minutes than everything under it adds up to.
+    const byTarget = sessionsByTarget(rows, [chordSkill]);
+    const perCell = sectionCells('scales')
+      .map(targets => timeForTargets(targets, byTarget));
+    const summed = perCell.reduce(
+      (acc, t) => ({
+        practiceSeconds: acc.practiceSeconds + t.practiceSeconds,
+        testingSeconds: acc.testingSeconds + t.testingSeconds,
+      }),
+      { practiceSeconds: 0, testingSeconds: 0 },
+    );
+    expect(shapesTimeInvested(rows, [chordSkill]).get('scales')).toEqual(summed);
+  });
+
+  it('and a cell is the sum of ITS targets', () => {
+    const byTarget = sessionsByTarget(rows, [chordSkill]);
+    const targets = itemCellTargets(SCALE_CELLS[0].itemRef);
+    expect(timeForTargets(targets, byTarget))
+      .toEqual({ practiceSeconds: 90, testingSeconds: 0 });
   });
 });
 

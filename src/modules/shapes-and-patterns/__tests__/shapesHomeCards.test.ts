@@ -8,7 +8,7 @@
  * reading `untouched` forever — measured-looking, unmeasured.
  */
 import { describe, expect, it } from 'vitest';
-import type { SpacingState } from '../../../lib/db';
+import type { DrillSession, SpacingState } from '../../../lib/db';
 import { SHAPES_SECTIONS, isShapesSectionId, shapesCards } from '../homeCards';
 import { shapesCounts } from '../../../lib/moduleItemCounts';
 import { MENTAL_VIZ_ITEMS } from '../mentalVizLibrary';
@@ -18,6 +18,8 @@ import {
   chordCellTargets, itemCellTargets, rowsByRefHand, sectionCells, verdictForTargets,
 } from '../cellTargets';
 import { isFluentPlus } from '../../../lib/spacing/rollup';
+import { sessionsByTarget, shapesTimeInvested } from '../timeInvested';
+import { cellProgress, cellTime } from '../handProgress';
 
 const NOW = 1_800_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -39,10 +41,9 @@ function row(itemRef: string, lastEngagedAt: number | null = NOW): SpacingState 
 
 /** A row with an explicit hand and stage.
  *
- *  STILL HERE BECAUSE THE BARS STILL READ IT. The per-hand bars count
- *  acquisition stages and are unapproved pending a prototype, so they
- *  were left alone — and a fixture that stopped exercising them would
- *  hide the day they broke. Nothing else in this file uses it. */
+ *  KEPT TO PROVE THE STAGE IS IGNORED. The per-hand bars that used to
+ *  read `acquisitionStage` are gone; nothing on a card counts it now,
+ *  and the test below that says so needs a row carrying one. */
 function stage(
   itemRef: string,
   hand: SpacingState['hand'],
@@ -175,8 +176,8 @@ describe('the card and the grid are one count', () => {
       ...(['left', 'right'] as const).map(h => tested(SCALE_CELLS[2].itemRef, h, 3)),
     ];
     const card = byKey(rows).get('scales')!;
-    expect(card.acquired).toBe(gridCount(sectionCells('scales'), rows));
-    expect(card.acquired).toBe(2);
+    expect(card.fluentPlus).toBe(gridCount(sectionCells('scales'), rows));
+    expect(card.fluentPlus).toBe(2);
   });
 
   it('agrees on chord shapes, where the two used to differ by the states', () => {
@@ -186,9 +187,9 @@ describe('the card and the grid are one count', () => {
     // hands for a triad.
     const rows = chordCellTargets(q, k).map(t => tested(t.itemRef, t.hand, 4));
     const card = byKey(rows).get('chord-shapes')!;
-    expect(card.acquired).toBe(gridCount(sectionCells('chord-shapes'), rows));
+    expect(card.fluentPlus).toBe(gridCount(sectionCells('chord-shapes'), rows));
     // ONE cell, not the four itemRefs underneath it.
-    expect(card.acquired, 'a chord cell counts once').toBe(1);
+    expect(card.fluentPlus, 'a chord cell counts once').toBe(1);
   });
 
   it('agrees on voice leading, which has one target per cell', () => {
@@ -198,8 +199,8 @@ describe('the card and the grid are one count', () => {
       ...cells[1].map(t => tested(t.itemRef, t.hand, 4)),
     ];
     const card = byKey(rows).get('voice-leading')!;
-    expect(card.acquired).toBe(gridCount(cells, rows));
-    expect(card.acquired).toBe(2);
+    expect(card.fluentPlus).toBe(gridCount(cells, rows));
+    expect(card.fluentPlus).toBe(2);
   });
 
   it('counts a MIXED cell once, and only when all of it is Fluent+', () => {
@@ -211,12 +212,12 @@ describe('the card and the grid are one count', () => {
       ...targets.slice(0, -1).map(t => tested(t.itemRef, t.hand, 4)),
       touched(targets[targets.length - 1].itemRef, targets[targets.length - 1].hand),
     ];
-    expect(byKey(nearly).get('chord-shapes')!.acquired,
+    expect(byKey(nearly).get('chord-shapes')!.fluentPlus,
       'one unjudged target holds the whole cell back').toBe(0);
 
     // Finish that last target and the cell counts — once.
     const whole = targets.map(t => tested(t.itemRef, t.hand, 4));
-    expect(byKey(whole).get('chord-shapes')!.acquired).toBe(1);
+    expect(byKey(whole).get('chord-shapes')!.fluentPlus).toBe(1);
   });
 
   it('counts an untouched cell as one cell that is not Fluent+', () => {
@@ -224,7 +225,7 @@ describe('the card and the grid are one count', () => {
     // was counted by whether the database happened to hold it. The
     // enumeration comes from the catalog now.
     const cards = byKey();
-    expect(cards.get('scales')!.acquired).toBe(0);
+    expect(cards.get('scales')!.fluentPlus).toBe(0);
     expect(cards.get('scales')!.itemCount).toBe(SCALE_CELLS.length);
   });
 
@@ -236,7 +237,7 @@ describe('the card and the grid are one count', () => {
       stage('scale:major:C', 'right', 'mastered'),
       stage('scale:major:C', 'both', 'mastered'),
     ];
-    expect(byKey(rows).get('scales')!.acquired).toBe(0);
+    expect(byKey(rows).get('scales')!.fluentPlus).toBe(0);
   });
 
   it('a voice-leading cell needs only its one hand', () => {
@@ -244,13 +245,79 @@ describe('the card and the grid are one count', () => {
     // on left and right would leave every cell unreachable forever.
     const ref = sectionCells('voice-leading')[0][0].itemRef;
     expect(itemCellTargets(ref)).toHaveLength(1);
-    expect(byKey([tested(ref, 'both', 3)]).get('voice-leading')!.acquired).toBe(1);
+    expect(byKey([tested(ref, 'both', 3)]).get('voice-leading')!.fluentPlus).toBe(1);
   });
 
   it('counts mental visualisation from its own moduleRef', () => {
     const mv = MENTAL_VIZ_ITEMS.slice(0, 2)
       .map(i => tested(i.itemRef, 'both', 4));
-    expect(byKey([], mv).get('mental-viz')!.acquired).toBe(2);
+    expect(byKey([], mv).get('mental-viz')!.fluentPlus).toBe(2);
+  });
+});
+
+describe('the card\u2019s minutes and Progress Details\u2019 minutes are one call', () => {
+  /**
+   * =====================================================================
+   * THE CARD SUMMED BY PREFIX. PROGRESS DETAILS SUMMED PER TARGET.
+   *
+   * Two walks over the same rows, agreeing by luck — a drill row naming
+   * a scale that is not in the catalog landed on the card and in no
+   * cell, so the card could hold more minutes than everything under it
+   * added up to. One grouping now, and both are readings of it.
+   * =====================================================================
+   */
+  const drill = (
+    skillId: string, hand: SpacingState['hand'], seconds: number, fromTest = false,
+  ): DrillSession => ({
+    id: `dses-${skillId}-${hand}-${seconds}-${fromTest ? 't' : 'p'}`,
+    drillTypeId: skillId,
+    skillId,
+    hand,
+    durationSeconds: seconds,
+    feelRating: 3,
+    ...(fromTest ? { fromTest: true } : {}),
+    timestamp: NOW,
+  });
+
+  it('the section total equals the cells under it, added up', () => {
+    const sessions = [
+      drill(SCALE_CELLS[0].itemRef, 'left', 300),
+      drill(SCALE_CELLS[0].itemRef, 'both', 120, true),
+      drill(SCALE_CELLS[1].itemRef, 'right', 60),
+    ];
+    const byTarget = sessionsByTarget(sessions, []);
+    const card = shapesCards([], [], NOW, shapesTimeInvested(sessions, []))
+      .find(c => c.key === 'scales')!;
+
+    // What Progress Details shows for each cell, added up.
+    const perCell = SCALE_CELLS.map(cell => cellTime(
+      cellProgress(itemCellTargets(cell.itemRef), [], byTarget),
+    ));
+    const practice = perCell.reduce((n, t) => n + t.practiceSeconds, 0);
+    const testing = perCell.reduce((n, t) => n + t.testSeconds, 0);
+
+    expect(card.timeInvested).toEqual({
+      practiceSeconds: practice, testingSeconds: testing,
+    });
+    expect(card.timeInvested).toEqual({ practiceSeconds: 360, testingSeconds: 120 });
+  });
+
+  it('a row naming nothing in the catalog is on neither', () => {
+    // It used to land on the card, by prefix, and in no cell.
+    const sessions = [drill('scale:not-a-scale:C', 'both', 999)];
+    const cards = shapesCards([], [], NOW, shapesTimeInvested(sessions, []));
+    expect(cards.find(c => c.key === 'scales')!.timeInvested).toBeUndefined();
+  });
+
+  it('and the split is the run row\u2019s own, not an estimate', () => {
+    const sessions = [
+      drill(SCALE_CELLS[0].itemRef, 'left', 90),
+      drill(SCALE_CELLS[0].itemRef, 'left', 30, true),
+    ];
+    const card = shapesCards([], [], NOW, shapesTimeInvested(sessions, []))
+      .find(c => c.key === 'scales')!;
+    expect(card.timeInvested)
+      .toEqual({ practiceSeconds: 90, testingSeconds: 30 });
   });
 });
 
@@ -283,50 +350,7 @@ describe('what has been touched', () => {
     ]);
     const scales = cards.get('scales')!;
     expect(scales.itemsSeen, 'both cells have been touched').toBe(2);
-    expect(scales.acquired, 'only one is Fluent+').toBe(1);
-  });
-
-  it('draws one bar per hand the SECTION is drilled on', () => {
-    const cards = byKey();
-    // Scales and chord shapes run left, right, both.
-    expect(cards.get('scales')!.bars!.map(b => b.label))
-      .toEqual(['L', 'R', 'BOTH']);
-    expect(cards.get('chord-shapes')!.bars!.map(b => b.label))
-      .toEqual(['L', 'R', 'BOTH']);
-    // Voice leading is two-handed by nature; mental visualisation has
-    // no hands at all. One unlabelled bar each — two empty L and R
-    // bars would read as work not done rather than work that cannot
-    // exist.
-    for (const key of ['voice-leading', 'mental-viz'] as const) {
-      const bars = cards.get(key)!.bars!;
-      expect(bars, key).toHaveLength(1);
-      expect(bars[0].label, key).toBeUndefined();
-    }
-  });
-
-  it('keeps the bars stable before anything has been logged', () => {
-    // The hand list is a fact about the section, not about whatever
-    // rows happen to exist — a card must not grow two bars on first
-    // use.
-    expect(byKey().get('scales')!.bars!.map(b => b.label))
-      .toEqual(byKey([stage('scale:major:C', 'left', 'acquiring')])
-        .get('scales')!.bars!.map(b => b.label));
-  });
-
-  it('bars a hand against the section\u2019s full count', () => {
-    const cards = byKey([
-      stage('scale:major:C', 'left', 'acquired'),
-      stage('scale:major:C', 'right', 'acquiring'),
-      stage('scale:major:G', 'left', 'acquired'),
-    ]);
-    const bars = cards.get('scales')!.bars!;
-    const total = shapesCounts().scaleDrills;
-    expect(bars.find(b => b.label === 'L'))
-      .toEqual({ label: 'L', acquired: 2, inProgress: 0, total });
-    expect(bars.find(b => b.label === 'R'))
-      .toEqual({ label: 'R', acquired: 0, inProgress: 1, total });
-    expect(bars.find(b => b.label === 'BOTH'))
-      .toEqual({ label: 'BOTH', acquired: 0, inProgress: 0, total });
+    expect(scales.fluentPlus, 'only one is Fluent+').toBe(1);
   });
 
   it('keeps mental viz separate — a different moduleRef entirely', () => {

@@ -2,6 +2,7 @@ import type { DrillHand, DrillSession, SpacingState } from '../../lib/db';
 import { bandVerdictForRow } from '../../lib/spacing/row';
 import { NOT_STARTED, type BandVerdict } from '../../lib/spacing/banding';
 import type { CellTarget } from './cellTargets';
+import { splitOf, targetKey } from './timeInvested';
 
 /**
  * Everything Progress Details knows about one hand.
@@ -68,32 +69,40 @@ function byNewest(a: DrillSession, b: DrillSession): number {
 /**
  * One hand's progress, from the rows that mention it.
  *
- * Sessions are matched on `skillId` AND `hand`. Both halves matter: a
- * scale's three hands share one `itemRef`, so matching on the ref alone
- * would give every hand the whole cell's history.
+ * =====================================================================
+ * THE RUNS COME FROM THE SHARED GROUPING, NOT FROM A FILTER HERE.
+ *
+ * This used to match `s.skillId === target.itemRef`, which is right for
+ * scales and voice leading — they stand their itemRef in for the skill
+ * id — and finds nothing for a chord shape, whose `skillId` is a
+ * `DrillSkill` row's id. So Progress Details could only ever have
+ * worked on two of the three, and the card summed by PREFIX instead:
+ * two walks over the same rows, agreeing by luck.
+ *
+ * `sessionsByTarget` is the one walk, and the card adds up the same
+ * entries this does. The minutes on a card and the minutes under it
+ * cannot disagree, because there is one answer to add up.
+ * =====================================================================
  */
 export function handProgress(
   target: CellTarget,
   rows: ReadonlyArray<SpacingState>,
-  sessions: ReadonlyArray<DrillSession>,
+  byTarget: ReadonlyMap<string, DrillSession[]>,
 ): HandProgress {
   const row = rows.find(
     r => r.itemRef === target.itemRef && r.hand === target.hand,
   );
-  const mine = sessions
-    .filter(s => s.skillId === target.itemRef && s.hand === target.hand)
+  const mine = [...(byTarget.get(targetKey(target.itemRef, target.hand)) ?? [])]
     .sort(byNewest);
 
   const practiceRuns = mine.filter(s => !wasTestRun(s));
   const testRuns = mine.filter(wasTestRun);
-  const secondsOf = (list: ReadonlyArray<DrillSession>) =>
-    list.reduce((n, s) => n + (s.durationSeconds || 0), 0);
 
   return {
     hand: target.hand,
     verdict: row ? bandVerdictForRow(row) : NOT_STARTED,
-    practiceSeconds: secondsOf(practiceRuns),
-    testSeconds: secondsOf(testRuns),
+    practiceSeconds: splitOf(practiceRuns).practiceSeconds,
+    testSeconds: splitOf(testRuns).testingSeconds,
     // The newest run of either kind. Sorted already, so it is the head.
     lastPracticedAt: mine.length > 0 ? mine[0].timestamp : null,
     practiceRuns,
@@ -105,9 +114,9 @@ export function handProgress(
 export function cellProgress(
   targets: ReadonlyArray<CellTarget>,
   rows: ReadonlyArray<SpacingState>,
-  sessions: ReadonlyArray<DrillSession>,
+  byTarget: ReadonlyMap<string, DrillSession[]>,
 ): HandProgress[] {
-  return targets.map(t => handProgress(t, rows, sessions));
+  return targets.map(t => handProgress(t, rows, byTarget));
 }
 
 /**

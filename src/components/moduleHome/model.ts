@@ -76,49 +76,46 @@ export interface CategoryCardStats {
    *  recorded at all where the module has no attempts. */
   itemsSeen: number;
   /**
-   * Items fully ACQUIRED, where the module has a rule for that which
-   * is not the same question as "seen".
+   * Items at Fluent or Mastered, where the module has a rule for that
+   * which is not the same question as "seen".
    *
    * Shapes & Patterns is the case: a cell is drilled left, right and
-   * both, so "touched" and "acquired" are genuinely different counts
-   * and the card was showing the first while the matrix beneath it
-   * showed the second. Absent elsewhere — a module whose card means
-   * "seen" says so by leaving this off rather than by passing a number
-   * that happens to be equal.
-   */
-  acquired?: number;
-  /**
-   * One bar per hand, where a module drills the same item more than one
-   * way.
+   * both, so "touched" and "Fluent+" are genuinely different counts and
+   * the card was showing the first while the matrix beneath it showed
+   * the second. Absent elsewhere — a module whose card means "seen"
+   * says so by leaving this off rather than by passing a number that
+   * happens to be equal.
    *
-   * A LIST, NOT THREE FIELDS. Scales and chord shapes run left, right
-   * and both; voice leading is two-handed by nature and mental
-   * visualisation has no hands at all, so those carry one bar with no
-   * label. A fixed L/R/BOTH triple would draw two permanently empty
-   * bars for them and read as work not done rather than work that does
-   * not exist.
+   * IT USED TO BE CALLED `acquired`, and the sentence it printed said
+   * so. Acquired is a retired word: the six status words are Not
+   * Started, Started, Needs Work, Developing, Fluent and Mastered, and
+   * **Fluent+** is the only permitted shorthand for the top two.
    */
-  bars?: ReadonlyArray<CategoryCardBar>;
+  fluentPlus?: number;
   /**
-   * Seconds logged against this category, or absent where the module
-   * records no duration.
+   * How long has gone into this category, and what kind of work it
+   * was. Absent where the module records no duration.
    *
    * ABSENT, NEVER ZERO, while a source has none to give — a nothing
    * shown as `0s` is a measurement, and the wrong one.
+   *
+   * THE TOTAL IS NOT A FIELD. It is the two halves added up, at the
+   * point of display, so a total and its parts cannot come to disagree.
    */
-  timeInvestedSeconds?: number;
+  timeInvested?: CategoryCardTime;
   lastPracticedDaysAgo: number | null;
 }
 
-/** One bar's worth of a group: how much of it is acquired, how much is
- *  under way, out of how many. */
-export interface CategoryCardBar {
-  /** "L", "R", "BOTH" — or absent where the bar covers the whole
-   *  category and there is nothing to distinguish it from. */
-  label?: string;
-  acquired: number;
-  inProgress: number;
-  total: number;
+/**
+ * Practice time and testing time, in seconds.
+ *
+ * The split is real data, not an estimate: the drill-run row carries
+ * whether the run was a test, and an absent flag counts as practice —
+ * which is the row's own rule, not one chosen here.
+ */
+export interface CategoryCardTime {
+  practiceSeconds: number;
+  testingSeconds: number;
 }
 
 /** A card, ready to render. */

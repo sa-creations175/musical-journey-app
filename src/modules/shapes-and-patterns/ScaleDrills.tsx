@@ -19,7 +19,7 @@
  */
 import { useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type DrillSession, type SpacingState } from '../../lib/db';
+import { db, type DrillSession, type DrillSkill, type SpacingState } from '../../lib/db';
 import {
   SCALE_CELLS,
   MAJOR_PENT_STARTING_POINTS,
@@ -40,6 +40,7 @@ import {
   countFluentPlus, itemCellTargets, rowsByRefHand, sectionCells, verdictForTargets,
 } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
+import { sessionsByTarget } from './timeInvested';
 import ScaleProgressDetails from './ScaleProgressDetails';
 import { NOT_STARTED, bandVerdictLabel, type BandVerdict } from '../../lib/spacing/banding';
 import { bandVerdictForRow } from '../../lib/spacing/row';
@@ -197,8 +198,20 @@ export default function ScaleDrills() {
     () => db.drillSessions.toArray(),
     [],
   ) ?? [];
+  /** Read even though scales name their own skill id: it is what makes
+   *  this THE SAME CALL the module card makes, rather than a second
+   *  one that happens to agree on scales. */
+  const drillSkills = useLiveQuery<DrillSkill[]>(
+    () => db.drillSkills.toArray(),
+    [],
+  ) ?? [];
 
   const byRefHand = useMemo(() => rowsByRefHand(spacingRows), [spacingRows]);
+  /** THE ONE WALK, shared with the card. See `sessionsByTarget`. */
+  const byTarget = useMemo(
+    () => sessionsByTarget(sessions, drillSkills),
+    [sessions, drillSkills],
+  );
   const [spelling] = useSpelling();
 
   /** A hand is out of the score by cell AND hand — the three share an
@@ -237,7 +250,7 @@ export default function ScaleDrills() {
   };
 
   const selectedHands = selected
-    ? cellProgress(itemCellTargets(selected.itemRef), spacingRows, sessions)
+    ? cellProgress(itemCellTargets(selected.itemRef), spacingRows, byTarget)
     : [];
 
   return (
