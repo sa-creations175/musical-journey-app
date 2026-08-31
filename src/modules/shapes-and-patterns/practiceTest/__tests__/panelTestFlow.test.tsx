@@ -415,11 +415,40 @@ describe('a test asks its settings once, not before every run', () => {
     r.unmount();
   });
 
-  it('PRACTICE KEEPS THE PER-DRILL FORM — varying it is the point there', async () => {
+  it('PRACTICE ASKS IT ON THE SAME SCREEN — and Start starts a run', async () => {
+    // It used to open a screen of its own here, left by a second
+    // button also called Start Drill, so a practice run cost two
+    // presses of Start with the session hidden behind the form.
     const r = render(withSetup());
     await r.pressStartingWith('Practice');
+    expect(r.text()).toContain('How Long');
+    await r.press('Blocked');
     await r.pressStartingWith('Start A Practice Drill');
-    expect(r.labels().some(l => l === 'Start Drill')).toBe(true);
+    expect(r.labels().some(l => l === 'Start Drill')).toBe(false);
+    // Straight into a run: the chips are on screen and the run has a
+    // way to end.
+    expect(r.labels().some(l => l === 'End Practice Run')).toBe(true);
+    r.unmount();
+  });
+
+  it('and can still be varied between practice runs', async () => {
+    // Varying it between drills is the point of practising; the
+    // controls are in front of you rather than behind a button.
+    const r = render(withSetup());
+    await r.pressStartingWith('Practice');
+    await r.press('Blocked');
+    await r.press('30s');
+    await r.pressStartingWith('Start A Practice Drill');
+    // A 30s drill ends itself at its target — no button to press.
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Clean');
+    await r.press('Broken');
+    await r.pressStartingWith('Start A Practice Drill');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('Clean');
+    expect(written).toHaveLength(2);
+    expect(written[0].style).toBe('blocked');
+    expect(written[1].style).toBe('broken');
     r.unmount();
   });
 });
@@ -903,12 +932,11 @@ describe('one rendering of the four ratings', () => {
     });
     const r = render(shapes);
     await r.pressStartingWith('Practice');
-    await r.pressStartingWith('Start A Practice');
-    // A shapes drill has something to set up, so the form still opens
-    // in practice — that is unchanged and deliberate. Practice picks
-    // its own style, and Start stays disabled until it has.
+    // The style is picked on the session screen, and Start stays
+    // disabled until it has been — the refusal moved with the
+    // question rather than being dropped.
     await r.press('Blocked');
-    await r.press('Start Drill');
+    await r.pressStartingWith('Start A Practice');
     // A count-DOWN drill finishes itself when the countdown fires, so
     // there is nothing to press: the rating box is already there.
     await act(async () => { vi.advanceTimersByTime(61_000); });
@@ -1043,9 +1071,8 @@ describe('playing a run does not take the screen', () => {
     });
     const r = render(shapes);
     await r.pressStartingWith('Practice');
-    await r.pressStartingWith('Start A Practice');
     await r.press('Blocked');
-    await r.press('Start Drill');
+    await r.pressStartingWith('Start A Practice');
     await act(async () => { vi.advanceTimersByTime(61_000); });
     expect(r.text()).toContain('Rate That Run');
     await r.pressStartingWith('Clean');
@@ -1171,9 +1198,8 @@ describe('a run ends explicitly, then is rated', () => {
     });
     const r = render(shapes);
     await r.pressStartingWith('Practice');
-    await r.pressStartingWith('Start A Practice');
     await r.press('Blocked');
-    await r.press('Start Drill');
+    await r.pressStartingWith('Start A Practice');
     await act(async () => { vi.advanceTimersByTime(61_000); });
 
     expect(r.labels().some(l => l.startsWith('End Practice Run'))).toBe(false);

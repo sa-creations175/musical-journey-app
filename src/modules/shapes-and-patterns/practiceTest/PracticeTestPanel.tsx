@@ -89,7 +89,30 @@ import {
  * find room for there.
  * =====================================================================
  */
-type Step = 'choose' | 'session' | 'setup' | 'wrap' | 'done';
+/**
+ * =====================================================================
+ * AND SETTING UP A RUN IS NOT A SCREEN EITHER.
+ *
+ * There used to be a `setup` step as well, and only practice ever saw
+ * it: Start A Practice Drill opened a second screen carrying the style,
+ * the length, the metronome and the rate, and you scrolled it to reach
+ * a button also called Start Drill. Two presses of Start before a
+ * countdown, with the session — its clock, its runs, its rating box —
+ * hidden behind the form the whole time.
+ *
+ * A test never had it. Its settings were already drawn above the
+ * circles, because three runs of one thing have to be three runs of ONE
+ * thing. Practice was the only mode with the question behind a door,
+ * and the door said Start.
+ *
+ * Now both modes draw the settings ON the session screen, which is what
+ * the signed-off grid prototype draws: the drill settings and the
+ * rating live together and Start starts a run. Practice can still vary
+ * them between drills — more easily than before, since they are in
+ * front of you rather than behind a button.
+ * =====================================================================
+ */
+type Step = 'choose' | 'session' | 'wrap' | 'done';
 
 /** Reps a test is made of. */
 
@@ -107,15 +130,27 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   const [drills, setDrills] = useState<CompletedDrill[]>([]);
   const [draft, setDraft] = useState<DrillDraft | null>(null);
   /**
-   * The settings this TEST session's runs all share.
+   * How the next run is set up: style, length and rate.
+   *
+   * =====================================================================
+   * ONE DRAFT, ON THE SESSION SCREEN, IN BOTH MODES.
    *
    * A test's three runs have to be three runs of one thing — thirty
    * seconds then ninety at two rates are two drills, and "three in a
-   * row" says nothing about those. So it is settled once, at the top
-   * of the session, and every run inherits it. Null in practice, where
-   * varying it between drills is the point.
+   * row" says nothing about those. So a test settles this once and
+   * every run inherits it.
+   *
+   * Practice may change it between runs, and that is the point of
+   * practising. What changed is only WHERE the question is asked: it
+   * used to sit behind Start A Practice Drill on a screen of its own,
+   * so starting a drill took two presses of a button called Start. It
+   * is now beside the runs it governs, where the prototype puts it.
+   *
+   * Null until a mode is picked, which is when a session — and so a
+   * first run — becomes possible at all.
+   * =====================================================================
    */
-  const [testDraft, setTestDraft] = useState<DrillDraft | null>(null);
+  const [sessionDraft, setSessionDraft] = useState<DrillDraft | null>(null);
   const [ranSeconds, setRanSeconds] = useState(0);
   const [saving, setSaving] = useState(false);
   /** What the item reads after the session was written, and how it was
@@ -684,8 +719,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
             else void finishPracticeDrill(feel, currentRunSeconds);
           }}
           onStartRun={() => {
-            if (mode === 'test' && testDraft !== null) setDraft(testDraft);
-            else setDraft(newDraft());
+            // THE SESSION'S SETTINGS, whichever shape asked for the
+            // run. The strip has no room to draw them, so it inherits
+            // what the panel is holding.
+            setDraft(sessionDraft ?? newDraft());
             beginRun();
           }}
           // A TEST RUN ENDS BY RATING IT. Null is the absence of a
@@ -762,7 +799,19 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           // the whole sitting.
           surface.onSessionStart?.();
           setMode(next);
-          setTestDraft(next === 'test' ? newDraft() : null);
+          // THE SETTINGS EXIST FROM THE MOMENT A SESSION DOES, in both
+          // modes, because both draw them on the session screen. A
+          // test's are then fixed for its three runs; practice's move
+          // with each one.
+          setSessionDraft({
+            ...newDraft(),
+            // NOTHING TO PICK MEANS NOTHING PICKED FROM. A surface with
+            // one rate option starts on it rather than on `newDraft`'s
+            // default — they agree today, and a surface whose sole
+            // option was not 1 would otherwise run at a rate nobody
+            // chose and nothing displayed.
+            per: surface.rateOptions[0]?.per ?? newDraft().per,
+          });
           setStep('session');
         }} />
       )}
@@ -835,8 +884,8 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           drills={drills}
           saving={saving}
           surface={surface}
-          testDraft={testDraft}
-          onTestDraftChange={setTestDraft}
+          draft={sessionDraft}
+          onDraftChange={setSessionDraft}
           metronomeOn={metronomePlaying}
           /* RATED WHERE IT WAS PLAYED — under the run-throughs list and
              above Open Lead Sheet, exactly as the prototype draws it. */
@@ -871,41 +920,12 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           ladder={ladder}
           paused={paused}
           onStartDrill={() => {
-            // A TEST'S SETTINGS ARE ALREADY ANSWERED. They were asked
-            // once above the circles, so pressing Start starts a run
-            // rather than opening a form behind a button that said
-            // Start.
-            if (mode === 'test' && testDraft !== null) {
-              setDraft(testDraft);
-              beginRun();
-              return;
-            }
-            const draft = newDraft();
-            if (setupHasSomethingToSet(surface)) {
-              setDraft(draft);
-              setStep('setup');
-              return;
-            }
-            // NOTHING TO SET, SO NOTHING TO SHOW. The rate comes from
-            // the surface's sole option rather than from `newDraft`'s
-            // default — they agree today, and a surface whose single
-            // option was not 1 would otherwise start a run at a rate
-            // nobody chose and nothing displayed.
-            setDraft({ ...draft, per: surface.rateOptions[0]?.per ?? draft.per });
+            // ONE PRESS. The settings were answered on this screen, in
+            // both modes, so Start starts a run rather than opening a
+            // form behind a button that said Start.
+            setDraft(sessionDraft ?? newDraft());
             beginRun();
           }}
-        />
-      )}
-
-      {!confirmingCancel && step === 'setup' && draft !== null && mode !== null && (
-        <SetupStep
-          mode={mode}
-          seconds={sessionSeconds}
-          draft={draft}
-          surface={surface}
-          onChange={setDraft}
-          onStart={beginRun}
-          onCancel={() => { setDraft(null); setStep('session'); }}
         />
       )}
 
@@ -1161,7 +1181,7 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 // ---------------------------------------------------------------------
 
 function SessionStep({
-  mode, seconds, drills, saving, surface, testDraft, onTestDraftChange,
+  mode, seconds, drills, saving, surface, draft, onDraftChange,
   metronomeOn, rating, runSeconds, runLive, onEndRun, ladder, paused,
   onStartDrill,
 }: {
@@ -1170,9 +1190,9 @@ function SessionStep({
   drills: ReadonlyArray<CompletedDrill>;
   saving: boolean;
   surface: DrillSurface;
-  /** The settings this test session's runs share. Null in practice. */
-  testDraft: DrillDraft | null;
-  onTestDraftChange: (next: DrillDraft) => void;
+  /** How the next run is set up. Null before a mode is picked. */
+  draft: DrillDraft | null;
+  onDraftChange: (next: DrillDraft) => void;
   metronomeOn: boolean;
   /** The rating box for the run just played, or null when no run is
    *  waiting to be rated. It sits where the Start button goes, because
@@ -1247,14 +1267,18 @@ function SessionStep({
         </div>
       )}
 
-      {/* ASKED ONCE, ABOVE THE RUNS THEY GOVERN. A test's three runs
-          have to be three runs of ONE thing; see `DrillSettings`. */}
-      {mode === 'test' && testDraft !== null && setupHasSomethingToSet(surface) && (
+      {/* ON THIS SCREEN, ABOVE THE RUNS THEY GOVERN, IN BOTH MODES.
+          A test's three runs have to be three runs of ONE thing, so a
+          test answers this once. Practice may change it between runs,
+          and it is in front of you to change — it used to be behind
+          Start A Practice Drill, which is why starting a drill took
+          two presses of a button called Start. See `DrillSettings`. */}
+      {draft !== null && setupHasSomethingToSet(surface) && (
         <DrillSettings
           mode={mode}
-          draft={testDraft}
+          draft={draft}
           surface={surface}
-          onChange={onTestDraftChange}
+          onChange={onDraftChange}
         />
       )}
 
@@ -1303,7 +1327,13 @@ function SessionStep({
         <button
           type="button"
           onClick={onStartDrill}
-          disabled={saving || paused || (mode === 'test' && !metronomeOn)}
+          /* A STYLE IS STILL REQUIRED WHERE THERE IS ONE TO PICK. The
+             old setup screen refused to start without it; the question
+             moved onto this screen and the refusal moved with it,
+             rather than a run being written with no manner. */
+          disabled={saving || paused
+            || (mode === 'test' && !metronomeOn)
+            || (surface.hasStyle && draft?.style == null)}
           className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
         >
           {mode === 'test'
@@ -1442,64 +1472,28 @@ function DrillList({ mode, drills, surface }: {
 
 // ---------------------------------------------------------------------
 
-function SetupStep({
-  mode, seconds, draft, surface, onChange, onStart, onCancel,
-}: {
-  mode: SessionMode;
-  seconds: number;
-  draft: DrillDraft;
-  surface: DrillSurface;
-  onChange: (next: DrillDraft) => void;
-  onStart: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <SessionClockFace seconds={seconds} mode={mode} />
-      <DrillSettings mode={mode} draft={draft} surface={surface} onChange={onChange} />
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onStart}
-          disabled={draft.style === null}
-          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
-        >
-          Start Drill
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------
-
 /**
  * How long, how fast, and in what manner.
  *
  * =====================================================================
- * A TEST ASKS THIS ONCE. PRACTICE ASKS IT EVERY TIME.
+ * ON THE SESSION SCREEN, IN BOTH MODES, ABOVE THE RUNS IT GOVERNS.
  *
  * A test's three runs have to be THREE RUNS OF ONE THING. Thirty
  * seconds, then ninety, then a hundred and twenty, at three different
  * rates, are three different drills — and "three in a row" says nothing
- * about three different drills. So a test session settles this at the
- * top, on the screen that shows the circles, and every run inherits it.
+ * about three different drills. So a test answers this once and every
+ * run inherits it.
  *
- * Practice is the opposite case and keeps the per-drill form: varying
- * it between drills is the point of practising.
+ * Practice may change it between runs, and that is the point of
+ * practising. It used to change it on a SCREEN OF ITS OWN, opened by
+ * Start A Practice Drill and left by a second button also called Start
+ * Drill — so a practice run cost two presses of Start, and the session
+ * behind the form was hidden for both of them. The question is the
+ * same; it is simply in front of you now.
  *
  * IT CHANGES NOTHING ABOUT WHAT A RUN STORES. Each run still records
  * its own `ranSeconds` — what was actually played — alongside the
- * settings it inherited. What changes is how often the question is
- * asked, not what the answer is attached to.
+ * settings it was started with.
  * =====================================================================
  */
 function DrillSettings({ mode, draft, surface, onChange }: {

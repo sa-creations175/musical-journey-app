@@ -1,10 +1,10 @@
 /**
- * When the setup step has nothing to ask.
+ * When the drill settings have nothing to ask.
  *
  * =====================================================================
  * THE QUESTION IS NOT "IS THIS A SONG".
  *
- * A song skips setup because all three things that screen collects are
+ * A song draws no settings because all three things they collect are
  * already declared absent — no style, no target length, and a rate
  * picker with one option, which is not a choice. That is a property of
  * the surface, not its name.
@@ -14,9 +14,9 @@
  * and once if a song ever grows something to configure. Asking the
  * three fields handles both without anyone remembering.
  *
- * And the panel has just finished having ONE test model for every
- * surface. A song-shaped branch in the step machine would re-exception
- * it a line below where it was un-exceptioned.
+ * And the panel has ONE test model for every surface. A song-shaped
+ * branch in it would re-exception that a line below where it was
+ * un-exceptioned.
  * =====================================================================
  */
 import { describe, expect, it } from 'vitest';
@@ -55,7 +55,7 @@ describe('a surface with something to set', () => {
 
   it('the three shapes surfaces all have something', () => {
     // Guard the guard: a predicate that answered "nothing to set"
-    // everywhere would silently delete the setup screen from the app.
+    // everywhere would silently delete the settings from the app.
     expect(setupHasSomethingToSet(surface({}))).toBe(true);
   });
 });

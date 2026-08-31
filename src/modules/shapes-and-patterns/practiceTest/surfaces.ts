@@ -397,13 +397,13 @@ export interface DrillSurface {
 }
 
 /**
- * Does the setup step have anything to ask?
+ * Do the drill settings have anything to ask?
  *
  * =====================================================================
- * A STEP WITH NOTHING IN IT DOES NOT RENDER. THAT IS THE WHOLE RULE.
+ * A BLOCK WITH NOTHING IN IT DOES NOT RENDER. THAT IS THE WHOLE RULE.
  *
- * The setup step asks exactly three things, and each one is already
- * gated by a field that exists for its own reasons:
+ * The settings ask exactly three things, and each one is already gated
+ * by a field that exists for its own reasons:
  *
  *   Style       `hasStyle` — Blocked or Broken is a property of a
  *               shapes drill. A song has no equivalent.
@@ -412,8 +412,8 @@ export interface DrillSurface {
  *   Rate        `rateOptions` — a picker with ONE option is not a
  *               choice. A song has one: its own tempo.
  *
- * A song answers no to all three, so its setup screen would be a title
- * and a Start button.
+ * A song answers no to all three, so its settings block would be empty
+ * and is not drawn.
  *
  * WHY THIS AND NOT `id === 'song'`. The question being asked is not
  * "is this a song", it is "is there anything to set" — and the answer
@@ -423,9 +423,13 @@ export interface DrillSurface {
  * configure gets its setup screen back for free. Naming the surface
  * would make both of those into edits.
  *
- * The panel has just finished having ONE test model for every surface;
- * putting a song-shaped branch back in the step machine would be
- * re-exceptioning it one line below where it was un-exceptioned.
+ * The panel has ONE test model for every surface; putting a song-shaped
+ * branch back into it would be re-exceptioning it one line below where
+ * it was un-exceptioned.
+ *
+ * IT NO LONGER GATES A SCREEN. The settings used to open as a step of
+ * their own in practice — that step is gone, and this now decides
+ * whether the block appears on the session screen at all.
  * =====================================================================
  */
 export function setupHasSomethingToSet(surface: DrillSurface): boolean {
