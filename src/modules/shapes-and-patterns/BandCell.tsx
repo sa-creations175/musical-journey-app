@@ -13,52 +13,35 @@
  *
  * IT TAKES A VERDICT, NOT A BAND. `Not Started` and `Started` are not
  * bands and `banding.ts` is explicit that neither may be treated as
- * one, so the type this renders is the one that can say so. They share
- * the neutral word colour for the same reason the chord panel's chip
- * does: neither is a score, and neither is a bad one.
+ * one, so the type this renders is the one that can say so.
  *
  * Not Started is the only square with no fill at all — a dashed outline,
  * because an empty square with a solid border reads as a colour that
  * failed to load.
  */
 import { bandVerdictLabel, type BandVerdict } from '../../lib/spacing/banding';
-import type { AccuracyBand } from '../../lib/spacing/bands';
+import { statusColour } from '../../lib/spacing/statusColour';
+import { statusKeyForVerdict } from '../../lib/spacing/verdictColour';
 
 /**
- * Fill, border and word, per band.
+ * Fill and word, per verdict — from the one source.
  *
- * The Tailwind status tokens, which is what every other S&P grid
- * already paints with. `bands.ts` carries its own `hex` per band and
- * the two sets do not agree; reconciling them is its own job and
- * deliberately not this one.
- */
-const BAND_CLASS: Readonly<Record<AccuracyBand, string>> = {
-  'needs-work': 'bg-needswork/15 border-needswork/45 text-needswork',
-  'developing': 'bg-developing/15 border-developing/45 text-developing',
-  'fluent':     'bg-fluent/15 border-fluent/45 text-fluent',
-  'mastered':   'bg-mastered/15 border-mastered/45 text-mastered',
-};
-
-/** Engaged, not yet judged. A fill, so it reads as different from
- *  untouched, but no band colour — it has not earned one. */
-const STARTED_CLASS =
-  'bg-neutral-200/70 dark:bg-neutral-700/60 border-neutral-300 '
-  + 'dark:border-neutral-600 text-neutral-600 dark:text-neutral-300';
-
-const NOT_STARTED_CLASS =
-  'border-dashed border-neutral-300 dark:border-neutral-700 '
-  + 'text-neutral-400 dark:text-neutral-500';
-
-/**
- * Fill, border and word colour for a verdict.
+ * =====================================================================
+ * IT FILLED AT 15% WITH A COLOURED WORD, AND IT WAS BARELY VISIBLE.
  *
- * Exported so a legend swatch is painted by the same lookup the square
- * is, rather than by a second copy that drifts the first time one of
- * them is retuned.
+ * The song matrix filled the same four bands SOLID with white text, so
+ * one status word had two weights depending on which screen you were
+ * on: the matrix shouted and these three grids whispered. The walked
+ * scales prototype fills solid too.
+ *
+ * Solid, from `statusColour`, which every other surface now reads.
+ * Started gets the palette's light blue rather than the grey it used to
+ * take — grey was this grid's own invention and made the same word read
+ * blue on a song page and grey here.
+ * =====================================================================
  */
 export function bandCellClasses(verdict: BandVerdict): string {
-  if (verdict.kind === 'band') return BAND_CLASS[verdict.band];
-  return verdict.kind === 'started' ? STARTED_CLASS : NOT_STARTED_CLASS;
+  return statusColour(statusKeyForVerdict(verdict)).fill;
 }
 
 export interface BandCellProps {
@@ -71,8 +54,11 @@ export interface BandCellProps {
 }
 
 export default function BandCell({ verdict, title, onClick }: BandCellProps) {
+  // NO `border` IN THE BASE. A solid fill has no outline, and Not
+  // Started brings its own dashed one — a shared border class would
+  // draw a ring around every filled square.
   const base =
-    'w-full min-h-[3.1rem] px-0.5 mx-0.5 my-0.5 rounded-md border '
+    'w-full min-h-[3.1rem] px-0.5 mx-0.5 my-0.5 rounded-md '
     + 'flex items-center justify-center text-center '
     + 'text-[10px] font-semibold leading-tight tracking-tight '
     // A square is ~56px wide and "Developing" is one word wider than

@@ -24,6 +24,7 @@ import {
 } from './catalog';
 import { recordEngagement } from '../../lib/spacingState';
 import { DRILL_FLOOR_SECONDS } from '../../lib/spacing/drillSettings';
+import { feelColour } from '../../lib/spacing/statusColour';
 
 /**
  * Minimum seconds a drill must run to count as a rep.
@@ -1045,48 +1046,34 @@ export const FEEL_EMOJI: Record<Feel, string> = {
 };
 
 /**
- * Shared rating-card config for the three S&P drill modals (scales,
- * chord shapes, voice leading). Full-width tall cards, ordered worst →
- * best to match the block wrap-up screen. Colours ride the canonical
- * proficiency ramp (needswork → developing → fluent → mastered) so the
- * rating UI reads consistently with the rest of the app.
+ * Shared rating-card config. Full-width tall cards, ordered worst →
+ * best to match the block wrap-up screen.
+ *
+ * COLOURS FROM `statusColour`, which is where the rating→status
+ * alignment lives: Struggled is Needs Work, In flow is Mastered. This
+ * file spelled the four out and so did two others, so In flow could
+ * have stayed a second green while Mastered moved to blue.
  */
+const FEEL_CARD_HINT: Record<Feel, string> = {
+  1: 'breakdowns, not flowing',
+  2: 'getting there, still effortful',
+  3: 'steady, clean execution',
+  4: 'effortless, automatic',
+};
+
 export const FEEL_CARD_OPTIONS: ReadonlyArray<{
   value: Feel;
   label: string;
   hint: string;
   activeClass: string;
   inactiveClass: string;
-}> = [
-  {
-    value: 1,
-    label: feelLabel(1),
-    hint: 'breakdowns, not flowing',
-    activeClass: 'bg-needswork text-white border-needswork',
-    inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
-  },
-  {
-    value: 2,
-    label: feelLabel(2),
-    hint: 'getting there, still effortful',
-    activeClass: 'bg-developing text-white border-developing',
-    inactiveClass: 'border-developing/40 text-developing hover:bg-developing/10',
-  },
-  {
-    value: 3,
-    label: feelLabel(3),
-    hint: 'steady, clean execution',
-    activeClass: 'bg-fluent text-white border-fluent',
-    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
-  },
-  {
-    value: 4,
-    label: feelLabel(4),
-    hint: 'effortless, automatic',
-    activeClass: 'bg-mastered text-white border-mastered',
-    inactiveClass: 'border-mastered/40 text-mastered hover:bg-mastered/10',
-  },
-];
+}> = ([1, 2, 3, 4] as const).map(value => ({
+  value,
+  label: feelLabel(value),
+  hint: FEEL_CARD_HINT[value],
+  activeClass: feelColour(value).fill,
+  inactiveClass: feelColour(value).outline,
+}));
 
 /**
  * Per-item "more time" re-drill lengths shown on the assess screen of

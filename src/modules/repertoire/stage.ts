@@ -9,6 +9,7 @@ import {
 import type { DueWindows } from './matrix/keySpacing';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { TEST_RULE_SENTENCE } from './testRule';
+import { statusColour, type StatusKey } from '../../lib/spacing/statusColour';
 
 // Ordered so indexOf() gives each stage a natural rank, and the next
 // stage above any given one is just STAGES[indexOf(stage)+1].
@@ -101,31 +102,45 @@ export const STAGE_GUIDANCE: Record<RepertoireStage, string> = {
  *  original layout so the visual progression matches the ladder —
  *  `mastered` (deeper green) lives on the final stage. The info-blue
  *  that used to carry 'maintenance' left with that rung. */
-export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> = {
-  // Neutral until the ladder gets its colour scale — that is its own
-  // job, and guessing here would mean two answers to restyle later.
-  'not_started': 'bg-neutral-100 text-neutral-500 border-neutral-300',
-  // STARTED IS THE CELLS' BLUE, not a grey of its own. The matrix
-  // paints a started cell with `info` and the pill above it painted the
-  // same rung grey, so one status read two ways on one screen. Taken
-  // from `TIER_BADGE_CLASS.started` rather than picked: one rung, one
-  // colour, and no third table to keep in step.
-  'started': 'bg-info/10 text-info border-info/30',
-  'learning': 'bg-needswork/10 text-needswork border-needswork/30',
-  'comfortable': 'bg-developing/10 text-developing border-developing/30',
-  'cross-key': 'bg-fluent/10 text-fluent border-fluent/30',
-  'internalized': 'bg-mastered/10 text-mastered border-mastered/30',
+/**
+ * =====================================================================
+ * THE SONG LADDER RIDES THE STATUS PALETTE, AND FOLLOWS IT.
+ *
+ * Six rungs onto the six statuses, in order. Cross-key keeps the Fluent
+ * green; Internalized takes the royal blue Mastered moved to, so the
+ * top of a song's ladder and the top of a cell's ladder stop being two
+ * shades of the same green.
+ *
+ * ONE SOURCE, so a rung cannot end up a colour the cells below it do
+ * not use. This file used to spell the classes out and had already
+ * drifted once — Started was grey here while the matrix painted it
+ * blue, one status reading two ways on one screen.
+ * =====================================================================
+ */
+const STATUS_FOR_STAGE: Readonly<Record<RepertoireStage, StatusKey>> = {
+  'not_started': 'not-started',
+  'started': 'started',
+  'learning': 'needs-work',
+  'comfortable': 'developing',
+  'cross-key': 'fluent',
+  'internalized': 'mastered',
 };
 
-export const STAGE_DOT_CLASS: Record<RepertoireStage, string> = {
-  'not_started': 'bg-neutral-300',
-  // The cells' own fill — see STAGE_BADGE_CLASS above.
-  'started': 'bg-info/40 dark:bg-info/50',
-  'learning': 'bg-needswork',
-  'comfortable': 'bg-developing',
-  'cross-key': 'bg-fluent',
-  'internalized': 'bg-mastered',
-};
+export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> =
+  mapStages(c => c.badge);
+
+export const STAGE_DOT_CLASS: Record<RepertoireStage, string> =
+  mapStages(c => c.bar);
+
+function mapStages(
+  pick: (c: ReturnType<typeof statusColour>) => string,
+): Record<RepertoireStage, string> {
+  const out = {} as Record<RepertoireStage, string>;
+  for (const stage of Object.keys(STATUS_FOR_STAGE) as RepertoireStage[]) {
+    out[stage] = pick(statusColour(STATUS_FOR_STAGE[stage]));
+  }
+  return out;
+}
 
 /**
  * Default stage for newly-seeded / newly-added songs.

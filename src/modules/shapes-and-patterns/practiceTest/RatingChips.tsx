@@ -1,5 +1,6 @@
 import { FEEL_CARD_OPTIONS } from '../drillModel';
 import type { Feel } from '../../../lib/fluencyScale';
+import { feelColour } from '../../../lib/spacing/statusColour';
 
 /**
  * The four ratings, drawn once for the whole app.
@@ -39,13 +40,13 @@ import type { Feel } from '../../../lib/fluencyScale';
  * =====================================================================
  */
 
-/** Just the swatch's fill, pulled off the card config's border class so
- *  there is no second table of the same four colours. */
+/** Just the swatch's fill, from the one source — so a chip and the
+ *  grid square it will produce cannot be two colours. */
 const SWATCH: Record<Feel, string> = {
-  1: 'bg-needswork',
-  2: 'bg-developing',
-  3: 'bg-fluent',
-  4: 'bg-mastered',
+  1: feelColour(1).swatch,
+  2: feelColour(2).swatch,
+  3: feelColour(3).swatch,
+  4: feelColour(4).swatch,
 };
 
 interface Props {

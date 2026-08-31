@@ -14,6 +14,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ACCURACY_BANDS, FRESHNESS_LADDER, type AccuracyBand } from '../../lib/spacing/bands';
+// THE SWATCHES READ THE PALETTE. They used to read `bands.ts`'s own
+// `hex`, which was the one place in the app that painted Mastered light
+// blue while every grid painted it dark green.
+import { statusColour } from '../../lib/spacing/statusColour';
 import {
   DEFAULT_SPACING_SETTINGS, SETTINGS_PATHS, TALLY_INFO_TEXT,
   pathsSetAt, tallyAnswerCount, tallyDistinctDays, tallySummary, tallyWarnings,
@@ -281,8 +285,8 @@ export default function SpacingSettings() {
               <div key={b.id} className="min-w-[132px] rounded-md border
                 border-neutral-300 dark:border-neutral-700 px-3 py-2">
                 <div className="flex items-center gap-2 text-[13.5px] font-semibold">
-                  <span className="h-2.5 w-2.5 rounded-[2px]"
-                    style={{ background: b.hex }} aria-hidden />
+                  <span className={`h-2.5 w-2.5 rounded-[2px] ${statusColour(b.id).swatch}`}
+                    aria-hidden />
                   {b.label}
                 </div>
                 <div className="mt-0.5 font-mono text-[12.5px] text-neutral-500">
@@ -324,7 +328,20 @@ export default function SpacingSettings() {
           </span>
         </h2>
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          {/* TABLE-FIXED, AND THAT IS WHAT CLOSES THE SCROLLBAR.
+              An auto-layout table sizes every column to its widest
+              content and only then tries to honour a width class, so a
+              long category name — "Key Signatures & Relationships"
+              indented two levels — pushed the total past the container
+              and the wrapper grew a horizontal bar. Fixed layout gives
+              the seven value columns exactly what the colgroup says and
+              hands the rest to the name, which is both why nothing
+              overflows and why names now sit on one line. */}
+          <table className="w-full table-fixed border-collapse">
+            <colgroup>
+              <col />
+              {Array.from({ length: 7 }, (_, i) => <col key={i} className="w-[92px]" />)}
+            </colgroup>
             <thead>
               <tr className="text-[10.5px] uppercase tracking-[0.06em] text-neutral-400">
                 <th className="min-w-[280px] border-b border-neutral-300
@@ -335,8 +352,9 @@ export default function SpacingSettings() {
                     lines instead of the right edge reading "NEVER LO". */}
                 {['In schedule', 'Acquiring', 'Comes back in', 'Then grows by',
                   'Never longer than', 'Due soon', 'Grace after due'].map(h => (
-                  <th key={h} className="w-[92px] border-b border-neutral-300
-                    dark:border-neutral-700 px-2 py-2.5 text-right align-bottom
+                  <th key={h} className="border-b border-l border-neutral-300
+                    dark:border-neutral-700 border-l-neutral-200
+                    dark:border-l-neutral-800 px-2 py-2.5 text-right align-bottom
                     font-semibold leading-[1.25]">{h}</th>
                 ))}
               </tr>
@@ -353,7 +371,8 @@ export default function SpacingSettings() {
                 const off = !r.inSchedule;
                 const rowSongs = node.id === 'repertoire';
                 const cell = (path: SettingsPath, text: string) => (
-                  <td className={`h-9 whitespace-nowrap px-2 py-0 text-right font-mono text-[13px]
+                  <td className={`h-9 whitespace-nowrap border-l border-neutral-200
+                    dark:border-neutral-800 px-2 py-0 text-right font-mono text-[13px]
                     ${off ? 'text-neutral-400 dark:text-neutral-600'
                       : own.has(path) ? 'text-developing'
                       : r.sourceByPath[path] ? 'text-neutral-400' : 'text-neutral-400'}`}>
@@ -416,7 +435,7 @@ export default function SpacingSettings() {
                           tracking-[0.04em] text-neutral-400">out</span>
                       )}
                     </td>
-                    <td className="h-9 px-2 py-0 text-right">
+                    <td className="h-9 border-l border-neutral-200 dark:border-neutral-800 px-2 py-0 text-right">
                       <Switch
                         on={r.inSchedule}
                         disabled={off && chain.slice(0, -1).some(
@@ -434,16 +453,17 @@ export default function SpacingSettings() {
                         walked through a first-exposure tally, and the
                         column says so rather than showing a pattern
                         nothing runs. */}
-                    <td className={`h-9 whitespace-nowrap px-2 py-0 text-right font-mono text-[13px]
+                    <td className={`h-9 whitespace-nowrap border-l border-neutral-200
+                      dark:border-neutral-800 px-2 py-0 text-right font-mono text-[13px]
                       ${off ? 'text-neutral-400 dark:text-neutral-600' : 'text-neutral-400'}`}>
                       {rowSongs ? '—' : off ? '—' : acquiringSummary(r.value.acquiring.tally)}
                     </td>
                     {off
-                      ? <><td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
-                          <td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
-                          <td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
-                          <td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
-                          <td className="h-9 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td></>
+                      ? <><td className="h-9 border-l border-neutral-200 dark:border-neutral-800 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
+                          <td className="h-9 border-l border-neutral-200 dark:border-neutral-800 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
+                          <td className="h-9 border-l border-neutral-200 dark:border-neutral-800 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
+                          <td className="h-9 border-l border-neutral-200 dark:border-neutral-800 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td>
+                          <td className="h-9 border-l border-neutral-200 dark:border-neutral-800 px-2 py-0 text-right font-mono text-[13px] text-neutral-400">—</td></>
                       : <>
                           {cell('maintaining.firstWaitDays', days(r.value.maintaining.firstWaitDays))}
                           {cell('maintaining.perBand.fluent.growth', growthLabel(r.value, 'fluent'))}
@@ -458,7 +478,10 @@ export default function SpacingSettings() {
             </tbody>
           </table>
         </div>
-        <p className="border-t border-neutral-200 dark:border-neutral-800 px-4 py-2.5
+        {/* Production used to sit hard against the section's bottom edge
+            and read as cut off. */}
+        <div className="h-3" aria-hidden />
+        <p className="border-t border-neutral-200 dark:border-neutral-800 px-4 pb-4 pt-2.5
           text-[12px] text-neutral-400">
           <b className="text-neutral-500">Then grows by</b> and{' '}
           <b className="text-neutral-500">Never longer than</b> depend on the accuracy rating —
@@ -642,7 +665,15 @@ export default function SpacingSettings() {
 
           <div className="flex justify-end gap-2.5 pb-0.5 pt-2.5 text-[10.5px]
             font-semibold uppercase tracking-[0.06em] text-neutral-400">
-            <span className="min-w-[96px] text-right">Comes back in</span>
+            {/* "THEN GROWS BY", not "Comes back in". What sits under this
+                heading is the multiplier — × 1.5, × 2.5, or the
+                back-to-start mode — and the main table already calls that
+                column "Then grows by". The spec's detail panel headed it
+                "Comes back in" over the same × 1.5 values, which is the
+                spec disagreeing with itself; the table is the one that
+                reads true. "Comes back in" is the first wait, and it has
+                its own field above. */}
+            <span className="min-w-[188px] text-right">Then grows by</span>
             <span className="min-w-[96px] text-right">Never longer than</span>
           </div>
 
@@ -651,8 +682,8 @@ export default function SpacingSettings() {
               dark:border-neutral-800 py-2.5 last:border-b-0">
               <div className="flex items-center gap-3">
                 <div className="flex min-w-[126px] items-center gap-2 text-[13.5px] font-semibold">
-                  <span className="h-2.5 w-2.5 rounded-[2px]"
-                    style={{ background: band.hex }} aria-hidden />
+                  <span className={`h-2.5 w-2.5 rounded-[2px] ${statusColour(band.id).swatch}`}
+                    aria-hidden />
                   {band.label}
                 </div>
                 <div className="ml-auto flex items-center gap-2.5">
@@ -867,34 +898,45 @@ function GrowthBox({ settings, band, changed, onChange }: {
   onChange: (g: SpacingSettings['maintaining']['perBand'][AccuracyBand]['growth']) => void;
 }) {
   const growth = settings.maintaining.perBand[band].growth;
-  if (growth.kind === 'back-to-first') {
-    return (
-      <button
-        type="button"
-        onClick={() => onChange({ kind: 'multiply', factor: 1.5 })}
-        className={`w-[96px] rounded border px-2 py-1 text-right font-mono text-[13px]
-          ${changed ? 'border-developing text-developing'
-            : 'border-dashed border-neutral-400 text-neutral-500'}`}
-      >
-        back to start
-      </button>
-    );
-  }
+  const isBack = growth.kind === 'back-to-first';
+  const border = changed
+    ? 'border-developing text-developing'
+    : 'border-dashed border-neutral-400 text-neutral-500';
+
+  // A MODE, NOT A NUMBER, AND IT HAS TO BE REVERSIBLE. "Back to start"
+  // used to be a button that turned into a stepper and could never turn
+  // back. × 1 is not the same statement — that says "grow by nothing",
+  // where this says "return to the first wait every time" — so the two
+  // are picked from a list rather than one decaying into the other.
   return (
-    <input
-      type="number"
-      step={0.1}
-      min={1.1}
-      value={growth.factor}
-      onChange={e => {
-        const n = Number(e.target.value);
-        if (Number.isFinite(n) && n > 1) onChange({ kind: 'multiply', factor: n });
-      }}
-      className={`w-[96px] rounded border px-2 py-1 text-right font-mono text-[13px]
-        bg-transparent ${changed
-          ? 'border-developing text-developing'
-          : 'border-dashed border-neutral-400 text-neutral-500'}`}
-    />
+    <span className="inline-flex items-center gap-1.5">
+      <select
+        value={isBack ? 'back' : 'multiply'}
+        onChange={e => onChange(e.target.value === 'back'
+          ? { kind: 'back-to-first' }
+          : { kind: 'multiply', factor: 1.5 })}
+        aria-label="how the wait grows"
+        className={`rounded border bg-transparent px-2 py-1 text-[12.5px] ${border}`}
+      >
+        <option value="back">back to start</option>
+        <option value="multiply">multiply by</option>
+      </select>
+      {!isBack && (
+        <input
+          type="number"
+          step={0.1}
+          min={1.1}
+          value={growth.factor}
+          aria-label="growth multiplier"
+          onChange={e => {
+            const n = Number(e.target.value);
+            if (Number.isFinite(n) && n > 1) onChange({ kind: 'multiply', factor: n });
+          }}
+          className={`w-[64px] rounded border bg-transparent px-2 py-1 text-right
+            font-mono text-[13px] ${border}`}
+        />
+      )}
+    </span>
   );
 }
 

@@ -50,6 +50,7 @@ import {
   projectTestStreak, streakLowestFeel, streakPassed, type StreakRun,
 } from '../../../lib/spacing/testStreak';
 import { BAND_FOR_LOWEST } from '../../../lib/spacing/banding';
+import { statusColour } from '../../../lib/spacing/statusColour';
 import type { AccuracyBand } from '../../../lib/spacing/bands';
 import { STAGE_LABEL } from '../../repertoire/stage';
 import TestPassedScreen, {
@@ -1368,13 +1369,13 @@ interface LadderRungs {
   emphasised: boolean;
 }
 
-/** The grids' own colours, so the band does not introduce a second set
- *  for the same rungs. */
+/** The grids' own colours, from the one source, so the ladder band does
+ *  not introduce a second set for the same rungs. */
 const BAND_TONE: Record<AccuracyBand, string> = {
-  'needs-work': 'bg-needswork',
-  'developing': 'bg-developing',
-  'fluent': 'bg-fluent',
-  'mastered': 'bg-mastered',
+  'needs-work': statusColour('needs-work').bar,
+  'developing': statusColour('developing').bar,
+  'fluent': statusColour('fluent').bar,
+  'mastered': statusColour('mastered').bar,
 };
 
 function bandWord(band: AccuracyBand): string {

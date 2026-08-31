@@ -1,5 +1,6 @@
 import type { PerformanceRating } from './types';
 import { FEEL_OPTIONS } from '../fluencyScale';
+import { feelColour } from '../spacing/statusColour';
 
 /**
  * Shared 4-level feel scale for the block wrap-up "How did it go?"
@@ -20,8 +21,9 @@ import { FEEL_OPTIONS } from '../fluencyScale';
  * selected card by `feel` (1–4) for the active-highlight, NOT by the
  * collapsed rating value — otherwise both crawling cards light up.
  *
- * Colours ride the canonical proficiency ramp (needswork → developing
- * → fluent → mastered), identical to FEEL_CARD_OPTIONS in drillModel.
+ * Colours ride the canonical proficiency ramp, from `statusColour` —
+ * the same call `FEEL_CARD_OPTIONS` and the feel picker make, so the
+ * three cannot drift.
  */
 export interface BlockRatingFeelOption {
   /** 1–4 selection key (worst → best). Drives the active-highlight. */
@@ -33,24 +35,16 @@ export interface BlockRatingFeelOption {
   inactiveClass: string;
 }
 
-/** Styling stays local — a colour is not vocabulary. */
-const FEEL_CLASSES: Record<1 | 2 | 3 | 4, { activeClass: string; inactiveClass: string }> = {
-  1: {
-    activeClass: 'bg-needswork text-white border-needswork',
-    inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
-  },
-  2: {
-    activeClass: 'bg-developing text-white border-developing',
-    inactiveClass: 'border-developing/40 text-developing hover:bg-developing/10',
-  },
-  3: {
-    activeClass: 'bg-fluent text-white border-fluent',
-    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
-  },
-  4: {
-    activeClass: 'bg-mastered text-white border-mastered',
-    inactiveClass: 'border-mastered/40 text-mastered hover:bg-mastered/10',
-  },
+/**
+ * THE STYLING IS NOT LOCAL ANY MORE, and the note that said it was is
+ * why three files carried the same four colours. A rating IS aligned to
+ * a status — Struggled to Needs Work, In flow to Mastered — so the
+ * colour is part of the vocabulary after all, and `statusColour` owns
+ * it once.
+ */
+const feelClasses = (feel: 1 | 2 | 3 | 4) => {
+  const c = feelColour(feel);
+  return { activeClass: c.fill, inactiveClass: c.outline };
 };
 
 /**
@@ -65,7 +59,7 @@ export const BLOCK_RATING_FEEL_OPTIONS: ReadonlyArray<BlockRatingFeelOption> =
     feel: opt.feel,
     label: opt.label,
     rating: opt.rating as PerformanceRating,
-    ...FEEL_CLASSES[opt.feel],
+    ...feelClasses(opt.feel),
   }));
 
 /** Collapsed 3-value rating for a 4-level feel selection, or null. */

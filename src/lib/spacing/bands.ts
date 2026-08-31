@@ -26,10 +26,26 @@ export interface AccuracyBandDef {
   minPercent: number;
   /** Inclusive upper bound, in whole percent. */
   maxPercent: number;
-  /** From the spec's palette. Shared by every module — a band means
-   *  the same thing everywhere, so it cannot take a module accent. */
-  hex: string;
 }
+
+/**
+ * =====================================================================
+ * `hex` LIVED HERE AND IS GONE.
+ *
+ * It was a fifth set of colours for the same four words — a soft
+ * orange, a duller amber, a mint green and a LIGHT BLUE Mastered — and
+ * nothing else in the app agreed with any of it. Three surfaces read
+ * it: the chord breakdown panel's rating chip and two swatch lists on
+ * the spacing settings screen. So Mastered was dark green on a grid and
+ * light blue one tap into it, and light blue in settings while every
+ * grid said green.
+ *
+ * A band's colour was never this file's business. What a band is CALLED
+ * and what percentages it spans are; both stay, and both are
+ * load-bearing. The colour lives in `statusColour`, with the six
+ * statuses it is one of.
+ * =====================================================================
+ */
 
 /**
  * Worst to best, and ordered so a UI can render them without sorting.
@@ -38,10 +54,10 @@ export interface AccuracyBandDef {
  * value to fall down.
  */
 export const ACCURACY_BANDS: ReadonlyArray<AccuracyBandDef> = [
-  { id: 'needs-work', label: 'Needs work', minPercent: 0,  maxPercent: 59,  hex: '#e07a5f' },
-  { id: 'developing', label: 'Developing', minPercent: 60, maxPercent: 79,  hex: '#e0a458' },
-  { id: 'fluent',     label: 'Fluent',     minPercent: 80, maxPercent: 94,  hex: '#7dd3a0' },
-  { id: 'mastered',   label: 'Mastered',   minPercent: 95, maxPercent: 100, hex: '#6fb3e0' },
+  { id: 'needs-work', label: 'Needs work', minPercent: 0,  maxPercent: 59 },
+  { id: 'developing', label: 'Developing', minPercent: 60, maxPercent: 79 },
+  { id: 'fluent',     label: 'Fluent',     minPercent: 80, maxPercent: 94 },
+  { id: 'mastered',   label: 'Mastered',   minPercent: 95, maxPercent: 100 },
 ];
 
 const BY_ID = new Map(ACCURACY_BANDS.map(b => [b.id, b]));

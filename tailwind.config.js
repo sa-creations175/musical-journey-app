@@ -5,10 +5,26 @@ export default {
   theme: {
     extend: {
       colors: {
+        // THE STATUS PALETTE. The base hexes live here and nowhere
+        // else; `lib/spacing/statusColour.ts` owns which status wears
+        // which and how it is drawn.
+        //
+        // MASTERED WAS #0F5E47, A DARK GREEN, and Fluent is a mid
+        // green — the hardest pair in the app to tell apart on a grid
+        // of small squares, which is why the grids never read. It is a
+        // deep royal blue now, and Started moved to a pale blue in the
+        // same breath so the two cannot be confused: one is the
+        // lightest fill on the grid and the other the darkest.
         fluent: '#1D9E75',
-        mastered: '#0F5E47',
+        mastered: '#2B4FA8',
         developing: '#EF9F27',
         needswork: '#E24B4A',
+        started: '#C7DDF5',
+        // NOT A STATUS. `info` is the app's non-grading informational
+        // blue — the "compare" wash on a lead sheet, a low-priority
+        // pill, a note that is not a score. Started used to borrow it
+        // and now has its own; this stays for everything that is
+        // genuinely not a status.
         info: '#378ADD',
         // Structural green scale for the restyle (hero band, accents,
         // tints). Distinct from the functional status colours above —

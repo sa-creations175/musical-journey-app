@@ -44,6 +44,8 @@
 // surface that renders the canonical garden vocabulary — see
 // src/modules/goals/GoalFormModal.tsx::LevelSelect.
 
+import { statusColour, type StatusColour, type StatusKey } from './spacing/statusColour';
+
 export type Tier =
   | 'mastered' | 'fluent' | 'developing' | 'needsWork'
   | 'stale' | 'started' | 'untouched';
@@ -156,36 +158,53 @@ export const TIER_DESCRIPTION: Record<Tier, string> = {
   untouched: 'no attempts yet',
 };
 
-// Tailwind class literals — written out fully so JIT picks them up.
-export const TIER_BAR_CLASS: Record<Tier, string> = {
-  mastered: 'bg-mastered',
-  fluent: 'bg-fluent',
-  developing: 'bg-developing',
-  needsWork: 'bg-needswork',
-  stale: 'bg-neutral-400 dark:bg-neutral-500',
-  // Tinted, not grey. The whole point of the band is that it cannot be
-  // mistaken for the empty one — and `info` carries no accuracy meaning,
-  // so it cannot be mistaken for a grade either.
-  started: 'bg-info/40 dark:bg-info/50',
-  untouched: 'bg-neutral-200 dark:bg-neutral-700',
+/**
+ * =====================================================================
+ * THE COLOURS COME FROM `statusColour`, NOT FROM HERE.
+ *
+ * These three maps used to spell out the Tailwind classes for seven
+ * tiers, and five other files spelled out the same four colours for the
+ * same four words. Mastered was dark green here and light blue on the
+ * settings screen, one tap apart.
+ *
+ * STALE IS THE ONE TIER WITH NO STATUS BEHIND IT, and it keeps its own
+ * neutral: it is not a rung, it is a rung that has decayed, and giving
+ * it a status colour would put it on the ladder. It is also the only
+ * one of the seven that is not one of the app's six status words.
+ * =====================================================================
+ */
+const STATUS_FOR_TIER: Readonly<Record<Exclude<Tier, 'stale'>, StatusKey>> = {
+  mastered: 'mastered',
+  fluent: 'fluent',
+  developing: 'developing',
+  needsWork: 'needs-work',
+  started: 'started',
+  untouched: 'not-started',
 };
 
-export const TIER_TEXT_CLASS: Record<Tier, string> = {
-  mastered: 'text-mastered',
-  fluent: 'text-fluent',
-  developing: 'text-developing',
-  needsWork: 'text-needswork',
-  stale: 'text-neutral-500',
-  started: 'text-info',
-  untouched: 'text-neutral-400',
+/** Stale's own neutrals, in the three shapes the maps below need. */
+const STALE = {
+  bar: 'bg-neutral-400 dark:bg-neutral-500',
+  text: 'text-neutral-500',
+  badge: 'bg-neutral-200/40 text-neutral-500 border-neutral-300 '
+    + 'dark:bg-neutral-700/40 dark:border-neutral-600',
 };
 
-export const TIER_BADGE_CLASS: Record<Tier, string> = {
-  mastered: 'bg-mastered/10 text-mastered border-mastered/30',
-  fluent: 'bg-fluent/10 text-fluent border-fluent/30',
-  developing: 'bg-developing/10 text-developing border-developing/30',
-  needsWork: 'bg-needswork/10 text-needswork border-needswork/30',
-  stale: 'bg-neutral-200/40 text-neutral-500 border-neutral-300 dark:bg-neutral-700/40 dark:border-neutral-600',
-  started: 'bg-info/10 text-info border-info/30',
-  untouched: 'bg-neutral-100/50 text-neutral-500 border-neutral-200 dark:bg-neutral-800/50 dark:border-neutral-700',
-};
+function tierMap(pick: (c: StatusColour) => string, stale: string): Record<Tier, string> {
+  const out = { stale } as Record<Tier, string>;
+  for (const tier of Object.keys(STATUS_FOR_TIER) as Array<Exclude<Tier, 'stale'>>) {
+    out[tier] = pick(statusColour(STATUS_FOR_TIER[tier]));
+  }
+  return out;
+}
+
+export const TIER_BAR_CLASS: Record<Tier, string> = tierMap(c => c.bar, STALE.bar);
+export const TIER_TEXT_CLASS: Record<Tier, string> = tierMap(c => c.text, STALE.text);
+export const TIER_BADGE_CLASS: Record<Tier, string> = tierMap(c => c.badge, STALE.badge);
+
+/** The solid fill, for a surface whose whole area IS the tier — a grid
+ *  square, a matrix cell. Stale has no such surface today and takes its
+ *  bar neutral rather than inventing one. */
+export const TIER_FILL_CLASS: Record<Tier, string> = tierMap(
+  c => c.fill, `${STALE.bar} text-white`,
+);

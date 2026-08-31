@@ -1,4 +1,5 @@
 import { FEEL_OPTIONS, type Feel } from '../lib/fluencyScale';
+import { feelColour } from '../lib/spacing/statusColour';
 
 /**
  * The four-step fluency scale, drawn.
@@ -33,28 +34,31 @@ import { FEEL_OPTIONS, type Feel } from '../lib/fluencyScale';
  * active option clears it — an unrated session records the time
  * honestly rather than a middling score nobody gave.
  */
-const FEEL_STYLES: Record<Feel, { activeClass: string; inactiveClass: string; hint: string }> = {
-  1: {
-    hint: 'breakdowns',
-    activeClass: 'bg-needswork text-white border-needswork',
-    inactiveClass: 'border-needswork/40 text-needswork hover:bg-needswork/10',
-  },
-  2: {
-    hint: 'getting there',
-    activeClass: 'bg-developing text-white border-developing',
-    inactiveClass: 'border-developing/40 text-developing hover:bg-developing/10',
-  },
-  3: {
-    hint: 'steady, clean',
-    activeClass: 'bg-fluent text-white border-fluent',
-    inactiveClass: 'border-fluent/40 text-fluent hover:bg-fluent/10',
-  },
-  4: {
-    hint: 'effortless',
-    activeClass: 'bg-mastered text-white border-mastered',
-    inactiveClass: 'border-mastered/40 text-mastered hover:bg-mastered/10',
-  },
+/**
+ * THE HINTS ARE THIS FILE'S; THE COLOURS ARE NOT.
+ *
+ * Three files held a byte-identical copy of the four rating colours —
+ * here, `blockRatingOptions` and `FEEL_CARD_OPTIONS` — so recolouring
+ * the ramp was three edits. `statusColour` owns the mapping now:
+ * Struggled is Needs Work, In flow is Mastered, and In flow follows
+ * Mastered to the royal blue rather than staying a second green
+ * alongside Clean.
+ */
+const FEEL_HINT: Record<Feel, string> = {
+  1: 'breakdowns', 2: 'getting there', 3: 'steady, clean', 4: 'effortless',
 };
+
+const FEEL_STYLES: Record<Feel, { activeClass: string; inactiveClass: string; hint: string }> = {
+  1: { ...feelStyle(1), hint: FEEL_HINT[1] },
+  2: { ...feelStyle(2), hint: FEEL_HINT[2] },
+  3: { ...feelStyle(3), hint: FEEL_HINT[3] },
+  4: { ...feelStyle(4), hint: FEEL_HINT[4] },
+};
+
+function feelStyle(feel: Feel): { activeClass: string; inactiveClass: string } {
+  const c = feelColour(feel);
+  return { activeClass: c.fill, inactiveClass: c.outline };
+}
 
 export default function SessionFeelPicker({
   label,

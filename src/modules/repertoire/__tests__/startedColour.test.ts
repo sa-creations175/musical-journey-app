@@ -26,11 +26,18 @@ describe('Started', () => {
     expect(STAGE_DOT_CLASS.started).toBe(TIER_BAR_CLASS.started);
   });
 
-  it('IT IS NOT GREY', () => {
+  it('ITS FILL IS NOT GREY', () => {
     // The specific failure: `bg-neutral-100 text-neutral-600` on a rung
-    // the grid draws in `info`.
-    expect(STAGE_BADGE_CLASS.started).not.toContain('neutral');
-    expect(STAGE_DOT_CLASS.started).not.toContain('neutral');
+    // the grid draws in blue.
+    //
+    // THE FILL, NOT THE WHOLE CLASS. Started's colour is a pale blue
+    // and its INK is a neutral, because a pale blue word on a white
+    // page is unreadable — see `statusColour`. The rung's colour is
+    // what must not be grey; what is written on it is a legibility
+    // question and has a different answer.
+    expect(STAGE_BADGE_CLASS.started).toContain('bg-started');
+    expect(STAGE_BADGE_CLASS.started).not.toContain('bg-neutral');
+    expect(STAGE_DOT_CLASS.started).toBe('bg-started');
   });
 
   it('Not Started stays neutral — it is the empty one', () => {

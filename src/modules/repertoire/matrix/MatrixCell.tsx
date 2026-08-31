@@ -1,5 +1,7 @@
 import type { BandVerdict } from '../../../lib/spacing/banding';
 import { TIER_LABEL } from '../../../lib/tier';
+import { statusColour } from '../../../lib/spacing/statusColour';
+import { statusKeyForVerdict } from '../../../lib/spacing/verdictColour';
 
 /**
  * One section in one key, drawn as a filled tile with its band word
@@ -41,32 +43,27 @@ interface Props {
 }
 
 /**
- * The tile's fill, or null when there is nothing to paint.
- *
  * STARTED IS FILLED, AND NOT WITH A BAND COLOUR. It is a real state —
  * you have engaged with this — and rendering it as a dashed empty tile
  * made it look like the absence of one, indistinguishable from Not
- * Started at a glance.
- *
- * `bg-info` is what `TIER_BAR_CLASS.started` already paints it in the
- * proficiency charts, and its note there makes this exact argument:
- * "Tinted, not grey. The whole point of the band is that it cannot be
- * mistaken for the empty one — and `info` carries no accuracy meaning,
- * so it cannot be mistaken for a grade either." The same reasoning,
- * so the same colour; a second Started blue would be one too many.
+ * Started at a glance. It has its own pale blue in the palette now,
+ * rather than borrowing `info`, which is the app's non-grading
+ * informational colour and had no business carrying a rung.
  *
  * NOT STARTED STAYS EMPTY. Nothing has happened, and a fill would say
  * something has.
  */
-function fillClassFor(verdict: BandVerdict): string | null {
-  if (verdict.kind === 'started') return 'bg-info/40 dark:bg-info/50';
-  if (verdict.kind !== 'band') return null;
-  switch (verdict.band) {
-    case 'needs-work': return 'bg-needswork';
-    case 'developing': return 'bg-developing';
-    case 'fluent':     return 'bg-fluent';
-    case 'mastered':   return 'bg-mastered';
-  }
+/**
+ * FILL AND INK TOGETHER, FROM THE ONE SOURCE.
+ *
+ * This held its own four-case switch and paired every band with white
+ * and Started with `text-info` — a rule the three S&P grids did not
+ * share, so the same word was a blue tile here and a grey one there.
+ * `statusColour` owns both halves now: Started's own pale blue with a
+ * dark ink, the four bands solid with white, Not Started dashed.
+ */
+function fillClassFor(verdict: BandVerdict): string {
+  return statusColour(statusKeyForVerdict(verdict)).fill;
 }
 
 /** The word in the tile. The app's own vocabulary, from `TIER_LABEL` —
@@ -103,17 +100,7 @@ export default function MatrixCell({ verdict, title, ariaLabel, onClick }: Props
         + 'text-[10px] font-bold tracking-tight leading-none text-center px-1 '
         + (onClick ? 'cursor-pointer hover:ring-1 hover:ring-neutral-400 ' : '')
         + 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-fluent '
-        + (fill !== null
-          // White on every BAND fill — the four tokens are dark enough
-          // for it and one text colour keeps the row scanning as one
-          // thing rather than four. The Started tint is not: it is a
-          // 40% wash, so it takes `text-info`, the same pairing the
-          // charts use for a Started badge.
-          ? `${fill} ${verdict.kind === 'started' ? 'text-info' : 'text-white'}`
-          // No band, no colour. Dashed says "not filled in" the way an
-          // empty form field does.
-          : 'border border-dashed border-neutral-300 dark:border-neutral-600 '
-            + 'text-neutral-400 dark:text-neutral-500')
+        + fill
       }
     >
       {word}

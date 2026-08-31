@@ -11,7 +11,8 @@ import {
 import Modal from '../../components/Modal';
 import { rollUpVerdict } from '../../lib/spacing/rollup';
 import { bandVerdictLabel, NOT_STARTED, type BandVerdict } from '../../lib/spacing/banding';
-import { accuracyBandDef } from '../../lib/spacing/bands';
+import { statusColour } from '../../lib/spacing/statusColour';
+import { statusKeyForVerdict } from '../../lib/spacing/verdictColour';
 import { HAND_ORDER } from './acquisition';
 import DrillListModal from './DrillListModal';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
@@ -409,23 +410,23 @@ const HAND_COLUMN_LABEL: Record<DrillHand, string> = {
   both: 'Both',
 };
 
-/** Coloured square plus the word. Not Started and Started share the
- *  neutral square — neither is a band, and neither is a bad score. */
+/**
+ * Coloured square plus the word.
+ *
+ * IT READ `bands.ts`'s OWN HEX, which agreed with nothing else in the
+ * app: this panel opens from a chord grid square, and a Mastered square
+ * was dark green until you clicked it and light blue after. One source
+ * now, so the chip is the colour the square it came from was.
+ */
 function RatingChip({ verdict }: { verdict: BandVerdict }) {
-  const hex = verdict.kind === 'band' ? accuracyBandDef(verdict.band).hex : null;
+  const colour = statusColour(statusKeyForVerdict(verdict));
   return (
     <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold">
       <span
         aria-hidden
-        className={`h-2 w-2 flex-none rounded-[2px] ${hex ? '' : 'bg-neutral-400'}`}
-        style={hex ? { background: hex } : undefined}
+        className={`h-2 w-2 flex-none rounded-[2px] ${colour.swatch}`}
       />
-      <span
-        style={hex ? { color: hex } : undefined}
-        className={hex ? '' : 'text-neutral-500'}
-      >
-        {bandVerdictLabel(verdict)}
-      </span>
+      <span className={colour.text}>{bandVerdictLabel(verdict)}</span>
     </span>
   );
 }

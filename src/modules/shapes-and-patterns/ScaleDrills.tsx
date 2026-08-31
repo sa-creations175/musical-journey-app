@@ -564,10 +564,13 @@ function StatusCell({ cell, verdict, selected, onPick, keyLabel }: {
       type="button"
       onClick={() => onPick(cell)}
       aria-pressed={selected}
+      // NO `border` HERE. The fill is solid now and an outline round it
+      // would draw a grey ring on every painted cell; Not Started
+      // brings its own dashed one from `bandCellClasses`.
       className={[
-        'px-1.5 py-1 rounded-md border text-[10px] leading-tight text-left min-w-[5.5rem]',
+        'px-1.5 py-1 rounded-md text-[10px] leading-tight text-left min-w-[5.5rem]',
         bandCellClasses(verdict),
-        selected ? 'ring-2 ring-fluent' : '',
+        selected ? 'ring-2 ring-fluent ring-offset-1' : '',
       ].join(' ')}
     >
       {keyLabel && <span className="block font-mono opacity-70">{keyLabel}</span>}
