@@ -561,6 +561,16 @@ export interface LogSessionInput {
    * nothing about them.
    */
   fromTest?: boolean;
+  /**
+   * The tempo the run was played at, or omitted when nothing was
+   * sounding. Captured where the run ended; never read back off the
+   * metronome afterwards. See `DrillSession.bpm`.
+   */
+  bpm?: number;
+  /** Which sitting this run belonged to — the id the panel already
+   *  holds, and the same one the spacing rep carries. Omitted only by
+   *  a caller that has no session. See `DrillSession.sessionId`. */
+  sessionId?: string;
 }
 
 /**
@@ -639,6 +649,11 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
     // WHAT KIND OF RUN IT WAS. It arrived here already and was thrown
     // away; the row recorded the minutes and not the mode.
     ...(input.fromTest !== undefined ? { fromTest: input.fromTest } : {}),
+    // WHAT TEMPO, AND WHICH SITTING. Both arrive from the panel that
+    // ran the drill; absent stays absent rather than being recovered
+    // from the metronome's current setting or matched by timestamp.
+    ...(input.bpm !== undefined ? { bpm: Math.round(input.bpm) } : {}),
+    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
@@ -700,6 +715,16 @@ export interface LogScaleDrillSessionInput {
    *  same flag the spacing rep carries, from the same source — see
    *  `DrillSession.fromTest`. Absent counts as practice. */
   fromTest?: boolean;
+  /**
+   * The tempo the run was played at, or omitted when nothing was
+   * sounding. Captured where the run ended; never read back off the
+   * metronome afterwards. See `DrillSession.bpm`.
+   */
+  bpm?: number;
+  /** Which sitting this run belonged to — the id the panel already
+   *  holds, and the same one the spacing rep carries. Omitted only by
+   *  a caller that has no session. See `DrillSession.sessionId`. */
+  sessionId?: string;
 }
 
 /**
@@ -746,6 +771,16 @@ export interface LogVoiceLeadingDrillSessionInput {
    *  same flag the spacing rep carries, from the same source — see
    *  `DrillSession.fromTest`. Absent counts as practice. */
   fromTest?: boolean;
+  /**
+   * The tempo the run was played at, or omitted when nothing was
+   * sounding. Captured where the run ended; never read back off the
+   * metronome afterwards. See `DrillSession.bpm`.
+   */
+  bpm?: number;
+  /** Which sitting this run belonged to — the id the panel already
+   *  holds, and the same one the spacing rep carries. Omitted only by
+   *  a caller that has no session. See `DrillSession.sessionId`. */
+  sessionId?: string;
 }
 
 /**
@@ -778,6 +813,11 @@ export async function logVoiceLeadingDrillSession(
       : {}),
     ...(input.feelRating !== undefined ? { feelRating: input.feelRating } : {}),
     ...(input.fromTest !== undefined ? { fromTest: input.fromTest } : {}),
+    // WHAT TEMPO, AND WHICH SITTING. Both arrive from the panel that
+    // ran the drill; absent stays absent rather than being recovered
+    // from the metronome's current setting or matched by timestamp.
+    ...(input.bpm !== undefined ? { bpm: Math.round(input.bpm) } : {}),
+    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
@@ -800,6 +840,11 @@ export async function logScaleDrillSession(
       : {}),
     ...(input.feelRating !== undefined ? { feelRating: input.feelRating } : {}),
     ...(input.fromTest !== undefined ? { fromTest: input.fromTest } : {}),
+    // WHAT TEMPO, AND WHICH SITTING. Both arrive from the panel that
+    // ran the drill; absent stays absent rather than being recovered
+    // from the metronome's current setting or matched by timestamp.
+    ...(input.bpm !== undefined ? { bpm: Math.round(input.bpm) } : {}),
+    ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}),
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };

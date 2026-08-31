@@ -1209,6 +1209,47 @@ export interface DrillSession {
    * schema version bump and no Postgres migration.
    */
   fromTest?: boolean;
+  /**
+   * The tempo this run was actually played at, in bpm.
+   *
+   * =================================================================
+   * WHAT THE METRONOME WAS SOUNDING, NOT WHAT IT WAS SET TO.
+   *
+   * ABSENT MEANS NOTHING WAS SOUNDING, which is a real answer and not
+   * a missing one: practice runs at any speed and may run in silence,
+   * and a silent run genuinely has no tempo. Same rule the song's run
+   * log already applies to its own attempts.
+   *
+   * ABSENT ALSO COVERS EVERY LEGACY ROW, and those are not guessed at.
+   * The tempo could be read off the metronome's current setting long
+   * after the fact; that is a guess wearing a join, and a reader
+   * cannot tell it from a fact. Every reader omits the tempo rather
+   * than substituting the target or a zero.
+   *
+   * ONE SOURCE. It is captured at the moment the run ends, from the
+   * metronome the run was played to.
+   *
+   * Unindexed; rides the `data` JSONB blob across sync, so it needs no
+   * schema version bump and no Postgres migration.
+   * =================================================================
+   */
+  bpm?: number;
+  /**
+   * WHICH SITTING THIS RUN BELONGED TO.
+   *
+   * The same id the spacing rep carries, from the same source — the
+   * panel that ran the sitting. Two runs a minute apart may be two
+   * sittings and two runs an hour apart may be one; nothing but this
+   * can tell them apart, which is why it is recorded rather than
+   * reconstructed from timestamps.
+   *
+   * ABSENT ON LEGACY ROWS and never inferred. Matching a run to a
+   * sitting by timestamp is wrong the moment two runs land in the same
+   * second, and unfalsifiable once on screen.
+   *
+   * Unindexed; rides the `data` JSONB blob across sync.
+   */
+  sessionId?: string;
   notes?: string;
   timestamp: number;
 }

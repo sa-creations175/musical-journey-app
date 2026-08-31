@@ -79,8 +79,8 @@ describe('it is NOT a drill', () => {
   it('a drill DOES bill time — the contrast is the point', async () => {
     await shapes().write({
       ranSeconds: 60, targetSeconds: 60, scope: null,
-      style: 'blocked', feel: 3, fromTest: false, sessionId: 'ss-test-1',
-      streakBefore: 0,
+      style: 'blocked', feel: 3, fromTest: false, bpm: 90,
+      sessionId: 'ss-test-1', streakBefore: 0,
     });
     const type = await db.drillTypes.get('dt-1');
     expect(type?.repCount).toBe(1);
@@ -106,7 +106,6 @@ describe('every surface has one', () => {
       cellIdBySectionId: new Map(), sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => 'ss-test-1',
       expectedSectionCount: 1,
-      readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
       entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},
@@ -127,7 +126,6 @@ describe('every surface has one', () => {
       sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => 'ss-test-1',
       expectedSectionCount: 1,
-      readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
       entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},
@@ -162,7 +160,6 @@ describe('readVerdict — what the done step reports', () => {
       cellIdBySectionId: new Map(), sections: [], onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
       readSessionId: () => 'ss-test-1',
       expectedSectionCount: 1,
-      readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
       entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},

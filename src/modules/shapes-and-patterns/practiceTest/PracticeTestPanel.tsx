@@ -466,6 +466,11 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       style: d.style,
       ranSeconds: ran,
       bpm,
+      // WHAT IT WAS PLAYED TO, CAPTURED WHERE THE RUN ENDED. Not at
+      // write time: the run is rated after it stops, and the dial can
+      // move in between. Null when nothing was sounding, which is a
+      // real answer — see `DrillRecord.bpm`.
+      playedBpm: metronome.state.playing ? bpm : null,
       per: d.per,
       rate: rateFor(surface, bpm, d.per),
       belowTarget: !isAtTarget(surface, bpm, d.per),
@@ -533,6 +538,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         style: d.style,
         feel: d.feel,
         fromTest: false,
+        bpm: d.playedBpm,
         sessionId: sessionIdNow(),
         // Practice has no streak; zero is the honest value rather than
         // a number borrowed from a test.
@@ -600,6 +606,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         style: surface.hasStyle ? 'blocked' : null,
         feel: d.feel,
         fromTest: true,
+        bpm: d.playedBpm,
         sessionId: sessionIdNow(),
         streakBefore,
       });

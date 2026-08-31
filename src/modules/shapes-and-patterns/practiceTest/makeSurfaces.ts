@@ -150,6 +150,11 @@ export function chordShapeSurface(args: {
         ...(record.feel !== null
           ? { feelRating: record.feel, fromTest: record.fromTest }
           : {}),
+        // WHAT IT WAS PLAYED AT AND WHICH SITTING IT CAME FROM. Both
+        // travel on the record from the panel that watched the run;
+        // a silent run has no tempo and stays absent.
+        ...(record.bpm !== null ? { bpm: record.bpm } : {}),
+        sessionId: record.sessionId,
       });
     },
     // NO DRILL ROW. The drills already logged their own time and rep
@@ -227,6 +232,11 @@ export function scaleSurface(args: {
         // THE TIME ROW LEARNS WHAT KIND OF RUN IT WAS, from the same
         // flag the rating already rides on.
         fromTest: record.fromTest,
+        // AND WHAT IT WAS PLAYED AT, AND WHICH SITTING IT CAME FROM.
+        // Absent tempo means the run was silent, not that nobody
+        // looked.
+        ...(record.bpm !== null ? { bpm: record.bpm } : {}),
+        sessionId: record.sessionId,
       });
       await engage(args.itemRef, args.hand, record);
     },
@@ -296,6 +306,8 @@ export function voiceLeadingSurface(args: {
         targetSeconds: record.targetSeconds,
         ...(record.feel !== null ? { feelRating: record.feel } : {}),
         fromTest: record.fromTest,
+        ...(record.bpm !== null ? { bpm: record.bpm } : {}),
+        sessionId: record.sessionId,
       });
       await engage(args.itemRef, 'both', record);
     },
@@ -399,10 +411,6 @@ export function songSurface(args: {
   /** How many sections the key has, so the rollup can tell "not all
    *  comfortable" from "not all present". */
   expectedSectionCount: number;
-  /** The tempo the run was actually played at, read at the moment the
-   *  run is written. Null when nothing was sounding — a legitimate
-   *  stored value, and not the same as the song's target. */
-  readRunTempo: () => number | null;
   /** True when this key is being re-tested after lapsing. Rides onto
    *  the key run rows, which already carry the flag. */
   isRetest: boolean;
@@ -506,7 +514,14 @@ export function songSurface(args: {
       // whatever it said the day the shell took over.
       const attempt = {
         id: `run-${Math.random().toString(36).slice(2, 8)}`,
-        bpm: args.readRunTempo(),
+        // ONE SOURCE FOR "WHAT WAS IT PLAYED AT". This surface used to
+        // ask the host to read the metronome again at write time,
+        // which is a second reading of the same question a run's end
+        // has already answered — and a later one, taken after the run
+        // had been rated. The panel captures it when the run stops and
+        // it travels on the record, the same figure the drill
+        // surfaces put on their rows.
+        bpm: record.bpm,
         feel: record.feel,
       };
 

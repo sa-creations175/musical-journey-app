@@ -26,14 +26,17 @@ import {
  * one every other module's detail section uses.
  *
  * =====================================================================
- * WHAT THE LOGS DO NOT SHOW, AND WHY IT IS ABSENT RATHER THAN GUESSED.
+ * WHAT ONE RUN SAYS: RATING · LENGTH · TEMPO · WHEN · SITTING.
  *
- * A run's TEMPO and the SITTING IT CAME FROM are not recorded on a
- * drill row. The tempo could be read off the metronome's current
- * setting and the sitting matched by timestamp — both would be a guess
- * wearing a join, wrong the moment two runs land in the same second and
- * unfalsifiable once on screen. So each run shows what was recorded:
- * its rating, its length and when it was.
+ * The line the signed-off grid prototype draws, now that the row
+ * carries the last two. A run that recorded no tempo shows NO TEMPO —
+ * not a zero, not a dash that reads like a value, and not the target it
+ * was aiming at. Same for the sitting.
+ *
+ * Absent is common and honest: every row written before those fields
+ * existed has neither, and a practice run played in silence has no
+ * tempo at all. Nothing here reaches for the metronome's current
+ * setting or matches a sitting by timestamp to fill a gap.
  * =====================================================================
  */
 
@@ -65,13 +68,16 @@ interface Props {
   notCounted: ReadonlySet<DrillHand>;
   onToggleCounted: (hand: DrillHand) => void;
   onDrill: (hand: DrillHand) => void;
+  /** How long each sitting held, by id — see `sessionSecondsById`.
+   *  A run whose sitting is not in here shows no sitting. */
+  sessionSeconds: ReadonlyMap<string, number>;
   now: number;
   ref?: React.Ref<HTMLDivElement>;
 }
 
 export default function ScaleProgressDetails({
   cellLabel, hands, verdict, ruleWord, notCounted, onToggleCounted,
-  onDrill, now, ref,
+  onDrill, sessionSeconds, now, ref,
 }: Props) {
   const [openHand, setOpenHand] = useState<DrillHand | null>(null);
   const [editing, setEditing] = useState(false);
@@ -176,8 +182,18 @@ export default function ScaleProgressDetails({
                       >
                         {DRILL_LABEL[h.hand]}
                       </button>
-                      <RunLog title="Practice runs" runs={h.practiceRuns} now={now} />
-                      <RunLog title="Test runs" runs={h.testRuns} now={now} />
+                      <RunLog
+                        title="Practice runs"
+                        runs={h.practiceRuns}
+                        sessionSeconds={sessionSeconds}
+                        now={now}
+                      />
+                      <RunLog
+                        title="Test runs"
+                        runs={h.testRuns}
+                        sessionSeconds={sessionSeconds}
+                        now={now}
+                      />
                     </div>
                   )}
                 </div>
@@ -191,9 +207,10 @@ export default function ScaleProgressDetails({
 }
 
 /** One log, newest first. */
-function RunLog({ title, runs, now }: {
+function RunLog({ title, runs, sessionSeconds, now }: {
   title: string;
   runs: ReadonlyArray<DrillSession>;
+  sessionSeconds: ReadonlyMap<string, number>;
   now: number;
 }) {
   return (
@@ -213,8 +230,13 @@ function RunLog({ title, runs, now }: {
               <span className="font-medium">
                 {r.feelRating ? FEEL_WORD[r.feelRating] : 'Not rated'}
               </span>
+              {/* WHAT IS THERE, IN ORDER, AND NOTHING FOR WHAT IS NOT.
+                  A missing tempo or sitting drops its own segment and
+                  its separator with it — no placeholder takes the
+                  space, because a placeholder in a log reads as a
+                  measurement. */}
               <span className="text-neutral-500">
-                {formatDuration(r.durationSeconds)} · {formatAgo(r.timestamp, now)}
+                {runLine(r, sessionSeconds, now)}
               </span>
             </div>
           ))}
@@ -222,4 +244,24 @@ function RunLog({ title, runs, now }: {
       )}
     </div>
   );
+}
+
+/**
+ * One run's line: length, then whatever else the row recorded.
+ *
+ * The order is the prototype's — length · tempo · when · sitting — and
+ * a segment the row cannot fill is not written, separator and all.
+ */
+function runLine(
+  run: DrillSession, sessionSeconds: ReadonlyMap<string, number>, now: number,
+): string {
+  const sitting = run.sessionId === undefined
+    ? undefined
+    : sessionSeconds.get(run.sessionId);
+  return [
+    formatDuration(run.durationSeconds),
+    run.bpm !== undefined ? `${run.bpm} bpm` : null,
+    formatAgo(run.timestamp, now),
+    sitting !== undefined ? `session ${formatDuration(sitting)}` : null,
+  ].filter((part): part is string => part !== null).join(' \u00b7 ');
 }

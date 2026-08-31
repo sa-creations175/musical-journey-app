@@ -54,6 +54,16 @@ export interface CompletedDrill {
   /** Seconds actually played — the full length, or less if finished early. */
   ranSeconds: number;
   bpm: number;
+  /**
+   * WHAT THE RUN WAS ACTUALLY PLAYED TO, or null when the metronome
+   * was silent.
+   *
+   * Distinct from `bpm` directly above, which is the metronome's
+   * SETTING and is what the rate arithmetic multiplies. A run played
+   * in silence still has a setting sitting there; it does not have a
+   * tempo, and the row must be able to say so.
+   */
+  playedBpm: number | null;
   per: number;
   rate: number;
   belowTarget: boolean;

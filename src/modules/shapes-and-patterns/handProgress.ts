@@ -20,18 +20,19 @@ import type { CellTarget } from './cellTargets';
  * is asked of the source that can answer it.
  *
  * =====================================================================
- * WHAT IS NOT HERE, AND IS NOT FAKED.
+ * THE TEMPO AND THE SITTING ARE RECORDED NOW, AND STILL NEVER GUESSED.
  *
- * A run's TEMPO and the SITTING IT CAME FROM are not recorded on a
- * drill row — it carries the hand, the length, the target, the rating,
- * the timestamp and the mode, and nothing else. The prototype's log
- * shows both.
+ * A drill row carries the hand, the length, the target, the rating, the
+ * timestamp, the mode, the tempo it was played at and the sitting it
+ * belonged to. Both of the last two arrive from the panel that watched
+ * the run, at the moment it ended.
  *
- * They are not derived. The tempo could be guessed from the metronome's
- * current setting and the sitting could be matched by timestamp against
- * a spacing rep, and both would be a guess wearing a join — wrong the
- * moment two runs land in the same second, and unfalsifiable on screen.
- * So the log shows what was recorded and leaves out what was not.
+ * ABSENT STAYS ABSENT. Every row written before those fields existed
+ * has neither, and so does any run played in silence. The log omits
+ * what a row does not carry rather than reaching for the metronome's
+ * current setting or matching a sitting by timestamp — both are a guess
+ * wearing a join, wrong the moment two runs land in the same second and
+ * unfalsifiable once on screen.
  * =====================================================================
  */
 export interface HandProgress {
@@ -123,6 +124,35 @@ export function cellTime(
     practiceSeconds: hands.reduce((n, h) => n + h.practiceSeconds, 0),
     testSeconds: hands.reduce((n, h) => n + h.testSeconds, 0),
   };
+}
+
+/**
+ * How long each sitting held, by its id.
+ *
+ * =====================================================================
+ * THE SITTING IS SHOWN AS ITS SIZE, which is what the signed-off grid
+ * prototype draws beside each run: `session 25m`. An id means nothing
+ * to a reader; how much drilling the sitting held says which one it was
+ * and what it amounted to.
+ *
+ * SUMMED FROM THE ROWS THAT NAME IT, over every row passed in rather
+ * than only the hand being read — a sitting is a sitting whatever it
+ * touched. A row with no sitting recorded contributes to nothing and
+ * gets no entry, so a legacy run has no session to show and shows none.
+ *
+ * IT IS THE DRILLED TIME, not the wall clock: the minutes between runs
+ * are on no row here and are not invented.
+ * =====================================================================
+ */
+export function sessionSecondsById(
+  sessions: ReadonlyArray<DrillSession>,
+): ReadonlyMap<string, number> {
+  const totals = new Map<string, number>();
+  for (const s of sessions) {
+    if (s.sessionId === undefined) continue;
+    totals.set(s.sessionId, (totals.get(s.sessionId) ?? 0) + (s.durationSeconds || 0));
+  }
+  return totals;
 }
 
 /** `1h 04m`, `12m`, `—` for nothing at all. */

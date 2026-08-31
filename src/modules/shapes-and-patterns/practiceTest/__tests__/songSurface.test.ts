@@ -41,7 +41,6 @@ function surface(songTempo: number | null = 90, entry: 'section' | 'whole-song' 
     readSessionElapsedMs: () => 0,
     readSessionId: () => SESSION,
     expectedSectionCount: BY_SECTION.size,
-    readRunTempo: () => RUN_BPM,
     songTitle: 'No Weapon',
     spelledKeyName: 'A\u266d',
     renderBadgePreview: () => null, renderMetronome: () => null,
@@ -70,6 +69,10 @@ const run = (over: Partial<DrillRecord> = {}): DrillRecord => ({
   style: null,
   feel: 3,
   fromTest: false,
+  // WHAT THE RUN WAS PLAYED AT. It travels on the record now — the
+  // panel reads the metronome when the run stops, rather than the
+  // surface asking the host for it again at write time.
+  bpm: RUN_BPM,
   sessionId: SESSION,
   streakBefore: STREAK_BEFORE,
   ...over,
@@ -281,18 +284,11 @@ describe('a run writes the cell, the log and the key', () => {
   });
 
   it('a run with the metronome silent logs no tempo, not a made-up one', async () => {
-    const silent = songSurface({
-      cellLabel: '', skillLabel: '', cellId: CELL, songKeyId: KEY, songId: 's1',
-      keyName: 'Ab', cellIdBySectionId: BY_SECTION,
-      sections: SECTIONS.map(([id]) => ({ id, label: id })),
-      onOpenLeadSheet: () => {}, readSessionElapsedMs: () => 0,
-      readSessionId: () => SESSION, expectedSectionCount: BY_SECTION.size,
-      readRunTempo: () => null, isRetest: false,
-      songTitle: 'No Weapon', spelledKeyName: 'A\u266d', renderBadgePreview: () => null, renderMetronome: () => null,
-      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},
-      songTempo: 90,
-    });
-    await silent.write(run({ feel: 3 }));
+    // THE SILENCE IS ON THE RUN, not on the surface. The panel reads
+    // the metronome when the run stops and hands over what it found —
+    // null when nothing was sounding — so a silent run is a record
+    // with no tempo rather than a surface configured differently.
+    await surface(90).write(run({ feel: 3, bpm: null }));
     const rows = await db.songCellRunThroughs.where('cellId').equals(CELL).toArray();
     expect(rows[0].tempoBpm).toBeNull();
   });

@@ -39,7 +39,7 @@ import { bandCellClasses } from './BandCell';
 import {
   countFluentPlus, itemCellTargets, rowsByRefHand, sectionCells, verdictForTargets,
 } from './cellTargets';
-import { cellProgress } from './handProgress';
+import { cellProgress, sessionSecondsById } from './handProgress';
 import ScaleProgressDetails from './ScaleProgressDetails';
 import { NOT_STARTED, bandVerdictLabel, type BandVerdict } from '../../lib/spacing/banding';
 import { bandVerdictForRow } from '../../lib/spacing/row';
@@ -336,6 +336,10 @@ export default function ScaleDrills() {
             .filter(h => selected && notCounted.has(outKey(selected.itemRef, h.hand)))
             .map(h => h.hand),
         )}
+        /* THE SITTINGS, OVER EVERY ROW — a sitting is a sitting
+           whatever cell or hand it touched, so the totals are built
+           once from all of them rather than per hand. */
+        sessionSeconds={sessionSecondsById(sessions)}
         onToggleCounted={hand => {
           if (!selected) return;
           setNotCounted(prev => {

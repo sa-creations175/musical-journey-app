@@ -70,6 +70,21 @@ export interface DrillRecord {
   /** True for a rep given inside a test. Rides into the band rule. */
   fromTest: boolean;
   /**
+   * THE TEMPO THE RUN WAS PLAYED AT, or null when nothing was
+   * sounding.
+   *
+   * Read from the metronome at the moment the run ENDS, by the panel
+   * that was watching it — not at write time and not from a control's
+   * current setting, either of which could have moved while the run
+   * was being rated.
+   *
+   * NULL IS A REAL ANSWER. Practice runs at any speed and may run in
+   * silence; a silent run has no tempo, and saying so is not the same
+   * as saying it was slow. Every reader omits it rather than showing
+   * a zero or the target.
+   */
+  bpm: number | null;
+  /**
    * WHICH SESSION THIS REP HAPPENED IN.
    *
    * The band rule counts three clean runs in a row in ONE testing

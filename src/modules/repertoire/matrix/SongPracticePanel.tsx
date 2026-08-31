@@ -128,12 +128,6 @@ export default function SongPracticePanel({
       onOpenLeadSheet,
       readSessionElapsedMs: () => live.current.timer.elapsedMs,
       readSessionId: () => live.current.timer.record?.sessionId ?? null,
-      // WHAT THE METRONOME WAS AT, or nothing when it was silent. A
-      // silent run genuinely has no tempo, and the gate reads that as
-      // "cannot be verified at the target" rather than as a slow run.
-      readRunTempo: () => (
-        live.current.metro.playing ? live.current.metro.bpm : null
-      ),
       // THE TWO PAUSES, SETTLED. The panel's pause is the session's,
       // and this is how the record that owns the minutes hears it.
       // THE STORED CLOCK, STARTED. It read zero for a whole sitting
