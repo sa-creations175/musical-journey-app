@@ -103,17 +103,20 @@ function render(s: DrillSurface = surface()) {
    * reason.
    */
   /**
-   * One run, played long enough to be real, then rated.
+   * One run: started, played, ENDED, then rated.
    *
-   * TWO PRESSES, NOT THREE. There is no "Done — Rate It" any more: the
-   * rating chips are on screen while the run is going, so rating one
-   * IS finishing it. The 31 seconds are not decoration — a run under
-   * `MIN_REP_SECONDS` writes nothing, so a test that skipped the clock
-   * would assert against an empty log and pass for the wrong reason.
+   * Three presses, and the middle one is the point. Rating is not how a
+   * run ends — one tap must not mean both "I finished" and "here is how
+   * it went" — so the run is ended on purpose and rated afterwards.
+   *
+   * The 31 seconds are not decoration: a run under `MIN_REP_SECONDS`
+   * writes nothing, so a test that skipped the clock would assert
+   * against an empty log and pass for the wrong reason.
    */
   const run = async (feel: string) => {
     await pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
+    await pressStartingWith('End Test Run');
     await pressStartingWith(feel);
   };
   return {
@@ -695,6 +698,7 @@ describe('Open Lead Sheet reveals the chart without ending the session', () => {
     await r.press('Open Lead Sheet');
     await r.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('End Test Run');
     await r.pressStartingWith('Clean');
     expect(passes).toHaveBeenCalledTimes(1);
     r.unmount();
@@ -852,6 +856,7 @@ describe('one rendering of the four ratings', () => {
     await inStrip.press('Open Lead Sheet');
     await inStrip.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
+    await inStrip.pressStartingWith('End Test Run');
     await inStrip.pressStartingWith('Clean');
 
     expect(written).toHaveLength(1);
@@ -879,6 +884,7 @@ describe('one rendering of the four ratings', () => {
     await r.press('Open Lead Sheet');
     await r.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('End Test Run');
     await r.pressStartingWith('Clean');
     expect(passes).toHaveBeenCalledTimes(1);
     r.unmount();
@@ -925,6 +931,7 @@ describe('the scope picker is a practice control', () => {
     await r.pressStartingWith('Practice');
     await r.pressStartingWith('Start A Practice');
     await act(async () => { vi.advanceTimersByTime(61_000); });
+    await r.pressStartingWith('End Practice Run');
     expect(r.text()).toContain('What Was That Run');
     await r.press('Chorus');
     await r.pressStartingWith('Clean');
@@ -1015,6 +1022,7 @@ describe('playing a run does not take the screen', () => {
     await r.pressStartingWith('Test');
     await r.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('End Test Run');
     await r.pressStartingWith('Clean');
     expect(written).toHaveLength(1);
     expect(r.text()).not.toContain('Rate That Run');
@@ -1070,6 +1078,123 @@ describe('the ways out sit along the bottom', () => {
     const r = render();
     expect(r.labels()).not.toContain('Pause');
     expect(r.labels()).not.toContain('End Session');
+    r.unmount();
+  });
+});
+
+describe('a run ends explicitly, then is rated', () => {
+  const withSheet = () => surface({
+    openItem: () => {},
+    sessionMetronome: true,
+    scopeOptions: [{ id: 's1', label: 'Verse 1' }],
+    openedOnScopeId: 's1',
+  });
+
+  /** Every chip on screen, and whether it can be pressed. */
+  const chips = () => [...document.body.querySelectorAll('button')]
+    .filter(b => ['Struggled', 'Working on it', 'Clean', 'In flow']
+      .some(l => (b.textContent ?? '').trim().startsWith(l)));
+
+  it('THE CHIPS CANNOT BE TAPPED WHILE THE RUN IS GOING', async () => {
+    // One tap must not mean both "I finished" and "here is how it
+    // went". The question is present because it is next — not because
+    // it can be answered.
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    expect(chips()).toHaveLength(4);
+    expect(chips().every(b => b.hasAttribute('disabled'))).toBe(true);
+    expect(written).toHaveLength(0);
+    r.unmount();
+  });
+
+  it('says "After the run" where "Required" goes', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    expect(r.text()).toContain('Rate That Run');
+    expect(r.text()).toContain('After the run');
+    expect(r.text()).not.toContain('Required');
+    r.unmount();
+  });
+
+  it('ending the run stops the clock and lights the chips', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('End Test Run');
+
+    expect(chips().every(b => !b.hasAttribute('disabled'))).toBe(true);
+    expect(r.text()).toContain('Required');
+    expect(r.text()).not.toContain('After the run');
+    // The End button has done its job and goes.
+    expect(r.labels().some(l => l.startsWith('End Test Run'))).toBe(false);
+    r.unmount();
+  });
+
+  it('THE CLOCK STOPS — the run keeps the length it had', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    await r.pressStartingWith('End Test Run');
+    // Time passing after the run ended must not lengthen it.
+    await act(async () => { vi.advanceTimersByTime(60_000); });
+    await r.pressStartingWith('Clean');
+    expect(written[0].ranSeconds).toBe(31);
+    r.unmount();
+  });
+
+  it('practice ends with its own words', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Practice');
+    await r.pressStartingWith('Start A Practice');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+    expect(r.labels().some(l => l.startsWith('End Practice Run'))).toBe(true);
+    expect(r.labels().some(l => l.startsWith('End Test Run'))).toBe(false);
+    r.unmount();
+  });
+
+  it('a count-down drill ends ITSELF into the same state', async () => {
+    // It does not skip the rating, and it does not need the button
+    // pressed as well.
+    const shapes = surface({
+      hasStyle: true, countsUp: false, scopeOptions: null,
+      openItem: null, sessionMetronome: false,
+      rateOptions: [{ per: 1, label: 'One Shape Per Beat' }],
+    });
+    const r = render(shapes);
+    await r.pressStartingWith('Practice');
+    await r.pressStartingWith('Start A Practice');
+    await r.press('Blocked');
+    await r.press('Start Drill');
+    await act(async () => { vi.advanceTimersByTime(61_000); });
+
+    expect(r.labels().some(l => l.startsWith('End Practice Run'))).toBe(false);
+    expect(chips().every(b => !b.hasAttribute('disabled'))).toBe(true);
+    expect(r.text()).not.toContain('After the run');
+    await r.pressStartingWith('Clean');
+    expect(written[0].ranSeconds).toBe(60);
+    r.unmount();
+  });
+
+  it('THE STRIP BEHAVES THE SAME WAY', async () => {
+    const r = render(withSheet());
+    await r.pressStartingWith('Test');
+    await r.press('Open Lead Sheet');
+    await r.pressStartingWith('Start Test Run');
+    await act(async () => { vi.advanceTimersByTime(31_000); });
+
+    expect(chips()).toHaveLength(4);
+    expect(chips().every(b => b.hasAttribute('disabled'))).toBe(true);
+    await r.pressStartingWith('End Test Run');
+    expect(chips().every(b => !b.hasAttribute('disabled'))).toBe(true);
+    await r.pressStartingWith('Clean');
+    expect(written).toHaveLength(1);
+    expect(written[0].ranSeconds).toBe(31);
     r.unmount();
   });
 });

@@ -51,6 +51,21 @@ const SWATCH: Record<Feel, string> = {
 interface Props {
   onRate: (feel: Feel) => void;
   /**
+   * Present but not yet answerable.
+   *
+   * =====================================================================
+   * SHOWN INERT RATHER THAN HIDDEN, because the question is not absent
+   * — it is next. A rating box that appeared only once the run ended
+   * would be a control arriving out of nowhere at the moment you were
+   * least expecting to read something new.
+   *
+   * Rating is not how a run ends. One tap should not mean both "I
+   * finished" and "here is how it went", so the chips stay dark until
+   * the run has been ended on purpose.
+   * =====================================================================
+   */
+  disabled?: boolean;
+  /**
    * Best first, or worst first.
    *
    * The panel's rating has always read best-first and the block wrap-up
@@ -64,7 +79,7 @@ interface Props {
 }
 
 export default function RatingChips({
-  onRate, order = 'best-first', dense = false,
+  onRate, order = 'best-first', dense = false, disabled = false,
 }: Props) {
   const options = order === 'best-first'
     ? [...FEEL_CARD_OPTIONS].reverse()
@@ -77,15 +92,23 @@ export default function RatingChips({
           key={opt.value}
           type="button"
           onClick={() => onRate(opt.value)}
+          disabled={disabled}
           className={[
             'inline-flex items-center gap-1.5 rounded-md border font-medium',
             dense ? 'px-2 py-1 text-xs' : 'px-2.5 py-1.5 text-sm',
-            opt.inactiveClass,
+            disabled
+              // Grey, not merely faded: the colour is what makes a chip
+              // look answerable, so it is the colour that goes.
+              ? 'border-neutral-200 dark:border-neutral-700 text-neutral-400 cursor-not-allowed'
+              : opt.inactiveClass,
           ].join(' ')}
         >
           <span
             aria-hidden
-            className={`w-2 h-2 rounded-sm flex-none ${SWATCH[opt.value]}`}
+            className={[
+              'w-2 h-2 rounded-sm flex-none',
+              disabled ? 'bg-neutral-300 dark:bg-neutral-600' : SWATCH[opt.value],
+            ].join(' ')}
           />
           {opt.label}
         </button>

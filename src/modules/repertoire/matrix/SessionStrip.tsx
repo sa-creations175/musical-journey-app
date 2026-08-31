@@ -122,8 +122,20 @@ interface Props {
   discardedMessage: string;
   /** Whole seconds the session has run for. */
   sessionSeconds: number;
-  /** Whole seconds into the run in progress, or null when none is. */
+  /** Whole seconds into the run in progress, or null when none is.
+   *  Stays after it ends, stopped, until the run is rated. */
   runSeconds: number | null;
+  /**
+   * True while the run's clock is still going.
+   *
+   * RATING IS NOT HOW A RUN ENDS. One tap should not mean both "I
+   * finished" and "here is how it went", so while this is true the
+   * chips are shown inert and ending the run is the only thing on
+   * offer.
+   */
+  runLive: boolean;
+  /** End the run. It does not rate it — that is the next thing. */
+  onEndRun: () => void;
   /** Which run is next, for `Start Test Run {n}`. Testing only. */
   nextRunNumber: number;
   paused: boolean;
@@ -151,7 +163,8 @@ interface Props {
 export default function SessionStrip({
   kind, metronomeOn, blockReason, awaitingVerdict, onDiscardRun,
   onMetronomeStopped,
-  discardedMessage, sessionSeconds, runSeconds, nextRunNumber, paused,
+  discardedMessage, sessionSeconds, runSeconds, runLive, onEndRun,
+  nextRunNumber, paused,
   onPauseToggle, streak, streakBroken, onRate, onStartRun, onFinishRun,
   onSave, onBack,
 }: Props) {
@@ -229,14 +242,26 @@ export default function SessionStrip({
 
       {inRun ? (
         <>
-          {/* THE FOUR CHIPS ARE HOW A RUN FINISHES. On a test that is
-              the only way, which is why they sit where a Finish button
-              would otherwise be. The same component the panel uses —
-              one rendering of the four ratings, so a run rated here and
-              a run rated there are visibly the same question. */}
-          <RatingChips onRate={onRate} dense />
-          {/* PRACTICE ONLY. Null handler, null button — see the header. */}
-          {onFinishRun !== null && (
+          {/* WHILE THE CLOCK IS GOING, ENDING IT IS THE ONLY THING TO
+              DO. The chips are here, inert, because the question is not
+              absent — it is next. */}
+          {runLive && (
+            <button
+              type="button"
+              onClick={onEndRun}
+              className="px-2.5 py-1 text-xs rounded-md bg-fluent text-white font-medium hover:opacity-90"
+            >
+              {kind === 'testing' ? 'End Test Run' : 'End Practice Run'}
+            </button>
+          )}
+          {/* The same component the panel uses — one rendering of the
+              four ratings, so a run rated here and a run rated there
+              are visibly the same question. */}
+          <RatingChips onRate={onRate} dense disabled={runLive} />
+          {/* PRACTICE ONLY, and only once the run has ended — it is a
+              way to skip the RATING, not a way to end the run. Null
+              handler, null button; see the header. */}
+          {onFinishRun !== null && !runLive && (
             <button
               type="button"
               onClick={onFinishRun}

@@ -273,9 +273,24 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   const sessionSeconds = useSessionClock(
     mode !== null && !paused, surface.readSessionElapsedMs,
   );
-  // The run's own clock, stopped by a pause and by the metronome's
-  // verdict — both of which end a run rather than pausing one.
-  const runSeconds = useSessionClock(runStartedAt !== null && !paused);
+  // The run's own clock, counted from the moment IT started.
+  //
+  // NOT `useSessionClock`: that one banks its start in a ref the first
+  // time it runs and never clears it, which is right for a session and
+  // wrong for a run. Reused here it made every run after the first
+  // inherit the one before — so a drill with a sixty-second target
+  // ended the instant it began, because the clock already read past it.
+  const runSeconds = useRunClock(runStartedAt, paused);
+  /**
+   * How long the run in hand has lasted — live while it is going,
+   * frozen at what it reached once it has ended.
+   *
+   * ONE VALUE FOR BOTH SHAPES. The strip and the panel each rate a run,
+   * and each has to record the length it actually had; reading the live
+   * clock after the run ended gave zero, and a zero-length run is "too
+   * short" and is silently never written.
+   */
+  const currentRunSeconds = runStartedAt !== null ? runSeconds : ranSeconds;
   const clockHasRun = mode !== null && step !== 'done';
 
   /**
@@ -645,7 +660,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           onMetronomeStopped={onMetronomeStopped}
           discardedMessage={discardedMessage}
           sessionSeconds={sessionSeconds}
-          runSeconds={runStartedAt === null && !awaitingVerdict ? null : runSeconds}
+          /* SHOWN WHILE RUNNING AND AFTER, stopped, until it is rated. */
+          runSeconds={runStartedAt !== null || awaitingRating ? currentRunSeconds : null}
+          runLive={runStartedAt !== null}
+          onEndRun={() => endRun(runSeconds)}
           nextRunNumber={drills.length + 1}
           paused={paused}
           onPauseToggle={togglePause}
@@ -655,10 +673,8 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
             && drills.length > 0
             && streakRun(drills[drills.length - 1]).counts}
           onRate={feel => {
-            // THE LIVE FIGURE, because the strip has no rate step to
-            // bank it in on the way through.
-            if (mode === 'test') void finishTestDrill(feel, runSeconds);
-            else void finishPracticeDrill(feel, runSeconds);
+            if (mode === 'test') void finishTestDrill(feel, currentRunSeconds);
+            else void finishPracticeDrill(feel, currentRunSeconds);
           }}
           onStartRun={() => {
             if (mode === 'test' && testDraft !== null) setDraft(testDraft);
@@ -668,7 +684,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           // A TEST RUN ENDS BY RATING IT. Null is the absence of a
           // handler, which is what makes the button absent.
           onFinishRun={mode === 'practice'
-            ? () => void finishPracticeDrill(null, runSeconds)
+            ? () => void finishPracticeDrill(null, currentRunSeconds)
             : null}
           onSave={() => { setView('panel'); setStep(mode === 'practice' ? 'wrap' : 'session'); }}
           onBack={() => setView('panel')}
@@ -811,9 +827,15 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           metronomeOn={metronomePlaying}
           /* RATED WHERE IT WAS PLAYED — under the run-throughs list and
              above Open Lead Sheet, exactly as the prototype draws it. */
-          runSeconds={runStartedAt === null ? null : runSeconds}
+          /* SHOWN WHILE RUNNING AND AFTER, stopped. A clock that
+             vanished the moment the run ended would take the run's
+             length away at the moment you are being asked about it. */
+          runSeconds={runStartedAt !== null || awaitingRating ? currentRunSeconds : null}
+          runLive={runStartedAt !== null}
+          onEndRun={() => endRun(runSeconds)}
           rating={(runStartedAt !== null || awaitingRating) && draft !== null ? (
             <RunRatingBox
+              live={runStartedAt !== null}
               awaitingVerdict={awaitingVerdict}
               onDiscardRun={discardRun}
               surface={surface}
@@ -824,16 +846,13 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
               /* THE LENGTH IT ACTUALLY HAD. While the run is going
                  that is the live clock; once it has stopped it is
                  whatever it stopped at. */
-              ranSeconds={runStartedAt !== null ? runSeconds : ranSeconds}
+              ranSeconds={currentRunSeconds}
               index={drills.length + 1}
               onRate={(feel: Feel) => {
-                const ran = runStartedAt !== null ? runSeconds : ranSeconds;
-                if (mode === 'test') void finishTestDrill(feel, ran);
-                else void finishPracticeDrill(feel, ran);
+                if (mode === 'test') void finishTestDrill(feel, currentRunSeconds);
+                else void finishPracticeDrill(feel, currentRunSeconds);
               }}
-              onSkip={() => void finishPracticeDrill(
-                null, runStartedAt !== null ? runSeconds : ranSeconds,
-              )}
+              onSkip={() => void finishPracticeDrill(null, currentRunSeconds)}
             />
           ) : null}
           ladder={ladder}
@@ -1020,6 +1039,26 @@ function SectionLabel({ children, hint }: {
 }
 
 /**
+ * Seconds since THIS run started, or zero when none has.
+ *
+ * A run's clock restarts every time; a session's does not. Sharing one
+ * hook between them is what made the second run of a session begin
+ * already past its target.
+ */
+function useRunClock(startedAt: number | null, paused: boolean): number {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (startedAt === null) { setSeconds(0); return; }
+    if (paused) return;
+    const tick = () => setSeconds(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [startedAt, paused]);
+  return seconds;
+}
+
+/**
  * A clock, named.
  *
  * THE APP NEVER SAYS "SESSION" OR "RUN" ON ITS OWN, so the default is
@@ -1090,7 +1129,8 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 
 function SessionStep({
   mode, seconds, drills, saving, surface, testDraft, onTestDraftChange,
-  metronomeOn, rating, runSeconds, ladder, paused, onStartDrill,
+  metronomeOn, rating, runSeconds, runLive, onEndRun, ladder, paused,
+  onStartDrill,
 }: {
   mode: SessionMode;
   seconds: number;
@@ -1109,6 +1149,10 @@ function SessionStep({
   /** Seconds into the run being played, or null when none is. It sits
    *  BESIDE the session's clock rather than replacing the screen. */
   runSeconds: number | null;
+  /** True while the run's clock is still going. */
+  runLive: boolean;
+  /** End the run. It does not rate it — that is the next thing. */
+  onEndRun: () => void;
   /** The rungs this test moves between, or null before the item's
    *  current standing has been read. */
   ladder: LadderRungs | null;
@@ -1210,6 +1254,18 @@ function SessionStep({
       {rating}
 
       <div className="flex items-center gap-2 flex-wrap">
+        {/* WHILE THE CLOCK IS GOING, ENDING IT IS THE ONLY THING TO DO,
+            so it is the one highlighted action. Rating comes after, and
+            the box above says so rather than offering itself. */}
+        {runLive && (
+          <button
+            type="button"
+            onClick={onEndRun}
+            className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
+          >
+            {mode === 'test' ? 'End Test Run' : 'End Practice Run'}
+          </button>
+        )}
         {rating === null && (
         <button
           type="button"
@@ -1517,9 +1573,17 @@ function DrillSettings({ mode, draft, surface, onChange }: {
  * =====================================================================
  */
 function RunRatingBox({
-  awaitingVerdict, onDiscardRun,
+  live, awaitingVerdict, onDiscardRun,
   mode, ranSeconds, index, surface, openedOn, scope, onScope, onRate, onSkip,
 }: {
+  /**
+   * The run is still being played.
+   *
+   * The box is here either way — the question is not absent, it is
+   * next — but it cannot be answered until the run has been ended on
+   * purpose. Rating is not how a run ends.
+   */
+  live: boolean;
   /** The run ended because the metronome stopped, and the question
    *  has not been answered. */
   awaitingVerdict: boolean;
@@ -1624,16 +1688,23 @@ function RunRatingBox({
       )}
 
       <div>
-        <SectionLabel hint={mode === 'test' ? 'Required' : 'Optional'}>Rate That Run</SectionLabel>
+        {/* THE HEADING DOES NOT MOVE; the hint beside it does. "After
+            the run" is the whole of what changes when the clock stops,
+            so the box does not appear to become a different control. */}
+        <SectionLabel
+          hint={live ? 'After the run' : (mode === 'test' ? 'Required' : 'Optional')}
+        >
+          Rate That Run
+        </SectionLabel>
         {/* BEST FIRST, and the one rendering of the four ratings. The
             block wrap-up reads worst-first and says so; the direction
             is the caller's, not the component's. */}
-        <RatingChips onRate={onRate} order="best-first" />
+        <RatingChips onRate={onRate} order="best-first" disabled={live} />
       </div>
 
       {/* NO SKIP IN A TEST. Every one of the three is rated — that is
           what makes the lowest of them mean anything. */}
-      {mode === 'practice' && (
+      {mode === 'practice' && !live && (
         <button
           type="button"
           onClick={onSkip}

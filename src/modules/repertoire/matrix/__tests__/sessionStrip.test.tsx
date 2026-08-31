@@ -42,6 +42,8 @@ function render(over: Partial<React.ComponentProps<typeof SessionStrip>> = {}) {
     onDiscardRun: () => {},
     onMetronomeStopped: () => {},
     discardedMessage: '',
+    runLive: false,
+    onEndRun: () => {},
     sessionSeconds: 1361,       // 22:41
     runSeconds: null,
     nextRunNumber: 1,
