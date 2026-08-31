@@ -139,7 +139,7 @@ export function GlobalSessionBanner() {
   const blockRemainingMs = activeBlock ? times.drillRemainingMs : 0;
 
   // Phase 5 — prominent drill countdown for non-scale blocks (scales run
-  // their own per-cell timer inside ScalesDrillModal, so we leave their
+  // their own per-cell timer inside the session panel, so we leave their
   // banner treatment alone). Turns the warning colour at ≤3s remaining.
   const isScaleRunner = state.inSessionDrillActive;
   const inDrill = times.blockPhase === 'drill';

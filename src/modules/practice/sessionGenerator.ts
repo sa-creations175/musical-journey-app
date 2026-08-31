@@ -2188,7 +2188,7 @@ function toProposalBlocks(
         whySnippet: seg.why,
         itemRefs: seg.itemRefs,
         isWarmup: seg.kind === 'scales',
-        // shapes-walk segments open DrillSessionModal in place — the
+        // shapes-walk segments open the session panel in place — the
         // block's chord-shape itemRefs walk through one drill at a
         // time without dumping the user out of the session. Mirrors
         // the scale-prep `'scales'` pattern.
@@ -2250,7 +2250,7 @@ function toProposalBlocks(
               quickLaunchRoute: `/ear-training/chord-progression-quiz?session=1&songId=${encodeURIComponent(s.songId)}`,
             }
           : {}),
-        // Scale-prep blocks open ScalesDrillModal in place on the
+        // Scale-prep blocks open the session panel in place on the
         // session screen — no navigation away from the proposal. The
         // block's itemRefs drive which cells the modal walks through.
         // SessionBlock consumes this flag and renders the modal as an

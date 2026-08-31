@@ -37,8 +37,8 @@ export const MIN_REP_SECONDS = DRILL_FLOOR_SECONDS;
 
 /**
  * Brief two-tone cue played when a countdown drill timer hits zero.
- * Lives at module scope so DrillSessionModal, ScalesDrillModal, and
- * VoiceLeadingDrillModal all share the same end-of-drill audio
+ * Lives at module scope so every surface that ends a drill shares
+ * the same end-of-drill audio
  * signature. Intentionally short + distinct so a finished drill
  * feels like a timed block. Audio import is dynamic so the module
  * stays tree-shake-friendly for non-modal callers.
@@ -467,7 +467,7 @@ export function labelForShapesItemRef(itemRef: string): string | null {
 
 /**
  * Resolve a chord-shape spacingState itemRef to the DrillSkill +
- * lowest-order DrillType needed to launch DrillSessionModal. Used by
+ * lowest-order DrillType needed to launch the session panel. Used by
  * SessionBlock's in-session chord-shape walk: each itemRef in the
  * block opens as its own drill modal in sequence.
  *

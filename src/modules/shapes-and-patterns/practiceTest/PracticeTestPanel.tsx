@@ -40,7 +40,7 @@ import DrillMetronomeSetup from '../DrillMetronomeSetup';
 import { useMetronomeState } from '../../../lib/useMetronome';
 import MetronomeControl from '../../../components/MetronomeControl';
 import { metronome } from '../../../lib/metronome';
-import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS } from '../drillModel';
+import { FEEL_CARD_OPTIONS, MIN_REP_SECONDS, playDrillEndCue } from '../drillModel';
 import type { Feel } from '../../../lib/fluencyScale';
 import {
   isAtTarget, rateFor, setupHasSomethingToSet, type DrillSurface,
@@ -394,6 +394,12 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
   useEffect(() => {
     if (runStartedAt === null || runTarget === null) return;
     if (runSeconds < runTarget) return;
+    // THE TWO-TONE END CUE, KEPT. It belonged to the drill pop-up, and
+    // the pop-up is gone — a countdown that reaches zero in silence
+    // asks you to be watching the screen you were told not to need.
+    // Only a run that ended BY ITS TARGET sounds it: ending a run by
+    // hand needs no announcement, you just did it.
+    void playDrillEndCue();
     endRun(runTarget);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runSeconds, runStartedAt, runTarget]);

@@ -6,7 +6,7 @@
  * Unlike scale cells (resolved synchronously from the itemRef),
  * chord-shape cells are DB rows: each itemRef maps to a DrillSkill
  * (materialised on first touch via findOrCreateSkill) plus a DrillType
- * for DrillSessionModal. Resolution is therefore async — the runner
+ * for the session panel. Resolution is therefore async — the runner
  * awaits it before mounting the first modal.
  */
 import { db, type DrillSkill, type DrillType } from '../../lib/db';

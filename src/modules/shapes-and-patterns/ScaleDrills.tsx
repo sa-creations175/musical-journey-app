@@ -7,10 +7,10 @@
  * fan out to one row per starting point (1/5/6 for major, 1/b3/b7
  * for minor) so the user can see per-sp progress at a glance.
  *
- * Tapping a cell asks which hand, then opens the Practice/Test shell
- * on it — the same shell chord shapes and voice-leading use. The old
- * ScalesDrillModal is still reached by the in-session runner and is
- * not retired here.
+ * Tapping a cell fills Progress Details below it; a hand inside that
+ * opens the Practice/Test panel — the same panel chord shapes,
+ * voice-leading, songs and the in-session runner all use. There is no
+ * second way to run a scale drill any more.
  *
  * No DrillSkill / DrillType / DrillSession rows are written by
  * this surface — the Scales catalog is static, spacingState is

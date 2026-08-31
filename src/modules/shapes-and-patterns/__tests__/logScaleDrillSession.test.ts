@@ -2,7 +2,7 @@
 /**
  * Phase B Step 2 — Scales drill attempt counting.
  *
- * ScalesDrillModal historically only wrote spacingState, so scale
+ * The scales drill historically only wrote spacingState, so scale
  * practice was invisible to getWeeklyAttempts (which tallies S&P
  * attempts from db.drillSessions). `logScaleDrillSession` closes
  * that gap: it writes a well-formed DrillSession row for each scale

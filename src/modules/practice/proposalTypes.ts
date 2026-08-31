@@ -73,10 +73,10 @@ export interface ProposalBlock {
   /** When set, tapping the block opens the matching drill modal in
    *  place rather than navigating away from the session. Supported
    *  kinds:
-   *    · `'scales'`       — scale-prep blocks → ScalesDrillModal,
+   *    · `'scales'`       — scale-prep blocks → the session panel,
    *      with the block's `itemRefs` driving which cells to drill in
    *      sequence.
-   *    · `'chord-shapes'` — shapes-walk segments → DrillSessionModal,
+   *    · `'chord-shapes'` — shapes-walk segments → the session panel,
    *      with each chord-shape itemRef opening as its own drill in
    *      sequence (skill + drillType resolved from the itemRef).
    *  Wins over `quickLaunchRoute` at the block surface. */

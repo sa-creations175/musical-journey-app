@@ -98,7 +98,7 @@ const DRILL_ADJUST_OPTIONS: ReadonlyArray<{ label: string; deltaSec: number }> =
 
 // Rating-screen extend pills — absolute re-drill lengths ("drill again
 // for exactly this long"). No −30s here (that only adjusts the planned
-// total on the prep screen). ScalesDrillModal keeps its own matching
+// total on the prep screen). The scales walk keeps its own matching
 // copy for the per-item rating extend.
 const EXTEND_DRILL_OPTIONS: ReadonlyArray<{ label: string; seconds: number }> = [
   { label: '+30s', seconds: 30 },

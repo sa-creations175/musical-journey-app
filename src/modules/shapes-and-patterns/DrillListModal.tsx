@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type DrillSkill, type DrillType } from '../../lib/db';
+import { db, type DrillHand, type DrillSkill, type DrillType } from '../../lib/db';
 import { bulkAddDrillSessions } from '../../lib/practiceWrites';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { useToast } from '../../components/Toaster';
-import DrillSessionModal from './DrillSessionModal';
+import PracticeTestPanel from './practiceTest/PracticeTestPanel';
+import { chordShapeSurface } from './practiceTest/makeSurfaces';
 import {
   formatDuration,
   humanAgo,
@@ -16,6 +17,30 @@ interface Props {
   skill: DrillSkill;
   onClose: () => void;
 }
+
+/**
+ * =====================================================================
+ * START DRILL OPENS THE SESSION PANEL, LIKE EVERY OTHER WAY IN.
+ *
+ * It used to open the drill pop-up: a second screen carrying the
+ * metronome and the drill length, scrolled past to reach a button also
+ * called Start Drill. That pop-up is gone, and with it the last place
+ * in the app where a run was recorded with no tempo, no sitting and no
+ * way to say it was a test.
+ *
+ * THREE HANDS, THREE OPENS. The pop-up walked left, right and both
+ * inside itself. A panel is a sitting on one thing, so the hands are
+ * stops in a sequence — the same three drills, the same three ratings,
+ * and closing one moves to the next.
+ * =====================================================================
+ */
+const HANDS: ReadonlyArray<DrillHand> = ['left', 'right', 'both'];
+
+const HAND_LABEL: Readonly<Record<DrillHand, string>> = {
+  left: 'Left Hand',
+  right: 'Right Hand',
+  both: 'Both Hands',
+};
 
 /**
  * Opens when the user taps a heat-grid cell. Shows every drill type
@@ -31,7 +56,11 @@ export default function DrillListModal({ skill, onClose }: Props) {
   ) ?? [];
 
   const { toast } = useToast();
-  const [activeDrill, setActiveDrill] = useState<DrillType | null>(null);
+  /** The drill type being run, and which hand of it. Null when the
+   *  panel is closed. */
+  const [activeDrill, setActiveDrill] = useState<
+    { drillType: DrillType; handIdx: number } | null
+  >(null);
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [adding, setAdding] = useState(false);
@@ -205,7 +234,7 @@ export default function DrillListModal({ skill, onClose }: Props) {
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button
-                    onClick={() => setActiveDrill(d)}
+                    onClick={() => setActiveDrill({ drillType: d, handIdx: 0 })}
                     className="px-3 py-1 rounded-md bg-fluent text-white text-xs font-medium hover:opacity-90"
                   >
                     Start Drill
@@ -280,11 +309,26 @@ export default function DrillListModal({ skill, onClose }: Props) {
       </div>
 
       {activeDrill && (
-        <DrillSessionModal
-          skill={skill}
-          drillType={activeDrill}
-          onClose={() => setActiveDrill(null)}
-          onLogged={() => setActiveDrill(null)}
+        <PracticeTestPanel
+          // Keyed on the hand, so a sitting ends with the hand it was
+          // about rather than carrying into the next one.
+          key={`${activeDrill.drillType.id}:${activeDrill.handIdx}`}
+          surface={chordShapeSurface({
+            cellLabel: skill.label ?? skill.id,
+            skillLabel: `${activeDrill.drillType.name} · ${
+              HAND_LABEL[HANDS[activeDrill.handIdx]]
+            }`,
+            skill,
+            drillType: activeDrill.drillType,
+            hand: HANDS[activeDrill.handIdx],
+          })}
+          // Closing is moving to the next hand; past the last one the
+          // walk is over and the list is back.
+          onClose={() => setActiveDrill(prev => (
+            prev !== null && prev.handIdx + 1 < HANDS.length
+              ? { ...prev, handIdx: prev.handIdx + 1 }
+              : null
+          ))}
         />
       )}
 

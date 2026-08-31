@@ -12,16 +12,57 @@
  * Uncontrolled by default. Pass `expanded` + `onToggle` for
  * controlled use (e.g. a "expand all" toggle in a parent).
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { DrillSkill, DrillType } from '../../lib/db';
 import { moduleMetaById } from '../../lib/moduleMeta';
 import { formatActiveTime } from '../../lib/sessionTimer/formatActiveTime';
-import DrillSessionModal from '../shapes-and-patterns/DrillSessionModal';
-import ScalesDrillModal from '../shapes-and-patterns/ScalesDrillModal';
 import { drillContextForChordShapeItemRef } from '../shapes-and-patterns/drillModel';
-import { scaleCellForItemRef } from '../shapes-and-patterns/scaleSkills';
+import { scaleCellForItemRef, scaleCellLabel } from '../shapes-and-patterns/scaleSkills';
+import {
+  chordShapeSurface, scaleSurface,
+} from '../shapes-and-patterns/practiceTest/makeSurfaces';
+import PracticeTestPanel from '../shapes-and-patterns/practiceTest/PracticeTestPanel';
+import { useSpelling } from '../../lib/spellingPref';
+import type { DrillSurface } from '../shapes-and-patterns/practiceTest/surfaces';
+import type { DrillHand } from '../../lib/db';
 import type { ProposalBlock } from './proposalTypes';
+
+/**
+ * =====================================================================
+ * THE BLOCK OPENS THE SESSION PANEL, NOT A DRILL POP-UP.
+ *
+ * Pressing start drill here used to open a pop-up that WAS a second
+ * start screen: the metronome and the drill length, scrolled past to
+ * reach a button also called Start Drill. Two presses of Start before
+ * anything counted down.
+ *
+ * It also had no test mode, so it wrote `fromTest: false` on every run
+ * it recorded — a run started inside a generated session could not be
+ * a test, and the row could not say otherwise. The panel asks, so it
+ * can.
+ *
+ * THREE HANDS, THREE OPENS. The pop-up walked left, right and both
+ * inside itself. A panel is a sitting on one thing, so the hands are
+ * stops in the sequence instead — the same three drills and the same
+ * three ratings.
+ * =====================================================================
+ */
+
+/** One item the block will open the panel on. */
+interface PanelStop {
+  /** Stable identity, so the panel remounts between items. */
+  key: string;
+  surface: DrillSurface;
+}
+
+/** The order a cell has always been walked in. */
+const HANDS: ReadonlyArray<DrillHand> = ['left', 'right', 'both'];
+
+const HAND_LABEL: Readonly<Record<DrillHand, string>> = {
+  left: 'Left Hand',
+  right: 'Right Hand',
+  both: 'Both Hands',
+};
 
 interface Props {
   block: ProposalBlock;
@@ -51,20 +92,20 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
   const isControlled = expanded !== undefined;
   const isExpanded = isControlled ? !!expanded : internalExpanded;
 
-  // Index of the scale cell currently open in ScalesDrillModal for
-  // an in-session scale-prep drill. null = no modal open. On save the
-  // index advances to the next itemRef; when it walks past the end
-  // (or the user dismisses) the modal closes and the user is back at
-  // the session screen — no navigation away.
-  const [scalesCellIdx, setScalesCellIdx] = useState<number | null>(null);
-
-  // In-session chord-shapes drill state — mirrors the scales pattern
-  // but resolves the skill + drillType asynchronously per itemRef.
-  // `idx` tracks position in the block's itemRefs sequence; the
-  // resolved skill/drillType pair drives the active DrillSessionModal.
-  const [activeChordShape, setActiveChordShape] = useState<
-    { idx: number; itemRef: string; skill: DrillSkill; drillType: DrillType } | null
-  >(null);
+  const [spelling] = useSpelling();
+  /** The block's items as one string — `itemRefs` is a fresh array
+   *  each render, so depending on it directly would rebuild every tick. */
+  const refsKey = block.itemRefs.join('|');
+  /**
+   * Where the walk is, or null when nothing is open.
+   *
+   * The block opens the session panel on one item at a time and moves
+   * on when it closes — the same shape the in-session runner uses,
+   * without the prep screen and count-in, which belong to a session
+   * that is actually running.
+   */
+  const [stops, setStops] = useState<ReadonlyArray<PanelStop> | null>(null);
+  const [stopIdx, setStopIdx] = useState(0);
 
   const navigate = useNavigate();
   const moduleMeta = moduleMetaById(block.moduleRef);
@@ -91,29 +132,65 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
     else setInternalExpanded(v => !v);
   };
 
-  // Walk to the chord-shape itemRef at `idx`, resolving its skill +
-  // drillType. Skips unresolvable refs (rare — defensive against bad
-  // data). Closes the modal when the sequence finishes.
-  const openChordShapeAt = async (idx: number) => {
-    for (let i = idx; i < block.itemRefs.length; i++) {
-      const itemRef = block.itemRefs[i];
+  /** Every scale in the block, hand by hand. */
+  const scaleStops = useMemo<PanelStop[]>(() => inSessionScaleCells.flatMap(
+    cell => HANDS.map(hand => ({
+      key: `${cell.itemRef}:${hand}`,
+      surface: scaleSurface({
+        cellLabel: scaleCellLabel(cell, spelling),
+        skillLabel: HAND_LABEL[hand],
+        itemRef: cell.itemRef,
+        hand,
+      }),
+    })),
+  // The cells come from the block's own refs; rebuild only when those
+  // or the spelling change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [refsKey, spelling]);
+
+  /**
+   * Every chord shape in the block, hand by hand.
+   *
+   * ASYNC, because a chord-shape cell is database rows: the skill is
+   * materialised on first touch and its drill types are read back.
+   * Refs that resolve to nothing are dropped, as they always were.
+   */
+  const resolveChordShapeStops = async (): Promise<PanelStop[]> => {
+    const out: PanelStop[] = [];
+    for (const itemRef of block.itemRefs) {
       const ctx = await drillContextForChordShapeItemRef(itemRef);
-      if (ctx) {
-        setActiveChordShape({ idx: i, itemRef, ...ctx });
-        return;
+      if (!ctx) continue;
+      const cellLabel = ctx.skill.label ?? itemRef;
+      for (const hand of HANDS) {
+        out.push({
+          key: `${itemRef}:${hand}`,
+          surface: chordShapeSurface({
+            cellLabel,
+            skillLabel: `${ctx.drillType.name} · ${HAND_LABEL[hand]}`,
+            skill: ctx.skill,
+            drillType: ctx.drillType,
+            hand,
+          }),
+        });
       }
     }
-    setActiveChordShape(null);
+    return out;
+  };
+
+  const beginWalk = (next: ReadonlyArray<PanelStop>) => {
+    if (next.length === 0) return;
+    setStops(next);
+    setStopIdx(0);
   };
 
   const handleQuickLaunch = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (hasInSessionScales) {
-      setScalesCellIdx(0);
+      beginWalk(scaleStops);
       return;
     }
     if (hasInSessionChordShapes) {
-      void openChordShapeAt(0);
+      void resolveChordShapeStops().then(beginWalk);
       return;
     }
     if (route) navigate(route);
@@ -126,26 +203,24 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
 
   const tint = `${block.moduleAccentHex}14`; // ~8% alpha
 
-  const activeScalesCell =
-    scalesCellIdx !== null ? inSessionScaleCells[scalesCellIdx] ?? null : null;
-  const handleScalesModalClose = () => setScalesCellIdx(null);
-  const handleScalesLogged = () => {
-    // Walk to the next cell in the sequence — typically scale-prep
-    // carries 2 cells (e.g. major + major-pentatonic for a major key).
-    // When we run past the last one, close the modal: the user is
-    // back at the session screen with no navigation needed.
-    setScalesCellIdx(idx => {
-      if (idx === null) return null;
-      const next = idx + 1;
-      return next < inSessionScaleCells.length ? next : null;
-    });
+  const activeStop = stops?.[stopIdx] ?? null;
+  /**
+   * Closing the panel is moving on.
+   *
+   * Whichever door was used — Log Session, Cancel Session, or the
+   * plain Close before a mode was picked — this item is finished with.
+   * Walking past the last one ends the walk and leaves the user on the
+   * session screen, with no navigation away.
+   */
+  const handleStopClose = () => {
+    if (stops !== null && stopIdx + 1 < stops.length) {
+      setStopIdx(stopIdx + 1);
+      return;
+    }
+    setStops(null);
+    setStopIdx(0);
   };
-  const handleChordShapeClose = () => setActiveChordShape(null);
-  const handleChordShapeLogged = () => {
-    if (!activeChordShape) return;
-    void openChordShapeAt(activeChordShape.idx + 1);
-  };
-  const hasInSessionDrillModal = hasInSessionScales || hasInSessionChordShapes;
+  const hasInSessionDrillPanel = hasInSessionScales || hasInSessionChordShapes;
 
   return (
     <>
@@ -270,7 +345,7 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
               {block.whySnippet}
             </p>
           )}
-          {(route || hasInSessionDrillModal) && (
+          {(route || hasInSessionDrillPanel) && (
             <span
               role="button"
               tabIndex={0}
@@ -287,30 +362,20 @@ export default function SessionBlock({ block, expanded, onToggle, onDelete, onSw
                 borderColor: block.moduleAccentHex,
               }}
             >
-              <span aria-hidden>{hasInSessionDrillModal ? '▶' : '↗'}</span>
-              <span>{hasInSessionDrillModal ? 'start drill' : `open ${label}`}</span>
+              <span aria-hidden>{hasInSessionDrillPanel ? '▶' : '↗'}</span>
+              <span>{hasInSessionDrillPanel ? 'start drill' : `open ${label}`}</span>
             </span>
           )}
         </div>
       )}
     </button>
-    {activeScalesCell && (
-      <ScalesDrillModal
-        cell={activeScalesCell}
-        onClose={handleScalesModalClose}
-        onLogged={handleScalesLogged}
-      />
-    )}
-    {activeChordShape && (
-      // Key on itemRef so React fully remounts DrillSessionModal
-      // between drills — its internal setup/running/assess state
-      // and target-time picker reset cleanly for each new chord.
-      <DrillSessionModal
-        key={activeChordShape.itemRef}
-        skill={activeChordShape.skill}
-        drillType={activeChordShape.drillType}
-        onClose={handleChordShapeClose}
-        onLogged={handleChordShapeLogged}
+    {activeStop && (
+      // Keyed on the stop so React fully remounts the panel between
+      // items: a sitting ends with the thing it was about.
+      <PracticeTestPanel
+        key={activeStop.key}
+        surface={activeStop.surface}
+        onClose={handleStopClose}
       />
     )}
     </>
