@@ -1341,3 +1341,86 @@ describe('the three session buttons say what they do', () => {
     r.unmount();
   });
 });
+
+describe('the session clock runs on a song', () => {
+  /** A surface whose clock is a stored record, as a song's is. */
+  const withStoredClock = () => {
+    let startedAt: number | null = null;
+    const s = surface({
+      sessionMetronome: true,
+      readSessionElapsedMs: () => (startedAt === null ? 0 : Date.now() - startedAt),
+      onSessionStart: () => { if (startedAt === null) startedAt = Date.now(); },
+    });
+    return s;
+  };
+
+  it('ADVANCES ONCE A SESSION STARTS', async () => {
+    // It sat at 00:00 for a whole sitting: the panel was faithfully
+    // reporting a stored timer that nothing had ever started.
+    const r = render(withStoredClock());
+    await r.pressStartingWith('Practice');
+    await act(async () => { vi.advanceTimersByTime(65_000); });
+    expect(r.text()).toContain('01:05');
+    r.unmount();
+  });
+
+  it('and keeps advancing across runs', async () => {
+    // The run clock restarts every run; the session's must not.
+    const r = render(withStoredClock());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await act(async () => { vi.advanceTimersByTime(60_000); });
+    await r.run('Clean');
+    await act(async () => { vi.advanceTimersByTime(60_000); });
+    // Two runs of 31s plus two waits of 60s.
+    expect(r.text()).toContain('03:02');
+    r.unmount();
+  });
+
+  it('does not start a stored clock that is already going', async () => {
+    // A timer already running belongs to whatever started it; the page
+    // offers the swap. Starting one here would move minutes between
+    // songs.
+    let starts = 0;
+    const s = surface({
+      readSessionElapsedMs: () => 1000,
+      onSessionStart: () => { starts += 1; },
+    });
+    const r = render(s);
+    await r.pressStartingWith('Practice');
+    expect(starts).toBe(1);
+    r.unmount();
+  });
+});
+
+describe('the run list does not grow without limit', () => {
+  it('shows the last three, and offers the rest', async () => {
+    // Three is the length of the streak, so what is on screen is
+    // always the runs deciding the outcome — and a tenth run must not
+    // push the End button off the bottom.
+    const r = render(surface({ sessionMetronome: true }));
+    await r.pressStartingWith('Test');
+    // Struggled, not Clean: three clean in a row would pass the test
+    // and take us to the result screen before there were four runs.
+    for (let i = 0; i < 4; i += 1) await r.run('Struggled');
+    expect(r.text()).toContain('Show all 4 run-throughs — 1 earlier');
+    r.unmount();
+  });
+
+  it('and says so the other way round once open', async () => {
+    const r = render(surface({ sessionMetronome: true }));
+    await r.pressStartingWith('Test');
+    for (let i = 0; i < 4; i += 1) await r.run('Struggled');
+    await r.pressStartingWith('Show all');
+    expect(r.text()).toContain('Show fewer');
+    r.unmount();
+  });
+
+  it('offers nothing to expand while there are three or fewer', async () => {
+    const r = render(surface({ sessionMetronome: true }));
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    expect(r.text()).not.toContain('Show all');
+    r.unmount();
+  });
+});

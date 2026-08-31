@@ -130,9 +130,9 @@ export default function SongMetronomeBox({
   };
 
   return (
-    <div className="rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2.5 space-y-2">
+    <div className="rounded-md border border-neutral-200 dark:border-neutral-700 px-3 py-2 space-y-1.5">
       <div className="flex items-center gap-2 flex-wrap">
-        <MetronomeControl onStoppedByUser={onStoppedByUser} />
+        <MetronomeControl onStoppedByUser={onStoppedByUser} expandInPlace />
         <div className="inline-flex items-center rounded-md border border-neutral-200 dark:border-neutral-700 overflow-hidden">
           <button
             type="button"

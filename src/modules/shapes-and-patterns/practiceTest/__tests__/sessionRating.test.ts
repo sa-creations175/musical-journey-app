@@ -109,7 +109,7 @@ describe('every surface has one', () => {
       readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
-      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {},
+      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},
       isRetest: false,
       songTempo: 90,
     }).writeSessionRating(3, false, 'ss-test-1');
@@ -130,7 +130,7 @@ describe('every surface has one', () => {
       readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
-      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {},
+      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},
       isRetest: false,
       songTempo: 90,
     }).writeSessionRating(3, false, 'ss-test-1');
@@ -165,7 +165,7 @@ describe('readVerdict — what the done step reports', () => {
       readRunTempo: () => null,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d',
       renderBadgePreview: () => null, renderMetronome: () => null,
-      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {},
+      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},
       isRetest: false,
       songTempo: 90,
     });

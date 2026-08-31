@@ -750,6 +750,10 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
 
       {!confirmingCancel && step === 'choose' && (
         <ModeChooser onPick={next => {
+          // THE SESSION BEGINS HERE, and a surface with a stored clock
+          // has to be told — one that is never started reads zero for
+          // the whole sitting.
+          surface.onSessionStart?.();
           setMode(next);
           setTestDraft(next === 'test' ? newDraft() : null);
           setStep('session');
@@ -775,7 +779,7 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
         // rather than watched, so a `forceStop` from the global
         // session banner cannot end a run the player is in.
         surface.renderMetronome?.(onMetronomeStopped)
-          ?? <MetronomeControl onStoppedByUser={onMetronomeStopped} />
+          ?? <MetronomeControl onStoppedByUser={onMetronomeStopped} expandInPlace />
       )}
 
       {!confirmingCancel && step === 'session' && mode !== null && surface.openItem !== null && (
@@ -1089,9 +1093,13 @@ function SessionClockFace({ seconds, mode, label }: {
   seconds: number; mode: SessionMode; label?: string;
 }) {
   return (
-    <div className="rounded-lg border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40 p-4 text-center">
-      <div className="font-mono tabular-nums text-3xl sm:text-4xl">{formatClock(seconds)}</div>
-      <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400 mt-1">
+    /* SMALLER THAN IT WAS, because there are two of these side by side
+       once a run starts and the End button has to stay above the fold.
+       A clock is read, not admired: 4xl bought nothing that 2xl does
+       not, and it cost forty pixels twice. */
+    <div className="rounded-lg border border-black/[0.07] bg-neutral-50 dark:bg-neutral-900/40 px-3 py-2 text-center">
+      <div className="font-mono tabular-nums text-2xl sm:text-3xl">{formatClock(seconds)}</div>
+      <div className="text-[10px] uppercase tracking-[0.12em] font-semibold text-neutral-400">
         {label ?? (mode === 'test' ? 'Testing Session' : 'Practice Session')}
       </div>
     </div>
@@ -1187,7 +1195,7 @@ function SessionStep({
     && runs[runs.length - 1].counts;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2.5">
       {/* TWO CLOCKS, SIDE BY SIDE. The run's appears next to the
           session's while it is being played and goes when it is over —
           it never takes the screen. */}
@@ -1339,11 +1347,25 @@ function streakRun(d: CompletedDrill): StreakRun {
   return { counts: !d.belowTarget && !d.tooShort, feel: d.feel };
 }
 
+/**
+ * The runs of this session.
+ *
+ * =====================================================================
+ * THE LAST THREE, AND THE REST ON REQUEST.
+ *
+ * Three is not an arbitrary cut: it is the length of the streak, so
+ * what is on screen is always the runs deciding the outcome. It is
+ * also the block that grows without limit while the End button below
+ * it has to stay reachable — a tenth run should not push the control
+ * you need off the bottom of the panel.
+ * =====================================================================
+ */
 function DrillList({ mode, drills, surface }: {
   mode: SessionMode;
   drills: ReadonlyArray<CompletedDrill>;
   surface: DrillSurface;
 }) {
+  const [showAll, setShowAll] = useState(false);
   if (drills.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-neutral-200 dark:border-neutral-700 px-3 py-3 text-center text-xs text-neutral-500">
@@ -1353,9 +1375,29 @@ function DrillList({ mode, drills, surface }: {
       </div>
     );
   }
+  const RECENT = 3;
+  const hidden = Math.max(0, drills.length - RECENT);
+  // The INDEX is kept so the numbering stays the session's, not the
+  // slice's — hiding the first four runs must not make the fifth
+  // "Run 1".
+  const shown = showAll || hidden === 0
+    ? drills.map((d, i) => [d, i] as const)
+    : drills.map((d, i) => [d, i] as const).slice(-RECENT);
+
   return (
     <div className="space-y-1.5">
-      {drills.map((d, i) => {
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(v => !v)}
+          className="w-full text-left text-[11px] text-neutral-500 hover:text-fluent underline underline-offset-2"
+        >
+          {showAll
+            ? 'Show fewer'
+            : `Show all ${drills.length} run-throughs — ${hidden} earlier`}
+        </button>
+      )}
+      {shown.map(([d, i]) => {
         const feelLabel = d.feel === null
           ? null
           : FEEL_CARD_OPTIONS.find(o => o.value === d.feel)?.label;
@@ -1627,7 +1669,7 @@ function RunRatingBox({
   const options = mode === 'practice' ? surface.scopeOptions : null;
   const wholeSong = options !== null && scope.length === options.length;
   return (
-    <div className="space-y-4 rounded-lg border border-neutral-200 dark:border-neutral-700 p-3">
+    <div className="space-y-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 p-2.5">
 
       {/* THE METRONOME STOPPED, SO THE RUN DID. Not a discard — a
           question. The chips below are still the way to answer "yes I

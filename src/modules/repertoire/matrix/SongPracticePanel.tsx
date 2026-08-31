@@ -136,6 +136,17 @@ export default function SongPracticePanel({
       ),
       // THE TWO PAUSES, SETTLED. The panel's pause is the session's,
       // and this is how the record that owns the minutes hears it.
+      // THE STORED CLOCK, STARTED. It read zero for a whole sitting
+      // because nothing ever started it — the panel was faithfully
+      // reporting a timer that had never begun.
+      //
+      // Only when nothing else is running. A timer already going on
+      // ANOTHER song belongs to that song, and the page offers the
+      // swap; quietly clobbering it here would move minutes from one
+      // song's record to another's.
+      onSessionStart: () => {
+        if (live.current.timer.record === null) live.current.timer.start();
+      },
       onSessionPause: (paused) => {
         if (paused) live.current.timer.pause();
         else live.current.timer.resume();

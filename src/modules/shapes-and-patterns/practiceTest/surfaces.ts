@@ -307,6 +307,22 @@ export interface DrillSurface {
    */
   onSessionPause: ((paused: boolean) => void) | null;
   /**
+   * A session has begun — the mode was picked.
+   *
+   * =====================================================================
+   * A DURABLE CLOCK HAS TO BE TOLD TO START.
+   *
+   * A surface whose session is the panel needs nothing here: its clock
+   * counts from the panel's own mount. A song's is a stored record, and
+   * a stored record that nobody started reads zero — which is exactly
+   * what a song's Practice Session clock did, sitting at 00:00 for a
+   * whole sitting while the run clock beside it counted normally.
+   *
+   * Null where there is nothing to start.
+   * =====================================================================
+   */
+  onSessionStart: (() => void) | null;
+  /**
    * The item's own row, as the grid draws it, for the result screen's
    * badge preview.
    *

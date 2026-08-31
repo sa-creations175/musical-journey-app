@@ -26,6 +26,24 @@ const TIME_SIG_IDS: TimeSig[] = ['4/4', '3/4', '6/8', '12/8'];
  */
 interface Props {
   /**
+   * Expand the settings IN PLACE rather than over the page.
+   *
+   * =====================================================================
+   * NO MODAL INSIDE A MODAL — AND AN ABSOLUTE POPOVER IS ONE IN EVERY
+   * WAY THAT MATTERS.
+   *
+   * The settings are anchored to the trigger's right edge and are wider
+   * than the panel's left margin, so inside a session panel they opened
+   * half off the screen: tempo, groove, time signature and accent all
+   * cut off at the left edge and unreachable.
+   *
+   * The header has room and keeps the popover. Anywhere inside a panel
+   * or a strip, the settings push the content below them down instead —
+   * which is what "expand in place" means and what the spec asks for.
+   * =====================================================================
+   */
+  expandInPlace?: boolean;
+  /**
    * The metronome was stopped from this control's own button.
    *
    * =====================================================================
@@ -46,7 +64,9 @@ interface Props {
   onStoppedByUser?: () => void;
 }
 
-export default function MetronomeControl({ onStoppedByUser }: Props = {}) {
+export default function MetronomeControl({
+  onStoppedByUser, expandInPlace = false,
+}: Props = {}) {
   const state = useMetronomeState();
   const [expanded, setExpanded] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -134,7 +154,7 @@ export default function MetronomeControl({ onStoppedByUser }: Props = {}) {
   }, [expanded]);
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className={expandInPlace ? '' : 'relative'}>
       <div className="inline-flex items-center rounded-full border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 overflow-hidden">
         <button
           onClick={() => {
@@ -185,7 +205,15 @@ export default function MetronomeControl({ onStoppedByUser }: Props = {}) {
           // z-50 keeps the popover above page-level sticky bars,
           // backdrop-blur surfaces, and any transform/filter ancestors
           // that create stacking contexts downstream.
-          className="absolute right-0 mt-2 z-50 w-72 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-xl p-3 space-y-3 text-xs"
+          className={[
+            'rounded-lg border border-neutral-200 dark:border-neutral-700',
+            'bg-white dark:bg-neutral-900 p-3 space-y-3 text-xs',
+            expandInPlace
+              // In flow: it pushes what is under it down, and can never
+              // be positioned off the edge of anything.
+              ? 'mt-2 w-full'
+              : 'absolute right-0 mt-2 z-50 w-72 shadow-xl',
+          ].join(' ')}
         >
           {/* BPM slider + click-to-edit readout + ± steppers */}
           <div className="space-y-1">

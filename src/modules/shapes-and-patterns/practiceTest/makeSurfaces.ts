@@ -124,6 +124,7 @@ export function chordShapeSurface(args: {
     renderMetronome: null,
     // The session IS the panel here, so there is no record to tell.
     onSessionPause: null,
+    onSessionStart: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -199,6 +200,7 @@ export function scaleSurface(args: {
     renderMetronome: null,
     // The session IS the panel here, so there is no record to tell.
     onSessionPause: null,
+    onSessionStart: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -267,6 +269,7 @@ export function voiceLeadingSurface(args: {
     renderMetronome: null,
     // The session IS the panel here, so there is no record to tell.
     onSessionPause: null,
+    onSessionStart: null,
     // A drill has no between-time, no document, and covers one item.
     sessionMetronome: false,
     scopeOptions: null,
@@ -410,6 +413,8 @@ export function songSurface(args: {
    * alone.
    */
   onSessionPause: (paused: boolean) => void;
+  /** Start the song's stored clock, if it is not already going. */
+  onSessionStart: () => void;
 }): DrillSurface {
   return {
     id: 'song',
@@ -543,6 +548,7 @@ export function songSurface(args: {
     passKeyName: args.spelledKeyName,
     renderMetronome: args.renderMetronome,
     onSessionPause: args.onSessionPause,
+    onSessionStart: args.onSessionStart,
     renderBadgePreview: args.renderBadgePreview,
     // THE DURABLE FACT A PASS LEAVES, which is not any of the reps.
     // `wholeSongTestPassedAt` is what `stageCriteria` reads for

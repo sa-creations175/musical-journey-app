@@ -105,7 +105,12 @@ export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> = {
   // Neutral until the ladder gets its colour scale — that is its own
   // job, and guessing here would mean two answers to restyle later.
   'not_started': 'bg-neutral-100 text-neutral-500 border-neutral-300',
-  'started': 'bg-neutral-100 text-neutral-600 border-neutral-300',
+  // STARTED IS THE CELLS' BLUE, not a grey of its own. The matrix
+  // paints a started cell with `info` and the pill above it painted the
+  // same rung grey, so one status read two ways on one screen. Taken
+  // from `TIER_BADGE_CLASS.started` rather than picked: one rung, one
+  // colour, and no third table to keep in step.
+  'started': 'bg-info/10 text-info border-info/30',
   'learning': 'bg-needswork/10 text-needswork border-needswork/30',
   'comfortable': 'bg-developing/10 text-developing border-developing/30',
   'cross-key': 'bg-fluent/10 text-fluent border-fluent/30',
@@ -114,7 +119,8 @@ export const STAGE_BADGE_CLASS: Record<RepertoireStage, string> = {
 
 export const STAGE_DOT_CLASS: Record<RepertoireStage, string> = {
   'not_started': 'bg-neutral-300',
-  'started': 'bg-neutral-400',
+  // The cells' own fill — see STAGE_BADGE_CLASS above.
+  'started': 'bg-info/40 dark:bg-info/50',
   'learning': 'bg-needswork',
   'comfortable': 'bg-developing',
   'cross-key': 'bg-fluent',

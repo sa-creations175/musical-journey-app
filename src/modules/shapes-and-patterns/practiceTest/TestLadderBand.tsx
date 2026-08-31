@@ -60,7 +60,7 @@ export default function TestLadderBand({
     <div
       className={[
         'flex items-center justify-center gap-3 flex-wrap',
-        'rounded-lg border px-3 py-3',
+        'rounded-lg border px-3 py-2',
         emphasised
           ? 'border-fluent bg-fluent/5'
           : 'border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-900',

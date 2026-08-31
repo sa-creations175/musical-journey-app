@@ -1,5 +1,6 @@
 import type { SongStageDemotion } from '../../lib/db';
 import { spellKey, type Spelling } from '../../lib/spelling';
+import { useState } from 'react';
 import { KEY_QUADRANTS } from './matrix/keyProgress';
 import { STAGE_LABEL } from './stage';
 
@@ -41,13 +42,43 @@ export default function DemotionNotice({
     month: 'long', day: 'numeric',
   });
   const held = demotion.heldByQuadrant;
+  /**
+   * The detail is behind a disclosure, and closed to begin with.
+   *
+   * =====================================================================
+   * TEN LINES OF EXPLANATION PUSHED THE MATRIX OFF THE SCREEN.
+   *
+   * The headline is the news: a rung was lost, and when. The four
+   * quadrants and their holders are the WORKING — worth having, and
+   * worth having on request rather than in front of the grid the page
+   * exists to show. By the time you reached the cells the song's own
+   * title had scrolled away.
+   *
+   * Same shape as the criteria row above it, and deliberately: a page
+   * with two kinds of collapsing row teaches two habits.
+   * =====================================================================
+   */
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="rounded-md border border-[#E88943]/40 bg-[#E88943]/5 px-3 py-2.5 space-y-2">
-      <p className="text-xs font-medium text-neutral-800 dark:text-neutral-100">
-        This song dropped from {STAGE_LABEL[demotion.from]} status to{' '}
-        {STAGE_LABEL[demotion.to]} status on {when}.
-      </p>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        className="w-full flex items-baseline justify-between gap-3 text-left"
+      >
+        <span className="text-xs font-medium text-neutral-800 dark:text-neutral-100">
+          This song dropped from {STAGE_LABEL[demotion.from]} status to{' '}
+          {STAGE_LABEL[demotion.to]} status on {when}.
+        </span>
+        <span aria-hidden className="text-[9px] text-neutral-400 shrink-0">
+          {open ? '▾' : '▸'}
+        </span>
+      </button>
+
+      {open && (
+      <>
 
       {held ? (
         <>
@@ -83,6 +114,8 @@ export default function DemotionNotice({
           {demotion.criterionLabel.endsWith('.') ? '' : '.'}
           {demotion.detail ? ` ${demotion.detail}` : ''}
         </p>
+      )}
+      </>
       )}
     </div>
   );

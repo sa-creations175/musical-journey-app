@@ -199,7 +199,7 @@ export default function SessionStrip({
       )}
 
       <Divider />
-      <MetronomeControl onStoppedByUser={onMetronomeStopped} />
+      <MetronomeControl onStoppedByUser={onMetronomeStopped} expandInPlace />
       {/* THE WORD TRAVELS WITH THE STATE. In a panel there is a heading
           above the metronome saying what it is; in a strip there is
           not, so a lit dot would be a colour with no noun. */}

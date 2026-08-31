@@ -45,7 +45,7 @@ function surface(songTempo: number | null = 90, entry: 'section' | 'whole-song' 
     songTitle: 'No Weapon',
     spelledKeyName: 'A\u266d',
     renderBadgePreview: () => null, renderMetronome: () => null,
-      entry, sectionLabel: 'Verse 1', onSessionPause: () => {},
+      entry, sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},
     isRetest: false,
     songTempo,
   });
@@ -289,7 +289,7 @@ describe('a run writes the cell, the log and the key', () => {
       readSessionId: () => SESSION, expectedSectionCount: BY_SECTION.size,
       readRunTempo: () => null, isRetest: false,
       songTitle: 'No Weapon', spelledKeyName: 'A\u266d', renderBadgePreview: () => null, renderMetronome: () => null,
-      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {},
+      entry: 'section', sectionLabel: 'Verse 1', onSessionPause: () => {}, onSessionStart: () => {},
       songTempo: 90,
     });
     await silent.write(run({ feel: 3 }));
