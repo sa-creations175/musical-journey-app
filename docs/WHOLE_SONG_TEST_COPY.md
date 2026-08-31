@@ -213,6 +213,30 @@ Not "square". Use **cell** in the UI, in reports and in commit messages.
 - **The bar while in the mode:** Tap anything you're not working on. It won't
   count toward this cell's status.
 
+## The three session buttons — approved 30 Aug 2026
+
+Once a session is running, the row along the bottom reads:
+
+`[ Cancel Session ]  [ Pause Session ]  [ Log Session ]`
+
+- **Cancel Session** — asks *"Are you sure you want to cancel this session?"*
+  and discards the sitting. The confirmation itself is unchanged.
+- **Pause Session** — reads **Resume Session** while paused.
+- **Log Session** — the finish door on BOTH modes. It goes to the wrap-up and
+  logs the sitting.
+
+Before a mode has been picked the row is **Close** on its own: nothing has
+happened yet, so it really is just closing.
+
+A TESTING SESSION IS LOGGED LIKE A PRACTICE ONE. Time spent testing is time
+spent playing, and it lands on the record whether or not the streak was ever
+reached. Runs are unaffected — each is written as it is rated.
+
+On the lead-sheet strip, **Log Session** is the same finish door and carries
+the same words.
+
+---
+
 ## Ending a run — approved 30 Aug 2026
 
 A run ends explicitly, and is rated afterwards. One tap should not mean

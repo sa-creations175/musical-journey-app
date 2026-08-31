@@ -363,7 +363,7 @@ describe('a pass reports through the one result screen', () => {
     const r = render();
     await r.pressStartingWith('Test');
     await r.run('Clean');
-    await r.press('End Session');
+    await r.press('Log Session');
     expect(r.text()).not.toContain('That’s the test passed.');
     r.unmount();
   });
@@ -428,7 +428,10 @@ describe('closing asks when there is time to lose', () => {
   it('DOES NOT ask before a mode is picked', async () => {
     // Nothing recorded and nothing running: closing is as if the panel
     // never opened, so a prompt would be asking about nothing.
+    // Before a mode is picked the button really is just Close: nothing
+    // has happened, so there is no session to cancel.
     const r = render();
+    expect(r.labels()).toContain('Close');
     await r.press('Close');
     expect(r.text()).not.toContain('Are you sure you want to cancel this session?');
     r.unmount();
@@ -437,7 +440,7 @@ describe('closing asks when there is time to lose', () => {
   it('asks once a session has started', async () => {
     const r = render();
     await r.pressStartingWith('Test');
-    await r.press('Close');
+    await r.press('Cancel Session');
     expect(r.text()).toContain('Are you sure you want to cancel this session?');
     r.unmount();
   });
@@ -445,7 +448,7 @@ describe('closing asks when there is time to lose', () => {
   it('asks in practice too — the condition is the clock, not the mode', async () => {
     const r = render();
     await r.pressStartingWith('Practice');
-    await r.press('Close');
+    await r.press('Cancel Session');
     expect(r.text()).toContain('Are you sure you want to cancel this session?');
     r.unmount();
   });
@@ -454,7 +457,7 @@ describe('closing asks when there is time to lose', () => {
     const r = render();
     await r.pressStartingWith('Test');
     await r.run('Clean');
-    await r.press('Close');
+    await r.press('Cancel Session');
     await r.press('Continue Session');
     expect(r.text()).not.toContain('Are you sure');
     expect(r.text()).toContain('1 of 3');
@@ -467,7 +470,7 @@ describe('closing asks when there is time to lose', () => {
     // session through invites answering it by looking away.
     const r = render();
     await r.pressStartingWith('Test');
-    await r.press('Close');
+    await r.press('Cancel Session');
     expect(r.labels().filter(l => l !== '×'))
       .toEqual(['Cancel The Session', 'Continue Session']);
     r.unmount();
@@ -476,7 +479,7 @@ describe('closing asks when there is time to lose', () => {
   it('does NOT include the unapproved middle line', async () => {
     const r = render();
     await r.pressStartingWith('Test');
-    await r.press('Close');
+    await r.press('Cancel Session');
     expect(r.text()).not.toContain("won't be recorded");
     r.unmount();
   });
@@ -499,7 +502,7 @@ describe('Pause — the third exit', () => {
     // from the piano is neither. It had nowhere to go.
     const r = render();
     await r.pressStartingWith('Test');
-    expect(r.labels()).toContain('Pause');
+    expect(r.labels()).toContain('Pause Session');
     r.unmount();
   });
 
@@ -509,7 +512,7 @@ describe('Pause — the third exit', () => {
     // why.
     const r = render();
     await r.pressStartingWith('Test');
-    await r.press('Pause');
+    await r.press('Pause Session');
     expect(r.text()).toContain(
       'Paused — the clock is stopped. Metronome pauses with the session. '
       + 'Resumes upon return.',
@@ -522,11 +525,11 @@ describe('Pause — the third exit', () => {
     // one is what Resume-then-Done is for.
     const r = render();
     await r.pressStartingWith('Test');
-    await r.press('Pause');
+    await r.press('Pause Session');
     const start = [...document.body.querySelectorAll('button')]
       .find(b => (b.textContent ?? '').startsWith('Start Test Run'));
     const end = [...document.body.querySelectorAll('button')]
-      .find(b => (b.textContent ?? '').trim() === 'End Session');
+      .find(b => (b.textContent ?? '').trim() === 'Log Session');
     expect(start?.hasAttribute('disabled')).toBe(true);
     expect(end?.hasAttribute('disabled')).toBe(true);
     r.unmount();
@@ -535,10 +538,10 @@ describe('Pause — the third exit', () => {
   it('Resume puts it back', async () => {
     const r = render();
     await r.pressStartingWith('Test');
-    await r.press('Pause');
-    expect(r.labels()).toContain('Resume');
-    await r.press('Resume');
-    expect(r.labels()).toContain('Pause');
+    await r.press('Pause Session');
+    expect(r.labels()).toContain('Resume Session');
+    await r.press('Resume Session');
+    expect(r.labels()).toContain('Pause Session');
     expect(r.text()).not.toContain('Paused — the clock is stopped.');
     r.unmount();
   });
@@ -548,8 +551,8 @@ describe('Pause — the third exit', () => {
     // at this instant. A paused session has banked time to lose.
     const r = render();
     await r.pressStartingWith('Test');
-    await r.press('Pause');
-    await r.press('Close');
+    await r.press('Pause Session');
+    await r.press('Cancel Session');
     expect(r.text()).toContain('Are you sure you want to cancel this session?');
     r.unmount();
   });
@@ -560,7 +563,7 @@ describe('Pause — the third exit', () => {
     // button would be two ways to end one session.
     const r = render();
     await r.pressStartingWith('Test');
-    await r.press('Pause');
+    await r.press('Pause Session');
     expect(r.text()).not.toContain('Log It And Close');
     expect(r.text()).not.toContain('Discard It');
     r.unmount();
@@ -1069,15 +1072,15 @@ describe('the ways out sit along the bottom', () => {
     await r.pressStartingWith('Test');
     await r.pressStartingWith('Start Test Run');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    expect(r.labels()).toContain('Pause');
-    expect(r.labels()).toContain('End Session');
+    expect(r.labels()).toContain('Pause Session');
+    expect(r.labels()).toContain('Log Session');
     r.unmount();
   });
 
   it('and are absent before a mode is picked', async () => {
     const r = render();
-    expect(r.labels()).not.toContain('Pause');
-    expect(r.labels()).not.toContain('End Session');
+    expect(r.labels()).not.toContain('Pause Session');
+    expect(r.labels()).not.toContain('Log Session');
     r.unmount();
   });
 });
@@ -1195,6 +1198,146 @@ describe('a run ends explicitly, then is rated', () => {
     await r.pressStartingWith('Clean');
     expect(written).toHaveLength(1);
     expect(written[0].ranSeconds).toBe(31);
+    r.unmount();
+  });
+});
+
+describe('a testing session is logged, like a practice one', () => {
+  const logged: unknown[] = [];
+  const withLog = (kindProps = {}) => surface({
+    sessionMetronome: true,
+    openItem: () => {},
+    scopeOptions: [{ id: 's1', label: 'Verse 1' }],
+    openedOnScopeId: 's1',
+    wrapSections: [{ id: 's1', label: 'Verse 1' }],
+    // The activities question is a song's; the fixture asks it so the
+    // wrap-up is recognisable in an assertion.
+    wrapAsksActivities: true,
+    writeSessionLog: async (entry: unknown) => { logged.push(entry); },
+    ...kindProps,
+  });
+
+  beforeEach(() => { logged.length = 0; });
+
+  it('ENDING A TEST REACHES THE WRAP-UP', async () => {
+    // It used to ask whether you wanted to cancel, so a testing
+    // session had two exits wearing three names and its minutes were
+    // lost every time.
+    const r = render(withLog());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.press('Log Session');
+    expect(r.text()).toContain('What Did You Work On');
+    expect(r.text()).not.toContain('Are you sure you want to cancel');
+    r.unmount();
+  });
+
+  it('and logs the sitting, with its minutes', async () => {
+    const r = render(withLog());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await act(async () => { vi.advanceTimersByTime(120_000); });
+    await r.press('Log Session');
+    await r.pressStartingWith('Log Session');
+    expect(logged).toHaveLength(1);
+    expect((logged[0] as { durationSeconds: number }).durationSeconds)
+      .toBeGreaterThan(0);
+    r.unmount();
+  });
+
+  it('PRACTICE LOGS THE SITTING TOO — nothing was writing it before', async () => {
+    // The wrap-up has always asked what you worked on, which sections
+    // you touched and for a note, and then handed all three to a
+    // caller that dropped them along with the minutes.
+    const r = render(withLog());
+    await r.pressStartingWith('Practice');
+    await r.press('Log Session');
+    await r.pressStartingWith('Log Session');
+    expect(logged).toHaveLength(1);
+    r.unmount();
+  });
+
+  it('runs already rated survive being logged', async () => {
+    const r = render(withLog());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.run('Clean');
+    expect(written).toHaveLength(2);
+    await r.press('Log Session');
+    await r.pressStartingWith('Log Session');
+    expect(written).toHaveLength(2);
+    r.unmount();
+  });
+
+  it('and survive being cancelled', async () => {
+    // Each was written the moment it was rated. Cancelling throws away
+    // the sitting, not the runs.
+    const r = render(withLog());
+    await r.pressStartingWith('Test');
+    await r.run('Clean');
+    await r.press('Cancel Session');
+    expect(r.text()).toContain('Are you sure you want to cancel this session?');
+    await r.press('Cancel The Session');
+    expect(written).toHaveLength(1);
+    expect(logged).toHaveLength(0);
+    r.unmount();
+  });
+
+  it('the practice-only ceiling notice is absent on a test', async () => {
+    // "A test at target can" is not something to say to someone who
+    // has just finished one.
+    const r = render(withLog());
+    await r.pressStartingWith('Test');
+    await r.press('Log Session');
+    expect(r.text()).not.toContain('Practice stops at Developing');
+    r.unmount();
+  });
+
+  it('and present on practice', async () => {
+    const r = render(withLog());
+    await r.pressStartingWith('Practice');
+    await r.press('Log Session');
+    expect(r.text()).toContain('Practice stops at Developing');
+    r.unmount();
+  });
+});
+
+describe('the three session buttons say what they do', () => {
+  it('read Cancel Session, Pause Session and Log Session', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    const l = r.labels();
+    expect(l).toContain('Cancel Session');
+    expect(l).toContain('Pause Session');
+    expect(l).toContain('Log Session');
+    r.unmount();
+  });
+
+  it('the retired ones are gone', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    const l = r.labels();
+    expect(l).not.toContain('End Session');
+    expect(l).not.toContain('Close');
+    expect(l).not.toContain('Pause');
+    r.unmount();
+  });
+
+  it('Pause Session reads Resume Session while paused', async () => {
+    const r = render();
+    await r.pressStartingWith('Test');
+    await r.press('Pause Session');
+    expect(r.labels()).toContain('Resume Session');
+    expect(r.labels()).not.toContain('Pause Session');
+    r.unmount();
+  });
+
+  it('and it is still just Close before a mode is picked', async () => {
+    const r = render();
+    const l = r.labels();
+    expect(l).toContain('Close');
+    expect(l).not.toContain('Cancel Session');
+    expect(l).not.toContain('Log Session');
     r.unmount();
   });
 });

@@ -66,17 +66,14 @@ export type SessionKind = 'testing' | 'practice';
 const WORDS: Record<SessionKind, {
   session: string;
   run: string;
-  save: string;
 }> = {
   testing: {
     session: 'Testing Session',
     run: 'Test Run',
-    save: 'Save Runs',
   },
   practice: {
     session: 'Practice Session',
     run: 'Practice Run',
-    save: 'Log Practice Session',
   },
 };
 
@@ -154,7 +151,7 @@ interface Props {
   onStartRun: () => void;
   /** End the run WITHOUT rating it. Null on a test — see the header. */
   onFinishRun: (() => void) | null;
-  /** `Save Runs`, or `Log Practice Session`. */
+  /** The finish door. One door, one name, both modes. */
   onSave: () => void;
   /** Back to the panel the strip came from. */
   onBack: () => void;
@@ -289,7 +286,10 @@ export default function SessionStrip({
         onClick={onSave}
         className="px-2.5 py-1 text-xs rounded-md border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800"
       >
-        {words.save}
+        {/* ONE ACTION, ONE NAME. It read "Save Runs" on a test and
+            "Log Practice Session" on practice — three words for the
+            thing the panel's bottom row calls Log Session. */}
+        Log Session
       </button>
 
       <button

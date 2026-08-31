@@ -686,7 +686,9 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           onFinishRun={mode === 'practice'
             ? () => void finishPracticeDrill(null, currentRunSeconds)
             : null}
-          onSave={() => { setView('panel'); setStep(mode === 'practice' ? 'wrap' : 'session'); }}
+          /* THE SAME FINISH DOOR. It brings you back to the panel and
+             into the wrap-up, on a test as on practice. */
+          onSave={() => { setView('panel'); setStep('wrap'); }}
           onBack={() => setView('panel')}
         />
       </div>
@@ -711,13 +713,13 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
             mode={mode}
             paused={paused}
             onTogglePause={togglePause}
-            onEndSession={() => {
-              // PRACTICE ENDS AT THE WRAP, not at the door: the
-              // sitting's own rating has somewhere to land. A test has
-              // already written every run as it finished.
-              if (mode === 'practice') setStep('wrap');
-              else close();
-            }}
+            /* BOTH MODES END AT THE WRAP-UP. A test used to end by
+               asking whether you wanted to cancel — so a testing
+               session had two exits wearing three names and its
+               minutes were lost every time. Time spent testing is time
+               spent playing. Runs are untouched either way: each was
+               written the moment it was rated. */
+            onEndSession={() => setStep('wrap')}
             onClose={close}
           />
         )}
@@ -922,10 +924,23 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           drills={drills}
           surface={surface}
           saving={saving}
-          onLog={async (feel) => {
+          onLog={async (feel, extras) => {
             if (saving) return;
             setSaving(true);
             try {
+              // THE SITTING ITSELF, which nothing was writing. The
+              // wrap-up has always asked what you worked on, which
+              // sections you touched and for a note — and then handed
+              // all three to a caller that dropped them, along with
+              // the minutes. A session that asks four questions and
+              // records none of them is worse than one that asks
+              // nothing.
+              await surface.writeSessionLog?.({
+                durationSeconds: sessionSeconds,
+                sectionIds: extras.touched,
+                activities: extras.activities,
+                note: extras.note,
+              });
               if (feel !== null) {
                 // A REP LIKE ANY OTHER. The band rule is unchanged:
                 // practice caps at Developing, and only a test at
@@ -982,12 +997,15 @@ function PanelFooter({ mode, paused, onTogglePause, onEndSession, onClose }: {
 }) {
   return (
     <div className="flex items-center justify-between gap-3 w-full">
+      {/* IT IS ONLY "CLOSE" BEFORE ANYTHING HAS HAPPENED. Once a
+          session is running the button cancels one, and says so —
+          "Close" understated a control that throws a sitting away. */}
       <button
         type="button"
         onClick={onClose}
         className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
       >
-        Close
+        {mode === null ? 'Close' : 'Cancel Session'}
       </button>
       {/* ONLY ONCE A SESSION IS RUNNING. Before a mode is picked there
           is nothing to pause and nothing to end. */}
@@ -998,7 +1016,7 @@ function PanelFooter({ mode, paused, onTogglePause, onEndSession, onClose }: {
             onClick={onTogglePause}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm"
           >
-            {paused ? 'Resume' : 'Pause'}
+            {paused ? 'Resume Session' : 'Pause Session'}
           </button>
           <button
             type="button"
@@ -1006,7 +1024,7 @@ function PanelFooter({ mode, paused, onTogglePause, onEndSession, onClose }: {
             disabled={paused}
             className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm disabled:opacity-45 disabled:cursor-not-allowed"
           >
-            End Session
+            Log Session
           </button>
         </div>
       )}
@@ -1784,10 +1802,17 @@ function WrapStep({
     <div className="space-y-4">
       <SessionClockFace seconds={seconds} mode={mode} />
 
-      <div className="rounded-md border-l-[3px] border-developing bg-developing/5 px-3 py-2.5 text-xs text-neutral-700 dark:text-neutral-200">
-        <b>Practice stops at Developing.</b> However this session is rated, it
-        cannot claim <b>Fluent</b>. A test at target can.
-      </div>
+      {/* PRACTICE ONLY, because on a test it is false. "A test at
+          target can" is not something to say to someone who has just
+          finished one. Omitted rather than replaced: the honest thing
+          for a testing session here is nothing, and inventing a
+          sentence to fill the space would be inventing copy. */}
+      {mode === 'practice' && (
+        <div className="rounded-md border-l-[3px] border-developing bg-developing/5 px-3 py-2.5 text-xs text-neutral-700 dark:text-neutral-200">
+          <b>Practice stops at Developing.</b> However this session is rated, it
+          cannot claim <b>Fluent</b>. A test at target can.
+        </div>
+      )}
 
       {drills.length > 0 && (
         <div>
@@ -1945,7 +1970,7 @@ function WrapStep({
           onClick={() => onLog(picked, { activities, touched, note })}
           className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium disabled:opacity-40"
         >
-          {saving ? 'Saving…' : 'Log The Session'}
+          {saving ? 'Saving…' : 'Log Session'}
         </button>
         {/* ONLY WHERE THERE IS NOTHING TO SKIP. With a reading on
             screen the button would offer to discard a number the user

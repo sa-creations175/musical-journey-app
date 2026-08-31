@@ -100,8 +100,13 @@ describe('the app never says Session or Run on its own', () => {
       for (const word of ['Session', 'Run']) {
         for (const m of t.matchAll(new RegExp(word, 'g'))) {
           const before = t.slice(0, m.index).trimEnd();
+          // "Log Session", "Cancel Session", "Pause Session" and
+          // "Resume Session" are approved BUTTON labels and are
+          // deliberately bare — they name one action, and the mode is
+          // already on every clock beside them. The rule governs the
+          // words that describe a session, not the doors out of one.
           expect(
-            /(Testing|Practice|Test|Start A Practice|Finish|Save|Back To The)$/.test(before),
+            /(Testing|Practice|Test|Start A Practice|Finish|Save|Back To The|Log|Cancel|Pause|Resume)$/.test(before),
             `bare "${word}" in ${kind}: …${t.slice(Math.max(0, m.index - 30), m.index + 10)}…`,
           ).toBe(true);
         }
@@ -175,14 +180,20 @@ describe('starting a run', () => {
   });
 });
 
-describe('the two saves are different acts with different names', () => {
-  it('a testing session saves runs', () => {
-    expect(render().labels()).toContain('Save Runs');
+describe('one finish door, one name', () => {
+  it('reads the same on both modes', () => {
+    // It read "Save Runs" on a test and "Log Practice Session" on
+    // practice — three words for the one thing the panel's bottom row
+    // calls Log Session.
+    expect(render().labels()).toContain('Log Session');
+    expect(render({ kind: 'practice', streak: null }).labels())
+      .toContain('Log Session');
   });
 
-  it('a practice session logs a practice session', () => {
-    expect(render({ kind: 'practice', streak: null }).labels())
-      .toContain('Log Practice Session');
+  it('and the retired names are gone', () => {
+    const l = [...render().labels(), ...render({ kind: 'practice', streak: null }).labels()];
+    expect(l).not.toContain('Save Runs');
+    expect(l).not.toContain('Log Practice Session');
   });
 });
 
