@@ -39,7 +39,9 @@
  * =====================================================================
  */
 import type { DrillHand, SpacingState } from '../../lib/db';
-import { isFluentPlus, rollUpTargets } from '../../lib/spacing/rollup';
+import {
+  isFluentPlus, rollUpTargets, rollUpTargetsFurthest,
+} from '../../lib/spacing/rollup';
 import { bandVerdictForRow } from '../../lib/spacing/row';
 import type { BandVerdict } from '../../lib/spacing/banding';
 import {
@@ -102,12 +104,30 @@ export function rowsByRefHand(
   return m;
 }
 
-/** The square's one word, given its targets and the rows in hand. */
+/**
+ * Which way a square reads its targets.
+ *
+ * FURTHEST is the grids' default — as high as the best target under
+ * it — and LOWEST is one tap away. See `rollUpVerdicts` and
+ * `rollUpVerdictsFurthest`, which hold the two rules.
+ */
+export type RollupRule = 'furthest' | 'lowest';
+
+/**
+ * The square's one word, given its targets and the rows in hand.
+ *
+ * BOTH RULES COME FROM `rollup.ts`. Every grid used to hand-roll the
+ * furthest half — a reduce over a local rank table — while asking the
+ * shared reader for the lowest one, so "Furthest" and "Lowest" could
+ * (and on the scales page did) return the same answer.
+ */
 export function verdictForTargets(
   targets: readonly CellTarget[],
   byRefHand: ReadonlyMap<string, SpacingState>,
+  rule: RollupRule = 'lowest',
 ): BandVerdict {
-  return rollUpTargets(targets.map(t => byRefHand.get(`${t.itemRef} ${t.hand}`)));
+  const rows = targets.map(t => byRefHand.get(targetKey(t.itemRef, t.hand)));
+  return rule === 'furthest' ? rollUpTargetsFurthest(rows) : rollUpTargets(rows);
 }
 
 // =====================================================================

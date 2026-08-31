@@ -42,9 +42,10 @@ import {
 } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
 import { sessionsByTarget } from './timeInvested';
-import ScaleProgressDetails from './ScaleProgressDetails';
+import CellProgressDetails, {
+  HAND_ROW_LABEL, type DetailTarget,
+} from './CellProgressDetails';
 import { NOT_STARTED, bandVerdictLabel, type BandVerdict } from '../../lib/spacing/banding';
-import { bandVerdictForRow } from '../../lib/spacing/row';
 import type { DrillHand } from '../../lib/db';
 
 /** WHAT A SQUARE SAYS LIVES IN `BandCell` NOW. This file used to
@@ -232,11 +233,7 @@ export default function ScaleDrills() {
   const cellVerdict = (cell: ScaleCell): BandVerdict => {
     const targets = countedTargets(cell);
     if (targets.length === 0) return NOT_STARTED;
-    if (rule === 'furthest') return verdictForTargets(targets, byRefHand);
-    const bands = targets
-      .map(t => byRefHand.get(`${t.itemRef} ${t.hand}`))
-      .map(row => (row ? bandVerdictForRow(row) : NOT_STARTED));
-    return bands.reduce((low, v) => (rank(v) < rank(low) ? v : low), bands[0]);
+    return verdictForTargets(targets, byRefHand, rule);
   };
 
   /**
@@ -259,9 +256,25 @@ export default function ScaleDrills() {
     detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const selectedHands = selected
-    ? cellProgress(itemCellTargets(selected.itemRef), spacingRows, byTarget)
-    : [];
+  /**
+   * The cell's targets, as the detail section takes them.
+   *
+   * A SCALE CELL IS THREE HANDS. `cellProgress` returns them in the
+   * catalog's order, so zipping is safe — and the row's name is the
+   * hand's, because for a scale the hand IS the whole difference
+   * between one target and the next.
+   */
+  const selectedTargets: DetailTarget[] = useMemo(() => {
+    if (!selected) return [];
+    const targets = itemCellTargets(selected.itemRef);
+    const progress = cellProgress(targets, spacingRows, byTarget);
+    return targets.map((t, i) => ({
+      key: targetKey(t.itemRef, t.hand),
+      label: HAND_ROW_LABEL[t.hand],
+      hand: t.hand,
+      progress: progress[i],
+    }));
+  }, [selected, spacingRows, byTarget]);
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
@@ -353,31 +366,23 @@ export default function ScaleDrills() {
         })}
       </div>
 
-      <ScaleProgressDetails
+      <CellProgressDetails
         ref={detailRef}
         cellLabel={selected ? scaleCellLabel(selected, spelling) : null}
-        hands={selectedHands}
+        targets={selectedTargets}
         verdict={selected ? cellVerdict(selected) : NOT_STARTED}
-        ruleWord={rule}
-        notCounted={new Set(
-          selectedHands
-            .filter(h => selected && notCounted.has(targetKey(selected.itemRef, h.hand)))
-            .map(h => h.hand),
-        )}
+        rollup={{ ruleWord: rule, unitLabel: 'hands' }}
+        note="Two octaves, always."
+        notCounted={notCounted}
         /* THE SITTINGS, OVER EVERY ROW — a sitting is a sitting
            whatever cell or hand it touched, so the totals are built
            once from all of them rather than per hand. */
         sessionSeconds={sessionSecondsById(sessions)}
-        onToggleCounted={hand => {
-          if (!selected) return;
-          setNotCounted(prev => {
-            const next = new Set(prev);
-            const k = targetKey(selected.itemRef, hand);
-            if (next.has(k)) next.delete(k); else next.add(k);
-            return next;
-          });
+        onToggleCounted={key => setNotCounted(prev => toggled(prev, key))}
+        onDrill={key => {
+          const target = selectedTargets.find(t => t.key === key);
+          if (selected && target) setDrilling({ cell: selected, hand: target.hand });
         }}
-        onDrill={hand => selected && setDrilling({ cell: selected, hand })}
         now={now}
       />
 
@@ -400,11 +405,16 @@ export default function ScaleDrills() {
   );
 }
 
-/** Where a verdict sits, for the lowest-of rule. */
-function rank(v: BandVerdict): number {
-  if (v.kind === 'not-started') return 0;
-  if (v.kind === 'started') return 1;
-  return { 'needs-work': 2, developing: 3, fluent: 4, mastered: 5 }[v.band];
+/** `rank` LIVED HERE, and both roll-up rules live in `rollup.ts` now.
+ *  This file's copy answered the lowest-of question while the shared
+ *  reader answered the furthest one — so the two toggles returned the
+ *  same word, and the Furthest control did nothing at all. */
+
+/** In or out of the score, by target key. Nothing is deleted. */
+function toggled(set: ReadonlySet<string>, key: string): ReadonlySet<string> {
+  const next = new Set(set);
+  if (next.has(key)) next.delete(key); else next.add(key);
+  return next;
 }
 
 function swap(order: number[], a: number, b: number): number[] {

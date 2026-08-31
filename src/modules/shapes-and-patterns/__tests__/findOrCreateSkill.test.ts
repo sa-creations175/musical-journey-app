@@ -6,7 +6,7 @@
  * voice-leading cells had drillSkills rows without any drillTypes
  * rows in some local databases (left over from an earlier app version
  * where skill creation and default-types materialisation weren't in a
- * shared transaction). DrillListModal renders the "start drill"
+ * shared transaction). Progress Details renders the drill button
  * button inside drillTypes.map(), so an empty types list leaves the
  * user unable to begin practice on those cells.
  *

@@ -273,7 +273,7 @@ export default function EtItemCurationSheet({
               {/* Permanent delete only surfaces on already-hidden
                   items — the path is hide → confirm-then-delete, not
                   delete-from-zero. Mirrors the soft-then-hard delete
-                  pattern in DrillListModal and elsewhere. */}
+                  pattern used across the app's list sheets. */}
               {row?.hidden && (
                 <button
                   onClick={() => setConfirmDeleteOpen(true)}

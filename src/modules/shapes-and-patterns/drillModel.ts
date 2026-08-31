@@ -136,7 +136,7 @@ export async function findOrCreateSkill(desc: SkillDescriptor): Promise<DrillSki
     // Self-heal: an existing skill row with zero drillTypes is a
     // stranded skill from an earlier app version where skill creation
     // and drill-type materialisation didn't share a transaction. The
-    // DrillListModal renders "start drill" inside drillTypes.map(),
+    // The drill list rendered "start drill" inside drillTypes.map(),
     // so an empty drill-types set leaves the user with no way to
     // begin practice. Surfaced for C major scale and C ABA-251
     // voice-leading. Re-materialise defaults so the cell becomes
@@ -514,7 +514,7 @@ export function labelFor(desc: SkillDescriptor): string {
       const base = `${short} (${longName.toLowerCase()})`;
       // Inversion-state suffix when present and non-default. Triads
       // and sevenths produce per-state rows; the label disambiguates
-      // them in DrillListModal headers + the breakdown panel.
+      // them in the drill list's headers + the breakdown panel.
       const stateText = inversionStateLabel(desc.inversionState);
       return stateText ? `${base} — ${stateText}` : base;
     }
@@ -978,18 +978,26 @@ export function aggregateCell(types: DrillType[]): CellAggregate {
 
 // --- Freshness + heat-tier bucketing -------------------------------
 
-export type HeatTier = 'empty' | 'light' | 'medium' | 'deep';
+/**
+ * =====================================================================
+ * `HeatTier` AND `heatTierFor` LIVED HERE, AND THEY ARE GONE WITH THE
+ * GRID THEY SHADED.
+ *
+ * They bucketed a cell's total seconds so the grid could paint it in
+ * the Fluent green at four strengths. So a dark cell meant PRACTISED A
+ * LOT there, while a dark cell on a song's matrix meant Mastered —
+ * one colour, two claims, on two grids in the same app.
+ *
+ * Every grid names a status now. Green stops meaning time anywhere.
+ *
+ * `freshnessTier` STAYS: it is a sort-and-filter key on the skills
+ * catalogue, not a colour, and `freshnessAlpha` — the multiplier that
+ * turned it into one — went with the shading.
+ * =====================================================================
+ */
 export type FreshnessTier = 'fresh' | 'recent' | 'aging' | 'stale';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-export function heatTierFor(totalSeconds: number): HeatTier {
-  if (totalSeconds <= 0) return 'empty';
-  if (totalSeconds < 5 * 60) return 'empty';
-  if (totalSeconds < 15 * 60) return 'light';
-  if (totalSeconds < 45 * 60) return 'medium';
-  return 'deep';
-}
 
 export function freshnessTier(lastPracticedAt: number | null): FreshnessTier {
   if (lastPracticedAt === null) return 'stale';
@@ -998,16 +1006,6 @@ export function freshnessTier(lastPracticedAt: number | null): FreshnessTier {
   if (days <= 10) return 'recent';
   if (days <= 20) return 'aging';
   return 'stale';
-}
-
-/** Multiplier applied to the base cell colour based on freshness. */
-export function freshnessAlpha(tier: FreshnessTier): number {
-  switch (tier) {
-    case 'fresh':  return 1.0;
-    case 'recent': return 0.9;
-    case 'aging':  return 0.7;
-    case 'stale':  return 0.5;
-  }
 }
 
 export function daysSince(timestamp: number | null): number | null {

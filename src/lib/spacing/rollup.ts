@@ -122,6 +122,63 @@ export function rollUpVerdicts(
 }
 
 /**
+ * The same group, read the OTHER way: as high as its best target.
+ *
+ * =====================================================================
+ * FURTHEST IS AN ASK, NOT A DEFAULT DISAGREEMENT.
+ *
+ * `rollUpVerdicts` above is Lowest, and its header says why that is
+ * the honest reading: a square saying Fluent has to mean every target
+ * under it is Fluent. But a twelve-target chord square spends a very
+ * long time at Not Started under that rule — eleven untouched targets
+ * hold it there no matter what the twelfth reached — and the walked
+ * prototype makes Furthest the default for exactly that reason, with
+ * Lowest one tap away.
+ *
+ * So both rules exist, side by side, and the grid says which it is
+ * using. Neither is hidden inside a component: they are two readings
+ * of one set of rows and the reader picks.
+ *
+ * AN UNBANDED TARGET DOES NOT HOLD IT BACK HERE — that is the whole
+ * difference. What is unchanged is the floor: a group where nothing
+ * has earned a band is Started if anything has been touched at all,
+ * and Not Started otherwise, exactly as Lowest reports it.
+ * =====================================================================
+ */
+export function rollUpVerdictsFurthest(
+  verdicts: readonly BandVerdict[],
+): BandVerdict {
+  if (verdicts.length === 0) return NOT_STARTED;
+
+  let highest: AccuracyBand | null = null;
+  let anyStarted = false;
+
+  for (const v of verdicts) {
+    if (v.kind === 'band') {
+      highest = highest === null
+        ? v.band
+        : (lowerBand(highest, v.band) === highest ? v.band : highest);
+      anyStarted = true;
+    } else if (v.kind === 'started') {
+      anyStarted = true;
+    }
+  }
+
+  if (highest !== null) return { kind: 'band', band: highest };
+  return anyStarted ? { kind: 'started', tries: 0 } : NOT_STARTED;
+}
+
+/** The furthest over TARGETS, where a target may have no row. Same
+ *  shape as `rollUpTargets`, the other rule. */
+export function rollUpTargetsFurthest(
+  rows: ReadonlyArray<BandableRow | undefined>,
+): BandVerdict {
+  return rollUpVerdictsFurthest(
+    rows.map(r => (r === undefined ? NOT_STARTED : bandVerdictForRow(r))),
+  );
+}
+
+/**
  * Fluent or Mastered.
  *
  * =====================================================================
