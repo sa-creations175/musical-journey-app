@@ -17,9 +17,9 @@
  * the canonical signal, and there are no per-cell drill-type
  * subdivisions to pick from.
  */
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type SpacingState } from '../../lib/db';
+import { db, type DrillSession, type SpacingState } from '../../lib/db';
 import {
   SCALE_CELLS,
   MAJOR_PENT_STARTING_POINTS,
@@ -31,19 +31,18 @@ import {
 } from './scaleSkills';
 import { CIRCLE_OF_FOURTHS } from './spTiers';
 import { circleOfFourthsIndex } from '../repertoire/circleOfFourths';
-import { spellKey } from '../../lib/spelling';
+import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { scaleSurface } from './practiceTest/makeSurfaces';
-import HandChooser from './HandChooser';
-import BandCell, { bandCellClasses } from './BandCell';
-import { itemCellTargets, rowsByRefHand, verdictForTargets } from './cellTargets';
-import { bandVerdictLabel, type BandVerdict } from '../../lib/spacing/banding';
+import { bandCellClasses } from './BandCell';
 import {
-  acquisitionIndex,
-  type AcquisitionCounts,
-  type AcquisitionIndex,
-} from './acquisition';
+  countFluentPlus, itemCellTargets, rowsByRefHand, sectionCells, verdictForTargets,
+} from './cellTargets';
+import { cellProgress } from './handProgress';
+import ScaleProgressDetails from './ScaleProgressDetails';
+import { NOT_STARTED, bandVerdictLabel, type BandVerdict } from '../../lib/spacing/banding';
+import { bandVerdictForRow } from '../../lib/spacing/row';
 import type { DrillHand } from '../../lib/db';
 
 /** WHAT A SQUARE SAYS LIVES IN `BandCell` NOW. This file used to
@@ -138,30 +137,55 @@ function sortByCircleOfFourths(cells: ScaleCell[]): ScaleCell[] {
 // Progress summary
 // ---------------------------------------------------------------------
 
-/** COUNTED BY THE SHARED RULE. This file used to walk the cells with a
- *  `stageOf` that read only the `both` row, which is what made the
- *  Progress line disagree with the grid under it. */
-function countCells(cells: ScaleCell[], index: AcquisitionIndex): AcquisitionCounts {
-  return index.count(cells.map(c => c.itemRef));
-}
 
 // ---------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------
 
+type Layout = 'keysdown' | 'wrap66' | 'across12';
+type RollupRule = 'furthest' | 'lowest';
+
+const LAYOUTS: ReadonlyArray<[Layout, string]> = [
+  ['keysdown', 'Keys down the left'],
+  ['wrap66', '6 + 6 across'],
+  ['across12', '12 across'],
+];
+
+/**
+ * The scales grid, and everything about the cell you pick.
+ *
+ * =====================================================================
+ * A CELL NAMES ITS STATUS. It was a square shaded by time invested,
+ * which told you something had happened without saying what — and the
+ * six words exist precisely so a reader never has to translate a colour
+ * into a claim.
+ *
+ * A cell holds three targets: left hand, right hand, both hands, always
+ * two octaves. Its status is the roll-up of the ones STILL COUNTED,
+ * furthest by default.
+ *
+ * =====================================================================
+ * REARRANGE IS PAGE STATE, AND ONLY PAGE STATE.
+ *
+ * The order survives switching layouts and picking cells; it does not
+ * survive a reload. Holding it across visits is a stored value and a
+ * stored value is not this commit's to add.
+ * =====================================================================
+ */
 export default function ScaleDrills() {
-  /**
-   * WHICH HAND FIRST, ASKED BEFORE THE DRILL OPENS.
-   *
-   * A tap used to open the modal at the start of its left → right →
-   * both walk. `choosing` is the cell whose chooser is up; `openCell`
-   * is the drill that was actually asked for, with the hands it will
-   * run.
-   */
-  const [choosing, setChoosing] = useState<ScaleCell | null>(null);
-  const [openCell, setOpenCell] = useState<
-    { cell: ScaleCell; hands: readonly DrillHand[] } | null
+  const [rule, setRule] = useState<RollupRule>('furthest');
+  const [layout, setLayout] = useState<Layout>('keysdown');
+  const [arranging, setArranging] = useState(false);
+  const [selected, setSelected] = useState<ScaleCell | null>(null);
+  const [notCounted, setNotCounted] = useState<ReadonlySet<string>>(new Set());
+  const [drilling, setDrilling] = useState<
+    { cell: ScaleCell; hand: DrillHand } | null
   >(null);
+  const detailRef = useRef<HTMLDivElement | null>(null);
+  const [now] = useState(() => Date.now());
+
+  const groups = useMemo(buildGroups, []);
+  const [order, setOrder] = useState<number[]>(() => groups.map((_, i) => i));
 
   const spacingRows = useLiveQuery<SpacingState[]>(
     () => db.spacingState
@@ -169,34 +193,52 @@ export default function ScaleDrills() {
       .toArray(),
     [],
   ) ?? [];
+  const sessions = useLiveQuery<DrillSession[]>(
+    () => db.drillSessions.toArray(),
+    [],
+  ) ?? [];
 
-  /**
-   * ONE INDEX, READ BY THE CELL, THE HEADING AND THE PROGRESS LINE.
-   *
-   * The three used to compute their own answer from the same rows and
-   * arrive at different ones — see `acquisition.ts`.
-   */
-  const index = useMemo(() => acquisitionIndex(spacingRows), [spacingRows]);
-  // What the SQUARES read. The index above still answers the Progress
-  // line, the group headings and the hand chooser, all of which are
-  // still in the retired vocabulary and are owed copy.
   const byRefHand = useMemo(() => rowsByRefHand(spacingRows), [spacingRows]);
-  // The chooser names the cell it is about, so this page needs the
-  // spelling the group blocks already read.
   const [spelling] = useSpelling();
 
-  const handStagesOf = (itemRef: string) => ({
-    left: index.hand(itemRef, 'left'),
-    right: index.hand(itemRef, 'right'),
-    both: index.hand(itemRef, 'both'),
-  });
+  /** A hand is out of the score by cell AND hand — the three share an
+   *  itemRef, so a key on the ref alone would take all three out. */
+  const outKey = (itemRef: string, hand: DrillHand) => `${itemRef} ${hand}`;
+  const countedTargets = (cell: ScaleCell) =>
+    itemCellTargets(cell.itemRef).filter(t => !notCounted.has(outKey(t.itemRef, t.hand)));
 
-  const groups = useMemo(buildGroups, []);
+  /**
+   * A cell's status: the roll-up of the hands still counted.
+   *
+   * `verdictForTargets` is the furthest of them, which is the default
+   * and the shared reader. Lowest asks the same rows the other way
+   * round rather than through a second index.
+   */
+  const cellVerdict = (cell: ScaleCell): BandVerdict => {
+    const targets = countedTargets(cell);
+    if (targets.length === 0) return NOT_STARTED;
+    if (rule === 'furthest') return verdictForTargets(targets, byRefHand);
+    const bands = targets
+      .map(t => byRefHand.get(`${t.itemRef} ${t.hand}`))
+      .map(row => (row ? bandVerdictForRow(row) : NOT_STARTED));
+    return bands.reduce((low, v) => (rank(v) < rank(low) ? v : low), bands[0]);
+  };
 
-  const totals = useMemo(
-    () => countCells(SCALE_CELLS as ScaleCell[], index),
-    [index],
-  );
+  const totals = useMemo(() => {
+    const cells = sectionCells('scales');
+    return countFluentPlus(cells, byRefHand);
+  }, [byRefHand]);
+
+  const pickCell = (cell: ScaleCell) => {
+    setSelected(cell);
+    // THE ANSWER GOES WHERE YOU ARE LOOKING. The grid does not move;
+    // the page brings the band to the top instead.
+    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const selectedHands = selected
+    ? cellProgress(itemCellTargets(selected.itemRef), spacingRows, sessions)
+    : [];
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
@@ -204,215 +246,304 @@ export default function ScaleDrills() {
         <h3 className="text-sm font-medium uppercase tracking-wide text-neutral-600 dark:text-neutral-300">
           Scales
         </h3>
-        {/* THE COUNT IS THE CATALOG'S OWN. It was typed as `96`, which
-            is right today and silently wrong the day a scale is added.
-
-            "SCALE PATTERNS", NOT "CELLS". There are 48 scales here; the
-            other 48 are the same pitch sets entered from a different
-            starting point, which is why they are separate patterns and
-            not repeats. */}
+        <p className="text-xs text-neutral-500 leading-snug">
+          Scale patterns across major, natural minor and the two pentatonics.
+          Every cell names where that pattern stands in that key, across left
+          hand, right hand and both hands.
+        </p>
         <p className="text-xs text-neutral-500">
-          {SCALE_CELLS.length} scale patterns across major, natural minor, and the
-          two pentatonics. Color shows acquisition stage. Tap a cell to drill and
-          rate Struggled / Working on it / Clean / In flow.
+          Progress — {totals.fluentPlus} of {totals.total} Fluent+
         </p>
       </header>
 
-      <ProgressSummary counts={totals} />
-
-      <div className="space-y-6">
-        {groups.map(group => (
-          <ScaleGroupBlock
-            key={group.kind}
-            group={group}
-            index={index}
-            byRefHand={byRefHand}
-            onCellClick={setChoosing}
-          />
+      <div className="flex items-center gap-2 flex-wrap text-[11px]">
+        <span className="uppercase tracking-wider font-semibold text-neutral-400">
+          Cell reads as
+        </span>
+        {(['furthest', 'lowest'] as const).map(r => (
+          <Toggle key={r} on={rule === r} onClick={() => setRule(r)}>
+            {r === 'furthest' ? 'Furthest' : 'Lowest'}
+          </Toggle>
         ))}
+        <span className="uppercase tracking-wider font-semibold text-neutral-400 ml-2">
+          Keys
+        </span>
+        {LAYOUTS.map(([id, label]) => (
+          <Toggle key={id} on={layout === id} onClick={() => setLayout(id)}>
+            {label}
+          </Toggle>
+        ))}
+        <span className="uppercase tracking-wider font-semibold text-neutral-400 ml-2">
+          Page
+        </span>
+        <Toggle on={arranging} onClick={() => setArranging(a => !a)}>
+          {arranging ? 'Done rearranging' : 'Rearrange'}
+        </Toggle>
       </div>
 
-      <Legend />
+      <div className="space-y-6">
+        {order.map((gi, pos) => {
+          const group = groups[gi];
+          if (!group) return null;
+          const cells = group.rows.flatMap(r => r.cells);
+          const fluentPlus = cells.filter(c => isFluentPlus(cellVerdict(c))).length;
+          return (
+            <div key={group.kind} className="space-y-2">
+              <div className="flex items-baseline gap-2 flex-wrap">
+                {arranging && (
+                  <span className="inline-flex gap-1">
+                    <MoveButton
+                      dir="up"
+                      disabled={pos === 0}
+                      onClick={() => setOrder(o => swap(o, pos, pos - 1))}
+                    />
+                    <MoveButton
+                      dir="down"
+                      disabled={pos === order.length - 1}
+                      onClick={() => setOrder(o => swap(o, pos, pos + 1))}
+                    />
+                  </span>
+                )}
+                <span className="text-sm font-medium">{group.label}</span>
+                <span className="text-[11px] text-neutral-500">
+                  {fluentPlus}/{cells.length} Fluent+
+                </span>
+              </div>
+              {group.description && (
+                <p className="text-[11px] text-neutral-500">{group.description}</p>
+              )}
+              <ScaleGrid
+                group={group}
+                layout={layout}
+                spelling={spelling}
+                verdictOf={cellVerdict}
+                selectedRef={selected?.itemRef ?? null}
+                onPick={pickCell}
+              />
+            </div>
+          );
+        })}
+      </div>
 
-      {choosing && (
-        <HandChooser
-          title={scaleCellLabel(choosing, spelling)}
-          hands={handStagesOf(choosing.itemRef)}
-          cell={index.cell(choosing.itemRef)}
-          onClose={() => setChoosing(null)}
-          onChoose={hands => {
-            setOpenCell({ cell: choosing, hands });
-            setChoosing(null);
-          }}
-        />
-      )}
+      <ScaleProgressDetails
+        ref={detailRef}
+        cellLabel={selected ? scaleCellLabel(selected, spelling) : null}
+        hands={selectedHands}
+        verdict={selected ? cellVerdict(selected) : NOT_STARTED}
+        ruleWord={rule}
+        notCounted={new Set(
+          selectedHands
+            .filter(h => selected && notCounted.has(outKey(selected.itemRef, h.hand)))
+            .map(h => h.hand),
+        )}
+        onToggleCounted={hand => {
+          if (!selected) return;
+          setNotCounted(prev => {
+            const next = new Set(prev);
+            const k = outKey(selected.itemRef, hand);
+            if (next.has(k)) next.delete(k); else next.add(k);
+            return next;
+          });
+        }}
+        onDrill={hand => selected && setDrilling({ cell: selected, hand })}
+        now={now}
+      />
 
-      {openCell && (
-        /* ONE HAND PER SESSION NOW. The old modal walked the hands it
-           was given in order, one countdown each; the shell is a
-           SESSION on one skill, and a hand is a skill. So the chooser
-           opens the session for the hand you picked, and All Three
-           opens three sessions in turn — see `handQueue`. */
+      {drilling && (
+        /* THE SAME PANEL EVERY OTHER MODULE OPENS. It asks Practice or
+           Test, then runs the session — drill settings and rating on
+           one screen, the run ended before it is rated. */
         <PracticeTestPanel
-          key={openCell.hands[0]}
+          key={`${drilling.cell.itemRef} ${drilling.hand}`}
           surface={scaleSurface({
-            cellLabel: scaleCellLabel(openCell.cell, spelling),
-            skillLabel: HAND_LABEL[openCell.hands[0]],
-            itemRef: openCell.cell.itemRef,
-            hand: openCell.hands[0],
+            cellLabel: scaleCellLabel(drilling.cell, spelling),
+            skillLabel: HAND_LABEL[drilling.hand],
+            itemRef: drilling.cell.itemRef,
+            hand: drilling.hand,
           })}
-          onClose={() => {
-            const rest = openCell.hands.slice(1);
-            setOpenCell(rest.length
-              ? { cell: openCell.cell, hands: rest }
-              : null);
-          }}
+          onClose={() => setDrilling(null)}
         />
       )}
     </section>
   );
 }
 
-function ProgressSummary({ counts }: { counts: AcquisitionCounts }) {
+/** Where a verdict sits, for the lowest-of rule. */
+function rank(v: BandVerdict): number {
+  if (v.kind === 'not-started') return 0;
+  if (v.kind === 'started') return 1;
+  return { 'needs-work': 2, developing: 3, fluent: 4, mastered: 5 }[v.band];
+}
+
+function isFluentPlus(v: BandVerdict): boolean {
+  return v.kind === 'band' && (v.band === 'fluent' || v.band === 'mastered');
+}
+
+function swap(order: number[], a: number, b: number): number[] {
+  const next = order.slice();
+  [next[a], next[b]] = [next[b], next[a]];
+  return next;
+}
+
+function Toggle({ on, onClick, children }: {
+  on: boolean; onClick: () => void; children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-md border border-black/[0.07] p-2.5 flex items-baseline gap-3 flex-wrap text-xs">
-      <span className="text-neutral-500">Progress</span>
-      <span className="font-mono">
-        <span className="text-mastered font-medium">{counts.acquired}</span>
-        <span className="text-neutral-400"> Acquired</span>
-        {' · '}
-        <span className="text-developing font-medium">{counts.inProgress}</span>
-        <span className="text-neutral-400"> In Progress</span>
-        {' · '}
-        <span className="text-neutral-500 font-medium">{counts.notStarted}</span>
-        <span className="text-neutral-400"> Not Started</span>
-      </span>
-      <span className="text-neutral-400 ml-auto">{counts.total} scale patterns</span>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={[
+        'px-2 py-1 rounded-md border',
+        on
+          ? 'bg-fluent text-white border-fluent font-semibold'
+          : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-fluent',
+      ].join(' ')}
+    >
+      {children}
+    </button>
   );
 }
 
-function ScaleGroupBlock({
-  group,
-  index,
-  byRefHand,
-  onCellClick,
-}: {
-  group: ScaleGroup;
-  index: AcquisitionIndex;
-  byRefHand: ReadonlyMap<string, SpacingState>;
-  onCellClick: (cell: ScaleCell) => void;
+function MoveButton({ dir, disabled, onClick }: {
+  dir: 'up' | 'down'; disabled: boolean; onClick: () => void;
 }) {
-  const [spelling] = useSpelling();
-  const groupCells = group.rows.flatMap(r => r.cells);
-  const counts = countCells(groupCells, index);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={dir === 'up' ? 'Move section up' : 'Move section down'}
+      className="px-1 text-[10px] text-neutral-500 hover:text-fluent disabled:opacity-30"
+    >
+      {dir === 'up' ? '\u25b2' : '\u25bc'}
+    </button>
+  );
+}
+
+/**
+ * One group's cells, in whichever of the three layouts is on.
+ *
+ * ALL THREE SHOW THE SAME DATA. They differ in which axis the keys run
+ * down, and nothing else — a cell reads the same status in every one of
+ * them, which is what makes them layouts rather than views.
+ */
+function ScaleGrid({ group, layout, spelling, verdictOf, selectedRef, onPick }: {
+  group: ScaleGroup;
+  layout: Layout;
+  spelling: Spelling;
+  verdictOf: (cell: ScaleCell) => BandVerdict;
+  selectedRef: string | null;
+  onPick: (cell: ScaleCell) => void;
+}) {
+  const keyOrder = CIRCLE_OF_FOURTHS;
+
+  if (layout === 'keysdown') {
+    return (
+      <div className="overflow-x-auto">
+        <table className="border-collapse text-[11px]">
+          <thead>
+            <tr>
+              <th className="p-1" />
+              {group.rows.map(r => (
+                <th key={r.rowKey} className="p-1 font-medium text-left text-neutral-500">
+                  {r.rowLabel}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {keyOrder.map(key => (
+              <tr key={key}>
+                <th className="p-1 font-mono text-neutral-500 text-right">
+                  {spellKey(key, spelling)}
+                </th>
+                {group.rows.map(r => {
+                  const cell = r.cells.find(c => c.keyName === key);
+                  return (
+                    <td key={r.rowKey} className="p-0.5">
+                      {cell && (
+                        <StatusCell
+                          cell={cell}
+                          verdict={verdictOf(cell)}
+                          selected={cell.itemRef === selectedRef}
+                          onPick={onPick}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // ACROSS: the keys run left to right. `wrap66` breaks them into two
+  // rows of six so twelve columns fit a narrow screen; `across12`
+  // keeps all twelve on one line.
+  const chunks = layout === 'wrap66'
+    ? [keyOrder.slice(0, 6), keyOrder.slice(6)]
+    : [keyOrder];
 
   return (
     <div className="space-y-2">
-      <div className="flex items-baseline gap-2 flex-wrap">
-        <h4 className="text-sm font-medium text-neutral-800 dark:text-neutral-100">
-          {group.label}
-        </h4>
-        <span className="text-[11px] text-neutral-400 font-mono">
-          {counts.acquired}/{counts.total} acquired
-        </span>
-      </div>
-      <p className="text-[11px] text-neutral-500">{group.description}</p>
-
-      <div className="overflow-x-auto">
-        <div className="min-w-max space-y-1">
-          {/* Column header — only on the first row to keep the section visually tight */}
-          <div
-            className="grid"
-            style={{
-              gridTemplateColumns: `minmax(110px, 140px) repeat(${CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
-            }}
-          >
-            <div />
-            {CIRCLE_OF_FOURTHS.map(k => (
-              <div
-                key={k}
-                className="text-[10px] tracking-wide text-neutral-500 text-center font-mono"
-              >
-                {/* Label only. CIRCLE_OF_FOURTHS is still the identity
-                    vocabulary the cells are keyed on. */}
-                {spellKey(k, spelling)}
-              </div>
-            ))}
-          </div>
-
-          {group.rows.map(row => (
-            <div
-              key={row.rowKey}
-              className="grid items-center"
-              style={{
-                gridTemplateColumns: `minmax(110px, 140px) repeat(${CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
-              }}
-            >
-              <div className="text-xs pr-2 py-0.5 truncate text-neutral-600 dark:text-neutral-300">
-                {row.rowLabel}
-              </div>
-              {row.cells.map(cell => {
-                // A scale square is its three hands. `itemCellTargets`
-                // asks `handsFor`, so a kind with no hand dimension
-                // gets one target rather than two it can never fill.
-                const verdict = verdictForTargets(
-                  itemCellTargets(cell.itemRef), byRefHand,
-                );
+      {group.rows.map(r => (
+        <div key={r.rowKey} className="space-y-1">
+          <div className="text-[11px] font-medium text-neutral-500">{r.rowLabel}</div>
+          {chunks.map((chunk, ci) => (
+            <div key={ci} className="flex gap-1 flex-wrap">
+              {chunk.map(key => {
+                const cell = r.cells.find(c => c.keyName === key);
+                if (!cell) return null;
                 return (
-                  <BandCell
-                    key={cell.itemRef}
-                    verdict={verdict}
-                    title={`${scaleCellLabel(cell, spelling)} — ${bandVerdictLabel(verdict)}`}
-                    onClick={() => onCellClick(cell)}
+                  <StatusCell
+                    key={key}
+                    cell={cell}
+                    verdict={verdictOf(cell)}
+                    selected={cell.itemRef === selectedRef}
+                    onPick={onPick}
+                    keyLabel={spellKey(key, spelling)}
                   />
                 );
               })}
             </div>
           ))}
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Legend() {
-  return (
-    <div className="flex items-center gap-3 flex-wrap text-[11px] text-neutral-500">
-      {/* "Status", not "Legend". The heading is what marks the three
-          words after it as status words — one qualifier governing the
-          list, rather than bolding every item in a three-item row
-          where there is no ordinary English for them to hide in. */}
-      <span>Status</span>
-      {LEGEND_VERDICTS.map(v => (
-        <LegendChip key={bandVerdictLabel(v)} verdict={v} />
       ))}
     </div>
   );
 }
 
-/** The six, worst to best. Not Started and Started come first because
- *  neither is a score and both sit below every band — the order the
- *  squares themselves resolve in. */
-const LEGEND_VERDICTS: ReadonlyArray<BandVerdict> = [
-  { kind: 'not-started' },
-  { kind: 'started', tries: 0 },
-  { kind: 'band', band: 'needs-work' },
-  { kind: 'band', band: 'developing' },
-  { kind: 'band', band: 'fluent' },
-  { kind: 'band', band: 'mastered' },
-];
-
-function LegendChip({ verdict }: { verdict: BandVerdict }) {
+/**
+ * One cell, naming its status.
+ *
+ * THE WORD IS ON THE TILE, not only in a legend. A grid of colours asks
+ * the reader to hold a key in their head while they scan it; the six
+ * words are short enough to print.
+ */
+function StatusCell({ cell, verdict, selected, onPick, keyLabel }: {
+  cell: ScaleCell;
+  verdict: BandVerdict;
+  selected: boolean;
+  onPick: (cell: ScaleCell) => void;
+  keyLabel?: string;
+}) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {/* Painted by the square's own lookup, so the legend cannot
-          drift from the grid it explains. */}
-      <span
-        className={`inline-block w-3 h-3 rounded-sm border ${bandCellClasses(verdict)}`}
-        aria-hidden
-      />
-      <span>{bandVerdictLabel(verdict)}</span>
-    </span>
+    <button
+      type="button"
+      onClick={() => onPick(cell)}
+      aria-pressed={selected}
+      className={[
+        'px-1.5 py-1 rounded-md border text-[10px] leading-tight text-left min-w-[5.5rem]',
+        bandCellClasses(verdict),
+        selected ? 'ring-2 ring-fluent' : '',
+      ].join(' ')}
+    >
+      {keyLabel && <span className="block font-mono opacity-70">{keyLabel}</span>}
+      <span className="block font-medium">{bandVerdictLabel(verdict)}</span>
+    </button>
   );
 }

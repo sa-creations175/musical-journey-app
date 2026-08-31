@@ -213,6 +213,32 @@ Not "square". Use **cell** in the UI, in reports and in commit messages.
 - **The bar while in the mode:** Tap anything you're not working on. It won't
   count toward this cell's status.
 
+## The scales page — approved 31 Aug 2026
+
+### Progress Details
+
+- **Total time**
+- **Last practiced**
+- **Practice runs**
+- **Test runs**
+- **Drill left hand** / **Drill right hand** / **Drill both hands**
+- **Edit what counts** / **Done**
+- **not counted**
+- Empty state: *Pick a cell above and everything about it shows up here.*
+- The cell's roll-up line: *Reads **Fluent** — the furthest of the 3 hands still
+  counted.*
+
+### The grid's controls
+
+- **Keys down the left** / **6 + 6 across** / **12 across**
+- **Rearrange** / **Done rearranging**
+
+Retired here, per the standing status-word rule: **Acquired**, **In Progress**,
+and **Not Started** used as a progress strip. "Progress — 12 of 96 Fluent+" is
+the whole line; the trailing "96 scale patterns" goes with it.
+
+---
+
 ## The three session buttons — approved 30 Aug 2026
 
 Once a session is running, the row along the bottom reads:

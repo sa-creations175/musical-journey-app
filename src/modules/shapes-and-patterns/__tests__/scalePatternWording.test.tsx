@@ -44,10 +44,17 @@ async function render() {
 }
 
 describe('what the matrix calls its contents', () => {
-  it('says scale patterns, and says how many from the catalog', async () => {
+  it('says what the grid is, in the approved sentence', async () => {
+    // The old header led with a count — "96 scale patterns across…" —
+    // and the count moved to the Progress line, which is the one place
+    // a total belongs. The sentence now says what a cell NAMES, which
+    // is the change the page is about.
     const el = await render();
-    const text = el.textContent ?? '';
-    expect(text).toContain(`${SCALE_CELLS.length} scale patterns`);
+    expect(el.textContent ?? '').toContain(
+      'Scale patterns across major, natural minor and the two pentatonics. '
+      + 'Every cell names where that pattern stands in that key, across left '
+      + 'hand, right hand and both hands.',
+    );
   });
 
   it('does not call them cells anywhere the reader can see', async () => {
@@ -55,12 +62,19 @@ describe('what the matrix calls its contents', () => {
     expect(el.textContent ?? '').not.toMatch(/\d+\s+cells/);
   });
 
-  it('counts the same number in the summary as the catalog holds', async () => {
-    // The Progress line's total and the header's count are the same
-    // fact; a fixture where they differ is the bug this pins.
+  it('THE TOTAL IS THE CATALOG\'S, AND IS SAID ONCE', async () => {
+    // It used to appear twice — in the header and in the summary —
+    // which is two places to be wrong. The Progress line carries it,
+    // and the trailing "96 scale patterns" went with the header.
     const el = await render();
-    const occurrences = (el.textContent ?? '')
-      .match(new RegExp(`${SCALE_CELLS.length} scale patterns`, 'g')) ?? [];
-    expect(occurrences.length).toBeGreaterThanOrEqual(2);
+    const text = el.textContent ?? '';
+    expect(text).toMatch(new RegExp(`Progress — \\d+ of ${SCALE_CELLS.length} Fluent\\+`));
+    expect(text).not.toContain(`${SCALE_CELLS.length} scale patterns`);
+  });
+
+  it('the retired progress words are gone', async () => {
+    const text = (await render()).textContent ?? '';
+    expect(text).not.toContain('Acquired');
+    expect(text).not.toContain('In Progress');
   });
 });
