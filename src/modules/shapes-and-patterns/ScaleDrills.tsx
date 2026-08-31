@@ -38,7 +38,7 @@ import { scaleSurface } from './practiceTest/makeSurfaces';
 import { bandCellClasses } from './BandCell';
 import {
   countFluentPlusTargets, itemCellTargets, rowsByRefHand, sectionTargets,
-  targetKey, verdictForTargets,
+  targetKey, targetsAcrossKeys, verdictForTargets,
 } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
 import { sessionsByTarget } from './timeInvested';
@@ -379,6 +379,11 @@ export default function ScaleDrills() {
            once from all of them rather than per hand. */
         sessionSeconds={sessionSecondsById(sessions)}
         onToggleCounted={key => setNotCounted(prev => toggled(prev, key))}
+        /* THE WIDER GESTURE, spelled the same way the narrow one is:
+           a set of target keys, written all at once. See
+           `applyAcrossKeys` — twelve exclusions, not a rule. */
+        onApplyToEveryKey={(key, nowOut) =>
+          setNotCounted(prev => applyAcrossKeys(prev, key, nowOut))}
         onDrill={key => {
           const target = selectedTargets.find(t => t.key === key);
           if (selected && target) setDrilling({ cell: selected, hand: target.hand });
@@ -414,6 +419,39 @@ export default function ScaleDrills() {
 function toggled(set: ReadonlySet<string>, key: string): ReadonlySet<string> {
   const next = new Set(set);
   if (next.has(key)) next.delete(key); else next.add(key);
+  return next;
+}
+
+/**
+ * The same change, to the same target, in every key of its row.
+ *
+ * =====================================================================
+ * TWELVE EXCLUSIONS, NOT A RULE.
+ *
+ * It writes exactly what twelve clicks would have written, into the
+ * same set every counting surface already reads. Nothing new is
+ * stored and nothing new has to be consulted: the card, the grid,
+ * every goal denominator and the session generator's scope all take a
+ * set of target keys today, and they take this one.
+ *
+ * WHAT THAT COSTS, stated because it is real: a key added to the
+ * catalog later does NOT inherit the change. There are twelve and
+ * there have always been twelve, so the cost is theoretical — and
+ * what it buys is that afterwards this is per cell again, so ONE key
+ * can be put back without unpicking anything.
+ *
+ * SET, NOT TOGGLE. Every sibling ends up in the state the one you
+ * clicked ended up in, so a row that was already half out comes out
+ * whole rather than inverting into a stripe.
+ * =====================================================================
+ */
+function applyAcrossKeys(
+  set: ReadonlySet<string>, key: string, nowOut: boolean,
+): ReadonlySet<string> {
+  const next = new Set(set);
+  for (const sibling of targetsAcrossKeys(key)) {
+    if (nowOut) next.add(sibling); else next.delete(sibling);
+  }
   return next;
 }
 

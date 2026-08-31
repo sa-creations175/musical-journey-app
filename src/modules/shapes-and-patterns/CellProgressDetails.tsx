@@ -130,6 +130,18 @@ interface Props {
    *  all — so the control is not offered rather than offered and
    *  refused. */
   onToggleCounted?: (key: string) => void;
+  /**
+   * SPREAD THE CHANGE JUST MADE ALONG THE KEY AXIS.
+   *
+   * Offered after a target is toggled, never before: the offer names
+   * a change that has already happened, so it reads as "and the rest"
+   * rather than as a mode you have to be in first. `nowOut` says which
+   * way the change went, so the wider gesture matches it — putting one
+   * back offers putting all twelve back.
+   *
+   * Absent where there is no key axis to spread along.
+   */
+  onApplyToEveryKey?: (key: string, nowOut: boolean) => void;
   onDrill: (key: string) => void;
   /** How long each sitting held, by id — see `sessionSecondsById`.
    *  A run whose sitting is not in here shows no sitting. */
@@ -140,10 +152,18 @@ interface Props {
 
 export default function CellProgressDetails({
   cellLabel, targets, verdict, rollup, note, notCounted, onToggleCounted,
-  onDrill, sessionSeconds, now, ref,
+  onApplyToEveryKey, onDrill, sessionSeconds, now, ref,
 }: Props) {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  /**
+   * The target just toggled, and which way it went.
+   *
+   * THE OFFER FOLLOWS A CHANGE RATHER THAN PRECEDING IT. Cleared when
+   * edit mode closes, and replaced when another target is toggled —
+   * one offer at a time, always about the last thing done.
+   */
+  const [lastEdit, setLastEdit] = useState<{ key: string; nowOut: boolean } | null>(null);
 
   const counted = targets.filter(t => !notCounted.has(t.key));
   const practiceSeconds = counted.reduce((n, t) => n + t.progress.practiceSeconds, 0);
@@ -173,7 +193,11 @@ export default function CellProgressDetails({
             {onToggleCounted && (
               <button
                 type="button"
-                onClick={() => { setEditing(e => !e); setOpenKey(null); }}
+                onClick={() => {
+                  setEditing(e => !e);
+                  setOpenKey(null);
+                  setLastEdit(null);
+                }}
                 className="text-[11px] text-neutral-500 hover:text-fluent underline underline-offset-2"
               >
                 {editing ? 'Done' : 'Edit what counts'}
@@ -224,7 +248,13 @@ export default function CellProgressDetails({
                     data-target={t.key}
                     data-counted={out ? 'false' : 'true'}
                     onClick={() => {
-                      if (editing) { onToggleCounted?.(t.key); return; }
+                      if (editing) {
+                        onToggleCounted?.(t.key);
+                        // The state it is ABOUT to be in — the parent
+                        // owns the set and has not written it yet.
+                        setLastEdit({ key: t.key, nowOut: !out });
+                        return;
+                      }
                       setOpenKey(open ? null : t.key);
                     }}
                     className={[
@@ -259,6 +289,27 @@ export default function CellProgressDetails({
                       </span>
                     )}
                   </button>
+
+                  {/* AND THE REST OF THE KEYS, if you want them.
+                      Offered under the row it is about, so there is
+                      nothing to read to work out what "every key" would
+                      apply to. It disappears once taken, because it has
+                      been taken. */}
+                  {editing && onApplyToEveryKey && lastEdit?.key === t.key && (
+                    <div className="ml-6 mb-1">
+                      <button
+                        type="button"
+                        data-testid="apply-to-every-key"
+                        onClick={() => {
+                          onApplyToEveryKey(t.key, lastEdit.nowOut);
+                          setLastEdit(null);
+                        }}
+                        className="px-2 py-0.5 rounded-md border border-developing/50 text-developing text-[11px] font-medium hover:bg-developing/10"
+                      >
+                        Apply to every key
+                      </button>
+                    </div>
+                  )}
 
                   {open && (
                     <div className="ml-6 mb-2 space-y-2">

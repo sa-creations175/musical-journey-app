@@ -200,6 +200,60 @@ export function sectionTargetCount(
   return sectionTargets(section, outOfScore).length;
 }
 
+/**
+ * The same target, in every key of the row it sits in.
+ *
+ * =====================================================================
+ * THE KEY IS THE AXIS, AND THE ROW IS THE LIMIT.
+ *
+ * Taking a target out of the score is per cell, and doing that to
+ * left-hand second inversion in all twelve keys is seventy-two clicks.
+ * So the wider gesture spreads a change along the ONE axis the grids
+ * lay out horizontally: the key.
+ *
+ * WHAT IT DOES NOT SPREAD ALONG is everything else. Left-hand second
+ * inversion out of C major seven reaches major sevens in twelve keys —
+ * not minor sevens, not the other inversions, not the other hands. The
+ * row you are in is the row it applies to, because the row is what the
+ * reader is looking at when they ask.
+ *
+ * COMPUTED FROM THE CATALOG, not by editing the key out of a string.
+ * A scale's key is the last segment of a three-part ref and of a
+ * four-part one; a chord's is the third of four. Rebuilding a ref by
+ * position is how a pentatonic starting point silently becomes a key.
+ *
+ * The target itself is always in the list, so a caller can apply one
+ * change to all of them without special-casing where it started.
+ * =====================================================================
+ */
+export function targetsAcrossKeys(key: string): string[] {
+  const hand = key.slice(key.lastIndexOf(' ') + 1) as DrillHand;
+  const itemRef = key.slice(0, key.lastIndexOf(' '));
+
+  if (itemRef.startsWith('chord-shape:')) {
+    const [, quality, , state] = itemRef.split(':');
+    if (!quality) return [key];
+    return KEYS.flatMap(k => chordCellTargets(quality, k)
+      .filter(t => (t.itemRef.split(':')[3] ?? null) === (state ?? null)
+        && t.hand === hand)
+      .map(t => targetKey(t.itemRef, t.hand)));
+  }
+
+  if (itemRef.startsWith('scale:')) {
+    const here = SCALE_CELLS.find(c => c.itemRef === itemRef);
+    if (here === undefined) return [key];
+    return SCALE_CELLS
+      .filter(c => c.kind === here.kind && c.startingPoint === here.startingPoint)
+      .map(c => targetKey(c.itemRef, hand));
+  }
+
+  // VOICE LEADING AND MENTAL VISUALISATION HAVE NO WIDER GESTURE.
+  // A voice-leading cell holds one target and offers no Edit what
+  // counts at all, so nothing can reach here for one — and answering
+  // "just this one" is the honest answer rather than an error.
+  return [key];
+}
+
 /** Every target in the three keyed sections — the universe a goal
  *  denominator is scoped out of. Mental visualisation is excluded, per
  *  the April 27 call: it counts toward consistency only. */
