@@ -213,10 +213,40 @@ export const INVERSION_STATES_FOR_CHORD_SHAPE_KIND: Record<
  * guard that always passes is a rule nobody can find and nobody can
  * remove. Every call site now has one fewer thing to remember.
  *
- * Consequences taken deliberately: a seventh quality needs six rows
- * covered rather than five, so its coverage percentages drop; and
- * `tierTotalCells(2)` goes 360 → 432, which moves the tier-2 unlock bar
- * from 180 comfortable cells to 216.
+ * =====================================================================
+ * REVERSED AGAIN, 31 August 2026, AND THIS TIME ON WHAT THE SHAPE IS
+ * RATHER THAN ON HOW IT IS PLAYED.
+ *
+ * The left-hand root under a right-hand triad is not a distinct shape
+ * to own. The triad is already drilled on its own, and the left hand is
+ * ONE NOTE — the supplementary state is a combination of two things
+ * already counted, not a new hand skill. Owning it is owning the triad,
+ * twice.
+ *
+ * A real voicing — root, third and flat seven in the left hand — IS a
+ * different thing. It is not this, and it belongs with voice leading
+ * rather than here.
+ *
+ * So supplementary leaves the score. It is out of `chordCellTargets`
+ * (where it always was), out of `countsTowardShapesCoverage`, and out
+ * of every denominator, because those are one enumeration now — see
+ * `cellTargets.ts`. The chord-shape catalog is 1944: the 72
+ * supplementary rows leave, and the hand axis they never had arrives.
+ *
+ * THE ROWS ARE NOT DELETED. Anyone who drilled the supplementary
+ * voicing keeps that history, exactly as the cut qualities do, and it
+ * would come back into the count if this were ever reversed a third
+ * time.
+ *
+ * WHAT THIS LEAVES WITH NOWHERE TO LIVE, stated so it is not lost: the
+ * same shape under a different root is a different chord — a Cmaj7
+ * shape over C is a Cmaj7, over A it is an Am9. That relationship is
+ * worth practising and is nobody's module yet. It is not this one.
+ * =====================================================================
+ *
+ * Consequences of the 20 August ruling, since reversed with it: a
+ * seventh quality needed six rows covered rather than five, and
+ * `tierTotalCells(2)` went 360 → 432. Both go back.
  */
 
 /**

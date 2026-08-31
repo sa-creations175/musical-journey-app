@@ -36,11 +36,8 @@ import {
   type AcquisitionStage,
   type SpacingState,
 } from '../../lib/db';
-import {
-  CHORD_QUALITY_BY_ID,
-  INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
-} from './catalog';
 import { parseShapesItemRef } from './drillModel';
+import { sectionTargets } from './cellTargets';
 
 export type SPTier = 1 | 2;
 
@@ -67,8 +64,6 @@ export function clampStoredTier(value: unknown): SPTier {
  *  comfortable, Tier N+1 unlocks"). Tunable — recalibrate after a
  *  few weeks of real drilling data. */
 export const SP_TIER_UNLOCK_THRESHOLD = 0.5;
-
-const KEY_COUNT = 12;
 
 const TIER_1_QUALITIES = [
   'maj', 'min', 'dim', 'aug', 'sus2', 'sus4',
@@ -122,22 +117,32 @@ export function shapesForTier(tier: SPTier): readonly string[] {
 }
 
 /**
- * Total *possible* cells in a tier — sum across qualities of
- * (inversion states × 12 keys). The
- * tier-unlock check uses this as the denominator so advancement
- * requires broad coverage of the tier, not just mastery of a few
- * touched cells.
+ * Total *possible* DRILLS in a tier. The tier-unlock check uses this as
+ * the denominator so advancement requires broad coverage of the tier,
+ * not just mastery of a few touched cells.
  *
- * Qualities not present in the catalog contribute 0 (the catalog
- * is the source of truth for what can actually be drilled).
+ * =====================================================================
+ * IT COUNTED THE WRONG THING ON THE SAME SIDE AS THE GOALS DID.
+ *
+ * It was `inversion states × 12 keys`, with no hand axis and with
+ * `supplementary` counted in. The NUMERATOR — `tierRows` in
+ * `unlockedTier` — counts spacingState rows, and a row is
+ * `(itemRef, hand)`. So the ratio was up to three times what it should
+ * have been and a tier could unlock on a third of the work.
+ *
+ * Counted off `sectionTargets` now, the same enumeration the card, the
+ * grid, `shapesCounts` and every goal denominator read. The threshold
+ * is untouched; what changed is that both sides count drills.
+ *
+ * Qualities not present in the catalog contribute 0 — the enumeration
+ * comes from the catalog, so that falls out rather than being checked.
+ * =====================================================================
  */
 export function tierTotalCells(tier: SPTier): number {
-  return SP_TIERS[tier].reduce((sum, qualityId) => {
-    const entry = CHORD_QUALITY_BY_ID.get(qualityId);
-    if (!entry) return sum;
-    const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[entry.kind];
-    return sum + states.length * KEY_COUNT;
-  }, 0);
+  const inTier = new Set(SP_TIERS[tier]);
+  return sectionTargets('chord-shapes')
+    .filter(t => inTier.has(t.itemRef.split(':')[1]))
+    .length;
 }
 
 /**

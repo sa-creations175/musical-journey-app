@@ -2,40 +2,39 @@ import {
   CHORD_QUALITIES,
   CHORD_QUALITY_BY_ID,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
-  KEYS,
   KEYS_CIRCLE_OF_FOURTHS,
   parseVoiceLeadingItemRef,
-  voiceLeadingCellsPerKey,
-  voiceLeadingTotalCellCount,
   VOICE_LEADING_PATTERN_BY_ID,
   type QualityKind,
 } from '../shapes-and-patterns/catalog';
 import {
   parseScaleItemRef,
-  SCALE_CELLS,
   type ScaleKind,
   type MajorPentStartingPoint,
   type MinorPentStartingPoint,
 } from '../shapes-and-patterns/scaleSkills';
 import type { ShapesActivityArea } from '../../lib/weeklyAttempts';
+import {
+  shapesTargetUniverse, type OutOfScore,
+} from '../shapes-and-patterns/cellTargets';
 
 /**
- * Count of acquisition-path inversion-state rows per cell, by
- * QualityKind. Triads have 4 (root/inv1/inv2/fluid), sevenths have 6
- * (root/inv1/inv2/inv3/fluid/supplementary), extensions and
- * special/sixth have 1 (single voicing-based row, no inversion state).
- * Drives the per-kind denominator multiplier.
+ * `ACQUISITION_PATH_STATES_PER_KIND` LIVED HERE, AND IT IS GONE.
  *
- * READ OFF THE CATALOG, never a literal: the supplementary state moved
- * into the denominator on 20 Aug 2026, and a hardcoded 5 here would
- * have kept the old answer with nothing failing.
+ * It was the per-kind inversion-state multiplier every denominator in
+ * this file was built out of — and it had NO HAND AXIS, so a group's
+ * denominator counted itemRefs while its numerator counted spacingState
+ * rows, which are per hand. That is how a chord-shape coverage goal
+ * could read over 100%.
+ *
+ * It also went stale silently, twice: it read the catalog's seventh
+ * states including `supplementary`, while the comment beside it said
+ * "supplementary excluded" — both rulings were live in this file at
+ * once and nothing failed.
+ *
+ * A denominator is a count off the one enumeration now. There is no
+ * multiplier to keep in step with anything.
  */
-const ACQUISITION_PATH_STATES_PER_KIND: Record<QualityKind, number> = {
-  triad:     INVERSION_STATES_FOR_CHORD_SHAPE_KIND.triad.length,
-  seventh:   INVERSION_STATES_FOR_CHORD_SHAPE_KIND.seventh.length,
-  extension: 1,
-  special:   1,
-};
 
 /**
  * Coverage-picker granularity for Shapes & Patterns goals.
@@ -217,258 +216,26 @@ const EXTENSION_FAMILY_FOR_GROUP_ID: Readonly<
   chord_shape_extensions_augmented:        'augmented',
 };
 
-/** Count of catalog extension qualities in a given family. Used for
- *  the per-family denominator (multiplied by KEY_COUNT). Returns 0
- *  for `diminished` / `augmented` until the catalog grows. */
-function countExtensionsInFamily(family: ExtensionFamily): number {
-  let count = 0;
-  for (const q of CHORD_QUALITIES) {
-    if (q.kind !== 'extension') continue;
-    if (EXTENSION_FAMILY_FOR_QUALITY_ID[q.id] === family) count += 1;
-  }
-  return count;
-}
-
-export interface ShapesCoverageGroupDef {
-  id: ShapesCoverageGroupId;
-  label: string;
-  /** Activity area this group rolls up to. Drives time-per-rep
-   *  dispatch (all four chord-shape sub-groups share the
-   *  chord_shape_drills 2 min/rep constant). */
-  activityArea: ShapesActivityArea;
-  /** Count of distinct shape × key combinations in the group. */
-  denominator: number;
-}
-
-/** Quality ids belonging to a given QualityKind, in catalog order. */
-export const CHORD_QUALITIES_BY_KIND: Record<QualityKind, ReadonlyArray<string>> = {
-  triad:     CHORD_QUALITIES.filter(q => q.kind === 'triad').map(q => q.id),
-  seventh:   CHORD_QUALITIES.filter(q => q.kind === 'seventh').map(q => q.id),
-  extension: CHORD_QUALITIES.filter(q => q.kind === 'extension').map(q => q.id),
-  special:   CHORD_QUALITIES.filter(q => q.kind === 'special').map(q => q.id),
-};
-
-const KEY_COUNT = KEYS.length;
-
-/** Canonical coverage-group definitions. Live denominators come
- *  from the catalog so adding a new chord quality / scale / voice-
- *  leading pattern flows into the picker automatically. Triads and
- *  sevenths multiply by their per-cell inversion-state count from
- *  ACQUISITION_PATH_STATES_PER_KIND — each inversion is its own
- *  trackable item (triads: ×4, sevenths: ×5; supplementary excluded).
- */
-const TRIAD_INVERSION_MULTIPLIER =
-  KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.triad;
-
-export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> = [
-  {
-    id: 'chord_shape_triads',
-    label: 'triad inversions',
-    activityArea: 'chord_shape_drills',
-    denominator:
-      CHORD_QUALITIES_BY_KIND.triad.length * KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.triad,
-  },
-  // Layer 2 — per-quality triad sub-groups. Each = 12 keys × 4
-  // inversion states = 48 items. The legacy `chord_shape_triads`
-  // above is the "all six qualities" shortcut id used by the
-  // picker's select-all behaviour and by older saved goals.
-  {
-    id: 'chord_shape_triads_maj',
-    label: 'major triads',
-    activityArea: 'chord_shape_drills',
-    denominator: TRIAD_INVERSION_MULTIPLIER,
-  },
-  {
-    id: 'chord_shape_triads_min',
-    label: 'minor triads',
-    activityArea: 'chord_shape_drills',
-    denominator: TRIAD_INVERSION_MULTIPLIER,
-  },
-  {
-    id: 'chord_shape_triads_dim',
-    label: 'diminished triads',
-    activityArea: 'chord_shape_drills',
-    denominator: TRIAD_INVERSION_MULTIPLIER,
-  },
-  {
-    id: 'chord_shape_triads_aug',
-    label: 'augmented triads',
-    activityArea: 'chord_shape_drills',
-    denominator: TRIAD_INVERSION_MULTIPLIER,
-  },
-  {
-    id: 'chord_shape_triads_sus2',
-    label: 'sus2 triads',
-    activityArea: 'chord_shape_drills',
-    denominator: TRIAD_INVERSION_MULTIPLIER,
-  },
-  {
-    id: 'chord_shape_triads_sus4',
-    label: 'sus4 triads',
-    activityArea: 'chord_shape_drills',
-    denominator: TRIAD_INVERSION_MULTIPLIER,
-  },
-  {
-    id: 'chord_shape_sevenths',
-    label: 'seventh-chord inversions',
-    activityArea: 'chord_shape_drills',
-    denominator:
-      CHORD_QUALITIES_BY_KIND.seventh.length * KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.seventh,
-  },
-  // Layer 2 — per-quality seventh sub-groups. Each = 12 keys × 5
-  // inversion states (acquisition path) = 60 items. Same shape as
-  // the per-quality triad sub-groups.
-  ...sevenths7QualityDef('chord_shape_sevenths_maj7',  'maj7',  'major 7'),
-  ...sevenths7QualityDef('chord_shape_sevenths_min7',  'min7',  'minor 7'),
-  ...sevenths7QualityDef('chord_shape_sevenths_dom7',  'dom7',  'dominant 7'),
-  ...sevenths7QualityDef('chord_shape_sevenths_m7b5',  'm7b5',  'half-diminished'),
-  ...sevenths7QualityDef('chord_shape_sevenths_dim7',  'dim7',  'diminished 7'),
-  ...sevenths7QualityDef('chord_shape_sevenths_mmaj7', 'mmaj7', 'minor-major 7'),
-  {
-    id: 'chord_shape_extensions',
-    label: 'extensions',
-    activityArea: 'chord_shape_drills',
-    denominator: CHORD_QUALITIES_BY_KIND.extension.length * KEY_COUNT,
-  },
-  // Layer 2 — extension family sub-groups. Denominators sourced from
-  // the catalog via EXTENSION_FAMILY_FOR_QUALITY_ID. `diminished`
-  // and `augmented` are forward-compat placeholders (0 cells today;
-  // the picker hides any group with a 0 denominator).
-  extensionsFamilyDef('chord_shape_extensions_major',            'major',            'major extensions'),
-  extensionsFamilyDef('chord_shape_extensions_minor',            'minor',            'minor extensions'),
-  extensionsFamilyDef('chord_shape_extensions_dominant',         'dominant',         'dominant extensions'),
-  extensionsFamilyDef('chord_shape_extensions_altered_dominant', 'altered_dominant', 'altered dominants'),
-  extensionsFamilyDef('chord_shape_extensions_diminished',       'diminished',       'diminished extensions'),
-  extensionsFamilyDef('chord_shape_extensions_augmented',        'augmented',        'augmented extensions'),
-  {
-    id: 'chord_shape_special',
-    label: 'special / sixth',
-    activityArea: 'chord_shape_drills',
-    denominator: CHORD_QUALITIES_BY_KIND.special.length * KEY_COUNT,
-  },
-  {
-    id: 'scale_drills',
-    label: 'scale drills',
-    activityArea: 'scale_drills',
-    // Sourced from the SCALE_CELLS catalog — 96 after the pent fan-out
-    // (3 starting points × 12 keys for major-pent and minor-pent,
-    // plus 12 each for major and natural-minor).
-    denominator: SCALE_CELLS.length,
-  },
-  // -- Scales submodule sub-areas (Part 3). Denominators are
-  //    sourced from the SCALE_CELLS catalog so adding a key or
-  //    starting point flows through automatically.
-  {
-    id: 'scale_major',
-    label: 'major scales',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(c => c.kind === 'major').length,
-  },
-  {
-    id: 'scale_natural_minor',
-    label: 'natural minor',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(c => c.kind === 'natural-minor').length,
-  },
-  {
-    id: 'scale_major_pentatonic',
-    label: 'major pentatonic',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(c => c.kind === 'major-pentatonic').length,
-  },
-  {
-    id: 'scale_major_pentatonic_1',
-    label: 'major pent — from 1',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(
-      c => c.kind === 'major-pentatonic' && c.startingPoint === '1',
-    ).length,
-  },
-  {
-    id: 'scale_major_pentatonic_5',
-    label: 'major pent — from 5',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(
-      c => c.kind === 'major-pentatonic' && c.startingPoint === '5',
-    ).length,
-  },
-  {
-    id: 'scale_major_pentatonic_6',
-    label: 'major pent — from 6',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(
-      c => c.kind === 'major-pentatonic' && c.startingPoint === '6',
-    ).length,
-  },
-  {
-    id: 'scale_minor_pentatonic',
-    label: 'minor pentatonic',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(c => c.kind === 'minor-pentatonic').length,
-  },
-  {
-    id: 'scale_minor_pentatonic_1',
-    label: 'minor pent — from 1',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(
-      c => c.kind === 'minor-pentatonic' && c.startingPoint === '1',
-    ).length,
-  },
-  {
-    id: 'scale_minor_pentatonic_b3',
-    label: 'minor pent — from b3',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(
-      c => c.kind === 'minor-pentatonic' && c.startingPoint === 'b3',
-    ).length,
-  },
-  {
-    id: 'scale_minor_pentatonic_b7',
-    label: 'minor pent — from b7',
-    activityArea: 'scale_drills',
-    denominator: SCALE_CELLS.filter(
-      c => c.kind === 'minor-pentatonic' && c.startingPoint === 'b7',
-    ).length,
-  },
-  {
-    id: 'voice_leading',
-    label: 'voice-leading',
-    activityArea: 'voice_leading',
-    denominator: voiceLeadingTotalCellCount(),
-  },
-  // Voice-leading submodule sub-groups. Denominators sourced from
-  // `voiceLeadingCellsPerKey × 12` so any future fan-out change in
-  // the catalog flows through without touching this file. Inlined
-  // (rather than built via a helper that reads a later-declared
-  // map) to avoid a temporal-dead-zone ReferenceError at module
-  // init — SHAPES_COVERAGE_GROUP_DEFS is consumed eagerly by other
-  // module-level constants in this file.
-  ...vlPatternGroupDef('voice_leading_diatonic_cycle', 'diatonic-cycle', 'diatonic cycle'),
-  ...vlPatternGroupDef('voice_leading_five_one',       'five-one',       '5→1 movement'),
-  ...vlPatternGroupDef('voice_leading_major_251',      'major-251',      'major 2-5-1'),
-  ...vlPatternGroupDef('voice_leading_minor_251',      'minor-251',      'minor 2-5-1'),
-  ...vlPatternGroupDef('voice_leading_minor_aba',      'minor-aba',      'minor ABA'),
-  ...vlPatternGroupDef('voice_leading_dom7b9',         'dom7b9',         'dom7b9 → minor'),
-  ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           'dim7 → minor'),
-];
+/** `countExtensionsInFamily` LIVED HERE and is gone: it multiplied a
+ *  family's quality count by the key count to make a denominator, and
+ *  denominators are counted off the one enumeration now. The family
+ *  MAP above is untouched — it is what the matcher reads, and the
+ *  matcher is what does the counting. */
 
 /**
- * The defs a goal picker should offer — everything with items in it.
+ * =====================================================================
+ * THE MATCHER'S LOOKUP TABLES SIT ABOVE THE DEFS NOW.
  *
- * ONE SOURCE FOR BOTH PICKERS. GoalCreationFlow rendered every def
- * unfiltered while GoalSuggestionFlow filtered `denominator > 0` on
- * extension families only, so the two disagreed about what was
- * offerable even before the catalog cut. After the cut that gap would
- * have shown eight "(0 items)" pills in one flow and not the other.
+ * They used to be declared below, with a note explaining that the defs
+ * array was therefore built by inline arithmetic rather than by asking
+ * the matcher — otherwise module init hit their temporal dead zone.
  *
- * Filtering on the live denominator rather than an explicit blocklist
- * means a group reappears on its own the moment its qualities return
- * to the catalog — the same grow-back-organically property the cut was
- * made to preserve.
+ * The defs no longer do arithmetic: a denominator is a COUNT OF THE
+ * TARGETS THE MATCHER ACCEPTS, off the one enumeration. So the matcher
+ * has to be callable at init, so its tables have to be above it. That
+ * is the whole reason they moved.
+ * =====================================================================
  */
-export const SHAPES_COVERAGE_PICKER_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
-  SHAPES_COVERAGE_GROUP_DEFS.filter(g => g.denominator > 0);
-
 /** Per-pattern VL coverage-group id → catalog patternId. Drives the
  *  matcher in `itemRefMatcherForCoverageGroup`. Declared AFTER the
  *  DEFS array because the array is built via inline calls to
@@ -487,6 +254,294 @@ const VL_PATTERN_ID_FOR_GROUP_ID: Readonly<
   voice_leading_dim7:           'dim7',
 };
 
+/** Broad-sub-area coverage-group id → ScaleKind. Drives both the
+ *  matcher in `itemRefMatcherForCoverageGroup` and any consumer
+ *  that needs to know which kind a group covers. */
+const SCALE_KIND_FOR_GROUP_ID: Readonly<Record<string, ScaleKind>> = {
+  scale_major:            'major',
+  scale_natural_minor:    'natural-minor',
+  scale_major_pentatonic: 'major-pentatonic',
+  scale_minor_pentatonic: 'minor-pentatonic',
+};
+
+/** Per-starting-point coverage-group id → (kind, startingPoint).
+ *  Defines the narrow scoping option for the two pentatonic
+ *  sub-areas — each pent kind has three exposed starting points
+ *  (major: 1/5/6, minor: 1/b3/b7). */
+const PENT_SP_FOR_GROUP_ID: Readonly<
+  Record<
+    string,
+    | { kind: 'major-pentatonic'; startingPoint: MajorPentStartingPoint }
+    | { kind: 'minor-pentatonic'; startingPoint: MinorPentStartingPoint }
+  >
+> = {
+  scale_major_pentatonic_1:   { kind: 'major-pentatonic', startingPoint: '1' },
+  scale_major_pentatonic_5:   { kind: 'major-pentatonic', startingPoint: '5' },
+  scale_major_pentatonic_6:   { kind: 'major-pentatonic', startingPoint: '6' },
+  scale_minor_pentatonic_1:   { kind: 'minor-pentatonic', startingPoint: '1' },
+  scale_minor_pentatonic_b3:  { kind: 'minor-pentatonic', startingPoint: 'b3' },
+  scale_minor_pentatonic_b7:  { kind: 'minor-pentatonic', startingPoint: 'b7' },
+};
+
+export interface ShapesCoverageGroupDef {
+  id: ShapesCoverageGroupId;
+  label: string;
+  /** Activity area this group rolls up to. Drives time-per-rep
+   *  dispatch (all four chord-shape sub-groups share the
+   *  chord_shape_drills 2 min/rep constant). */
+  activityArea: ShapesActivityArea;
+  /**
+   * How many drillable things the group holds, with nothing out of the
+   * score.
+   *
+   * DERIVED, NEVER WRITTEN. It is `shapesCoverageDenominator(id)` — a
+   * count of the targets this group's own matcher accepts, off the one
+   * enumeration. Every def used to carry its own multiplication, and
+   * none of them counted the hand axis the numerator has always
+   * counted.
+   *
+   * For the SCORE-AWARE figure — the one that moves when a target is
+   * taken out through Edit what counts — call
+   * `shapesCoverageDenominator(id, outOfScore)` directly. This field is
+   * the pickers' at-rest number.
+   */
+  denominator: number;
+}
+
+/** A group before its denominator is counted. */
+type GroupShape = Omit<ShapesCoverageGroupDef, 'denominator'>;
+
+/** Quality ids belonging to a given QualityKind, in catalog order. */
+export const CHORD_QUALITIES_BY_KIND: Record<QualityKind, ReadonlyArray<string>> = {
+  triad:     CHORD_QUALITIES.filter(q => q.kind === 'triad').map(q => q.id),
+  seventh:   CHORD_QUALITIES.filter(q => q.kind === 'seventh').map(q => q.id),
+  extension: CHORD_QUALITIES.filter(q => q.kind === 'extension').map(q => q.id),
+  special:   CHORD_QUALITIES.filter(q => q.kind === 'special').map(q => q.id),
+};
+
+
+/** Canonical coverage-group definitions. Live denominators come
+ *  from the catalog so adding a new chord quality / scale / voice-
+ *  leading pattern flows into the picker automatically. Triads and
+ *  sevenths multiply by their per-cell inversion-state count from
+ *  ACQUISITION_PATH_STATES_PER_KIND — each inversion is its own
+ *  trackable item (triads: ×4, sevenths: ×5; supplementary excluded).
+ */
+/**
+ * How many drillable things a coverage group holds.
+ *
+ * =====================================================================
+ * COUNTED OFF THE ONE ENUMERATION, NOT MULTIPLIED OUT HERE.
+ *
+ * Every denominator in this file used to be its own little sum —
+ * qualities × keys × inversion states, cells per pattern × keys, a
+ * `SCALE_CELLS.filter().length`. Fifteen of them, each correct on its
+ * own terms, none of them the same terms as the card or the grid, and
+ * none of them carrying the hand axis the NUMERATOR has always carried.
+ * A chord-shape coverage goal could therefore read over 100%.
+ *
+ * Now a group's denominator is the number of targets in
+ * `shapesTargetUniverse` its own matcher accepts. The matcher already
+ * decided what is in the group; asking it is one question with one
+ * answer, and the arithmetic that could disagree with it is gone.
+ *
+ * IT MOVES WHEN SOMETHING LEAVES THE SCORE. That is the point: take a
+ * hand out through Edit what counts and the card, the grid, this and
+ * the session generator's scope all drop by the same one.
+ * =====================================================================
+ */
+export function shapesCoverageDenominator(
+  groupId: string, outOfScore?: OutOfScore,
+): number {
+  const matcher = itemRefMatcherForCoverageGroup(groupId);
+  if (!matcher) return 0;
+  return shapesTargetUniverse(outOfScore)
+    .filter(t => matcher(t.itemRef))
+    .length;
+}
+
+
+const GROUP_SHAPES: ReadonlyArray<GroupShape> = [
+  {
+    id: 'chord_shape_triads',
+    label: 'triad inversions',
+    activityArea: 'chord_shape_drills',
+  },
+  // Layer 2 — per-quality triad sub-groups. Each = 12 keys × 4
+  // inversion states = 48 items. The legacy `chord_shape_triads`
+  // above is the "all six qualities" shortcut id used by the
+  // picker's select-all behaviour and by older saved goals.
+  {
+    id: 'chord_shape_triads_maj',
+    label: 'major triads',
+    activityArea: 'chord_shape_drills',
+  },
+  {
+    id: 'chord_shape_triads_min',
+    label: 'minor triads',
+    activityArea: 'chord_shape_drills',
+  },
+  {
+    id: 'chord_shape_triads_dim',
+    label: 'diminished triads',
+    activityArea: 'chord_shape_drills',
+  },
+  {
+    id: 'chord_shape_triads_aug',
+    label: 'augmented triads',
+    activityArea: 'chord_shape_drills',
+  },
+  {
+    id: 'chord_shape_triads_sus2',
+    label: 'sus2 triads',
+    activityArea: 'chord_shape_drills',
+  },
+  {
+    id: 'chord_shape_triads_sus4',
+    label: 'sus4 triads',
+    activityArea: 'chord_shape_drills',
+  },
+  {
+    id: 'chord_shape_sevenths',
+    label: 'seventh-chord inversions',
+    activityArea: 'chord_shape_drills',
+  },
+  // Layer 2 — per-quality seventh sub-groups. Each = 12 keys × 5
+  // inversion states (acquisition path) = 60 items. Same shape as
+  // the per-quality triad sub-groups.
+  ...sevenths7QualityDef('chord_shape_sevenths_maj7',  'maj7',  'major 7'),
+  ...sevenths7QualityDef('chord_shape_sevenths_min7',  'min7',  'minor 7'),
+  ...sevenths7QualityDef('chord_shape_sevenths_dom7',  'dom7',  'dominant 7'),
+  ...sevenths7QualityDef('chord_shape_sevenths_m7b5',  'm7b5',  'half-diminished'),
+  ...sevenths7QualityDef('chord_shape_sevenths_dim7',  'dim7',  'diminished 7'),
+  ...sevenths7QualityDef('chord_shape_sevenths_mmaj7', 'mmaj7', 'minor-major 7'),
+  {
+    id: 'chord_shape_extensions',
+    label: 'extensions',
+    activityArea: 'chord_shape_drills',
+  },
+  // Layer 2 — extension family sub-groups. Denominators sourced from
+  // the catalog via EXTENSION_FAMILY_FOR_QUALITY_ID. `diminished`
+  // and `augmented` are forward-compat placeholders (0 cells today;
+  // the picker hides any group with a 0 denominator).
+  extensionsFamilyDef('chord_shape_extensions_major', 'major extensions'),
+  extensionsFamilyDef('chord_shape_extensions_minor', 'minor extensions'),
+  extensionsFamilyDef('chord_shape_extensions_dominant', 'dominant extensions'),
+  extensionsFamilyDef('chord_shape_extensions_altered_dominant', 'altered dominants'),
+  extensionsFamilyDef('chord_shape_extensions_diminished', 'diminished extensions'),
+  extensionsFamilyDef('chord_shape_extensions_augmented', 'augmented extensions'),
+  {
+    id: 'chord_shape_special',
+    label: 'special / sixth',
+    activityArea: 'chord_shape_drills',
+  },
+  {
+    id: 'scale_drills',
+    label: 'scale drills',
+    activityArea: 'scale_drills',
+    // Sourced from the SCALE_CELLS catalog — 96 after the pent fan-out
+    // (3 starting points × 12 keys for major-pent and minor-pent,
+    // plus 12 each for major and natural-minor).
+  },
+  // -- Scales submodule sub-areas (Part 3). Denominators are
+  //    sourced from the SCALE_CELLS catalog so adding a key or
+  //    starting point flows through automatically.
+  {
+    id: 'scale_major',
+    label: 'major scales',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_natural_minor',
+    label: 'natural minor',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_major_pentatonic',
+    label: 'major pentatonic',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_major_pentatonic_1',
+    label: 'major pent — from 1',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_major_pentatonic_5',
+    label: 'major pent — from 5',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_major_pentatonic_6',
+    label: 'major pent — from 6',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_minor_pentatonic',
+    label: 'minor pentatonic',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_minor_pentatonic_1',
+    label: 'minor pent — from 1',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_minor_pentatonic_b3',
+    label: 'minor pent — from b3',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'scale_minor_pentatonic_b7',
+    label: 'minor pent — from b7',
+    activityArea: 'scale_drills',
+  },
+  {
+    id: 'voice_leading',
+    label: 'voice-leading',
+    activityArea: 'voice_leading',
+  },
+  // Voice-leading submodule sub-groups. Denominators sourced from
+  // `voiceLeadingCellsPerKey × 12` so any future fan-out change in
+  // the catalog flows through without touching this file. Inlined
+  // (rather than built via a helper that reads a later-declared
+  // map) to avoid a temporal-dead-zone ReferenceError at module
+  // init — SHAPES_COVERAGE_GROUP_DEFS is consumed eagerly by other
+  // module-level constants in this file.
+  ...vlPatternGroupDef('voice_leading_diatonic_cycle', 'diatonic-cycle', 'diatonic cycle'),
+  ...vlPatternGroupDef('voice_leading_five_one',       'five-one',       '5→1 movement'),
+  ...vlPatternGroupDef('voice_leading_major_251',      'major-251',      'major 2-5-1'),
+  ...vlPatternGroupDef('voice_leading_minor_251',      'minor-251',      'minor 2-5-1'),
+  ...vlPatternGroupDef('voice_leading_minor_aba',      'minor-aba',      'minor ABA'),
+  ...vlPatternGroupDef('voice_leading_dom7b9',         'dom7b9',         'dom7b9 → minor'),
+  ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           'dim7 → minor'),
+];
+
+/**
+ * Every coverage group, with its denominator counted off the one
+ * enumeration. ONE PLACE DOES THE COUNTING, so no def can carry a
+ * figure that disagrees with its own matcher.
+ */
+export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
+  GROUP_SHAPES.map(g => ({ ...g, denominator: shapesCoverageDenominator(g.id) }));
+
+/**
+ * The defs a goal picker should offer — everything with items in it.
+ *
+ * ONE SOURCE FOR BOTH PICKERS. GoalCreationFlow rendered every def
+ * unfiltered while GoalSuggestionFlow filtered `denominator > 0` on
+ * extension families only, so the two disagreed about what was
+ * offerable even before the catalog cut. After the cut that gap would
+ * have shown eight "(0 items)" pills in one flow and not the other.
+ *
+ * Filtering on the live denominator rather than an explicit blocklist
+ * means a group reappears on its own the moment its qualities return
+ * to the catalog — the same grow-back-organically property the cut was
+ * made to preserve.
+ */
+export const SHAPES_COVERAGE_PICKER_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
+  SHAPES_COVERAGE_GROUP_DEFS.filter(g => g.denominator > 0);
+
 /** Build the single per-pattern VL coverage-group def. Returns an
  *  empty array when the catalog has no matching pattern — defensive
  *  against catalog drift; the picker silently drops the missing
@@ -496,14 +551,13 @@ function vlPatternGroupDef(
   groupId: ShapesCoverageGroupId,
   patternId: string,
   label: string,
-): ReadonlyArray<ShapesCoverageGroupDef> {
+): ReadonlyArray<GroupShape> {
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
   if (!pattern) return [];
   return [{
     id: groupId,
     label,
     activityArea: 'voice_leading',
-    denominator: voiceLeadingCellsPerKey(pattern) * KEY_COUNT,
   }];
 }
 
@@ -516,14 +570,13 @@ function sevenths7QualityDef(
   groupId: ShapesCoverageGroupId,
   qualityId: string,
   label: string,
-): ReadonlyArray<ShapesCoverageGroupDef> {
+): ReadonlyArray<GroupShape> {
   const quality = CHORD_QUALITY_BY_ID.get(qualityId);
   if (!quality || quality.kind !== 'seventh') return [];
   return [{
     id: groupId,
     label,
     activityArea: 'chord_shape_drills',
-    denominator: KEY_COUNT * ACQUISITION_PATH_STATES_PER_KIND.seventh,
   }];
 }
 
@@ -533,14 +586,12 @@ function sevenths7QualityDef(
  *  filters out 0-cell groups so empty placeholders don't render. */
 function extensionsFamilyDef(
   groupId: ShapesCoverageGroupId,
-  family: ExtensionFamily,
   label: string,
-): ShapesCoverageGroupDef {
+): GroupShape {
   return {
     id: groupId,
     label,
     activityArea: 'chord_shape_drills',
-    denominator: countExtensionsInFamily(family) * KEY_COUNT,
   };
 }
 
@@ -600,35 +651,6 @@ export function shapesAreaFromUnit(
   return coverageGroupIdToActivityArea(head);
 }
 
-/** Broad-sub-area coverage-group id → ScaleKind. Drives both the
- *  matcher in `itemRefMatcherForCoverageGroup` and any consumer
- *  that needs to know which kind a group covers. */
-const SCALE_KIND_FOR_GROUP_ID: Readonly<Record<string, ScaleKind>> = {
-  scale_major:            'major',
-  scale_natural_minor:    'natural-minor',
-  scale_major_pentatonic: 'major-pentatonic',
-  scale_minor_pentatonic: 'minor-pentatonic',
-};
-
-/** Per-starting-point coverage-group id → (kind, startingPoint).
- *  Defines the narrow scoping option for the two pentatonic
- *  sub-areas — each pent kind has three exposed starting points
- *  (major: 1/5/6, minor: 1/b3/b7). */
-const PENT_SP_FOR_GROUP_ID: Readonly<
-  Record<
-    string,
-    | { kind: 'major-pentatonic'; startingPoint: MajorPentStartingPoint }
-    | { kind: 'minor-pentatonic'; startingPoint: MinorPentStartingPoint }
-  >
-> = {
-  scale_major_pentatonic_1:   { kind: 'major-pentatonic', startingPoint: '1' },
-  scale_major_pentatonic_5:   { kind: 'major-pentatonic', startingPoint: '5' },
-  scale_major_pentatonic_6:   { kind: 'major-pentatonic', startingPoint: '6' },
-  scale_minor_pentatonic_1:   { kind: 'minor-pentatonic', startingPoint: '1' },
-  scale_minor_pentatonic_b3:  { kind: 'minor-pentatonic', startingPoint: 'b3' },
-  scale_minor_pentatonic_b7:  { kind: 'minor-pentatonic', startingPoint: 'b7' },
-};
-
 /**
  * itemRef predicate matching the coverage group's spacingState
  * rows. Mirrors the itemRef format from
@@ -639,12 +661,15 @@ const PENT_SP_FOR_GROUP_ID: Readonly<
  *   scale:${scale}:${keyName}                               — scale_drills
  *   vl:${patternId}:${keyName}                              — voice_leading
  *
- * For triads/sevenths, the matcher excludes the `supplementary`
- * state (two-handed seventh-chord drills) — those are practice
- * tools, not acquisition-gating items, so they don't count toward
- * coverage progress. Drives spacingState filtering for both
- * progress-counting (modules/goals/progress.ts) and
- * session-candidate selection (lib/sessionAlgorithm/candidates.ts).
+ * A MATCHER ANSWERS SCOPE, NOT SCORE. It says whether a ref belongs to
+ * the group; whether that ref COUNTS is `countsTowardShapesCoverage` on
+ * the numerator and the enumeration on the denominator. Keeping the two
+ * questions apart is what lets supplementary leave the score without
+ * every matcher in this file growing a clause about it.
+ *
+ * Drives spacingState filtering for both progress-counting
+ * (modules/goals/progress.ts) and session-candidate selection
+ * (lib/sessionAlgorithm/candidates.ts).
  */
 export function itemRefMatcherForCoverageGroup(
   groupId: string,
@@ -664,8 +689,13 @@ export function itemRefMatcherForCoverageGroup(
     };
   }
   // Legacy single-bucket id — keeps pre-split goals matching every
-  // chord-shape row, including supplementary. Used only by
-  // back-compat consumers.
+  // chord-shape row. Used only by back-compat consumers.
+  //
+  // IT STILL ACCEPTS A SUPPLEMENTARY REF, and that is not a leak: a
+  // matcher answers "is this in this group", and what COUNTS is decided
+  // by the enumeration on the denominator side and by
+  // `countsTowardShapesCoverage` on the numerator side. Supplementary
+  // fails both.
   if (groupId === 'chord_shape_drills') return ir => ir.startsWith('chord-shape:');
 
   // Scales sub-area matchers (Part 3). Broad sub-area ids match by
@@ -742,9 +772,12 @@ export function itemRefMatcherForCoverageGroup(
 }
 
 /**
- * Enumerate the full chord-shape itemRef universe — every
- * quality × key × inversion state, the sevenths' `supplementary`
- * two-handed row included. Keys cycle in circle-of-fourths order
+ * Enumerate the chord-shape itemRef universe — every quality × key ×
+ * inversion state that is IN THE SCORE. The sevenths' `supplementary`
+ * two-handed row is not: it left on 31 Aug 2026, and surfacing it here
+ * would put an item in front of the user that no denominator counts
+ * and no coverage goal can be finished by. Keys cycle in
+ * circle-of-fourths order
  * (C → F → Bb → … → G, matching the voice-leading section) and
  * iteration is key-major, so callers that cap the result (e.g. the
  * session generator's cold-start injector) get a spread across
@@ -766,6 +799,7 @@ export function enumerateChordShapeItemRefs(): readonly string[] {
     for (const q of CHORD_QUALITIES) {
       const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind];
       for (const state of states) {
+        if (state === 'supplementary') continue;
         out.push(
           state === null
             ? `chord-shape:${q.id}:${keyName}`

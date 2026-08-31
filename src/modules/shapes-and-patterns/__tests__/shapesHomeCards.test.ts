@@ -18,6 +18,13 @@ import {
   chordCellTargets, itemCellTargets, rowsByRefHand, sectionCells, verdictForTargets,
 } from '../cellTargets';
 import { isFluentPlus } from '../../../lib/spacing/rollup';
+import {
+  countFluentPlusTargets, sectionTargetCount, sectionTargets, targetKey,
+} from '../cellTargets';
+import { shapesCoverageDenominator } from '../../goals/shapesCoverageGroups';
+import { catalogTotalForGoal } from '../../../lib/sessionAlgorithm/scopeCatalog';
+import { COVERAGE_SPECIFIC_METRIC } from '../../goals/coverageMetrics';
+import type { Goal } from '../../../lib/db';
 import { sessionsByTarget, shapesTimeInvested } from '../timeInvested';
 import { cellProgress, cellTime } from '../handProgress';
 
@@ -112,34 +119,64 @@ describe('the four cards', () => {
     }
   });
 
-  it('denominate in CELLS, which is what the grid draws', () => {
+  it('denominate in DRILLABLE THINGS, which is what a target is', () => {
     const cards = byKey();
     for (const id of ['scales', 'chord-shapes', 'voice-leading', 'mental-viz'] as const) {
-      expect(cards.get(id)!.itemCount, id).toBe(sectionCells(id).length);
+      expect(cards.get(id)!.itemCount, id).toBe(sectionTargetCount(id));
     }
+    // The four figures, composed. A scale cell is three drills; a
+    // triad cell is twelve; voice leading and mental visualisation are
+    // one target per cell and are untouched by the hand axis.
+    expect(cards.get('scales')!.itemCount).toBe(288);
+    expect(cards.get('chord-shapes')!.itemCount).toBe(1944);
+    expect(cards.get('voice-leading')!.itemCount).toBe(408);
+    expect(cards.get('mental-viz')!.itemCount).toBe(504);
   });
 
-  it('and a chord cell is one cell, not one per inversion state', () => {
+  it('THE CARD AND THE GOAL ARE ONE NUMBER NOW', () => {
     /**
-     * THE NUMBER THAT CHANGED, AND THE ONE THAT DID NOT.
-     *
-     * `shapesCounts().chordShapeDrills` multiplies quality × key ×
-     * inversion state, because a coverage GOAL counts every drillable
-     * item. The grid draws quality × key and keeps the states inside a
-     * cell. The card describes the grid, so it takes the smaller
-     * number — and `shapesCounts` is left exactly as it was, because
-     * the goals it feeds are not this commit's to move.
+     * They were two. The card counted CELLS off `sectionCells`; a goal
+     * counted itemRefs off the catalog with no hand axis. One question,
+     * two answers, and nothing to keep them together.
      */
     const cards = byKey();
-    expect(cards.get('chord-shapes')!.itemCount)
-      .toBe(CHORD_QUALITIES.length * KEYS.length);
-    expect(cards.get('chord-shapes')!.itemCount)
-      .toBeLessThan(shapesCounts().chordShapeDrills);
-
-    // The other three are unchanged: for them a cell IS an item.
+    expect(cards.get('chord-shapes')!.itemCount).toBe(shapesCounts().chordShapeDrills);
     expect(cards.get('scales')!.itemCount).toBe(shapesCounts().scaleDrills);
     expect(cards.get('voice-leading')!.itemCount).toBe(shapesCounts().voiceLeading);
-    expect(cards.get('mental-viz')!.itemCount).toBe(MENTAL_VIZ_ITEMS.length);
+    // A chord cell is still ONE square on the grid; it is twelve
+    // drills. The two are different questions and both are asked.
+    expect(sectionCells('chord-shapes').length)
+      .toBe(CHORD_QUALITIES.length * KEYS.length);
+  });
+
+  it('and taking a target out lowers CARD, GRID, GOAL and SCOPE by one', () => {
+    /**
+     * =====================================================================
+     * THE POINT OF THE WHOLE JOB. A denominator is what you are going
+     * for, not what exists, and four surfaces have to agree about it or
+     * they drift.
+     * =====================================================================
+     */
+    const one = sectionTargets('scales')[0];
+    const out = new Set([targetKey(one.itemRef, one.hand)]);
+    const goal = {
+      targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
+      targetUnit: 'scale_drills',
+    } as Goal;
+
+    const cardBefore = byKey().get('scales')!.itemCount;
+    const gridBefore = sectionTargetCount('scales');
+    const goalBefore = shapesCoverageDenominator('scale_drills');
+    const scopeBefore = catalogTotalForGoal(goal)!;
+    expect([gridBefore, goalBefore, scopeBefore]).toEqual([
+      cardBefore, cardBefore, cardBefore,
+    ]);
+
+    const cards = shapesCards([], [], NOW, new Map(), out);
+    expect(cards.find(c => c.key === 'scales')!.itemCount).toBe(cardBefore - 1);
+    expect(sectionTargetCount('scales', out)).toBe(gridBefore - 1);
+    expect(shapesCoverageDenominator('scale_drills', out)).toBe(goalBefore - 1);
+    expect(catalogTotalForGoal(goal, out)).toBe(scopeBefore - 1);
   });
 });
 
@@ -159,7 +196,13 @@ describe('the card and the grid are one count', () => {
    * card's figure equal it.
    * =====================================================================
    */
-  const gridCount = (
+  /** What the grid's own progress line counts: Fluent+ TARGETS. */
+  const gridCount = (targets: ReturnType<typeof sectionTargets>, rows: SpacingState[]) =>
+    countFluentPlusTargets(targets, rowsByRefHand(rows)).fluentPlus;
+
+  /** And what a SQUARE says — the roll-up, which is a different
+   *  question and still asked. */
+  const gridCells = (
     cells: ReturnType<typeof sectionCells>,
     rows: SpacingState[],
   ) => {
@@ -176,8 +219,12 @@ describe('the card and the grid are one count', () => {
       ...(['left', 'right'] as const).map(h => tested(SCALE_CELLS[2].itemRef, h, 3)),
     ];
     const card = byKey(rows).get('scales')!;
-    expect(card.fluentPlus).toBe(gridCount(sectionCells('scales'), rows));
-    expect(card.fluentPlus).toBe(2);
+    expect(card.fluentPlus).toBe(gridCount(sectionTargets('scales'), rows));
+    // Two cells fully Fluent+ is SIX drills; the third cell has two
+    // hands at Fluent and one untouched, so it adds two more.
+    expect(card.fluentPlus).toBe(8);
+    // The square roll-up still answers its own question: two cells.
+    expect(gridCells(sectionCells('scales'), rows)).toBe(2);
   });
 
   it('agrees on chord shapes, where the two used to differ by the states', () => {
@@ -187,9 +234,12 @@ describe('the card and the grid are one count', () => {
     // hands for a triad.
     const rows = chordCellTargets(q, k).map(t => tested(t.itemRef, t.hand, 4));
     const card = byKey(rows).get('chord-shapes')!;
-    expect(card.fluentPlus).toBe(gridCount(sectionCells('chord-shapes'), rows));
-    // ONE cell, not the four itemRefs underneath it.
-    expect(card.fluentPlus, 'a chord cell counts once').toBe(1);
+    expect(card.fluentPlus).toBe(gridCount(sectionTargets('chord-shapes'), rows));
+    // TWELVE drills — four inversion states across three hands — which
+    // is what one triad cell is made of. The card used to say 1, over
+    // a denominator of 144 cells; both halves count drills now.
+    expect(card.fluentPlus, 'a triad cell is twelve drills').toBe(12);
+    expect(gridCells(sectionCells('chord-shapes'), rows)).toBe(1);
   });
 
   it('agrees on voice leading, which has one target per cell', () => {
@@ -199,11 +249,14 @@ describe('the card and the grid are one count', () => {
       ...cells[1].map(t => tested(t.itemRef, t.hand, 4)),
     ];
     const card = byKey(rows).get('voice-leading')!;
-    expect(card.fluentPlus).toBe(gridCount(cells, rows));
+    expect(card.fluentPlus).toBe(gridCount(sectionTargets('voice-leading'), rows));
+    // One target per cell, so cells and drills are the same number
+    // here — voice leading is two-handed by nature.
     expect(card.fluentPlus).toBe(2);
+    expect(gridCells(cells, rows)).toBe(2);
   });
 
-  it('counts a MIXED cell once, and only when all of it is Fluent+', () => {
+  it('counts a MIXED cell target by target, which is the change', () => {
     const q = CHORD_QUALITIES[0].id;
     const k = KEYS[0];
     const targets = chordCellTargets(q, k);
@@ -212,21 +265,24 @@ describe('the card and the grid are one count', () => {
       ...targets.slice(0, -1).map(t => tested(t.itemRef, t.hand, 4)),
       touched(targets[targets.length - 1].itemRef, targets[targets.length - 1].hand),
     ];
-    expect(byKey(nearly).get('chord-shapes')!.fluentPlus,
-      'one unjudged target holds the whole cell back').toBe(0);
+    // ELEVEN, not zero. Eleven drills are done; the cell's WORD is
+    // still Started, and the grid says so. The card is not the grid's
+    // word — it is how much of the work is behind you.
+    expect(byKey(nearly).get('chord-shapes')!.fluentPlus).toBe(11);
+    expect(gridCells(sectionCells('chord-shapes'), nearly),
+      'one unjudged target still holds the SQUARE back').toBe(0);
 
-    // Finish that last target and the cell counts — once.
     const whole = targets.map(t => tested(t.itemRef, t.hand, 4));
-    expect(byKey(whole).get('chord-shapes')!.fluentPlus).toBe(1);
+    expect(byKey(whole).get('chord-shapes')!.fluentPlus).toBe(12);
   });
 
-  it('counts an untouched cell as one cell that is not Fluent+', () => {
+  it('counts an untouched section as drills not done, not as absent', () => {
     // The old numerator could only walk rows that existed, so a cell
     // was counted by whether the database happened to hold it. The
     // enumeration comes from the catalog now.
     const cards = byKey();
     expect(cards.get('scales')!.fluentPlus).toBe(0);
-    expect(cards.get('scales')!.itemCount).toBe(SCALE_CELLS.length);
+    expect(cards.get('scales')!.itemCount).toBe(SCALE_CELLS.length * 3);
   });
 
   it('ignores an acquisition stage entirely', () => {
@@ -350,7 +406,9 @@ describe('what has been touched', () => {
     ]);
     const scales = cards.get('scales')!;
     expect(scales.itemsSeen, 'both cells have been touched').toBe(2);
-    expect(scales.fluentPlus, 'only one is Fluent+').toBe(1);
+    // Three drills of the first cell, plus the two hands of the second
+    // that reached Fluent. The SQUARE for the second is still Started.
+    expect(scales.fluentPlus).toBe(5);
   });
 
   it('keeps mental viz separate — a different moduleRef entirely', () => {

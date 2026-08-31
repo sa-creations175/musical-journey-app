@@ -81,21 +81,26 @@ describe('catalog sizes — the denominators', () => {
     expect(productionLessonsCatalog.accuracyKind).toBe('self-rated');
   });
 
-  it('shapes & patterns: 720 chord shapes + 96 scales + 408 VL = 1224', () => {
-    expect(catalogItemCount(shapesCatalog)).toBe(1224);
+  it('shapes & patterns: 648 chord shapes + 96 scales + 408 VL = 1152', () => {
+    // THE TREE IS ITEMREFS, NOT DRILLS. It is a browsable list of the
+    // things in the module, one row each; the hand axis that the
+    // COUNTING unit gained on 31 Aug 2026 would triple the rows without
+    // telling the reader anything the row does not already say.
+    expect(catalogItemCount(shapesCatalog)).toBe(1152);
     const refs = catalogRefSet(shapesCatalog);
-    expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(720);
+    expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(648);
     expect([...refs].filter(r => r.startsWith('scale:'))).toHaveLength(96);
     expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(408);
   });
 
-  it('INCLUDES the 72 supplementary rows — 720, not 648', () => {
-    // Reversed 20 Aug 2026. The two-handed LH-root + RH-triad row is
-    // how a seventh chord actually gets played, so it is a shape to own
-    // rather than a tool for practising the other five. 6 sevenths ×
-    // 12 keys = 72, and the catalog is 720 rather than 648.
+  it('EXCLUDES the 72 supplementary rows — 648, not 720', () => {
+    // Folded in on 20 Aug 2026 and out again on 31 Aug 2026: the
+    // left-hand root under a right-hand triad is a combination of two
+    // things already counted, not a shape to own. 6 sevenths × 12 keys
+    // = 72, so the tree is 648 rather than 720. See catalog.ts, which
+    // carries both rulings.
     const refs = [...catalogRefSet(shapesCatalog)];
-    expect(refs.filter(r => r.endsWith(':supplementary'))).toHaveLength(72);
+    expect(refs.filter(r => r.endsWith(':supplementary'))).toHaveLength(0);
   });
 
   it('mental visualisation: 504, and its own module row', () => {

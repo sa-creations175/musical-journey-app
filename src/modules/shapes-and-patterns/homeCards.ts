@@ -17,22 +17,22 @@
  * =====================================================================
  *
  * =====================================================================
- * THE CARD COUNTS CELLS. THE GOAL COUNTS ITEMS. THEY ARE NOT THE SAME
- * NUMBER FOR CHORD SHAPES, AND THAT IS STILL OPEN.
+ * THE CARD COUNTS DRILLABLE THINGS, AND SO DOES EVERYONE ELSE.
  *
- * The Fluent+ figure and its denominator both come from
- * `sectionCells()`, which is the grid's own enumeration — so the card
- * and the grid under it are two readings of one count and cannot
- * disagree. For scales, voice leading and mental visualisation a cell
- * IS an item and the number is unchanged.
+ * It counted CELLS, and the goals counted itemRefs with no hand axis,
+ * and the two were different numbers for the same question. Neither was
+ * a thing you sit down and drill: a scale cell is three drills, one per
+ * hand, and a triad cell is twelve.
  *
- * For chord shapes it is not. `shapesCounts().chordShapeDrills`
- * multiplies quality × key × inversion state, because that is what a
- * COVERAGE GOAL counts. The grid draws quality × key and keeps the
- * inversion states inside a cell. Making the two one number is a rule
- * change with an unresolved question inside it — see
- * `cc-scratch/tab1b-2026-08-31-counting-and-card.md` — so it is not
- * done here and this file no longer reads `shapesCounts` at all.
+ * Both halves now come from `sectionTargets` — the same enumeration the
+ * grid rolls its squares up from, `shapesCounts` counts, every goal
+ * denominator is scoped out of and the session generator reads. One
+ * function, one answer, and a total that MOVES when a target is taken
+ * out of the score.
+ *
+ * THE NUMERATOR MOVED WITH IT. Fluent+ TARGETS, not Fluent+ cells: a
+ * numerator and a denominator counting different things is the shape of
+ * the bug, not a detail of it.
  *
  * =====================================================================
  * THE PER-HAND BARS ARE GONE.
@@ -51,7 +51,10 @@
 import type { SpacingState } from '../../lib/db';
 import type { CategoryCardModel } from '../../components/moduleHome/model';
 import { countsTowardShapesCoverage } from './drillModel';
-import { countFluentPlus, rowsByRefHand, sectionCells, type SectionId } from './cellTargets';
+import {
+  countFluentPlusTargets, rowsByRefHand, sectionTargets,
+  type OutOfScore, type SectionId,
+} from './cellTargets';
 import { totalSeconds, type TimeSplit } from './timeInvested';
 
 import { MENTAL_VIZ_MODULE_REF } from './mentalVizLibrary';
@@ -103,6 +106,10 @@ export function shapesCards(
    *  not read the sessions; a section with none stays absent rather
    *  than showing a zero it has not measured. */
   timeBySection: ReadonlyMap<ShapesSectionId, TimeSplit> = new Map(),
+  /** What has been taken out of the score through Edit what counts.
+   *  The card reads out of what he is going for, not out of everything
+   *  that exists — see `OutOfScore`. */
+  outOfScore?: OutOfScore,
 ): CategoryCardModel[] {
   return SHAPES_SECTIONS.map(section => {
     const rows = section.itemRefPrefix === null
@@ -117,26 +124,21 @@ export function shapesCards(
     // engaged with at all, which is this module's "seen".
     const itemsSeen = new Set(rows.map(r => r.itemRef)).size;
     /**
-     * FLUENT+ CELLS, COUNTED THE WAY THE GRID DRAWS THEM.
+     * FLUENT+ TARGETS, OUT OF THE TARGETS STILL IN THE SCORE.
      *
-     * This walked the ROWS that existed and asked
-     * `acquisitionIndex.cell` about each distinct itemRef — one item,
-     * all its hands. Two things were wrong with it as a description of
-     * the grid. It counted items rather than cells, which for chord
-     * shapes is four numbers for every one the grid shows. And it
-     * could only ever count what had been touched, so a cell was
-     * counted by whether a row for it happened to exist.
-     *
-     * `sectionCells` enumerates from the catalog instead, and every
-     * cell is rolled up by the same `verdictForTargets` the squares
-     * use. An untouched cell is Not Started and counts as one cell
-     * that is not Fluent+, which is what it is.
+     * It came from the catalog rather than from the rows that happen
+     * to exist — that part is unchanged and is what makes a
+     * denominator a denominator. What changed is the UNIT: a cell was
+     * one thing however many drills were under it, so twelve chord
+     * targets at Mastered counted as one and eleven-of-twelve counted
+     * as none. Neither is how much of the work is done.
      */
     const byRefHand = rowsByRefHand(
       section.itemRefPrefix === null ? mentalVizRows : shapesRows,
     );
-    const cells = sectionCells(section.id);
-    const { total: cellTotal, fluentPlus } = countFluentPlus(cells, byRefHand);
+    const targets = sectionTargets(section.id, outOfScore);
+    const { total: targetTotal, fluentPlus } =
+      countFluentPlusTargets(targets, byRefHand);
     const time = timeBySection.get(section.id);
     const latest = rows.reduce<number | null>(
       (max, r) => (r.lastEngagedAt !== null && (max === null || r.lastEngagedAt > max)
@@ -148,10 +150,9 @@ export function shapesCards(
     return {
       key: section.id,
       label: section.label,
-      // THE GRID'S CELL COUNT, so the card's two numbers are one
-      // reading of one count. See the header for why this and the
-      // bars' `total` are allowed to differ.
-      itemCount: cellTotal,
+      // THE DRILLS THIS SECTION HOLDS, still in the score. Same
+      // enumeration as the grid, the goals and the generator's scope.
+      itemCount: targetTotal,
       // The counts speak for themselves here: one row per drillable
       // cell, which is what the grids below render.
       countDetail: null,

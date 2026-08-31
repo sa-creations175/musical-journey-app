@@ -46,13 +46,8 @@
  */
 
 import {
-  CHORD_QUALITIES,
-  INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
-  KEYS,
-  voiceLeadingTotalCellCount,
-  type QualityKind,
-} from '../modules/shapes-and-patterns/catalog';
-import { SCALE_CELLS } from '../modules/shapes-and-patterns/scaleSkills';
+  sectionTargetCount, type OutOfScore,
+} from '../modules/shapes-and-patterns/cellTargets';
 import { intervalItemRefs } from '../modules/ear-training/intervals/seed';
 import { CHORD_SEEDS } from '../modules/ear-training/chord-recognition/seed';
 import { reachableChordRefs } from '../modules/ear-training/chord-recognition/inversionUtils';
@@ -174,24 +169,45 @@ export function harmonicFluencyCounts(): HarmonicFluencyCounts {
 // Shapes & Patterns
 // =====================================================================
 
+/**
+ * =====================================================================
+ * SHAPES COUNTS DRILLABLE THINGS NOW, AND IT COUNTS THEM ONCE.
+ *
+ * It used to multiply quality × key × inversion state and stop there.
+ * Two things were wrong with that as a denominator.
+ *
+ * NO HAND AXIS. A spacingState row is `(itemRef, hand)` and the goal
+ * NUMERATOR counts rows — so the two sides counted different things and
+ * a chord-shape coverage goal could read over 100%. Drill every triad
+ * in every key with all three hands and the numerator was 864 against a
+ * denominator of 288.
+ *
+ * A SECOND ENUMERATION. The card and the grid counted cells off
+ * `sectionCells`; this counted itemRefs off the catalog. One question,
+ * two answers, and nothing to keep them together — which is the failure
+ * this whole rebuild has been undoing.
+ *
+ * So this is a call into `sectionTargets`, the same enumeration the
+ * card, the grid, every goal denominator and the session generator's
+ * scope read. One function, one answer, and a denominator that MOVES
+ * when a target is taken out of the score.
+ *
+ * Supplementary left the score on 31 Aug 2026 — see `catalog.ts` for
+ * the ruling and `cellTargets.ts` for where it is enforced. It is why
+ * the chord-shape figure is 1944 and not 2160.
+ * =====================================================================
+ */
 export interface ShapesCounts {
-  /** Chord-shape items: triads (6 × 12 keys × 4 inversion states = 288)
-   *  + sevenths (6 × 12 × 6 = 432) = 720. Extensions and special/sixth
-   *  contribute 0 — they were cut from the catalog on 20 Aug 2026.
-   *
-   *  EVERY inversion state counts, the sevenths' `supplementary`
-   *  two-handed row included. It was excluded until 20 Aug 2026, on the
-   *  grounds that it was a practice tool; it is the LH-root + RH-triad
-   *  voicing, which is how the chord actually gets played, so it is a
-   *  shape to own like the other five. */
+  /** Chord-shape drills: triads (6 qualities × 12 keys × 4 inversion
+   *  states × 3 hands = 864) + sevenths (6 × 12 × 5 × 3 = 1080) = 1944.
+   *  Extensions and special/sixth contribute 0 — cut from the catalog
+   *  on 20 Aug 2026. Supplementary is out of the score. */
   chordShapeDrills: number;
-  /** Sourced from scaleSkills' SCALE_CELLS catalog — 96 after the
-   *  Scales-submodule pent fan-out (3 starting points × 12 keys for
-   *  both major-pent and minor-pent, plus 12 each for major and
-   *  natural-minor). */
+  /** Scale drills: 96 cells × 3 hands = 288. */
   scaleDrills: number;
-  /** 408 — sum of per-pattern sub-cell fan-outs × 12 keys (34 × 12).
-   *  See VOICE_LEADING_SUBMODULE_DESIGN.md § Total Cell Count. */
+  /** 408 — sum of per-pattern sub-cell fan-outs × 12 keys (34 × 12),
+   *  one target each: voice leading is two-handed by nature and has no
+   *  hand axis to multiply by. See VOICE_LEADING_SUBMODULE_DESIGN.md. */
   voiceLeading: number;
   /** Sum of the three sub-areas. **Excludes Mental Visualization**
    *  per the April 27 design call — mental-viz counts toward
@@ -199,26 +215,10 @@ export interface ShapesCounts {
   total: number;
 }
 
-export function shapesCounts(): ShapesCounts {
-  /**
-   * Per-quality-kind item counts, with the inversion-state multiplier
-   * READ OFF THE CATALOG rather than written as a literal.
-   *
-   * It used to be a hardcoded `4` for triads and `5` for sevenths. The
-   * 5 was 6 states minus the `supplementary` one, which was excluded
-   * from acquisition — so when that exclusion was reversed on
-   * 20 Aug 2026 this function would have gone on returning 648 with
-   * nothing anywhere failing. A denominator that does not follow its
-   * own catalog is how a percentage goes wrong quietly.
-   */
-  const perKind = (kind: QualityKind) =>
-    CHORD_QUALITIES.filter(q => q.kind === kind).length
-    * KEYS.length
-    * INVERSION_STATES_FOR_CHORD_SHAPE_KIND[kind].length;
-  const chordShapeDrills =
-    perKind('triad') + perKind('seventh') + perKind('extension') + perKind('special');
-  const scaleDrills = SCALE_CELLS.length;
-  const voiceLeading = voiceLeadingTotalCellCount();
+export function shapesCounts(outOfScore?: OutOfScore): ShapesCounts {
+  const chordShapeDrills = sectionTargetCount('chord-shapes', outOfScore);
+  const scaleDrills = sectionTargetCount('scales', outOfScore);
+  const voiceLeading = sectionTargetCount('voice-leading', outOfScore);
   return {
     chordShapeDrills,
     scaleDrills,

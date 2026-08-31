@@ -66,9 +66,11 @@ function enumerateAllChordShapes(): string[] {
     const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind];
     for (const key of KEYS) {
       for (const state of states) {
-        // Supplementary rows are practice tools, not coverage-gating
-        // — moduleItemCounts and the Shapes coverage matchers both
-        // exclude them. Keep parity here.
+        // OUT OF THE SCORE since 31 Aug 2026 — the left-hand root under
+        // a right-hand triad is a combination of two things already
+        // counted. `cellTargets` is where that is decided; this keeps
+        // parity so a scope never offers what no denominator counts.
+        if (state === 'supplementary') continue;
         out.push(
           state
             ? `chord-shape:${q.id}:${key}:${state}`

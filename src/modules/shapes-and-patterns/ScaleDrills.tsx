@@ -37,7 +37,8 @@ import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { scaleSurface } from './practiceTest/makeSurfaces';
 import { bandCellClasses } from './BandCell';
 import {
-  countFluentPlus, itemCellTargets, rowsByRefHand, sectionCells, verdictForTargets,
+  countFluentPlusTargets, itemCellTargets, rowsByRefHand, sectionTargets,
+  targetKey, verdictForTargets,
 } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
 import { sessionsByTarget } from './timeInvested';
@@ -215,10 +216,11 @@ export default function ScaleDrills() {
   const [spelling] = useSpelling();
 
   /** A hand is out of the score by cell AND hand — the three share an
-   *  itemRef, so a key on the ref alone would take all three out. */
-  const outKey = (itemRef: string, hand: DrillHand) => `${itemRef} ${hand}`;
+   *  itemRef, so a key on the ref alone would take all three out.
+   *  `targetKey` is the shared spelling, so the set this page builds is
+   *  the set every counting surface reads. */
   const countedTargets = (cell: ScaleCell) =>
-    itemCellTargets(cell.itemRef).filter(t => !notCounted.has(outKey(t.itemRef, t.hand)));
+    itemCellTargets(cell.itemRef).filter(t => !notCounted.has(targetKey(t.itemRef, t.hand)));
 
   /**
    * A cell's status: the roll-up of the hands still counted.
@@ -237,10 +239,18 @@ export default function ScaleDrills() {
     return bands.reduce((low, v) => (rank(v) < rank(low) ? v : low), bands[0]);
   };
 
-  const totals = useMemo(() => {
-    const cells = sectionCells('scales');
-    return countFluentPlus(cells, byRefHand);
-  }, [byRefHand]);
+  /**
+   * The progress line, in DRILLS.
+   *
+   * Both halves count targets — a scale cell is three drills, one per
+   * hand — and both drop when a hand is taken out of the score. A
+   * numerator counting cells over a denominator counting drills would
+   * be the bug this rebuild exists to remove.
+   */
+  const totals = useMemo(
+    () => countFluentPlusTargets(sectionTargets('scales', notCounted), byRefHand),
+    [byRefHand, notCounted],
+  );
 
   const pickCell = (cell: ScaleCell) => {
     setSelected(cell);
@@ -299,7 +309,12 @@ export default function ScaleDrills() {
           const group = groups[gi];
           if (!group) return null;
           const cells = group.rows.flatMap(r => r.cells);
-          const fluentPlus = cells.filter(c => isFluentPlus(cellVerdict(c))).length;
+          // THE HEADING COUNTS DRILLS, like the line above it. The
+          // GRID still draws one square per cell — a square is a place
+          // to look, a target is a thing to do.
+          const groupTargets = cells.flatMap(countedTargets);
+          const { total: groupTotal, fluentPlus } =
+            countFluentPlusTargets(groupTargets, byRefHand);
           return (
             <div key={group.kind} className="space-y-2">
               <div className="flex items-baseline gap-2 flex-wrap">
@@ -319,7 +334,7 @@ export default function ScaleDrills() {
                 )}
                 <span className="text-sm font-medium">{group.label}</span>
                 <span className="text-[11px] text-neutral-500">
-                  {fluentPlus}/{cells.length} Fluent+
+                  {fluentPlus}/{groupTotal} Fluent+
                 </span>
               </div>
               {group.description && (
@@ -346,7 +361,7 @@ export default function ScaleDrills() {
         ruleWord={rule}
         notCounted={new Set(
           selectedHands
-            .filter(h => selected && notCounted.has(outKey(selected.itemRef, h.hand)))
+            .filter(h => selected && notCounted.has(targetKey(selected.itemRef, h.hand)))
             .map(h => h.hand),
         )}
         /* THE SITTINGS, OVER EVERY ROW — a sitting is a sitting
@@ -357,7 +372,7 @@ export default function ScaleDrills() {
           if (!selected) return;
           setNotCounted(prev => {
             const next = new Set(prev);
-            const k = outKey(selected.itemRef, hand);
+            const k = targetKey(selected.itemRef, hand);
             if (next.has(k)) next.delete(k); else next.add(k);
             return next;
           });
@@ -390,10 +405,6 @@ function rank(v: BandVerdict): number {
   if (v.kind === 'not-started') return 0;
   if (v.kind === 'started') return 1;
   return { 'needs-work': 2, developing: 3, fluent: 4, mastered: 5 }[v.band];
-}
-
-function isFluentPlus(v: BandVerdict): boolean {
-  return v.kind === 'band' && (v.band === 'fluent' || v.band === 'mastered');
 }
 
 function swap(order: number[], a: number, b: number): number[] {

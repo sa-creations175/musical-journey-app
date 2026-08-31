@@ -17,7 +17,8 @@
  *      and non-pent rows alike.
  *
  *   3. The roll-up denominator in moduleItemCounts.shapesCounts
- *      mirrors the SCALE_CELLS catalog (96 after the fan-out), not
+ *      mirrors the SCALE_CELLS catalog (96 cells after the fan-out,
+ *      288 drills across the three hands), not
  *      the legacy 48.
  */
 import 'fake-indexeddb/auto';
@@ -26,6 +27,7 @@ import { db } from '../../../lib/db';
 import { recordEngagement } from '../../../lib/spacingState';
 import { itemRefMatcherForCoverageGroup } from '../../goals/shapesCoverageGroups';
 import { shapesCounts } from '../../../lib/moduleItemCounts';
+import { SCALE_CELLS } from '../scaleSkills';
 
 beforeEach(async () => {
   await db.spacingState.clear();
@@ -80,8 +82,12 @@ describe('scale_drills coverage matcher accepts pent fan-out', () => {
 });
 
 describe('shapesCounts.scaleDrills tracks the SCALE_CELLS catalog', () => {
-  it('reports 96 cells (post-Scales fan-out), not the legacy 48', () => {
+  it('reports 288 drills — 96 cells (post-Scales fan-out) × 3 hands', () => {
+    // It counted 96 CELLS until 31 Aug 2026. A cell is not a thing you
+    // sit down and drill: a scale is drilled left, right and both, two
+    // octaves, each with its own timer and its own rating.
     const c = shapesCounts();
-    expect(c.scaleDrills).toBe(96);
+    expect(c.scaleDrills).toBe(288);
+    expect(c.scaleDrills).toBe(SCALE_CELLS.length * 3);
   });
 });

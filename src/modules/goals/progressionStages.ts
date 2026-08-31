@@ -97,9 +97,9 @@ export interface ModuleProgression {
 
 /** Enumerate every chord-shape itemRef belonging to a given quality.
  *  Mirrors scopeEnumeration's `enumerateAllChordShapes` walk, sliced
- *  to one quality — skips the 'supplementary' state for sevenths
- *  (counted since 20 Aug 2026 — see catalog.ts, where
- *  gatesAcquisition used to live). */
+ *  to one quality — and skips the 'supplementary' state for sevenths,
+ *  which left the score on 31 Aug 2026. See catalog.ts, where
+ *  gatesAcquisition used to live; it carries both rulings. */
 function chordShapesForQuality(qualityId: string): string[] {
   const q = CHORD_QUALITIES.find(c => c.id === qualityId);
   if (!q) return [];
@@ -107,6 +107,7 @@ function chordShapesForQuality(qualityId: string): string[] {
   const out: string[] = [];
   for (const key of KEYS) {
     for (const state of states) {
+      if (state === 'supplementary') continue;
       out.push(state ? `chord-shape:${q.id}:${key}:${state}` : `chord-shape:${q.id}:${key}`);
     }
   }

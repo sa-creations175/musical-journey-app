@@ -45,7 +45,10 @@ import {
   shapesCounts,
   type HarmonicFluencyGroupId,
 } from '../moduleItemCounts';
-import { getShapesCoverageGroup } from '../../modules/goals/shapesCoverageGroups';
+import {
+  getShapesCoverageGroup, shapesCoverageDenominator,
+} from '../../modules/goals/shapesCoverageGroups';
+import type { OutOfScore } from '../../modules/shapes-and-patterns/cellTargets';
 import { lessonsByPath } from '../../modules/production/content/lessons';
 
 /**
@@ -100,8 +103,25 @@ export function scopeKeyForGoal(goal: Goal): string | null {
  * the goal is not a coverage goal or the sub-area cannot be resolved
  * — an unresolved total must disqualify a maintenance suggestion
  * rather than default to something permissive.
+ *
+ * =====================================================================
+ * FOR SHAPES, THIS IS THE SAME NUMBER THE CARD AND THE GRID SHOW.
+ *
+ * `shapesCounts` and `shapesCoverageDenominator` both count targets off
+ * `sectionTargets` — the one enumeration — so a scope, a goal, a card
+ * and a grid cannot give four answers to one question. They used to:
+ * this file asked for itemRef counts with no hand axis while the
+ * numerator counted spacingState rows, which are per hand.
+ *
+ * AND IT MOVES WITH THE SCORE. `outOfScore` is what Edit what counts
+ * has taken out. A maintenance trigger asking "is this scope finished"
+ * has to ask about the scope the user is actually going for, or it will
+ * hold a goal open on items he has said he is not working on.
+ * =====================================================================
  */
-export function catalogTotalForGoal(goal: Goal): number | null {
+export function catalogTotalForGoal(
+  goal: Goal, outOfScore?: OutOfScore,
+): number | null {
   const metric = goal.targetMetric;
   if (!metric) return null;
 
@@ -112,7 +132,7 @@ export function catalogTotalForGoal(goal: Goal): number | null {
       case COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY:
         return harmonicFluencyCounts().total;
       case COVERAGE_OVERALL_METRIC.SHAPES:
-        return shapesCounts().total;
+        return shapesCounts(outOfScore).total;
       case COVERAGE_OVERALL_METRIC.PRODUCTION:
         return productionCounts().total;
     }
@@ -132,10 +152,12 @@ export function catalogTotalForGoal(goal: Goal): number | null {
         return group ? harmonicFluencyCounts().byGroup[group] : null;
       }
       case COVERAGE_SPECIFIC_METRIC.SHAPES: {
-        // The group defs already carry live denominators derived from
-        // the same catalogs moduleItemCounts reads.
-        const def = getShapesCoverageGroup(unit);
-        return def ? def.denominator : null;
+        // ASKED FRESH RATHER THAN READ OFF THE DEF, because the def's
+        // own `denominator` is the at-rest figure — everything in the
+        // catalog. This has to be the score-aware one.
+        return getShapesCoverageGroup(unit)
+          ? shapesCoverageDenominator(unit, outOfScore)
+          : null;
       }
       case COVERAGE_SPECIFIC_METRIC.PRODUCTION: {
         const n = lessonsByPath(unit).length;

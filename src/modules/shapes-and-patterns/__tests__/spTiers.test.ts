@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SpacingState } from '../../../lib/db';
 import { CHORD_QUALITIES } from '../catalog';
+import { sectionTargetCount } from '../cellTargets';
 import {
   CIRCLE_OF_FOURTHS,
   SP_MAX_TIER,
@@ -124,27 +125,39 @@ describe('shapesForTier', () => {
 // -----------------------------------------------------------------
 
 describe('tierTotalCells', () => {
-  it('tier 1 = 6 triads × 4 inversion states × 12 keys = 288', () => {
-    // triad kind in INVERSION_STATES_FOR_CHORD_SHAPE_KIND has
-    // ['root', 'inv1', 'inv2', 'fluid'] — all 4 gate acquisition.
-    expect(tierTotalCells(1)).toBe(6 * 4 * 12);
+  /**
+   * =====================================================================
+   * IT HAD THE SAME BUG THE GOAL DENOMINATORS HAD.
+   *
+   * `inversion states × 12 keys`, no hand axis — while the numerator in
+   * `computeSPUnlockedTier` counts spacingState rows, which are
+   * `(itemRef, hand)`. So the ratio ran up to three times high and a
+   * tier could unlock on a third of the work.
+   *
+   * Counted off `sectionTargets` now, like everything else.
+   * =====================================================================
+   */
+  it('tier 1 = 6 triads × 4 inversion states × 12 keys × 3 hands = 864', () => {
+    expect(tierTotalCells(1)).toBe(6 * 4 * 12 * 3);
   });
 
-  it('tier 2 = 6 sevenths × 6 inversion states × 12 keys = 432', () => {
-    // seventh kind has ['root', 'inv1', 'inv2', 'inv3', 'fluid',
-    // 'supplementary'] and ALL SIX gate since 20 Aug 2026, when the
-    // supplementary exclusion was reversed. 6 × 6 × 12 = 432.
-    expect(tierTotalCells(2)).toBe(6 * 6 * 12);
+  it('tier 2 = 6 sevenths × 5 inversion states × 12 keys × 3 hands = 1080', () => {
+    // FIVE, not six: `supplementary` left the score on 31 Aug 2026.
+    // The 20 Aug ruling that put it in is reversed — see catalog.ts.
+    expect(tierTotalCells(2)).toBe(6 * 5 * 12 * 3);
   });
 
-  it('the two tiers sum to the 720 catalog', () => {
-    expect(tierTotalCells(1) + tierTotalCells(2)).toBe(720);
+  it('the two tiers sum to the 1944 catalog', () => {
+    expect(tierTotalCells(1) + tierTotalCells(2)).toBe(1944);
+    expect(tierTotalCells(1) + tierTotalCells(2))
+      .toBe(sectionTargetCount('chord-shapes'));
   });
 
-  it('moved the tier-2 unlock bar from 180 cells to 216', () => {
-    // A CONSEQUENCE TAKEN DELIBERATELY, pinned so it cannot drift back
-    // unnoticed: unlock is 50% of the tier's cells, and the tier grew.
-    expect(tierTotalCells(2) * SP_TIER_UNLOCK_THRESHOLD).toBe(216);
+  it('the tier-2 unlock bar is half the tier, in drills', () => {
+    // Unlock is 50% of the tier, and the tier is now counted in the
+    // same unit the numerator counts. 216 was half of 432 cells against
+    // a row count that could reach 1296.
+    expect(tierTotalCells(2) * SP_TIER_UNLOCK_THRESHOLD).toBe(540);
   });
 });
 
@@ -185,7 +198,7 @@ describe('computeSPUnlockedTier', () => {
   });
 
   it('returns 1 when tier 1 is below the 50% threshold', () => {
-    // Tier 1 has 288 possible cells; 50% = 144. 100 comfortable
+    // Tier 1 has 864 possible drills; 50% = 432. 100 comfortable
     // rows isn't enough.
     const rows = new Map([[1 as SPTier, comfortableRowsForTier(1, 100)]]);
     expect(computeSPUnlockedTier(rows)).toBe(1);
@@ -203,36 +216,36 @@ describe('computeSPUnlockedTier', () => {
   });
 
   it('returns 2 when tier 1 crosses the threshold', () => {
-    // 144 / 288 = exactly 0.5 ≥ threshold (inclusive).
-    const rows = new Map([[1 as SPTier, comfortableRowsForTier(1, 144)]]);
+    // 432 / 864 = exactly 0.5 ≥ threshold (inclusive).
+    const rows = new Map([[1 as SPTier, comfortableRowsForTier(1, 432)]]);
     expect(computeSPUnlockedTier(rows)).toBe(2);
   });
 
   it('stops at the first tier under threshold', () => {
-    // T1 cleared; T2 only at 30% (108 / 360). The walk halts at T2.
+    // T1 cleared; T2 only at 30% (324 / 1080). The walk halts at T2.
     const rows = new Map<SPTier, SpacingState[]>([
-      [1, comfortableRowsForTier(1, 144)],
-      [2, comfortableRowsForTier(2, 108)],
+      [1, comfortableRowsForTier(1, 432)],
+      [2, comfortableRowsForTier(2, 324)],
     ]);
     expect(computeSPUnlockedTier(rows)).toBe(2);
   });
 
   it('returns MAX_TIER (2) when every tier is fully cleared', () => {
     const rows = new Map<SPTier, SpacingState[]>([
-      [1, comfortableRowsForTier(1, 288)],
-      [2, comfortableRowsForTier(2, 360)],
+      [1, comfortableRowsForTier(1, 864)],
+      [2, comfortableRowsForTier(2, 1080)],
     ]);
     expect(computeSPUnlockedTier(rows)).toBe(SP_MAX_TIER);
   });
 
   it('counts consolidated + mastered alongside acquired for the unlock check', () => {
-    // Mix of 50 acquired + 50 consolidated + 44 mastered = 144 →
+    // Mix of 150 acquired + 150 consolidated + 132 mastered = 432 →
     // crosses 50% of T1. All three stages count as comfortable+
     // per the design-doc → schema vocabulary map.
     const mix: SpacingState[] = [
-      ...Array.from({ length: 50 }, (_, i) => fixtureRow(`fixture:1:a${i}`, 'acquired')),
-      ...Array.from({ length: 50 }, (_, i) => fixtureRow(`fixture:1:c${i}`, 'consolidated')),
-      ...Array.from({ length: 44 }, (_, i) => fixtureRow(`fixture:1:m${i}`, 'mastered')),
+      ...Array.from({ length: 150 }, (_, i) => fixtureRow(`fixture:1:a${i}`, 'acquired')),
+      ...Array.from({ length: 150 }, (_, i) => fixtureRow(`fixture:1:c${i}`, 'consolidated')),
+      ...Array.from({ length: 132 }, (_, i) => fixtureRow(`fixture:1:m${i}`, 'mastered')),
     ];
     const rows = new Map([[1 as SPTier, mix]]);
     expect(computeSPUnlockedTier(rows)).toBe(2);

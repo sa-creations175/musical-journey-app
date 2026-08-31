@@ -53,7 +53,8 @@ const MAY_END     = new Date(2026, 4, 31, 23, 59, 59, 999).getTime();
 // states — root/inv1/inv2/inv3/fluid AND supplementary, which started
 // gating acquisition on 20 Aug 2026.
 const SHAPES_TRIAD_AUG_SCOPE = 12 * 4;     // 48
-const SHAPES_SEVENTHS_SCOPE  = 6 * 12 * 6; // 432
+// FIVE states, not six: `supplementary` left the score 31 Aug 2026.
+const SHAPES_SEVENTHS_SCOPE  = 6 * 12 * 5; // 360
 
 async function clearAll() {
   await db.goals.clear();

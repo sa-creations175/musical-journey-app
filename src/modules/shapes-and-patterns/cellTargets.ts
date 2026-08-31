@@ -18,15 +18,29 @@
  * `rollUpTargets` is handed `undefined` wherever there is no row.
  * =====================================================================
  *
- * SUPPLEMENTARY IS NOT ONE OF THEM. Sevenths carry a supplementary
- * state that `itemRefForSkill` already describes as "filtered out of
- * acquisition queries", and the chord panel keeps it out of its grid
- * and below with its own control. It is extra material, not a rung of
- * the square — counting it would hold every seventh square back on
- * something the square is not claiming.
+ * =====================================================================
+ * SUPPLEMENTARY IS NOT ONE OF THEM, AND THAT IS NOW THE WHOLE APP'S
+ * ANSWER RATHER THAN THIS FILE'S.
+ *
+ * The supplementary state is the left-hand root under a right-hand
+ * triad. It is NOT a distinct shape to own: the triad is already
+ * drilled on its own, and the left hand is one note. It is a
+ * combination of two things already counted, not a new hand skill.
+ *
+ * A real voicing — root, third and flat seven in the left hand — IS a
+ * different thing, and it belongs with voice leading rather than here.
+ *
+ * THIS REVERSES THE 20 AUGUST 2026 RULING, which put supplementary
+ * into the score on the grounds that the LH-root + RH-triad voicing is
+ * how a seventh actually gets played. The chord-shape catalog was 720
+ * under that ruling and is 1944 under this one — the difference is
+ * those 72 rows leaving, and the hand axis arriving. See
+ * `catalog.ts`'s note where the first ruling was recorded.
+ * =====================================================================
  */
 import type { DrillHand, SpacingState } from '../../lib/db';
 import { isFluentPlus, rollUpTargets } from '../../lib/spacing/rollup';
+import { bandVerdictForRow } from '../../lib/spacing/row';
 import type { BandVerdict } from '../../lib/spacing/banding';
 import {
   CHORD_QUALITIES,
@@ -122,7 +136,64 @@ export function verdictForTargets(
  * quietly left out of the count that is supposed to include it.
  * =====================================================================
  */
-export function sectionCells(section: SectionId): CellTarget[][] {
+export function sectionCells(
+  section: SectionId, outOfScore: OutOfScore = NOTHING_OUT,
+): CellTarget[][] {
+  const cells = allSectionCells(section);
+  if (outOfScore.size === 0) return cells;
+  // A CELL WITH EVERY TARGET OUT STAYS ON THE GRID as an empty cell.
+  // The square is still drawn — it is a thing that exists that you are
+  // not working on — and it contributes no targets to any count.
+  return cells.map(targets => targets.filter(t => inScore(t, outOfScore)));
+}
+
+/**
+ * EVERY DRILLABLE THING IN A SECTION, flat, and still in the score.
+ *
+ * =====================================================================
+ * THIS IS THE COUNTING UNIT, AND IT IS THE ONLY ONE.
+ *
+ * The card, the grid's progress line, `shapesCounts`, every goal
+ * denominator and the session generator's scope all come off this. A
+ * cell was the unit for the card and the grid; an itemRef with no hand
+ * axis was the unit for goals. Neither is a thing you sit down and
+ * drill — a scale cell is three drills, one per hand, and a triad cell
+ * is twelve.
+ *
+ * They have to be connected or they drift, and they had drifted: the
+ * goal NUMERATOR counts spacingState rows, which are per hand, against
+ * a denominator that had none — so a chord-shape coverage goal could
+ * read over 100%.
+ * =====================================================================
+ */
+export function sectionTargets(
+  section: SectionId, outOfScore: OutOfScore = NOTHING_OUT,
+): CellTarget[] {
+  const flat = allSectionCells(section).flat();
+  return outOfScore.size === 0 ? flat : flat.filter(t => inScore(t, outOfScore));
+}
+
+/** How many drillable things a section holds, still in the score. */
+export function sectionTargetCount(
+  section: SectionId, outOfScore: OutOfScore = NOTHING_OUT,
+): number {
+  return sectionTargets(section, outOfScore).length;
+}
+
+/** Every target in the three keyed sections — the universe a goal
+ *  denominator is scoped out of. Mental visualisation is excluded, per
+ *  the April 27 call: it counts toward consistency only. */
+export function shapesTargetUniverse(
+  outOfScore: OutOfScore = NOTHING_OUT,
+): CellTarget[] {
+  return [
+    ...sectionTargets('scales', outOfScore),
+    ...sectionTargets('chord-shapes', outOfScore),
+    ...sectionTargets('voice-leading', outOfScore),
+  ];
+}
+
+function allSectionCells(section: SectionId): CellTarget[][] {
   switch (section) {
     case 'scales':
       return SCALE_CELLS.map(c => itemCellTargets(c.itemRef));
@@ -146,6 +217,45 @@ export function sectionCells(section: SectionId): CellTarget[][] {
 
 export type SectionId = 'scales' | 'chord-shapes' | 'voice-leading' | 'mental-viz';
 
+/** Every section, for the callers that want all of them. */
+export const SECTION_IDS: ReadonlyArray<SectionId> = [
+  'scales', 'chord-shapes', 'voice-leading', 'mental-viz',
+];
+
+/**
+ * `${itemRef} ${hand}` — how a target is named where it has to be a
+ * key: the time map, the row index, and the out-of-score set.
+ */
+export function targetKey(itemRef: string, hand: DrillHand): string {
+  return `${itemRef} ${hand}`;
+}
+
+/**
+ * What is out of the score.
+ *
+ * =====================================================================
+ * A DENOMINATOR IS WHAT YOU ARE GOING FOR, NOT WHAT EXISTS.
+ *
+ * Edit what counts takes a target out — a hand of a scale, an inversion
+ * of a chord — and the thing it comes out of is the SCORE: the card's
+ * total, the grid's progress line, a goal's denominator and the session
+ * generator's scope, all of them, or they drift. That is the whole
+ * reason this is one enumeration and not five.
+ *
+ * A SET OF `targetKey`s, PASSED IN. It is not read from storage here
+ * because these functions are pure and synchronous and the goal
+ * surfaces that call them are too. Absent means nothing is out, which
+ * is the honest default for a caller that has not been given the set.
+ * =====================================================================
+ */
+export type OutOfScore = ReadonlySet<string>;
+
+const NOTHING_OUT: OutOfScore = new Set<string>();
+
+function inScore(t: CellTarget, outOfScore: OutOfScore): boolean {
+  return !outOfScore.has(targetKey(t.itemRef, t.hand));
+}
+
 export interface FluentPlusCount {
   /** Cells in the section — the catalog's number, not the database's. */
   total: number;
@@ -161,6 +271,28 @@ export interface FluentPlusCount {
  * not twelve, and eleven at Mastered with one untouched is none —
  * `rollUpTargets` takes the lowest, so the cell is Started.
  */
+/**
+ * How many TARGETS are at Fluent or Mastered, out of how many the
+ * section still holds.
+ *
+ * THE NUMERATOR AND THE DENOMINATOR COUNT THE SAME KIND OF THING.
+ * `countFluentPlus` below counts CELLS — a chord cell is one whether it
+ * holds four targets or twelve — which is the right unit for "how many
+ * squares are green" and the wrong one for "how much of what I am going
+ * for have I got". The card and the progress line ask the second.
+ */
+export function countFluentPlusTargets(
+  targets: ReadonlyArray<CellTarget>,
+  byRefHand: ReadonlyMap<string, SpacingState>,
+): FluentPlusCount {
+  let fluentPlus = 0;
+  for (const t of targets) {
+    const row = byRefHand.get(targetKey(t.itemRef, t.hand));
+    if (row && isFluentPlus(bandVerdictForRow(row))) fluentPlus += 1;
+  }
+  return { total: targets.length, fluentPlus };
+}
+
 export function countFluentPlus(
   cells: ReadonlyArray<readonly CellTarget[]>,
   byRefHand: ReadonlyMap<string, SpacingState>,

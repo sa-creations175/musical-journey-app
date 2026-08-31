@@ -3,6 +3,8 @@
  * shapesCoverageGroups.ts — denominators, matchers, and the Layer 2
  * triad-quality coverage groups.
  */
+import { shapesTargetUniverse } from '../../shapes-and-patterns/cellTargets';
+import { countsTowardShapesCoverage } from '../../shapes-and-patterns/drillModel';
 import { describe, expect, it } from 'vitest';
 import {
   SHAPES_COVERAGE_GROUP_DEFS,
@@ -26,12 +28,15 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     for (const id of TRIAD_QUALITY_IDS) {
       const def = getShapesCoverageGroup(id);
       expect(def, `missing group def for ${id}`).toBeDefined();
-      // 1 quality × 12 keys × 4 inversion states = 48 items each.
-      expect(def!.denominator).toBe(48);
+      // 1 quality × 12 keys × 4 inversion states × 3 HANDS = 144.
+      // The hand axis arrived on 31 Aug 2026: a denominator has to
+      // count what the numerator counts, and the numerator has always
+      // counted spacingState rows, which are per hand.
+      expect(def!.denominator).toBe(144);
       expect(def!.activityArea).toBe('chord_shape_drills');
     }
-    // Legacy "all triads" shortcut still present at 288 (6 × 12 × 4).
-    expect(getShapesCoverageGroup('chord_shape_triads')!.denominator).toBe(288);
+    // Legacy "all triads" shortcut still present at 864 (6 × 144).
+    expect(getShapesCoverageGroup('chord_shape_triads')!.denominator).toBe(864);
   });
 
   it('Layer 2 denominators sum to the Layer 1 triad-inversions denominator', () => {
@@ -77,22 +82,65 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     // and special bucket is still DEFINED (saved goals reference them,
     // and the scope-shrank notice needs their labels) but every one
     // now contributes 0:
-    //   triads bucket (288) + 6 triad-quality subs (6×48=288) +
-    //   sevenths bucket (432) + 6 seventh-quality subs (6×72=432) +
+    //   triads bucket (864) + 6 triad-quality subs (6×144=864) +
+    //   sevenths bucket (1080) + 6 seventh-quality subs (6×180=1080) +
     //   extensions bucket (0) + 6 extension families (0) +
     //   special bucket (0)
     //
-    // The seventh figures went 360 → 432 on 20 Aug 2026, when the
-    // supplementary two-handed row started gating acquisition: 5
-    // inversion states per quality became 6.
+    // The seventh figures went 432 → 1080 on 31 Aug 2026: supplementary
+    // left the score (6 inversion states per quality back to 5) and the
+    // hand axis arrived (×3).
     const chordShapeSide =
-      288 + 6 * 48 +
-      432 + 6 * 72 +
+      864 + 6 * 144 +
+      1080 + 6 * 180 +
       0 + 0 +
       0;
-    const scalesSide = 96 + 12 + 12 + 36 + 3 * 12 + 36 + 3 * 12;
+    // Scales gain the hand axis too — 96 cells are 288 drills.
+    const scalesSide = 288 + 36 + 36 + 108 + 3 * 36 + 108 + 3 * 36;
+    // Voice leading is two-handed by nature: one target per cell,
+    // nothing to multiply, every figure unchanged.
     const vlSide = 408 + 36 + 84 + 84 + 84 + 24 + 48 + 48;
     expect(defSum).toBe(chordShapeSide + scalesSide + vlSide);
+  });
+});
+
+describe('a coverage goal cannot exceed 100%', () => {
+  /**
+   * =====================================================================
+   * THE BUG THIS JOB CLOSES, SIMULATED END TO END.
+   *
+   * The numerator counts spacingState ROWS through
+   * `countsTowardShapesCoverage` and the group's matcher. A row is
+   * `(itemRef, hand)`. The denominator had no hand axis and counted
+   * `supplementary`, so drilling a group out fully put a numerator of
+   * up to three times the denominator on screen.
+   *
+   * Here the whole catalog is treated as drilled — every target, every
+   * hand — which is the most a numerator can ever reach. For every
+   * group, that number equals its denominator exactly. Not "under":
+   * EQUAL, because a denominator that a completed catalog cannot reach
+   * is the same kind of lie in the other direction.
+   * =====================================================================
+   */
+  const everythingDrilled = shapesTargetUniverse()
+    .filter(t => countsTowardShapesCoverage(t.itemRef));
+
+  it('for every group, a fully drilled catalog lands on exactly 100%', () => {
+    for (const def of SHAPES_COVERAGE_GROUP_DEFS) {
+      const matcher = itemRefMatcherForCoverageGroup(def.id);
+      if (!matcher) continue;
+      const covered = everythingDrilled.filter(t => matcher(t.itemRef)).length;
+      expect(covered, `${def.id} numerator`).toBe(def.denominator);
+    }
+  });
+
+  it('and drilling the supplementary voicing adds nothing on either side', () => {
+    // The rows still exist for anyone who drilled them. They are not in
+    // the universe and they fail the predicate, so they cannot inflate
+    // a numerator against a denominator that does not count them.
+    expect(countsTowardShapesCoverage('chord-shape:maj7:C:supplementary')).toBe(false);
+    expect(everythingDrilled.some(t => t.itemRef.endsWith(':supplementary')))
+      .toBe(false);
   });
 });
 
@@ -114,13 +162,14 @@ describe('itemRefMatcherForCoverageGroup — scale_drills covers pent fan-out', 
 
 describe('Scales sub-area coverage groups (Part 3)', () => {
   it('exposes all four Scales sub-area defs with catalog-sourced denominators', () => {
-    expect(getShapesCoverageGroup('scale_major')!.denominator).toBe(12);
-    expect(getShapesCoverageGroup('scale_natural_minor')!.denominator).toBe(12);
-    expect(getShapesCoverageGroup('scale_major_pentatonic')!.denominator).toBe(36);
-    expect(getShapesCoverageGroup('scale_minor_pentatonic')!.denominator).toBe(36);
+    // 12 keys × 3 hands, and the pents × 3 starting points.
+    expect(getShapesCoverageGroup('scale_major')!.denominator).toBe(36);
+    expect(getShapesCoverageGroup('scale_natural_minor')!.denominator).toBe(36);
+    expect(getShapesCoverageGroup('scale_major_pentatonic')!.denominator).toBe(108);
+    expect(getShapesCoverageGroup('scale_minor_pentatonic')!.denominator).toBe(108);
   });
 
-  it('exposes the six pent starting-point sub-defs at 12 cells each', () => {
+  it('exposes the six pent starting-point sub-defs at 36 drills each', () => {
     for (const id of [
       'scale_major_pentatonic_1',
       'scale_major_pentatonic_5',
@@ -129,7 +178,8 @@ describe('Scales sub-area coverage groups (Part 3)', () => {
       'scale_minor_pentatonic_b3',
       'scale_minor_pentatonic_b7',
     ] as const) {
-      expect(getShapesCoverageGroup(id)!.denominator).toBe(12);
+      // 12 keys × 3 hands.
+      expect(getShapesCoverageGroup(id)!.denominator).toBe(36);
     }
   });
 
@@ -388,12 +438,13 @@ describe('Seventh-chord per-quality coverage groups', () => {
     { id: 'chord_shape_sevenths_mmaj7', quality: 'mmaj7' },
   ];
 
-  it('exposes all 6 per-quality seventh defs at 72 cells each', () => {
+  it('exposes all 6 per-quality seventh defs at 180 drills each', () => {
     for (const d of SEVENTH_QUALITY_IDS) {
       const def = getShapesCoverageGroup(d.id);
       expect(def, `missing def for ${d.id}`).toBeDefined();
-      // 12 keys × 6 inversion states = 72, supplementary included.
-      expect(def!.denominator).toBe(72);
+      // 12 keys × 5 inversion states × 3 hands = 180. Supplementary
+      // is the sixth state and is out of the score.
+      expect(def!.denominator).toBe(180);
       expect(def!.activityArea).toBe('chord_shape_drills');
     }
   });
@@ -404,7 +455,7 @@ describe('Seventh-chord per-quality coverage groups', () => {
       0,
     );
     expect(sum).toBe(getShapesCoverageGroup('chord_shape_sevenths')!.denominator);
-    expect(sum).toBe(432);
+    expect(sum).toBe(1080);
   });
 
   it('each matcher accepts only its own quality', () => {
@@ -427,11 +478,23 @@ describe('Seventh-chord per-quality coverage groups', () => {
     }
   });
 
-  it('matchers now ACCEPT the supplementary state', () => {
-    // Sevenths have a `supplementary` inversion state (two-handed
-    // drills). Coverage matchers exclude it — same rule as triads.
-    const m = itemRefMatcherForCoverageGroup('chord_shape_sevenths_min7')!;
-    expect(m('chord-shape:min7:C:supplementary')).toBe(true);
+  it('SUPPLEMENTARY IS IN NO DENOMINATOR', () => {
+    /**
+     * The state matcher still accepts the ref — a matcher answers
+     * "is this in this group", and a supplementary min7 row IS a min7
+     * row. What decides whether it counts is the ENUMERATION, and
+     * `chordCellTargets` has never emitted it.
+     *
+     * So the denominator is 180 and not 216, and no amount of
+     * supplementary drilling can push a coverage goal past 100%,
+     * because `countsTowardShapesCoverage` drops those rows on the
+     * numerator side too. Both sides or neither.
+     */
+    const denom = getShapesCoverageGroup('chord_shape_sevenths_min7')!.denominator;
+    expect(denom).toBe(180);
+    expect(shapesTargetUniverse().some(t => t.itemRef.endsWith(':supplementary')))
+      .toBe(false);
+    expect(countsTowardShapesCoverage('chord-shape:min7:C:supplementary')).toBe(false);
   });
 });
 

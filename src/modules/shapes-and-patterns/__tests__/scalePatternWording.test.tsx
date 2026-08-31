@@ -65,11 +65,17 @@ describe('what the matrix calls its contents', () => {
   it('THE TOTAL IS THE CATALOG\'S, AND IS SAID ONCE', async () => {
     // It used to appear twice — in the header and in the summary —
     // which is two places to be wrong. The Progress line carries it,
-    // and the trailing "96 scale patterns" went with the header.
+    // and the trailing "scale patterns" count went with the header.
+    //
+    // THE SHAPE IS THE APPROVED ONE and the NUMBER moved inside it:
+    // both halves count drills, so it is 288 (96 cells × 3 hands)
+    // rather than 96. A denominator counting cells under a numerator
+    // counting drills is the bug this closes.
     const el = await render();
     const text = el.textContent ?? '';
-    expect(text).toMatch(new RegExp(`Progress — \\d+ of ${SCALE_CELLS.length} Fluent\\+`));
-    expect(text).not.toContain(`${SCALE_CELLS.length} scale patterns`);
+    const drills = SCALE_CELLS.length * 3;
+    expect(text).toMatch(new RegExp(`Progress — \\d+ of ${drills} Fluent\\+`));
+    expect(text).not.toContain(`${drills} scale patterns`);
   });
 
   it('the retired progress words are gone', async () => {

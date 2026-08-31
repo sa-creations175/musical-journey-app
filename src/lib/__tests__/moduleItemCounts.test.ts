@@ -20,6 +20,9 @@ import {
   shapesCounts,
   productionCounts,
 } from '../moduleItemCounts';
+import {
+  sectionTargetCount, sectionTargets, targetKey,
+} from '../../modules/shapes-and-patterns/cellTargets';
 
 // -------------------------------------------------------------------
 // Ear Training — 26 + 30 + 69 + 18 = 143 (spacingState-row counts)
@@ -152,16 +155,42 @@ describe('harmonicFluencyCounts', () => {
 describe('shapesCounts', () => {
   const c = shapesCounts();
 
-  it('chordShapeDrills counts triad + seventh inversion states only', () => {
-    // 6×12×4 + 6×12×6 = 288 + 432 = 720
-    expect(c.chordShapeDrills).toBe(720);
+  it('COUNTS DRILLABLE THINGS: 1944 chord-shape drills', () => {
+    /**
+     * =================================================================
+     * IT COUNTED 720, AND 720 WAS TWO MISTAKES CANCELLING NEITHER.
+     *
+     *   triads    6 qualities × 12 keys × 4 states × 3 hands =  864
+     *   sevenths  6 qualities × 12 keys × 5 states × 3 hands = 1080
+     *                                                          ----
+     *                                                          1944
+     *
+     * NO HAND AXIS. 720 was quality × key × inversion state and
+     * stopped — but a spacingState row is `(itemRef, hand)` and the
+     * goal NUMERATOR counts rows, so a coverage goal could read over
+     * 100%. Drill every triad in every key with all three hands and
+     * the numerator was 864 against a denominator of 288.
+     *
+     * SUPPLEMENTARY COUNTED. It left the score on 31 Aug 2026: the
+     * left-hand root under a right-hand triad is not a shape to own —
+     * the triad is drilled on its own and the left hand is one note.
+     * See `catalog.ts`, which carries both rulings.
+     *
+     * 2160 would be the figure with supplementary still in; 720 the
+     * figure with no hand axis and supplementary in. Neither is a count
+     * of things you sit down and drill.
+     * =================================================================
+     */
+    expect(c.chordShapeDrills).toBe(1944);
+    expect(c.chordShapeDrills).toBe(864 + 1080);
   });
 
-  it('scaleDrills = 96 from the Scales-submodule catalog (12 + 36 + 12 + 36)', () => {
+  it('and 288 scale drills — 96 cells, three hands each', () => {
     // major (12) + major-pent 3 sp × 12 keys (36) + nat-min (12)
-    // + minor-pent 3 sp × 12 keys (36) = 96. SCALE_CELLS in
-    // scaleSkills.ts is the source of truth.
-    expect(c.scaleDrills).toBe(96);
+    // + minor-pent 3 sp × 12 keys (36) = 96 CELLS, and a scale cell is
+    // three drills: left hand, right hand, both hands, two octaves.
+    expect(c.scaleDrills).toBe(288);
+    expect(c.scaleDrills).toBe(96 * 3);
   });
 
   it('voiceLeading = 34 sub-cells × 12 keys = 408 (Seventh Chords got its 3rd position)', () => {
@@ -172,10 +201,28 @@ describe('shapesCounts', () => {
     expect(c.voiceLeading).toBe(408);
   });
 
-  it('total = 1224 (sum of sub-areas)', () => {
-    // 720 chord-shape + 96 scale + 408 voice-leading.
-    expect(c.total).toBe(1224);
+  it('total = 2640 (sum of sub-areas)', () => {
+    // 1944 chord-shape + 288 scale + 408 voice-leading.
+    expect(c.total).toBe(2640);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
+  });
+
+  it('voice leading and mental visualisation are UNTOUCHED by the hand axis', () => {
+    // Voice leading is two-handed by nature and mental visualisation
+    // is away from the keyboard entirely: one target per cell, so
+    // there is nothing to multiply. 408 and 504 either way.
+    expect(c.voiceLeading).toBe(408);
+    expect(sectionTargetCount('voice-leading')).toBe(408);
+    expect(sectionTargetCount('mental-viz')).toBe(504);
+  });
+
+  it('and the total MOVES when something leaves the score', () => {
+    // A denominator is what you are going for, not what exists. Take
+    // one target out and every figure that counts it drops by one.
+    const one = sectionTargets('scales')[0];
+    const out = new Set([targetKey(one.itemRef, one.hand)]);
+    expect(shapesCounts(out).scaleDrills).toBe(c.scaleDrills - 1);
+    expect(shapesCounts(out).total).toBe(c.total - 1);
   });
 
   it('total excludes Mental Visualization (no mentalViz field on the shape)', () => {

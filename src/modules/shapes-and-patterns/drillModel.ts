@@ -374,10 +374,20 @@ function defaultDrillTypesForDescriptor(desc: SkillDescriptor) {
  *      its history intact. Those spacingState rows still carry
  *      moduleRef 'shapes-and-patterns' and still reach `acquired`, but
  *      the denominator no longer counts them.
- * Supplementary rows used to be a second reason, and are not any
- * more: `gatesAcquisition` excluded the two-handed seventh rows from
- * every denominator until 20 Aug 2026, when they were folded back in.
- * They now count on both sides, like every other inversion state.
+ *   Supplementary rows. The left-hand root under a right-hand triad is
+ *      not a shape to own: the triad is drilled on its own and the left
+ *      hand is one note, so it is a combination of two things already
+ *      counted. Out of the score again as of 31 Aug 2026 — see the note
+ *      in `catalog.ts`, which carries both rulings and why the second
+ *      one is not a reversion to the first's reasoning.
+ *
+ * THE ROWS ARE KEPT EITHER WAY, exactly as the cut qualities are. This
+ * decides what the DENOMINATOR counts; the history stays on disk.
+ *
+ * BOTH SIDES OR NEITHER. If a rule leaves the denominator it has to
+ * leave the numerator with it — this predicate is what every coverage
+ * count filters through, so a rule applied on one side only is how a
+ * percentage goes over 100.
  *
  * Scale and voice-leading itemRefs pass through untouched: they are
  * part of the same moduleRef and the same coverage total.
@@ -386,6 +396,7 @@ export function countsTowardShapesCoverage(itemRef: string): boolean {
   const desc = parseShapesItemRef(itemRef);
   if (!desc) return false;
   if (desc.kind !== 'chord-shape') return true;
+  if (desc.inversionState === 'supplementary') return false;
   return isCatalogQuality(desc.quality);
 }
 
