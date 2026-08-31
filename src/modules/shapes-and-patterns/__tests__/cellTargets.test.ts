@@ -13,8 +13,12 @@ import { describe, expect, it } from 'vitest';
 import type { SpacingState } from '../../../lib/db';
 import { bandVerdictLabel } from '../../../lib/spacing/banding';
 import {
-  chordCellTargets, itemCellTargets, rowsByRefHand, verdictForTargets,
+  chordCellTargets, countFluentPlus, itemCellTargets, rowsByRefHand,
+  sectionCells, verdictForTargets,
 } from '../cellTargets';
+import { SCALE_CELLS } from '../scaleSkills';
+import { CHORD_QUALITIES, KEYS } from '../catalog';
+import { MENTAL_VIZ_ITEMS } from '../mentalVizLibrary';
 
 type Entry = Record<string, unknown>;
 const rep = (feel: 1 | 2 | 3 | 4, extra: Entry = {}): Entry => ({
@@ -113,5 +117,65 @@ describe('the square says the lowest of its targets', () => {
       rowFor('chord-shape:maj7:F:supplementary', 'both', []),
     ]);
     expect(bandVerdictLabel(verdictForTargets(sevenths, rows))).toBe('Mastered');
+  });
+});
+
+describe('a section is a list of cells, from the catalog', () => {
+  it('scales, voice leading and mental viz are one cell per item', () => {
+    expect(sectionCells('scales')).toHaveLength(SCALE_CELLS.length);
+    expect(sectionCells('mental-viz')).toHaveLength(MENTAL_VIZ_ITEMS.length);
+    // Every one of those cells has exactly the hands its item is
+    // drilled on — three for a scale, one for voice leading.
+    expect(sectionCells('scales')[0]).toHaveLength(3);
+    expect(sectionCells('voice-leading')[0]).toHaveLength(1);
+  });
+
+  it('chord shapes are quality × key — the states are INSIDE a cell', () => {
+    const cells = sectionCells('chord-shapes');
+    expect(cells).toHaveLength(CHORD_QUALITIES.length * KEYS.length);
+    // A triad cell carries twelve targets. If this ever equalled the
+    // cell count, the states would have escaped to the outside again.
+    expect(cells[0]).toHaveLength(12);
+  });
+
+  it('enumerates cells nobody has touched', () => {
+    // A denominator that came from the database would shrink to
+    // whatever had been drilled.
+    expect(sectionCells('scales').length).toBeGreaterThan(0);
+    expect(countFluentPlus(sectionCells('scales'), new Map()))
+      .toEqual({ total: SCALE_CELLS.length, fluentPlus: 0 });
+  });
+});
+
+describe('counting Fluent+ cells', () => {
+  const targets = chordCellTargets('maj', 'C');
+
+  it('counts a cell once, however many targets are under it', () => {
+    const rows = rowsByRefHand(
+      targets.map(t => rowFor(t.itemRef, t.hand, passedTest(4))),
+    );
+    expect(countFluentPlus([targets], rows)).toEqual({ total: 1, fluentPlus: 1 });
+  });
+
+  it('does not count a cell one target short', () => {
+    const rows = rowsByRefHand(
+      targets.slice(0, -1).map(t => rowFor(t.itemRef, t.hand, passedTest(4))),
+    );
+    expect(countFluentPlus([targets], rows)).toEqual({ total: 1, fluentPlus: 0 });
+  });
+
+  it('does not count Developing', () => {
+    // Practice with no test caps at Developing, which is below the
+    // line. Three Clean practice reps on every target.
+    const practice = [
+      { t: 1, kind: 'rating', rating: 'cruising', feel: 3, fromTest: false },
+      { t: 2, kind: 'rating', rating: 'cruising', feel: 3, fromTest: false },
+      { t: 3, kind: 'rating', rating: 'cruising', feel: 3, fromTest: false },
+    ];
+    const rows = rowsByRefHand(
+      targets.map(t => rowFor(t.itemRef, t.hand, practice)),
+    );
+    expect(bandVerdictLabel(verdictForTargets(targets, rows))).toBe('Developing');
+    expect(countFluentPlus([targets], rows).fluentPlus).toBe(0);
   });
 });

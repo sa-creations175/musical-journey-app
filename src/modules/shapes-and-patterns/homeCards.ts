@@ -16,17 +16,34 @@
  * its coverage.
  * =====================================================================
  *
- * COUNTS COME FROM `shapesCounts()`, the same function the coverage
- * denominators use — so a catalog that grows moves the card and the
- * goal together. Mental visualisation is not in it (excluded from
- * breadth/depth by the April 27 call), so its denominator comes from
- * its own library.
+ * =====================================================================
+ * THE CARD COUNTS CELLS. THE GOAL COUNTS ITEMS. THEY ARE NOT THE SAME
+ * NUMBER FOR CHORD SHAPES, AND THAT IS DELIBERATE.
+ *
+ * The Fluent+ figure and its denominator both come from
+ * `sectionCells()`, which is the grid's own enumeration — so the card
+ * and the grid under it are two readings of one count and cannot
+ * disagree. For scales, voice leading and mental visualisation a cell
+ * IS an item and the number is unchanged.
+ *
+ * For chord shapes it is not. `shapesCounts().chordShapeDrills`
+ * multiplies quality × key × inversion state, because that is what a
+ * COVERAGE GOAL counts — every drillable item. The grid draws quality
+ * × key and keeps the inversion states inside a cell. So the card's
+ * denominator is the smaller of the two now, and `shapesCounts()` is
+ * untouched: the goals it feeds are not this commit's to move.
+ *
+ * The per-hand bars still read `acquisitionIndex`, the retired
+ * three-bucket rule. They are unapproved pending a prototype and were
+ * left exactly as they were rather than half-moved.
+ * =====================================================================
  */
 import type { SpacingState } from '../../lib/db';
 import type { CategoryCardModel } from '../../components/moduleHome/model';
 import { shapesCounts } from '../../lib/moduleItemCounts';
 import { countsTowardShapesCoverage } from './drillModel';
 import { acquisitionIndex, handCounts, handsFor } from './acquisition';
+import { countFluentPlus, rowsByRefHand, sectionCells, type SectionId } from './cellTargets';
 import type { DrillHand } from '../../lib/db';
 
 /** What a per-hand bar is called. Silas's three letters. */
@@ -49,7 +66,8 @@ export const SHAPES_MODULE_ID = 'shapes-and-patterns';
 /** The spacingState `moduleRef` the three keyed sections write under. */
 export const SHAPES_MODULE_REF = 'shapes-and-patterns';
 
-export type ShapesSectionId = 'scales' | 'chord-shapes' | 'voice-leading' | 'mental-viz';
+/** One definition, shared with the cell enumeration that keys off it. */
+export type ShapesSectionId = SectionId;
 
 export interface ShapesSection {
   id: ShapesSectionId;
@@ -109,19 +127,29 @@ export function shapesCards(
     // engaged with at all, which is this module's "seen".
     const itemsSeen = new Set(rows.map(r => r.itemRef)).size;
     /**
-     * ACQUIRED BY THE MODULE'S ONE RULE — see `acquisition.ts`.
+     * FLUENT+ CELLS, COUNTED THE WAY THE GRID DRAWS THEM.
      *
-     * The card used to show `itemsSeen`, which counted a cell the
-     * moment any hand was touched. The matrix under it counted all
-     * three hands and the Progress line counted only `both`, so the
-     * three surfaces described the same cell three ways. Only items
-     * with rows can be acquired, so walking `touched` is the whole
-     * numerator.
+     * This walked the ROWS that existed and asked
+     * `acquisitionIndex.cell` about each distinct itemRef — one item,
+     * all its hands. Two things were wrong with it as a description of
+     * the grid. It counted items rather than cells, which for chord
+     * shapes is four numbers for every one the grid shows. And it
+     * could only ever count what had been touched, so a cell was
+     * counted by whether a row for it happened to exist.
+     *
+     * `sectionCells` enumerates from the catalog instead, and every
+     * cell is rolled up by the same `verdictForTargets` the squares
+     * use. An untouched cell is Not Started and counts as one cell
+     * that is not Fluent+, which is what it is.
      */
+    const byRefHand = rowsByRefHand(
+      section.itemRefPrefix === null ? mentalVizRows : shapesRows,
+    );
+    const cells = sectionCells(section.id);
+    const { total: cellTotal, fluentPlus } = countFluentPlus(cells, byRefHand);
+    // The bars, and only the bars. See the header.
     const index = acquisitionIndex(rows);
     const touched = [...index.touched];
-    const acquired = touched
-      .filter(ref => index.cell(ref) === 'acquired').length;
 
     /**
      * ONE BAR PER HAND THE SECTION IS DRILLED ON.
@@ -142,6 +170,10 @@ export function shapesCards(
     // section — so an empty section draws the same bars it will draw
     // once it has rows, rather than growing two of them on first use.
     const hands = handsFor(section.itemRefPrefix ?? MENTAL_VIZ_PREFIX);
+    // THE BARS KEEP THE OLD DENOMINATOR AS WELL AS THE OLD RULE. They
+    // count items at an acquisition stage against the item total, and
+    // both halves are left alone together — moving one would give the
+    // bar a numerator and a denominator counting different things.
     const total = totalFor[section.id];
     const bars = hands.length > 1
       ? hands.map(hand => {
@@ -157,7 +189,7 @@ export function shapesCards(
       // from, and naming it would invent a hand the section has not
       // got.
       : [{
-        acquired,
+        acquired: touched.filter(ref => index.cell(ref) === 'acquired').length,
         inProgress: touched.filter(ref => index.cell(ref) === 'in-progress').length,
         total,
       }];
@@ -171,7 +203,10 @@ export function shapesCards(
     return {
       key: section.id,
       label: section.label,
-      itemCount: totalFor[section.id],
+      // THE GRID'S CELL COUNT, so the card's two numbers are one
+      // reading of one count. See the header for why this and the
+      // bars' `total` are allowed to differ.
+      itemCount: cellTotal,
       // The counts speak for themselves here: one row per drillable
       // cell, which is what the grids below render.
       countDetail: null,
@@ -179,7 +214,13 @@ export function shapesCards(
       // Duration and a self-rating, never right/wrong — see the header.
       accuracy: null,
       itemsSeen,
-      acquired,
+      // THE FIELD STILL CARRIES THE RETIRED WORD, and the number in it
+      // is Fluent+ cells. `CategoryCard` renders it into a sentence
+      // that also still says "acquired"; the word and the field are
+      // one change and belong to the rebuild that replaces the
+      // sentence. Renaming the field alone would edit that line for
+      // no visible gain.
+      acquired: fluentPlus,
       bars,
       ...(timeBySection.has(section.id)
         ? { timeInvestedSeconds: timeBySection.get(section.id)! }

@@ -21,12 +21,12 @@
  * =====================================================================
  */
 import { describe, expect, it } from 'vitest';
-import { rollUpVerdict, rollUpVerdicts } from '../rollup';
+import { isFluentPlus, rollUpVerdict, rollUpVerdicts } from '../rollup';
 import {
   NOT_STARTED, bandVerdictLabel, type BandVerdict,
 } from '../banding';
 import { bandVerdictForRow } from '../row';
-import type { AccuracyBand } from '../bands';
+import { ACCURACY_BANDS, type AccuracyBand } from '../bands';
 import type { AcquisitionStage } from '../../db';
 
 // ---------------------------------------------------------------------
@@ -237,5 +237,38 @@ describe('lowest, not furthest', () => {
     // and one nobody has judged has not earned Needs Work either.
     const rows = [ROWS['Needs Work'], ROWS['Started']];
     expect(bandVerdictLabel(rollUpVerdict(rows))).toBe('Started');
+  });
+});
+
+describe('Fluent+', () => {
+  it('is Fluent and Mastered, and nothing else', () => {
+    expect(isFluentPlus(bandVerdictForRow(ROWS['Fluent']))).toBe(true);
+    expect(isFluentPlus(bandVerdictForRow(ROWS['Mastered']))).toBe(true);
+    expect(isFluentPlus(bandVerdictForRow(ROWS['Developing']))).toBe(false);
+    expect(isFluentPlus(bandVerdictForRow(ROWS['Needs Work']))).toBe(false);
+  });
+
+  it('is never true of Started or Not Started', () => {
+    // Neither is a band, so neither can be above one. No special case
+    // in the predicate — only a band has a rank.
+    expect(isFluentPlus(bandVerdictForRow(ROWS['Started']))).toBe(false);
+    expect(isFluentPlus(bandVerdictForRow(ROWS['Not Started']))).toBe(false);
+  });
+
+  it('reads the ladder, so a rung above Mastered would count', () => {
+    // The point of `bandRank` over a written pair. Every band from
+    // Fluent up is Fluent+, by position rather than by name.
+    const above = ACCURACY_BANDS.slice(
+      ACCURACY_BANDS.findIndex(b => b.id === 'fluent'),
+    );
+    for (const b of above) {
+      expect(isFluentPlus({ kind: 'band', band: b.id }), b.id).toBe(true);
+    }
+    const below = ACCURACY_BANDS.slice(
+      0, ACCURACY_BANDS.findIndex(b => b.id === 'fluent'),
+    );
+    for (const b of below) {
+      expect(isFluentPlus({ kind: 'band', band: b.id }), b.id).toBe(false);
+    }
   });
 });

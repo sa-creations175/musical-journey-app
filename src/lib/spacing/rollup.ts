@@ -35,7 +35,7 @@
  */
 
 import type { SpacingState } from '../db';
-import { lowerBand, type AccuracyBand } from './bands';
+import { bandRank, lowerBand, type AccuracyBand } from './bands';
 import { NOT_STARTED, type BandVerdict } from './banding';
 import { bandVerdictForRow } from './row';
 
@@ -119,4 +119,29 @@ export function rollUpVerdicts(
   // — every verdict was a band, so `lowest` was set. Kept as the
   // honest answer rather than a non-null assertion.
   return lowest === null ? NOT_STARTED : { kind: 'band', band: lowest };
+}
+
+/**
+ * Fluent or Mastered.
+ *
+ * =====================================================================
+ * THE ONE SHORTHAND, AND IT IS SPELLED "Fluent+".
+ *
+ * Every surface that used to ask "is this acquired" is asking this
+ * instead. It is a line drawn across the six words, not a seventh
+ * word: "learned" was considered and rejected — it reads as a tier
+ * gate and sits too close to the song status Learning.
+ *
+ * READ OFF THE LADDER RATHER THAN LISTED. `band === 'fluent' || band
+ * === 'mastered'` is the same answer today and the wrong one the day a
+ * rung is added above Mastered — a new top band would silently fail to
+ * count as Fluent+. `ACCURACY_BANDS` is ordered worst to best and
+ * `bandRank` reads it, so the line moves with the table.
+ *
+ * NOT STARTED AND STARTED ARE NEVER FLUENT+, which needs no special
+ * case: neither is a band, and only a band has a rank.
+ * =====================================================================
+ */
+export function isFluentPlus(verdict: BandVerdict): boolean {
+  return verdict.kind === 'band' && bandRank(verdict.band) >= bandRank('fluent');
 }
