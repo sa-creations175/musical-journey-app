@@ -46,6 +46,9 @@ export function bandCellClasses(verdict: BandVerdict): string {
 
 export interface BandCellProps {
   verdict: BandVerdict;
+  /** Ringed, because Progress Details below is telling THIS cell's
+   *  story. The other two grids ring their picked cell the same way. */
+  selected?: boolean;
   /** Full sentence for the tooltip and screen readers. The square's
    *  own word is only half of what a cell means — the caller knows
    *  which chord, which key. */
@@ -53,7 +56,9 @@ export interface BandCellProps {
   onClick?: () => void;
 }
 
-export default function BandCell({ verdict, title, onClick }: BandCellProps) {
+export default function BandCell({
+  verdict, title, selected = false, onClick,
+}: BandCellProps) {
   // NO `border` IN THE BASE. A solid fill has no outline, and Not
   // Started brings its own dashed one — a shared border class would
   // draw a ring around every filled square.
@@ -74,7 +79,12 @@ export default function BandCell({ verdict, title, onClick }: BandCellProps) {
       {...(onClick ? { onClick, type: 'button' as const } : {})}
       title={title}
       aria-label={title}
-      className={`${base} ${bandCellClasses(verdict)} ${onClick ? 'hover:brightness-95' : ''}`}
+      className={[
+        base,
+        bandCellClasses(verdict),
+        onClick ? 'hover:brightness-95' : '',
+        selected ? 'ring-2 ring-fluent ring-offset-1' : '',
+      ].join(' ')}
     >
       {bandVerdictLabel(verdict)}
     </Tag>

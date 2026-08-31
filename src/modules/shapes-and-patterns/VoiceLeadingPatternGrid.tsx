@@ -1,12 +1,15 @@
 /**
- * Stage-aware heat grid for a single Voice-Leading pattern.
+ * One Voice-Leading pattern's grid, wearing the face the other two
+ * grids wear.
  *
- * Renders one row per sub-dimension across the 12 keys. Each cell
- * represents one specific VL sub-cell itemRef; its color reflects
- * the acquisitionStage of that exact spacingState row (not worst-
- * of-sub-cells). Tapping a cell hands the specific itemRef to the
- * parent so the modal opens against the exact sub-cell — no
- * most-due re-pick at click time.
+ * Renders one row per sub-dimension across the 12 keys. Each cell IS
+ * one sub-cell itemRef and names its status in the six words.
+ *
+ * TAPPING ONE SELECTS IT. It used to open the session panel directly —
+ * this was the last grid where clicking a square took over the screen —
+ * and it fills Progress Details below now, exactly as a chord or scale
+ * cell does. The specific itemRef is handed up, so there is no most-due
+ * re-pick at click time.
  *
  * Row composition comes from `voiceLeadingGridRows(pattern)` —
  * type-position patterns yield 6 rows, diatonic-cycle yields 3,
@@ -39,9 +42,14 @@ interface Props {
    *  itemRef when a cell is tapped. Only fires for built-in
    *  patterns. */
   onCellOpen?: (itemRef: string) => void;
+  /** The itemRef Progress Details is currently telling, so the grid can
+   *  ring it. Null when nothing is picked. */
+  selectedRef?: string | null;
 }
 
-export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props) {
+export default function VoiceLeadingPatternGrid({
+  patternId, onCellOpen, selectedRef = null,
+}: Props) {
   const [spelling] = useSpelling();
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
 
@@ -139,6 +147,7 @@ export default function VoiceLeadingPatternGrid({ patternId, onCellOpen }: Props
                   key={k}
                   verdict={verdict}
                   title={title}
+                  selected={itemRef === selectedRef}
                   onClick={onCellOpen ? () => onCellOpen(itemRef) : undefined}
                 />
               );

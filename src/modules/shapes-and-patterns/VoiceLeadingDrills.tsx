@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db, type DrillSkill } from '../../lib/db';
+import {
+  db, type DrillSession, type DrillSkill, type SpacingState,
+} from '../../lib/db';
 import VoiceLeadingPatternGrid from './VoiceLeadingPatternGrid';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { voiceLeadingSurface } from './practiceTest/makeSurfaces';
@@ -16,6 +18,16 @@ import { getPref, setPref } from '../../lib/userPrefs';
 import { useToast } from '../../components/Toaster';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
+import CellProgressDetails, {
+  HAND_ROW_LABEL, type DetailTarget,
+} from './CellProgressDetails';
+import { itemCellTargets, targetKey } from './cellTargets';
+import { cellProgress, sessionSecondsById } from './handProgress';
+import { sessionsByTarget } from './timeInvested';
+import { NOT_STARTED } from '../../lib/spacing/banding';
+
+/** Nothing is ever out of the score here — see `selectedTargets`. */
+const NOTHING_OUT: ReadonlySet<string> = new Set();
 
 const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
 
@@ -24,9 +36,23 @@ const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
 // what that returns.
 
 /**
- * Voice-leading drills: one heat-grid per pattern, spread across 12
- * keys. Users can add custom patterns alongside the three shipped
- * defaults; pattern labels are editable inline.
+ * Voice-leading drills: one grid per pattern, spread across 12 keys,
+ * with the standing Progress Details section under all of them. Users
+ * can add custom patterns alongside the shipped defaults; pattern
+ * labels are editable inline.
+ *
+ * =====================================================================
+ * THE SIMPLEST OF THE THREE GRIDS, AND THE LAST TO GET THE FACE.
+ *
+ * A cell holds ONE target — voice leading is two-handed by nature and
+ * only ever writes `both` — so there is no roll-up to make and nothing
+ * to take out of the score. What changes here is only where a click
+ * lands: it used to open the session panel directly, which made this
+ * the one grid where touching a square took over the screen.
+ *
+ * No step in the sequence is added. It is the scales chain with one
+ * target instead of three.
+ * =====================================================================
  */
 export default function VoiceLeadingDrills() {
   const [spelling] = useSpelling();
@@ -37,8 +63,68 @@ export default function VoiceLeadingDrills() {
   const [newDescription, setNewDescription] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
-  const [activeDrillItemRef, setActiveDrillItemRef] = useState<string | null>(null);
+  /** The cell whose story Progress Details is telling. */
+  const [selected, setSelected] = useState<string | null>(null);
+  /** The target the session panel is open on. One per cell here. */
+  const [drilling, setDrilling] = useState<string | null>(null);
+  const detailRef = useRef<HTMLDivElement | null>(null);
+  const [now] = useState(() => Date.now());
   const { toast } = useToast();
+
+  const spacingRows = useLiveQuery<SpacingState[]>(
+    () => db.spacingState
+      .where('moduleRef').equals('shapes-and-patterns')
+      .toArray(),
+    [],
+  ) ?? [];
+  const sessions = useLiveQuery<DrillSession[]>(
+    () => db.drillSessions.toArray(),
+    [],
+  ) ?? [];
+  const drillSkills = useLiveQuery<DrillSkill[]>(
+    () => db.drillSkills.toArray(),
+    [],
+  ) ?? [];
+  /** THE ONE WALK, shared with the other two grids and the card. */
+  const byTarget = useMemo(
+    () => sessionsByTarget(sessions, drillSkills),
+    [sessions, drillSkills],
+  );
+
+  /**
+   * The cell's ONE target.
+   *
+   * =====================================================================
+   * NO ROLL-UP, AND NO EDIT WHAT COUNTS.
+   *
+   * Voice leading is two-handed by nature and only ever writes `both`,
+   * so `itemCellTargets` returns a single target and the cell IS its
+   * target. There is no rule to pick between — a Furthest/Lowest
+   * control over one thing is a control that cannot change anything —
+   * and nothing to take out of the score, because taking the only
+   * target out would leave the cell with no status at all.
+   *
+   * Every other step is the scales page's, unchanged.
+   * =====================================================================
+   */
+  const selectedTargets: DetailTarget[] = useMemo(() => {
+    if (selected === null) return [];
+    const targets = itemCellTargets(selected);
+    const progress = cellProgress(targets, spacingRows, byTarget);
+    return targets.map((t, i) => ({
+      key: targetKey(t.itemRef, t.hand),
+      label: HAND_ROW_LABEL[t.hand],
+      hand: t.hand,
+      progress: progress[i],
+    }));
+  }, [selected, spacingRows, byTarget]);
+
+  const pickCell = (itemRef: string) => {
+    setSelected(itemRef);
+    // THE ANSWER GOES WHERE YOU ARE LOOKING. The grid does not move;
+    // the page brings the band to the top instead.
+    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // Live query of voice-leading skills so we can update labels on
   // existing DrillSkill rows when the user renames a pattern.
@@ -92,8 +178,8 @@ export default function VoiceLeadingDrills() {
     const next = applyRename(custom, patternId, trimmed, Date.now());
     if (next !== null) await persistCustom(next);
 
-    // Update any existing DrillSkill rows so the heat grid / drill
-    // list re-show the new label immediately.
+    // Update any existing DrillSkill rows so the grid and Progress
+    // Details re-show the new label immediately.
     const matching = skills.filter(s => s.patternId === patternId);
     if (matching.length > 0) {
       await db.transaction('rw', db.drillSkills, async () => {
@@ -171,26 +257,45 @@ export default function VoiceLeadingDrills() {
             </div>
             <VoiceLeadingPatternGrid
               patternId={effective.id}
-              onCellOpen={pattern.builtin
-                ? (itemRef) => setActiveDrillItemRef(itemRef)
-                : undefined}
+              selectedRef={selected}
+              onCellOpen={pattern.builtin ? pickCell : undefined}
             />
           </section>
         );
       })}
 
-      {activeDrillItemRef && (
+      {/* THE SAME SECTION THE OTHER TWO GRIDS FILL. A cell used to open
+          the session panel directly — the one grid where clicking a
+          square still took over the screen. It fills this now, and the
+          target inside it opens the session. */}
+      <CellProgressDetails
+        ref={detailRef}
+        cellLabel={selected === null ? null : voiceLeadingCellLabel(selected, spelling)}
+        targets={selectedTargets}
+        verdict={selectedTargets[0]?.progress.verdict ?? NOT_STARTED}
+        /* NO ROLL-UP TO REPORT. One target, so the cell's word is the
+           target's word and there is no rule that produced it. */
+        rollup={null}
+        /* NO `onToggleCounted` — see `selectedTargets`. */
+        notCounted={NOTHING_OUT}
+        sessionSeconds={sessionSecondsById(sessions)}
+        onDrill={() => selected !== null && setDrilling(selected)}
+        now={now}
+      />
+
+      {drilling !== null && (
         /* NO PICK A SKILL STEP. A voice-leading cell is already one
-           skill — pattern, row and key — so the tap opens straight on
-           the mode chooser. The sub-cell label is the header's second
-           line rather than a step you walk through. */
+           skill — pattern, row and key — so the target opens straight
+           on the mode chooser. The sub-cell label is the header's
+           second line rather than a step you walk through. */
         <PracticeTestPanel
+          key={drilling}
           surface={voiceLeadingSurface({
-            cellLabel: voiceLeadingCellLabel(activeDrillItemRef, spelling),
-            skillLabel: voiceLeadingSubCellDescription(activeDrillItemRef),
-            itemRef: activeDrillItemRef,
+            cellLabel: voiceLeadingCellLabel(drilling, spelling),
+            skillLabel: voiceLeadingSubCellDescription(drilling),
+            itemRef: drilling,
           })}
-          onClose={() => setActiveDrillItemRef(null)}
+          onClose={() => setDrilling(null)}
         />
       )}
 
