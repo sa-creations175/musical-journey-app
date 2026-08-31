@@ -636,6 +636,9 @@ export async function logSession(input: LogSessionInput): Promise<DrillSession> 
       ? { targetSeconds: Math.round(input.targetSeconds) }
       : {}),
     feelRating: input.feelRating,
+    // WHAT KIND OF RUN IT WAS. It arrived here already and was thrown
+    // away; the row recorded the minutes and not the mode.
+    ...(input.fromTest !== undefined ? { fromTest: input.fromTest } : {}),
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
@@ -693,6 +696,10 @@ export interface LogScaleDrillSessionInput {
    *  targetSeconds. */
   targetSeconds?: number;
   notes?: string;
+  /** True when the run was part of a test rather than practice. The
+   *  same flag the spacing rep carries, from the same source — see
+   *  `DrillSession.fromTest`. Absent counts as practice. */
+  fromTest?: boolean;
 }
 
 /**
@@ -735,6 +742,10 @@ export interface LogVoiceLeadingDrillSessionInput {
    *  targetSeconds. */
   targetSeconds?: number;
   notes?: string;
+  /** True when the run was part of a test rather than practice. The
+   *  same flag the spacing rep carries, from the same source — see
+   *  `DrillSession.fromTest`. Absent counts as practice. */
+  fromTest?: boolean;
 }
 
 /**
@@ -766,6 +777,7 @@ export async function logVoiceLeadingDrillSession(
       ? { targetSeconds: Math.round(input.targetSeconds) }
       : {}),
     ...(input.feelRating !== undefined ? { feelRating: input.feelRating } : {}),
+    ...(input.fromTest !== undefined ? { fromTest: input.fromTest } : {}),
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
@@ -787,6 +799,7 @@ export async function logScaleDrillSession(
       ? { targetSeconds: Math.round(input.targetSeconds) }
       : {}),
     ...(input.feelRating !== undefined ? { feelRating: input.feelRating } : {}),
+    ...(input.fromTest !== undefined ? { fromTest: input.fromTest } : {}),
     notes: input.notes?.trim() || undefined,
     timestamp: Date.now(),
   };
@@ -830,6 +843,10 @@ export interface LogMentalVizSessionInput {
   /** The drill's own three-way rating, mapped onto the four-point
    *  scale `DrillSession` stores. */
   rating: 'flying' | 'cruising' | 'crawling';
+  /** True when the run was part of a test rather than practice. The
+   *  same flag the spacing rep carries, from the same source — see
+   *  `DrillSession.fromTest`. Absent counts as practice. */
+  fromTest?: boolean;
 }
 
 /**

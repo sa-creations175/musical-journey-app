@@ -387,6 +387,13 @@ export default function DrillSessionModal({
     // Log THIS skill's rating against its own spacing state. Each
     // (hand × style) skill advances independently.
     const session = await logSession({
+      // A PRACTICE RUN, SAID RATHER THAN LEFT BLANK. This modal has no
+      // test mode — it is the in-session runner's drill and always was
+      // — so every run through it is practice. Absent would ALSO read
+      // as practice, but only by a legacy rule about rows written
+      // before the field existed; a run recorded today should say what
+      // it is rather than rely on that.
+      fromTest: false,
       skill,
       drillType,
       hand: currentHand,

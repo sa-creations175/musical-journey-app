@@ -224,6 +224,9 @@ export function scaleSurface(args: {
         durationSeconds: record.ranSeconds,
         targetSeconds: record.targetSeconds,
         ...(record.feel !== null ? { feelRating: record.feel } : {}),
+        // THE TIME ROW LEARNS WHAT KIND OF RUN IT WAS, from the same
+        // flag the rating already rides on.
+        fromTest: record.fromTest,
       });
       await engage(args.itemRef, args.hand, record);
     },
@@ -292,6 +295,7 @@ export function voiceLeadingSurface(args: {
         durationSeconds: record.ranSeconds,
         targetSeconds: record.targetSeconds,
         ...(record.feel !== null ? { feelRating: record.feel } : {}),
+        fromTest: record.fromTest,
       });
       await engage(args.itemRef, 'both', record);
     },

@@ -1183,6 +1183,32 @@ export interface DrillSession {
    * than default it, or an unrated run becomes evidence nobody gave.
    */
   feelRating?: 1 | 2 | 3 | 4;
+  /**
+   * True when this run was part of a TEST rather than practice.
+   *
+   * =================================================================
+   * THE TIME ROW COULD NOT TELL THE TWO APART.
+   *
+   * `fromTest` already reached the function that writes this row — it
+   * is what the band rule reads on the spacing rep — and was dropped
+   * on the way here. So the row carried how long a run lasted and not
+   * what kind of run it was, and "practice time versus testing time"
+   * was a question the data could not answer at all. Neither could
+   * "show me my test runs".
+   *
+   * ABSENT COUNTS AS PRACTICE. Not a third bucket and not "unknown":
+   * rows written before this field existed are practice runs, and are
+   * read as such. That is a ruling, not an inference — see the commit
+   * that added this.
+   *
+   * ONE SOURCE. It is set from the flag the caller already has.
+   * Nothing infers it, and nothing matches a run to a spacing rep by
+   * timestamp to recover it.
+   *
+   * Unindexed; rides the `data` JSONB blob across sync, so it needs no
+   * schema version bump and no Postgres migration.
+   */
+  fromTest?: boolean;
   notes?: string;
   timestamp: number;
 }
