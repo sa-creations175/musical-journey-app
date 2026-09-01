@@ -57,8 +57,17 @@ describe('the sidebar keeps to its own box', () => {
   });
 
   it('takes its width from the dragged value, not a class', () => {
-    // The open width is the drag's; only the rail is a class.
-    expect(asideTag()).toContain('width: `${sidebarWidth}rem`');
+    // The open width is the drag's; only the button's rail is a class.
+    expect(asideTag()).toContain('sidebarWidth}rem');
+  });
+
+  it('snaps to the rail once a word would be chopped', () => {
+    // Below the labels threshold the sidebar is the rail exactly as the
+    // collapse button produces it — not a wide column of icons at
+    // whatever width the pointer stopped at. The dragged value is still
+    // what is held, so dragging back out returns to it.
+    const tag = asideTag();
+    expect(tag).toContain('iconsOnly ? SIDEBAR_RAIL_REM : sidebarWidth');
   });
 });
 

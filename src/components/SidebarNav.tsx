@@ -5,6 +5,7 @@ import { MODULE_NAME_CASE, titleCase } from '../lib/labelCase';
 import { isLearningModule, moduleMetaById, CREATIVE_SESSIONS_ACCENT_HEX } from '../lib/moduleMeta';
 import ModuleGlyph from './ModuleGlyph';
 import { MODULE_HOME_STATE } from '../lib/useEndOnModuleHome';
+import type { NavLabel, NavRowKind } from '../lib/sidebarWidth';
 import { READING_SKILL_LABELS, READING_SKILL_ORDER } from '../modules/reading/homeCards';
 import { readingSkillPath } from '../modules/reading/skillRoutes';
 
@@ -217,6 +218,38 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+/**
+ * Every word the sidebar draws, with the row it sits on.
+ *
+ * =====================================================================
+ * THE THRESHOLD FOR SHOWING LABELS IS COMPUTED FROM THIS.
+ *
+ * The sidebar goes to the rail at any width where a word would be cut,
+ * and the only way to know that width is to know the words. Derived
+ * from `NAV_GROUPS` rather than listed, so renaming a module or adding
+ * one carries the threshold with it — a longer name tomorrow makes the
+ * sidebar collapse a little earlier instead of starting to chop.
+ *
+ * THE KIND MATTERS AS MUCH AS THE TEXT. A module name is drawn in caps
+ * at 14px beside an icon; a sub-item is Title Case at 12px, indented
+ * twice, with no icon. Same number of characters, different width and
+ * different room to put it in — see `ROW_METRICS`.
+ * =====================================================================
+ */
+export const NAV_LABELS: ReadonlyArray<NavLabel> = NAV_GROUPS.flatMap(group => [
+  { text: group.label, kind: 'group' as const },
+  ...group.items.flatMap(item => [
+    // `isLearningModule` is what decides caps on screen, so it decides
+    // which width model applies here — see the row's own className.
+    { text: item.label, kind: (isLearningModule(item.id) ? 'module' : 'plain-module') as NavRowKind },
+    ...(item.children ?? []).map(child => ({ text: child.label, kind: 'sub' as const })),
+    ...(item.nestedChildren ?? []).flatMap(nested => [
+      { text: nested.label, kind: 'sub' as const },
+      ...(nested.children ?? []).map(leaf => ({ text: leaf.label, kind: 'nested' as const })),
+    ]),
+  ]),
+]);
 
 /** All group ids — used to seed the default-open state so the first
  *  visit shows everything expanded. */

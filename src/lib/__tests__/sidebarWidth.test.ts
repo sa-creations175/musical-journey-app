@@ -22,13 +22,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   SIDEBAR_DEFAULT_REM,
-  SIDEBAR_LABELS_MIN_REM,
   SIDEBAR_MAX_REM,
   SIDEBAR_MIN_REM,
   SIDEBAR_RAIL_REM,
   clampSidebarWidth,
+  labelsMinRem,
+  longestWord,
   showsLabels,
+  type NavLabel,
 } from '../sidebarWidth';
+import { NAV_LABELS } from '../../components/SidebarNav';
 
 describe('the bounds derive from what exists', () => {
   it('never opens wider than the sidebar is today', () => {
@@ -39,14 +42,6 @@ describe('the bounds derive from what exists', () => {
     // The rail IS an icon and its padding, so there is nothing to show
     // below it.
     expect(SIDEBAR_MIN_REM).toBe(SIDEBAR_RAIL_REM);
-  });
-
-  it('takes the labels threshold from the rail too', () => {
-    // Twice the icon column: below it there is less room for the word
-    // than for the icon beside it.
-    expect(SIDEBAR_LABELS_MIN_REM).toBe(SIDEBAR_RAIL_REM * 2);
-    expect(SIDEBAR_LABELS_MIN_REM).toBeGreaterThan(SIDEBAR_MIN_REM);
-    expect(SIDEBAR_LABELS_MIN_REM).toBeLessThan(SIDEBAR_MAX_REM);
   });
 
   it('leaves a real range to drag through', () => {
@@ -83,23 +78,140 @@ describe('clamping', () => {
   });
 });
 
-describe('where the labels give out', () => {
-  it('shows them at the default width', () => {
-    expect(showsLabels(SIDEBAR_DEFAULT_REM)).toBe(true);
+// =====================================================================
+// Where the labels give out
+// =====================================================================
+
+/**
+ * THE THRESHOLD USED TO BE TWICE THE RAIL, and that number came from
+ * the icon column rather than from the words. SONG REPERTOIRE and
+ * SHAPES & PATTERNS are far longer than it allowed, so between seven
+ * rem and about eleven and a half the sidebar claimed it could show
+ * labels and visibly could not — HARMON FLUENCY, SHAPES & PATTERN.
+ *
+ * What is asserted here is the RULE, never a figure: no width shows a
+ * word that does not fit, and the threshold moves with the words.
+ */
+
+/** The width a single label needs before it can be drawn uncut. */
+const needs = (label: NavLabel) => labelsMinRem([label]);
+
+const THRESHOLD = labelsMinRem(NAV_LABELS);
+
+describe('the nav is surveyed, not sampled', () => {
+  it('carries every kind of row', () => {
+    // A whole level dropping out of the survey is how the threshold
+    // goes quietly wrong: sub-items are clipped by the same band.
+    const kinds = new Set(NAV_LABELS.map(l => l.kind));
+    expect([...kinds].sort())
+      .toEqual(['group', 'module', 'nested', 'plain-module', 'sub']);
   });
 
-  it('shows them right down to the threshold, and not below it', () => {
-    expect(showsLabels(SIDEBAR_LABELS_MIN_REM)).toBe(true);
-    expect(showsLabels(SIDEBAR_LABELS_MIN_REM - 0.01)).toBe(false);
+  it('carries the labels a reader actually sees', () => {
+    const texts = NAV_LABELS.map(l => l.text);
+    for (const expected of [
+      'song repertoire', 'shapes & patterns', 'harmonic fluency',
+      'reference track library', 'mental visualisation', 'Chord Identification',
+    ]) {
+      expect(texts, expected).toContain(expected);
+    }
+  });
+});
+
+describe('no width shows a chopped word', () => {
+  it('never claims to fit a label it cannot', () => {
+    // The whole complaint, as a sweep: at every width the sidebar can
+    // be dragged to, if it says it is showing labels then every label
+    // fits. One failure here is one visible chopped word.
+    for (let w = SIDEBAR_MIN_REM; w <= SIDEBAR_MAX_REM; w += 0.05) {
+      if (!showsLabels(w, NAV_LABELS)) continue;
+      for (const label of NAV_LABELS) {
+        expect(needs(label) <= w + 1e-9, `${label.text} at ${w.toFixed(2)}rem`)
+          .toBe(true);
+      }
+    }
   });
 
-  it('shows none at the floor', () => {
-    expect(showsLabels(SIDEBAR_MIN_REM)).toBe(false);
+  it('would have failed on the old rail-derived threshold', () => {
+    // Twice the rail. Kept as a fact rather than as a constant: it is
+    // the number that produced the bug, and something has to remember
+    // that it was not enough.
+    const oldThreshold = SIDEBAR_RAIL_REM * 2;
+    expect(THRESHOLD).toBeGreaterThan(oldThreshold);
+    expect(NAV_LABELS.some(label => needs(label) > oldThreshold)).toBe(true);
   });
 
-  it('is reachable by dragging, which is the point', () => {
-    // The threshold has to sit inside the drag range or the icon
-    // presentation could never be reached by hand.
-    expect(SIDEBAR_LABELS_MIN_REM).toBeGreaterThan(clampSidebarWidth(0));
+  it('shows labels at the width the sidebar opens at', () => {
+    expect(showsLabels(SIDEBAR_DEFAULT_REM, NAV_LABELS)).toBe(true);
+  });
+
+  it('shows none at the floor, and none anywhere below the threshold', () => {
+    expect(showsLabels(SIDEBAR_MIN_REM, NAV_LABELS)).toBe(false);
+    expect(showsLabels(THRESHOLD - 0.01, NAV_LABELS)).toBe(false);
+    expect(showsLabels(THRESHOLD, NAV_LABELS)).toBe(true);
+  });
+
+  it('leaves a band to drag through with labels showing', () => {
+    // If the threshold ever reached the ceiling the sidebar could never
+    // show a word, which is not a state to ship silently.
+    expect(THRESHOLD).toBeGreaterThan(SIDEBAR_MIN_REM);
+    expect(THRESHOLD).toBeLessThan(SIDEBAR_MAX_REM);
+  });
+});
+
+describe('the threshold answers to the labels, not to a number', () => {
+  it('rises when a longer module name arrives', () => {
+    const longer: NavLabel[] = [
+      ...NAV_LABELS,
+      { text: 'counterpoint', kind: 'module' },
+    ];
+    expect(labelsMinRem(longer)).toBeGreaterThan(THRESHOLD);
+  });
+
+  it('falls when the longest labels leave', () => {
+    // Plural: SONG REPERTOIRE and PRODUCTION tie for the widest word,
+    // so dropping one of them changes nothing and dropping both does.
+    const without = NAV_LABELS.filter(l => needs(l) < THRESHOLD);
+    expect(without.length).toBeLessThan(NAV_LABELS.length);
+    expect(labelsMinRem(without)).toBeLessThan(THRESHOLD);
+  });
+
+  it('rises for a sub-item too, not only for a module name', () => {
+    // Production's children are clipped by the same band, so they are
+    // in the survey. Asked of the sub-items alone, because a module
+    // name currently needs more room than any of them and would hide
+    // the answer.
+    const subs = NAV_LABELS.filter(l => l.kind === 'sub');
+    const longerSub: NavLabel = { text: 'instrumentation', kind: 'sub' };
+    expect(labelsMinRem([...subs, longerSub]))
+      .toBeGreaterThan(labelsMinRem(subs));
+  });
+
+  it('reads the same label differently on different rows', () => {
+    // A module name is caps at 14px beside an icon; a sub-item is Title
+    // Case at 12px, indented twice, with no icon.
+    expect(needs({ text: 'repertoire', kind: 'module' }))
+      .not.toBe(needs({ text: 'repertoire', kind: 'sub' }));
+  });
+
+  it('never exceeds the width the sidebar can actually reach', () => {
+    const absurd: NavLabel[] = [
+      { text: 'supercalifragilisticexpialidocious', kind: 'module' },
+    ];
+    expect(labelsMinRem(absurd)).toBe(SIDEBAR_MAX_REM);
+  });
+});
+
+describe('what counts as one word', () => {
+  it('is the longest run that cannot be broken', () => {
+    // A label with a space in it wraps, and a wrapped label is not a
+    // chopped one. What can be clipped is a single unbreakable run.
+    expect(longestWord('song repertoire')).toBe('repertoire');
+    expect(longestWord('shapes & patterns')).toBe('patterns');
+  });
+
+  it('breaks after a hyphen, because a browser does', () => {
+    expect(longestWord('voice-leading drills')).toBe('leading');
+    expect(longestWord('ear-theory crossover')).toBe('crossover');
   });
 });

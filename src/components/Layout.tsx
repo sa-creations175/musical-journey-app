@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { taglineForPath, titleForPath } from '../lib/pageTitle';
 import SettingsPanel from './SettingsPanel';
 import MobileBottomNav from './MobileBottomNav';
-import SidebarNav from './SidebarNav';
+import SidebarNav, { NAV_LABELS } from './SidebarNav';
 import SyncIndicator from './SyncIndicator';
 import BackupReminderBanner from './BackupReminderBanner';
 import ReturnToCatalogueBanner from './ReturnToCatalogueBanner';
@@ -21,6 +21,7 @@ import {
   SIDEBAR_WIDTH_PREF,
   clampSidebarWidth,
   rootFontSizePx,
+  SIDEBAR_RAIL_REM,
   showsLabels,
 } from '../lib/sidebarWidth';
 import { useDevMode } from '../lib/devMode';
@@ -97,6 +98,21 @@ export default function Layout() {
   }, []);
 
   /**
+   * Icons only — either because the button put the sidebar on the rail,
+   * or because it has been dragged narrower than a label can read.
+   *
+   * ONE PRESENTATION, TWO WAYS IN, and they stay distinct: the button
+   * switches a STATE that persists, while this is a consequence of the
+   * current width. Dragging back out restores the labels because
+   * nothing was switched; the button still reaches the rail directly.
+   *
+   * THE THRESHOLD IS THE LABELS' OWN. `showsLabels` is asked about the
+   * words the nav actually draws, so a module renamed to something
+   * longer moves it rather than being chopped — see `labelsMinRem`.
+   */
+  const iconsOnly = sidebarCollapsed || !showsLabels(sidebarWidth, NAV_LABELS);
+
+  /**
    * Drag on the divider between the sidebar and the page.
    *
    * Listeners live on the WINDOW for the duration, not on the handle:
@@ -105,7 +121,16 @@ export default function Layout() {
    */
   const startResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
-    draggingFrom.current = { x: e.clientX, width: sidebarWidth };
+    // FROM WHAT IS ON SCREEN, not from what is stored. Below the labels
+    // threshold the sidebar is drawn at the rail while `sidebarWidth`
+    // still holds the wider value the pointer last said — so a fresh
+    // grab there would move the box five rem on the first pixel of
+    // travel. Starting from the rendered width keeps the edge under the
+    // finger, and the labels come back exactly where they fit.
+    draggingFrom.current = {
+      x: e.clientX,
+      width: iconsOnly ? SIDEBAR_RAIL_REM : sidebarWidth,
+    };
     const perRem = rootFontSizePx();
 
     const move = (ev: PointerEvent) => {
@@ -123,7 +148,7 @@ export default function Layout() {
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
-  }, [sidebarWidth]);
+  }, [sidebarWidth, iconsOnly]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed(prev => {
@@ -135,17 +160,6 @@ export default function Layout() {
 
   useAutoPauseOnNavigation();
   useStartArmedSessionOnArrival();
-
-  /**
-   * Icons only — either because the button put the sidebar on the rail,
-   * or because it has been dragged narrower than a label can read.
-   *
-   * ONE PRESENTATION, TWO WAYS IN, and they stay distinct: the button
-   * switches a STATE that persists, while this is a consequence of the
-   * current width. Dragging back out restores the labels because
-   * nothing was switched; the button still reaches the rail directly.
-   */
-  const iconsOnly = sidebarCollapsed || !showsLabels(sidebarWidth);
 
   const location = useLocation();
   const pageTitle = titleForPath(location.pathname);
@@ -186,7 +200,23 @@ export default function Layout() {
           // the pointer instead of following it.
           draggingFrom.current === null ? 'transition-[width] duration-150' : ''
         }`}
-        style={sidebarCollapsed ? undefined : { width: `${sidebarWidth}rem` }}
+        /* =============================================================
+           NARROW SNAPS TO THE RAIL, IT DOES NOT SIT AT THE DRAGGED
+           WIDTH SHOWING ICONS.
+
+           Dragged to nine rem the sidebar used to be a nine-rem column
+           of icons — neither the labelled sidebar nor the rail, and a
+           band of empty space beside every glyph. Below the threshold
+           it is now the rail exactly as the button produces it.
+
+           THE DRAGGED WIDTH IS NOT LOST. `sidebarWidth` still holds
+           what the pointer says, so dragging back out crosses the
+           threshold and the labels return at the width they left at —
+           nothing was switched, and no state was stored.
+           ============================================================= */
+        style={sidebarCollapsed
+          ? undefined
+          : { width: `${iconsOnly ? SIDEBAR_RAIL_REM : sidebarWidth}rem` }}
       >
         {/* THE DIVIDER IS THE HANDLE. It was already a border between
             the sidebar and the page; it now takes a drag, so the width
