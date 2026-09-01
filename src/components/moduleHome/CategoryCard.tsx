@@ -53,6 +53,7 @@ import {
   CardTitleBlock,
   cardTint,
 } from './cardShell';
+import { agoWord, formatSeconds } from './factWords';
 import type { CategoryCardModel } from './model';
 
 export { CARD_ACTION_LABEL, PROGRESS_TRACKER_LABEL };
@@ -280,17 +281,6 @@ export default function CategoryCard({
 }
 
 /**
- * Seconds as a reader would say them. Mirrors the drill modal's own
- * formatter — minutes once past one, hours once past sixty.
- */
-function formatSeconds(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  if (m < 60) return `${m}m`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-
-/**
  * THE PER-HAND BARS USED TO SIT HERE, AND THEY ARE GONE.
  *
  * Three bars — L, R, BOTH — each drawn in two segments over a neutral
@@ -308,9 +298,6 @@ function formatSeconds(seconds: number): string {
  * from a question this module does not ask.
  */
 
-/** How long ago, in the words the card has always used. */
-function agoWord(daysAgo: number): string {
-  if (daysAgo === 0) return 'today';
-  if (daysAgo === 1) return 'yesterday';
-  return `${daysAgo}d ago`;
-}
+/* `formatSeconds` AND `agoWord` MOVED TO `factWords`. The summary
+   tiles say the same two facts about the same section one page deeper,
+   and two copies would be two ways of saying "yesterday". */

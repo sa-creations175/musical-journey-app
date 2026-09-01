@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
+import SummaryTiles from '../../components/moduleHome/SummaryTiles';
 import { lessonById, PRODUCTION_LESSONS } from './content/lessons';
 import { GLOSSARY } from './content/glossary';
 import { isCovered, isStarted, ratingOption } from './lessonRating';
@@ -92,26 +93,56 @@ export default function ProductionOverview({
         }}
       />
 
-      {/* Stats strip */}
-      <section className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-        <Stat label="lessons tried" value={`${totals.covered}/${totals.total}`} accent="text-production" />
-        <Stat label="in progress" value={String(totals.started)} />
-        <Stat
-          label="glossary"
-          value={`${glossaryTotals.gotIt}/${glossaryTotals.all}`}
-          onClick={onOpenGlossary}
-        />
-        {/* NO VOCABULARY TILE. It has a card below now, and two doors
-            to one drill is how a reader starts wondering whether they
-            are two drills. Glossary and reference tracks keep theirs —
-            neither is a path nor the vocabulary drill, and the sidebar
-            links straight to them. */}
-        <Stat
-          label="reference tracks"
-          value={String(refTracks)}
-          onClick={onOpenReferenceTracks}
-        />
-      </section>
+      {/* =============================================================
+          THE SAME TILE ROW THE SHAPES PAGES USE.
+
+          These were four tall boxes with the value stacked above its
+          label, in a monospace face nothing else in the app uses —
+          about eighty pixels of chrome above the thing the page is for,
+          and the reason this module read as a different product. One
+          line each now, body font, roughly a third of the height, and
+          the same component every other module reaches for.
+
+          NO VOCABULARY TILE. It has a card below, and two doors to one
+          drill is how a reader starts wondering whether they are two
+          drills. Glossary and reference tracks keep theirs — neither is
+          a path nor the vocabulary drill, and the sidebar links
+          straight to them.
+          ============================================================= */}
+      <SummaryTiles
+        tiles={[
+          {
+            label: 'lessons tried',
+            value: `${totals.covered}/${totals.total}`,
+            testId: 'summary-tile-lessons-tried',
+          },
+          {
+            label: 'in progress',
+            value: String(totals.started),
+            testId: 'summary-tile-in-progress',
+          },
+          {
+            /* STILL "glossary", AND THE RENAME IS ON HOLD. It was ruled
+               to become "Vocabulary" on the belief that this tile and
+               the Vocabulary card below name one thing. They do not:
+               this counts terms MARKED GOT IT while reading the
+               glossary, that one counts distinct terms the drill has
+               ASKED you at least once. Renaming would put two different
+               numbers under one word on one screen. Raised in the
+               report with both figures. */
+            label: 'glossary',
+            value: `${glossaryTotals.gotIt}/${glossaryTotals.all}`,
+            onClick: onOpenGlossary,
+            testId: 'summary-tile-glossary',
+          },
+          {
+            label: 'reference tracks',
+            value: String(refTracks),
+            onClick: onOpenReferenceTracks,
+            testId: 'summary-tile-reference-tracks',
+          },
+        ]}
+      />
 
       {/* THE PATHS AND VOCABULARY, AS CARDS.
 
@@ -170,33 +201,8 @@ export default function ProductionOverview({
 
 // -------------------------------------------------------------------
 
-function Stat({
-  label,
-  value,
-  accent,
-  onClick,
-}: {
-  label: string;
-  value: string;
-  accent?: string;
-  onClick?: () => void;
-}) {
-  const base = 'rounded-2xl border border-black/[0.07] p-3 text-left';
-  const className = onClick
-    ? `${base} hover:border-production/60 transition-colors cursor-pointer`
-    : base;
-  const inner = (
-    <>
-      <div className={`text-lg font-mono tabular-nums ${accent ?? ''}`}>{value}</div>
-      <div className="text-[10px] uppercase tracking-wide text-neutral-500 mt-0.5">{label}</div>
-    </>
-  );
-  return onClick ? (
-    <button onClick={onClick} className={className}>{inner}</button>
-  ) : (
-    <div className={className}>{inner}</div>
-  );
-}
+/* `Stat` IS GONE. Its four tiles are `SummaryTiles` now — one shell
+   for every module, so a fifth cannot quietly grow a fifth look. */
 
 function formatAgo(ts: number): string {
   if (!ts) return '';

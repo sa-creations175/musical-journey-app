@@ -23,6 +23,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ShapesAndPatterns from '../ShapesAndPatterns';
 import ShapesAndPatternsSection from '../ShapesAndPatternsSection';
 import { SHAPES_SECTIONS } from '../homeCards';
+import { SCROLL_TO_DETAIL_STATE } from '../sectionRoutes';
 import { SCROLL_ROOM_CLASS } from '../../../lib/scrollSectionToTop';
 import { db } from '../../../lib/db';
 
@@ -108,11 +109,52 @@ describe('the module home', () => {
 });
 
 describe('a sub-module page', () => {
-  it('renders its own matrix, and carries its own card', async () => {
+  it('renders its own matrix, under a row of tiles rather than a card', async () => {
+    // THE PEACH CARD IS GONE. It was the module home's card drawn again
+    // for the one section you were already on — a big tinted box
+    // repeating the Fluent+ count the header below it already printed,
+    // with a blank body wherever nothing had been drilled.
     const el = await renderAt('/shapes-and-patterns/scales');
     expect(el.querySelector('[data-testid="shapes-section-detail"]')).not.toBeNull();
-    expect([...el.querySelectorAll('[data-card-key]')].map(c => c.getAttribute('data-card-key')))
-      .toEqual(['scales']);
+    expect(el.querySelectorAll('[data-card-key]'), 'no card').toHaveLength(0);
+    expect(el.querySelector('[data-testid="summary-tiles"]'), 'tiles instead')
+      .not.toBeNull();
+  });
+
+  it('puts the tiles above the white content card, not inside it', async () => {
+    const el = await renderAt('/shapes-and-patterns/scales');
+    const tiles = el.querySelector('[data-testid="summary-tiles"]')!;
+    const detail = el.querySelector('[data-testid="shapes-section-detail"]')!;
+    expect(detail.contains(tiles), 'not inside the matrix block').toBe(false);
+    expect(
+      tiles.compareDocumentPosition(detail) & Node.DOCUMENT_POSITION_FOLLOWING,
+      'and above it',
+    ).toBeTruthy();
+  });
+
+  it('carries the three standing facts, with the figures bare', async () => {
+    const el = await renderAt('/shapes-and-patterns/scales');
+    const labels = [...el.querySelectorAll('[data-testid^="summary-tile"]')]
+      .map(t => t.getAttribute('data-label'))
+      .filter(l => l !== null);
+    expect(labels).toEqual(['Fluent+', 'Total', 'Last practised']);
+
+    // NO UNIT NOUN. The figure is bare — "0 / 288", never
+    // "0 / 288 hands" or "0 / 288 patterns".
+    const fluent = el.querySelector('[data-testid="summary-tile-fluent-plus"]')!;
+    expect(fluent.textContent).toMatch(/^Fluent\+\s*\d+ \/ \d+$/);
+  });
+
+  it('says the absences rather than printing zeros that read as data', async () => {
+    // Nothing has been drilled in this test's database.
+    const el = await renderAt('/shapes-and-patterns/scales');
+    const total = el.querySelector('[data-testid="summary-tile-total"]')!;
+    const last = el.querySelector('[data-testid="summary-tile-last-practised"]')!;
+    expect(total.textContent).toContain('none yet');
+    expect(last.textContent).toContain('never');
+    // Muted, so an empty page LOOKS empty rather than measured.
+    expect(total.getAttribute('data-muted')).toBe('true');
+    expect(last.getAttribute('data-muted')).toBe('true');
   });
 
   it('sends a slug that names no sub-module back to the module home', async () => {
@@ -136,6 +178,29 @@ describe('the addresses already stored elsewhere', () => {
   });
 });
 
+/** The page as the module home's Progress Tracker button reaches it —
+ *  a navigation carrying the request to land on the matrix. */
+async function renderAtWithDetailRequest(path: string) {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+  await act(async () => {
+    root!.render(
+      <MemoryRouter initialEntries={[{ pathname: path, state: SCROLL_TO_DETAIL_STATE }]}>
+        <Probe />
+        <Routes>
+          <Route path="/shapes-and-patterns" element={<ShapesAndPatterns />} />
+          <Route path="/shapes-and-patterns/:section" element={<ShapesAndPatternsSection />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  });
+  for (let i = 0; i < 12; i++) {
+    await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+  }
+  return container!;
+}
+
 describe('landing on the matrix', () => {
   it('gives the block room to reach the top', async () => {
     // A browser cannot scroll past the end of the document, and this
@@ -150,17 +215,16 @@ describe('landing on the matrix', () => {
 
   it('asks the window to scroll rather than the element', async () => {
     // `scrollIntoView` aligns with the top of the scrollport, which is
-    // underneath the sticky header. See `scrollSectionToTop`.
+    // underneath the sticky header. See `scrollSectionToTop`. The card
+    // that used to carry this button is gone, so the press that lands
+    // here now is the module home's Progress Tracker, which arrives
+    // carrying the request.
     let moved = false;
     let intoView = 0;
     window.scrollTo = (() => { moved = true; }) as unknown as typeof window.scrollTo;
     Element.prototype.scrollIntoView = function stub() { intoView += 1; };
 
-    const el = await renderAt('/shapes-and-patterns/scales');
-    const button = el.querySelector('[data-testid="category-card-toggle"]') as HTMLElement;
-    await act(async () => { button.click(); });
-    const drill = el.querySelector('[data-testid="category-card-drill"]') as HTMLElement;
-    await act(async () => { drill.click(); });
+    await renderAtWithDetailRequest('/shapes-and-patterns/scales');
 
     expect(moved, 'it moved the window').toBe(true);
     expect(intoView, 'and did not fall back to scrollIntoView').toBe(0);

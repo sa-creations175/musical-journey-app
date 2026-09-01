@@ -20,8 +20,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
+import SummaryTiles from '../../components/moduleHome/SummaryTiles';
+import { shapesSummaryTiles } from './summaryTiles';
 import { db } from '../../lib/db';
 import { getPref, setPref } from '../../lib/userPrefs';
 import ChordShapeDrills from './ChordShapeDrills';
@@ -129,17 +130,21 @@ function SectionPage({ section }: { section: ShapesSectionId }) {
         showIntro={false}
       />
 
-      {/* The same card the module home draws, filtered to this one —
-          same adapter, so the count and the freshness say here exactly
-          what they say there. Both of its buttons lead to the matrix
-          below, which is what this page is. */}
-      <CategoryCardGrid
-        cards={cards}
-        moduleId={SHAPES_MODULE_ID}
-        onDrill={scrollToDetail}
-        onProgressDetail={scrollToDetail}
-        now={now}
-      />
+      {/* =============================================================
+          THE PEACH CARD IS GONE. ITS FACTS ARE THESE THREE TILES.
+
+          It was the module home's card, drawn again on the page for
+          the one section you were already looking at: a large tinted
+          box repeating the Fluent+ count the header two inches below
+          it already printed, and — on chord shapes, where nothing had
+          been drilled — with a blank body under that. Both its buttons
+          scrolled to the matrix directly beneath it.
+
+          THE SAME ADAPTER STILL FEEDS IT, so the time and the freshness
+          say here exactly what they say on the module home. What went
+          is the box, not the facts. See `shapesSummaryTiles`.
+          ============================================================= */}
+      {cards[0] && <SummaryTiles tiles={shapesSummaryTiles(cards[0])} />}
 
       {/* ROOM TO REACH THE TOP. This block is the last thing on the
           page, so without a floor a short one cannot be scrolled clear
