@@ -44,6 +44,34 @@ export function bandCellClasses(verdict: BandVerdict): string {
   return statusColour(statusKeyForVerdict(verdict)).fill;
 }
 
+/**
+ * The left gutter every grid in this module reserves for its row
+ * labels.
+ *
+ * =====================================================================
+ * ONE WIDTH, SO EVERY TILE STARTS AT THE SAME X.
+ *
+ * The scales grid put the key names in a content-sized table column, so
+ * the gutter was as wide as whatever happened to be in it — and a two
+ * character name with a flat sign is wider than a one character one, so
+ * the tiles beside them sat at different distances and the left edge of
+ * the grid wobbled. The voice-leading grid asked for
+ * `minmax(160px, 200px)`, which is a forty-pixel range for the same
+ * reason. The chord grid sized to its longest quality name.
+ *
+ * So three grids had three answers and none of them was stable. This
+ * is the one answer: a fixed width, wide enough for the longest row
+ * label any of them carries, with the label aligned inside it rather
+ * than deciding it. The three pages line up with each other as well as
+ * within themselves.
+ *
+ * A REM, NOT A CLASS, because two of the three set it through
+ * `gridTemplateColumns` and one through a `<th>` — one value spelled
+ * two ways is where they drift back apart.
+ * =====================================================================
+ */
+export const GRID_GUTTER = '10rem';
+
 export interface BandCellProps {
   verdict: BandVerdict;
   /** Ringed, because Progress Details below is telling THIS cell's

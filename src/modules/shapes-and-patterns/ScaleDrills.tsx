@@ -35,7 +35,7 @@ import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { scaleSurface } from './practiceTest/makeSurfaces';
-import { bandCellClasses } from './BandCell';
+import { bandCellClasses, GRID_GUTTER } from './BandCell';
 import {
   countFluentPlusTargets, itemCellTargets, rowsByRefHand, sectionTargets,
   targetKey, targetsAcrossKeys, verdictForTargets,
@@ -520,7 +520,14 @@ function ScaleGrid({ group, layout, spelling, verdictOf, selectedRef, onPick }: 
         <table className="border-collapse text-[11px]">
           <thead>
             <tr>
-              <th className="p-1" />
+              {/* THE GUTTER, PINNED. Both this and the body's key cell
+                  carry the width, so the column cannot be sized by
+                  whichever key name happens to be longest. */}
+              <th
+                className="p-1"
+                style={{ width: GRID_GUTTER }}
+                data-testid="grid-gutter"
+              />
               {group.rows.map(r => (
                 <th key={r.rowKey} className="p-1 font-medium text-left text-neutral-500">
                   {r.rowLabel}
@@ -531,7 +538,14 @@ function ScaleGrid({ group, layout, spelling, verdictOf, selectedRef, onPick }: 
           <tbody>
             {keyOrder.map(key => (
               <tr key={key}>
-                <th className="p-1 font-mono text-neutral-500 text-right">
+                {/* RIGHT-ALIGNED IN A FIXED GUTTER, so `B♭` and `C`
+                    both end at the same x and neither pushes its row
+                    over. */}
+                <th
+                  className="p-1 pr-2 font-mono font-normal text-neutral-500 text-right"
+                  style={{ width: GRID_GUTTER }}
+                  data-testid="grid-gutter"
+                >
                   {spellKey(key, spelling)}
                 </th>
                 {group.rows.map(r => {

@@ -43,7 +43,7 @@ import {
 } from './catalog';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
-import { bandCellClasses } from './BandCell';
+import { bandCellClasses, GRID_GUTTER } from './BandCell';
 import {
   chordCellTargets, countFluentPlusTargets, rowsByRefHand, sectionTargets,
   targetKey, targetsAcrossKeys, verdictForTargets, type CellTarget,
@@ -268,7 +268,13 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
         <table className="border-collapse text-[11px]">
           <thead>
             <tr>
-              <th className="p-1" />
+              {/* THE SAME GUTTER THE OTHER TWO GRIDS RESERVE, so the
+                  three pages line up with each other. */}
+              <th
+                className="p-1"
+                style={{ width: GRID_GUTTER }}
+                data-testid="grid-gutter"
+              />
               {KEYS_CIRCLE_OF_FOURTHS.map(k => (
                 <th key={k} className="p-1 font-mono font-normal text-neutral-500">
                   {spellKey(k, spelling)}
@@ -279,7 +285,12 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
           <tbody>
             {qualities.map(q => (
               <tr key={q.id}>
-                <th className="p-1 pr-3 font-medium text-left text-neutral-600 dark:text-neutral-300 whitespace-nowrap">
+                <th
+                  className="p-1 pr-2 font-medium text-left text-neutral-600 dark:text-neutral-300 truncate"
+                  style={{ width: GRID_GUTTER }}
+                  data-testid="grid-gutter"
+                  title={q.suffix ? `${q.label} (${q.suffix})` : q.label}
+                >
                   {q.suffix ? `${q.label} (${q.suffix})` : q.label}
                 </th>
                 {KEYS_CIRCLE_OF_FOURTHS.map(k => {

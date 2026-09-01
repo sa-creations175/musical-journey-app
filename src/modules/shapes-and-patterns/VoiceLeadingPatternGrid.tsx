@@ -30,7 +30,7 @@ import {
 } from './catalog';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
-import BandCell from './BandCell';
+import BandCell, { GRID_GUTTER } from './BandCell';
 import { itemCellTargets, rowsByRefHand, verdictForTargets } from './cellTargets';
 import { bandVerdictLabel } from '../../lib/spacing/banding';
 
@@ -90,10 +90,13 @@ export default function VoiceLeadingPatternGrid({
         <div
           className="grid"
           style={{
-            gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
+            // THE SHARED GUTTER. It asked for `minmax(160px, 200px)`,
+            // which let one pattern's rows sit forty pixels further
+            // right than another's.
+            gridTemplateColumns: `${GRID_GUTTER} repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
           }}
         >
-          <div />
+          <div data-testid="grid-gutter" style={{ width: GRID_GUTTER }} />
           {KEYS_CIRCLE_OF_FOURTHS.map(k => (
             <div
               key={k}
@@ -112,11 +115,13 @@ export default function VoiceLeadingPatternGrid({
             key={row.rowId}
             className="grid items-center"
             style={{
-              gridTemplateColumns: `minmax(160px, 200px) repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
+              gridTemplateColumns: `${GRID_GUTTER} repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
             }}
           >
             <div
               className="text-xs pr-2 py-0.5 min-w-0 text-neutral-600 dark:text-neutral-300"
+              style={{ width: GRID_GUTTER }}
+              data-testid="grid-gutter"
               title={row.hint ? `${row.label} — ${row.hint}` : row.label}
             >
               <div className="truncate">{row.label}</div>
