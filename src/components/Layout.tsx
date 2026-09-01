@@ -150,13 +150,50 @@ export default function Layout() {
     window.addEventListener('pointerup', up);
   }, [sidebarWidth, iconsOnly]);
 
+  /**
+   * The button, and the trap it used to be able to leave you in.
+   *
+   * =================================================================
+   * IT ACTS ON WHAT IS ON SCREEN, NOT ON THE FLAG.
+   *
+   * Two independent things put the sidebar on the rail: this flag, and
+   * a width below the labels threshold. They used to be able to
+   * disagree, and when they did the button was a liar — it said
+   * "collapse" over an already-collapsed-looking sidebar, and
+   * "expand" over one that did not expand.
+   *
+   * THE SEQUENCE THAT TRAPPED A PERSON. Raising the threshold to what
+   * the words actually need turned every stored width between the rail
+   * and 11.82rem — perfectly good labelled sidebars the day before —
+   * into a forced rail. With the flag also collapsed there was nothing
+   * on screen to undo it: expand cleared the flag, the width still
+   * failed the threshold, the sidebar did not move, and the drag
+   * handle only exists while the flag is clear. A button that appeared
+   * dead, and no other way out.
+   *
+   * EXPANDING NOW EXPANDS. It clears the flag AND, if the stored width
+   * cannot show a word, opens to the width the sidebar has always
+   * opened at. A width that CAN show words is left exactly as it is —
+   * only an unusable one is replaced, so a narrower sidebar someone
+   * chose on purpose survives being collapsed and reopened.
+   *
+   * IT DOES NOT LOWER THE THRESHOLD. No width shows a chopped word;
+   * what changed is that no state can strand you at one.
+   * =================================================================
+   */
   const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed(prev => {
-      const next = !prev;
-      void setPref(SIDEBAR_PREF, next);
-      return next;
-    });
-  }, []);
+    if (iconsOnly) {
+      setSidebarCollapsed(false);
+      void setPref(SIDEBAR_PREF, false);
+      if (!showsLabels(sidebarWidth, NAV_LABELS)) {
+        setSidebarWidth(SIDEBAR_DEFAULT_REM);
+        void setPref(SIDEBAR_WIDTH_PREF, SIDEBAR_DEFAULT_REM);
+      }
+      return;
+    }
+    setSidebarCollapsed(true);
+    void setPref(SIDEBAR_PREF, true);
+  }, [iconsOnly, sidebarWidth]);
 
   useAutoPauseOnNavigation();
   useStartArmedSessionOnArrival();
@@ -250,9 +287,14 @@ export default function Layout() {
           <button
             type="button"
             onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? 'expand sidebar' : 'collapse sidebar'}
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+            /* WHAT IT SAYS COMES FROM WHAT IS ON SCREEN. A sidebar
+               showing icons offers to expand, however it came to be
+               showing them — reading the flag instead is how the button
+               came to offer "collapse" over an already-collapsed
+               sidebar. */
+            aria-label={iconsOnly ? 'expand sidebar' : 'collapse sidebar'}
+            aria-expanded={!iconsOnly}
+            title={iconsOnly ? 'Expand' : 'Collapse'}
             className="inline-flex w-8 h-8 items-center justify-center rounded-md text-neutral-400 hover:text-fluent hover:bg-neutral-100 dark:hover:bg-neutral-800 shrink-0"
           >
             {/* Hamburger on phone (compact bar at top) → chevron on md+
@@ -277,7 +319,7 @@ export default function Layout() {
               height="10"
               viewBox="0 0 10 10"
               className={`hidden md:block transition-transform ${
-                sidebarCollapsed ? '' : 'rotate-180'
+                iconsOnly ? '' : 'rotate-180'
               }`}
               aria-hidden
             >

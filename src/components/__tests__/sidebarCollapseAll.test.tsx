@@ -42,6 +42,27 @@ async function settle() {
   }
 }
 
+/**
+ * Wait until the nav has HYDRATED its expansion state.
+ *
+ * A FIXED NUMBER OF TICKS WAS NOT ENOUGH, and this file went red about
+ * one run in twenty because of it. The nav reads its stored expansion
+ * asynchronously and then writes the merged result back; a press that
+ * lands before that read resolves is overwritten by it, so the module
+ * the test just opened is closed again by the hydration and
+ * `collapse all` has nothing to fold.
+ *
+ * The write is the signal: the persist effect only runs once hydration
+ * has happened, so the row existing means the presses below will stick.
+ */
+async function hydrated() {
+  for (let i = 0; i < 40; i++) {
+    if (await db.userPrefs.get('sidebarExpandedGroups')) return;
+    await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+  }
+  throw new Error('the sidebar never hydrated its expansion state');
+}
+
 async function render(at = '/goals') {
   container = document.createElement('div');
   document.body.appendChild(container);
@@ -51,6 +72,7 @@ async function render(at = '/goals') {
       <MemoryRouter initialEntries={[at]}><SidebarNav /></MemoryRouter>,
     );
   });
+  await hydrated();
   await settle();
   return container!;
 }
