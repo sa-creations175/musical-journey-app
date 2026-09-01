@@ -23,6 +23,7 @@ import {
   rootFontSizePx,
   SIDEBAR_RAIL_REM,
   showsLabels,
+  usableStoredWidth,
 } from '../lib/sidebarWidth';
 import { useDevMode } from '../lib/devMode';
 import { useAutoPauseOnNavigation } from '../lib/sessionTimer/useAutoPauseOnNavigation';
@@ -92,7 +93,31 @@ export default function Layout() {
     let cancelled = false;
     void getPref<unknown>(SIDEBAR_WIDTH_PREF, null).then(stored => {
       if (cancelled || stored === null) return;
-      setSidebarWidth(clampSidebarWidth(stored));
+      const usable = usableStoredWidth(stored, NAV_LABELS);
+      setSidebarWidth(usable);
+      /**
+       * =============================================================
+       * A STORED WIDTH THAT CANNOT SHOW LABELS IS REPLACED, ON LOAD,
+       * BY THE WIDTH THE SIDEBAR OPENS AT.
+       *
+       * One sentence, because that is the bar for rewriting something
+       * a person's machine is holding: a width the sidebar cannot open
+       * at is not a preference about how wide it opens.
+       *
+       * IT ONLY EVER FIRES ONCE PER BAD VALUE. Every width written from
+       * here on can show labels, so the only rows this touches are the
+       * ones stored before the rule — or one left behind by a module
+       * being renamed to something longer, which is the same thing
+       * happening for the same reason.
+       *
+       * WITHOUT IT the value would sit there being ignored on every
+       * load, and the rule — the stored width always shows labels —
+       * would be true of the code and false of the database.
+       * =============================================================
+       */
+      if (usable !== clampSidebarWidth(stored)) {
+        void setPref(SIDEBAR_WIDTH_PREF, usable);
+      }
     });
     return () => { cancelled = true; };
   }, []);
@@ -144,7 +169,17 @@ export default function Layout() {
       window.removeEventListener('pointerup', up);
       // Persisted on release rather than on every frame — a drag is one
       // decision, not sixty.
-      setSidebarWidth(current => { void setPref(SIDEBAR_WIDTH_PREF, current); return current; });
+      //
+      // AND ONLY IF IT CAN SHOW LABELS. Dragged narrower than that, the
+      // sidebar snaps to the rail for the rest of the session — which
+      // is unchanged — but the narrow figure is a drag position rather
+      // than a preference, and writing it would mean opening on the
+      // rail next time with nothing on screen saying why. What stays
+      // stored is the last width that could show words.
+      setSidebarWidth(current => {
+        if (showsLabels(current, NAV_LABELS)) void setPref(SIDEBAR_WIDTH_PREF, current);
+        return current;
+      });
     };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);

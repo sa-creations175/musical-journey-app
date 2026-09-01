@@ -225,6 +225,38 @@ export function clampSidebarWidth(value: unknown): number {
   return Math.min(SIDEBAR_MAX_REM, Math.max(SIDEBAR_MIN_REM, value));
 }
 
+/**
+ * A stored width, made fit to open at.
+ *
+ * =====================================================================
+ * THE STORED WIDTH IS ALWAYS ONE THAT CAN SHOW LABELS.
+ *
+ * A width narrower than the labels threshold is a transient drag
+ * position, not a preference: the sidebar cannot honour it as an open
+ * width — it draws the rail instead — so remembering it means opening
+ * on the rail with no explanation, which is the trap `38b002f` had to
+ * dig someone out of, one step removed.
+ *
+ * TWO SIDES, AND THEY ANSWER DIFFERENTLY.
+ *
+ *   WRITING: a drag that ends below the threshold writes nothing. The
+ *   value already stored is by this rule a usable one, and it stays.
+ *
+ *   READING: this. A value that cannot show labels — one stored before
+ *   this rule, or one left behind by a module being renamed to
+ *   something longer — falls back to the width the sidebar opens at,
+ *   because there is nothing better to fall back to.
+ *
+ * Everything unusable for the older reasons still lands on the default
+ * too: `clampSidebarWidth` handles an absent row, a NaN, a value from a
+ * future shape.
+ * =====================================================================
+ */
+export function usableStoredWidth(value: unknown, labels: readonly NavLabel[]): number {
+  const clamped = clampSidebarWidth(value);
+  return showsLabels(clamped, labels) ? clamped : SIDEBAR_DEFAULT_REM;
+}
+
 /** Pixels per rem, read from the document rather than assumed to be 16. */
 export function rootFontSizePx(): number {
   if (typeof window === 'undefined') return 16;

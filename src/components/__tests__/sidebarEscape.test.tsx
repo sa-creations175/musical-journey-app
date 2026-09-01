@@ -113,12 +113,50 @@ function sidebarButton(): HTMLElement {
   return found!;
 }
 
+/**
+ * Drag the divider until the sidebar snaps to the rail.
+ *
+ * THE SNAPPED STATE IS REACHED BY DRAGGING NOW, not by seeding a narrow
+ * width into the database — a width that cannot show labels is no
+ * longer stored, so loading into that state is not something a person
+ * can do any more. It is still very much reachable inside a session,
+ * which is what this drives.
+ */
+async function dragToTheRail() {
+  const el = container!.querySelector('[data-testid="sidebar-resize-handle"]') as HTMLElement;
+  expect(el, 'the handle is there to grab').not.toBeNull();
+  await act(async () => {
+    el.dispatchEvent(new MouseEvent('pointerdown', {
+      bubbles: true, cancelable: true, clientX: 400,
+    }) as unknown as PointerEvent);
+  });
+  await act(async () => {
+    window.dispatchEvent(new MouseEvent('pointermove', {
+      bubbles: true, clientX: 0,
+    }) as unknown as PointerEvent);
+  });
+  await act(async () => {
+    window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }) as unknown as PointerEvent);
+  });
+  await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+}
+
 async function press(el: HTMLElement) {
   await act(async () => { el.click(); });
   await act(async () => { await new Promise(r => setTimeout(r, 5)); });
 }
 
-/** Every state the app can load in. */
+/**
+ * Every state the app can load in.
+ *
+ * THE NARROW-WIDTH ROWS ARE STILL HERE, and they are now upgrade cases
+ * rather than live ones: a width that cannot show labels is no longer
+ * written, so the only way one exists is that it was stored before that
+ * rule. Loading into them must still end with a labelled sidebar — it
+ * just takes no press now, which the assertion allows for. The snapped
+ * state a person can still reach inside a session is dragged into
+ * below.
+ */
 const STATES: ReadonlyArray<{ name: string; collapsed?: boolean; width?: number }> = [
   { name: 'a fresh install' },
   { name: 'button-collapsed', collapsed: true },
@@ -161,7 +199,8 @@ describe('the way back', () => {
   });
 
   it('says what it will do, from what is on screen rather than from a flag', async () => {
-    await loadInto({ name: 'width-snapped', width: OLD_GOOD_WIDTH });
+    await loadInto({ name: 'default' });
+    await dragToTheRail();
     expect(widthRem()).toBe(SIDEBAR_RAIL_REM);
     // It looks collapsed, so it must offer to expand.
     expect(sidebarButton().getAttribute('aria-label')).toBe('expand sidebar');
@@ -169,6 +208,28 @@ describe('the way back', () => {
     await press(sidebarButton());
     expect(sidebarButton().getAttribute('aria-label')).toBe('collapse sidebar');
     expect(sidebarButton().getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('is one press away from a sidebar dragged onto the rail', async () => {
+    // The state a person can still reach inside a session, now that a
+    // width this narrow is no longer written down.
+    await loadInto({ name: 'default' });
+    await dragToTheRail();
+    expect(showsLabelsOnScreen(), 'on the rail').toBe(false);
+    await press(sidebarButton());
+    expect(showsLabelsOnScreen(), 'and back with one press').toBe(true);
+  });
+
+  it('is one press away from dragged onto the rail AND then button-collapsed', async () => {
+    // Both forces at once, which was the original trap. Reached the
+    // only way it can be reached now.
+    await loadInto({ name: 'default' });
+    await dragToTheRail();
+    await press(sidebarButton());   // expands
+    await press(sidebarButton());   // collapses again
+    expect(showsLabelsOnScreen()).toBe(false);
+    await press(sidebarButton());
+    expect(showsLabelsOnScreen()).toBe(true);
   });
 
   it('still collapses, and still gets back out', async () => {
