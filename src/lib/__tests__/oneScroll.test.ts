@@ -82,9 +82,15 @@ describe('the app has one scroll for a detail panel', () => {
     }
   });
 
-  it('has the surfaces that WERE converted calling the shared helper', () => {
+  it('has the surfaces that WERE converted reaching the shared scroll', () => {
     // The positive half. A file that stopped calling either one would
     // pass the sweep above and scroll nothing at all.
+    //
+    // TWO WAYS IN, AND BOTH ARE THE SAME SCROLL. A page that scrolls in
+    // response to a navigation calls it directly; a grid that scrolls
+    // in response to picking a cell goes through `useSectionScroll`,
+    // which defers the same call by one render so the room the panel
+    // reserves exists by the time it lands.
     const converted = [
       'components/moduleHome/CategoryDetailStack.tsx',
       'modules/reading/ReadingSkill.tsx',
@@ -97,7 +103,27 @@ describe('the app has one scroll for a detail panel', () => {
     for (const file of converted) {
       const src = SOURCES[`../../${file}`];
       expect(src, file).toBeTypeOf('string');
-      expect(src, file).toContain('scrollSectionToTop(');
+      expect(
+        src.includes('scrollSectionToTop(') || src.includes('useSectionScroll('),
+        file,
+      ).toBe(true);
+    }
+  });
+
+  it('has every grid that picks a cell deferring the scroll by a render', () => {
+    // Called in the click handler, the scroll landed before the panel
+    // had reserved its room and the browser clamped it — on chord
+    // shapes, to no movement at all. See `useSectionScroll`.
+    const grids = [
+      'modules/shapes-and-patterns/ScaleDrills.tsx',
+      'modules/shapes-and-patterns/ChordShapeDrills.tsx',
+      'modules/shapes-and-patterns/VoiceLeadingDrills.tsx',
+    ];
+    for (const file of grids) {
+      const src = SOURCES[`../../${file}`];
+      expect(src, file).toContain('useSectionScroll(');
+      expect(src, `${file} no longer scrolls straight from the handler`)
+        .not.toContain('scrollSectionToTop(');
     }
   });
 });

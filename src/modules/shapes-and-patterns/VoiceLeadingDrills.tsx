@@ -22,7 +22,7 @@ import CellProgressDetails, {
   HAND_ROW_LABEL, type DetailTarget,
 } from './CellProgressDetails';
 import { DEFAULT_LAYOUT, LayoutToggle, type Layout } from './KeyedGrid';
-import { scrollSectionToTop } from '../../lib/scrollSectionToTop';
+import { useSectionScroll } from '../../lib/scrollSectionToTop';
 import { itemCellTargets, targetKey } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
 import { sessionsByTarget } from './timeInvested';
@@ -75,6 +75,9 @@ export default function VoiceLeadingDrills() {
   /** The target the session panel is open on. One per cell here. */
   const [drilling, setDrilling] = useState<string | null>(null);
   const detailRef = useRef<HTMLDivElement | null>(null);
+  /** Scrolls the band to the top once the pick has rendered — see
+   *  `useSectionScroll` for why it cannot be done in the handler. */
+  const askForScroll = useSectionScroll(detailRef);
   const [now] = useState(() => Date.now());
   const { toast } = useToast();
 
@@ -129,8 +132,10 @@ export default function VoiceLeadingDrills() {
   const pickCell = (itemRef: string) => {
     setSelected(itemRef);
     // THE ANSWER GOES WHERE YOU ARE LOOKING — at the TOP of the screen,
-    // clear of the sticky header. See `scrollSectionToTop`.
-    scrollSectionToTop(detailRef.current);
+    // clear of the sticky header, and asked for AFTER the pick renders:
+    // called in the handler it ran before the panel had reserved its
+    // room and the browser clamped it. See `useSectionScroll`.
+    askForScroll();
   };
 
   // Live query of voice-leading skills so we can update labels on

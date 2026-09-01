@@ -129,6 +129,10 @@ export default function BandCell({
   return (
     <Tag
       {...(onClick ? { onClick, type: 'button' as const } : {})}
+      /* A HANDLE, and only that. Every grid cell in the module answers
+         to one name so a test can press one without knowing which grid
+         drew it. */
+      data-testid="band-cell"
       title={title}
       aria-label={title}
       className={[

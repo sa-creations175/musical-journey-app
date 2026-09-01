@@ -47,7 +47,7 @@ import { bandCellClasses, GRID_CELL_MIN } from './BandCell';
 import KeyedGrid, {
   DEFAULT_LAYOUT, LayoutToggle, type Layout,
 } from './KeyedGrid';
-import { scrollSectionToTop } from '../../lib/scrollSectionToTop';
+import { useSectionScroll } from '../../lib/scrollSectionToTop';
 import {
   chordCellTargets, countFluentPlusTargets, rowsByRefHand, sectionTargets,
   targetKey, targetsAcrossKeys, verdictForTargets, type CellTarget,
@@ -99,6 +99,9 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
   const [notCounted, setNotCounted] = useState<ReadonlySet<string>>(new Set());
   const [drilling, setDrilling] = useState<DetailTarget | null>(null);
   const detailRef = useRef<HTMLDivElement | null>(null);
+  /** Scrolls the band to the top once the pick has rendered — see
+   *  `useSectionScroll` for why it cannot be done in the handler. */
+  const askForScroll = useSectionScroll(detailRef);
   const [now] = useState(() => Date.now());
 
   const qualities = useMemo(
@@ -180,8 +183,11 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
     // opened, so the read starts with the click rather than with it.
     void findAllChordShapeSkillsForCell(keyName, quality);
     // THE ANSWER GOES WHERE YOU ARE LOOKING — at the TOP of the screen,
-    // clear of the sticky header. See `scrollSectionToTop`.
-    scrollSectionToTop(detailRef.current);
+    // clear of the sticky header, and asked for AFTER the pick above
+    // has rendered. Called here it landed before the panel had reserved
+    // its room, and on this page's tall grid that meant the page did
+    // not move at all. See `useSectionScroll`.
+    askForScroll();
   };
 
   /** The cell's twelve, as the detail section takes them. */

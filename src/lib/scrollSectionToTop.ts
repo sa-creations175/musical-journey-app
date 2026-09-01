@@ -34,6 +34,8 @@
  * =====================================================================
  */
 
+import { useCallback, useEffect, useState, type RefObject } from 'react';
+
 /** Breathing room between the chrome and the band. */
 const GAP_PX = 8;
 
@@ -75,3 +77,45 @@ export function scrollSectionToTop(el: HTMLElement | null): void {
  * =====================================================================
  */
 export const SCROLL_ROOM_CLASS = 'min-h-[85vh]';
+
+/**
+ * Ask for that scroll AFTER the change that made room for it has
+ * rendered.
+ *
+ * =====================================================================
+ * THE BUG THIS EXISTS FOR, AND IT LOOKED LIKE NOTHING HAPPENING.
+ *
+ * A grid's cell handler did two things in a row: pick the cell, then
+ * scroll to Progress Details. Both in the same click, so at the moment
+ * of the scroll React had not re-rendered — and the room the panel
+ * reserves ONLY WHILE A CELL IS PICKED did not exist yet. A browser
+ * clamps a scroll request to the document's current maximum, so the
+ * page moved a little, or on a tall grid not at all. From the reader's
+ * seat, clicking a chord-shape cell did nothing: the panel had opened,
+ * far below the fold, and the page had stayed put.
+ *
+ * The scroll was never wrong. It was asked one render too early.
+ *
+ * A COUNTER RATHER THAN THE SELECTION ITSELF, so that clicking the same
+ * cell twice scrolls twice — keying the effect on "which cell" would
+ * make the second press on one cell do nothing, which is the same
+ * complaint again in a smaller form.
+ * =====================================================================
+ */
+export function useSectionScroll(
+  ref: RefObject<HTMLElement | null>,
+): () => void {
+  const [request, setRequest] = useState(0);
+
+  useEffect(() => {
+    // Nothing has been asked for on the first render, and a page that
+    // scrolled itself on arrival would take the reader somewhere they
+    // did not ask to go.
+    if (request === 0) return;
+    scrollSectionToTop(ref.current);
+  }, [request, ref]);
+
+  // Batched with whatever state change the caller makes in the same
+  // handler, so ONE render carries both and the effect sees the room.
+  return useCallback(() => setRequest(n => n + 1), []);
+}

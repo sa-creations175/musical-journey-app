@@ -39,7 +39,7 @@ import { bandCellClasses } from './BandCell';
 import KeyedGrid, {
   DEFAULT_LAYOUT, LayoutToggle, type Layout,
 } from './KeyedGrid';
-import { scrollSectionToTop } from '../../lib/scrollSectionToTop';
+import { useSectionScroll } from '../../lib/scrollSectionToTop';
 import {
   countFluentPlusTargets, itemCellTargets, rowsByRefHand, sectionTargets,
   targetKey, targetsAcrossKeys, verdictForTargets,
@@ -182,6 +182,9 @@ export default function ScaleDrills() {
     { cell: ScaleCell; hand: DrillHand } | null
   >(null);
   const detailRef = useRef<HTMLDivElement | null>(null);
+  /** Scrolls the band to the top once the pick has rendered — see
+   *  `useSectionScroll` for why it cannot be done in the handler. */
+  const askForScroll = useSectionScroll(detailRef);
   const [now] = useState(() => Date.now());
 
   const groups = useMemo(buildGroups, []);
@@ -249,9 +252,11 @@ export default function ScaleDrills() {
   const pickCell = (cell: ScaleCell) => {
     setSelected(cell);
     // THE ANSWER GOES WHERE YOU ARE LOOKING — at the TOP of the screen,
-    // clear of the sticky header, with the detail under it. See
-    // `scrollSectionToTop`.
-    scrollSectionToTop(detailRef.current);
+    // clear of the sticky header, with the detail under it. Asked for
+    // AFTER the pick renders: called in the handler it ran before the
+    // panel had reserved its room and the browser clamped it. See
+    // `useSectionScroll`.
+    askForScroll();
   };
 
   /**
@@ -519,6 +524,7 @@ function StatusCell({ cell, verdict, selected, onPick, keyLabel }: {
   return (
     <button
       type="button"
+      data-testid="scale-cell"
       onClick={() => onPick(cell)}
       aria-pressed={selected}
       // NO `border` HERE. The fill is solid now and an outline round it
