@@ -41,7 +41,15 @@ export function useAxisViews(): AxisViews {
     void (async () => {
       const stored = await getPref<Record<string, string>>(PREF_KEY, {});
       if (live) { setViews(stored); setLoaded(true); }
-    })();
+    })()
+      // A DISPLAY CHOICE THAT CANNOT BE READ IS THE DEFAULT ONE, not an
+      // error thrown into the page. `loaded` stays false, `viewFor`
+      // keeps answering null, and every caller already falls back —
+      // `resolveView` and `resolveCardSort` both take the stored value
+      // as a hint. Caught rather than left to reject because this hook
+      // now runs on module homes, where the grid it decorates is the
+      // page's whole content.
+      .catch(err => { console.warn('[axisViews] could not be read', err); });
     return () => { live = false; };
   }, []);
 
@@ -50,7 +58,10 @@ export function useAxisViews(): AxisViews {
       const next = { ...prev, [field]: viewId };
       // Written on change rather than on unmount: a reader who taps the
       // toggle and closes the page immediately still gets remembered.
-      void setPref(PREF_KEY, next);
+      // A failed write loses the memory of one press, which is not
+      // worth throwing over — see the read above.
+      void setPref(PREF_KEY, next)
+        .catch(err => { console.warn('[axisViews] could not be saved', err); });
       return next;
     });
   }, []);

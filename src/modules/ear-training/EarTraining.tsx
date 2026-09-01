@@ -112,6 +112,7 @@ export default function EarTraining() {
         }}
         // "open", not "drill": this lands on a page with a play button
         // rather than on a question. See the header.
+        sortable
         now={now}
       />
     </div>

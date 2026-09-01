@@ -117,6 +117,7 @@ export default function ShapesAndPatterns() {
           // press is a navigation carrying the request with it.
           navigate(shapesSectionPath(key), { state: SCROLL_TO_DETAIL_STATE });
         }}
+        sortable
         now={now}
       />
     </div>

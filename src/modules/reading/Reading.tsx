@@ -135,6 +135,7 @@ export default function Reading() {
           onProgressDetail={key => {
             if (isReadingCardKey(key)) navigate(detailHref(readingSkillPath(key)));
           }}
+          sortable
           now={now}
         />
       )}
