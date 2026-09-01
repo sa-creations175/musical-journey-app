@@ -226,6 +226,74 @@ const ALL_GROUP_IDS = NAV_GROUPS.map(g => g.id);
  *  module-state keys in the same expansion map. */
 const groupKey = (id: string) => `group:${id}`;
 
+/**
+ * =====================================================================
+ * FOLDING EVERY OPEN MODULE AT ONCE.
+ *
+ * Six modules in Structured Learning, each opening into a list of its
+ * own, and closing them was one press per module. This is the one
+ * press for all of them.
+ *
+ * IT FOLDS MODULES, NOT GROUPS. A group header is the section the
+ * modules live in — Overview is forced open on every load already —
+ * and folding those would empty the nav rather than tidy it.
+ *
+ * DERIVED FROM `NAV_GROUPS`, NEVER LISTED. A hand-written list of
+ * expandable ids is a list that silently stops covering the module
+ * added after it.
+ * =====================================================================
+ */
+function collapsibleIds(): string[] {
+  const out: string[] = [];
+  for (const group of NAV_GROUPS) {
+    for (const item of group.items) {
+      const nested = item.nestedChildren ?? [];
+      if ((item.children?.length ?? 0) > 0 || nested.length > 0) out.push(item.id);
+      // One level deeper — Ear Training's Chord Progressions has its
+      // own disclosure and its own key in the same expansion map.
+      for (const n of nested) {
+        if ((n.children?.length ?? 0) > 0) out.push(n.id);
+      }
+    }
+  }
+  return out;
+}
+
+const COLLAPSIBLE_IDS = collapsibleIds();
+
+/**
+ * =====================================================================
+ * THE MODULE YOU ARE INSIDE FOLDS WITH THE REST — a judgement call,
+ * and this is the reasoning, because the other answer is defensible.
+ *
+ * The case for exempting it: the nav is the one thing on screen that
+ * says where you are, and folding the module you are standing in hides
+ * the sibling pages you are navigating by.
+ *
+ * It loses on three counts.
+ *
+ *   1. WHERE YOU ARE IS NOT LOST. The module's own row keeps its
+ *      active fill whether it is open or shut, so the nav still says
+ *      where you are; what folds is its list, one press from back.
+ *   2. PRESSING A MODULE NAME NAVIGATES AS WELL AS EXPANDS — see
+ *      `NavItemRow`. So the module you are inside is normally the LAST
+ *      one you opened, and an exemption would most often leave open
+ *      exactly the one the reader had just asked to fold.
+ *   3. A control called "Collapse all" that leaves one open reads as
+ *      broken, and the reason it left that one open is invisible.
+ *
+ * To reverse it, filter `foldable` by the ids on `location.pathname`.
+ * =====================================================================
+ */
+
+/**
+ * UNAPPROVED COPY. Silas's own words for the control, taken from the
+ * request that asked for it; it has never been ruled on. Listed in the
+ * report — see docs/WHOLE_SONG_TEST_COPY.md for where approved strings
+ * live, and this is not in it yet.
+ */
+export const COLLAPSE_ALL_LABEL = 'Collapse all';
+
 interface SidebarNavProps {
   /** When true, render the icon-only compact list. On phone the
    *  compact view is a horizontal strip across the top of the page
@@ -273,6 +341,19 @@ export default function SidebarNav({ collapsed = false }: SidebarNavProps) {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  // What one press would fold. Empty means the control has nothing to
+  // do, and it is not drawn — the same call `AxisViewToggle` makes when
+  // an axis has one ordering.
+  const foldable = COLLAPSIBLE_IDS.filter(id => expanded[id] === true);
+
+  const collapseAll = () => {
+    setExpanded(prev => {
+      const next = { ...prev };
+      for (const id of foldable) next[id] = false;
+      return next;
+    });
+  };
+
   const currentPath = location.pathname + location.search;
 
   // Compact (icon-only) view rendered when collapsed at every size.
@@ -294,6 +375,22 @@ export default function SidebarNav({ collapsed = false }: SidebarNavProps) {
         ))}
       </nav>
       <nav className={expandedClass}>
+        {/* NAV-LEVEL, ABOVE THE GROUPS, because it acts on all of them.
+            Put inside Structured Learning it would read as that
+            group's own control and leave the reader looking for a
+            second one. */}
+        {foldable.length > 0 && (
+          <div className="flex justify-end -mb-1">
+            <button
+              type="button"
+              onClick={collapseAll}
+              data-testid="nav-collapse-all"
+              className="px-2 py-1 rounded text-[10px] uppercase tracking-wide text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300"
+            >
+              {COLLAPSE_ALL_LABEL}
+            </button>
+          </div>
+        )}
         {NAV_GROUPS.map(group => {
           const gKey = groupKey(group.id);
           // Default open when hydrated value is missing (covers race
