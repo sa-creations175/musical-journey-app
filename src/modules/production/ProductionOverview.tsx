@@ -2,10 +2,9 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../lib/db';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
-import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
+import ModuleHomeHeader, { ReferenceLink } from '../../components/moduleHome/ModuleHomeHeader';
 import SummaryTiles from '../../components/moduleHome/SummaryTiles';
 import { lessonById, PRODUCTION_LESSONS } from './content/lessons';
-import { GLOSSARY } from './content/glossary';
 import { isCovered, isStarted, ratingOption } from './lessonRating';
 import {
   PRODUCTION_MODULE_ID,
@@ -17,9 +16,12 @@ import {
 interface Props {
   onOpenPath: (pathId: string) => void;
   onOpenLesson: (lessonId: string) => void;
-  onOpenGlossary: () => void;
-  onOpenReferenceTracks: () => void;
   onOpenVocabulary: () => void;
+  /* NO `onOpenGlossary` OR `onOpenReferenceTracks`. Both were tiles
+     that opened a view through a callback; they are links now, to the
+     same `?view=` addresses the sidebar already points at, so the two
+     ways in behave identically — including what the back button does.
+     See `ReferenceLink`. */
 }
 
 /**
@@ -31,18 +33,13 @@ interface Props {
 export default function ProductionOverview({
   onOpenPath,
   onOpenLesson,
-  onOpenGlossary,
-  onOpenReferenceTracks,
   onOpenVocabulary,
 }: Props) {
   const rawLessonStates = useLiveQuery(async () => db.productionLessons.toArray(), []);
-  const rawTermStates = useLiveQuery(async () => db.glossaryTermStates.toArray(), []);
   const lessonStates = useMemo(() => rawLessonStates ?? [], [rawLessonStates]);
-  const termStates = useMemo(() => rawTermStates ?? [], [rawTermStates]);
-  const refTracks = useLiveQuery(
-    async () => db.referenceTracks.filter(r => !r.archived).count(),
-    [],
-  ) ?? 0;
+  /* THE GLOSSARY AND REFERENCE-TRACK READS ARE GONE WITH THEIR TILES.
+     Both counted reference material rather than anything done, and
+     nothing on this page asks for either number now. */
 
   const totals = useMemo(() => {
     const total = PRODUCTION_LESSONS.length;
@@ -56,12 +53,6 @@ export default function ProductionOverview({
     return { total, covered, started };
   }, [lessonStates]);
 
-  const glossaryTotals = useMemo(() => {
-    const all = GLOSSARY.length;
-    const gotIt = termStates.filter(s => s.mastery === 'got-it').length;
-    return { all, gotIt };
-  }, [termStates]);
-
   const attempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(PRODUCTION_MODULE_ID).toArray(),
     [],
@@ -74,6 +65,9 @@ export default function ProductionOverview({
     [lessonStates, attempts],
   );
 
+  /** The vocabulary card, so its tile cannot disagree with it. */
+  const vocabulary = cards.find(c => c.key === VOCABULARY_CARD_KEY);
+
   const recent = useMemo(() => {
     return [...lessonStates]
       .filter(s => s.lastOpenedAt !== null)
@@ -85,6 +79,20 @@ export default function ProductionOverview({
     <div className="space-y-6 max-w-4xl">
       {/* The flame is true here: vocabulary writes real attempts. */}
       <ModuleHomeHeader
+        /* THE TWO REFERENCE DOORS, in the slot Reading's Notation
+           Reference already occupies — the left end of a row that is
+           otherwise right-aligned, so they cost no vertical space. They
+           were tiles; a tile carries something you are TRACKING, and
+           neither of these is. See `ReferenceLink`. */
+        leading={(
+          <span className="inline-flex items-center gap-2">
+            <ReferenceLink to="/production?view=glossary">Glossary</ReferenceLink>
+            <span aria-hidden className="text-neutral-400">·</span>
+            <ReferenceLink to="/production?view=reference-tracks">
+              Reference Tracks
+            </ReferenceLink>
+          </span>
+        )}
         moduleIds={[PRODUCTION_MODULE_ID]}
         moduleId={PRODUCTION_MODULE_ID}
         calendarTo="/production/calendar"
@@ -122,24 +130,18 @@ export default function ProductionOverview({
             testId: 'summary-tile-in-progress',
           },
           {
-            /* STILL "glossary", AND THE RENAME IS ON HOLD. It was ruled
-               to become "Vocabulary" on the belief that this tile and
-               the Vocabulary card below name one thing. They do not:
-               this counts terms MARKED GOT IT while reading the
-               glossary, that one counts distinct terms the drill has
-               ASKED you at least once. Renaming would put two different
-               numbers under one word on one screen. Raised in the
-               report with both figures. */
-            label: 'glossary',
-            value: `${glossaryTotals.gotIt}/${glossaryTotals.all}`,
-            onClick: onOpenGlossary,
-            testId: 'summary-tile-glossary',
-          },
-          {
-            label: 'reference tracks',
-            value: String(refTracks),
-            onClick: onOpenReferenceTracks,
-            testId: 'summary-tile-reference-tracks',
+            /* READ OFF THE VOCABULARY CARD'S OWN MODEL, not counted a
+               second time here. The tile and the card are the same
+               figure about the same drill, and the only way they cannot
+               drift is by being one computation.
+
+               THIS IS THE TILE THAT WAS MISSING. Vocabulary is a drill,
+               it is one of Production's dashboard categories, and it is
+               tracked — which is what a tile is for. */
+            label: 'vocabulary',
+            value: `${vocabulary?.itemsSeen ?? 0}/${vocabulary?.itemCount ?? 0}`,
+            onClick: onOpenVocabulary,
+            testId: 'summary-tile-vocabulary',
           },
         ]}
       />

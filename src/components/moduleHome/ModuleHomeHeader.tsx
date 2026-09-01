@@ -92,6 +92,33 @@ export interface ModuleHomeHeaderProps {
   showIntro?: boolean;
 }
 
+/**
+ * A door to REFERENCE MATERIAL, at the left end of the header row.
+ *
+ * =====================================================================
+ * READING INVENTED THE SLOT; PRODUCTION USES THE SAME ONE.
+ *
+ * Reading's Notation Reference has sat there since the header row got
+ * its `leading` half — a plain link on the line the streak already
+ * occupies, costing no vertical space. Production has two of the same
+ * kind of thing, and a second treatment written by hand is how the two
+ * modules come to disagree about what a reference link looks like.
+ *
+ * A LINK, NOT A BUTTON AND NOT A TILE. A tile carries something you are
+ * TRACKING — the things that appear as categories in the dashboards.
+ * A glossary is a list you read; a reference library is material that
+ * exists whether or not you have opened it. Neither is progress, and
+ * putting either in the summary row said it was.
+ * =====================================================================
+ */
+export function ReferenceLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <Link to={to} className="hover:text-fluent">
+      {children}
+    </Link>
+  );
+}
+
 export default function ModuleHomeHeader({
   moduleIds, moduleId, calendarTo, intro, showIntro = true, leading,
 }: ModuleHomeHeaderProps) {

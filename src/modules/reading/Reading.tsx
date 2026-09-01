@@ -20,10 +20,10 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import CategoryCardGrid from '../../components/moduleHome/CategoryCardGrid';
-import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
+import ModuleHomeHeader, { ReferenceLink } from '../../components/moduleHome/ModuleHomeHeader';
 import { db } from '../../lib/db';
 import { useSpacingIntervals } from '../../lib/useSpacingIntervals';
 import ReadingDrill from './ReadingDrill';
@@ -84,11 +84,10 @@ export default function Reading() {
           its row — the row is right-aligned and its left half was
           empty, so the reference costs no vertical space. */}
       <ModuleHomeHeader
-        leading={(
-          <Link to="/reading/reference" className="hover:text-fluent">
-            Notation Reference
-          </Link>
-        )}
+        /* THE SHARED REFERENCE LINK, which this page's own inline one
+           became when Production needed two of them. Same element,
+           same class, same slot — see `ReferenceLink`. */
+        leading={<ReferenceLink to="/reading/reference">Notation Reference</ReferenceLink>}
         moduleIds={[READING_MODULE_ID]}
         moduleId={READING_MODULE_ID}
         calendarTo="/reading/calendar"

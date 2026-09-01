@@ -51,8 +51,6 @@ export default function Production() {
 
   const openPath = (id: string) => go({ path: id, lesson: null, view: null });
   const openLesson = (id: string) => go({ lesson: id, path: null, view: null });
-  const openGlossary = () => go({ view: 'glossary', path: null, lesson: null });
-  const openRefs = () => go({ view: 'reference-tracks', path: null, lesson: null });
   const openVocabulary = () => go({ view: 'vocabulary', path: null, lesson: null });
   const backToOverview = () => navigate('/production');
 
@@ -89,8 +87,6 @@ export default function Production() {
     <ProductionOverview
       onOpenPath={openPath}
       onOpenLesson={openLesson}
-      onOpenGlossary={openGlossary}
-      onOpenReferenceTracks={openRefs}
       onOpenVocabulary={openVocabulary}
     />
   );

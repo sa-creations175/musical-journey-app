@@ -318,3 +318,24 @@ describe('the page', () => {
     expect(detailKeys(el).sort()).toEqual(['note', 'sig']);
   });
 });
+
+describe('the Notation Reference link', () => {
+  it('is unchanged where it has always been, in the shared slot', () => {
+    // It became `ReferenceLink` when Production needed two of the same
+    // kind — same element, same class, same address, same place. If
+    // extracting it moved anything, this is what says so.
+    return renderPage().then(el => {
+      const link = [...el.querySelectorAll('a')]
+        .find(a => a.textContent === 'Notation Reference');
+      expect(link, 'still on the page').toBeDefined();
+      expect(link!.getAttribute('href')).toBe('/reading/reference');
+      expect(link!.className).toBe('hover:text-fluent');
+      // At the LEFT END of the header row the streak occupies — the
+      // half that was empty, so it costs no vertical space.
+      const streak = el.querySelector('[data-testid="hf-streak"]')!;
+      expect(
+        link!.compareDocumentPosition(streak) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+  });
+});
