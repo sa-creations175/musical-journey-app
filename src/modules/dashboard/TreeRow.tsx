@@ -196,9 +196,7 @@ function TreeRowImpl({
           </button>
         )}
         <span
-          className={`truncate ${
-            isModuleRow ? 'uppercase tracking-wider font-semibold' : ''
-          }`}
+          className={`truncate ${isModuleRow ? MODULE_NAME_CLASS : ''}`}
           title={node.label}
         >
           {node.label}
@@ -409,6 +407,29 @@ export function drillLabel(
   const count = summary.filtered ? summary.itemCount : totalItems;
   return `${verb} item${count === 1 ? '' : 's'}`;
 }
+
+/**
+ * How a MODULE's name is drawn, wherever a module's name is drawn.
+ *
+ * =====================================================================
+ * THE CARDS DID NOT INHERIT IT, AND LOOKED LIKE A DIFFERENT APP.
+ *
+ * A module row here has always shouted — caps, letter-spaced, heavier —
+ * which is what separates "harmonic fluency the module" from the
+ * fifteen category names under it. The card view drew the same six
+ * names in sentence case, so the two dashboards disagreed about what a
+ * module looks like.
+ *
+ * THE STRING IS UNTOUCHED, and has to be: the module filter pills read
+ * the same lowercase labels, and a test pins them. This is CSS, applied
+ * where the name is drawn — the same rule the sidebar follows.
+ *
+ * ONE WHOLE LITERAL, exported rather than typed twice. Tailwind scans
+ * source text, so this has to be a complete string in one place; two
+ * hand-copied lists is how the two surfaces come to differ again.
+ * =====================================================================
+ */
+export const MODULE_NAME_CLASS = 'uppercase tracking-wider font-semibold';
 
 /**
  * Column widths, shared with the sticky header.

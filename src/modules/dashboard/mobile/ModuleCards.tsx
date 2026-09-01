@@ -32,10 +32,12 @@ import { useNavigate } from 'react-router-dom';
 import { moduleMetaById } from '../../../lib/moduleMeta';
 import { TIER_BAR_CLASS, type Tier } from '../../../lib/tier';
 import { formatScore } from '../bands';
+import { MODULE_NAME_CLASS } from '../TreeRow';
 import type { ModuleTree } from '../read/query';
 import type { TreeNode } from '../read/tree';
 import { tierForNode } from '../read/tierAdapter';
-import { tierWord } from './tierLegend';
+import { footerEntries, tierWord } from './tierLegend';
+import { DIMMED_CLASS, matchLine } from './cardFilter';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -43,16 +45,32 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 interface StripCell {
   node: TreeNode;
   tier: Tier;
+  /**
+   * Whether this category survives the active filter.
+   *
+   * True for every cell when nothing is filtering, which is why the
+   * unfiltered card renders exactly as it always has.
+   */
+  matched: boolean;
 }
 
 export default function ModuleCards({
-  modules, now, onOpenCategory,
+  modules, now, onOpenCategory, matches, filtering = false,
 }: {
+  /** ALREADY SORTED AND ALREADY NARROWED to the modules the pills
+   *  chose. This file draws the cards it is given, in the order it is
+   *  given them — an order decided here would be a second answer to a
+   *  question the controls already answer. */
   modules: readonly ModuleTree[];
   now: number;
   /** Where a category's "open" goes. Supplied so this file does not
    *  need to know how any module addresses its own pages. */
   onOpenCategory: (moduleId: string, node: TreeNode) => void;
+  /** Whether a category survives the filter. Absent means nothing is
+   *  filtering, and every square is at full strength. */
+  matches?: (node: TreeNode) => boolean;
+  /** Whether to say how many matched. See `matchLine`. */
+  filtering?: boolean;
 }) {
   return (
     <div className="space-y-2" data-testid="mobile-modules">
@@ -62,6 +80,8 @@ export default function ModuleCards({
           module={module}
           now={now}
           onOpenCategory={onOpenCategory}
+          {...(matches !== undefined ? { matches } : {})}
+          filtering={filtering}
         />
       ))}
     </div>
@@ -69,11 +89,13 @@ export default function ModuleCards({
 }
 
 function ModuleCard({
-  module, now, onOpenCategory,
+  module, now, onOpenCategory, matches, filtering,
 }: {
   module: ModuleTree;
   now: number;
   onOpenCategory: (moduleId: string, node: TreeNode) => void;
+  matches?: (node: TreeNode) => boolean;
+  filtering: boolean;
 }) {
   const navigate = useNavigate();
   /**
@@ -88,9 +110,12 @@ function ModuleCard({
   const meta = moduleMetaById(module.moduleId);
   const root = module.root;
   const cells: StripCell[] = root.children.map(node => ({
-    node, tier: tierForNode(node, now),
+    node,
+    tier: tierForNode(node, now),
+    matched: matches === undefined ? true : matches(node),
   }));
   const open = cells.find(c => c.node.id === openId) ?? null;
+  const matchedCount = cells.filter(c => c.matched).length;
 
   return (
     <section
@@ -108,7 +133,11 @@ function ModuleCard({
           data-testid="mobile-module-name"
           onClick={() => { if (meta) navigate(meta.route); }}
           disabled={meta === undefined}
-          className="font-medium text-sm text-left min-w-0 truncate hover:text-fluent disabled:hover:text-inherit"
+          /* THE TREE'S OWN TREATMENT, imported rather than matched by
+             hand — see `MODULE_NAME_CLASS`. The label itself is
+             untouched: the module filter pills read the same lowercase
+             strings, and a test pins them. */
+          className={`${MODULE_NAME_CLASS} text-sm text-left min-w-0 truncate hover:text-fluent disabled:hover:text-inherit`}
         >
           {root.label}
         </button>
@@ -116,7 +145,7 @@ function ModuleCard({
           data-testid="mobile-module-score"
           className="ml-auto text-sm font-mono tabular-nums text-neutral-600 dark:text-neutral-300"
         >
-          {formatScore(root.score)}
+          {moduleScoreLine(root.score)}
         </span>
       </div>
 
@@ -137,7 +166,13 @@ function ModuleCard({
             aria-expanded={openId === cell.node.id}
             title={`${cell.node.label} — ${tierWord(cell.tier)}`}
             onClick={() => setOpenId(id => (id === cell.node.id ? null : cell.node.id))}
+            /* DIMMED, NEVER REMOVED, and still a button — see
+               `cardFilter`. The strip keeps its length, its order and
+               its shape under any filter; what changes is which squares
+               the eye is drawn to. */
             className={`w-5 h-5 rounded-sm border transition ${TIER_BAR_CLASS[cell.tier]} ${
+              cell.matched ? '' : DIMMED_CLASS
+            } ${
               openId === cell.node.id
                 ? 'border-neutral-900 dark:border-neutral-100'
                 : 'border-black/10 dark:border-white/10'
@@ -158,9 +193,44 @@ function ModuleCard({
         />
       )}
 
-      <div className="text-[11px] text-neutral-500 mt-2" data-testid="mobile-module-footer">
-        {stripFooter(cells)}
+      {/* THE FOOTER IS THE KEY FOR THE STRIP ABOVE IT. Every entry
+          carries the square it is counting, in that square's own
+          colour, so the reader never has to hold a colour in their head
+          while looking for its name. */}
+      <div
+        className="text-[11px] text-neutral-500 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1"
+        data-testid="mobile-module-footer"
+      >
+        {footerEntries(cells).map(entry => (
+          <span
+            key={entry.tier}
+            data-testid="mobile-footer-entry"
+            data-tier={entry.tier}
+            data-matched={entry.matched ? 'true' : 'false'}
+            className={`inline-flex items-center gap-1 ${entry.matched ? '' : DIMMED_CLASS}`}
+          >
+            <span
+              aria-hidden
+              data-testid="mobile-footer-swatch"
+              className={`w-2.5 h-2.5 rounded-sm shrink-0 ${entry.swatch}`}
+            />
+            {entry.count} {entry.label}
+          </span>
+        ))}
       </div>
+
+      {/* ONLY WHILE SOMETHING IS DIMMING. Without it, a card where
+          nothing matches is a card that has gone grey for no stated
+          reason — and that card is kept deliberately, because a module
+          with no matches is an answer. */}
+      {filtering && (
+        <div
+          className="text-[11px] text-neutral-400 mt-1"
+          data-testid="mobile-module-match-line"
+        >
+          {matchLine(matchedCount, cells.length)}
+        </div>
+      )}
     </section>
   );
 }
@@ -249,18 +319,30 @@ function coverageLine(node: TreeNode): string {
 }
 
 /**
- * "8 fluent · 4 developing · 3 not enough yet to say".
+ * The number at the right of a card's top line, and what it is.
  *
- * COUNTED OFF THE CELLS THEMSELVES, in strip order, so it cannot
- * disagree with the squares it explains. Zeroes are dropped: a zero is
- * the absence of a thing, and printing it makes the line longer to say
- * nothing happened.
+ * =====================================================================
+ * IT READ AS PROGRESS AND IT IS NOT.
+ *
+ * "90%" beside a module name is read as nine tenths of the way through
+ * something. It is the mean accuracy across that module's graded
+ * categories — a module can sit at 90% having opened three categories
+ * of fifteen, and the strip underneath is what says so. The number
+ * needed to say which of the two it was.
+ *
+ * THE EMPTY CASE IS UNCHANGED. `formatScore` prints a dash for a module
+ * with nothing graded, and a dash followed by the word accuracy would
+ * be labelling a measurement that was never taken.
+ * =====================================================================
  */
-export function stripFooter(cells: ReadonlyArray<StripCell>): string {
-  const counts = new Map<string, number>();
-  for (const cell of cells) {
-    const word = tierWord(cell.tier);
-    counts.set(word, (counts.get(word) ?? 0) + 1);
-  }
-  return [...counts.entries()].map(([word, n]) => `${n} ${word}`).join(' · ');
+export function moduleScoreLine(score: number | null): string {
+  const value = formatScore(score);
+  return score === null ? value : `${value} accuracy`;
 }
+
+/**
+ * THE FOOTER WAS A STRING AND IS NOW A ROW OF ENTRIES, because each one
+ * carries its own swatch — see `footerEntries` in `tierLegend.ts`, which
+ * also carries the reasoning for counting the two ungraded states
+ * separately here while the legend still merges them.
+ */

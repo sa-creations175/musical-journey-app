@@ -16,11 +16,14 @@
  * =====================================================================
  */
 import { describe, expect, it } from 'vitest';
-import { computeTier, MASTERY_WINDOW, MIN_ATTEMPTS_FOR_TIER, TIER_LABEL } from '../../../../lib/tier';
+import {
+  computeTier, MASTERY_WINDOW, MIN_ATTEMPTS_FOR_TIER, TIER_BAR_CLASS, TIER_LABEL,
+} from '../../../../lib/tier';
+import { NO_VALUE } from '../../bands';
 import type { TreeNode } from '../../read/tree';
 import { tierForNode } from '../../read/tierAdapter';
-import { stripFooter, subLine } from '../ModuleCards';
-import { TIER_LEGEND, UNGRADED_LABEL, tierWord } from '../tierLegend';
+import { moduleScoreLine, subLine } from '../ModuleCards';
+import { TIER_LEGEND, UNGRADED_LABEL, footerEntries, tierWord } from '../tierLegend';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 7, 25, 12);
@@ -90,29 +93,63 @@ describe('the tier a category reads as', () => {
 });
 
 describe('the footer counts the strip', () => {
-  const cell = (tier: Parameters<typeof tierWord>[0]) => ({ node: node(), tier });
+  const cell = (tier: Parameters<typeof tierWord>[0], matched = true) => ({ tier, matched });
+  const read = (entries: ReturnType<typeof footerEntries>) =>
+    entries.map(e => `${e.count} ${e.label}`).join(' · ');
 
   it('counts each tier by its own name', () => {
-    expect(stripFooter([
+    expect(read(footerEntries([
       cell('fluent'), cell('fluent'), cell('developing'),
-    ])).toBe(`2 ${TIER_LABEL.fluent} · 1 ${TIER_LABEL.developing}`);
+    ]))).toBe(`2 ${TIER_LABEL.fluent} · 1 ${TIER_LABEL.developing}`);
   });
 
-  it('folds the two ungraded states into the one thing they mean', () => {
-    // `started` and `not started` are different facts about the READER;
-    // on a colour key they make the same claim, which is none.
-    expect(stripFooter([cell('started'), cell('untouched')]))
-      .toBe(`2 ${UNGRADED_LABEL}`);
+  it('counts the two ungraded states SEPARATELY, which the legend does not', () => {
+    // REVERSES A DOCUMENTED DECISION, and only here. Once every footer
+    // entry carries its own swatch, one entry wearing two different
+    // swatches reads as a fault — and `untouched` (nothing attempted)
+    // and `started` (real work under the line) are different facts.
+    expect(read(footerEntries([cell('started'), cell('untouched')])))
+      .toBe(`1 ${TIER_LABEL.started} · 1 ${TIER_LABEL.untouched}`);
+  });
+
+  it('leaves the shared legend merging them, so nothing else moves', () => {
+    // `tierWord` feeds the strip cell's own label, the cell popover and
+    // every row of the skills list. None of them changed.
+    expect(tierWord('started')).toBe(UNGRADED_LABEL);
+    expect(tierWord('untouched')).toBe(UNGRADED_LABEL);
+    const ungraded = TIER_LEGEND.filter(e => e.label === UNGRADED_LABEL);
+    expect(ungraded).toHaveLength(1);
+    expect(ungraded[0].swatches).toHaveLength(2);
+  });
+
+  it(`gives every entry exactly one swatch, in that tier's own colour`, () => {
+    const entries = footerEntries([cell('started'), cell('untouched'), cell('fluent')]);
+    expect(entries).toHaveLength(3);
+    for (const entry of entries) {
+      expect(entry.swatch, entry.label).toBe(TIER_BAR_CLASS[entry.tier]);
+      expect(entry.swatch.split(/\s+/).length).toBeGreaterThan(0);
+    }
   });
 
   it('drops a tier that is not on the strip rather than printing a zero', () => {
-    const footer = stripFooter([cell('fluent')]);
+    const footer = read(footerEntries([cell('fluent')]));
     expect(footer).toBe(`1 ${TIER_LABEL.fluent}`);
     expect(footer).not.toContain('0 ');
   });
 
   it('says nothing for a module with no categories', () => {
-    expect(stripFooter([])).toBe('');
+    expect(footerEntries([])).toEqual([]);
+  });
+
+  it('keeps the whole count under a filter, and dims only what nothing matched', () => {
+    // The footer counts the STRIP, and the strip keeps its full length
+    // under any filter. What moves is emphasis, not arithmetic.
+    const entries = footerEntries([
+      cell('fluent', true), cell('fluent', false), cell('developing', false),
+    ]);
+    expect(read(entries)).toBe(`2 ${TIER_LABEL.fluent} · 1 ${TIER_LABEL.developing}`);
+    expect(entries[0].matched, 'one fluent matched').toBe(true);
+    expect(entries[1].matched, 'no developing matched').toBe(false);
   });
 
   it('accounts for every colour the strip can draw', () => {
@@ -121,6 +158,22 @@ describe('the footer counts the strip', () => {
     for (const tier of ['mastered', 'fluent', 'developing', 'needsWork', 'stale', 'started', 'untouched'] as const) {
       expect(covered.has(tier), tier).toBe(true);
     }
+  });
+});
+
+describe('the number at the right of the top line', () => {
+  it('says what it is', () => {
+    // "90%" beside a module name reads as progress. It is the mean
+    // accuracy across that module's graded categories.
+    expect(moduleScoreLine(90)).toBe('90% accuracy');
+    expect(moduleScoreLine(58.4)).toBe('58% accuracy');
+  });
+
+  it('leaves the empty case alone', () => {
+    // A dash followed by the word accuracy would label a measurement
+    // nobody took.
+    expect(moduleScoreLine(null)).toBe(NO_VALUE);
+    expect(moduleScoreLine(null)).not.toContain('accuracy');
   });
 });
 
