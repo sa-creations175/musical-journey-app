@@ -29,12 +29,28 @@ import { useLocation } from 'react-router-dom';
 /** What a nav module link puts in `location.state`. */
 export const MODULE_HOME_STATE = { moduleHome: true } as const;
 
+/**
+ * Whether a location was reached by pressing a module's name in the
+ * nav.
+ *
+ * EXPORTED BECAUSE THE HOOK IS NOT ALWAYS SOON ENOUGH. A module home
+ * that restores its last view from a stored pref reads that pref
+ * asynchronously, which lands AFTER this hook's effect has already put
+ * the page back on its cards — so the restore would quietly undo the
+ * thing the reader just pressed for. Such a page has to know at mount
+ * that the nav asked, and skip the restore, rather than being corrected
+ * a tick later. Repertoire is the one case; see `Repertoire.tsx`.
+ */
+export function isModuleHomeRequest(state: unknown): boolean {
+  return (state as { moduleHome?: boolean } | null)?.moduleHome === true;
+}
+
 export function useEndOnModuleHome(end: () => void): void {
   const location = useLocation();
   const endRef = useRef(end);
   endRef.current = end;
 
-  const asked = (location.state as { moduleHome?: boolean } | null)?.moduleHome === true;
+  const asked = isModuleHomeRequest(location.state);
 
   useEffect(() => {
     if (!asked) return;

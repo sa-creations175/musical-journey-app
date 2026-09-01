@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type Song } from '../../lib/db';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { getPref, setPref } from '../../lib/userPrefs';
 import { useUrlTabSync } from '../../lib/useUrlTabSync';
+import { isModuleHomeRequest, useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
 import { migrateSongsToMatrixIfNeeded } from './matrixMigration';
 import { materialiseAllSongs } from './matrix/materialise';
 import { seedRepertoireIfNeeded } from './seedSongs';
@@ -51,6 +52,36 @@ export default function Repertoire() {
   const [selectedSongId, setSelectedSongId] = useState<string | null>(null);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
+  /**
+   * =================================================================
+   * SONG REPERTOIRE IN THE NAV MEANS THE SAME THING IT MEANS
+   * EVERYWHERE ELSE: TAKE ME TO THE MODULE HOME.
+   *
+   * It did not, and the reason is structural rather than a missing
+   * case. Every other module home is a ROUTE, so its nav link changes
+   * the pathname and whatever was on top unmounts. This module's three
+   * views are component STATE on one route: from a song page the link
+   * points at `/repertoire`, which is the URL already on screen, so
+   * react-router replaces the location and nothing here notices.
+   *
+   * That is exactly the shape `useEndOnModuleHome` was written for —
+   * harmonic fluency's and reading's drills are component state on
+   * their module homes and both read it. Repertoire is the one module
+   * home of the four that never adopted it, so it is adopted here
+   * rather than a special case being added to the nav.
+   *
+   * THE STORED TAB HAD TO BE GUARDED TOO, and that is why the mount
+   * value is held. `PREF_ACTIVE_TAB` remembers 'detail', is read
+   * asynchronously, and lands a tick after the hook has put the page
+   * back on its cards — so without this the restore would quietly
+   * undo the press. The guard is the same one the deep-link songId
+   * already uses below, for the same reason.
+   * =================================================================
+   */
+  const location = useLocation();
+  const [arrivedFromNav] = useState(() => isModuleHomeRequest(location.state));
+  useEndOnModuleHome(() => setTab('active'));
+
   // Seed the 7 starter songs on first load (idempotent — guards on
   // both a pref marker and an existing-songs-count check). Runs in
   // the background; Active view will live-update when songs arrive.
@@ -92,7 +123,10 @@ export default function Repertoire() {
   useEffect(() => {
     (async () => {
       const t = await getPref<TabId>(PREF_ACTIVE_TAB, 'active');
-      if (isTabId(t)) {
+      // NOT WHEN THE NAV ASKED FOR THE MODULE HOME — see above. The
+      // reader pressed Song Repertoire; restoring 'detail' over the
+      // top of that is the bug this read used to cause.
+      if (isTabId(t) && !arrivedFromNav) {
         setTab(t);
       }
       // Only restore the persisted last-selected song when there's NO
