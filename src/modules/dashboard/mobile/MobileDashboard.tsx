@@ -35,10 +35,16 @@
  * order, with the numbers legible. One screen answering both would
  * answer neither well.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { ModuleTree } from '../read/query';
+import {
+  matchesFilter, sortNodes, type FilterContext, type ModuleTree,
+} from '../read/query';
+import type { DashboardViewState } from '../read/urlState';
+import type { ColumnTopic } from '../bands';
 import type { TreeNode } from '../read/tree';
+import DashboardControls, { ControlsToggle } from '../DashboardControls';
+import { moduleIsShown, squareFilter, squareFilterActive } from './cardFilter';
 import ModuleCards from './ModuleCards';
 import SkillsList, {
   GroupToggle, GroupedSkills, MeasureSwitch, type SkillRow,
@@ -67,16 +73,60 @@ const VIEWS: ReadonlyArray<{ id: MobileView; label: string }> = [
 ];
 
 export default function MobileDashboard({
-  modules, now,
+  modules, now, state, onChange, ctx, openTopic, onToggleTopic,
 }: {
   modules: readonly ModuleTree[];
   now: number;
+  /**
+   * THE SAME VIEW STATE THE TREE READS, from the same URL. Sort and
+   * filter mean one thing on this dashboard, not two — see the panel
+   * below, which is literally the tree's own.
+   */
+  state: DashboardViewState;
+  onChange: (next: DashboardViewState) => void;
+  ctx: FilterContext;
+  openTopic: ColumnTopic | null;
+  onToggleTopic: (topic: ColumnTopic) => void;
 }) {
   const [view, setView] = useState<MobileView>(DEFAULT_MOBILE_VIEW);
   const [measure, setMeasure] = useState<Measure>(DEFAULT_MEASURE);
   /** Grouped by module on arrival — see `GroupToggle`. */
   const [grouped, setGrouped] = useState(true);
+  /** Closed on arrival, exactly as on the tree. */
+  const [controlsOpen, setControlsOpen] = useState(false);
   const navigate = useNavigate();
+
+  /**
+   * =================================================================
+   * THE CARDS IN THE ORDER AND THE SET THE CONTROLS ASK FOR.
+   *
+   * The order used to be whatever the data handed over. It happened to
+   * look sorted; it was luck, and luck drifts.
+   *
+   * SORTED THROUGH `sortNodes`, on the module ROOTS — the same function
+   * that orders the tree's module rows, so "worst first" puts the same
+   * module first on both dashboards.
+   *
+   * NARROWED BY THE MODULE PILLS ONLY. The other filters do not remove
+   * anything here; they dim. See `cardFilter`.
+   * =================================================================
+   */
+  const shownModules = useMemo(() => {
+    const kept = modules.filter(m => moduleIsShown(state.filter, m.moduleId));
+    const order = sortNodes(kept.map(m => m.root), state.sort, now);
+    const rank = new Map(order.map((root, i) => [root.id, i]));
+    return [...kept].sort(
+      (a, b) => (rank.get(a.root.id) ?? 0) - (rank.get(b.root.id) ?? 0),
+    );
+  }, [modules, state.filter, state.sort, now]);
+
+  /** Whether a category survives the filter — asked of each square. */
+  const squareSpec = useMemo(() => squareFilter(state.filter), [state.filter]);
+  const filtering = squareFilterActive(state.filter);
+  const matches = useMemo(
+    () => (node: TreeNode) => matchesFilter(node, squareSpec, ctx),
+    [squareSpec, ctx],
+  );
 
   /**
    * How long a freshness step is, from settings.
@@ -126,12 +176,41 @@ export default function MobileDashboard({
     >
       <ViewSwitch view={view} onChange={setView} />
 
+      {/* THE PANEL BELONGS TO THE CARDS, so it is offered only while
+          they are showing. The skills tab has controls of its own —
+          its measure switch and its grouping — and a second sort above
+          them would be two answers to one question. An inert control is
+          worse than an absent one. */}
+      {view === 'modules' && (
+        <div className="mb-2">
+          <ControlsToggle
+            open={controlsOpen}
+            onToggle={() => setControlsOpen(v => !v)}
+          />
+          {controlsOpen && (
+            <DashboardControls
+              state={state}
+              onChange={onChange}
+              openTopic={openTopic}
+              onToggleTopic={onToggleTopic}
+              surface="cards"
+            />
+          )}
+        </div>
+      )}
+
       {modules.length === 0 ? (
         <div data-testid="mobile-dashboard-empty" className="p-6 text-sm text-neutral-500">
           Nothing to show yet.
         </div>
       ) : view === 'modules' ? (
-        <ModuleCards modules={modules} now={now} onOpenCategory={openCategory} />
+        <ModuleCards
+          modules={shownModules}
+          now={now}
+          onOpenCategory={openCategory}
+          matches={matches}
+          filtering={filtering}
+        />
       ) : (
         <div className="space-y-2">
           <MeasureSwitch measure={measure} onChange={setMeasure} />

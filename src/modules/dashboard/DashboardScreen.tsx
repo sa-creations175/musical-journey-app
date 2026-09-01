@@ -17,7 +17,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import TreeRow, { COLUMN_RULE_CLASS, COLUMN_WIDTHS } from './TreeRow';
-import DashboardControls, { Pill } from './DashboardControls';
+import DashboardControls, { ControlsToggle, Pill } from './DashboardControls';
 import { useDashboardData } from './useDashboardData';
 import {
   DEFAULT_VIEW_STATE,
@@ -449,7 +449,19 @@ export default function DashboardScreen({
         <div className={`${CARDS_COLUMN} px-1 pt-1 flex justify-end`}>
           {layoutSwitch}
         </div>
-        <MobileDashboard modules={modules} now={now} />
+        <MobileDashboard
+          modules={modules}
+          now={now}
+          /* THE SAME STATE THE TREE READS, out of the same URL — so a
+             sort chosen on one dashboard is the sort the other opens
+             on. `expanded` is pruned here and passed pruned, exactly as
+             the controls below receive it. */
+          state={{ ...state, expanded }}
+          onChange={setState}
+          ctx={ctx}
+          openTopic={openTopic}
+          onToggleTopic={onToggleTopic}
+        />
       </div>
     );
   }
@@ -477,16 +489,12 @@ export default function DashboardScreen({
             are showing.
             ============================================================= */}
         <div className="px-1 py-1 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setControlsOpen(v => !v)}
-            aria-expanded={controlsOpen}
-            data-testid="dashboard-controls-toggle"
-            className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-fluent rounded px-2 py-1"
-          >
-            Controls
-            <span aria-hidden className={`text-neutral-400/70 transition-transform ${controlsOpen ? 'rotate-90' : ''} inline-block`}>›</span>
-          </button>
+          {/* ONE DISCLOSURE, TWO DASHBOARDS — the card view opens the
+              same panel behind the same word. */}
+          <ControlsToggle
+            open={controlsOpen}
+            onToggle={() => setControlsOpen(v => !v)}
+          />
           {/* THE OTHER END OF THE SAME ROW — see the note where it is
               built. It is a control, and this is where the controls
               are. */}

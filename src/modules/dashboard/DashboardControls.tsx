@@ -45,6 +45,29 @@ export interface DashboardControlsProps {
    */
   openTopic: ColumnTopic | null;
   onToggleTopic: (topic: ColumnTopic) => void;
+  /**
+   * Which surface these controls are steering.
+   *
+   * =================================================================
+   * TWO CONTROLS HAVE NO MEANING ON A CARD, AND ARE ABSENT RATHER THAN
+   * INERT.
+   *
+   * `grouped` asks whether rows are gathered under their module. The
+   * CARD IS THAT GROUPING — ungrouping would dissolve the cards into
+   * the flat list, which is the tree.
+   *
+   * `collapse all` folds module rows shut. Nothing on a card is open,
+   * so there is nothing to fold.
+   *
+   * Hidden, not disabled. A greyed control still says "this is a thing
+   * you could do here", and it is not.
+   *
+   * EVERYTHING ELSE IS THE SAME PANEL — same words, same widgets, same
+   * order. A second vocabulary for sort and filters would mean the two
+   * dashboards disagreed about what "worst first" is called.
+   * =================================================================
+   */
+  surface?: 'rows' | 'cards';
 }
 
 const SORT_FIELDS: ReadonlyArray<{ id: SortField; label: string }> = [
@@ -76,6 +99,45 @@ const CONTROL = 'text-[11px] rounded border px-2 py-1 transition';
 const IDLE = 'border-neutral-300 text-neutral-600 hover:border-neutral-400 '
   + 'dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-500';
 const ACTIVE = 'border-fluent bg-fluent/10 text-fluent';
+
+/**
+ * The button the whole panel hides behind.
+ *
+ * =====================================================================
+ * ONE BUTTON, TWO DASHBOARDS. It was written inline on the tree; the
+ * card view needs the same disclosure, with the same word and the same
+ * mark, and a second copy is how the two come to open differently.
+ *
+ * The controls are a thing you reach for occasionally and then stop
+ * thinking about, which is what a disclosure is for. IN PLACE, so
+ * opening them pushes the list down rather than covering it: a panel
+ * floating over the rows would hide what the filter is about to change.
+ * =====================================================================
+ */
+export function ControlsToggle({
+  open, onToggle,
+}: {
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      data-testid="dashboard-controls-toggle"
+      className="inline-flex items-center gap-1 text-xs text-neutral-500 hover:text-fluent rounded px-2 py-1"
+    >
+      Controls
+      <span
+        aria-hidden
+        className={`text-neutral-400/70 transition-transform ${open ? 'rotate-90' : ''} inline-block`}
+      >
+        ›
+      </span>
+    </button>
+  );
+}
 
 /**
  * A dashboard control, in the one shape they all take.
@@ -152,9 +214,10 @@ function ThresholdFilter({
 }
 
 export default function DashboardControls({
-  state, onChange, openTopic, onToggleTopic,
+  state, onChange, openTopic, onToggleTopic, surface = 'rows',
 }: DashboardControlsProps) {
   const [open, setOpen] = useState(false);
+  const onCards = surface === 'cards';
   const filterCount = activeFilterCount(state.filter);
   const atDefault = isDefaultViewState(state);
   const allCollapsed = DASHBOARD_MODULE_ORDER.every(
@@ -221,14 +284,17 @@ export default function DashboardControls({
           : state.sort.direction === 'worst-first' ? worstWord : bestWord}
       </button>
 
-      <Pill
-        testId="grouping-toggle"
-        active={state.grouping}
-        label={state.grouping ? 'Grouped by module' : 'One flat list'}
-        onClick={() => onChange({ ...state, grouping: !state.grouping })}
-      >
-        {state.grouping ? 'grouped' : 'flat'}
-      </Pill>
+      {/* The card IS the grouping — see `surface`. */}
+      {!onCards && (
+        <Pill
+          testId="grouping-toggle"
+          active={state.grouping}
+          label={state.grouping ? 'Grouped by module' : 'One flat list'}
+          onClick={() => onChange({ ...state, grouping: !state.grouping })}
+        >
+          {state.grouping ? 'grouped' : 'flat'}
+        </Pill>
+      )}
 
       <span className="h-4 w-px bg-neutral-200 dark:bg-neutral-800" aria-hidden="true" />
 
@@ -315,17 +381,20 @@ export default function DashboardControls({
       </Pill>
 
       {/* Collapse, and expand. Separate from reset, which returns to
-          submodule depth — the opposite of what collapsing is for. */}
-      <Pill
-        testId="collapse-all"
-        active={allCollapsed}
-        label={allCollapsed ? 'Expand every module' : 'Collapse every module'}
-        onClick={() => onChange(withAllModulesCollapsed(
-          state, DASHBOARD_MODULE_ORDER, !allCollapsed,
-        ))}
-      >
-        {allCollapsed ? 'expand all' : 'collapse all'}
-      </Pill>
+          submodule depth — the opposite of what collapsing is for.
+          Nothing on a card is open, so there is nothing to fold. */}
+      {!onCards && (
+        <Pill
+          testId="collapse-all"
+          active={allCollapsed}
+          label={allCollapsed ? 'Expand every module' : 'Collapse every module'}
+          onClick={() => onChange(withAllModulesCollapsed(
+            state, DASHBOARD_MODULE_ORDER, !allCollapsed,
+          ))}
+        >
+          {allCollapsed ? 'expand all' : 'collapse all'}
+        </Pill>
+      )}
 
       <button
         type="button"
