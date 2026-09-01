@@ -17,7 +17,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import TreeRow, { COLUMN_RULE_CLASS, COLUMN_WIDTHS } from './TreeRow';
-import DashboardControls from './DashboardControls';
+import DashboardControls, { Pill } from './DashboardControls';
 import { useDashboardData } from './useDashboardData';
 import {
   DEFAULT_VIEW_STATE,
@@ -54,6 +54,16 @@ import {
 import ColumnLegend, { ColumnHelpButton } from './ColumnLegend';
 import MobileDashboard from './mobile/MobileDashboard';
 import { useIsMobile } from '../../lib/useIsMobile';
+import { useAxisViews } from '../../components/moduleHome/useAxisViews';
+import {
+  CARDS_COLUMN,
+  DASHBOARD_LAYOUT_CHOICES,
+  DASHBOARD_LAYOUT_FIELD,
+  DASHBOARD_LAYOUT_LABEL,
+  dashboardShowsCards,
+  resolveDashboardLayout,
+  type DashboardLayoutChoice,
+} from './layoutChoice';
 import type { ColumnTopic } from './bands';
 import type { RowNoteContext } from './read/affordances';
 
@@ -188,6 +198,21 @@ export default function DashboardScreen({
   // Six columns do not fit a phone, and the honest response to that is
   // a different shape rather than the same shape squeezed.
   const isMobile = useIsMobile();
+  /**
+   * WHICH DASHBOARD, AND WHO DECIDED.
+   *
+   * The viewport used to decide alone. It still does until the reader
+   * says otherwise — `screen` is the default and defers to `isMobile`
+   * exactly as the bare call did. See `layoutChoice.ts`.
+   *
+   * Until the stored value has landed, `screen`: the default, so the
+   * first paint is what the viewport has always given and a reader who
+   * has never touched the control sees no flicker.
+   */
+  const { viewFor, setView, loaded } = useAxisViews();
+  const layout: DashboardLayoutChoice = loaded
+    ? resolveDashboardLayout(viewFor(DASHBOARD_LAYOUT_FIELD))
+    : 'screen';
   const [comparison, setComparison] = useState<Comparison | null>(null);
   /**
    * Which column's rules are open, if any.
@@ -391,12 +416,42 @@ export default function DashboardScreen({
     );
   }
 
+  /**
+   * =================================================================
+   * THE LAYOUT SWITCH RENDERS IN BOTH VIEWS, AND HAS TO.
+   *
+   * It is not inside `DashboardControls` for two reasons. The first is
+   * a trap: those controls only exist on the tree, so a switch living
+   * in them could send you to the cards and then be gone — a choice
+   * with no way back. The second is what they are: `DashboardControls`
+   * is sort, grouping and five filters, every one of them part of the
+   * URL's view state, which is shareable and momentary. This is a
+   * remembered preference about which screen you like. Same row, not
+   * the same object.
+   * =================================================================
+   */
+  const layoutSwitch = (
+    <LayoutSwitch
+      choice={layout}
+      onChange={next => setView(DASHBOARD_LAYOUT_FIELD, next)}
+    />
+  );
+
   // AFTER the hooks and after loading, so the two layouts read the same
   // data through the same path and cannot disagree about it. Returned
   // rather than rendered alongside: shipping both with one hidden ships
   // two subscriptions to every query behind them.
-  if (isMobile) {
-    return <MobileDashboard modules={modules} now={now} />;
+  if (dashboardShowsCards(layout, isMobile)) {
+    return (
+      <div data-testid="dashboard-cards">
+        {/* IN THE CARD VIEW'S OWN COLUMN, so the control sits above the
+            cards rather than out at the far edge of a wide screen. */}
+        <div className={`${CARDS_COLUMN} px-1 pt-1 flex justify-end`}>
+          {layoutSwitch}
+        </div>
+        <MobileDashboard modules={modules} now={now} />
+      </div>
+    );
   }
 
   return (
@@ -421,7 +476,7 @@ export default function DashboardScreen({
             The controls themselves are untouched — only whether they
             are showing.
             ============================================================= */}
-        <div className="px-1 py-1">
+        <div className="px-1 py-1 flex items-center gap-2">
           <button
             type="button"
             onClick={() => setControlsOpen(v => !v)}
@@ -432,6 +487,10 @@ export default function DashboardScreen({
             Controls
             <span aria-hidden className={`text-neutral-400/70 transition-transform ${controlsOpen ? 'rotate-90' : ''} inline-block`}>›</span>
           </button>
+          {/* THE OTHER END OF THE SAME ROW — see the note where it is
+              built. It is a control, and this is where the controls
+              are. */}
+          <div className="ml-auto">{layoutSwitch}</div>
         </div>
         {controlsOpen && (
           <DashboardControls
@@ -509,6 +568,74 @@ export default function DashboardScreen({
 }
 
 export { DEFAULT_VIEW_STATE };
+
+/**
+ * Which dashboard to draw — follow the screen, or override it.
+ *
+ * =====================================================================
+ * IT IS OFFERED ON A PHONE TOO. A judgement call, and this is the
+ * reasoning, because the other answer is defensible.
+ *
+ * The case for hiding it below `md`: the tree at 390px is the failure
+ * `MobileDashboard`'s own header describes — the name column collapses
+ * to a chevron with no text, "skill" prints on top of "accuracy /
+ * fluency", and the right-hand columns run off the edge. Offering a
+ * choice that leads there is offering a bad screen.
+ *
+ * It loses on three counts.
+ *
+ *   1. HIDING IT IS WHAT CREATES A TRAP. The choice is remembered
+ *      across devices. Choose Tree on the desktop, open the phone, and
+ *      a control that is not drawn below `md` leaves the unreadable
+ *      table with nothing on screen to undo it. The only genuinely
+ *      unrecoverable state is the one hiding the control creates.
+ *   2. "ALWAYS THE TREE" HAS TO MEAN ALWAYS. The alternative — honour
+ *      the choice except on a phone — is a state that quietly does not
+ *      apply on the device where it would be visible, which is a
+ *      setting that lies about itself.
+ *   3. THE BREAKPOINT IS 768px, not a phone. A small tablet in
+ *      portrait gets the card view automatically, and whether six
+ *      columns are readable there is a judgement Silas is better placed
+ *      to make than a media query is.
+ *
+ * Every layout it can produce is one press from being undone, and the
+ * press is at the top of both views. To reverse the call, wrap this in
+ * `!isMobile` at its two call sites — and then decide what a stored
+ * `tree` means on a phone, which is the question that made this the
+ * harder of the two options.
+ * =====================================================================
+ */
+function LayoutSwitch({
+  choice, onChange,
+}: {
+  choice: DashboardLayoutChoice;
+  onChange: (next: DashboardLayoutChoice) => void;
+}) {
+  return (
+    <div
+      className="flex items-center gap-1.5 flex-wrap"
+      data-testid="dashboard-layout-switch"
+      data-choice={choice}
+    >
+      <span className="text-[10px] uppercase tracking-wide text-neutral-400">
+        {DASHBOARD_LAYOUT_LABEL}
+      </span>
+      {/* THE DASHBOARD'S OWN CONTROL SHAPE, not a second one that looks
+          nearly like it — `Pill` is what every control in
+          `DashboardControls` is drawn as. */}
+      {DASHBOARD_LAYOUT_CHOICES.map(c => (
+        <Pill
+          key={c.id}
+          testId={`dashboard-layout-${c.id}`}
+          active={c.id === choice}
+          onClick={() => onChange(c.id)}
+        >
+          {c.label}
+        </Pill>
+      ))}
+    </div>
+  );
+}
 
 /**
  * The repertoire module row's "N due" badge, or nothing.

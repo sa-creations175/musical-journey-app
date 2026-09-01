@@ -77,7 +77,15 @@ const IDLE = 'border-neutral-300 text-neutral-600 hover:border-neutral-400 '
   + 'dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-500';
 const ACTIVE = 'border-fluent bg-fluent/10 text-fluent';
 
-function Pill({
+/**
+ * A dashboard control, in the one shape they all take.
+ *
+ * EXPORTED because the layout switch on the screen is one of these
+ * too, and it sits in the same row as the Controls disclosure. A
+ * second button spelling out the same border, padding and active tint
+ * by hand is how one control comes to look nearly like the rest.
+ */
+export function Pill({
   active, onClick, children, testId, label,
 }: {
   active: boolean;

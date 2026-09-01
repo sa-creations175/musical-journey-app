@@ -17,7 +17,16 @@
  * table is not rendered here at all — not hidden, not scrolled, not
  * present. NOTHING ON THIS SCREEN SCROLLS SIDEWAYS.
  *
- * The desktop table is untouched and still the answer above `md`.
+ * The desktop table is untouched and still the answer above `md` —
+ * unless the reader asks for these cards instead, which they can now do
+ * from either view. See `layoutChoice.ts`. THIS FILE IS NOT FORKED FOR
+ * THAT: the one thing it needed in order to stand at desktop width is a
+ * ceiling on how wide its column may get, because every row here is a
+ * full-width block with a number pushed to the far right and a bar
+ * drawn as a percentage of the row. `CARDS_COLUMN` is that ceiling, and
+ * it is 768px — the same boundary `MOBILE_QUERY` uses, so the widest
+ * this is ever laid out at is the widest it was already laid out at.
+ * On a phone it binds nothing.
  * =====================================================================
  *
  * TWO VIEWS, because there are two questions and they want opposite
@@ -40,6 +49,7 @@ import { getFreshnessStepDays } from './freshnessPrefs';
 import FreshnessScaleStrip from './FreshnessScaleStrip';
 import { categoryHref } from './categoryHref';
 import { TIER_LEGEND } from './tierLegend';
+import { CARDS_COLUMN } from '../layoutChoice';
 
 export type MobileView = 'modules' | 'skills';
 
@@ -109,7 +119,11 @@ export default function MobileDashboard({
   };
 
   return (
-    <div data-testid="mobile-dashboard" data-view={view} className="pb-8 px-1">
+    <div
+      data-testid="mobile-dashboard"
+      data-view={view}
+      className={`pb-8 px-1 ${CARDS_COLUMN}`}
+    >
       <ViewSwitch view={view} onChange={setView} />
 
       {modules.length === 0 ? (
