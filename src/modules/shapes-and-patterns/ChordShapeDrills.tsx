@@ -47,7 +47,7 @@ import { bandCellClasses, GRID_CELL_MIN } from './BandCell';
 import KeyedGrid, {
   DEFAULT_LAYOUT, LayoutToggle, type Layout,
 } from './KeyedGrid';
-import { scrollSectionToTop } from './scrollToBand';
+import { scrollSectionToTop } from '../../lib/scrollSectionToTop';
 import {
   chordCellTargets, countFluentPlusTargets, rowsByRefHand, sectionTargets,
   targetKey, targetsAcrossKeys, verdictForTargets, type CellTarget,

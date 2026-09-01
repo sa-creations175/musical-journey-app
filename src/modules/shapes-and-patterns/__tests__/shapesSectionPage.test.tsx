@@ -9,7 +9,10 @@
  * elsewhere in the app still land.
  *
  * WHAT IT CANNOT: whether the scroll lands anywhere useful. jsdom has
- * no layout engine and no `scrollIntoView` — that needs Silas's eye.
+ * no layout engine and nothing here moves — that needs Silas's eye.
+ * What it CAN say is that the page asks the app's scroll rather than
+ * the element's own, and that the block it scrolls to has room below it
+ * to reach the top with.
  * =====================================================================
  */
 import 'fake-indexeddb/auto';
@@ -20,6 +23,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ShapesAndPatterns from '../ShapesAndPatterns';
 import ShapesAndPatternsSection from '../ShapesAndPatternsSection';
 import { SHAPES_SECTIONS } from '../homeCards';
+import { SCROLL_ROOM_CLASS } from '../../../lib/scrollSectionToTop';
 import { db } from '../../../lib/db';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -129,5 +133,36 @@ describe('the addresses already stored elsewhere', () => {
   it('leaves a ?tab= naming nothing on the module home', async () => {
     await renderAt('/shapes-and-patterns?tab=nonsense');
     expect(at()).toBe('/shapes-and-patterns');
+  });
+});
+
+describe('landing on the matrix', () => {
+  it('gives the block room to reach the top', async () => {
+    // A browser cannot scroll past the end of the document, and this
+    // block is the last thing on the page — so without a floor a short
+    // one cannot be scrolled clear of the sticky header however it is
+    // asked. The floor only fills when the drills are shorter than a
+    // screen, which is the case that was landing short.
+    const el = await renderAt('/shapes-and-patterns/scales');
+    const detail = el.querySelector('[data-testid="shapes-section-detail"]')!;
+    expect(detail.className.split(/\s+/)).toContain(SCROLL_ROOM_CLASS);
+  });
+
+  it('asks the window to scroll rather than the element', async () => {
+    // `scrollIntoView` aligns with the top of the scrollport, which is
+    // underneath the sticky header. See `scrollSectionToTop`.
+    let moved = false;
+    let intoView = 0;
+    window.scrollTo = (() => { moved = true; }) as unknown as typeof window.scrollTo;
+    Element.prototype.scrollIntoView = function stub() { intoView += 1; };
+
+    const el = await renderAt('/shapes-and-patterns/scales');
+    const button = el.querySelector('[data-testid="category-card-toggle"]') as HTMLElement;
+    await act(async () => { button.click(); });
+    const drill = el.querySelector('[data-testid="category-card-drill"]') as HTMLElement;
+    await act(async () => { drill.click(); });
+
+    expect(moved, 'it moved the window').toBe(true);
+    expect(intoView, 'and did not fall back to scrollIntoView').toBe(0);
   });
 });

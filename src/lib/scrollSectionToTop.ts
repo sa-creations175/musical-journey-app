@@ -1,0 +1,77 @@
+/**
+ * Put a section at the TOP of the screen, not merely somewhere on it.
+ *
+ * =====================================================================
+ * `scrollIntoView({ block: 'start' })` WAS NOT ENOUGH, TWICE OVER.
+ *
+ * It aligns the element with the top of the SCROLLPORT, which is
+ * underneath the sticky app header — so the band landed behind the
+ * chrome. And on a long page it stops as soon as the element is
+ * visible by its own reckoning, so Progress Details arrived at the
+ * BOTTOM of the screen with the grid you had just left filling the
+ * rest: the thing you clicked off screen above, the thing you are
+ * reading a strip at the bottom.
+ *
+ * THE HEADER IS MEASURED, NOT DECLARED. Its height is genuinely
+ * variable — safe-area inset, responsive padding, whether the page has
+ * a tagline — which is why it carries `data-app-chrome="top"` and why
+ * the lead sheet's overlays already measure it rather than assuming.
+ * Same tag, same reason, no second number to keep in step.
+ *
+ * REACHING THE TOP ALSO NEEDS ROOM BELOW IT. A browser cannot scroll
+ * past the end of the document, so a section near the bottom of a short
+ * page stops part way however it is asked. That half of the answer is
+ * `SCROLL_ROOM_CLASS` at the foot of this file, and a surface that asks
+ * for this scroll without it will still land short.
+ *
+ * =====================================================================
+ * IT LIVED UNDER `shapes-and-patterns/` AND IS NOT A SHAPES CONCEPT.
+ *
+ * Three pages called it and every other surface in the app kept using
+ * the bare `scrollIntoView`, so the same press behaved one way on the
+ * scales grid and another way on a module home. It is the app's scroll;
+ * it lives with the app's other shared behaviour.
+ * =====================================================================
+ */
+
+/** Breathing room between the chrome and the band. */
+const GAP_PX = 8;
+
+export function scrollSectionToTop(el: HTMLElement | null): void {
+  if (el === null || typeof window === 'undefined') return;
+  const chrome = document.querySelector('[data-app-chrome="top"]');
+  const chromeHeight = chrome === null
+    ? 0
+    : chrome.getBoundingClientRect().height;
+  const top = el.getBoundingClientRect().top
+    + window.scrollY
+    - chromeHeight
+    - GAP_PX;
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+}
+
+/**
+ * The room a scrolled-to section needs BELOW it, as a whole Tailwind
+ * class.
+ *
+ * =====================================================================
+ * THE OTHER HALF OF THE ANSWER, AND THE HALF THAT GETS FORGOTTEN.
+ *
+ * A browser cannot scroll past the end of the document. So a section
+ * near the bottom of a short page stops part way however politely it is
+ * asked — which is how Progress Details ended up at the BOTTOM of the
+ * screen with the grid you had just left filling the rest.
+ *
+ * A container that is, or contains, a scroll target and sits at the end
+ * of its page carries this, so the document is always tall enough for
+ * the target to reach the top. Applied where there is something to
+ * scroll to and not otherwise: a screen of blank under an empty state
+ * is a hole.
+ *
+ * A WHOLE LITERAL, and pinned as one by a test. Tailwind scans source
+ * text, so a height assembled from a number would be invisible to the
+ * scanner, emit no rule, and reserve nothing — and the scroll would
+ * quietly go back to landing short.
+ * =====================================================================
+ */
+export const SCROLL_ROOM_CLASS = 'min-h-[85vh]';

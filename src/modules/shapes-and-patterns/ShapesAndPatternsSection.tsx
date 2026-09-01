@@ -39,6 +39,7 @@ import {
 } from './homeCards';
 import { wantsDetail } from './sectionRoutes';
 import { shapesTimeInvested } from './timeInvested';
+import { SCROLL_ROOM_CLASS, scrollSectionToTop } from '../../lib/scrollSectionToTop';
 
 const PREF_CHORD_SCOPE = 'shapesAndPatternsChordScope';
 
@@ -101,10 +102,14 @@ function SectionPage({ section }: { section: ShapesSectionId }) {
   const cards = shapesCards(shapesRows, mentalVizRows, now, timeBySection)
     .filter(c => c.key === section);
 
+  // THE APP'S SCROLL, not `scrollIntoView`. The bare call aligns with
+  // the top of the scrollport, which is UNDERNEATH the sticky header,
+  // and stops as soon as the element is visible by its own reckoning —
+  // so the drills arrived behind the chrome, or at the bottom of the
+  // screen with the card you had just pressed still filling it. See
+  // `scrollSectionToTop`.
   const scrollToDetail = () => {
-    // `scrollIntoView` is absent in jsdom, so the call is guarded
-    // rather than assumed.
-    detailRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    scrollSectionToTop(detailRef.current);
   };
 
   // ARRIVED FROM A PROGRESS DETAIL BUTTON. The detail is on this page,
@@ -136,7 +141,17 @@ function SectionPage({ section }: { section: ShapesSectionId }) {
         now={now}
       />
 
-      <div ref={detailRef} id="shapes-section-detail" data-testid="shapes-section-detail">
+      {/* ROOM TO REACH THE TOP. This block is the last thing on the
+          page, so without a floor a short one cannot be scrolled clear
+          of the header however it is asked — see `SCROLL_ROOM_CLASS`.
+          A floor only fills when the drills are shorter than a screen,
+          which is exactly the case that was landing short. */}
+      <div
+        ref={detailRef}
+        id="shapes-section-detail"
+        data-testid="shapes-section-detail"
+        className={SCROLL_ROOM_CLASS}
+      >
         {section === 'chord-shapes' && (
           <ChordShapeDrills scope={chordScope} onScopeChange={setScope} />
         )}

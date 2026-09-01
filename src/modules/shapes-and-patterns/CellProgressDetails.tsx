@@ -3,6 +3,7 @@ import type { DrillHand, DrillSession } from '../../lib/db';
 import { bandVerdictLabel, type BandVerdict } from '../../lib/spacing/banding';
 import ProgressTrackerBand from '../../components/moduleHome/ProgressTrackerBand';
 import { formatAgo, formatDuration, type HandProgress } from './handProgress';
+import { SCROLL_ROOM_CLASS } from '../../lib/scrollSectionToTop';
 
 /**
  * Everything about one cell, standing under the grid. ONE COMPONENT,
@@ -182,8 +183,13 @@ export default function CellProgressDetails({
      * the screen with the grid you had just left filling the rest.
      * Reserved only while a cell is picked: an empty state has nothing
      * to scroll to and a screen of blank under it would be a hole.
+     *
+     * THE MEASUREMENT MOVED, THE RULE DID NOT. `SCROLL_ROOM_CLASS` is
+     * the same height it always was, now named once beside the scroll
+     * that needs it, so every surface that asks for that scroll
+     * reserves the same room.
      */
-    <div className={`space-y-2 ${cellLabel === null ? '' : 'min-h-[85vh]'}`}>
+    <div className={`space-y-2 ${cellLabel === null ? '' : SCROLL_ROOM_CLASS}`}>
       <ProgressTrackerBand
         ref={ref}
         data-testid="scale-progress-details"

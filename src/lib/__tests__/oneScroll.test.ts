@@ -1,0 +1,103 @@
+/**
+ * One scroll for "bring the detail panel into view", everywhere.
+ *
+ * =====================================================================
+ * A SOURCE SWEEP, BECAUSE WHAT IT ASSERTS IS AN ABSENCE.
+ *
+ * The bug was never in one place. `scrollSectionToTop` existed, was
+ * correct, and was called by three pages; every other surface kept the
+ * bare `scrollIntoView`, which aligns with the top of the scrollport —
+ * underneath the sticky header — and stops as soon as the element is
+ * visible by its own reckoning. So the same press behaved one way on
+ * the scales grid and another way on a module home.
+ *
+ * "No surface still does it the old way" is a statement about what the
+ * code does NOT contain, and rendering proves only the positive case: a
+ * new page written next month with the old call would sail past every
+ * behavioural test in the repo.
+ *
+ * SO THE EXCEPTIONS ARE NAMED, WITH REASONS. Each one below is a
+ * `scrollIntoView` doing something genuinely different from putting a
+ * detail panel at the top of the screen. Adding a file to this list is
+ * meant to be a moment of thought, not a formality.
+ * =====================================================================
+ */
+import { describe, expect, it } from 'vitest';
+
+const SOURCES = import.meta.glob('../../**/*.{ts,tsx}', {
+  eager: true, query: '?raw', import: 'default',
+}) as Record<string, string>;
+
+/** An actual call, not a mention of one in a comment. */
+const CALL = /\.scrollIntoView\s*(\?\.)?\s*\(/;
+
+/**
+ * Where `scrollIntoView` is still the right call, and why.
+ *
+ * None of these is "bring the detail panel into view". If one of them
+ * ever becomes that, it should move to `scrollSectionToTop` and leave
+ * this list.
+ */
+const ALLOWED: Readonly<Record<string, string>> = {
+  'modules/goals/yearlyAnchorDimensions.tsx':
+    'Inside a MODAL, not the page. It scrolls within the modal body and '
+    + 'clears the modal\'s own header with `scroll-mt-20` — a different '
+    + 'container with different chrome, which the app-level helper knows '
+    + 'nothing about.',
+  'modules/repertoire/SequenceChoices.tsx':
+    '`block: "nearest"`, to keep the option you are arrowing through in '
+    + 'view inside a scrolling list. Nothing is being put at the top of '
+    + 'anything.',
+  'modules/repertoire/useScrollHighlight.ts':
+    '`block: "center"`, to put a highlighted row in the middle of the '
+    + 'screen where the eye is. Centring is the point; the top is not.',
+  'modules/repertoire/SongDetailView.tsx':
+    'Jumps to the lead sheet on the song page. It is the same FAMILY of '
+    + 'problem — it can land under the sticky header too — but it is not '
+    + 'a detail panel, it is a walked flow of its own, and converting it '
+    + 'was not asked for. Raised in the report as a candidate.',
+};
+
+function shortPath(key: string): string {
+  return key.replace(/^\.\.\/\.\.\//, '');
+}
+
+describe('the app has one scroll for a detail panel', () => {
+  it('reads its own source', () => {
+    expect(Object.keys(SOURCES).length).toBeGreaterThan(200);
+  });
+
+  it('leaves `scrollIntoView` only where it is doing something else', () => {
+    const offenders = Object.entries(SOURCES)
+      .filter(([key]) => !key.includes('__tests__'))
+      .filter(([, src]) => CALL.test(src))
+      .map(([key]) => shortPath(key))
+      .sort();
+    expect(offenders).toEqual(Object.keys(ALLOWED).sort());
+  });
+
+  it('gives every exception a reason worth reading', () => {
+    for (const [file, why] of Object.entries(ALLOWED)) {
+      expect(why.length, file).toBeGreaterThan(40);
+    }
+  });
+
+  it('has the surfaces that WERE converted calling the shared helper', () => {
+    // The positive half. A file that stopped calling either one would
+    // pass the sweep above and scroll nothing at all.
+    const converted = [
+      'components/moduleHome/CategoryDetailStack.tsx',
+      'modules/reading/ReadingSkill.tsx',
+      'modules/shapes-and-patterns/ShapesAndPatternsSection.tsx',
+      // The three that were already right, and must stay right.
+      'modules/shapes-and-patterns/ScaleDrills.tsx',
+      'modules/shapes-and-patterns/ChordShapeDrills.tsx',
+      'modules/shapes-and-patterns/VoiceLeadingDrills.tsx',
+    ];
+    for (const file of converted) {
+      const src = SOURCES[`../../${file}`];
+      expect(src, file).toBeTypeOf('string');
+      expect(src, file).toContain('scrollSectionToTop(');
+    }
+  });
+});

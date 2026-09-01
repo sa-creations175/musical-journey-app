@@ -39,7 +39,7 @@ import { bandCellClasses } from './BandCell';
 import KeyedGrid, {
   DEFAULT_LAYOUT, LayoutToggle, type Layout,
 } from './KeyedGrid';
-import { scrollSectionToTop } from './scrollToBand';
+import { scrollSectionToTop } from '../../lib/scrollSectionToTop';
 import {
   countFluentPlusTargets, itemCellTargets, rowsByRefHand, sectionTargets,
   targetKey, targetsAcrossKeys, verdictForTargets,

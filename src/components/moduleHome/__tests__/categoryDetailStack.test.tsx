@@ -10,9 +10,9 @@
  *
  * WHAT IT CANNOT: how a twenty-four-column table reads on a phone, or
  * whether a scroll lands somewhere useful. jsdom has no layout engine
- * and no `scrollIntoView` — both need Silas's eye. What is asserted
- * here is WHICH block was asked for, which is the part that can be
- * wrong.
+ * and nothing here moves — that needs Silas's eye. What is asserted
+ * here is WHICH block was asked for and WHAT WAS SUBTRACTED to get
+ * there, which are the two parts that can be wrong.
  * =====================================================================
  */
 import { afterEach, describe, expect, it } from 'vitest';
@@ -163,5 +163,86 @@ describe('the stack', () => {
     for (const key of ['a', 'b', 'c']) {
       expect(host!.querySelector(`#${detailAnchorId(key)}`), key).not.toBeNull();
     }
+  });
+});
+
+// =====================================================================
+// The scroll, and the room it needs
+// =====================================================================
+
+describe('landing on a block', () => {
+  let scrolled: { top?: number } | null = null;
+  let intoView = 0;
+
+  function armWindow() {
+    scrolled = null;
+    intoView = 0;
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true });
+    window.scrollTo = ((opts: { top?: number }) => { scrolled = opts; }) as
+      unknown as typeof window.scrollTo;
+    Element.prototype.scrollIntoView = function scrollIntoViewStub() { intoView += 1; };
+  }
+
+  afterEach(() => {
+    scrolled = null;
+    intoView = 0;
+  });
+
+  it('uses the app\u2019s scroll, not the element\u2019s own', () => {
+    // THE WHOLE COMPLAINT. `scrollIntoView({ block: "start" })` aligns
+    // with the top of the scrollport, which is UNDERNEATH the sticky
+    // header, so the block landed behind the chrome. The app\u2019s scroll
+    // measures the header and moves the window clear of it — see
+    // `scrollSectionToTop`, whose own test proves the subtraction.
+    armWindow();
+    render(new Set(['b']), 'b');
+    expect(scrolled, 'it moved the window').not.toBeNull();
+    expect(intoView, 'and did not fall back to scrollIntoView').toBe(0);
+  });
+
+  it('asks for nothing when nobody was sent here', () => {
+    armWindow();
+    render(new Set(['a']));
+    expect(scrolled).toBeNull();
+    expect(intoView).toBe(0);
+  });
+
+  it('reserves a screen of room below the stack once it has landed', () => {
+    // A browser cannot scroll past the end of the document, so a block
+    // near the bottom stops part way however it is asked.
+    armWindow();
+    render(new Set(['a']), 'a');
+    expect(host!.querySelector('[data-testid="detail-scroll-room"]')).not.toBeNull();
+  });
+
+  it('reserves none on a page nobody was sent to', () => {
+    // Nothing asked to be at the top, so a screen of blank under the
+    // stack would be a hole.
+    armWindow();
+    render(new Set(['a']));
+    expect(host!.querySelector('[data-testid="detail-scroll-room"]')).toBeNull();
+  });
+
+  it('keeps the room after the request that needed it is cleared', () => {
+    // `scrollTo` is cleared the instant it is acted on so a later
+    // re-render cannot scroll the reader back down — but the smooth
+    // scroll is still travelling, and the document has to stay tall
+    // enough for it to arrive.
+    armWindow();
+    const { draw } = render(new Set(['a']), 'a');
+    expect(host!.querySelector('[data-testid="detail-scroll-room"]')).not.toBeNull();
+    draw(new Set(['a', 'b']));
+    expect(host!.querySelector('[data-testid="detail-scroll-room"]')).not.toBeNull();
+  });
+
+  it('puts the room AFTER every block, not around them', () => {
+    // The block landed on may be the last one. A floor on the whole
+    // stack would be satisfied by the blocks above it and leave the one
+    // that matters short.
+    armWindow();
+    render(new Set(['a']), 'a');
+    const children = [...host!.querySelector('[data-testid="category-detail-stack"]')!.children];
+    expect(children[children.length - 1].getAttribute('data-testid'))
+      .toBe('detail-scroll-room');
   });
 });

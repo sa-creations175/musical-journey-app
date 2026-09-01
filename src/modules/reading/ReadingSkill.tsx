@@ -46,6 +46,7 @@ import {
 } from './homeCards';
 import { readingSkillForSlug } from './skillRoutes';
 import type { ReadingDrillSkill } from './pickCard';
+import { SCROLL_ROOM_CLASS, scrollSectionToTop } from '../../lib/scrollSectionToTop';
 
 /**
  * THE SLUG IS THE PAGE'S IDENTITY, so it keys the body.
@@ -157,12 +158,18 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
    * `scrollTo` is not passed down.
    */
   const detailHeaderRef = useRef<HTMLDivElement>(null);
+  /** Room below, kept for the life of the page — see the note on
+   *  `landed` in `CategoryDetailStack`, which is the same rule. */
+  const [landedOnDetail, setLandedOnDetail] = useState(false);
   const { scrollTo, onScrolled } = landing;
   useEffect(() => {
     if (!scrollTo || !axisViews.loaded) return;
-    // Guarded: jsdom has no `scrollIntoView`. What a test can check is
-    // that the landing was consumed, not that anything moved.
-    detailHeaderRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    // THE APP'S SCROLL, which measures the sticky header rather than
+    // aligning underneath it. What a test can check is that the landing
+    // was consumed and that the chrome was measured, not that anything
+    // moved — jsdom has no layout.
+    scrollSectionToTop(detailHeaderRef.current);
+    setLandedOnDetail(true);
     onScrolled();
   }, [scrollTo, onScrolled, axisViews.loaded]);
 
@@ -255,6 +262,13 @@ function SkillPage({ skill }: { skill: ReadingDrillSkill }) {
             onViewChange={axisViews.setView}
             dueByItem={dueByItem}
           />
+          {/* ROOM TO REACH THE TOP. The header this page scrolls to is
+              above the stack, so the room has to sit below both — see
+              `SCROLL_ROOM_CLASS`. Only after a landing: nothing asked
+              to be at the top on an ordinary visit. */}
+          {landedOnDetail && (
+            <div aria-hidden data-testid="reading-scroll-room" className={SCROLL_ROOM_CLASS} />
+          )}
         </div>
       )}
     </div>

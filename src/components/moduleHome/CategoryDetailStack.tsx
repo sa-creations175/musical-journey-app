@@ -26,7 +26,8 @@
  * for it rather than a gap — see `progressGrids.ts`. `ProgressDetail`
  * already does this when `grid` is null; nothing here special-cases it.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { SCROLL_ROOM_CLASS, scrollSectionToTop } from '../../lib/scrollSectionToTop';
 import ProgressDetail from './ProgressDetail';
 import type { GridSpec } from './axis';
 import type { SkillRecord } from '../../modules/skills/registry';
@@ -77,6 +78,26 @@ export default function CategoryDetailStack({
   onScrolled?: () => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  /**
+   * Whether this stack has been landed on.
+   *
+   * =================================================================
+   * THE ROOM HAS TO OUTLIVE THE REQUEST THAT NEEDED IT.
+   *
+   * `scrollTo` is cleared the instant it is acted on, so that a later
+   * re-render cannot scroll the reader back down. But a smooth scroll
+   * is still travelling at that point, and the document has to STAY
+   * tall enough for it to arrive — a spacer that vanished a tick after
+   * the request would cut the scroll short and the block would settle
+   * mid-screen, which is the bug this is fixing.
+   *
+   * So it is remembered for the life of the page. A reader who was
+   * sent here gets a screen of room below the stack; a reader who
+   * simply opened the page gets none, because nothing asked to be at
+   * the top.
+   * =================================================================
+   */
+  const [landed, setLanded] = useState(false);
 
   useEffect(() => {
     if (!scrollTo) return;
@@ -85,10 +106,13 @@ export default function CategoryDetailStack({
     // validated slug either way, so matching the attribute is both
     // simpler and portable. The id stays for anchor links.
     const el = hostRef.current?.querySelector(`[data-detail-key="${scrollTo}"]`);
-    // `scrollIntoView` does not exist in jsdom, so the call is guarded
-    // rather than assumed. What a test can check is which block was
-    // asked for, which is the part that can be wrong.
-    (el as HTMLElement | null)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    // THE APP'S SCROLL. `scrollIntoView` aligns with the top of the
+    // scrollport, which is underneath the sticky header, so the block
+    // landed behind the chrome. What a test can check is which block
+    // was asked for and that the chrome was measured — not that
+    // anything moved, because jsdom has no layout.
+    scrollSectionToTop(el as HTMLElement | null);
+    setLanded(true);
     onScrolled?.();
   }, [scrollTo, onScrolled]);
   return (
@@ -134,6 +158,15 @@ export default function CategoryDetailStack({
           </section>
         );
       })}
+      {/* ROOM BELOW THE BLOCK THAT WAS ASKED FOR. A browser cannot
+          scroll past the end of the document, so a block near the
+          bottom stops part way however it is asked. After the stack
+          rather than a floor on it, because the block landed on may be
+          the last one — a floor on the whole stack would be satisfied
+          by the blocks ABOVE it and leave the one that matters short. */}
+      {landed && (
+        <div aria-hidden data-testid="detail-scroll-room" className={SCROLL_ROOM_CLASS} />
+      )}
     </div>
   );
 }

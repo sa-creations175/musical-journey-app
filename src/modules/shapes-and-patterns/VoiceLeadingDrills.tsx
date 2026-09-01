@@ -22,7 +22,7 @@ import CellProgressDetails, {
   HAND_ROW_LABEL, type DetailTarget,
 } from './CellProgressDetails';
 import { DEFAULT_LAYOUT, LayoutToggle, type Layout } from './KeyedGrid';
-import { scrollSectionToTop } from './scrollToBand';
+import { scrollSectionToTop } from '../../lib/scrollSectionToTop';
 import { itemCellTargets, targetKey } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
 import { sessionsByTarget } from './timeInvested';
