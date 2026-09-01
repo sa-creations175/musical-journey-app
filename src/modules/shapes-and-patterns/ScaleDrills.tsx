@@ -31,11 +31,15 @@ import {
 } from './scaleSkills';
 import { CIRCLE_OF_FOURTHS } from './spTiers';
 import { circleOfFourthsIndex } from '../repertoire/circleOfFourths';
-import { spellKey, type Spelling } from '../../lib/spelling';
+import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { scaleSurface } from './practiceTest/makeSurfaces';
-import { bandCellClasses, GRID_GUTTER } from './BandCell';
+import { bandCellClasses } from './BandCell';
+import KeyedGrid, {
+  DEFAULT_LAYOUT, LayoutToggle, type Layout,
+} from './KeyedGrid';
+import { scrollSectionToTop } from './scrollToBand';
 import {
   countFluentPlusTargets, itemCellTargets, rowsByRefHand, sectionTargets,
   targetKey, targetsAcrossKeys, verdictForTargets,
@@ -145,14 +149,7 @@ function sortByCircleOfFourths(cells: ScaleCell[]): ScaleCell[] {
 // Component
 // ---------------------------------------------------------------------
 
-type Layout = 'keysdown' | 'wrap66' | 'across12';
 type RollupRule = 'furthest' | 'lowest';
-
-const LAYOUTS: ReadonlyArray<[Layout, string]> = [
-  ['keysdown', 'Keys down the left'],
-  ['wrap66', '6 + 6 across'],
-  ['across12', '12 across'],
-];
 
 /**
  * The scales grid, and everything about the cell you pick.
@@ -177,7 +174,7 @@ const LAYOUTS: ReadonlyArray<[Layout, string]> = [
  */
 export default function ScaleDrills() {
   const [rule, setRule] = useState<RollupRule>('furthest');
-  const [layout, setLayout] = useState<Layout>('keysdown');
+  const [layout, setLayout] = useState<Layout>(DEFAULT_LAYOUT);
   const [arranging, setArranging] = useState(false);
   const [selected, setSelected] = useState<ScaleCell | null>(null);
   const [notCounted, setNotCounted] = useState<ReadonlySet<string>>(new Set());
@@ -251,9 +248,10 @@ export default function ScaleDrills() {
 
   const pickCell = (cell: ScaleCell) => {
     setSelected(cell);
-    // THE ANSWER GOES WHERE YOU ARE LOOKING. The grid does not move;
-    // the page brings the band to the top instead.
-    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // THE ANSWER GOES WHERE YOU ARE LOOKING — at the TOP of the screen,
+    // clear of the sticky header, with the detail under it. See
+    // `scrollSectionToTop`.
+    scrollSectionToTop(detailRef.current);
   };
 
   /**
@@ -301,14 +299,9 @@ export default function ScaleDrills() {
             {r === 'furthest' ? 'Furthest' : 'Lowest'}
           </Toggle>
         ))}
-        <span className="uppercase tracking-wider font-semibold text-neutral-400 ml-2">
-          Keys
+        <span className="ml-2 inline-flex items-center gap-2 flex-wrap">
+          <LayoutToggle layout={layout} onChange={setLayout} />
         </span>
-        {LAYOUTS.map(([id, label]) => (
-          <Toggle key={id} on={layout === id} onClick={() => setLayout(id)}>
-            {label}
-          </Toggle>
-        ))}
         <span className="uppercase tracking-wider font-semibold text-neutral-400 ml-2">
           Page
         </span>
@@ -353,13 +346,25 @@ export default function ScaleDrills() {
               {group.description && (
                 <p className="text-[11px] text-neutral-500">{group.description}</p>
               )}
-              <ScaleGrid
-                group={group}
+              <KeyedGrid
+                rows={group.rows.map(r => ({ rowKey: r.rowKey, label: r.rowLabel }))}
+                keys={CIRCLE_OF_FOURTHS}
                 layout={layout}
                 spelling={spelling}
-                verdictOf={cellVerdict}
-                selectedRef={selected?.itemRef ?? null}
-                onPick={pickCell}
+                renderCell={(rowKey, keyName, showKeyLabel) => {
+                  const row = group.rows.find(r => r.rowKey === rowKey);
+                  const cell = row?.cells.find(c => c.keyName === keyName);
+                  if (!cell) return null;
+                  return (
+                    <StatusCell
+                      cell={cell}
+                      verdict={cellVerdict(cell)}
+                      selected={cell.itemRef === selected?.itemRef}
+                      onPick={pickCell}
+                      keyLabel={showKeyLabel ? spellKey(keyName, spelling) : undefined}
+                    />
+                  );
+                }}
               />
             </div>
           );
@@ -494,116 +499,6 @@ function MoveButton({ dir, disabled, onClick }: {
     >
       {dir === 'up' ? '\u25b2' : '\u25bc'}
     </button>
-  );
-}
-
-/**
- * One group's cells, in whichever of the three layouts is on.
- *
- * ALL THREE SHOW THE SAME DATA. They differ in which axis the keys run
- * down, and nothing else — a cell reads the same status in every one of
- * them, which is what makes them layouts rather than views.
- */
-function ScaleGrid({ group, layout, spelling, verdictOf, selectedRef, onPick }: {
-  group: ScaleGroup;
-  layout: Layout;
-  spelling: Spelling;
-  verdictOf: (cell: ScaleCell) => BandVerdict;
-  selectedRef: string | null;
-  onPick: (cell: ScaleCell) => void;
-}) {
-  const keyOrder = CIRCLE_OF_FOURTHS;
-
-  if (layout === 'keysdown') {
-    return (
-      <div className="overflow-x-auto">
-        <table className="border-collapse text-[11px]">
-          <thead>
-            <tr>
-              {/* THE GUTTER, PINNED. Both this and the body's key cell
-                  carry the width, so the column cannot be sized by
-                  whichever key name happens to be longest. */}
-              <th
-                className="p-1"
-                style={{ width: GRID_GUTTER }}
-                data-testid="grid-gutter"
-              />
-              {group.rows.map(r => (
-                <th key={r.rowKey} className="p-1 font-medium text-left text-neutral-500">
-                  {r.rowLabel}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {keyOrder.map(key => (
-              <tr key={key}>
-                {/* RIGHT-ALIGNED IN A FIXED GUTTER, so `B♭` and `C`
-                    both end at the same x and neither pushes its row
-                    over. */}
-                <th
-                  className="p-1 pr-2 font-mono font-normal text-neutral-500 text-right"
-                  style={{ width: GRID_GUTTER }}
-                  data-testid="grid-gutter"
-                >
-                  {spellKey(key, spelling)}
-                </th>
-                {group.rows.map(r => {
-                  const cell = r.cells.find(c => c.keyName === key);
-                  return (
-                    <td key={r.rowKey} className="p-0.5">
-                      {cell && (
-                        <StatusCell
-                          cell={cell}
-                          verdict={verdictOf(cell)}
-                          selected={cell.itemRef === selectedRef}
-                          onPick={onPick}
-                        />
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  }
-
-  // ACROSS: the keys run left to right. `wrap66` breaks them into two
-  // rows of six so twelve columns fit a narrow screen; `across12`
-  // keeps all twelve on one line.
-  const chunks = layout === 'wrap66'
-    ? [keyOrder.slice(0, 6), keyOrder.slice(6)]
-    : [keyOrder];
-
-  return (
-    <div className="space-y-2">
-      {group.rows.map(r => (
-        <div key={r.rowKey} className="space-y-1">
-          <div className="text-[11px] font-medium text-neutral-500">{r.rowLabel}</div>
-          {chunks.map((chunk, ci) => (
-            <div key={ci} className="flex gap-1 flex-wrap">
-              {chunk.map(key => {
-                const cell = r.cells.find(c => c.keyName === key);
-                if (!cell) return null;
-                return (
-                  <StatusCell
-                    key={key}
-                    cell={cell}
-                    verdict={verdictOf(cell)}
-                    selected={cell.itemRef === selectedRef}
-                    onPick={onPick}
-                    keyLabel={spellKey(key, spelling)}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
   );
 }
 

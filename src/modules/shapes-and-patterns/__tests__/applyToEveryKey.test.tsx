@@ -131,15 +131,15 @@ const chordCells = () =>
 /**
  * The grid cell for one quality × key, BY POSITION.
  *
- * The grid renders quality-major, key-minor, and the scope here is
- * every quality — so the index is arithmetic. Matching on the title
+ * KEY-MAJOR, QUALITY-MINOR — the default layout is keys down the left,
+ * so a row is a key and a column is a quality. Matching on the title
  * would match on a spelled key ("B♭" for `Bb`), which is a display
  * concern and not the identity.
  */
 const chordCellFor = (quality: string, keyName: string) => {
   const qi = CHORD_QUALITIES.findIndex(q => q.id === quality);
   const ki = (KEYS_CIRCLE_OF_FOURTHS as readonly string[]).indexOf(keyName);
-  return chordCells()[qi * KEYS_CIRCLE_OF_FOURTHS.length + ki];
+  return chordCells()[ki * CHORD_QUALITIES.length + qi];
 };
 
 // ---------------------------------------------------------------------

@@ -266,9 +266,33 @@ describe('clicking a cell opens no modal', () => {
     expect(targetRows()[11].textContent).toContain('All inversions fluid · Both hands');
   });
 
-  it('and Total time and Last practiced are on the row', async () => {
+  it('and Total time is on a row that has been DRILLED', async () => {
+    // A spacing row is not enough, and that is not a quirk: a spacing
+    // row says where the target stands and a drill row says what was
+    // done. A target can be Mastered with no logged minutes, and
+    // "Total time —" about it would be a measurement nobody took.
+    const t = chordCellTargets(Q, K)[0];
+    await db.drillSessions.add({
+      id: 'dses-1',
+      drillTypeId: t.itemRef,
+      skillId: t.itemRef,
+      hand: t.hand,
+      durationSeconds: 120,
+      feelRating: 3,
+      timestamp: Date.now(),
+    } as never);
     await render();
     await click(cells()[0]);
     expect(text()).toContain('Total time');
+  });
+
+  it('but an UNTOUCHED target prints no empty time fields', async () => {
+    // It printed "Total time — (— practice, — testing)" — a row of em
+    // dashes saying nothing, and twice over on a cell where none of it
+    // had been touched.
+    await render();
+    await click(cells()[0]);
+    expect(text()).not.toContain('Total time');
+    expect(text()).not.toContain('— practice');
   });
 });

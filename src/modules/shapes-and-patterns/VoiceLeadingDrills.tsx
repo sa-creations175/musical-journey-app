@@ -21,6 +21,8 @@ import { useSpelling } from '../../lib/spellingPref';
 import CellProgressDetails, {
   HAND_ROW_LABEL, type DetailTarget,
 } from './CellProgressDetails';
+import { DEFAULT_LAYOUT, LayoutToggle, type Layout } from './KeyedGrid';
+import { scrollSectionToTop } from './scrollToBand';
 import { itemCellTargets, targetKey } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
 import { sessionsByTarget } from './timeInvested';
@@ -63,6 +65,11 @@ export default function VoiceLeadingDrills() {
   const [newDescription, setNewDescription] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
+  /** Which axis runs down the side. Page-wide, so every pattern turns
+   *  together — and KEYS DOWN THE LEFT by default, because twelve keys
+   *  across gave each cell a twelfth of the width and every status word
+   *  in every cell hyphenated. */
+  const [layout, setLayout] = useState<Layout>(DEFAULT_LAYOUT);
   /** The cell whose story Progress Details is telling. */
   const [selected, setSelected] = useState<string | null>(null);
   /** The target the session panel is open on. One per cell here. */
@@ -121,9 +128,9 @@ export default function VoiceLeadingDrills() {
 
   const pickCell = (itemRef: string) => {
     setSelected(itemRef);
-    // THE ANSWER GOES WHERE YOU ARE LOOKING. The grid does not move;
-    // the page brings the band to the top instead.
-    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // THE ANSWER GOES WHERE YOU ARE LOOKING — at the TOP of the screen,
+    // clear of the sticky header. See `scrollSectionToTop`.
+    scrollSectionToTop(detailRef.current);
   };
 
   // Live query of voice-leading skills so we can update labels on
@@ -197,6 +204,13 @@ export default function VoiceLeadingDrills() {
 
   return (
     <div className="space-y-5">
+      {/* THE CONTROL SITS ABOVE EVERY PATTERN, because it turns all of
+          them — a per-section toggle would let two grids on one page
+          disagree about which axis runs down the side. */}
+      <div className="flex items-center gap-2 flex-wrap text-[11px]">
+        <LayoutToggle layout={layout} onChange={setLayout} />
+      </div>
+
       {allPatterns.map(pattern => {
         // `pattern` is already the merged result — the override has
         // been applied. There is exactly one entry per id, so this key
@@ -257,6 +271,7 @@ export default function VoiceLeadingDrills() {
             </div>
             <VoiceLeadingPatternGrid
               patternId={effective.id}
+              layout={layout}
               selectedRef={selected}
               onCellOpen={pattern.builtin ? pickCell : undefined}
             />

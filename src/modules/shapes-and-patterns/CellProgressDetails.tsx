@@ -169,9 +169,21 @@ export default function CellProgressDetails({
   const practiceSeconds = counted.reduce((n, t) => n + t.progress.practiceSeconds, 0);
   const testSeconds = counted.reduce((n, t) => n + t.progress.testSeconds, 0);
   const outCount = targets.length - counted.length;
+  /** Has ANY of this cell been touched? See `timeLine`. */
+  const cellTouched = counted.some(t => touched(t.progress));
 
   return (
-    <div className="space-y-2">
+    /**
+     * ROOM TO REACH THE TOP.
+     *
+     * A browser cannot scroll past the end of the document, so a
+     * section near the bottom of the page stops part way however it is
+     * asked — which is how Progress Details ended up at the BOTTOM of
+     * the screen with the grid you had just left filling the rest.
+     * Reserved only while a cell is picked: an empty state has nothing
+     * to scroll to and a screen of blank under it would be a hole.
+     */
+    <div className={`space-y-2 ${cellLabel === null ? '' : 'min-h-[85vh]'}`}>
       <ProgressTrackerBand
         ref={ref}
         data-testid="scale-progress-details"
@@ -230,8 +242,13 @@ export default function CellProgressDetails({
                 )}{' '}still counted
               </>
             )}
-            . <b>Total time</b> {formatDuration(practiceSeconds + testSeconds)}{' '}
-            ({formatDuration(practiceSeconds)} practice, {formatDuration(testSeconds)} testing).
+            .{cellTouched && (
+              <>
+                {' '}<b>Total time</b> {formatDuration(practiceSeconds + testSeconds)}{' '}
+                ({formatDuration(practiceSeconds)} practice,{' '}
+                {formatDuration(testSeconds)} testing).
+              </>
+            )}
             {note !== undefined && <> {note}</>}
           </p>
 
@@ -242,11 +259,21 @@ export default function CellProgressDetails({
               const p = t.progress;
               return (
                 <div key={t.key}>
+                  {/* =====================================================
+                      A ROW IS A CONTROL, AND HAS TO LOOK LIKE ONE.
+                      It was a bare line of text with a hover tint, so
+                      there was nothing to say it could be pressed until
+                      you had already found out. It carries a boundary,
+                      a hover, a pointer, a focus ring and a caret that
+                      turns — the whole affordance, without hovering.
+                      The contents are unchanged.
+                      ===================================================== */}
                   <button
                     type="button"
                     data-testid="detail-target"
                     data-target={t.key}
                     data-counted={out ? 'false' : 'true'}
+                    aria-expanded={editing ? undefined : open}
                     onClick={() => {
                       if (editing) {
                         onToggleCounted?.(t.key);
@@ -258,13 +285,23 @@ export default function CellProgressDetails({
                       setOpenKey(open ? null : t.key);
                     }}
                     className={[
-                      'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs',
-                      'hover:bg-neutral-50 dark:hover:bg-neutral-900/40',
+                      'w-full flex items-center gap-2 px-2 py-2 rounded-md text-left text-xs',
+                      'border bg-white dark:bg-neutral-900',
+                      'border-neutral-200 dark:border-neutral-700',
+                      'cursor-pointer transition-colors',
+                      'hover:border-fluent hover:bg-fluent/5',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fluent',
+                      open ? 'border-fluent bg-fluent/5' : '',
                       out ? 'opacity-55' : '',
                     ].join(' ')}
                   >
-                    <span aria-hidden className="text-[9px] text-neutral-400 w-2">
-                      {open ? '▾' : '▸'}
+                    <span
+                      aria-hidden
+                      className={`text-[9px] w-2 shrink-0 transition-transform ${
+                        open ? 'text-fluent rotate-90' : 'text-neutral-500'
+                      }`}
+                    >
+                      ▸
                     </span>
                     {/* STRUCK THROUGH WHERE IT IS OUT, as the prototype
                         draws it: the row is still here and still says
@@ -275,12 +312,25 @@ export default function CellProgressDetails({
                     </span>
                     <span className="shrink-0">{bandVerdictLabel(p.verdict)}</span>
                     <span className="flex-1 min-w-0 text-[11px] text-neutral-500 truncate">
-                      <b>Total time</b>{' '}
-                      {formatDuration(p.practiceSeconds + p.testSeconds)} (
-                      {formatDuration(p.practiceSeconds)} practice,{' '}
-                      {formatDuration(p.testSeconds)} testing)
+                      {/* NOTHING RATHER THAN EMPTY FIELDS. An untouched
+                          target printed "Total time — (— practice, —
+                          testing)" — a row of em dashes saying nothing,
+                          twice over on a cell where none of it had been
+                          touched. A dash in a log reads as a
+                          measurement. */}
+                      {touched(p) && (
+                        <>
+                          <b>Total time</b>{' '}
+                          {formatDuration(p.practiceSeconds + p.testSeconds)} (
+                          {formatDuration(p.practiceSeconds)} practice,{' '}
+                          {formatDuration(p.testSeconds)} testing)
+                        </>
+                      )}
                       {p.lastPracticedAt !== null && (
-                        <> · <b>Last practiced</b> {formatAgo(p.lastPracticedAt, now)}</>
+                        <>
+                          {touched(p) && ' · '}
+                          <b>Last practiced</b> {formatAgo(p.lastPracticedAt, now)}
+                        </>
                       )}
                     </span>
                     {out && (
@@ -353,6 +403,18 @@ export default function CellProgressDetails({
       )}
     </div>
   );
+}
+
+/**
+ * Has this target been touched at all?
+ *
+ * BOTH HALVES, because a run can be logged without a rating and a
+ * rating can arrive without a drill row — the two sources answer
+ * different questions and neither is a proxy for the other. See
+ * `HandProgress`.
+ */
+function touched(p: HandProgress): boolean {
+  return p.practiceSeconds > 0 || p.testSeconds > 0 || p.lastPracticedAt !== null;
 }
 
 /** One log, newest first. */

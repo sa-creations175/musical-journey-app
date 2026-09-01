@@ -72,11 +72,32 @@ export function bandCellClasses(verdict: BandVerdict): string {
  */
 export const GRID_GUTTER = '10rem';
 
+/**
+ * How narrow a status tile may get.
+ *
+ * "Developing" is the longest single word any of the six statuses
+ * contains, and a tile narrower than it either hyphenates — which is
+ * what the voice-leading grid was doing to "Not Started" — or
+ * overflows. Twelve keys across a phone gave each cell a twelfth of the
+ * width, so the floor is the fix and the layout toggle is the relief.
+ *
+ * A WHOLE CLASS, WRITTEN OUT, NOT A VALUE TO INTERPOLATE. Tailwind
+ * scans source as TEXT: `min-w-[${SOMETHING}]` is never the class
+ * `min-w-[4.75rem]` to the scanner, so the rule is never emitted and
+ * the floor silently does not exist. That is the same shape as the
+ * Started fill that resolved to nothing, and it is why this is a class
+ * and not a length.
+ */
+export const GRID_CELL_MIN = 'min-w-[4.75rem]';
+
 export interface BandCellProps {
   verdict: BandVerdict;
   /** Ringed, because Progress Details below is telling THIS cell's
    *  story. The other two grids ring their picked cell the same way. */
   selected?: boolean;
+  /** Set in the ACROSS layouts, where the key is not written down the
+   *  side and the tile is the only place it can go. */
+  keyLabel?: string;
   /** Full sentence for the tooltip and screen readers. The square's
    *  own word is only half of what a cell means — the caller knows
    *  which chord, which key. */
@@ -85,7 +106,7 @@ export interface BandCellProps {
 }
 
 export default function BandCell({
-  verdict, title, selected = false, onClick,
+  verdict, title, selected = false, keyLabel, onClick,
 }: BandCellProps) {
   // NO `border` IN THE BASE. A solid fill has no outline, and Not
   // Started brings its own dashed one — a shared border class would
@@ -94,11 +115,14 @@ export default function BandCell({
     'w-full min-h-[3.1rem] px-0.5 mx-0.5 my-0.5 rounded-md '
     + 'flex items-center justify-center text-center '
     + 'text-[10px] font-semibold leading-tight tracking-tight '
-    // A square is ~56px wide and "Developing" is one word wider than
-    // that. It wraps rather than overflowing; `min-h` leaves room for
-    // the second line so a two-line square is not taller than a
-    // one-line one.
-    + 'break-words hyphens-auto '
+      // NO HYPHENATION, EVER. `hyphens-auto` on a ~56px square broke
+    // "Not Started" into "Not Start-ed" in every cell of the
+    // voice-leading grid — a status word split across a hyphen is a
+    // different word. The cell is wide enough for the longest single
+    // word instead, and a two-word status wraps at its space; `min-h`
+    // leaves room for the second line so a two-line square is not
+    // taller than a one-line one.
+    + `${GRID_CELL_MIN} `
     + 'transition focus:outline-none focus:ring-2 focus:ring-fluent/50';
 
   const Tag = onClick ? 'button' : 'div';
@@ -114,7 +138,12 @@ export default function BandCell({
         selected ? 'ring-2 ring-fluent ring-offset-1' : '',
       ].join(' ')}
     >
-      {bandVerdictLabel(verdict)}
+      <span className="block">
+        {keyLabel && (
+          <span className="block font-mono font-normal opacity-70">{keyLabel}</span>
+        )}
+        {bandVerdictLabel(verdict)}
+      </span>
     </Tag>
   );
 }

@@ -43,7 +43,11 @@ import {
 } from './catalog';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
-import { bandCellClasses, GRID_GUTTER } from './BandCell';
+import { bandCellClasses, GRID_CELL_MIN } from './BandCell';
+import KeyedGrid, {
+  DEFAULT_LAYOUT, LayoutToggle, type Layout,
+} from './KeyedGrid';
+import { scrollSectionToTop } from './scrollToBand';
 import {
   chordCellTargets, countFluentPlusTargets, rowsByRefHand, sectionTargets,
   targetKey, targetsAcrossKeys, verdictForTargets, type CellTarget,
@@ -90,6 +94,7 @@ interface SelectedCell {
 export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
   const [spelling] = useSpelling();
   const [rule, setRule] = useState<RollupRule>('furthest');
+  const [layout, setLayout] = useState<Layout>(DEFAULT_LAYOUT);
   const [selected, setSelected] = useState<SelectedCell | null>(null);
   const [notCounted, setNotCounted] = useState<ReadonlySet<string>>(new Set());
   const [drilling, setDrilling] = useState<DetailTarget | null>(null);
@@ -174,9 +179,9 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
     // `sessionsByTarget`. The panel needs them the moment a target is
     // opened, so the read starts with the click rather than with it.
     void findAllChordShapeSkillsForCell(keyName, quality);
-    // THE ANSWER GOES WHERE YOU ARE LOOKING. The grid does not move;
-    // the page brings the band to the top instead.
-    detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // THE ANSWER GOES WHERE YOU ARE LOOKING — at the TOP of the screen,
+    // clear of the sticky header. See `scrollSectionToTop`.
+    scrollSectionToTop(detailRef.current);
   };
 
   /** The cell's twelve, as the detail section takes them. */
@@ -262,56 +267,35 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
             {r === 'furthest' ? 'Furthest' : 'Lowest'}
           </Toggle>
         ))}
+        <span className="ml-2 inline-flex items-center gap-2 flex-wrap">
+          <LayoutToggle layout={layout} onChange={setLayout} />
+        </span>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="border-collapse text-[11px]">
-          <thead>
-            <tr>
-              {/* THE SAME GUTTER THE OTHER TWO GRIDS RESERVE, so the
-                  three pages line up with each other. */}
-              <th
-                className="p-1"
-                style={{ width: GRID_GUTTER }}
-                data-testid="grid-gutter"
-              />
-              {KEYS_CIRCLE_OF_FOURTHS.map(k => (
-                <th key={k} className="p-1 font-mono font-normal text-neutral-500">
-                  {spellKey(k, spelling)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {qualities.map(q => (
-              <tr key={q.id}>
-                <th
-                  className="p-1 pr-2 font-medium text-left text-neutral-600 dark:text-neutral-300 truncate"
-                  style={{ width: GRID_GUTTER }}
-                  data-testid="grid-gutter"
-                  title={q.suffix ? `${q.label} (${q.suffix})` : q.label}
-                >
-                  {q.suffix ? `${q.label} (${q.suffix})` : q.label}
-                </th>
-                {KEYS_CIRCLE_OF_FOURTHS.map(k => {
-                  const verdict = cellVerdict(q.id, k);
-                  return (
-                    <td key={k} className="p-0.5">
-                      <StatusCell
-                        verdict={verdict}
-                        count={cellCount(q.id, k)}
-                        selected={selected?.quality === q.id && selected?.keyName === k}
-                        title={`${q.label} · the key of ${spellKey(k, spelling)} — ${bandVerdictLabel(verdict)}`}
-                        onPick={() => pickCell(q.id, k)}
-                      />
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <KeyedGrid
+        rows={qualities.map(q => ({
+          rowKey: q.id,
+          label: q.suffix ? `${q.label} (${q.suffix})` : q.label,
+        }))}
+        keys={KEYS_CIRCLE_OF_FOURTHS}
+        layout={layout}
+        spelling={spelling}
+        renderCell={(rowKey, keyName, showKeyLabel) => {
+          const q = qualities.find(x => x.id === rowKey);
+          if (!q) return null;
+          const verdict = cellVerdict(q.id, keyName);
+          return (
+            <StatusCell
+              verdict={verdict}
+              count={cellCount(q.id, keyName)}
+              keyLabel={showKeyLabel ? spellKey(keyName, spelling) : undefined}
+              selected={selected?.quality === q.id && selected?.keyName === keyName}
+              title={`${q.label} · the key of ${spellKey(keyName, spelling)} — ${bandVerdictLabel(verdict)}`}
+              onPick={() => pickCell(q.id, keyName)}
+            />
+          );
+        }}
+      />
 
       <CellProgressDetails
         ref={detailRef}
@@ -455,9 +439,12 @@ function Toggle({ on, onClick, children }: {
  * prototype's, and it is the half of the cell that Edit what counts
  * moves.
  */
-function StatusCell({ verdict, count, selected, title, onPick }: {
+function StatusCell({ verdict, count, keyLabel, selected, title, onPick }: {
   verdict: BandVerdict;
   count: string | null;
+  /** Set in the ACROSS layouts, where the key is not written down the
+   *  side and the tile is the only place it can go. */
+  keyLabel?: string;
   selected: boolean;
   title: string;
   onPick: () => void;
@@ -474,11 +461,14 @@ function StatusCell({ verdict, count, selected, title, onPick }: {
       // would draw a grey ring on every painted cell; Not Started
       // brings its own dashed one from `bandCellClasses`.
       className={[
-        'w-full px-1 py-1 rounded-md text-[10px] leading-tight text-center min-w-[4.5rem]',
+        // THE SHARED FLOOR, so a status word cannot be squeezed narrow
+        // enough to break — see `GRID_CELL_MIN`.
+        `w-full px-1 py-1 rounded-md text-[10px] leading-tight text-center ${GRID_CELL_MIN}`,
         bandCellClasses(verdict),
         selected ? 'ring-2 ring-fluent ring-offset-1' : '',
       ].join(' ')}
     >
+      {keyLabel && <span className="block font-mono opacity-70">{keyLabel}</span>}
       <span className="block font-medium">{bandVerdictLabel(verdict)}</span>
       {count !== null && (
         <span className="block font-mono opacity-70">{count}</span>

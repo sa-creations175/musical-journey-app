@@ -30,7 +30,8 @@ import {
 } from './catalog';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
-import BandCell, { GRID_GUTTER } from './BandCell';
+import BandCell from './BandCell';
+import KeyedGrid, { type Layout } from './KeyedGrid';
 import { itemCellTargets, rowsByRefHand, verdictForTargets } from './cellTargets';
 import { bandVerdictLabel } from '../../lib/spacing/banding';
 
@@ -38,6 +39,9 @@ interface Props {
   /** Pattern id — built-in or custom. Custom ids aren't in the
    *  catalog and render the placeholder shell. */
   patternId: string;
+  /** Which axis runs down the side. Owned by the page, so every
+   *  pattern on it turns together. */
+  layout: Layout;
   /** Optional click handler. Called with the specific sub-cell
    *  itemRef when a cell is tapped. Only fires for built-in
    *  patterns. */
@@ -48,7 +52,7 @@ interface Props {
 }
 
 export default function VoiceLeadingPatternGrid({
-  patternId, onCellOpen, selectedRef = null,
+  patternId, layout, onCellOpen, selectedRef = null,
 }: Props) {
   const [spelling] = useSpelling();
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
@@ -84,82 +88,36 @@ export default function VoiceLeadingPatternGrid({
   }
 
   return (
-    <div className="overflow-x-auto">
-      <div className="min-w-max space-y-1">
-        {/* Column header — key names */}
-        <div
-          className="grid"
-          style={{
-            // THE SHARED GUTTER. It asked for `minmax(160px, 200px)`,
-            // which let one pattern's rows sit forty pixels further
-            // right than another's.
-            gridTemplateColumns: `${GRID_GUTTER} repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
-          }}
-        >
-          <div data-testid="grid-gutter" style={{ width: GRID_GUTTER }} />
-          {KEYS_CIRCLE_OF_FOURTHS.map(k => (
-            <div
-              key={k}
-              className="text-[10px] tracking-wide text-neutral-500 text-center font-mono"
-            >
-              {/* Label only — `k` remains the identity passed to
-                  row.itemRefForKey below. See lib/spelling.ts. */}
-              {spellKey(k, spelling)}
-            </div>
-          ))}
-        </div>
-
-        {/* One row per sub-dimension */}
-        {rows.map(row => (
-          <div
-            key={row.rowId}
-            className="grid items-center"
-            style={{
-              gridTemplateColumns: `${GRID_GUTTER} repeat(${KEYS_CIRCLE_OF_FOURTHS.length}, minmax(42px, 56px))`,
-            }}
-          >
-            <div
-              className="text-xs pr-2 py-0.5 min-w-0 text-neutral-600 dark:text-neutral-300"
-              style={{ width: GRID_GUTTER }}
-              data-testid="grid-gutter"
-              title={row.hint ? `${row.label} — ${row.hint}` : row.label}
-            >
-              <div className="truncate">{row.label}</div>
-              {/* The name says which row; the hint says what you play.
-                  Only Extended Voicings has one — it is the row whose
-                  name was ambiguous enough to need two names before. */}
-              {row.hint && (
-                <div className="text-[10px] leading-tight text-neutral-400 truncate">
-                  {row.hint}
-                </div>
-              )}
-            </div>
-            {KEYS_CIRCLE_OF_FOURTHS.map(k => {
-              const itemRef = row.itemRefForKey(k);
-              // ONE ROW, AND THAT IS THE WHOLE SQUARE. Voice leading is
-              // two-handed by nature and only ever writes `both`, so
-              // `itemCellTargets` returns a single target and the
-              // rollup is the row — no aggregation, same rule.
-              const verdict = verdictForTargets(itemCellTargets(itemRef), byRefHand);
-              // "Seventh Chords · Position 1 · the key of Eb — Not Started".
-              // A bare key letter after "in" read as a stray word, and
-              // a lowercase "not started" read as a description rather
-              // than the status it is. Both are marked; the separator
-              // is a middot so the three facts read as three facts.
-              const title = `${row.label} · the key of ${spellKey(k, spelling)} — ${bandVerdictLabel(verdict)}`;
-              return (
-                <BandCell
-                  key={k}
-                  verdict={verdict}
-                  title={title}
-                  selected={itemRef === selectedRef}
-                  onClick={onCellOpen ? () => onCellOpen(itemRef) : undefined}
-                />
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
+    <KeyedGrid
+      rows={rows.map(r => ({ rowKey: r.rowId, label: r.label, hint: r.hint }))}
+      keys={KEYS_CIRCLE_OF_FOURTHS}
+      layout={layout}
+      spelling={spelling}
+      renderCell={(rowId, keyName, showKeyLabel) => {
+        const row = rows.find(r => r.rowId === rowId);
+        if (!row) return null;
+        const itemRef = row.itemRefForKey(keyName);
+        // ONE ROW, AND THAT IS THE WHOLE SQUARE. Voice leading is
+        // two-handed by nature and only ever writes `both`, so
+        // `itemCellTargets` returns a single target and the rollup is
+        // the row — no aggregation, same rule.
+        const verdict = verdictForTargets(itemCellTargets(itemRef), byRefHand);
+        // "Seventh Chords · Position 1 · the key of Eb — Not Started".
+        // A bare key letter after "in" read as a stray word, and a
+        // lowercase "not started" read as a description rather than the
+        // status it is. Both are marked; the separator is a middot so
+        // the three facts read as three facts.
+        const title = `${row.label} · the key of ${spellKey(keyName, spelling)} — ${bandVerdictLabel(verdict)}`;
+        return (
+          <BandCell
+            verdict={verdict}
+            title={title}
+            keyLabel={showKeyLabel ? spellKey(keyName, spelling) : undefined}
+            selected={itemRef === selectedRef}
+            onClick={onCellOpen ? () => onCellOpen(itemRef) : undefined}
+          />
+        );
+      }}
+    />
   );
 }
