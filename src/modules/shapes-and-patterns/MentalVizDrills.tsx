@@ -44,7 +44,7 @@ export default function MentalVizDrills() {
         <p className="text-xs text-neutral-500 mt-0.5">
           away-from-keyboard recall of the chord library — triads, sevenths, and
           extended-dominant voicings. Name the chord, picture the shape, reveal
-          the keyboard, rate yourself. Practise at a desk, on a walk, or in bed.
+          the keyboard, rate yourself. Practice at a desk, on a walk, or in bed.
         </p>
       </div>
 

@@ -537,7 +537,7 @@ function ItemDetail({
         <dd className="tabular-nums" data-testid="item-proven">
           {proven} of {item.window.length}
         </dd>
-        <dt className="text-neutral-500">Last Practised</dt>
+        <dt className="text-neutral-500">Last Practiced</dt>
         <dd className="tabular-nums">
           {item.daysSince === null ? 'never'
             : item.daysSince === 0 ? 'today'

@@ -51,7 +51,7 @@ import type { CategoryCardModel } from '../../components/moduleHome/model';
 export const TILE_LABELS = {
   fluentPlus: 'Fluent+',
   total: 'Total',
-  lastPractised: 'Last practised',
+  lastPractised: 'Last practiced',
 } as const;
 
 export const NOTHING_YET = 'none yet';

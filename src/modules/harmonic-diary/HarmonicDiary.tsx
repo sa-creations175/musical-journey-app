@@ -498,7 +498,7 @@ function SkillPickerModal({
       open
       onClose={onClose}
       title="pick a skill to write about"
-      description="any chord, progression, mode, song, or drill you've practised"
+      description="any chord, progression, mode, song, or drill you've practiced"
     >
       <div className="space-y-3">
         <input

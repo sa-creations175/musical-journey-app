@@ -127,7 +127,7 @@ export default function SongCard({
                meaning something else. See `FreshnessBar`. */
             <FreshnessBar
               sixths={freshnessSixths}
-              title={`last practised ${lastPractisedLabel}`}
+              title={`last practiced ${lastPractisedLabel}`}
               className="float-right ml-2 mt-2"
             />
           )}
@@ -240,7 +240,7 @@ export default function SongCard({
           className={practiceStale ? 'text-developing' : 'text-neutral-500'}
         >
           <span data-stale={practiceStale ? 'true' : 'false'}>
-            {lastPractisedLabel === 'never' ? 'not practised yet' : `last ${lastPractisedLabel}`}
+            {lastPractisedLabel === 'never' ? 'not practiced yet' : `last ${lastPractisedLabel}`}
           </span>
           <span className="text-neutral-400 mx-1">·</span>
           {addedLabel}

@@ -314,7 +314,7 @@ export default function DashboardControls({
       />
       <ThresholdFilter
         testId="filter-stale"
-        label="not practised in"
+        label="not practiced in"
         suffix="days"
         value={state.filter.notPractisedInDays}
         onChange={v => setFilter({ notPractisedInDays: v })}

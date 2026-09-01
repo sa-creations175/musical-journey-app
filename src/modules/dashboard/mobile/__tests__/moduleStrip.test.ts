@@ -183,18 +183,18 @@ describe('the sub-line', () => {
       engagementCount: 412,
       children: [node(), node(), node()],
       recency: { mostRecentAt: NOW - 3 * DAY, stalestAt: NOW - 3 * DAY, hasUntouched: false },
-    }), NOW)).toBe('412 attempts · 3 categories · last practised 3d ago');
+    }), NOW)).toBe('412 attempts · 3 categories · last practiced 3d ago');
   });
 
   it('says today rather than 0d ago', () => {
     expect(subLine(node({ engagementCount: 1, children: [node()] }), NOW))
-      .toBe('1 attempt · 1 category · last practised today');
+      .toBe('1 attempt · 1 category · last practiced today');
   });
 
   it('says never rather than a fabricated number', () => {
     expect(subLine(node({
       engagementCount: 0,
       recency: { mostRecentAt: null, stalestAt: null, hasUntouched: true },
-    }), NOW)).toBe('0 attempts · 0 categories · never practised');
+    }), NOW)).toBe('0 attempts · 0 categories · never practiced');
   });
 });

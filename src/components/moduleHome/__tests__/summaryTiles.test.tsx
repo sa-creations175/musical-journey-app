@@ -88,10 +88,10 @@ describe('a tile', () => {
     render([
       { label: 'Fluent+', value: '0 / 288' },
       { label: 'Total', value: 'none yet', muted: true },
-      { label: 'Last practised', value: 'never', muted: true },
+      { label: 'Last practiced', value: 'never', muted: true },
     ]);
     expect(tiles().map(t => t.getAttribute('data-label')))
-      .toEqual(['Fluent+', 'Total', 'Last practised']);
+      .toEqual(['Fluent+', 'Total', 'Last practiced']);
   });
 });
 

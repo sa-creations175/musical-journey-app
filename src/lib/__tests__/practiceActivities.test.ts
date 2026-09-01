@@ -23,7 +23,7 @@ describe('the six', () => {
       'building the lead sheet',
       'watching a tutorial',
       'getting it under the fingers',
-      'practising in time',
+      'practicing in time',
       'just playing',
       'something else',
     ]);
@@ -77,7 +77,7 @@ describe('normalising on the way in', () => {
 
 describe('reading back', () => {
   it('labels a known slug', () => {
-    expect(practiceActivityLabel('in-time')).toBe('practising in time');
+    expect(practiceActivityLabel('in-time')).toBe('practicing in time');
   });
 
   it('KEEPS an unknown slug rather than dropping it', () => {

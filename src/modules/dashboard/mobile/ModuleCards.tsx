@@ -321,10 +321,10 @@ export function subLine(
 
 /** "last practised 3d ago", or that it has not been. */
 function practisedLine(mostRecentAt: number | null, now: number): string {
-  if (mostRecentAt === null) return 'never practised';
+  if (mostRecentAt === null) return 'never practiced';
   const days = Math.floor((now - mostRecentAt) / DAY_MS);
-  if (days <= 0) return 'last practised today';
-  return `last practised ${days}d ago`;
+  if (days <= 0) return 'last practiced today';
+  return `last practiced ${days}d ago`;
 }
 
 /** Coverage in the same words the desktop uses for a parent row. */

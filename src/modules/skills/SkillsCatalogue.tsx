@@ -396,7 +396,7 @@ function SummaryView({
                 <div className="text-[10px] text-neutral-500 mt-1.5">
                   {m.lastPracticed === null
                     ? 'no recent activity'
-                    : `last practised ${formatHumanAgo(m.lastPracticed)}`}
+                    : `last practiced ${formatHumanAgo(m.lastPracticed)}`}
                 </div>
                 <div className="mt-2 flex items-center justify-between">
                   <Link

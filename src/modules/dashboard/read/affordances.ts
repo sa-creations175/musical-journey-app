@@ -69,7 +69,7 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
   [HF]:
     'Theory recall away from the keyboard. A question, an answer you say '
     + 'in your head, and a right-or-wrong mark. No instrument involved, '
-    + 'which is what makes it the module you can practise on a train.',
+    + 'which is what makes it the module you can practice on a train.',
   [`${HF}/Scale Degree Math`]:
     'Arithmetic on scale degrees, with no key named. "Three, up a minor '
     + 'third" — the answer is 5, and it is 5 in every key, because the '
@@ -207,7 +207,7 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
   [`${SP}/Chord Shapes`]:
     'One shape, in one key, played until it is under the fingers. The '
     + 'grid is quality × inversion × key, and the CELL is the shape in '
-    + 'the key — hands and articulation are ways of practising it rather '
+    + 'the key — hands and articulation are ways of practicing it rather '
     + 'than separate things to know, so they are not counted separately.',
   [`${SP}/Scales`]:
     'Scales and pentatonics across all twelve keys, rated by how the rep '
@@ -421,7 +421,7 @@ export function advanceHintFor(node: TreeNode, moduleId: string): string {
   }
 
   if (node.totalItems === 0) {
-    return 'Nothing sits under this row to practise.';
+    return 'Nothing sits under this row to practice.';
   }
 
   const uncovered = node.totalItems - node.coveredItems;
@@ -492,7 +492,7 @@ export function rowNotesFor(
       'These numbers belong to this row alone and are not counted in the '
       + 'Shapes & Patterns totals above. Picturing a shape builds the '
       + 'physical skill rather than measuring it, so it is tracked here on '
-      + 'its own. Practising it does still refresh the recency shown above, '
+      + 'its own. Practicing it does still refresh the recency shown above, '
       + 'because it is still practice.',
     );
   }

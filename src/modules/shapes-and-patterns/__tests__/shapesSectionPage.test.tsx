@@ -137,7 +137,7 @@ describe('a sub-module page', () => {
     const labels = [...el.querySelectorAll('[data-testid^="summary-tile"]')]
       .map(t => t.getAttribute('data-label'))
       .filter(l => l !== null);
-    expect(labels).toEqual(['Fluent+', 'Total', 'Last practised']);
+    expect(labels).toEqual(['Fluent+', 'Total', 'Last practiced']);
 
     // NO UNIT NOUN. The figure is bare — "0 / 288", never
     // "0 / 288 hands" or "0 / 288 patterns".

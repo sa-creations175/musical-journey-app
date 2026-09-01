@@ -171,7 +171,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
             onClick={onClose}
             className="px-3 py-1.5 rounded-md border border-fluent text-fluent text-sm hover:bg-fluent/10"
           >
-            Practise This Skill →
+            Practice This Skill →
           </Link>
           <button
             onClick={onClose}
@@ -217,7 +217,7 @@ export default function SkillDetailPanel({ skill, onClose, onMutated }: Props) {
             freshness: <span className="font-medium">{skill.freshness}</span>
           </span>
           <span className="text-[11px] text-neutral-500">
-            last practised: <span className="font-medium">
+            last practiced: <span className="font-medium">
               {skill.daysSince === null ? 'never' : skill.daysSince === 0 ? 'today' : `${skill.daysSince}d ago`}
             </span>
           </span>

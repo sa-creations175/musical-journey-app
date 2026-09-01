@@ -288,7 +288,7 @@ describe('an item opens onto its real reps', () => {
     });
     const detail = el.querySelector('[data-testid="item-detail"]')!;
     expect(detail.textContent).toContain('no reps recorded');
-    expect(detail.textContent).not.toContain('not practised yet');
+    expect(detail.textContent).not.toContain('not practiced yet');
   });
 
   it('opens from the tail as well as from the grid', async () => {

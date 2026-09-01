@@ -69,7 +69,7 @@ export default function TodayAndAttention() {
         candidates.push({
           skill,
           reason: 'going-stale',
-          message: `${skill.label ?? 'Skill'} is going stale — last practised ${humanAgo(agg.lastPracticedAt)}.`,
+          message: `${skill.label ?? 'Skill'} is going stale — last practiced ${humanAgo(agg.lastPracticedAt)}.`,
           daysSince,
         });
       } else if (agg.imbalanced) {
@@ -80,7 +80,7 @@ export default function TodayAndAttention() {
           candidates.push({
             skill,
             reason: 'incomplete',
-            message: `${skill.label ?? 'Skill'} · "${laggard.name}" is under-practised (${formatDuration(laggard.totalSeconds)} vs ${formatDuration(top)} on other drills).`,
+            message: `${skill.label ?? 'Skill'} · "${laggard.name}" is under-practiced (${formatDuration(laggard.totalSeconds)} vs ${formatDuration(top)} on other drills).`,
             daysSince,
           });
         }

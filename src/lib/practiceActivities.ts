@@ -85,7 +85,7 @@ export const PRACTICE_ACTIVITY_OPTIONS: ReadonlyArray<PracticeActivityOption> = 
   { activity: 'lead-sheet',        label: 'building the lead sheet' },
   { activity: 'tutorial',          label: 'watching a tutorial' },
   { activity: 'under-the-fingers', label: 'getting it under the fingers' },
-  { activity: 'in-time',           label: 'practising in time', hint: 'to a click' },
+  { activity: 'in-time',           label: 'practicing in time', hint: 'to a click' },
   { activity: 'just-playing',      label: 'just playing', hint: 'not working on it' },
   { activity: 'other',             label: 'something else', freeText: true },
 ];

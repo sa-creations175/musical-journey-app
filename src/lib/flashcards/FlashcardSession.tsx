@@ -550,7 +550,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               title={
                 reviewFlagged
                   ? `Flagged for Review — click to edit${reviewFlagNote ? `\n${reviewFlagNote}` : ''}`
-                  : "Note A Problem With This Card — doesn't change what you practise"
+                  : "Note A Problem With This Card — doesn't change what you practice"
               }
               className={`text-base leading-none ${
                 reviewFlagged ? '' : 'opacity-40 hover:opacity-100'

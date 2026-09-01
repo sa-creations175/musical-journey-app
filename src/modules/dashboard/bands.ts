@@ -248,7 +248,7 @@ export const TREE_VOCABULARY: ReadonlyArray<{ term: string; meaning: string }> =
   },
   {
     term: 'item row',
-    meaning: 'one thing you practise. It does not open any further.',
+    meaning: 'one thing you practice. It does not open any further.',
   },
 ];
 
@@ -314,7 +314,7 @@ export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule
   ],
   coverage: [
     {
-      rule: 'An item counts as covered once you have practised it 3 or more '
+      rule: 'An item counts as covered once you have practiced it 3 or more '
         + 'times.',
       why: 'Three is where an item is genuinely underway rather than seen '
         + 'once, so what is left uncovered stays a reliable list of where to '
@@ -357,7 +357,7 @@ export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule
     },
     {
       rule: 'In Shapes & Patterns an item row is one shape in one key, '
-        + 'however many ways you practise it.',
+        + 'however many ways you practice it.',
       why: 'Right hand, left hand, solid, broken: all of them fill in the same '
         + 'row. So the number stays a count of shapes you know, and stays '
         + 'comparable with the modules that have no hand to choose.',
@@ -366,14 +366,14 @@ export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule
   recency: [
     {
       rule: 'A group row shows two numbers, like 12d / 61d: days since you '
-        + 'last practised anything inside it, then days since the most '
+        + 'last practiced anything inside it, then days since the most '
         + 'neglected item inside it was touched.',
       why: 'The first tells you the group is active; the second tells you '
         + 'something in it is being skipped. The sort control calls that '
         + 'second number stalest.',
     },
     {
-      rule: 'An item you have never practised reads never.',
+      rule: 'An item you have never practiced reads never.',
     },
     {
       rule: 'Recency counts every attempt, including the ones the accuracy '
@@ -387,7 +387,7 @@ export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule
       rule: 'Sorting by recency reads one of the two numbers, depending on the '
         + 'direction.',
       why: 'Most recent first orders on the left number and stalest first on '
-        + 'the right, so a group practised 2 days ago that still holds a '
+        + 'the right, so a group practiced 2 days ago that still holds a '
         + '40-day-old item ranks on the 2 one way and the 40 the other.',
     },
   ],

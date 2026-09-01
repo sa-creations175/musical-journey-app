@@ -305,7 +305,7 @@ function CarryoverReviewModal({
         })}
       </ul>
       <p className="mt-3 text-[11px] text-neutral-500">
-        Accept = explicit commitment to keep practising these items
+        Accept = explicit commitment to keep practicing these items
         this month. Decline = items still in the spacing-system
         backlog (they surface naturally), just not pinned to this
         month's plan. Either way, items only leave the backlog when

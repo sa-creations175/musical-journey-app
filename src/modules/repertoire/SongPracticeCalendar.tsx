@@ -112,7 +112,7 @@ export default function SongPracticeCalendar() {
           {song.title} · practice calendar
         </h1>
         <p className="text-neutral-500 text-sm">
-          every day you practised this song lights up; darker cells = more minutes.
+          every day you practiced this song lights up; darker cells = more minutes.
         </p>
       </div>
 

@@ -462,7 +462,7 @@ const PLAY_TEMPLATES: Template[] = [
     if (snap.recentPracticeDays < 4) return null;
     return {
       kind: 'streak-reward',
-      text: `You've practised ${snap.recentPracticeDays} of the last 7 days. Take ten minutes off the curriculum — play purely for yourself. See what the work unlocks.`,
+      text: `You've practiced ${snap.recentPracticeDays} of the last 7 days. Take ten minutes off the curriculum — play purely for yourself. See what the work unlocks.`,
     };
   },
 
