@@ -37,6 +37,7 @@ import type { ModuleTree } from '../read/query';
 import type { TreeNode } from '../read/tree';
 import { tierForNode } from '../read/tierAdapter';
 import { footerEntries, tierWord } from './tierLegend';
+import { stripCategories } from './stripCategories';
 import { DIMMED_CLASS, matchLine } from './cardFilter';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -109,7 +110,10 @@ function ModuleCard({
 
   const meta = moduleMetaById(module.moduleId);
   const root = module.root;
-  const cells: StripCell[] = root.children.map(node => ({
+  /* THE MODULE'S CATEGORIES, which for production are not the row
+     directly under it — see `stripCategories`. */
+  const categories = stripCategories(module);
+  const cells: StripCell[] = categories.map(node => ({
     node,
     tier: tierForNode(node, now),
     matched: matches === undefined ? true : matches(node),
@@ -150,7 +154,7 @@ function ModuleCard({
       </div>
 
       <div className="text-[11px] text-neutral-500 mt-0.5" data-testid="mobile-module-subline">
-        {subLine(root, now)}
+        {subLine(root, now, categories.length)}
       </div>
 
       {/* One square per category, in catalog order. */}
@@ -295,10 +299,23 @@ function CellPopover({
  * is behind it, how wide the module is, and whether any of it is
  * recent. Exported for the tests that pin the wording.
  */
-export function subLine(root: TreeNode, now: number): string {
+export function subLine(
+  root: TreeNode,
+  now: number,
+  /**
+   * How many categories the strip beside this line is drawing.
+   *
+   * PASSED, NOT COUNTED HERE. The two must agree — a sub-line saying
+   * "2 categories" over a strip of seven squares is the count
+   * describing a different thing from the picture — and for production
+   * the answer is not `root.children.length`. Defaults to the row under
+   * the module, which is what it says for every other module.
+   */
+  categoryCount: number = root.children.length,
+): string {
   const attempts = `${root.engagementCount} attempt${root.engagementCount === 1 ? '' : 's'}`;
-  const n = root.children.length;
-  const categories = `${n} categor${n === 1 ? 'y' : 'ies'}`;
+  const categories =
+    `${categoryCount} categor${categoryCount === 1 ? 'y' : 'ies'}`;
   return `${attempts} · ${categories} · ${practisedLine(root.recency.mostRecentAt, now)}`;
 }
 

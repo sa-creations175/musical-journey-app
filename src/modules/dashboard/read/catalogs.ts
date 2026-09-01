@@ -519,6 +519,16 @@ function chordIdentificationLabel(
 
 const PATH_LABEL = new Map(PRODUCTION_PATHS.map(p => [p.id, p.title]));
 
+/**
+ * The row the six lesson paths hang under.
+ *
+ * Named rather than typed twice because the card view has to look
+ * THROUGH it — production's categories, as its own module home counts
+ * them, are the six paths plus Vocabulary, and this row sits between
+ * the module and them. See `stripCategories`.
+ */
+export const PRODUCTION_LESSONS_GROUP = 'Lessons';
+
 /** Self-rated on the five-step lesson scale. Coverage is "tried it"
  *  (75), not an attempt count: a lesson is not a rep you repeat. */
 export const productionLessonsCatalog: ModuleCatalog = {
@@ -530,7 +540,7 @@ export const productionLessonsCatalog: ModuleCatalog = {
   items: PRODUCTION_LESSONS.map(lesson => one(
     lesson.id,
     lesson.title,
-    ['production', 'Lessons', titleCase(PATH_LABEL.get(lesson.pathId) ?? lesson.pathId)],
+    ['production', PRODUCTION_LESSONS_GROUP, titleCase(PATH_LABEL.get(lesson.pathId) ?? lesson.pathId)],
   )),
 };
 

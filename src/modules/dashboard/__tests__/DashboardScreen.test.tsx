@@ -1136,3 +1136,18 @@ describe('the controls are behind a button', () => {
     expect(el.querySelector('[data-testid="dashboard-controls"]')).toBeNull();
   });
 });
+
+describe('production keeps its grouping row on the tree', () => {
+  it('still shows Lessons, with the paths folded under it', async () => {
+    // The CARD view now counts production's categories as the six
+    // lesson paths plus Vocabulary, so its strip draws seven squares
+    // instead of two. That is the card reading the tree differently —
+    // the tree itself is untouched, and this is what says so.
+    const el = await renderScreen('/');
+    const labels = rows(el).map(r => r.querySelector('span[title]')?.textContent);
+    expect(labels).toContain('Lessons');
+    expect(labels).toContain('Vocabulary');
+    // The six paths stay folded under Lessons until it is expanded.
+    expect(labels).not.toContain('Vocal Production');
+  });
+});

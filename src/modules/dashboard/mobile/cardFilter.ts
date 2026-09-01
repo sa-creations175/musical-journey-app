@@ -66,16 +66,19 @@ export function moduleIsShown(filter: FilterSpec, moduleId: string): boolean {
 }
 
 /**
- * UNAPPROVED COPY. Drafted for this build and never ruled on — listed
- * in the report. It appears only while a filter is dimming something,
- * under the footer it explains.
+ * How many of a card's categories survived the filter.
  *
- * ONE TEMPLATE, NOT TWO. "1 of 15 categories match" is the grammatical
- * cost of not inventing a second string for the singular; flagged in
- * the report rather than solved by writing one nobody approved.
+ * APPROVED COPY, both forms. It appears only while a filter is dimming
+ * something, under the footer it explains.
+ *
+ * THE SINGULAR IS ITS OWN SENTENCE. The subject is the count, not the
+ * categories, so one match reads "1 of 15 categories matches". It
+ * shipped without the singular and read wrong at exactly one number;
+ * Silas ruled on the second form rather than have the line be almost
+ * right fifteen times out of sixteen.
  */
 export function matchLine(matched: number, total: number): string {
-  return `${matched} of ${total} categories match`;
+  return `${matched} of ${total} categories ${matched === 1 ? 'matches' : 'match'}`;
 }
 
 /**

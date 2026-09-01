@@ -378,3 +378,38 @@ describe('the controls panel', () => {
     expect(q('[data-testid="controls-body"]')).not.toBeNull();
   });
 });
+
+describe('the match line', () => {
+  it('says "matches" when exactly one does', async () => {
+    // The count is the subject, so one match is singular. It shipped
+    // with only the plural and read wrong at exactly one number.
+    expect(matchLine(1, 15)).toBe('1 of 15 categories matches');
+    expect(matchLine(0, 15)).toBe('0 of 15 categories match');
+    expect(matchLine(2, 15)).toBe('2 of 15 categories match');
+
+    // And on the card itself: reading has one category, and it matches.
+    await render(
+      { ...DEFAULT_VIEW_STATE, filter: { match: 'all', accuracyBelow: 90 } },
+    );
+    const card = cards().find(c => c.getAttribute('data-module') === 'reading')!;
+    expect(card.querySelector('[data-testid="mobile-module-match-line"]')!.textContent)
+      .toBe('1 of 1 categories matches');
+  });
+});
+
+describe('the sub-line', () => {
+  it('counts the categories the strip is actually drawing', async () => {
+    // A sub-line saying "2 categories" over a strip of seven squares is
+    // the count describing a different thing from the picture.
+    const el = await render();
+    for (const card of cards()) {
+      const squareCount =
+        card.querySelectorAll('[data-testid="mobile-strip-cell"]').length;
+      expect(
+        card.querySelector('[data-testid="mobile-module-subline"]')!.textContent,
+        card.getAttribute('data-module') ?? '',
+      ).toContain(`${squareCount} categor`);
+    }
+    void el;
+  });
+});

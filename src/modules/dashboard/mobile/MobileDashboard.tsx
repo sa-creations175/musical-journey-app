@@ -45,6 +45,7 @@ import type { ColumnTopic } from '../bands';
 import type { TreeNode } from '../read/tree';
 import DashboardControls, { ControlsToggle } from '../DashboardControls';
 import { moduleIsShown, squareFilter, squareFilterActive } from './cardFilter';
+import { stripCategories } from './stripCategories';
 import ModuleCards from './ModuleCards';
 import SkillsList, {
   GroupToggle, GroupedSkills, MeasureSwitch, type SkillRow,
@@ -145,12 +146,14 @@ export default function MobileDashboard({
   /**
    * Every category on the phone, flattened once.
    *
-   * The SAME depth-1 nodes the Modules strip draws a square for — one
-   * list, two shapes, so a category cannot appear in one view and not
-   * the other.
+   * The SAME nodes the Modules strip draws a square for — one list,
+   * two shapes, so a category cannot appear in one view and not the
+   * other. Which nodes those are is `stripCategories`' answer, not
+   * `root.children` directly: production's categories sit one level
+   * further down and both views have to agree about that.
    */
   const rows: SkillRow[] = modules.flatMap(module =>
-    module.root.children.map(node => ({
+    stripCategories(module).map(node => ({
       moduleId: module.moduleId,
       moduleLabel: module.root.label,
       label: node.label,
