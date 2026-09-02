@@ -21,9 +21,15 @@
  *
  * =====================================================================
  * ALL COPY HERE IS PLACEHOLDER. Every visible string is the facet's own
- * field name and its own values, printed as they are stored. That is
- * deliberately the least invented thing available — the labels are
- * Silas's to write, and they are listed in the report.
+ * field name and its own value. That is deliberately the least invented
+ * thing available — the labels are Silas's to write, and they are
+ * listed in the report.
+ *
+ * WHAT IS NOT PLACEHOLDER IS THE SPELLING. A value goes through
+ * `facetDisplay` on the way to the eye, so `Ab` reads A♭ and `b6` reads
+ * ♭6 the way they do everywhere else in the app. That is a rendering
+ * fix, not a wording one: the stored value is unchanged, and it is
+ * still what the URL carries and what a card is matched against.
  * =====================================================================
  */
 import type { Flashcard } from './catalog';
@@ -31,6 +37,7 @@ import type { FacetName } from './facets';
 import {
   availableValues, offerableFacets, type FacetFilter,
 } from './facetFilter';
+import { facetValueLabel } from './facetDisplay';
 
 export default function FacetFilterRow({
   cards, filter, onChange,
@@ -82,8 +89,12 @@ export default function FacetFilterRow({
                         + 'dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-neutral-500'
                   }`}
                 >
-                  {/* PLACEHOLDER: the stored value, printed as stored. */}
-                  {value}
+                  {/* PLACEHOLDER WORDING, REAL GLYPHS. The value is
+                      still the stored one — `data-testid` above carries
+                      it unchanged and it is what `onChange` sends — and
+                      only its spelling reaches the eye. See
+                      `facetDisplay`. */}
+                  {facetValueLabel(name, value)}
                 </button>
               );
             })}
