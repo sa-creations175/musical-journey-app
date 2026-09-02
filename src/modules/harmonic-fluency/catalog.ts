@@ -1,6 +1,7 @@
 import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
 import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
+import { DEGREE_NOTE_CATEGORY_NAME } from './degreeNoteCards';
 import { INTERVAL_NAMES } from './intervalInversion';
 import { intervalInversionCards } from './intervalInversionCards';
 import {
@@ -29,7 +30,8 @@ export type FlashcardCategory =
   | 'slash-chords'
   | 'ear-theory'
   | 'tritone-pairs'
-  | 'enharmonic-equivalents';
+  | 'enharmonic-equivalents'
+  | 'degree-notes';
 
 export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   'scale-degree-math': 'Scale Degree Math',
@@ -47,9 +49,14 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   'ear-theory': 'Ear-Theory Crossover',
   'tritone-pairs': 'Tritone Pairs',
   'enharmonic-equivalents': 'Enharmonic Equivalents',
+  // PLACEHOLDER NAME. The most literal description of what the family
+  // relates, standing in until Silas rules — see `degreeNoteCards`.
+  'degree-notes': DEGREE_NOTE_CATEGORY_NAME,
 };
 
 export const CATEGORY_ORDER: FlashcardCategory[] = [
+  // 'degree-notes' is absent ON PURPOSE — the family is built and not
+  // yet seeded. See the note beside FLASHCARDS below.
   'scale-degree-math', 'named-notes', 'tritone-pairs', 'enharmonic-equivalents',
   'diatonic-qualities', 'functional-harmony',
   'key-signatures', 'reverse-key-pivots', 'modes', 'pentatonic-scales', 'intervals',
@@ -1868,6 +1875,19 @@ export const FLASHCARDS: Flashcard[] = [
   // their ids. Content-suffixed ids (`sdm-2-down-m6`) cannot collide
   // with the positional ones above (`sdm-2-down-6th`).
   ...scaleDegreeQualityCards(),
+  // =====================================================================
+  // `...degreeNoteCards()` GOES HERE, AND IS DELIBERATELY NOT HERE YET.
+  //
+  // The family is built, generated and tested — 468 cards, which is 42%
+  // of the deck and 2.8x the largest category in it. That is a scope
+  // decision, and putting it in the deck before Silas has seen the
+  // number would be making it for him.
+  //
+  // TO TURN IT ON: add the spread here, add 'degree-notes' to
+  // CATEGORY_ORDER above, and add the nav sub-item. Nothing else — the
+  // category, its label, the answer surface, the reveal panel and the
+  // grid spec are all already wired.
+  // =====================================================================
 ];
 
 export function cardsByCategory(category: FlashcardCategory): Flashcard[] {

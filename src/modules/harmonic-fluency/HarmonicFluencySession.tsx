@@ -25,6 +25,9 @@ import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import LydianChordRows from './LydianChordRows';
 import DegreeGroundedRows from './DegreeGroundedRows';
 import DegreePlayback from './DegreePlayback';
+import DegreeNoteReveal from './DegreeNoteReveal';
+import DegreeKeyboardAnswer from './DegreeKeyboardAnswer';
+import { isPressedCard, parsePressedId } from './degreeNoteCards';
 import DegreeKeyboard, { degreeKeyboardSpec } from './DegreeKeyboard';
 import { qualityOfCardId } from './scaleDegreeQualityCards';
 import FlashcardSession, {
@@ -184,6 +187,22 @@ export default function HarmonicFluencySession({
       renderExplanation={text => <ModeLinkify text={text} />}
       renderFooter={(card, { answered }) => (
         <CardReference card={card} answered={answered} />
+      )}
+      /* THE KEYBOARD IN PLACE OF THE FOUR BUTTONS, on the pressed cards
+         and nowhere else. Returning null everywhere else is what lets
+         one family answer two ways without a second session component
+         — see `renderAnswerSurface`. */
+      renderAnswerSurface={({ card, answered, chosen, answer }) => (
+        isPressedCard(card.id)
+          ? (
+            <DegreeKeyboardAnswer
+              card={card}
+              answered={answered}
+              chosen={chosen}
+              answer={answer}
+            />
+          )
+          : null
       )}
       focusProtected={focusProtected}
     />
@@ -345,6 +364,18 @@ function CardReference({ card, answered }: { card: Flashcard; answered: boolean 
         />
       </>
     );
+  }
+  /**
+   * THE WRITTEN DEGREE-AND-NOTE CARDS, once they have been answered:
+   * where the note sits and what it sounds like.
+   *
+   * NOT ON THE PRESSED ONE. There the keyboard was the question, it is
+   * already on screen with the answer marked on it, and a second board
+   * underneath would be the same picture twice.
+   */
+  const pair = isPressedCard(card.id) ? null : parsePressedId(card.id);
+  if (pair !== null) {
+    return <DegreeNoteReveal root={pair.root} degreeId={pair.degreeId} />;
   }
   return null;
 }

@@ -128,6 +128,36 @@ interface Props<TCard extends BaseFlashcard> {
    *  The shell does not care about the return value. */
   onCardAnswered: (args: CardAnsweredArgs<TCard>) => Promise<void> | void;
 
+  /**
+   * A different way to answer this card, in place of the four buttons.
+   *
+   * =================================================================
+   * THE SHELL STILL JUDGES, AND STILL BY STRING.
+   *
+   * A surface is handed `answer`, and whatever it passes back is
+   * compared against `correctAnswer` exactly as a tapped option is —
+   * so the timer, the streak, the outcome list and the attempt row are
+   * the same code on every card, whatever the reader touched.
+   *
+   * WHICH MEANS THE SURFACE HAS TO SPEAK IN ANSWERS, not in gestures.
+   * A keyboard emits a key position; turning that position into "Ab"
+   * is the CARD'S rule, not this component's and not the keyboard's —
+   * a tritone is the same interval up or down, an ascending seventh is
+   * not, and a shell that learned either would have learned music.
+   *
+   * ABSENT, OR RETURNING NULL, LEAVES THE BUTTONS. A family that wants
+   * a keyboard on some of its cards and buttons on the rest says so by
+   * returning null for the rest, rather than the deck needing a second
+   * session component.
+   * =================================================================
+   */
+  renderAnswerSurface?: (args: {
+    card: TCard;
+    answered: boolean;
+    chosen: string | null;
+    answer: (choice: string) => void;
+  }) => React.ReactNode | null;
+
   /** The DRILL-AGAIN POOL (set of card ids) — cards the user wants to
    *  come round again this session. Nothing to do with the review pile
    *  below; the ★ and the 🚩 are two different piles and the copy on
@@ -184,6 +214,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   timerMode,
   onExit,
   onCardAnswered,
+  renderAnswerSurface,
   flaggedIds,
   onToggleFlag,
   reviewFlaggedIds,
@@ -474,6 +505,20 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   }
 
   const isFaded = fadedCategories.has(card.category);
+
+  /**
+   * The card's own answer surface, if it has one.
+   *
+   * `answer` is `handleAnswer`, so a surface's outcome runs through the
+   * one judging line every other card runs through — the shell has no
+   * second idea of what correct means.
+   */
+  const answerSurface = renderAnswerSurface?.({
+    card,
+    answered: hasAnswered,
+    chosen,
+    answer: (choice: string) => { void handleAnswer(choice); },
+  }) ?? null;
   const showVisual = !!renderVisualAid && !isFaded && drawsVisualAid(visualMode);
 
   /**
@@ -683,7 +728,17 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
 
       {visualAidNode}
 
-      {/* Choices */}
+      {/* =============================================================
+          THE ANSWER SURFACE, WHICH IS FOUR BUTTONS UNLESS A FAMILY
+          SAYS OTHERWISE.
+
+          Computed before the grid rather than inside it, so a card
+          with its own surface draws NO buttons at all — rendering both
+          and hiding one would leave four spellings on screen for a
+          card whose whole point is that you have to find the note
+          without being shown it.
+          ============================================================= */}
+      {answerSurface ?? (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {choices.map((opt, i) => {
           const isCorrect = opt === card.correctAnswer;
@@ -717,6 +772,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
           );
         })}
       </div>
+      )}
 
       {/* Feedback */}
       {hasAnswered && (
