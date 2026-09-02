@@ -2,6 +2,7 @@ import { degreeAscii, expansionCards, practicalName } from './catalogExpansions'
 import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME } from './degreeNoteCards';
+import { withFacets } from './facets';
 import { INTERVAL_NAMES } from './intervalInversion';
 import { intervalInversionCards } from './intervalInversionCards';
 import {
@@ -83,6 +84,19 @@ export interface Flashcard {
   explanation?: string;
   skillTag: string;
   visualHint?: VisualHint;
+  /**
+   * What this card is ABOUT, in words that mean the same on every card
+   * in the deck — see `facets.ts`.
+   *
+   * NOT `axis`, which is directly below and is a coordinate in this
+   * category's own grid. A facet is comparable across categories; an
+   * axis is not, and its field names are load-bearing for the grid.
+   *
+   * COMPUTED WHEN THE CATALOG IS BUILT, never stored and never written
+   * to a row. Attached in one place by `withFacets` rather than by
+   * sixteen generators each remembering.
+   */
+  facets?: import('./facets').CardFacets;
   /**
    * Where this card sits on its category's axes.
    *
@@ -1838,7 +1852,14 @@ function generatePentatonicKeyCards(): Flashcard[] {
   return cards;
 }
 
-export const FLASHCARDS: Flashcard[] = [
+/**
+ * The deck.
+ *
+ * WRAPPED IN `withFacets`, which attaches what each card is about
+ * without touching the cards themselves — no id moves, nothing renders
+ * differently, and nothing is written to a row. See `facets.ts`.
+ */
+export const FLASHCARDS: Flashcard[] = withFacets([
   // `generateScaleDegreeMathCards` was here. It produced 84 cards whose
   // answers were always plain degree numbers, so the category could be
   // scored by counting letters and ignoring the interval's quality.
@@ -1888,7 +1909,7 @@ export const FLASHCARDS: Flashcard[] = [
   // category, its label, the answer surface, the reveal panel and the
   // grid spec are all already wired.
   // =====================================================================
-];
+]);
 
 export function cardsByCategory(category: FlashcardCategory): Flashcard[] {
   return FLASHCARDS.filter(c => c.category === category);
