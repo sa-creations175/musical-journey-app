@@ -17,8 +17,8 @@
  * rules about focus protection and session defaults, and the second set
  * is always the one that falls behind.
  */
-import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { db } from '../../lib/db';
@@ -38,6 +38,10 @@ import { moduleMetaById } from '../../lib/moduleMeta';
 import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import { HARMONIC_FLUENCY_GRIDS } from './progressGrids';
 import { useLitPool } from '../../lib/useLitPool';
+import FacetFilterRow from './FacetFilterRow';
+import { readFacetFilter, withFacetValues } from './facetFilter';
+import type { FacetName } from './facets';
+import { FLASHCARDS } from './catalog';
 import { useDetailLanding } from '../../lib/detailLanding';
 import { isCategory } from './categoryRoutes';
 import type { SessionStats } from './HarmonicFluencySession';
@@ -76,6 +80,28 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
    * this reads. See `useLitPool`.
    */
   const { lit, toggle, lightAll } = useLitPool(category, isCategory);
+  /**
+   * WHAT ELSE THE DRILL IS NARROWED BY — in the URL beside the pool,
+   * for the same reasons `useLitPool` gives: the nav and the controls
+   * write one value, the page derives everything from it, and there is
+   * nothing left that can disagree. See `facetFilter`.
+   */
+  const [params, setParams] = useSearchParams();
+  const facetFilter = useMemo(() => readFacetFilter(params), [params]);
+  const setFacet = useCallback((name: FacetName, values: readonly string[]) => {
+    // `replace`, so working a filter row does not fill the back button
+    // with every intermediate state — the same call the dashboard's
+    // controls make.
+    setParams(prev => withFacetValues(prev, name, values), { replace: true });
+  }, [setParams]);
+
+  /** The cards the chips have put in play, which is what the filter row
+   *  offers values from. */
+  const poolCards = useMemo(
+    () => FLASHCARDS.filter(c => lit.has(c.category)),
+    [lit],
+  );
+
   const [running, setRunning] = useState(false);
   /**
    * Which detail blocks are open. The page's own starts open and
@@ -198,6 +224,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
       {running ? (
         <FluencyDrill
           categories={pool}
+          facets={facetFilter}
           flaggedOnly={flaggedOnly}
           onCaughtUp={() => { setRunning(false); setCaughtUp(true); }}
           onExit={stats => { setRunning(false); setLastSummary(stats); }}
@@ -214,6 +241,15 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
             onSelectAll={lightAll}
             locked={category}
             moduleId={MODULE_ID}
+          />
+
+          {/* UNDER THE CHIPS, because it reads what they say. The chips
+              choose the categories; this chooses which of their cards.
+              See `FacetFilterRow`. */}
+          <FacetFilterRow
+            cards={poolCards}
+            filter={facetFilter}
+            onChange={setFacet}
           />
 
           <button

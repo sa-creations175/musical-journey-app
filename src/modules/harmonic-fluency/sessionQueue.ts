@@ -1,4 +1,5 @@
 import { FLASHCARDS, type Flashcard, type FlashcardCategory } from './catalog';
+import { filterByFacets, type FacetFilter } from './facetFilter';
 import {
   dueSortKey,
   getCardSpacingMany,
@@ -32,6 +33,16 @@ export interface SessionBuildOptions {
   /** When true, pull only the user's flagged cards (ignoring due
       dates entirely). Flag acts as an on-demand drill override. */
   flaggedOnly?: boolean;
+  /**
+   * Narrow the pool below the category — "just the tritones", "just in
+   * E♭". Absent or empty means the whole of whatever the categories
+   * selected.
+   *
+   * APPLIED WITH the category filter, never instead of it: the chip row
+   * says which categories are in play and this says which of their
+   * cards are. See `facetFilter`.
+   */
+  facets?: FacetFilter;
   now?: number;
 }
 
@@ -104,7 +115,16 @@ export async function buildSession(opts: SessionBuildOptions): Promise<BuiltSess
   const inCategory = (c: Flashcard) =>
     categorySet.size === 0 || categorySet.has(c.category);
 
-  const eligible = FLASHCARDS.filter(inCategory);
+  /**
+   * THE POOL, NARROWED TWICE.
+   *
+   * By category, which is what the chip row chooses, and then by facet,
+   * which is what the filter row chooses. A card with no facets fails
+   * any active filter — it never made the claim being asked about —
+   * and every card passes when nothing is filtered, which is what makes
+   * the second call safe to make unconditionally.
+   */
+  const eligible = filterByFacets(FLASHCARDS.filter(inCategory), opts.facets ?? {});
   const rows = await getCardSpacingMany(eligible.map(c => c.id));
 
   // Flagged-only short-circuit: user is explicitly drilling flagged

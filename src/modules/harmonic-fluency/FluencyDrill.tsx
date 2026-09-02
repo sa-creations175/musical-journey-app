@@ -35,6 +35,7 @@ import { db } from '../../lib/db';
 import DailyGoalBar from '../../components/DailyGoalBar';
 import HarmonicFluencySession, { type SessionStats } from './HarmonicFluencySession';
 import { buildSession, practiceAheadNotice } from './sessionQueue';
+import type { FacetFilter } from './facetFilter';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import { CATEGORY_ORDER, type FlashcardCategory } from './catalog';
 
@@ -50,6 +51,7 @@ const FOCUS_PROTECT_BELOW = 4;
 
 export default function FluencyDrill({
   categories,
+  facets,
   flaggedOnly = false,
   autoStarted = false,
   onExit,
@@ -58,6 +60,9 @@ export default function FluencyDrill({
   /** The pool. EMPTY MEANS THE WHOLE DECK — the same reading
    *  `buildSession` gives it, so no caller has to translate. */
   categories: FlashcardCategory[];
+  /** Narrower than the categories — "just the tritones", "just in E♭".
+   *  Absent means the whole of whatever the categories selected. */
+  facets?: FacetFilter;
   flaggedOnly?: boolean;
   /** A Level-3 practice session started this. Forces session defaults
    *  (timer off, no focus protection) for this run only, leaving the
@@ -104,6 +109,7 @@ export default function FluencyDrill({
     void (async () => {
       const session = await buildSession({
         categories,
+        ...(facets !== undefined ? { facets } : {}),
         target: SESSION_TARGET,
         flaggedOnly,
       });
