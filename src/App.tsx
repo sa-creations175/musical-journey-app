@@ -14,6 +14,10 @@ import {
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
 import {
+  describeRetune,
+  retuneRetiredCardGoalTarget,
+} from './modules/harmonic-fluency/retiredCardGoalTarget';
+import {
   describeDedupe, removeDuplicateSpacingRows,
 } from './lib/spacing/dedupeSpacingRows';
 import {
@@ -175,6 +179,32 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] retired-card cleanup failed', err);
+      });
+    // The tail of that same retirement. A coverage goal stores its
+    // target as a NUMBER, written when the goal was created; the scope
+    // is enumerated live and dropped to 648 on its own. A goal written
+    // before the retirement therefore tops out at 648 / 649 and can
+    // never read complete.
+    //
+    // NOT ORDERED AGAINST THE CLEANUP ABOVE, and it does not need to
+    // be: it reads the goals table and the catalog, neither of which
+    // the cleanup touches.
+    //
+    // This does NOT make target rewrites automatic — `scopeShrink`
+    // still reports rather than migrates, on purpose. This is Silas
+    // exercising the decision that rule hands him, once, pinned to two
+    // numbers. Same shape as the two above: it checks what it was
+    // authorised against and refuses if the shape moved. And where
+    // there is no such goal — the likely answer — it says nothing,
+    // because a line about a goal that does not exist reads like a
+    // finding.
+    void retuneRetiredCardGoalTarget()
+      .then(r => {
+        const line = describeRetune(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] coverage-goal target retune failed', err);
       });
     // ONE-TIME, AND DELIBERATELY NOT ARMED YET.
     //
