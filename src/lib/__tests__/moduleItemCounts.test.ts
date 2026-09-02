@@ -70,7 +70,10 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 337 + 100 + 105 + 107 = 649
+// Harmonic Fluency — 336 + 100 + 105 + 107 = 648
+// (2 Sep 2026: 649 → 648. `ksc-3` was `ks-16` a second time — same
+//  question, same answer — and one of the two had to go. Key
+//  signatures 57 → 56, foundational 337 → 336.)
 // (Foundational now includes pentatonic-scales; key-signatures grew
 //  by 18 ksc-* scale-construction cards. Pentatonics went 7 → 41 on
 //  24 Aug 2026: the two keyed shapes became twelve keys each and a
@@ -85,8 +88,8 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 168 + nn 24 + ks 57 + pent 41 + tt 12 + enh 35 = 337', () => {
-    expect(c.byGroup.foundational).toBe(337);
+  it('foundational = sdm 168 + nn 24 + ks 56 + pent 41 + tt 12 + enh 35 = 336', () => {
+    expect(c.byGroup.foundational).toBe(336);
   });
 
   it('chordKnowledge = dq 20 + cc 20 + sc 60 = 100', () => {
@@ -101,8 +104,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(107);
   });
 
-  it('total = 649 across all 15 categories', () => {
-    expect(c.total).toBe(649);
+  it('total = 648 across all 15 categories', () => {
+    expect(c.total).toBe(648);
   });
 
   it('total equals sum of group totals', () => {

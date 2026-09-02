@@ -67,8 +67,9 @@ describe('catalog sizes — the denominators', () => {
     expect(reachable).toBe(51);
   });
 
-  it('harmonic fluency: 649 cards', () => {
-    expect(catalogItemCount(harmonicFluencyCatalog)).toBe(649);
+  it('harmonic fluency: 648 cards', () => {
+    // 649 until 2 Sep 2026, when the duplicate `ksc-3` was retired.
+    expect(catalogItemCount(harmonicFluencyCatalog)).toBe(648);
   });
 
   it('production vocabulary: 199 cards', () => {

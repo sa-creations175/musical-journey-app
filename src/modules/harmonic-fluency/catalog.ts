@@ -861,12 +861,18 @@ const KEY_SIG_CARDS: Flashcard[] = [
     decoys: ['b3 and b7 only', 'b2, b3, and b6', 'b3, 4, and b7'],
     explanation: "Three flattened notes — b3, b6, b7 — flip a major scale into its parallel natural minor. The b3 is the headline (minor third), the b7 kills the leading tone, the b6 darkens the upper tetrachord. All three together is what makes natural minor feel settled instead of yearning.",
     skillTag: 'natural-minor-vs-major' },
-  { id: 'ksc-3', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of A minor is _____',
-    correctAnswer: 'C major',
-    decoys: ['F major', 'G major', 'D major'],
-    explanation: "A minor → C major: walk up a minor 3rd (3 half steps) from A. Same seven notes, same key signature, different home base. This is the easiest relative pair to internalize because there are no flats or sharps anywhere.",
-    skillTag: 'relative-major-of-A-minor-sc' },
+  // `ksc-3` WAS HERE, AND IT WAS `ks-16` A SECOND TIME. Same question
+  // to the byte — "The relative major of A minor is _____" — same
+  // answer, a different set of decoys and a `-sc` suffix on the skill
+  // tag that made two cards look like two skills. Retired 2 Sep 2026.
+  //
+  // `ks-16` is the survivor because its one attempt is a day newer.
+  // That was the only thing separating them: one attempt each, both
+  // wrong, nothing starred, nothing flagged, no note on either.
+  //
+  // NOTHING RENUMBERED. These ids are written out one at a time rather
+  // than minted from an index, so `ksc-4` is still `ksc-4` and every
+  // card after it still addresses the question it always did.
   { id: 'ksc-4', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
     question: 'The relative major of E minor is _____',
     correctAnswer: 'G major',

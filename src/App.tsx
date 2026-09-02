@@ -10,6 +10,10 @@ import {
   migrateIdentityCardIds,
 } from './modules/harmonic-fluency/identityIdMigration';
 import {
+  cleanUpRetiredCard,
+  describeRetiredCardCleanup,
+} from './modules/harmonic-fluency/retiredCardCleanup';
+import {
   describeDedupe, removeDuplicateSpacingRows,
 } from './lib/spacing/dedupeSpacingRows';
 import {
@@ -159,6 +163,18 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] identity id migration failed', err);
+      });
+    // `ksc-3` was `ks-16` a second time and has been taken out of the
+    // catalog. Its one attempt and its spacing row live in a database
+    // the catalog cannot reach, so they go from here. Same rule as the
+    // migration above: it checks the shape it was authorised against
+    // and refuses if it moved, rather than deleting whatever it finds.
+    void cleanUpRetiredCard()
+      .then(r => {
+        if (!r.skipped) console.info(describeRetiredCardCleanup(r));
+      })
+      .catch(err => {
+        console.warn('[hf] retired-card cleanup failed', err);
       });
     // ONE-TIME, AND DELIBERATELY NOT ARMED YET.
     //

@@ -648,7 +648,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'ks-22|The order of flats in a key signature is _____',
   'ksc-1|What are the intervals of the natural minor scale?',
   'ksc-2|Natural minor differs from major by which altered notes?',
-  'ksc-3|The relative major of A minor is _____',
   'ksc-4|The relative major of E minor is _____',
   'ksc-5|The relative major of B minor is _____',
   'ksc-6|The relative major of F# minor is _____',
