@@ -21,6 +21,7 @@ import FluencySessionSettings, { SESSION_SETTINGS_LABEL } from './FluencySession
 import { mixedDrillLabel } from '../../components/moduleHome/mixedDrillLabel';
 import { useFluencyPrefs } from './useFluencyPrefs';
 import { useEndOnModuleHome } from '../../lib/useEndOnModuleHome';
+import { useDrillFilter } from '../../lib/drillFilter';
 import { categoryPath, isCategory } from './categoryRoutes';
 import { detailHref } from '../../lib/detailLanding';
 import type { SessionStats } from './HarmonicFluencySession';
@@ -51,6 +52,9 @@ export default function HarmonicFluency() {
   // here from the nav while one is running would otherwise change
   // nothing at all — the URL was already this one. See the hook.
   useEndOnModuleHome(() => setRunning(null));
+  /** `?focus=` — a dashboard row tap, opening the drill already
+   *  narrowed to that row's cards. */
+  const focus = useDrillFilter(MODULE_ID);
 
   const totalAttempts = useLiveQuery(
     () => db.attempts.where('moduleId').equals(MODULE_ID).count(),
@@ -155,6 +159,11 @@ export default function HarmonicFluency() {
       {running !== null ? (
         <FluencyDrill
           categories={running.categories}
+          /* A DASHBOARD ROW TAP, arriving as `?focus=`. Read through
+             the hook the other five modules read it through, not a
+             sixth copy of the parse — see `useDrillFilter`. Empty means
+             the whole pool, so this is safe to pass unconditionally. */
+          cardIds={focus.keys}
           flaggedOnly={flaggedOnly}
           autoStarted={running.autoStarted}
           onCaughtUp={() => { setRunning(null); setCaughtUp(true); }}

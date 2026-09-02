@@ -52,6 +52,7 @@ const FOCUS_PROTECT_BELOW = 4;
 export default function FluencyDrill({
   categories,
   facets,
+  cardIds,
   flaggedOnly = false,
   autoStarted = false,
   onExit,
@@ -63,6 +64,9 @@ export default function FluencyDrill({
   /** Narrower than the categories — "just the tritones", "just in E♭".
    *  Absent means the whole of whatever the categories selected. */
   facets?: FacetFilter;
+  /** Cards named one by one — a dashboard row tap. Empty means no
+   *  restriction. See `SessionBuildOptions.cardIds`. */
+  cardIds?: readonly string[];
   flaggedOnly?: boolean;
   /** A Level-3 practice session started this. Forces session defaults
    *  (timer off, no focus protection) for this run only, leaving the
@@ -110,6 +114,7 @@ export default function FluencyDrill({
       const session = await buildSession({
         categories,
         ...(facets !== undefined ? { facets } : {}),
+        ...(cardIds !== undefined && cardIds.length > 0 ? { cardIds } : {}),
         target: SESSION_TARGET,
         flaggedOnly,
       });

@@ -259,8 +259,11 @@ describe('the drill affordance says what pressing it will do', () => {
     // Unfilterable because of the CATALOG the row's items come from,
     // which is the only thing that decides it — an intervals row under
     // any module id in the world still drills intervals.
+    // Production lessons rather than harmonic fluency, which grew a
+    // filter on 1 Sep 2026. A lesson is worked through rather than
+    // drilled from a pool, so there is nothing here to narrow.
     const el = render(
-      <TreeRow node={leaf({}, 'measured', 'harmonic-fluency')}
+      <TreeRow node={leaf({}, 'measured', 'production-lessons')}
         moduleId="ear-training" now={NOW} expanded={false} />,
     );
     const button = el.querySelector('[data-testid="drill-affordance"]')!;

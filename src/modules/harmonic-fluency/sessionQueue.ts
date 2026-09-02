@@ -43,6 +43,20 @@ export interface SessionBuildOptions {
    * cards are. See `facetFilter`.
    */
   facets?: FacetFilter;
+  /**
+   * An explicit list of cards to serve, named one by one.
+   *
+   * NOT THE SAME THING AS A FACET FILTER, and they are kept apart on
+   * purpose. A facet is a CLAIM — "the tritones" — and it holds however
+   * the deck grows. This is a POOL a caller already resolved, which is
+   * what a dashboard row tap hands over: those cards, that row, now.
+   * Collapsing them would mean either a claim that cannot be sent over
+   * a URL or a pool that silently grows when a generator does.
+   *
+   * Empty or absent means no restriction, which is the same reading
+   * `categories` gets.
+   */
+  cardIds?: readonly string[];
   now?: number;
 }
 
@@ -124,7 +138,12 @@ export async function buildSession(opts: SessionBuildOptions): Promise<BuiltSess
    * and every card passes when nothing is filtered, which is what makes
    * the second call safe to make unconditionally.
    */
-  const eligible = filterByFacets(FLASHCARDS.filter(inCategory), opts.facets ?? {});
+  const named = new Set(opts.cardIds ?? []);
+  const inPool = (c: Flashcard) => named.size === 0 || named.has(c.id);
+  const eligible = filterByFacets(
+    FLASHCARDS.filter(c => inCategory(c) && inPool(c)),
+    opts.facets ?? {},
+  );
   const rows = await getCardSpacingMany(eligible.map(c => c.id));
 
   // Flagged-only short-circuit: user is explicitly drilling flagged

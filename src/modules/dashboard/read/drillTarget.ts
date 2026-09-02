@@ -108,6 +108,11 @@ const ROUTES: Readonly<Record<string, string>> = {
  *   from one ref. `ReadingDrill` needs a prop that bypasses
  *   `pickCard(skill)`; audited as nearly free.
  *
+ * `harmonic-fluency` - the catalog is one row per CARD, so a row's refs
+ *   are card ids and no translation is needed. `buildSession` takes the
+ *   pool as `cardIds`, alongside — never instead of — the categories a
+ *   chip row chose.
+ *
  * `chord-recognition` - the catalog is one row per chord X inversion
  *   because that is what attempts store, but the quiz's pool filter
  *   matches on the bare CHORD (`focusSet.has(c.id)`); which inversions
@@ -150,6 +155,11 @@ const FOCUS_KEY_FORMAT: Readonly<
   // `M3:asc` in the catalog, `M3|asc` in the quiz's focus set.
   'intervals': ref => ref.replace(/:([^:]*)$/, '|$1'),
   'reading': ref => ref,
+  // A harmonic-fluency itemRef IS a card id — the catalog is built from
+  // `FLASHCARDS` one card at a time — so there is nothing to translate.
+  // The module home reads the pool through `useDrillFilter`, the same
+  // hook the other five read.
+  'harmonic-fluency': ref => ref,
   // `maj:1` in the catalog, `maj` in the quiz's focus set.
   'chord-recognition': ref => catalogRollupKey('chord-recognition', ref),
   // `motion:1-b2-asc` in both - `motionId()` builds the same string.

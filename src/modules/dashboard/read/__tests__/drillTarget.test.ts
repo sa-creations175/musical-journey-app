@@ -22,6 +22,7 @@ import {
   earTrainingCatalogs,
   harmonicFluencyCatalog,
   intervalsCatalog,
+  productionLessonsCatalog,
   readingCatalog,
   scalesModesCatalog,
 } from '../catalogs';
@@ -101,25 +102,33 @@ describe('reading — refs pass through as they are', () => {
 });
 
 describe('modules with no filter mechanism', () => {
-  // Harmonic fluency, since scales & modes grew one. The negative case
-  // needs a subject that genuinely cannot filter, or it stops testing
-  // anything the day its stand-in is wired.
-  const tree = treeFor(harmonicFluencyCatalog);
+  /**
+   * PRODUCTION LESSONS — third stand-in for this case, and the first
+   * one picked for a structural reason rather than an unfinished one.
+   *
+   * Scales & modes held it until it grew a filter; harmonic fluency
+   * held it until 1 Sep 2026, when it grew one too. Both were wired
+   * eventually because both are pools you can be told to narrow, so
+   * both were only ever "not yet". A lesson is not a pool: you work
+   * through it, and there is nothing a tapped row could narrow. That
+   * is what makes it a negative case rather than a queue position.
+   */
+  const tree = treeFor(productionLessonsCatalog);
 
   it('navigates, and says why, rather than pretending to filter', () => {
     // The failure this prevents: a row that opens the whole module
     // while implying it narrowed the drill.
     const card = flatten(tree).find(n => n.depth === 2)!;
-    const target = drillTargetFor(card, 'harmonic-fluency');
+    const target = drillTargetFor(card, 'production');
     expect(target.kind).toBe('navigate');
     if (target.kind !== 'navigate') throw new Error('unreachable');
     expect(target.reason).toBe('no-filter-mechanism');
-    expect(target.route).toBe('/harmonic-fluency');
+    expect(target.route).toBe('/production');
   });
 
   it('summarises as unfiltered so a row cannot overclaim', () => {
     const summary = drillTargetSummary(
-      drillTargetFor(flatten(tree).find(n => n.depth === 2)!, 'harmonic-fluency'),
+      drillTargetFor(flatten(tree).find(n => n.depth === 2)!, 'production'),
     );
     expect(summary.filtered).toBe(false);
     expect(summary.itemCount).toBe(0);
@@ -132,9 +141,30 @@ describe('modules with no filter mechanism', () => {
     // Membership is not a promise about every row — chord progressions
     // is here on the strength of 132 refs out of 420.
     expect(filterableModules().sort()).toEqual([
-      'chord-progressions', 'chord-recognition', 'intervals', 'reading',
-      'scales-modes',
+      'chord-progressions', 'chord-recognition', 'harmonic-fluency',
+      'intervals', 'reading', 'scales-modes',
     ]);
+  });
+});
+
+describe('harmonic fluency — the itemRef IS the key', () => {
+  // Every other module translates: `M3:asc` becomes `M3|asc`,
+  // `dorian-tab1` becomes `dorian`. This one does not, because its
+  // catalog is built from `FLASHCARDS` one card at a time. Asserted
+  // rather than assumed, since an identity translation and a missing
+  // translation look identical until one of them is wrong.
+  const tree = treeFor(harmonicFluencyCatalog);
+
+  it('hands the drill the card ids the row is made of', () => {
+    const category = flatten(tree).find(n => n.depth === 1)!;
+    const target = drillTargetFor(category, 'harmonic-fluency');
+    expect(target.kind).toBe('filtered');
+    if (target.kind !== 'filtered') throw new Error('unreachable');
+    expect(target.focusKeys.sort()).toEqual([...category.itemRefs].sort());
+  });
+
+  it('opens the module for the module row, as every module does', () => {
+    expect(drillTargetFor(tree, 'harmonic-fluency').kind).toBe('navigate');
   });
 });
 
@@ -319,10 +349,10 @@ describe('a pool under the minimum says so before it drills', () => {
     // An "open module" row drills everything, so it is never a small
     // pool — and warning on it would attach the rule to rows it has
     // nothing to do with.
-    const hf = treeFor(harmonicFluencyCatalog);
-    const card = flatten(hf).find(n => n.depth === 2)!;
-    expect(drillTargetFor(card, 'harmonic-fluency').kind).toBe('navigate');
-    expect(smallPoolPromptFor(card, [hf], 'harmonic-fluency')).toBeNull();
+    const lessons = treeFor(productionLessonsCatalog);
+    const card = flatten(lessons).find(n => n.depth === 2)!;
+    expect(drillTargetFor(card, 'production').kind).toBe('navigate');
+    expect(smallPoolPromptFor(card, [lessons], 'production')).toBeNull();
   });
 
   it('the count is the POOL, not the catalog rows behind it', () => {
