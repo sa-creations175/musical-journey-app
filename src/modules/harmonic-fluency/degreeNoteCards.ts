@@ -184,6 +184,39 @@ export function noteDisplay(root: string, degreeId: string): string {
 }
 
 /**
+ * A half of a joint answer, with its gloss dropped where the OTHER half
+ * already says what the gloss says.
+ *
+ * =====================================================================
+ * THE BRACKET IS THERE TO NAME THE KEY YOU PRESS. When the sibling is
+ * sitting beside it naming that same key, the bracket repeats what the
+ * pair already supplies — "E♯ (F) / F" says F twice and reads as a
+ * stutter. So it goes, and the answer reads E♯ / F.
+ *
+ * THE CONDITION IS DERIVED, NOT A LIST OF KEYS. "My gloss is my
+ * sibling's whole name" is checkable and survives any change to how a
+ * note is spelled; a list of the keys it happens to be true for today
+ * rots the first time one of them is spelled differently.
+ *
+ * AND THE SIBLING HAS TO BE A PLAIN SPELLING. A sibling carrying a
+ * bracket of its own is not the name a player would say either, so
+ * there is nothing redundant about mine and neither half drops.
+ *
+ * NOTHING OUTSIDE A JOINT ANSWER. A degree with one name keeps its
+ * gloss — "The ♭6 of A♭ is F♭ (E)" has no sibling to supply the E, and
+ * dropping it there would leave a reader looking for a key that is not
+ * on the board.
+ * =====================================================================
+ */
+export function withoutSiblingGloss(mine: string, sibling: string): string {
+  if (sibling.includes('(')) return mine;
+  const redundant = ` (${sibling})`;
+  return mine.endsWith(redundant)
+    ? mine.slice(0, -redundant.length)
+    : mine;
+}
+
+/**
  * The note a degree answers with — BOTH notes, in the label's own
  * order, where the degree has two names.
  *
@@ -198,7 +231,14 @@ export function noteDisplay(root: string, degreeId: string): string {
 export function noteAnswerDisplay(root: string, degreeId: string): string {
   const joint = jointDegreeIds(degreeId);
   if (joint === null) return noteDisplay(root, degreeId);
-  return joint.map(id => noteDisplay(root, id)).join(JOINT);
+  const halves = joint.map(id => noteDisplay(root, id));
+  // Against every OTHER half rather than against "the other one", so a
+  // joint label of three would behave the same way a pair does.
+  return halves
+    .map((half, i) => halves
+      .filter((_, j) => j !== i)
+      .reduce((mine, sibling) => withoutSiblingGloss(mine, sibling), half))
+    .join(JOINT);
 }
 
 /** The same rule as `noteDisplay`, from a note name rather than from a

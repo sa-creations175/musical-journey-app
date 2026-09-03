@@ -33,10 +33,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   degreeAnswerLabel, degreeLabel, degreeNoteOptionLabel, isTritoneDegree,
-  jointDegreeIds, nameItCards, noteDisplay, placeItCards, pressItCards,
-  pressedPitchClass, TRITONE_DEGREE_IDS,
+  jointDegreeIds, nameItCards, noteAnswerDisplay, noteDisplay, placeItCards,
+  pressItCards, pressedPitchClass, TRITONE_DEGREE_IDS, withoutSiblingGloss,
 } from '../degreeNoteCards';
 import { CHROMATIC_DEGREES } from '../chromaticDegrees';
+import { FLAT_TWELVE } from '../catalogExpansions';
 
 const BOTH = '♯4 / ♭5';
 
@@ -119,7 +120,12 @@ describe('a joint answer is in the same order as the joint label', () => {
         .find(c => c.id === `dgn-${root.replace('#', 's')}-s4`)!;
       const ids = jointDegreeIds('#4')!;
       const names = ids.map(degreeLabel).join(' / ');
-      const notes = ids.map(id => noteDisplay(root, id)).join(' / ');
+      // Derived from the same list, in the same order, with the
+      // sibling-gloss rule applied the way the card applies it.
+      const raw = ids.map(id => noteDisplay(root, id));
+      const notes = raw
+        .map((half, i) => withoutSiblingGloss(half, raw[1 - i]))
+        .join(' / ');
       expect(card.explanation, root)
         .toBe(`The ${names} (tritone) of ${root} is ${notes}.`);
     }
@@ -138,6 +144,74 @@ describe('a joint answer is in the same order as the joint label', () => {
         (card as { axis: Record<string, string | number> }).axis.degree,
       )));
     }
+  });
+
+  it('drops a gloss the sibling already supplies, on every key it is true of', () => {
+    // "E♯ (F) / F" says F twice. The bracket is there to name the key
+    // you press, and when the sibling is sitting beside it naming that
+    // key, the bracket is repeating what the pair already supplies.
+    //
+    // SEVEN KEYS, NOT SIX. The report that raised this listed six and
+    // missed B♭ — which is exactly why the condition is derived from
+    // the two halves rather than written down as a list of keys. A list
+    // would have left B♭ stuttering and nothing would have said so.
+    const drops: ReadonlyArray<readonly [string, string]> = [
+      ['Db', 'G / A𝄫'],
+      ['Eb', 'A / B𝄫'],
+      ['F', 'B / C♭'],
+      ['Gb', 'C / D𝄫'],
+      ['Ab', 'D / E𝄫'],
+      ['Bb', 'E / F♭'],
+      ['B', 'E♯ / F'],
+    ];
+    for (const [root, expected] of drops) {
+      expect(noteAnswerDisplay(root, '#4'), root).toBe(expected);
+      expect(noteAnswerDisplay(root, 'b5'), root).toBe(expected);
+    }
+  });
+
+  it('leaves the other five keys exactly as they were', () => {
+    // Neither half is a spelling anyone would query, so there is no
+    // gloss on either and nothing to drop. Asserted so the narrowing is
+    // a narrowing rather than a blanket removal.
+    const keeps: ReadonlyArray<readonly [string, string]> = [
+      ['C', 'F♯ / G♭'],
+      ['D', 'G♯ / A♭'],
+      ['E', 'A♯ / B♭'],
+      ['G', 'C♯ / D♭'],
+      ['A', 'D♯ / E♭'],
+    ];
+    for (const [root, expected] of keeps) {
+      expect(noteAnswerDisplay(root, '#4'), root).toBe(expected);
+    }
+  });
+
+  it('covers all twelve keys between the two lists', () => {
+    // Guards the two tables above: a key in neither is a key nobody
+    // checked, which is how B♭ was missed in the first place.
+    expect([...FLAT_TWELVE].sort())
+      .toEqual(['Ab', 'A', 'Bb', 'B', 'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G'].sort());
+  });
+
+  it('a lone degree keeps its gloss, because it has no sibling', () => {
+    // Eleven of the thirteen degrees, and the narrowing must not reach
+    // any of them. Dropping the (E) here would leave a reader looking
+    // for an F♭ key that is not on the board.
+    expect(noteAnswerDisplay('Ab', 'b6')).toBe('F♭ (E)');
+    expect(noteAnswerDisplay('Eb', 'b6')).toBe('C♭ (B)');
+    expect(noteAnswerDisplay('Db', 'b2')).toBe('E𝄫 (D)');
+    expect(nameItCards().find(c => c.id === 'dgn-Ab-b6')!.explanation)
+      .toBe('The ♭6 of Ab is F♭ (E).');
+  });
+
+  it('never drops when the sibling carries a bracket of its own', () => {
+    // The reversal. A sibling that is not itself the name a player
+    // would say supplies nothing, so neither half may drop. No key in
+    // the deck is like this, so it is checked on the rule directly.
+    expect(withoutSiblingGloss('E♯ (F)', 'G𝄫 (F)')).toBe('E♯ (F)');
+    // And a gloss that is not the sibling's whole name stays too.
+    expect(withoutSiblingGloss('E♯ (F)', 'F♯')).toBe('E♯ (F)');
+    expect(withoutSiblingGloss('E♯ (F)', 'F')).toBe('E♯');
   });
 
   it('never puts a joint note in a question', () => {

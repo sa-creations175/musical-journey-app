@@ -128,17 +128,23 @@ describe('the three card types', () => {
   });
 
   it('writes the playable name beside a spelling nobody can play', () => {
-    // A𝄫 is correct and unplayable as written; the bracket is the
+    // E𝄫 is correct and unplayable as written; the bracket is the
     // instruction, not a footnote.
     //
-    // WITHOUT THE BOLD MARKER. `noteWithPlayable` writes `(**G**)` for
+    // A LONE DEGREE, ON PURPOSE. This used to read `dgn-Db-b5`, which
+    // is one half of the ♯4 / ♭5 pair — and a joint answer now drops a
+    // gloss its sibling already supplies. The claim here is about a
+    // degree that has nobody beside it, which is where the bracket is
+    // the only thing naming the key.
+    //
+    // WITHOUT THE BOLD MARKER. `noteWithPlayable` writes `(**D**)` for
     // a component that turns the asterisks into weight; a card's
     // explanation is a plain string rendered through no such component,
     // so four asterisks would reach the screen. The parenthetical is
     // the instruction and it survives — see `noteDisplay`.
-    const card = nameItCards().find(c => c.id === 'dgn-Db-b5')!;
+    const card = nameItCards().find(c => c.id === 'dgn-Db-b2')!;
     expect(card.explanation).toContain('𝄫');
-    expect(card.explanation).toContain('(G)');
+    expect(card.explanation).toContain('(D)');
     expect(card.explanation).not.toContain('*');
   });
 });
