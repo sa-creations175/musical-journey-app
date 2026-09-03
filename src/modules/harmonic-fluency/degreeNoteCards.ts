@@ -83,12 +83,48 @@ export function degreeLabel(id: string): string {
  * one — "what is the ♯4 / ♭5 of C" would have two right answers,
  * because the ♯4 of C is F♯ and the ♭5 of C is G♭.
  *
+ * =====================================================================
+ * AND SO THE ANSWER NAMES BOTH TOO, IN THE SAME ORDER.
+ *
+ * "The ♯4 / ♭5 of C is G♭" was right about the key and loose about the
+ * spelling: it says G♭ is the ♯4, which it is not. Silas's fix is to
+ * line the two lists up —
+ *
+ *     The ♯4 / ♭5 (tritone) of C is F♯ / G♭.
+ *
+ * ♯4 → F♯, ♭5 → G♭, read left to right. Exactly right, and it still
+ * says the thing the joint label exists to say: both names, one key.
+ *
+ * THE ORDER OF THE ANSWER FOLLOWS THE ORDER OF THE NAMES, ALWAYS —
+ * never sorted, never normalised, never "the flat one first". That is
+ * held by construction rather than by care: both lists are `map`ped off
+ * `TRITONE_DEGREE_IDS` below, so reordering that constant reorders the
+ * names and the notes together and there is no second place to forget.
+ *
+ * =====================================================================
  * THE PAIR IS NEVER TWO OPTIONS. `degreeDecoyPool` refuses the twin,
  * because two buttons reading `♯4 / ♭5` is being marked wrong for
  * picking the label that reads the same.
  * =====================================================================
  */
 export const TRITONE_DEGREE_IDS: readonly string[] = ['#4', 'b5'];
+
+/** What a joint label puts between its two halves. One constant, so
+ *  the names and the notes cannot come to be joined differently. */
+const JOINT = ' / ';
+
+/**
+ * The degrees a joint label covers, IN THE ORDER IT NAMES THEM — or
+ * null where the degree has only one name.
+ *
+ * The single source of that order. `degreeAnswerLabel` reads it for the
+ * names and `noteAnswerDisplay` reads it for the notes, which is what
+ * makes "the same order every time" a fact about the code rather than
+ * a thing to remember.
+ */
+export function jointDegreeIds(id: string): readonly string[] | null {
+  return isTritoneDegree(id) ? TRITONE_DEGREE_IDS : null;
+}
 
 /** Whether a degree is one of the pair above. */
 export function isTritoneDegree(id: string): boolean {
@@ -120,9 +156,10 @@ export const DISTANCE_NAMES: Readonly<Record<number, string>> = { 6: 'tritone' }
  * block above for why those cannot be the same function.
  */
 export function degreeAnswerLabel(id: string): string {
-  const both = isTritoneDegree(id)
-    ? TRITONE_DEGREE_IDS.map(degreeLabel).join(' / ')
-    : degreeLabel(id);
+  const joint = jointDegreeIds(id);
+  const both = joint === null
+    ? degreeLabel(id)
+    : joint.map(degreeLabel).join(JOINT);
   const distance = DEGREE_BY_ID.get(id)?.semitones;
   const named = distance === undefined ? undefined : DISTANCE_NAMES[distance];
   return named === undefined ? both : `${both} (${named})`;
@@ -144,6 +181,24 @@ export function degreeAnswerLabel(id: string): string {
 export function noteDisplay(root: string, degreeId: string): string {
   const p = degreePitch(root, degreeId);
   return p === null ? '' : plainPlayable(noteWithPlayable(p));
+}
+
+/**
+ * The note a degree answers with — BOTH notes, in the label's own
+ * order, where the degree has two names.
+ *
+ * "The ♯4 / ♭5 (tritone) of C is F♯ / G♭." The order is not chosen
+ * here: it is `jointDegreeIds`, the same list `degreeAnswerLabel` reads
+ * for the names, so the two can only ever line up.
+ *
+ * A QUESTION STILL USES `noteDisplay`. "In the key of C, F♯ is which
+ * degree?" is about one spelling — naming both there would be handing
+ * over half the answer.
+ */
+export function noteAnswerDisplay(root: string, degreeId: string): string {
+  const joint = jointDegreeIds(degreeId);
+  if (joint === null) return noteDisplay(root, degreeId);
+  return joint.map(id => noteDisplay(root, id)).join(JOINT);
 }
 
 /** The same rule as `noteDisplay`, from a note name rather than from a
@@ -334,7 +389,7 @@ export function nameItCards(): Flashcard[] {
         count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
       }),
       explanation:
-        `The ${degreeAnswerLabel(degreeId)} of ${root} is ${noteDisplay(root, degreeId)}.`,
+        `The ${degreeAnswerLabel(degreeId)} of ${root} is ${noteAnswerDisplay(root, degreeId)}.`,
       skillTag: `degree-note-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });
@@ -371,7 +426,7 @@ export function placeItCards(): Flashcard[] {
           : () => true,
       }),
       explanation:
-        `${noteDisplay(root, degreeId)} is the ${degreeAnswerLabel(degreeId)} of ${root}.`,
+        `${noteAnswerDisplay(root, degreeId)} is the ${degreeAnswerLabel(degreeId)} of ${root}.`,
       skillTag: `note-degree-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });
@@ -399,7 +454,7 @@ export function pressItCards(): Flashcard[] {
         count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
       }),
       explanation:
-        `The ${degreeAnswerLabel(degreeId)} of ${root} is ${noteDisplay(root, degreeId)}.`,
+        `The ${degreeAnswerLabel(degreeId)} of ${root} is ${noteAnswerDisplay(root, degreeId)}.`,
       skillTag: `degree-press-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });

@@ -16,9 +16,12 @@
  *     letter-correct name — F♭ (E), E♯ (F), A𝄫 (G). Wherever the two
  *     differ, not only on the doubles. The failure is a reader marking
  *     an answer wrong because they were looking for E.
- *   · A DEGREE ANSWER NAMES BOTH — ♯4 / ♭5 — and the pair is never two
- *     options, because two buttons reading the same thing is being
- *     marked wrong for picking the one that reads the same.
+ *   · A DEGREE ANSWER NAMES BOTH — ♯4 / ♭5 — AND SO DOES ITS NOTE,
+ *     in the same order: F♯ / G♭. Naming both degrees beside one note
+ *     said G♭ was the ♯4, which it is not. Lining the two lists up is
+ *     exactly right and still says both names are one key. The pair is
+ *     never two OPTIONS, because two buttons reading the same thing is
+ *     being marked wrong for picking the one that reads the same.
  *   · THE DISTANCE IS NAMED WHERE IT HAS A NAME. Only the tritone does,
  *     and nothing else in the table is given one.
  *
@@ -30,8 +33,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   degreeAnswerLabel, degreeLabel, degreeNoteOptionLabel, isTritoneDegree,
-  nameItCards, placeItCards, pressItCards, pressedPitchClass,
-  TRITONE_DEGREE_IDS,
+  jointDegreeIds, nameItCards, noteDisplay, placeItCards, pressItCards,
+  pressedPitchClass, TRITONE_DEGREE_IDS,
 } from '../degreeNoteCards';
 import { CHROMATIC_DEGREES } from '../chromaticDegrees';
 
@@ -83,7 +86,66 @@ describe('a question still names one degree', () => {
 
   it('says both in the explanation, which is the answer side', () => {
     const card = nameItCards().find(c => c.id === 'dgn-C-s4')!;
-    expect(card.explanation).toBe(`The ${BOTH} (tritone) of C is F♯.`);
+    expect(card.explanation).toBe(`The ${BOTH} (tritone) of C is F♯ / G♭.`);
+  });
+});
+
+describe('a joint answer is in the same order as the joint label', () => {
+  it('lines the notes up with the names on all three types', () => {
+    // ♯4 → F♯, ♭5 → G♭, read left to right. And both cards of the pair
+    // say the same sentence, because it is one fact.
+    for (const id of ['dgn-C-s4', 'dgn-C-b5']) {
+      expect(nameItCards().find(c => c.id === id)!.explanation)
+        .toBe(`The ${BOTH} (tritone) of C is F♯ / G♭.`);
+    }
+    for (const id of ['dgd-C-s4', 'dgd-C-b5']) {
+      expect(placeItCards().find(c => c.id === id)!.explanation)
+        .toBe(`F♯ / G♭ is the ${BOTH} (tritone) of C.`);
+    }
+    for (const id of ['dgp-C-s4', 'dgp-C-b5']) {
+      expect(pressItCards().find(c => c.id === id)!.explanation)
+        .toBe(`The ${BOTH} (tritone) of C is F♯ / G♭.`);
+    }
+  });
+
+  it('takes both orders from one list, so they cannot drift apart', () => {
+    // THE REVERSAL THIS PROTECTS AGAINST. If the names were ever
+    // reordered without the notes, the sentence would go back to being
+    // wrong in exactly the way this fixed. Both `map` the same
+    // constant, so the check is that the nth name's own note is the nth
+    // note — derived, not typed out.
+    for (const root of ['C', 'B', 'Db', 'F']) {
+      const card = nameItCards()
+        .find(c => c.id === `dgn-${root.replace('#', 's')}-s4`)!;
+      const ids = jointDegreeIds('#4')!;
+      const names = ids.map(degreeLabel).join(' / ');
+      const notes = ids.map(id => noteDisplay(root, id)).join(' / ');
+      expect(card.explanation, root)
+        .toBe(`The ${names} (tritone) of ${root} is ${notes}.`);
+    }
+  });
+
+  it('leaves a single-named degree with a single answer', () => {
+    // Only the joint label changes. Nothing else in the thirteen has
+    // two names, and none of them gained a second note.
+    expect(nameItCards().find(c => c.id === 'dgn-Ab-b6')!.explanation)
+      .toBe('The ♭6 of Ab is F♭ (E).');
+    expect(placeItCards().find(c => c.id === 'dgd-C-5')!.explanation)
+      .toBe('G is the 5 of C.');
+    for (const card of [...nameItCards(), ...placeItCards(), ...pressItCards()]) {
+      const joint = card.explanation!.includes(BOTH);
+      expect(joint, card.id).toBe(isTritoneDegree(String(
+        (card as { axis: Record<string, string | number> }).axis.degree,
+      )));
+    }
+  });
+
+  it('never puts a joint note in a question', () => {
+    // "In the key of C, F♯ / G♭ is which degree?" would hand over half
+    // the answer. A question is about one spelling.
+    for (const card of [...nameItCards(), ...placeItCards(), ...pressItCards()]) {
+      expect(card.question, card.id).not.toContain(' / ');
+    }
   });
 });
 
