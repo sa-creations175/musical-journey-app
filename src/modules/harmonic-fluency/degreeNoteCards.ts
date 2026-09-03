@@ -287,6 +287,12 @@ export function degreeNoteOptionLabel(
 ): string | null {
   if (cardId.startsWith('dgd-')) return degreeAnswerLabel(option);
   if (cardId.startsWith('dgn-')) return noteNameDisplay(option);
+  // "Gb major" reads "G♭ major". The word after the key name is left
+  // exactly as stored — only the accidental is a display decision.
+  if (cardId.startsWith('dgk-')) {
+    const [name, ...rest] = option.split(' ');
+    return [noteNameDisplay(name), ...rest].join(' ');
+  }
   if (cardId.startsWith('dgp-')) {
     const parsed = parsePressedId(cardId);
     if (parsed === null) return null;
@@ -531,6 +537,111 @@ export function pressItCards(): Flashcard[] {
 }
 
 /**
+ * The key a "which key" card answers with, as it is STORED.
+ *
+ * ASCII, and spelled from the root as written — "Gb major", never
+ * "G♭ major". `lib/spelling.ts` states the rule this follows: the
+ * accidental in a stored string is `b` or `#`, and the glyph belongs on
+ * the way to the screen. This string is compared against the option the
+ * reader taps and written into the attempt, so it is an identity.
+ *
+ * TWO OF THE RETIRING CARDS DISAGREED WITH THAT, and it is worth
+ * knowing rather than discovering. `rkp-Db-3` and `rkp-F#-4` store
+ * "D♭ major" and "G♭ major" with real glyphs — display characters that
+ * reached an identity string, and so reached the attempts table. The
+ * migration folds accidentals before it compares, which is what lets
+ * their history come across; see `retiredCategoryMigration`.
+ */
+function keyAnswer(root: string): string {
+  return `${root} major`;
+}
+
+/**
+ * The keys a wrong answer would most plausibly be.
+ *
+ * THE SUBJECT NOTE'S OWN KEY LEADS, where it is one of the twelve.
+ * "F is the 4 of which major key?" and the answer that comes first to
+ * mind is F — reading the note as the tonic is the whole mistake this
+ * card is about, so it has to be on screen.
+ *
+ * THEN KEYS SPELLED THE SAME WAY. Every option here is a key name and
+ * nothing else, so an answer that is the only flat among four is an
+ * answer a reader can pick without reading the question. The retiring
+ * generator said the same thing in its own comment; this keeps it.
+ */
+function keyDecoyPool(root: string, note: string): string[] {
+  const others = FLAT_TWELVE.filter(k => k !== root);
+  const isFlat = (k: string) => k.length > 1;
+  const sameShape = others.filter(k => isFlat(k) === isFlat(root));
+  const rest = others.filter(k => isFlat(k) !== isFlat(root));
+  const asTonic = others.filter(k => k === note);
+  return [...asTonic, ...sameShape, ...rest]
+    .filter((k, i, all) => all.indexOf(k) === i)
+    .map(keyAnswer);
+}
+
+/**
+ * "A♭ is the ♭6 of which major key?" → C major
+ *
+ * =====================================================================
+ * THE THIRD LEG OF THE TRIANGLE, AND THE LAST HAND-PICKED ONE.
+ *
+ * A key, a degree and a note: name any two and the third follows. `dgn`
+ * asks for the note, `dgd` for the degree, `dgp` for the key under a
+ * finger — and this asks for the KEY itself. Reverse Key Pivots asked
+ * it in twelve keys but only five degrees, unevenly: one card on the 3,
+ * ten on the 4, nothing chromatic at all. This is the same question on
+ * the family's own grid.
+ *
+ * =====================================================================
+ * ⚠️ THE PROMPT IS A PLACEHOLDER AND NOTHING HERE WAS WRITTEN FOR IT.
+ *
+ * The question is the retiring category's own sentence, verbatim, and
+ * the explanation is the one `placeItCards` already uses — because it
+ * states exactly this fact and inventing a second wording for it would
+ * be inventing wording. Silas is naming the category, all four question
+ * types and the concepts behind them as one set; anything written here
+ * now would be written twice. Flagged at the top of the report.
+ *
+ * =====================================================================
+ * ITS ANSWER IS A KEY, WHICH IS NEW, and that has a consequence.
+ *
+ * A card whose answer is a key can only answer in a spelling the
+ * generator holds, and the generator holds `FLAT_TWELVE`. So the sixth
+ * key answers "Gb major" and there is no card in the deck answering
+ * "F# major" — which is what the retiring cards did too, so nothing is
+ * lost by it. The F♯/G♭ question itself is Part 4 item 5 of the
+ * restructure plan and is still unruled.
+ * =====================================================================
+ */
+export function findKeyCards(): Flashcard[] {
+  return degreeNotePairs().map(({ root, degreeId, note }) => {
+    const id = `dgk-${idRoot(root)}-${idDegree(degreeId)}`;
+    const answer = keyAnswer(root);
+    return {
+      id,
+      category: DEGREE_NOTE_CATEGORY,
+      categoryName: DEGREE_NOTE_CATEGORY_NAME,
+      axis: { key: identityRoot(root), degree: degreeId },
+      // PLACEHOLDER — the retiring category's own sentence. The note is
+      // glossed and that gives nothing away: the answer is a key name,
+      // not a note. The retiring top-ups said so first.
+      question:
+        `${noteDisplay(root, degreeId)} is the ${degreeLabel(degreeId)} of which major key?`,
+      correctAnswer: answer,
+      decoys: chooseDecoys(answer, keyDecoyPool(root, note), {
+        count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
+      }),
+      // PLACEHOLDER — the same sentence `placeItCards` uses, because it
+      // is the same fact stated the same way.
+      explanation:
+        `${noteAnswerDisplay(root, degreeId)} is the ${degreeAnswerLabel(degreeId)} of ${root}.`,
+      skillTag: `degree-key-${idRoot(root)}-${idDegree(degreeId)}`,
+    };
+  });
+}
+
+/**
  * PLACEHOLDER, NOT A PROPOSAL. The category has to be called something
  * for the nav, the chip row and the card header to render at all. This
  * is the most literal description of what the family relates, and it is
@@ -540,7 +651,9 @@ export function pressItCards(): Flashcard[] {
 export const DEGREE_NOTE_CATEGORY_NAME = 'Degrees And Notes';
 
 export function degreeNoteCards(): Flashcard[] {
-  return [...nameItCards(), ...placeItCards(), ...pressItCards()];
+  return [
+    ...nameItCards(), ...placeItCards(), ...pressItCards(), ...findKeyCards(),
+  ];
 }
 
 // =====================================================================
@@ -587,7 +700,8 @@ export function pressedRootPitchClass(cardId: string): number | null {
 }
 
 /**
- * `dgp-Db-b6` → root `Db`, degree `b6`.
+ * `dgp-Db-b6` → root `Db`, degree `b6`. All four prefixes, because all
+ * four are content-suffixed the same way.
  *
  * Reading a coordinate back out of an id is normally forbidden here —
  * an id is a stable handle for spacing state, and parsing one makes it
@@ -602,7 +716,7 @@ export function pressedRootPitchClass(cardId: string): number | null {
 export function parsePressedId(
   cardId: string,
 ): { root: string; degreeId: string } | null {
-  const m = /^dg[dnp]-([A-G][bs]?)-([bs]?\d)$/.exec(cardId);
+  const m = /^dg[dknp]-([A-G][bs]?)-([bs]?\d)$/.exec(cardId);
   if (m === null) return null;
   return {
     root: m[1].replace('s', '#'),

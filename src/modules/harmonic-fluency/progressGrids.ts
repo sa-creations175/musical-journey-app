@@ -152,13 +152,15 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   // a label no card carries renders an empty page rather than nothing,
   // so it goes with them.
   //
+  // `reverse-key-pivots` HAD ONE HERE AND ITS CARDS ARE GONE TOO — the
+  // third leg of the triangle joined the family on 3 Sep 2026.
+  //
   // `degree-notes` GETS NONE, AND THAT IS DELIBERATE. Its coordinates
-  // are a key and a degree like the row below, but THREE cards share
-  // every cell — name it, place it and press it — and a grid whose
-  // cell means three different questions is a cell that cannot be
-  // coloured honestly. Diatonic Chord Qualities, Chord Construction and
-  // Ear-Theory Crossover already render without one.
-  [CATEGORY_LABELS['reverse-key-pivots']]: { columns: keyAxis, rows: degreeAxis },
+  // are a key and a degree, but FOUR cards share every cell — name it,
+  // place it, press it and which-key — and a grid whose cell means four
+  // different questions is a cell that cannot be coloured honestly.
+  // Diatonic Chord Qualities, Chord Construction and Ear-Theory
+  // Crossover already render without one.
 
   // Intervals compare along their SPAN, and the starting note is what
   // makes two cards of the same span different questions.

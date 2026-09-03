@@ -33,6 +33,7 @@ import { canonicalSkillId } from '../../skills/registry';
 import { spacingRowId } from '../../../lib/spacingState';
 import {
   migrateRetiredCategories, pairsFor, retiredCardMapping, retiredCards,
+  sameAnswer,
 } from '../retiredCategoryMigration';
 
 const MODULE = 'harmonic-fluency';
@@ -70,10 +71,11 @@ describe('which new card each retired one became', () => {
   const { moves, unpaired } = retiredCardMapping();
 
   it('pairs every retired card, and leaves none behind', () => {
-    // 24 Named Notes + 12 Tritone Pairs = 36, less the F♯ card, which is
-    // still in the deck under its own id and is therefore not retired.
-    expect(retiredCards()).toHaveLength(35);
-    expect(moves).toHaveLength(35);
+    // 24 Named Notes + 12 Tritone Pairs + 27 Reverse Key Pivots = 63,
+    // less the F♯ card, which is still in the deck under its own id and
+    // is therefore not retired.
+    expect(retiredCards()).toHaveLength(62);
+    expect(moves).toHaveLength(62);
     expect(unpaired).toEqual([]);
   });
 
@@ -88,13 +90,33 @@ describe('which new card each retired one became', () => {
   });
 
   it('every pair has the identical ANSWER, character for character', () => {
-    // Not the same pitch — the same spelling. This is the check that
-    // makes the mapping provable rather than trusted.
+    // Not the same pitch — the same spelling, with its accidental
+    // written either way. `sameAnswer` folds ♭ onto b and ♯ onto #,
+    // because `lib/spelling.ts` says those are two ways of writing one
+    // name; it folds nothing else.
     for (const { from, to } of moves) {
       const before = retiredCards().find(c => c.id === from)!;
-      expect(cardById.get(to)!.correctAnswer, `${from} -> ${to}`)
-        .toBe(before.correctAnswer);
+      expect(
+        sameAnswer(cardById.get(to)!.correctAnswer, before.correctAnswer),
+        `${from} -> ${to}: ${cardById.get(to)!.correctAnswer} vs ${before.correctAnswer}`,
+      ).toBe(true);
     }
+  });
+
+  it('folds an accidental’s two spellings and nothing else', () => {
+    // WHY THE FOLD IS NEEDED: two retiring pivot cards store a DISPLAY
+    // glyph in an identity string — "D♭ major", "G♭ major" — so a raw
+    // byte comparison would call them different answers from
+    // "Db major" and orphan their history over a typographic
+    // difference nobody made on purpose.
+    expect(sameAnswer('D♭ major', 'Db major')).toBe(true);
+    expect(sameAnswer('E♯', 'E#')).toBe(true);
+    // AND WHY IT CANNOT MISPAIR, which is the only thing that matters:
+    // no two different names fold onto one string under it.
+    expect(sameAnswer('F# major', 'Gb major')).toBe(false);
+    expect(sameAnswer('F♯', 'G♭')).toBe(false);
+    expect(sameAnswer('Cb', 'B')).toBe(false);
+    expect(sameAnswer('C major', 'D major')).toBe(false);
   });
 
   it('every pair asks about the same key, spelled either way', () => {
@@ -142,11 +164,24 @@ describe('which new card each retired one became', () => {
     expect(pairsFor(wrongKey, targets)).toEqual([]);
   });
 
-  it('lands only on a "name it" card', () => {
-    // Both retired categories asked for a NOTE. Placing a row on the
-    // reversal, or on the pressed card, would attach a history to a
-    // question that was never asked.
-    for (const { to } of moves) expect(to.startsWith('dgn-')).toBe(true);
+  it('lands each category on the question shape it actually asked', () => {
+    // Named Notes and Tritone Pairs asked for a NOTE; Reverse Key
+    // Pivots asked for a KEY. Placing a row on the wrong one of the
+    // family's four would attach a history to a question that was never
+    // asked, and nothing on screen would say so.
+    for (const { from, to } of moves) {
+      const prefix = from.startsWith('rkp-') ? 'dgk-' : 'dgn-';
+      expect(to.startsWith(prefix), `${from} -> ${to}`).toBe(true);
+    }
+  });
+
+  it('pairs all twenty-seven reverse key pivots', () => {
+    // Twenty-four positional and three root-suffixed top-ups, on a
+    // category whose grid was five degrees deep and uneven — one card
+    // on the 3, ten on the 4.
+    const pivots = moves.filter(m => m.from.startsWith('rkp-'));
+    expect(pivots).toHaveLength(27);
+    expect(pivots.find(m => m.from === 'rkp-F#-4')!.to).toBe('dgk-Fs-4');
   });
 });
 
@@ -212,6 +247,33 @@ describe('what follows the card', () => {
     expect(row.studyLater).toBe(true);
     expect(row.reviewFlagged).toBe(true);
     expect(row.reviewFlagNote).toBe('come back to this');
+  });
+
+  it('moves a reverse key pivot’s rows onto its "which key" card', async () => {
+    // THE SECOND FOLD-IN, END TO END. The mapping tests prove which
+    // card each pivot became; this proves the rows actually follow —
+    // the two are different failures and only one of them is visible.
+    const from = 'rkp-Db-3';
+    const to = retiredIdFor(from);
+    expect(to).toBe('dgk-Db-3');
+    await db.attempts.add(
+      { id: 'a1', moduleId: MODULE, itemId: from, timestamp: T, isCorrect: true } as never,
+    );
+    await db.spacingState.add(spacingRow(from) as never);
+    await db.skillAnnotations.add({
+      skillId: canonicalSkillId(MODULE, 'card', from),
+      tags: ['pivot'], createdAt: T, updatedAt: T,
+    } as never);
+
+    const report = await migrateRetiredCategories();
+
+    expect(report.attempts).toBe(1);
+    expect(report.spacing).toBe(1);
+    expect(report.annotations).toBe(1);
+    expect((await db.spacingState.toArray())[0].itemRef).toBe(to);
+    expect((await db.attempts.toArray())[0].itemId).toBe(to);
+    expect((await db.skillAnnotations.toArray())[0].skillId)
+      .toBe(canonicalSkillId(MODULE, 'card', to));
   });
 
   it('never touches a row belonging to another card or another module', async () => {

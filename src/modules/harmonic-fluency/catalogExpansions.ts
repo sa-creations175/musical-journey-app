@@ -711,7 +711,11 @@ export function expansionCards(): Flashcard[] {
     ...generateVofViCards(),
     ...generateModeOfCards(),
     ...generateSlashCards(),
-    ...generatePivotTopUps(),
+    // `generatePivotTopUps()` WAS HERE. Reverse Key Pivots retired into
+    // `degree-notes` on 3 Sep 2026 and its three top-ups went with the
+    // twenty-four. The generator stays exported because
+    // `retiredCategoryMigration` reads it to prove which new card each
+    // one became; it goes in commit 9 with the migration.
     ...generateProgressionTopUps(),
     ...generateRelativeMinorTopUps(),
     ...generateParallelMinorTopUps(),

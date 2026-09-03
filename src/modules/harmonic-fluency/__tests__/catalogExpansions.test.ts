@@ -6,10 +6,10 @@
  * no key produces a note that cannot be written.
  */
 import { describe, expect, it } from 'vitest';
-import { FLASHCARDS } from '../catalog';
+import { FLASHCARDS, generateReversePivotCards } from '../catalog';
 import {
   FLAT_TWELVE, degreeAscii, degreeLabel, degreeLabelGlossed, expansionCards,
-  keyboardNote, needsPracticalName, noteLabelGlossed,
+  generatePivotTopUps, keyboardNote, needsPracticalName, noteLabelGlossed,
 } from '../catalogExpansions';
 
 /** The four spellings that are correct and never said out loud. */
@@ -82,7 +82,13 @@ describe('but the teaching survives the move', () => {
     // The id is the IDENTITY now (F#), while every word in the card
     // still reads the flat side — which is exactly what the two
     // assertions below check.
-    const card = FLASHCARDS.find(c => c.id === 'rkp-F#-4')!;
+    //
+    // READ OFF THE GENERATOR, because the card left the deck on 3 Sep
+    // 2026 when Reverse Key Pivots folded into `degree-notes`. It is
+    // still pinned: `retiredCategoryMigration` reads this generator to
+    // prove which new card each retired one became, and `rkp-F#-4` is
+    // the one whose stored answer carries a display glyph.
+    const card = generatePivotTopUps().find(c => c.id === 'rkp-F#-4')!;
     expect(card.question).toContain('C♭ (B)');
     expect(card.correctAnswer).toBe('G♭ major');
   });
@@ -232,8 +238,15 @@ describe('coverage reaches twelve', () => {
     }
   });
 
-  it('reverse key pivots answer all twelve keys', () => {
-    expect(keysIn('reverse-key-pivots', new RegExp(`^(${N}) major`), 'a').size).toBe(12);
+  it('the retired reverse key pivots answered all twelve keys', () => {
+    // The claim the top-ups existed to make, held on the generator now
+    // that the category is out of the deck. Its successor covers all
+    // twelve by construction — twelve keys x thirteen degrees — which
+    // `degreeNoteCards.test.ts` pins.
+    const answers = new Set(generatePivotTopUps()
+      .concat(generateReversePivotCards())
+      .map(c => c.correctAnswer));
+    expect(answers.size).toBe(12);
   });
 
   it('progressions reach all twelve', () => {

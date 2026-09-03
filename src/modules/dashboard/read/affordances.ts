@@ -103,11 +103,9 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     'How many accidentals a key carries, which keys sit next to it, and '
     + 'which minor shares its signature. The map you navigate by, where '
     + "Reading's Key Signature Recognition is reading the map off a page.",
-  [`${HF}/Reverse Key Pivots`]:
-    'The question backwards: given a note and the degree it is, name the '
-    + 'key. "A is the 3 of which major key?" Harder than the forward '
-    + 'direction, and the one that actually comes up when you are working '
-    + 'out what key something is in.',
+  // REVERSE KEY PIVOTS WAS HERE. It folded into Degrees And Notes on
+  // 3 Sep 2026 and no longer exists as a row to describe. That family
+  // still has no description of its own — see the note above.
   [`${HF}/Mode Identification`]:
     'Naming a mode from its formula, or from where it sits relative to '
     + "the major scale it comes from. Theory rather than ear: Ear "

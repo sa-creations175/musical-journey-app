@@ -268,23 +268,16 @@ function VisualAid({
     // The one survivor kept the hint it was written with, and this is
     // what draws it. See `F_SHARP_SURVIVOR` in `catalog.ts`.
     case 'scale-degree-math':
-    case 'degree-notes':
-    case 'reverse-key-pivots': {
+    case 'degree-notes': {
       if (hint.startingDegree === undefined) return null;
 
       let degreeLabels: Partial<Record<number, string>> | undefined;
-      let degreeLabelsAfterAnswer: Partial<Record<number, string>> | undefined;
 
       if (card.category === 'degree-notes' && hint.key) {
         const root = parseKeyRoot(hint.key);
         const labels: Partial<Record<number, string>> = {};
         for (let d = 1; d <= 7; d++) labels[d] = degreeNote(root, d);
         degreeLabels = labels;
-      } else if (card.category === 'reverse-key-pivots') {
-        if (hint.startingNote) {
-          degreeLabels = { [hint.startingDegree]: hint.startingNote };
-        }
-        degreeLabelsAfterAnswer = { 1: parseKeyRoot(card.correctAnswer) };
       }
 
       return (
@@ -297,7 +290,6 @@ function VisualAid({
             answered={answered}
             correct={chosen === card.correctAnswer}
             degreeLabels={degreeLabels}
-            degreeLabelsAfterAnswer={degreeLabelsAfterAnswer}
           />
         </div>
       );

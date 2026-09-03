@@ -15,7 +15,8 @@ import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_LABELS, ENHARMONIC_INTERVAL_GROUPS, ENHARMONIC_NOTE_PAIRS,
   ENHARMONIC_SPELLINGS, FLASHCARDS, generateNamedNoteCards,
-  generateTritonePairCards, HF_MAJOR_KEYS, SCALE_DEGREES,
+  generateReversePivotCards, generateTritonePairCards, HF_MAJOR_KEYS,
+  SCALE_DEGREES,
   type FlashcardCategory,
 } from '../catalog';
 
@@ -63,8 +64,8 @@ describe('named notes (retired — read by the migration)', () => {
   });
 });
 
-describe('reverse key pivots', () => {
-  const cards = generated('reverse-key-pivots', /^rkp-\d+$/);
+describe('reverse key pivots (retired — read by the migration)', () => {
+  const cards = generateReversePivotCards().filter(f => /^rkp-\d+$/.test(f.id));
 
   it('carries key and degree on every generated card', () => {
     expect(cards.length).toBe(24);
@@ -201,10 +202,9 @@ describe('absent means flat list, not broken', () => {
       'intervals': 25,
       'key-signatures': 17,
       'modes': 33,
-      'degree-notes': 469,
+      'degree-notes': 625,
       'pentatonic-scales': 36,
       'progressions': 6,
-      'reverse-key-pivots': 27,
       'slash-chords': 44,
     });
   });
@@ -273,13 +273,18 @@ describe('scale degree math is 7 degrees x 24 movements', () => {
 describe('the grid reads the passed list, not the coordinates present', () => {
   it('offers columns for keys no card in the category uses', async () => {
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
-    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['reverse-key-pivots']];
+    // Progression Vocabulary, since Reverse Key Pivots retired: it
+    // reaches six of the twelve keys and the axis still offers all
+    // twelve, which is the asymmetry this needs.
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS.progressions];
     const used = new Set(
-      generated('reverse-key-pivots', /^rkp-\d+$/).map(c => String(c.axis!.key)),
+      inCategory('progressions')
+        .filter(c => c.axis?.key !== undefined)
+        .map(c => String(c.axis!.key)),
     );
     const offered = grid.columns.views[0].values.map(String);
-    // ASYMMETRIC: the pivots use fewer keys than the axis offers, so a
-    // column list collected off the cards would be SHORTER than this.
+    // ASYMMETRIC: the progressions use fewer keys than the axis offers,
+    // so a column list collected off the cards would be SHORTER.
     expect(offered.length).toBeGreaterThan(used.size);
     for (const k of HF_MAJOR_KEYS) expect(offered).toContain(k);
   });
@@ -287,9 +292,10 @@ describe('the grid reads the passed list, not the coordinates present', () => {
   it('keeps both key views over the same twelve', async () => {
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
     const { viewsAgree } = await import('../../../components/moduleHome/axis');
-    // Reverse Key Pivots, since Named Notes retired — the same
-    // `keyAxis`, which is the thing under test.
-    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['reverse-key-pivots']];
+    // Mode Identification, since Named Notes and then Reverse Key
+    // Pivots retired — the same `keyAxis`, which is the thing under
+    // test.
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS.modes];
     expect(grid.columns.views).toHaveLength(2);
     expect(viewsAgree(grid.columns)).toBe(true);
     // And they really are different orders, or the toggle is decoration.

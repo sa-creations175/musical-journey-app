@@ -87,7 +87,7 @@ describe('the two collisions this ends', () => {
       expect(card.facets?.degree, card.id).toBeUndefined();
       expect(card.facets?.fromDegree, card.id).toBeTypeOf('number');
     }
-    for (const cat of ['degree-notes', 'reverse-key-pivots', 'modes'] as const) {
+    for (const cat of ['degree-notes', 'modes'] as const) {
       for (const card of FLASHCARDS.filter(c => c.category === cat)) {
         if (card.facets === undefined) continue;
         expect(card.facets.fromDegree, card.id).toBeUndefined();
@@ -97,18 +97,17 @@ describe('the two collisions this ends', () => {
   });
 
   it('gives the three questions about one relationship the same words', () => {
-    // Degrees And Notes asks for the note, Reverse Key Pivots asks for
-    // the key, Mode Identification asks for the mode that degree
-    // produces. One key facet, one degree facet, three categories.
+    // Degrees And Notes asks for the note, the degree, the key under a
+    // finger and the key itself; Mode Identification asks for the mode
+    // that degree produces. One key facet, one degree facet, and the
+    // relationship means the same thing on every one of them — which is
+    // the collision this model ended.
     //
-    // The family adds `semitones` — the distance is a fourth thing it
-    // knows and the other two do not, and it is what lets the ♯4 and
-    // the ♭5 be gathered with the interval cards.
-    const pivot = FLASHCARDS.find(c => c.category === 'reverse-key-pivots' && c.facets)!;
+    // The family adds `semitones` — the distance is a third thing it
+    // knows and Mode Identification does not, and it is what lets the
+    // ♯4 and the ♭5 be gathered with the interval cards.
     const mode = FLASHCARDS.find(c => c.category === 'modes' && c.facets)!;
-    for (const card of [pivot, mode]) {
-      expect(Object.keys(card.facets!).sort(), card.id).toEqual(['degree', 'key']);
-    }
+    expect(Object.keys(mode.facets!).sort()).toEqual(['degree', 'key']);
     const dgn = FLASHCARDS.find(c => c.category === 'degree-notes' && c.facets)!;
     expect(Object.keys(dgn.facets!).sort())
       .toEqual(['degree', 'key', 'semitones']);

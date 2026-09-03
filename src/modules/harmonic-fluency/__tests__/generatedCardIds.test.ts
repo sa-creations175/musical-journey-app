@@ -27,7 +27,6 @@ import { GENERATED_CARD_PAIRING } from './generatedCardPairing';
 const GENERATED_CATEGORIES = [
   'scale-degree-math',
   'degree-notes',
-  'reverse-key-pivots',
   'intervals',
   'enharmonic-equivalents',
   'pentatonic-scales',

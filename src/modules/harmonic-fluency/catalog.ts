@@ -58,10 +58,12 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
 /**
  * The categories a reader can reach, in the order they are offered.
  *
- * `named-notes` AND `tritone-pairs` ARE GONE FROM HERE, and their cards
- * are gone from the deck below. Both asked what `degree-notes` now asks
- * generally: "in F major, 4 of the scale" is the 4 of F, and "tritone
- * of C" is the ♯4 of C. Thirty-five of their thirty-six cards are the
+ * `named-notes`, `tritone-pairs` AND `reverse-key-pivots` ARE GONE FROM
+ * HERE, and their cards are gone from the deck below. All three asked
+ * what `degree-notes` now asks generally: "in F major, 4 of the scale"
+ * is the 4 of F, "tritone of C" is the ♯4 of C, and "G is the 5 of
+ * which major key" is the third leg of the same triangle — a key, a
+ * degree and a note, with a different one unknown. Their cards are the
  * identical question with the identical answer under a new id, so their
  * history moves rather than being orphaned — see
  * `retiredCategoryMigration.ts`, which asserts that identity per card
@@ -74,7 +76,7 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
 export const CATEGORY_ORDER: FlashcardCategory[] = [
   'scale-degree-math', 'degree-notes', 'enharmonic-equivalents',
   'diatonic-qualities', 'functional-harmony',
-  'key-signatures', 'reverse-key-pivots', 'modes', 'pentatonic-scales', 'intervals',
+  'key-signatures', 'modes', 'pentatonic-scales', 'intervals',
   'chord-construction', 'progressions', 'slash-chords', 'ear-theory',
 ];
 
@@ -366,7 +368,7 @@ export function generateNamedNoteCards(): Flashcard[] {
 
 // --- Category 6: Reverse key pivots ---------------------------------
 
-function generateReversePivotCards(): Flashcard[] {
+export function generateReversePivotCards(): Flashcard[] {
   const entries: Array<{ key: string; degree: number }> = [
     { key: 'C', degree: 1 }, { key: 'C', degree: 4 }, { key: 'C', degree: 5 }, { key: 'C', degree: 6 },
     { key: 'G', degree: 1 }, { key: 'G', degree: 4 }, { key: 'G', degree: 5 },
@@ -1930,7 +1932,6 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   ...DIATONIC_QUALITY_CARDS,
   ...FUNCTIONAL_HARMONY_CARDS,
   ...KEY_SIG_CARDS,
-  ...generateReversePivotCards(),
   ...MODE_CARDS,
   ...PENTATONIC_CARDS,
   ...generatePentatonicKeyCards(),

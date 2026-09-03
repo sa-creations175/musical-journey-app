@@ -8,7 +8,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { degreeKeyboardSpec } from '../DegreeKeyboard';
-import { FLASHCARDS, degreeNote, parseKeyRoot, type Flashcard } from '../catalog';
+import {
+  FLASHCARDS, degreeNote, generateReversePivotCards, parseKeyRoot,
+  type Flashcard,
+} from '../catalog';
 
 const firstOf = (category: string): Flashcard => {
   const card = FLASHCARDS.find(
@@ -54,7 +57,17 @@ describe('a card that names its key', () => {
 });
 
 describe('a card whose ANSWER is the key', () => {
-  const card = firstOf('reverse-key-pivots');
+  // READ OFF THE RETIRED GENERATOR. Reverse Key Pivots folded into
+  // `degree-notes` on 3 Sep 2026 and the generated replacements carry no
+  // `visualHint`, so no card in the deck reaches this branch of
+  // `degreeKeyboardSpec` today. The branch is still there and still
+  // right, and it is pinned here until commit 9 deletes the generator
+  // and the branch together — a branch that stops being exercised and
+  // stops being tested on the same day is a branch nobody will notice
+  // rotting.
+  const card = generateReversePivotCards().find(
+    c => c.visualHint?.startingDegree !== undefined,
+  )!;
 
   it('lights the starting note and nothing else', () => {
     // A scale here would print the answer: the question is which key

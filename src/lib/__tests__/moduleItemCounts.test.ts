@@ -70,7 +70,12 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 769 + 100 + 105 + 107 = 1081
+// Harmonic Fluency — 925 + 100 + 78 + 107 = 1210
+// (3 Sep 2026, later the same day: 1081 → 1210. Reverse Key Pivots —
+//  the third leg of the same triangle — generated to the family's own
+//  grid at 156 and retired into it. Foundational 769 → 925,
+//  functionalApplied 105 → 78. All 27 of its cards moved their history
+//  onto their counterpart.)
 // (3 Sep 2026: 648 → 1081. `degree-notes` seeded at 469 — twelve keys
 //  x thirteen degrees x three questions, plus the one F♯ card that
 //  survived the fold-in under its own id — and Named Notes (24) and
@@ -95,24 +100,24 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 168 + dgn 469 + ks 56 + pent 41 + enh 35 = 769', () => {
-    expect(c.byGroup.foundational).toBe(769);
+  it('foundational = sdm 168 + dgn 625 + ks 56 + pent 41 + enh 35 = 925', () => {
+    expect(c.byGroup.foundational).toBe(925);
   });
 
   it('chordKnowledge = dq 20 + cc 20 + sc 60 = 100', () => {
     expect(c.byGroup.chordKnowledge).toBe(100);
   });
 
-  it('functionalApplied = fh 52 + rkp 27 + pr 26 = 105', () => {
-    expect(c.byGroup.functionalApplied).toBe(105);
+  it('functionalApplied = fh 52 + pr 26 = 78', () => {
+    expect(c.byGroup.functionalApplied).toBe(78);
   });
 
   it('earRecognition = mo 52 + iv 40 + et 15 = 107', () => {
     expect(c.byGroup.earRecognition).toBe(107);
   });
 
-  it('total = 1081 across all 14 categories', () => {
-    expect(c.total).toBe(1081);
+  it('total = 1210 across all 13 categories', () => {
+    expect(c.total).toBe(1210);
   });
 
   it('total equals sum of group totals', () => {
@@ -124,9 +129,10 @@ describe('harmonicFluencyCounts', () => {
     expect(groupSum).toBe(c.total);
   });
 
-  it('byCategory covers all 14 canonical categories', () => {
-    // `named-notes` and `tritone-pairs` are absent because their cards
-    // are: both folded into `degree-notes` on 3 Sep 2026.
+  it('byCategory covers all 13 canonical categories', () => {
+    // `named-notes`, `tritone-pairs` and `reverse-key-pivots` are absent
+    // because their cards are: all three folded into `degree-notes` on
+    // 3 Sep 2026.
     expect(Object.keys(c.byCategory).sort()).toEqual([
       'chord-construction',
       'degree-notes',
@@ -139,7 +145,6 @@ describe('harmonicFluencyCounts', () => {
       'modes',
       'pentatonic-scales',
       'progressions',
-      'reverse-key-pivots',
       'scale-degree-math',
       'slash-chords',
     ]);

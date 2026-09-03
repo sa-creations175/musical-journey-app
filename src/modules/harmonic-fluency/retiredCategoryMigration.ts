@@ -1,13 +1,15 @@
 /**
- * Named Notes and Tritone Pairs are gone. Their practice is not.
+ * Three categories are gone. Their practice is not.
  *
  * =====================================================================
  * THE CARDS ARE THE SAME QUESTIONS UNDER NEW IDS.
  *
  * "In F major, 4 of the scale = ?" is the 4 of F. "Tritone of C?" is
- * the ♯4 of C. `degree-notes` asks both, in every key, so the two
- * categories are folded into it — and thirty-five of their thirty-six
- * cards have a counterpart with the IDENTICAL ANSWER.
+ * the ♯4 of C. "G is the 5 of which major key?" is the same triangle
+ * again with the key unknown. `degree-notes` asks all of them, in every
+ * key and on every degree, so Named Notes, Tritone Pairs and Reverse
+ * Key Pivots are folded into it — and every one of their cards but one
+ * has a counterpart with the IDENTICAL ANSWER.
  *
  * Deleting them without moving their rows is the orphaning this whole
  * exercise exists to prevent. Every reader of Harmonic Fluency joins
@@ -107,26 +109,60 @@
  * =====================================================================
  * DELETED IN COMMIT 9, WITH THE TWO GENERATORS IT READS.
  *
- * `generateNamedNoteCards` and `generateTritonePairCards` still live in
- * `catalog.ts` and are no longer in the deck. They are what the
- * assertion above compares AGAINST — a hand-written table could not be
- * asserted, only trusted — and they go when this goes.
+ * `generateNamedNoteCards`, `generateTritonePairCards`,
+ * `generateReversePivotCards` and `generatePivotTopUps` still exist and
+ * are no longer in the deck. They are what the assertion above compares
+ * AGAINST — a hand-written table could not be asserted, only trusted —
+ * and they go when this goes.
  * =====================================================================
  */
 import {
-  FLASHCARDS, generateNamedNoteCards, generateTritonePairCards,
-  type Flashcard,
+  FLASHCARDS, generateNamedNoteCards, generateReversePivotCards,
+  generateTritonePairCards, type Flashcard,
 } from './catalog';
+import { generatePivotTopUps } from './catalogExpansions';
 import { db, type SpacingState } from '../../lib/db';
-import { pitchClassOf } from '../../lib/spelling';
+import { pitchClassOf, toAsciiAccidentals } from '../../lib/spelling';
 import { canonicalSkillId } from '../skills/registry';
 import { PERFORMANCE_HISTORY_MAX } from '../../lib/spacingState';
 
 const MODULE_REF = 'harmonic-fluency';
 
-/** The prefix the fold-in target carries — the "name it" question, the
- *  only one of the family's three that either retired category asked. */
-const NAME_IT_PREFIX = 'dgn-';
+/**
+ * Each retired category, and the question shape in `degree-notes` it
+ * became.
+ *
+ * THE PREFIX IS A GUARD, NOT A CONVENIENCE. Named Notes and Tritone
+ * Pairs both asked for a NOTE, so their rows may only land on a "name
+ * it" card; Reverse Key Pivots asked for a KEY and may only land on a
+ * "which key" one. The four conditions below would almost certainly
+ * separate them anyway — nothing that answers a note also answers
+ * "C major" — but "almost certainly" is not the standard for a table
+ * that cannot be un-written.
+ *
+ * THE GENERATORS ARE STILL EXPORTED AND NO LONGER IN THE DECK. They are
+ * what the assertion compares AGAINST; a hand-written table could only
+ * be trusted. They go in commit 9 with this file.
+ */
+interface FoldIn {
+  /** What the category used to ship. */
+  cards: () => Flashcard[];
+  /** The id prefix its rows are allowed to land on. */
+  targetPrefix: string;
+}
+
+const FOLD_INS: ReadonlyArray<FoldIn> = [
+  {
+    cards: () => [...generateNamedNoteCards(), ...generateTritonePairCards()],
+    targetPrefix: 'dgn-',
+  },
+  {
+    // Twenty-four positional cards and the three root-suffixed top-ups
+    // that filled the keys they missed. One category, two generators.
+    cards: () => [...generateReversePivotCards(), ...generatePivotTopUps()],
+    targetPrefix: 'dgk-',
+  },
+];
 
 type Axis = Readonly<Record<string, string | number>> | undefined;
 
@@ -161,13 +197,7 @@ function degreeOf(card: Flashcard): string | null {
  */
 export function retiredCards(): Flashcard[] {
   const live = new Set(FLASHCARDS.map(c => c.id));
-  return [...generateNamedNoteCards(), ...generateTritonePairCards()]
-    .filter(c => !live.has(c.id));
-}
-
-/** The cards a retired one may move onto. */
-function foldInTargets(): Flashcard[] {
-  return FLASHCARDS.filter(c => c.id.startsWith(NAME_IT_PREFIX));
+  return FOLD_INS.flatMap(f => f.cards()).filter(c => !live.has(c.id));
 }
 
 /** One retired card, and the card its rows belong to. */
@@ -193,30 +223,63 @@ export function pairsFor(
   if (pc === null) return [];
   const degree = degreeOf(card);
   return targets.filter(target => {
-    if (target.correctAnswer !== card.correctAnswer) return false;
+    if (!sameAnswer(target.correctAnswer, card.correctAnswer)) return false;
     const key = axisOf(target)?.key;
     if (key === undefined || pitchClassOf(String(key)) !== pc) return false;
     return degree === null || String(axisOf(target)?.degree) === degree;
   });
 }
 
+/**
+ * Whether two answers are the same answer.
+ *
+ * =====================================================================
+ * THE SAME SPELLING, WITH ITS ACCIDENTAL WRITTEN EITHER WAY.
+ *
+ * Still character for character — this is not a pitch comparison, and
+ * F♯ and G♭ stay two different answers under it. What it folds is the
+ * app's own two ways of writing ONE name: `lib/spelling.ts` says in
+ * terms that ASCII `b` and `#` are the identity and ♭ and ♯ are the
+ * display of the same letter, and `toAsciiAccidentals` is the function
+ * it provides for exactly this.
+ *
+ * IT IS NEEDED BECAUSE TWO RETIRING CARDS STORE A DISPLAY GLYPH.
+ * `rkp-Db-3` and `rkp-F#-4` answer "D♭ major" and "G♭ major" — display
+ * characters that reached an identity string, and so reached the
+ * attempts table. Comparing raw bytes would call those different
+ * answers from "Db major" and "Gb major" and orphan two cards' history
+ * over a typographic difference nobody made on purpose.
+ *
+ * IT CANNOT CAUSE A WRONG PAIRING, which is the only thing that matters
+ * here: no two DIFFERENT key or note names fold onto one string under
+ * it, so nothing that was distinguishable stops being so. Asserted.
+ * =====================================================================
+ */
+export function sameAnswer(a: string, b: string): boolean {
+  return toAsciiAccidentals(a) === toAsciiAccidentals(b);
+}
+
 /** Old id → new id, derived and asserted card by card. */
 export function retiredCardMapping(): Mapping {
-  const targets = foldInTargets();
+  const live = new Set(FLASHCARDS.map(c => c.id));
   const moves: Move[] = [];
   const unpaired: Unpaired[] = [];
-  for (const card of retiredCards()) {
-    const pairs = pairsFor(card, targets);
-    if (pairs.length === 1) {
-      moves.push({ from: card.id, to: pairs[0].id });
-    } else {
-      unpaired.push({
-        from: card.id,
-        reason: pairs.length === 0
-          ? `nothing in the new family asks "${card.question}" and answers `
-            + `${card.correctAnswer}`
-          : `${pairs.length} cards ask it — ${pairs.map(p => p.id).join(', ')}`,
-      });
+  for (const foldIn of FOLD_INS) {
+    const targets = FLASHCARDS.filter(c => c.id.startsWith(foldIn.targetPrefix));
+    for (const card of foldIn.cards()) {
+      if (live.has(card.id)) continue;
+      const pairs = pairsFor(card, targets);
+      if (pairs.length === 1) {
+        moves.push({ from: card.id, to: pairs[0].id });
+      } else {
+        unpaired.push({
+          from: card.id,
+          reason: pairs.length === 0
+            ? `nothing in the new family asks "${card.question}" and answers `
+              + `${card.correctAnswer}`
+            : `${pairs.length} cards ask it — ${pairs.map(p => p.id).join(', ')}`,
+        });
+      }
     }
   }
   return { moves, unpaired };
