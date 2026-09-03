@@ -189,6 +189,26 @@ interface Props<TCard extends BaseFlashcard> {
    *  Defaults to plain text. */
   renderExplanation?: (text: string) => ReactNode;
 
+  /**
+   * What one option should READ as, where a family knows better than
+   * the shell's own rule. Return null to fall through to it.
+   *
+   * =====================================================================
+   * THE OPTION STRING IS IDENTITY AND THIS CANNOT REACH IT. It is
+   * compared against `correctAnswer` below and written to the attempt;
+   * only the text node changes, exactly as `glossTheoreticalSpellings`
+   * already only ever changes the text node.
+   *
+   * IT EXISTS BECAUSE A FAMILY CAN KNOW WHAT KIND OF WORD AN OPTION IS
+   * AND THE SHELL CANNOT. `glossTheoreticalSpellings` is a rule about a
+   * SPELLING and is right everywhere; "this option is a degree, and this
+   * degree goes by two names" is a rule about a card. Putting the second
+   * one in here would teach the shell music, which is the same line
+   * `renderAnswerSurface` and `AnswerKeyboard` already draw.
+   * =====================================================================
+   */
+  renderOptionLabel?: (card: TCard, option: string) => string | null;
+
   /** True when the queue has been narrowed too much for SR math to
    *  be honest. Renders the FluencyProtectionNotice at the top.
    *  Caller decides when to set this; the shell just surfaces it. */
@@ -225,6 +245,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   onVisualModeChange,
   renderVisualAid,
   renderExplanation,
+  renderOptionLabel,
   focusProtected = false,
   fadeStreakThreshold = DEFAULT_FADE_THRESHOLD,
   renderFooter,
@@ -513,6 +534,18 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
    * one judging line every other card runs through — the shell has no
    * second idea of what correct means.
    */
+  /**
+   * One option, written for the eye.
+   *
+   * The family's rule first and the shell's spelling gloss underneath,
+   * so a family that has nothing to say about an option still gets
+   * `C♭ (B)`. Used for the buttons AND for the "correct answer:" line,
+   * because two spellings of one answer on one screen is how a reader
+   * comes to think they are two answers.
+   */
+  const optionLabel = (opt: string): string =>
+    renderOptionLabel?.(card, opt) ?? glossTheoreticalSpellings(opt);
+
   const answerSurface = renderAnswerSurface?.({
     card,
     answered: hasAnswered,
@@ -767,7 +800,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
                   The string is identity here — it is compared against
                   `correctAnswer` above and written to the attempt — so
                   the bracket may only ever exist in the text node. */}
-              <span>{glossTheoreticalSpellings(opt)}</span>
+              <span>{optionLabel(opt)}</span>
             </button>
           );
         })}
@@ -789,7 +822,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
               <span className="text-xs text-neutral-500">
                 correct answer:{' '}
                 <span className="font-mono text-fluent">
-                  {glossTheoreticalSpellings(card.correctAnswer)}
+                  {optionLabel(card.correctAnswer)}
                 </span>
               </span>
             )}

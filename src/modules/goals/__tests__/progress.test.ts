@@ -231,10 +231,10 @@ describe('getCoverageCount — specific (HF)', () => {
   const cardForCategory = (cat: FlashcardCategory) =>
     FLASHCARDS.find(c => c.category === cat)!.id;
 
-  it('foundational group includes scale-degree-math + named-notes + key-signatures categories', async () => {
+  it('foundational group includes scale-degree-math + degree-notes + key-signatures categories', async () => {
     await db.spacingState.bulkAdd([
       makeSpacingRow(cardForCategory('scale-degree-math'), 'harmonic-fluency', 'acquired'),
-      makeSpacingRow(cardForCategory('named-notes'),       'harmonic-fluency', 'acquired'),
+      makeSpacingRow(cardForCategory('degree-notes'),      'harmonic-fluency', 'acquired'),
       makeSpacingRow(cardForCategory('modes'),             'harmonic-fluency', 'acquired'),  // ear-recognition, excluded
     ]);
     expect(await getCoverageCount(

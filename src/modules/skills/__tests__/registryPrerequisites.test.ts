@@ -117,10 +117,10 @@ describe('a record carries the window, not a summary of it', () => {
     // The tier comes from FlashcardState; the strip comes from attempts.
     // Pinned because they can disagree — see the note in registry.ts.
     await db.attempts.bulkAdd([
-      att('harmonic-fluency', 'tt-1', true, 0),
-      att('harmonic-fluency', 'tt-1', false, 1),
+      att('harmonic-fluency', 'dgn-C-s4', true, 0),
+      att('harmonic-fluency', 'dgn-C-s4', false, 1),
     ]);
-    const rec = (await buildSkillRegistry(NOW)).find(r => r.itemId === 'tt-1')!;
+    const rec = (await buildSkillRegistry(NOW)).find(r => r.itemId === 'dgn-C-s4')!;
     expect(rec.window.map(w => w.correct)).toEqual([true, false]);
   });
 

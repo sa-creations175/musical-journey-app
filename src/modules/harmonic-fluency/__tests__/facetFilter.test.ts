@@ -120,14 +120,19 @@ describe('the tritone, gathered', () => {
     const tritones = filterByFacets(FLASHCARDS, { semitones: ['6'] });
     const categories = new Set(tritones.map(c => c.category));
     expect(categories.size).toBeGreaterThan(1);
-    expect(categories.has('tritone-pairs')).toBe(true);
+    // Tritone Pairs was one of the three and is folded in — its twelve
+    // questions are the ♯4 and ♭5 cards of Degrees And Notes now.
+    expect(categories.has('degree-notes')).toBe(true);
     expect(categories.has('intervals')).toBe(true);
   });
 
-  it('gathers more than the tritone category alone holds', () => {
-    const gathered = filterByFacets(FLASHCARDS, { semitones: ['6'] }).length;
-    const category = FLASHCARDS.filter(c => c.category === 'tritone-pairs').length;
-    expect(gathered).toBeGreaterThan(category);
+  it('gathers more than any one category holds', () => {
+    const gathered = filterByFacets(FLASHCARDS, { semitones: ['6'] });
+    const perCategory = new Map<string, number>();
+    for (const c of gathered) {
+      perCategory.set(c.category, (perCategory.get(c.category) ?? 0) + 1);
+    }
+    expect(gathered.length).toBeGreaterThan(Math.max(...perCategory.values()));
   });
 
   it('gathers nothing that is not six semitones', () => {
@@ -155,26 +160,26 @@ describe('diatonic and chromatic', () => {
 describe('what the control offers', () => {
   it('offers only values the cards in play actually hold', () => {
     // A control built from the declared vocabulary would show twelve
-    // keys on a category that asks about three.
-    const tritones = FLASHCARDS.filter(c => c.category === 'tritone-pairs');
-    const keys = availableValues(tritones, 'key');
-    expect(keys).toEqual([]);
-    const notes = availableValues(tritones, 'note');
-    expect(notes.length).toBe(12);
+    // keys on a category that asks about none. Interval cards are
+    // anchored on a NOTE and named in no key at all.
+    const intervals = FLASHCARDS.filter(c => c.category === 'intervals');
+    expect(availableValues(intervals, 'key')).toEqual([]);
+    expect(availableValues(intervals, 'note').length).toBe(12);
   });
 
   it('offers no facet that cannot change what is on screen', () => {
-    // Every card in Tritone Pairs is six semitones, so a semitones
-    // filter over that category alone is a label, not a control.
-    const tritones = FLASHCARDS.filter(c => c.category === 'tritone-pairs');
-    expect(offerableFacets(tritones)).not.toContain('semitones');
-    expect(offerableFacets(tritones)).toContain('note');
+    // Every card in Progression Vocabulary that carries a progression
+    // carries the same one, so a progression filter over that category
+    // alone is a label, not a control.
+    const progressions = FLASHCARDS.filter(c => c.category === 'progressions');
+    expect(offerableFacets(progressions)).not.toContain('progression');
+    expect(offerableFacets(progressions)).toContain('key');
   });
 
   it('offers more as more categories are lit', () => {
-    const one = FLASHCARDS.filter(c => c.category === 'named-notes');
+    const one = FLASHCARDS.filter(c => c.category === 'progressions');
     const two = FLASHCARDS.filter(c =>
-      c.category === 'named-notes' || c.category === 'tritone-pairs');
+      c.category === 'progressions' || c.category === 'intervals');
     expect(offerableFacets(two).length).toBeGreaterThan(offerableFacets(one).length);
   });
 });
@@ -193,25 +198,33 @@ describe('the queue', () => {
   it('narrows within the categories, never instead of them', async () => {
     // The chip row says which categories; the filter says which of
     // their cards. A filter must not reach outside the pool.
+    const inCategory = FLASHCARDS.filter(c => c.category === 'enharmonic-equivalents');
     const session = await buildSession({
-      categories: ['tritone-pairs'], target: 500, facets: { semitones: ['6'] },
+      categories: ['enharmonic-equivalents'], target: 500,
+      facets: { enharmonicKind: ['note'] },
     });
-    for (const card of session.cards) expect(card.category).toBe('tritone-pairs');
-    expect(session.cards.length).toBe(12);
+    for (const card of session.cards) {
+      expect(card.category).toBe('enharmonic-equivalents');
+    }
+    expect(session.cards.length)
+      .toBe(inCategory.filter(c => c.facets?.enharmonicKind === 'note').length);
   });
 
   it('serves the whole pool when nothing is filtered', async () => {
     // The existing behaviour, unchanged — this is the assertion that
     // says the chip row still works exactly as it did.
     const withEmpty = await buildSession({
-      categories: ['tritone-pairs'], target: 500, facets: {},
+      categories: ['enharmonic-equivalents'], target: 500, facets: {},
     });
-    const without = await buildSession({ categories: ['tritone-pairs'], target: 500 });
+    const without = await buildSession({
+      categories: ['enharmonic-equivalents'], target: 500,
+    });
     // THE SAME CARDS, not the same order — an unseen queue is
     // shuffled, so comparing order would fail for a reason that has
     // nothing to do with filtering.
     expect(withEmpty.cards.map(c => c.id).sort())
       .toEqual(without.cards.map(c => c.id).sort());
-    expect(without.cards.length).toBe(12);
+    expect(without.cards.length)
+      .toBe(FLASHCARDS.filter(c => c.category === 'enharmonic-equivalents').length);
   });
 });

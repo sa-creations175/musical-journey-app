@@ -23,7 +23,9 @@ import { HARMONIC_FLUENCY_GRIDS } from '../progressGrids';
 import { CIRCLE_OF_FOURTHS } from '../../repertoire/circleOfFourths';
 import { IDENTITY_ID_MOVES, refusalFor } from '../identityIdMigration';
 
-const keyGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['named-notes']]!;
+// Reverse Key Pivots since Named Notes retired — the same `keyAxis`,
+// which is what these pin.
+const keyGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['reverse-key-pivots']]!;
 const pentGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['pentatonic-scales']]!;
 
 describe('the key axis is twelve columns', () => {

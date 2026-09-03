@@ -38,7 +38,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.now();
 
 /** Two items in ONE category, on very different schedules. */
-const CAT = 'tritone-pairs' as const;
+const CAT = 'ear-theory' as const;
 const ITEMS = FLASHCARDS.filter(c => c.category === CAT).slice(0, 2);
 const SLOW = ITEMS[0].id;   // 30-day interval
 const FAST = ITEMS[1].id;   // 2-day interval
@@ -264,8 +264,8 @@ describe('the card reads its tint and its counts from the shared sources', () =>
   });
 
   it('derives every category count from the catalog, not a written number', () => {
-    // ALL FIFTEEN, not one. Checking a single category passes on a
-    // hard-coded number that happens to match it — tritone-pairs has
+    // EVERY CATEGORY, not one. Checking a single category passes on a
+    // hard-coded number that happens to match it — Tritone Pairs had
     // twelve cards, so `itemCount: 12` survived the one-category
     // version of this test.
     const h = mount([att(SLOW, true, 0)]);

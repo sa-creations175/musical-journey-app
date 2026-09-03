@@ -31,8 +31,11 @@ import { buildSession, practiceAheadNotice } from '../sessionQueue';
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 
-const FINISHED: FlashcardCategory = 'tritone-pairs';
-const OTHER: FlashcardCategory = 'named-notes';
+// A SMALL CATEGORY, because every card in it has to be marked as not
+// due for the setup to mean anything. Tritone Pairs was 12 and is
+// retired; Ear-Theory Crossover is 15 and is the smallest that is left.
+const FINISHED: FlashcardCategory = 'ear-theory';
+const OTHER: FlashcardCategory = 'chord-construction';
 
 const cardsIn = (category: FlashcardCategory) =>
   FLASHCARDS.filter(c => c.category === category);

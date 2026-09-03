@@ -201,7 +201,7 @@ describe('the two card actions', () => {
     // IT USED TO START A RUN HERE, which meant a category had no page
     // and the nav's sub-item pointing at one had nowhere to land.
     const el = await renderPage();
-    const cat = 'tritone-pairs';
+    const cat = 'ear-theory';
     await click(card(cat)!.querySelector('[data-testid="category-card-toggle"]'), 'expand');
     await click(card(cat)!.querySelector('[data-testid="category-card-drill"]'), 'drill');
     expect(at()).toBe(`/harmonic-fluency/${cat}`);
@@ -212,7 +212,7 @@ describe('the two card actions', () => {
   });
 
   it('starts only that category from its page', async () => {
-    const cat = 'tritone-pairs';
+    const cat = 'ear-theory';
     const supply = FLASHCARDS.filter(c => c.category === cat).length;
     const el = await renderAt(`/harmonic-fluency/${cat}`);
     // Title Case, matching the home's own button.
@@ -229,13 +229,13 @@ describe('the two card actions', () => {
 
   it('spans every lit category, not just its own', async () => {
     /**
-     * THE POOL IS WHAT IS LIT. `tritone-pairs` holds fewer cards than a
+     * THE POOL IS WHAT IS LIT. `ear-theory` holds fewer cards than a
      * session targets, so a run drawn from it alone cannot reach the
      * target — lighting a category big enough to close the gap and
      * getting a full-length queue is proof the second one joined the
      * pool. Both numbers come off the catalog.
      */
-    const own = 'tritone-pairs';
+    const own = 'ear-theory';
     const added = 'scale-degree-math';
     const supply = FLASHCARDS.filter(c => c.category === own).length;
     const el = await renderAt(`/harmonic-fluency/${own}`);
@@ -274,13 +274,13 @@ describe('the two card actions', () => {
      * being true.
      *
      * MEASURED BY QUEUE LENGTH, and the fixture is what makes that
-     * mean something. `tritone-pairs` holds fewer cards than a session
+     * mean something. `ear-theory` holds fewer cards than a session
      * targets, so a run drawn from it alone CANNOT reach the target —
      * a full-length queue is proof the pool was not the saved filter.
      * Both numbers come off the catalog, so the day either of them
      * changes this fails rather than quietly stops testing anything.
      */
-    const POISON = 'tritone-pairs';
+    const POISON = 'ear-theory';
     const supply = FLASHCARDS.filter(c => c.category === POISON).length;
     await db.userPrefs.put({ key: 'harmonicFluencyCategoryFilter', value: [POISON] });
 
@@ -306,7 +306,7 @@ describe('the two card actions', () => {
     // ROUTE is what makes this fail on that implementation: a panel
     // opened in place would still satisfy the two lines below it.
     const el = await renderPage();
-    const cat = 'tritone-pairs';
+    const cat = 'ear-theory';
     await click(card(cat)!.querySelector('[data-testid="category-card-toggle"]'), 'expand');
     const detail = card(cat)!.querySelector('[data-testid="category-card-progress-detail"]');
     // Enabled here, unlike a module with no detail surface wired.

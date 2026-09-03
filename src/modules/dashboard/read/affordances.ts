@@ -76,15 +76,16 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     + 'question never says which key you are in. This is the layer under '
     + 'every other harmonic skill: it is what lets you transpose without '
     + 'learning anything twice.',
-  [`${HF}/Named Notes Across Keys`]:
-    'The same degree, spelled in a real key. "What is the 6 of E♭?" Scale '
-    + 'Degree Math is keyless arithmetic; this attaches it to letters and '
-    + 'accidentals, which is the step between knowing the shape of a key '
-    + 'and being able to say what is in it.',
-  [`${HF}/Tritone Pairs`]:
-    'The two notes a tritone apart, in both directions. The interval is '
-    + 'symmetrical, so every note has exactly one partner — which is what '
-    + 'makes the pairs worth knowing cold rather than working out.',
+  // NAMED NOTES ACROSS KEYS AND TRITONE PAIRS WERE HERE. Both folded
+  // into Degrees And Notes on 3 Sep 2026 and no longer exist as rows to
+  // describe.
+  //
+  // DEGREES AND NOTES HAS NO DESCRIPTION, AND ONE IS NOT INVENTED FOR
+  // IT. The category's own NAME is still the placeholder
+  // `DEGREE_NOTE_CATEGORY_NAME`, and a description written against a
+  // name that is about to change would have to be written twice. A
+  // missing key here renders no panel, which is the honest state — the
+  // string is listed in the report as Silas's to write.
   [`${HF}/Enharmonic Equivalents`]:
     'The same pitch under its other name. F♯ and G♭ sound identical and '
     + 'are written differently for a reason; naming the alternative on '

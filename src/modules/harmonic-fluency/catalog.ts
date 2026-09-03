@@ -1,7 +1,7 @@
 import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
 import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
-import { DEGREE_NOTE_CATEGORY_NAME } from './degreeNoteCards';
+import { DEGREE_NOTE_CATEGORY_NAME, degreeNoteCards } from './degreeNoteCards';
 import { withFacets } from './facets';
 import { INTERVAL_NAMES } from './intervalInversion';
 import { intervalInversionCards } from './intervalInversionCards';
@@ -55,10 +55,24 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   'degree-notes': DEGREE_NOTE_CATEGORY_NAME,
 };
 
+/**
+ * The categories a reader can reach, in the order they are offered.
+ *
+ * `named-notes` AND `tritone-pairs` ARE GONE FROM HERE, and their cards
+ * are gone from the deck below. Both asked what `degree-notes` now asks
+ * generally: "in F major, 4 of the scale" is the 4 of F, and "tritone
+ * of C" is the ♯4 of C. Thirty-five of their thirty-six cards are the
+ * identical question with the identical answer under a new id, so their
+ * history moves rather than being orphaned — see
+ * `retiredCategoryMigration.ts`, which asserts that identity per card
+ * rather than trusting a table.
+ *
+ * They keep their labels and their place in `FlashcardCategory` because
+ * the retired generators still describe them, and the migration needs
+ * both sides of the mapping to be describable. Nothing renders them.
+ */
 export const CATEGORY_ORDER: FlashcardCategory[] = [
-  // 'degree-notes' is absent ON PURPOSE — the family is built and not
-  // yet seeded. See the note beside FLASHCARDS below.
-  'scale-degree-math', 'named-notes', 'tritone-pairs', 'enharmonic-equivalents',
+  'scale-degree-math', 'degree-notes', 'enharmonic-equivalents',
   'diatonic-qualities', 'functional-harmony',
   'key-signatures', 'reverse-key-pivots', 'modes', 'pentatonic-scales', 'intervals',
   'chord-construction', 'progressions', 'slash-chords', 'ear-theory',
@@ -296,7 +310,7 @@ function chromaticNeighbours(correct: string, key: string): string[] {
     .filter(n => n !== correct && n !== noteAt(tonic, useFlats));
 }
 
-function generateNamedNoteCards(): Flashcard[] {
+export function generateNamedNoteCards(): Flashcard[] {
   const pairs: Array<{ key: string; degree: number }> = [
     { key: 'C', degree: 5 }, { key: 'G', degree: 4 }, { key: 'D', degree: 3 },
     { key: 'A', degree: 6 }, { key: 'E', degree: 2 }, { key: 'B', degree: 5 },
@@ -1575,7 +1589,7 @@ function noteDecoys(correct: string, count = 3): string[] {
   return makeDecoys(pool, correct, count);
 }
 
-function generateTritonePairCards(): Flashcard[] {
+export function generateTritonePairCards(): Flashcard[] {
   // Six tritone pairs; each note is drilled as a question subject (both
   // directions). The tritone bisects the octave, so it's its own
   // inverse — the partner's tritone is the original note.
@@ -1859,6 +1873,46 @@ function generatePentatonicKeyCards(): Flashcard[] {
 }
 
 /**
+ * The one card the fold-in cannot absorb.
+ *
+ * =====================================================================
+ * IT IS THE ONLY CARD IN THE DECK ASKING ANYTHING IN F♯ MAJOR.
+ *
+ * `degree-notes` generates from `FLAT_TWELVE`, which spells the sixth
+ * key G♭, and the 4 of G♭ is C♭. This card asks the 4 of F♯ and answers
+ * B. Same key on a keyboard, different letters on the page — so it is
+ * NOT the same question, the migration's assertion refuses to move any
+ * row onto the G♭ card, and folding it in would silently change an
+ * answer a reader has practised.
+ *
+ * The restructure plan named it in terms (§1.5): "the likely outcome is
+ * that they are quietly dropped, and you lose the only F♯-major card in
+ * the app without anyone deciding to." So it is placed rather than
+ * dropped.
+ *
+ * IT KEEPS ITS OWN ID, WHICH IS WHY IT IS SAFE. `nn-12` is unchanged —
+ * same question, same answer, same decoys, same skill tag, same
+ * coordinates. Only which category it is filed under moves, and a
+ * category is not part of any stored key, so not one row has to follow
+ * it anywhere. The card with the most to lose is the one card that
+ * moves nothing.
+ *
+ * WHAT IS STILL UNRULED. Whether the deck should ask in F♯ or in G♭ at
+ * all is Part 4 item 5 of the plan and nobody has answered it. When
+ * somebody does, this card is either regenerated with the rest or
+ * dropped deliberately — which is the difference this comment exists to
+ * make.
+ * =====================================================================
+ */
+const F_SHARP_SURVIVOR: Flashcard[] = generateNamedNoteCards()
+  .filter(c => c.id === 'nn-12')
+  .map(c => ({
+    ...c,
+    category: 'degree-notes' as FlashcardCategory,
+    categoryName: DEGREE_NOTE_CATEGORY_NAME,
+  }));
+
+/**
  * The deck.
  *
  * WRAPPED IN `withFacets`, which attaches what each card is about
@@ -1873,7 +1927,6 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   // alteration-zero subset, plus 84 more that land outside the key.
   // `sdmQualityMigration.ts` moved a reader's history across, and is
   // retired now that it has.
-  ...generateNamedNoteCards(),
   ...DIATONIC_QUALITY_CARDS,
   ...FUNCTIONAL_HARMONY_CARDS,
   ...KEY_SIG_CARDS,
@@ -1886,7 +1939,6 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   ...PROGRESSION_CARDS,
   ...SLASH_CHORD_CARDS,
   ...EAR_THEORY_CARDS,
-  ...generateTritonePairCards(),
   ...generateEnharmonicEquivalentCards(),
   // The twelve-key expansions. APPENDED, never interleaved: every
   // generator above numbers by position, so inserting into one of
@@ -1902,19 +1954,10 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   // their ids. Content-suffixed ids (`sdm-2-down-m6`) cannot collide
   // with the positional ones above (`sdm-2-down-6th`).
   ...scaleDegreeQualityCards(),
-  // =====================================================================
-  // `...degreeNoteCards()` GOES HERE, AND IS DELIBERATELY NOT HERE YET.
-  //
-  // The family is built, generated and tested — 468 cards, which is 42%
-  // of the deck and 2.8x the largest category in it. That is a scope
-  // decision, and putting it in the deck before Silas has seen the
-  // number would be making it for him.
-  //
-  // TO TURN IT ON: add the spread here, add 'degree-notes' to
-  // CATEGORY_ORDER above, and add the nav sub-item. Nothing else — the
-  // category, its label, the answer surface, the reveal panel and the
-  // grid spec are all already wired.
-  // =====================================================================
+  // Twelve keys x thirteen degrees x three questions. Silas saw the
+  // number — 468, and the deck it makes — and ruled it in.
+  ...degreeNoteCards(),
+  ...F_SHARP_SURVIVOR,
 ]);
 
 export function cardsByCategory(category: FlashcardCategory): Flashcard[] {

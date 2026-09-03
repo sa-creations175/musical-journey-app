@@ -26,7 +26,9 @@ const colourOf = (
 ) => spec?.notes.find(n => n.note === note)?.color ?? null;
 
 describe('a card that names its key', () => {
-  const card = firstOf('named-notes');
+  // The F♯ card, the one survivor of the Named Notes fold-in — and the
+  // only card in `degree-notes` that carries a `visualHint` at all.
+  const card = firstOf('degree-notes');
   const root = parseKeyRoot(card.visualHint!.key!);
 
   it('lights the whole scale, with the start on top of it', () => {

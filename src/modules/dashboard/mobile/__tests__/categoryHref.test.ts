@@ -41,16 +41,16 @@ describe('harmonic fluency', () => {
 
   it('ignores the label entirely', () => {
     // Same refs, a label naming a different category. The refs win.
-    const refs = FLASHCARDS.filter(c => c.category === 'tritone-pairs').map(c => c.id);
+    const refs = FLASHCARDS.filter(c => c.category === 'degree-notes').map(c => c.id);
     expect(categoryHref('harmonic-fluency', node(refs, { label: 'Modes' })))
-      .toBe(categoryPath('tritone-pairs'));
+      .toBe(categoryPath('degree-notes'));
   });
 
   it('falls back to the module home for a row spanning two categories', () => {
     // A row with no single category has no single page, and sending it
     // to the first one's would be a wrong answer delivered confidently.
     const a = FLASHCARDS.find(c => c.category === 'modes')!.id;
-    const b = FLASHCARDS.find(c => c.category === 'tritone-pairs')!.id;
+    const b = FLASHCARDS.find(c => c.category === 'degree-notes')!.id;
     expect(categoryHref('harmonic-fluency', node([a, b]))).toBe('/harmonic-fluency');
   });
 });

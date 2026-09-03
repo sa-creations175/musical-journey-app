@@ -27,7 +27,7 @@ import DegreeGroundedRows from './DegreeGroundedRows';
 import DegreePlayback from './DegreePlayback';
 import DegreeNoteReveal from './DegreeNoteReveal';
 import DegreeKeyboardAnswer from './DegreeKeyboardAnswer';
-import { isPressedCard, parsePressedId } from './degreeNoteCards';
+import { degreeNoteOptionLabel, isPressedCard, parsePressedId } from './degreeNoteCards';
 import DegreeKeyboard, { degreeKeyboardSpec } from './DegreeKeyboard';
 import { qualityOfCardId } from './scaleDegreeQualityCards';
 import FlashcardSession, {
@@ -185,6 +185,12 @@ export default function HarmonicFluencySession({
         <VisualAid card={card} mode={mode} answered={answered} chosen={chosen} />
       )}
       renderExplanation={text => <ModeLinkify text={text} />}
+      /* WHAT AN OPTION READS AS, where this deck knows more than the
+         shell's spelling rule does — a note answer carries the key a
+         player would actually press beside it, and a degree answer
+         carries both of its names. Null everywhere else, which falls
+         through to `glossTheoreticalSpellings` unchanged. */
+      renderOptionLabel={(card, option) => degreeNoteOptionLabel(card.id, option)}
       renderFooter={(card, { answered }) => (
         <CardReference card={card} answered={answered} />
       )}
@@ -255,15 +261,21 @@ function VisualAid({
   }
 
   switch (card.category) {
+    // `degree-notes` here is THE F♯ CARD AND NOTHING ELSE. The
+    // generated family carries no `visualHint` at all — it reveals
+    // through `DegreeNoteReveal` — so the guard at the top of this
+    // function already dropped every one of them before the switch.
+    // The one survivor kept the hint it was written with, and this is
+    // what draws it. See `F_SHARP_SURVIVOR` in `catalog.ts`.
     case 'scale-degree-math':
-    case 'named-notes':
+    case 'degree-notes':
     case 'reverse-key-pivots': {
       if (hint.startingDegree === undefined) return null;
 
       let degreeLabels: Partial<Record<number, string>> | undefined;
       let degreeLabelsAfterAnswer: Partial<Record<number, string>> | undefined;
 
-      if (card.category === 'named-notes' && hint.key) {
+      if (card.category === 'degree-notes' && hint.key) {
         const root = parseKeyRoot(hint.key);
         const labels: Partial<Record<number, string>> = {};
         for (let d = 1; d <= 7; d++) labels[d] = degreeNote(root, d);

@@ -101,7 +101,7 @@ const NAV_GROUPS: NavGroup[] = [
         to: '/harmonic-fluency',
         children: [
           { label: 'scale degree math',        to: '/harmonic-fluency/scale-degree-math' },
-          { label: 'named notes',              to: '/harmonic-fluency/named-notes' },
+          { label: 'degrees and notes',        to: '/harmonic-fluency/degree-notes' },
           { label: 'diatonic chord qualities', to: '/harmonic-fluency/diatonic-qualities' },
           { label: 'functional harmony',       to: '/harmonic-fluency/functional-harmony' },
           { label: 'key signatures',           to: '/harmonic-fluency/key-signatures' },

@@ -140,7 +140,7 @@ describe('decoys are derived, three per card', () => {
   });
 });
 
-describe('these do not duplicate the tritone-pairs cards', () => {
+describe('these do not duplicate the retired tritone-pairs cards', () => {
   // tt-* asks WHICH NOTE — "Tritone of A?" → D#. iv-inv-* asks WHICH
   // INTERVAL. Same fact from two sides; the assertions pin each to its
   // own side so they stay complementary.
@@ -165,8 +165,11 @@ describe('these do not duplicate the tritone-pairs cards', () => {
     }
   });
 
-  it('never puts the word "inverted" in a tritone-pairs card', () => {
-    const tt = FLASHCARDS.filter(c => c.category === 'tritone-pairs');
+  it('never puts the word "inverted" in a tritone card', () => {
+    // The tritone cards are the ♯4 and ♭5 of `degree-notes` now — the
+    // fold-in did not change which side of the fact they ask about.
+    const tt = FLASHCARDS.filter(c => c.facets?.semitones === 6
+      && c.category === 'degree-notes');
     expect(tt.length).toBeGreaterThan(0);
     for (const card of tt) {
       expect(card.question.toLowerCase(), card.id).not.toContain('inverted');

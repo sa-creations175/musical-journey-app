@@ -145,16 +145,21 @@ describe('the ruling, without a database', () => {
 });
 
 describe('the ruling, against the database', () => {
-  it('moves the goal, marks itself done, and touches nothing else', async () => {
+  it('refuses now that the deck has moved past what it was authorised for', async () => {
+    // 3 Sep 2026: `degree-notes` was seeded and Named Notes and Tritone
+    // Pairs folded into it, taking the deck from 648 to 1081. A goal
+    // still standing at 649 is stale by 432 now, not by one — and
+    // moving it to 648 would be a different correction than the one
+    // that was agreed to. The refusal IS the design; see the header.
     await seed([goal({ id: 'g', description: 'All of Harmonic Fluency' })]);
 
     const report = await retuneRetiredCardGoalTarget();
 
-    expect(report.decision.kind).toBe('retune');
-    expect((await db.goals.get('g'))!.targetValue).toBe(AUTHORISED_TARGET);
+    expect(report.decision.kind).toBe('refused');
+    expect((await db.goals.get('g'))!.targetValue).toBe(STALE_TARGET);
     expect(await targetsOf(['shapes', 'hf-sub-area'])).toEqual([648, 100]);
-    expect(await getPref(PREF_HF_COVERAGE_TARGET_RETUNED, false)).toBe(true);
-    expect(describeRetune(report)).toContain('All of Harmonic Fluency');
+    expect(await getPref(PREF_HF_COVERAGE_TARGET_RETUNED, false)).toBe(false);
+    expect(describeRetune(report)).toContain('REFUSED');
   });
 
   it('says nothing at all when there is no such goal', async () => {
@@ -193,11 +198,18 @@ describe('the ruling, against the database', () => {
 });
 
 describe('the numbers this is pinned to', () => {
-  it('the live deck is the target this may write', () => {
-    // The pin that makes the refusal above meaningful: if the catalog
-    // moves again, `AUTHORISED_TARGET` stops matching and every retune
-    // refuses until somebody rules on it.
-    expect(harmonicFluencyCounts().total).toBe(AUTHORISED_TARGET);
+  it('the deck has moved, so nothing may be written until somebody rules', () => {
+    // The pin, holding exactly as designed: `AUTHORISED_TARGET` is a
+    // literal and the catalog is not, so the day the deck moved this
+    // stopped writing anything. It is not adapted to the new number —
+    // that would be a different one-shot than the one that was agreed
+    // to, which is the rule the module exists to follow.
+    expect(harmonicFluencyCounts().total).not.toBe(AUTHORISED_TARGET);
+    expect(decideRetune([goal({ id: 'g' })], harmonicFluencyCounts().total).kind)
+      .toBe('refused');
+  });
+
+  it('the stale target is one more than the one it was authorised to write', () => {
     expect(STALE_TARGET).toBe(AUTHORISED_TARGET + 1);
   });
 });

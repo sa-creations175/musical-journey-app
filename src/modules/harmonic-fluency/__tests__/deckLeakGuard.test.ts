@@ -281,8 +281,12 @@ describe('the answer is not drawn in a predictable slot', () => {
     const after = firstUnder(c => renderedOptions(c.id, c.correctAnswer, c.decoys));
     const bound = positionBound(CARDS.length, 0.25, POSITION_ALPHA);
 
-    // 341 of 649 — 52.5%, against a 197 ceiling. Red by a mile.
-    expect(before).toBe(341);
+    // 341 of 649 — 52.5% — when this was written, against a 197
+    // ceiling. The deck has more than doubled since; the number moves
+    // with it and the claim does not. What is pinned is that the old
+    // comparator is still WELL over the bound and the new one is under
+    // it, which is the whole content of the test.
+    expect(before).toBeGreaterThan(CARDS.length * 0.4);
     expect(before).toBeGreaterThan(bound);
     // And the replacement clears it.
     expect(after).toBeLessThanOrEqual(bound);

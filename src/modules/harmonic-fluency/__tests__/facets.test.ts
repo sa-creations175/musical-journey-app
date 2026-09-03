@@ -87,7 +87,7 @@ describe('the two collisions this ends', () => {
       expect(card.facets?.degree, card.id).toBeUndefined();
       expect(card.facets?.fromDegree, card.id).toBeTypeOf('number');
     }
-    for (const cat of ['named-notes', 'reverse-key-pivots', 'modes'] as const) {
+    for (const cat of ['degree-notes', 'reverse-key-pivots', 'modes'] as const) {
       for (const card of FLASHCARDS.filter(c => c.category === cat)) {
         if (card.facets === undefined) continue;
         expect(card.facets.fromDegree, card.id).toBeUndefined();
@@ -97,15 +97,21 @@ describe('the two collisions this ends', () => {
   });
 
   it('gives the three questions about one relationship the same words', () => {
-    // Named Notes asks for the note, Reverse Key Pivots asks for the
-    // key, Mode Identification asks for the mode that degree produces.
-    // One key facet, one degree facet, three categories.
-    const named = FLASHCARDS.find(c => c.category === 'named-notes' && c.facets)!;
+    // Degrees And Notes asks for the note, Reverse Key Pivots asks for
+    // the key, Mode Identification asks for the mode that degree
+    // produces. One key facet, one degree facet, three categories.
+    //
+    // The family adds `semitones` — the distance is a fourth thing it
+    // knows and the other two do not, and it is what lets the ♯4 and
+    // the ♭5 be gathered with the interval cards.
     const pivot = FLASHCARDS.find(c => c.category === 'reverse-key-pivots' && c.facets)!;
     const mode = FLASHCARDS.find(c => c.category === 'modes' && c.facets)!;
-    for (const card of [named, pivot, mode]) {
+    for (const card of [pivot, mode]) {
       expect(Object.keys(card.facets!).sort(), card.id).toEqual(['degree', 'key']);
     }
+    const dgn = FLASHCARDS.find(c => c.category === 'degree-notes' && c.facets)!;
+    expect(Object.keys(dgn.facets!).sort())
+      .toEqual(['degree', 'key', 'semitones']);
   });
 
   it('gives the four things that shared `shape` four different names', () => {
@@ -122,7 +128,7 @@ describe('the two collisions this ends', () => {
   it('calls the note a card is anchored on by one name', () => {
     // `note`, `from`, `root` and `spelling` were four names for the
     // same claim.
-    for (const cat of ['tritone-pairs', 'intervals', 'pentatonic-scales'] as const) {
+    for (const cat of ['intervals', 'pentatonic-scales'] as const) {
       const card = FLASHCARDS.find(c => c.category === cat && c.facets)!;
       expect(card.facets!.note, cat).toBeTypeOf('string');
     }
@@ -157,10 +163,13 @@ describe('what a card is allowed to say', () => {
     // families that ask the same thing be gathered at all.
     const six = FLASHCARDS.filter(c => c.facets?.semitones === 6);
     const cats = new Set(six.map(c => c.category));
-    expect(cats.has('tritone-pairs')).toBe(true);
+    expect(cats.has('degree-notes')).toBe(true);
     expect(cats.has('intervals')).toBe(true);
+    // Tritone Pairs was the third and is folded in — its twelve
+    // questions are the ♯4 and ♭5 cards now, which is the whole point
+    // of gathering by the distance rather than by the category.
     expect(six.length).toBeGreaterThan(FLASHCARDS
-      .filter(c => c.category === 'tritone-pairs').length);
+      .filter(c => c.category === 'intervals').length);
   });
 });
 
@@ -170,7 +179,7 @@ describe('nothing moved', () => {
     // model that renamed them would empty every grid in the module.
     const math = FLASHCARDS.find(c => c.category === 'scale-degree-math')!;
     expect(math.axis).toMatchObject({ degree: expect.anything(), movement: expect.anything() });
-    const named = FLASHCARDS.find(c => c.category === 'named-notes')!;
+    const named = FLASHCARDS.find(c => c.category === 'degree-notes')!;
     expect(named.axis).toMatchObject({ key: expect.anything(), degree: expect.anything() });
   });
 

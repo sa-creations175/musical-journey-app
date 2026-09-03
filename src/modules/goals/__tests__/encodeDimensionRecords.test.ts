@@ -167,11 +167,13 @@ describe('encodeDimensionRecords — Harmonic Fluency', () => {
     consistency: { count: 4, cadence: 'week' },
   };
 
-  it('Breadth = all uses harmonic_fluency_coverage_at_acquired with 648', () => {
+  it('Breadth = all uses harmonic_fluency_coverage_at_acquired with 1081', () => {
     const records = encodeDimensionRecords(hf(baseHf));
     const breadth = records[0];
     expect(breadth.targetMetric).toBe('harmonic_fluency_coverage_at_acquired');
-    expect(breadth.targetValue).toBe(648);
+    // 648 until 3 Sep 2026, when Degrees And Notes was seeded and
+    // Named Notes and Tritone Pairs folded into it.
+    expect(breadth.targetValue).toBe(1081);
     expect(breadth.targetUnit).toBe('cards');
   });
 

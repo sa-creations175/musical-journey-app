@@ -128,11 +128,18 @@ describe('the three card types', () => {
   });
 
   it('writes the playable name beside a spelling nobody can play', () => {
-    // B𝄫 is correct and unplayable as written; the bracket is the
+    // A𝄫 is correct and unplayable as written; the bracket is the
     // instruction, not a footnote.
+    //
+    // WITHOUT THE BOLD MARKER. `noteWithPlayable` writes `(**G**)` for
+    // a component that turns the asterisks into weight; a card's
+    // explanation is a plain string rendered through no such component,
+    // so four asterisks would reach the screen. The parenthetical is
+    // the instruction and it survives — see `noteDisplay`.
     const card = nameItCards().find(c => c.id === 'dgn-Db-b5')!;
     expect(card.explanation).toContain('𝄫');
-    expect(card.explanation).toContain('**G**');
+    expect(card.explanation).toContain('(G)');
+    expect(card.explanation).not.toContain('*');
   });
 });
 

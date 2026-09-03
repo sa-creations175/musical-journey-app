@@ -83,19 +83,20 @@ describe('what the drill does with it', () => {
     // Empty means no narrowing — the same reading `categories` gets, so
     // the module home can pass it unconditionally.
     const named = await buildSession({
-      categories: ['tritone-pairs'], target: 500, cardIds: [],
+      categories: ['ear-theory'], target: 500, cardIds: [],
     });
-    const plain = await buildSession({ categories: ['tritone-pairs'], target: 500 });
+    const plain = await buildSession({ categories: ['ear-theory'], target: 500 });
     expect(named.cards.length).toBe(plain.cards.length);
-    expect(named.cards.length).toBe(12);
+    expect(named.cards.length)
+      .toBe(FLASHCARDS.filter(c => c.category === 'ear-theory').length);
   });
 
   it('narrows within the categories, never outside them', async () => {
     // A pool and a category selection are two narrowings, not two
     // answers to the same question.
-    const outside = FLASHCARDS.find(c => c.category === 'named-notes')!.id;
+    const outside = FLASHCARDS.find(c => c.category === 'degree-notes')!.id;
     const session = await buildSession({
-      categories: ['tritone-pairs'], target: 500, cardIds: [outside],
+      categories: ['ear-theory'], target: 500, cardIds: [outside],
     });
     expect(session.cards).toHaveLength(0);
   });

@@ -70,7 +70,14 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 336 + 100 + 105 + 107 = 648
+// Harmonic Fluency — 769 + 100 + 105 + 107 = 1081
+// (3 Sep 2026: 648 → 1081. `degree-notes` seeded at 469 — twelve keys
+//  x thirteen degrees x three questions, plus the one F♯ card that
+//  survived the fold-in under its own id — and Named Notes (24) and
+//  Tritone Pairs (12) retired into it. Foundational 336 → 769: it
+//  loses both retired categories and gains the family. Thirty-five of
+//  the thirty-six retired cards moved their history onto their
+//  counterpart — see retiredCategoryMigration.ts.)
 // (2 Sep 2026: 649 → 648. `ksc-3` was `ks-16` a second time — same
 //  question, same answer — and one of the two had to go. Key
 //  signatures 57 → 56, foundational 337 → 336.)
@@ -88,8 +95,8 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 168 + nn 24 + ks 56 + pent 41 + tt 12 + enh 35 = 336', () => {
-    expect(c.byGroup.foundational).toBe(336);
+  it('foundational = sdm 168 + dgn 469 + ks 56 + pent 41 + enh 35 = 769', () => {
+    expect(c.byGroup.foundational).toBe(769);
   });
 
   it('chordKnowledge = dq 20 + cc 20 + sc 60 = 100', () => {
@@ -104,8 +111,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(107);
   });
 
-  it('total = 648 across all 15 categories', () => {
-    expect(c.total).toBe(648);
+  it('total = 1081 across all 14 categories', () => {
+    expect(c.total).toBe(1081);
   });
 
   it('total equals sum of group totals', () => {
@@ -117,9 +124,12 @@ describe('harmonicFluencyCounts', () => {
     expect(groupSum).toBe(c.total);
   });
 
-  it('byCategory covers all 15 canonical categories', () => {
+  it('byCategory covers all 14 canonical categories', () => {
+    // `named-notes` and `tritone-pairs` are absent because their cards
+    // are: both folded into `degree-notes` on 3 Sep 2026.
     expect(Object.keys(c.byCategory).sort()).toEqual([
       'chord-construction',
+      'degree-notes',
       'diatonic-qualities',
       'ear-theory',
       'enharmonic-equivalents',
@@ -127,13 +137,11 @@ describe('harmonicFluencyCounts', () => {
       'intervals',
       'key-signatures',
       'modes',
-      'named-notes',
       'pentatonic-scales',
       'progressions',
       'reverse-key-pivots',
       'scale-degree-math',
       'slash-chords',
-      'tritone-pairs',
     ]);
   });
 

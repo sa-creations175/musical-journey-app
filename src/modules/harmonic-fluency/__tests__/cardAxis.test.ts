@@ -14,7 +14,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_LABELS, ENHARMONIC_INTERVAL_GROUPS, ENHARMONIC_NOTE_PAIRS,
-  ENHARMONIC_SPELLINGS, FLASHCARDS, HF_MAJOR_KEYS, SCALE_DEGREES,
+  ENHARMONIC_SPELLINGS, FLASHCARDS, generateNamedNoteCards,
+  generateTritonePairCards, HF_MAJOR_KEYS, SCALE_DEGREES,
   type FlashcardCategory,
 } from '../catalog';
 
@@ -25,8 +26,16 @@ const inCategory = (c: FlashcardCategory) => FLASHCARDS.filter(f => f.category =
 const generated = (c: FlashcardCategory, prefix: RegExp) =>
   inCategory(c).filter(f => prefix.test(f.id));
 
-describe('named notes', () => {
-  const cards = generated('named-notes', /^nn-\d+$/);
+/**
+ * RETIRED, AND STILL PINNED. Named Notes and Tritone Pairs are out of
+ * the deck; their generators are not, because `retiredCategoryMigration`
+ * reads them to prove which new card each retired one became. A
+ * coordinate that drifted here would silently repoint a row, so these
+ * two blocks read the generators directly and stay until commit 9
+ * deletes both.
+ */
+describe('named notes (retired — read by the migration)', () => {
+  const cards = generateNamedNoteCards().filter(f => /^nn-\d+$/.test(f.id));
 
   it('carries key and degree on every generated card', () => {
     expect(cards.length).toBe(24);
@@ -96,8 +105,8 @@ describe('intervals', () => {
   });
 });
 
-describe('tritone pairs', () => {
-  const cards = generated('tritone-pairs', /^tt-\d+$/);
+describe('tritone pairs (retired — read by the migration)', () => {
+  const cards = generateTritonePairCards().filter(f => /^tt-\d+$/.test(f.id));
 
   it('carries the note and its partner', () => {
     expect(cards.length).toBe(12);
@@ -192,12 +201,11 @@ describe('absent means flat list, not broken', () => {
       'intervals': 25,
       'key-signatures': 17,
       'modes': 33,
-      'named-notes': 24,
+      'degree-notes': 469,
       'pentatonic-scales': 36,
       'progressions': 6,
       'reverse-key-pivots': 27,
       'slash-chords': 44,
-      'tritone-pairs': 12,
     });
   });
 });
@@ -279,7 +287,9 @@ describe('the grid reads the passed list, not the coordinates present', () => {
   it('keeps both key views over the same twelve', async () => {
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
     const { viewsAgree } = await import('../../../components/moduleHome/axis');
-    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['named-notes']];
+    // Reverse Key Pivots, since Named Notes retired — the same
+    // `keyAxis`, which is the thing under test.
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['reverse-key-pivots']];
     expect(grid.columns.views).toHaveLength(2);
     expect(viewsAgree(grid.columns)).toBe(true);
     // And they really are different orders, or the toggle is decoration.

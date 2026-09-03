@@ -18,6 +18,10 @@ import {
   retuneRetiredCardGoalTarget,
 } from './modules/harmonic-fluency/retiredCardGoalTarget';
 import {
+  describeRetiredCategoryMigration,
+  migrateRetiredCategories,
+} from './modules/harmonic-fluency/retiredCategoryMigration';
+import {
   describeDedupe, removeDuplicateSpacingRows,
 } from './lib/spacing/dedupeSpacingRows';
 import {
@@ -205,6 +209,30 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] coverage-goal target retune failed', err);
+      });
+    // Named Notes and Tritone Pairs are folded into Degrees And Notes,
+    // and their rows follow their cards: spacing state with its
+    // schedule and its hand-written flags, every attempt, the skill
+    // annotation and every diary entry. Deleting the cards without this
+    // would leave the rows in IndexedDB and read on screen as though
+    // the practice had never happened.
+    //
+    // IDEMPOTENT BY DATA AND NOT BY A PREF, which is the whole reason
+    // it can live in a boot path at all. Two devices, either order, any
+    // number of times: it looks for rows still keyed on a retired id
+    // and finds none on the second pass. A pref would refuse to touch a
+    // legacy row that arrived by sync from a device that had not opened
+    // the app since the change.
+    //
+    // It refuses to move a row it cannot prove belongs — see the
+    // module's header — and says so rather than moving it anyway.
+    void migrateRetiredCategories()
+      .then(r => {
+        const line = describeRetiredCategoryMigration(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] retired-category migration failed', err);
       });
     // ONE-TIME, AND DELIBERATELY NOT ARMED YET.
     //

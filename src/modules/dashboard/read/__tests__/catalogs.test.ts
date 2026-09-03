@@ -67,9 +67,11 @@ describe('catalog sizes — the denominators', () => {
     expect(reachable).toBe(51);
   });
 
-  it('harmonic fluency: 648 cards', () => {
+  it('harmonic fluency: 1081 cards', () => {
     // 649 until 2 Sep 2026, when the duplicate `ksc-3` was retired.
-    expect(catalogItemCount(harmonicFluencyCatalog)).toBe(648);
+    // 648 until 3 Sep 2026, when Degrees And Notes was seeded (469) and
+    // Named Notes (24) and Tritone Pairs (12) folded into it.
+    expect(catalogItemCount(harmonicFluencyCatalog)).toBe(1081);
   });
 
   it('production vocabulary: 199 cards', () => {

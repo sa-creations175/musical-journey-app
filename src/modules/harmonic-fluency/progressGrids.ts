@@ -148,7 +148,16 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
     rows: degreeAxis,
   },
 
-  [CATEGORY_LABELS['named-notes']]: { columns: keyAxis, rows: degreeAxis },
+  // `named-notes` HAD ONE HERE AND ITS CARDS ARE GONE. A grid keyed on
+  // a label no card carries renders an empty page rather than nothing,
+  // so it goes with them.
+  //
+  // `degree-notes` GETS NONE, AND THAT IS DELIBERATE. Its coordinates
+  // are a key and a degree like the row below, but THREE cards share
+  // every cell — name it, place it and press it — and a grid whose
+  // cell means three different questions is a cell that cannot be
+  // coloured honestly. Diatonic Chord Qualities, Chord Construction and
+  // Ear-Theory Crossover already render without one.
   [CATEGORY_LABELS['reverse-key-pivots']]: { columns: keyAxis, rows: degreeAxis },
 
   // Intervals compare along their SPAN, and the starting note is what
@@ -156,13 +165,6 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   [CATEGORY_LABELS.intervals]: {
     columns: axis('semitones', 'semitones', INTERVAL_SEMITONES),
     rows: axis('from', 'from', FLAT_TWELVE),
-  },
-
-  // ONE DIMENSION, HONESTLY. A tritone has exactly one partner, so a
-  // note x partner grid would be a diagonal with 132 empty cells. The
-  // twelve notes in a row is the whole category.
-  [CATEGORY_LABELS['tritone-pairs']]: {
-    columns: axis('note', 'note', FLAT_TWELVE),
   },
 
   // Two kinds share this category — respelled notes and respelled

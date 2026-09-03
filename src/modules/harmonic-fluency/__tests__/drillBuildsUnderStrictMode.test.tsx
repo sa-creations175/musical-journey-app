@@ -34,7 +34,7 @@
  * bug.
  */
 import 'fake-indexeddb/auto';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
@@ -44,6 +44,22 @@ import { CATEGORY_ORDER } from '../catalog';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
+
+/**
+ * THE QUEUE CAN NOW DRAW A PRESSED CARD, which renders `AnswerKeyboard`,
+ * which measures its host. jsdom has no `ResizeObserver`, so a queue
+ * that happened to include one threw where the point of the file is
+ * whether the component rendered at all. Stubbed rather than avoided:
+ * steering the queue away from a third of `degree-notes` would be
+ * testing a narrower thing than the drill.
+ */
+beforeEach(() => {
+  vi.stubGlobal('ResizeObserver', class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  });
+});
 
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;

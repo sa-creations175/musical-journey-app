@@ -43,11 +43,11 @@
 import type { Flashcard, FlashcardCategory } from './catalog';
 import { chooseDecoys } from './decoyGuard';
 import {
-  CHROMATIC_DEGREES, degreeNoteAscii, degreePitchClass,
+  CHROMATIC_DEGREES, DEGREE_BY_ID, degreeNoteAscii, degreePitchClass,
 } from './chromaticDegrees';
 import { FLAT_TWELVE } from './catalogExpansions';
 import { canonicaliseKey } from '../repertoire/circleOfFourths';
-import { noteWithPlayable } from './scaleDegreeQuality';
+import { noteWithPlayable, parseNote } from './scaleDegreeQuality';
 import { degreePitch } from './chromaticDegrees';
 
 export const DEGREE_NOTE_CATEGORY: FlashcardCategory = 'degree-notes';
@@ -65,11 +65,131 @@ export function degreeLabel(id: string): string {
   return id.replace('b', '♭').replace('#', '♯');
 }
 
-/** A note, written for the eye: real glyphs, and the playable name
- *  beside a spelling that cannot be played as written. */
+/**
+ * =====================================================================
+ * THE TWO NAMES ONE KEY GOES BY, AND THE WORD FOR THE DISTANCE.
+ *
+ * ♯4 and ♭5 stay TWO CARDS, because they are two functions: the ♯4
+ * rises out of a major context and the ♭5 falls inside a minor or
+ * diminished one. Silas's ruling keeps them apart and joins them on
+ * the answer:
+ *
+ *   "I need to understand it from whenever someone would say flat
+ *    five. What is the flat five? Sharp four. I just wanna know it
+ *    from whenever I hear it or think about it or see it."
+ *
+ * He is not being tested on which name is correct. So a degree given
+ * as an ANSWER names both, and a question naming a degree still names
+ * one — "what is the ♯4 / ♭5 of C" would have two right answers,
+ * because the ♯4 of C is F♯ and the ♭5 of C is G♭.
+ *
+ * THE PAIR IS NEVER TWO OPTIONS. `degreeDecoyPool` refuses the twin,
+ * because two buttons reading `♯4 / ♭5` is being marked wrong for
+ * picking the label that reads the same.
+ * =====================================================================
+ */
+export const TRITONE_DEGREE_IDS: readonly string[] = ['#4', 'b5'];
+
+/** Whether a degree is one of the pair above. */
+export function isTritoneDegree(id: string): boolean {
+  return TRITONE_DEGREE_IDS.includes(id);
+}
+
+/**
+ * A distance that has a common name of its own, in semitones.
+ *
+ * ONE ENTRY, AND THAT IS THE HONEST LENGTH. "Tritone" is the word Ear
+ * Training already uses when it plays the interval, and the word
+ * people use in the abstract — tritone substitution — so naming it
+ * here is a bridge between the two modules rather than a fact.
+ *
+ * Nothing else in the table earns one. A ♭3 is not "the blue note" —
+ * ♭3, ♭5 and ♭7 are all called that and none of them exclusively; the
+ * ♭7 has no name but its number; and "unison" for the 1 is a word
+ * about two voices, not about a degree. Naming those would be
+ * inventing a word for a reader to learn wrongly, so they are left
+ * off and named in the report.
+ */
+export const DISTANCE_NAMES: Readonly<Record<number, string>> = { 6: 'tritone' };
+
+/**
+ * A degree written as an ANSWER: both names where it has two, and the
+ * distance's own name where it has one.
+ *
+ * Distinct from `degreeLabel`, which is what a QUESTION uses. See the
+ * block above for why those cannot be the same function.
+ */
+export function degreeAnswerLabel(id: string): string {
+  const both = isTritoneDegree(id)
+    ? TRITONE_DEGREE_IDS.map(degreeLabel).join(' / ')
+    : degreeLabel(id);
+  const distance = DEGREE_BY_ID.get(id)?.semitones;
+  const named = distance === undefined ? undefined : DISTANCE_NAMES[distance];
+  return named === undefined ? both : `${both} (${named})`;
+}
+
+/**
+ * A note, written for the eye: real glyphs, and the playable name
+ * beside a spelling that differs from the key a player presses —
+ * F♭ (E), E♯ (F), B𝄫 (A).
+ *
+ * WITHOUT THE BOLD MARKER, and that is the only difference from
+ * `noteWithPlayable`. Its `**` is a component-level emphasis that
+ * `DegreeGroundedRows` turns into weight; a card's question,
+ * explanation and option label are plain strings that reach the screen
+ * through no such component, so the marker would render as four
+ * asterisks. The PARENTHETICAL is the instruction and it survives; the
+ * weight is what a string cannot carry.
+ */
 export function noteDisplay(root: string, degreeId: string): string {
   const p = degreePitch(root, degreeId);
-  return p === null ? '' : noteWithPlayable(p);
+  return p === null ? '' : plainPlayable(noteWithPlayable(p));
+}
+
+/** The same rule as `noteDisplay`, from a note name rather than from a
+ *  root and a degree — what an option label has to work from. */
+export function noteNameDisplay(ascii: string): string {
+  return plainPlayable(noteWithPlayable(parseNote(ascii)));
+}
+
+function plainPlayable(label: string): string {
+  return label.replace(/\*\*/g, '');
+}
+
+/**
+ * What one option on a degree-note card should READ as, or null where
+ * this family has no opinion and the shell's own rule stands.
+ *
+ * THE OPTION STRING ITSELF IS UNTOUCHED. It is compared against
+ * `correctAnswer` and written to the attempt, so only the text node
+ * changes — the same split `facetDisplay` makes for the filter row and
+ * `glossTheoreticalSpellings` makes for every other family.
+ */
+export function degreeNoteOptionLabel(
+  cardId: string, option: string,
+): string | null {
+  if (cardId.startsWith('dgd-')) return degreeAnswerLabel(option);
+  if (cardId.startsWith('dgn-')) return noteNameDisplay(option);
+  return null;
+}
+
+/**
+ * The identity spelling of a root — what an axis coordinate and a
+ * facet carry.
+ *
+ * `FLAT_TWELVE` says G♭ and the app's identity vocabulary says F♯;
+ * `lib/spelling.ts` sets the rule that the identity is what a lookup is
+ * keyed on and the display is computed on the way to the screen. So
+ * every question, answer and explanation still reads G♭ — they derive
+ * from the root as written — and the coordinate reads F♯.
+ *
+ * SEPARATE FROM `idRoot` BECAUSE AN AXIS IS NOT AN ID. `Fs` was
+ * reaching `axis.key`, which is not a key name: `pitchClassOf('Fs')` is
+ * null, so the coordinate could not be placed on a keyboard and the
+ * `key` facet would have offered a value no reader has ever seen.
+ */
+function identityRoot(root: string): string {
+  return canonicaliseKey(root) ?? root;
 }
 
 /**
@@ -82,7 +202,7 @@ export function noteDisplay(root: string, degreeId: string): string {
  * ends up, which is what a stable handle has to be.
  */
 function idRoot(root: string): string {
-  return (canonicaliseKey(root) ?? root).replace('#', 's');
+  return identityRoot(root).replace('#', 's');
 }
 
 /** `b6` → `b6`, `#4` → `s4`. Same rule, same reason. */
@@ -129,13 +249,53 @@ function bareDegree(degreeId: string): string {
   return degreeId.replace(/[b#]/g, '');
 }
 
+/**
+ * Which member of the ♯4 / ♭5 pair a card may offer — never both, and
+ * never a fixed one.
+ *
+ * =====================================================================
+ * NEVER BOTH, because they read identically: two buttons saying
+ * `♯4 / ♭5` is being marked wrong for picking the one that reads the
+ * same. On the two cards where one of them IS the answer, neither is
+ * offered at all.
+ *
+ * NEVER A FIXED ONE, and this is the part that is not obvious. Keeping
+ * ♯4 everywhere leaves ♭5 appearing on the twelve cards where it is the
+ * required same-number twin — the 5s — and on nothing else. A reader
+ * who noticed would answer "5" on sight of it without reading the
+ * question, and `deckLeakGuard` catches exactly that.
+ *
+ * SO IT FOLLOWS THE CARD'S OWN SPELLING: a flat degree offers the ♭5, a
+ * natural or sharp one the ♯4. That is a real decoy-quality rule rather
+ * than a coin toss — a decoy shaped like the answer is the argument
+ * `noteDecoys` already makes — and it spreads each name across five or
+ * six different answers, so neither implies anything. The same-number
+ * twin still overrides it, because that requirement is about the
+ * mistake the family exists to catch.
+ * =====================================================================
+ */
+function tritoneMemberFor(degreeId: string): string {
+  const required = TRITONE_DEGREE_IDS.find(
+    id => bareDegree(id) === bareDegree(degreeId),
+  );
+  return required ?? (degreeId.startsWith('b') ? 'b5' : '#4');
+}
+
 function degreeDecoyPool(degreeId: string): string[] {
   const bare = bareDegree(degreeId);
-  const sameNumber = CHROMATIC_DEGREES
-    .filter(d => d.id !== degreeId && d.id.replace(/[b#]/g, '') === bare)
+  const excluded = new Set<string>([degreeId]);
+  if (isTritoneDegree(degreeId)) {
+    for (const id of TRITONE_DEGREE_IDS) excluded.add(id);
+  } else {
+    const kept = tritoneMemberFor(degreeId);
+    for (const id of TRITONE_DEGREE_IDS) if (id !== kept) excluded.add(id);
+  }
+  const usable = CHROMATIC_DEGREES.filter(d => !excluded.has(d.id));
+  const sameNumber = usable
+    .filter(d => d.id.replace(/[b#]/g, '') === bare)
     .map(d => d.id);
-  const rest = CHROMATIC_DEGREES
-    .filter(d => d.id !== degreeId && !sameNumber.includes(d.id))
+  const rest = usable
+    .filter(d => !sameNumber.includes(d.id))
     .map(d => d.id);
   return [...sameNumber, ...rest];
 }
@@ -167,14 +327,14 @@ export function nameItCards(): Flashcard[] {
       id,
       category: DEGREE_NOTE_CATEGORY,
       categoryName: DEGREE_NOTE_CATEGORY_NAME,
-      axis: { key: idRoot(root), degree: degreeId },
+      axis: { key: identityRoot(root), degree: degreeId },
       question: `In the key of ${root}, what is the ${degreeLabel(degreeId)}?`,
       correctAnswer: note,
       decoys: chooseDecoys(note, noteDecoyPool(root, degreeId), {
         count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
       }),
       explanation:
-        `The ${degreeLabel(degreeId)} of ${root} is ${noteDisplay(root, degreeId)}.`,
+        `The ${degreeAnswerLabel(degreeId)} of ${root} is ${noteDisplay(root, degreeId)}.`,
       skillTag: `degree-note-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });
@@ -188,7 +348,7 @@ export function placeItCards(): Flashcard[] {
       id,
       category: DEGREE_NOTE_CATEGORY,
       categoryName: DEGREE_NOTE_CATEGORY_NAME,
-      axis: { key: idRoot(root), degree: degreeId },
+      axis: { key: identityRoot(root), degree: degreeId },
       question: `In the key of ${root}, ${noteDisplay(root, degreeId)} is which degree?`,
       correctAnswer: degreeId,
       decoys: chooseDecoys(degreeId, degreeDecoyPool(degreeId), {
@@ -211,7 +371,7 @@ export function placeItCards(): Flashcard[] {
           : () => true,
       }),
       explanation:
-        `${noteDisplay(root, degreeId)} is the ${degreeLabel(degreeId)} of ${root}.`,
+        `${noteDisplay(root, degreeId)} is the ${degreeAnswerLabel(degreeId)} of ${root}.`,
       skillTag: `note-degree-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });
@@ -232,14 +392,14 @@ export function pressItCards(): Flashcard[] {
       id,
       category: DEGREE_NOTE_CATEGORY,
       categoryName: DEGREE_NOTE_CATEGORY_NAME,
-      axis: { key: idRoot(root), degree: degreeId },
+      axis: { key: identityRoot(root), degree: degreeId },
       question: `In the key of ${root}, press the ${degreeLabel(degreeId)}.`,
       correctAnswer: note,
       decoys: chooseDecoys(note, noteDecoyPool(root, degreeId), {
         count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
       }),
       explanation:
-        `The ${degreeLabel(degreeId)} of ${root} is ${noteDisplay(root, degreeId)}.`,
+        `The ${degreeAnswerLabel(degreeId)} of ${root} is ${noteDisplay(root, degreeId)}.`,
       skillTag: `degree-press-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });

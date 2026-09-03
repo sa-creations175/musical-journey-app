@@ -59,6 +59,7 @@
  * =====================================================================
  */
 import type { Flashcard } from './catalog';
+import { DEGREE_BY_ID } from './chromaticDegrees';
 
 /**
  * The facets a card may carry. Every one is optional, and every one
@@ -228,6 +229,18 @@ export function facetsFor(card: Flashcard): CardFacets | undefined {
       // name now, and this category carries no key and no note.
       f.fromDegree = num(axis?.degree);
       f.movement = str(axis?.movement);
+      break;
+
+    case 'degree-notes':
+      // THE SAME RELATIONSHIP THE THREE BELOW ASK ABOUT, asked three
+      // more ways. The key and the degree mean exactly what they mean
+      // there; the distance is written down because this is the family
+      // that made the tritone gatherable — the ♯4 and the ♭5 are six
+      // semitones from their key whether or not the card says so, and
+      // that is the claim that puts them beside the interval cards.
+      f.key = str(axis?.key);
+      f.degree = str(axis?.degree);
+      f.semitones = DEGREE_BY_ID.get(String(axis?.degree))?.semitones;
       break;
 
     case 'named-notes':

@@ -3,14 +3,23 @@ import {
   CATEGORY_LABELS,
   CATEGORY_ORDER,
   cardsByCategory,
+  generateTritonePairCards,
 } from '../catalog';
 
-describe('HF new categories — Tritone Pairs', () => {
-  const cards = cardsByCategory('tritone-pairs');
+/**
+ * RETIRED, AND STILL PINNED. The twelve cards folded into
+ * `degree-notes` on 3 Sep 2026 and are out of the deck. Their generator
+ * stays until commit 9 because `retiredCategoryMigration` reads it to
+ * prove which new card each one became — so what they SAY still has to
+ * be held, or a row could be repointed by a silent edit.
+ */
+describe('HF retired categories — Tritone Pairs', () => {
+  const cards = generateTritonePairCards();
 
-  it('registers the category (label + order)', () => {
+  it('is out of the deck, and its label survives for the migration', () => {
     expect(CATEGORY_LABELS['tritone-pairs']).toBe('Tritone Pairs');
-    expect(CATEGORY_ORDER).toContain('tritone-pairs');
+    expect(CATEGORY_ORDER).not.toContain('tritone-pairs');
+    expect(cardsByCategory('tritone-pairs')).toHaveLength(0);
   });
 
   it('has 12 cards (6 pairs × both directions)', () => {
