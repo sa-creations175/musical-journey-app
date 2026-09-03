@@ -821,7 +821,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
             {chosen !== card.correctAnswer && (
               <span className="text-xs text-neutral-500">
                 correct answer:{' '}
-                <span className="font-mono text-fluent">
+                <span className="font-mono text-fluent" data-testid="correct-answer">
                   {optionLabel(card.correctAnswer)}
                 </span>
               </span>

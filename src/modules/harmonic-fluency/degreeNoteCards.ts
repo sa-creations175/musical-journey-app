@@ -259,12 +259,42 @@ function plainPlayable(label: string): string {
  * `correctAnswer` and written to the attempt, so only the text node
  * changes — the same split `facetDisplay` makes for the filter row and
  * `glossTheoreticalSpellings` makes for every other family.
+ *
+ * =====================================================================
+ * A PRESSED CARD HAS NO OPTIONS AND STILL HAS AN ANSWER.
+ *
+ * `renderAnswerSurface` puts a keyboard where the four buttons go, so
+ * nothing here is ever drawn as a button on a `dgp-` card. But the
+ * shell writes "correct answer: …" under a wrong press through this
+ * same seam, and that line was the last surface in the family reading
+ * in the raw form — `Cb(B)`, ASCII and unspaced, where every other
+ * surface says C♭ (B).
+ *
+ * IT ANSWERS JOINTLY, because a pressed answer is a KEY and the key has
+ * both names: the ♯4 of C and the ♭5 of C are the one you missed. So
+ * the line reads F♯ / G♭ and matches the explanation directly beneath
+ * it, sibling-gloss narrowing and all. On the written types the answer
+ * is an OPTION — one of four, only one of them right — so those stay
+ * single, which is why this is a branch rather than a widening.
+ *
+ * ONLY FOR THE CORRECT ANSWER. A wrong press arrives as `pc:9`, which
+ * names a key the card never mentioned; there is no spelling to give it
+ * and null hands it back to the shell untouched.
+ * =====================================================================
  */
 export function degreeNoteOptionLabel(
   cardId: string, option: string,
 ): string | null {
   if (cardId.startsWith('dgd-')) return degreeAnswerLabel(option);
   if (cardId.startsWith('dgn-')) return noteNameDisplay(option);
+  if (cardId.startsWith('dgp-')) {
+    const parsed = parsePressedId(cardId);
+    if (parsed === null) return null;
+    const answer = degreeNoteAscii(parsed.root, parsed.degreeId);
+    return option === answer
+      ? noteAnswerDisplay(parsed.root, parsed.degreeId)
+      : null;
+  }
   return null;
 }
 

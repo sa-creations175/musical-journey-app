@@ -18,7 +18,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import FlashcardSession from '../../../lib/flashcards/FlashcardSession';
 import DegreeKeyboardAnswer from '../DegreeKeyboardAnswer';
-import { isPressedCard, nameItCards, pressItCards } from '../degreeNoteCards';
+import {
+  degreeNoteOptionLabel, isPressedCard, nameItCards, pressItCards,
+} from '../degreeNoteCards';
 import { keyAt, viewBoxWidth, WH } from '../../../lib/answerKeyboard';
 import { recordEngagement } from '../../../lib/spacingState';
 import { db } from '../../../lib/db';
@@ -88,6 +90,10 @@ async function renderCard(card = PRESSED) {
             ? <DegreeKeyboardAnswer card={c} answered={answered} chosen={chosen} answer={answer} />
             : null
         )}
+        /* THE SAME WIRING THE REAL SESSION PASSES. Without it the
+           feedback line falls through to the shell's own gloss, which
+           is exactly the state this file now pins against. */
+        renderOptionLabel={(c, option) => degreeNoteOptionLabel(c.id, option)}
       />,
     );
   });
@@ -211,5 +217,81 @@ describe('the written cards keep their four buttons', () => {
     expect(container!.querySelector('[data-testid="degree-keyboard-answer"]')).toBeNull();
     const optionText = [...container!.querySelectorAll('button')].map(b => b.textContent ?? '');
     expect(optionText.some(t => t.includes('A♭') || t.includes('Ab'))).toBe(true);
+  });
+});
+
+/**
+ * The line under a wrong press reads like the rest of the family.
+ *
+ * =====================================================================
+ * IT WAS THE LAST SURFACE IN THE RAW FORM. Miss a press and the shell
+ * wrote "correct answer: Cb(B)" — ASCII, unspaced — where the
+ * explanation directly beneath it said C♭ (B) and every option on every
+ * written card in this family already said it too.
+ *
+ * BOTH HALVES, ON THE SAME VALUE. What a person reads changes; what is
+ * compared and written to the attempt does not. Each test names one
+ * card and holds the rendered line against the stored answer, so a
+ * later "fix" that made the line right by respelling `correctAnswer`
+ * fails here rather than quietly breaking the judging.
+ * =====================================================================
+ */
+describe('the correct-answer line after a wrong press', () => {
+  const lineText = () =>
+    container!.querySelector('[data-testid="correct-answer"]')!.textContent;
+
+  /** Press something else, so the shell draws the answer line. */
+  async function missOn(cardId: string, wrongPc: number) {
+    const card = pressItCards().find(c => c.id === cardId)!;
+    const answers = await renderCard(card);
+    await press(wrongPc);
+    expect(answers[0].correct).toBe(false);
+    return card;
+  }
+
+  it('reads C♭ (B) where the stored answer is still Cb', async () => {
+    // A lone degree: the bracket is the only thing naming the key, and
+    // it stays.
+    const card = await missOn('dgp-Eb-b6', 0);
+    expect(lineText()).toBe('C♭ (B)');
+    expect(card.correctAnswer).toBe('Cb');
+  });
+
+  it('names both spellings of a pressed tritone, on a key that keeps its gloss', async () => {
+    // A pressed answer is a KEY, and the key has both names — the ♯4 of
+    // C and the ♭5 of C are the one that was missed.
+    const card = await missOn('dgp-C-s4', 5);
+    expect(lineText()).toBe('F♯ / G♭');
+    expect(card.correctAnswer).toBe('F#');
+  });
+
+  it('and on a key where the sibling supplies the gloss', async () => {
+    // E♯ (F) / F would say F twice; the narrowing applies here exactly
+    // as it does in the explanation underneath.
+    const card = await missOn('dgp-B-s4', 6);
+    expect(lineText()).toBe('E♯ / F');
+    expect(card.correctAnswer).toBe('E#');
+  });
+
+  it('still judges on the stored value, not on what is read', async () => {
+    // The other half of each assertion above, on the same cards: the
+    // right press is recorded as the ASCII the card stores.
+    for (const [id, pc, stored] of [
+      ['dgp-Eb-b6', 11, 'Cb'], ['dgp-C-s4', 6, 'F#'], ['dgp-B-s4', 5, 'E#'],
+    ] as const) {
+      const answers = await renderCard(pressItCards().find(c => c.id === id)!);
+      await press(pc);
+      expect(answers[0].correct, id).toBe(true);
+      expect(answers[0].choice, id).toBe(stored);
+      await act(async () => root!.unmount());
+      container!.remove();
+      root = null; container = null;
+    }
+  });
+
+  it('leaves a wrong press unspelled, because it names no note the card mentioned', async () => {
+    // `pc:9` is a key, not a spelling. Inventing one would put a note
+    // in the attempt row that nobody played.
+    expect(degreeNoteOptionLabel('dgp-C-b6', 'pc:9')).toBeNull();
   });
 });
