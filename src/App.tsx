@@ -14,10 +14,6 @@ import {
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
 import {
-  describeRetune,
-  retuneRetiredCardGoalTarget,
-} from './modules/harmonic-fluency/retiredCardGoalTarget';
-import {
   describeRetiredCategoryMigration,
   migrateRetiredCategories,
 } from './modules/harmonic-fluency/retiredCategoryMigration';
@@ -184,32 +180,18 @@ export default function App() {
       .catch(err => {
         console.warn('[hf] retired-card cleanup failed', err);
       });
-    // The tail of that same retirement. A coverage goal stores its
-    // target as a NUMBER, written when the goal was created; the scope
-    // is enumerated live and dropped to 648 on its own. A goal written
-    // before the retirement therefore tops out at 648 / 649 and can
-    // never read complete.
+    // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
+    // It was authorised to move a coverage goal's stored target from
+    // 649 to 648 after `ksc-3` was retired, and it refused from the
+    // moment the deck reached 1081 — 648 would have been a different
+    // and wrong correction. It worked exactly as designed and could
+    // never do anything useful again.
     //
-    // NOT ORDERED AGAINST THE CLEANUP ABOVE, and it does not need to
-    // be: it reads the goals table and the catalog, neither of which
-    // the cleanup touches.
-    //
-    // This does NOT make target rewrites automatic — `scopeShrink`
-    // still reports rather than migrates, on purpose. This is Silas
-    // exercising the decision that rule hands him, once, pinned to two
-    // numbers. Same shape as the two above: it checks what it was
-    // authorised against and refuses if the shape moved. And where
-    // there is no such goal — the likely answer — it says nothing,
-    // because a line about a goal that does not exist reads like a
-    // finding.
-    void retuneRetiredCardGoalTarget()
-      .then(r => {
-        const line = describeRetune(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] coverage-goal target retune failed', err);
-      });
+    // NOT REPLACED WITH A VERSION PINNED TO 1081. Silas has ruled that
+    // no correction is wanted: a goal whose denominator moved is
+    // something he can see and rescope himself, and `scopeShrink`
+    // already tells him. This is the app declining to have an opinion
+    // about a number its owner already understands.
     // Named Notes and Tritone Pairs are folded into Degrees And Notes,
     // and their rows follow their cards: spacing state with its
     // schedule and its hand-written flags, every attempt, the skill
