@@ -295,6 +295,93 @@ state: clock stopped, chips live, nothing further to press first.
 
 ---
 
+## Chord Movements & Passes — provisional, pending Silas's naming pass
+
+**These are NOT approved copy.** Every line below is exactly what the
+signed-off prototype (`docs/chord-movement-playback-prototype_1.html`) shows,
+transcribed rather than written. They are listed here so the build has a
+single place to read them from and a single place to change them when Silas
+does the naming pass. Two of them are settled and are marked as such.
+
+### Settled — these override the prototype
+
+- Loop off
+- Loop on
+- BPM
+
+### The breadcrumb and the two things Silas types
+
+- Shapes & Patterns › Chord Movements & Passes
+- Name this movement
+- How you see and think about this movement. Where it comes from, what the bass is doing, where it lands.
+- Entered in the key of C, shown in C
+
+### The transport
+
+- Play
+- Stop
+- Key
+- No key
+- Spelling
+- Bass
+- Forward
+- Even
+
+### The no-key message
+
+- Set a key first. The pressed notes are stored as distances from the key's root, so without a key there is nothing to anchor them to.
+
+### The grid
+
+- Select a chord to create, edit or review its voicing.
+- Bar 1
+- filled in
+
+### The legends
+
+- Left hand: same colour at 65%
+- Sounding now
+- No notes pressed, voicing filled in by the app
+- Root
+- ♭2 / ♭9
+- 2 / 9
+- ♭3 / ♯9
+- 3
+- 4 / 11
+- ♯4 / ♭5
+- 5
+- ♯5 / ♭6
+- 6 / 13
+- ♭7
+- 7
+
+### The editor panel
+
+- Filled in from the chord symbol
+- Press with left hand
+- Press with right hand
+- Hear this chord
+- Copy voicing
+- Paste voicing
+- Close
+- Click a key to press or release it. The chord plays what is pressed.
+- Nothing is pressed for this chord, so the app is voicing it from the symbol. Press any key and it becomes yours.
+- Voicing copied. Open another chord and press Paste voicing.
+
+### The "what is sounding" keyboard
+
+- What is sounding
+- Colour is the interval from the chord root, as on the lead sheet. Left hand is dimmer.
+
+### The octave navigation
+
+- ◀ Lower octave
+- Higher octave ▶
+- C1 to C7. Scroll sideways or step by octave.
+- C1 to C7
+
+---
+
 ## Still not approved — do not build these
 
 - **The per-hand bars on the home card**, two segments or six. A shape decision,
