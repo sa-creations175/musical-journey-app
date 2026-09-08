@@ -120,7 +120,7 @@ function rootOffset(chord: ChordPlacement['chord']): number | null {
 }
 
 /** The notes a quality supplies when nothing was pressed. */
-function derivedVoicing(chord: ChordPlacement['chord']): VoicingEntry[] {
+export function derivedVoicing(chord: ChordPlacement['chord']): VoicingEntry[] {
   const { id } = qualityIdFromSuffix(chord.quality);
   const intervals = QUALITY_INTERVALS[id] ?? QUALITY_INTERVALS.maj;
   // The bass takes the slash degree where there is one, so a D/F♯ fills
@@ -133,6 +133,20 @@ function derivedVoicing(chord: ChordPlacement['chord']): VoicingEntry[] {
     { offset: DERIVED_BASS_OFFSET + bassFromRoot, hand: 'L' },
     ...intervals.map(i => ({ offset: DERIVED_RIGHT_OCTAVE + i, hand: 'R' as const })),
   ];
+}
+
+/**
+ * What a placement sounds — what was pressed, or the filled-in voicing
+ * where nothing was.
+ *
+ * ONE ANSWER FOR BOTH READERS. The player needs it to schedule notes
+ * and the "what is sounding" keyboard needs it to draw them, and two
+ * ways of deciding what a silent chord plays is how a screen comes to
+ * show one thing and sound another.
+ */
+export function voicingForPlacement(placement: ChordPlacement): VoicingEntry[] {
+  const pressed = normalizeVoicing(placement.voicing);
+  return pressed.length > 0 ? pressed : derivedVoicing(placement.chord);
 }
 
 /**
@@ -162,9 +176,8 @@ export function toPlayableMovement(input: TranslationInput): PlayableMovement | 
     // dropped rather than guessed at, and the caller can see it went by
     // comparing the counts.
     if (root === null) continue;
-    const pressed = normalizeVoicing(p.voicing);
-    const derived = pressed.length === 0;
-    const notes = derived ? derivedVoicing(p.chord) : pressed;
+    const derived = normalizeVoicing(p.voicing).length === 0;
+    const notes = voicingForPlacement(p);
     placements.push({
       placementId: p.id,
       intervals: notes.map(n => root + n.offset),
