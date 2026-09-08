@@ -285,6 +285,21 @@ export const SYNC_TABLES: SyncTableConfig[] = [
       { dexie: 'moduleId', pg: 'module_id' },
       { dexie: 'timestamp', pg: 'timestamp' },
     ] },
+  // -----------------------------------------------------------------
+  // chordMovements — captured chord moves. Requires migration
+  // 009_chord_movements.sql to be applied first, for the same reason
+  // `attempts` carries that warning above: a push to a missing table
+  // fails the drain batch and stalls the queue for every other table.
+  //
+  // NO TOP-LEVEL COLUMNS. Nothing queries a movement server-side by
+  // anything but its id — the list orders locally by `updatedAt`, which
+  // the base table already carries as a column of its own. Lifting a
+  // field out that nothing filters on is cost without a query behind it.
+  //
+  // NOT append-only: a movement is deletable from the UI, so the orphan
+  // sweep has to see it.
+  // -----------------------------------------------------------------
+  { dexie: 'chordMovements', pg: 'chord_movements', idField: 'id', topLevel: [] },
   { dexie: 'weeklyOverrides', pg: 'weekly_overrides', idField: 'id',
     topLevel: [
       { dexie: 'weekStart', pg: 'week_start' },

@@ -2489,6 +2489,102 @@ export interface SpacingState {
 }
 
 /**
+ * A chord movement — a captured chord move with a rhythm and pressed
+ * voicings, such as a 3-to-6 walk-up heard on YouTube.
+ *
+ * =====================================================================
+ * IT IS NOT A SONG, AND THAT IS WHY IT HAS ITS OWN TABLE.
+ *
+ * A song is a story with parts, a feeling and a context. This is a
+ * gesture. Silas's first ruling for this submodule
+ * (`docs/CHORD_MOVEMENTS_DECISIONS.md`) is that a movement must never
+ * be counted where songs are counted — the repertoire list, the
+ * dashboard's song squares, practice-session generation, goals, the
+ * weekly plan, song-of-month.
+ *
+ * A FLAG ON `songs` WAS RULED OUT, and the reason is structural rather
+ * than aesthetic. Twenty-two files read `db.songs` with no filter; a
+ * `notASong` boolean would need every one of them to remember it, and
+ * the day one forgot there would be a walk-up in a practice session
+ * with nothing on screen to explain it. A separate table cannot be
+ * forgotten — code that does not name `chordMovements` cannot see one.
+ * That is checkable, and `chordMovements.test.ts` checks it.
+ *
+ * =====================================================================
+ * THE PLACEMENTS ARE `ChordPlacement`, THE SAME TYPE THE LEAD SHEET
+ * USES, and that is deliberate rather than convenient.
+ *
+ * Ruling 5 is that entry uses the lead sheet's existing
+ * press-the-notes-per-hand editor and that the editor becomes ONE
+ * shared component. A component cannot be shared between two hosts
+ * holding two nearly-identical shapes without an adapter between them,
+ * and an adapter is the second implementation the rule exists to
+ * prevent. So a movement stores exactly what a section stores.
+ *
+ * `arrangementId` comes with that type and is always
+ * `MOVEMENT_ARRANGEMENT_ID` here: a movement has one grid and no
+ * alternative arrangements. Kept rather than stripped, because
+ * stripping it is what would force the adapter.
+ *
+ * =====================================================================
+ * NO BAR COUNT, AND NO DURATION-UNIT STAMP.
+ *
+ * A section carries `barCount` / `barLayout` and
+ * `eighthsDurationVersion`. A movement carries neither, and both
+ * absences are decisions:
+ *
+ *   · THE BAR COUNT IS DERIVED from the placements, because the
+ *     signed-off prototype has no control for adding a bar. Storing a
+ *     number nothing can change would be storing a decision nobody has
+ *     made.
+ *   · THERE IS NO EIGHTHS TOGGLE on a movement, so its `beats` are
+ *     always in the unit they were written in. The translation still
+ *     READS the stamp — it takes one as an argument and a movement
+ *     passes none — because a translator that assumed the unit is how
+ *     a whole song's durations once silently doubled.
+ * =====================================================================
+ */
+export interface ChordMovement {
+  id: string;
+  /** What Silas called it. MAY BE EMPTY — a movement is created before
+   *  it is named, and the app never fills this in (ruling 4). */
+  name: string;
+  /** How he sees and thinks about it. Free text, may be empty. */
+  description: string;
+  /**
+   * The key it was captured in, as a key name ("C", "Db").
+   *
+   * OPTIONAL, AND PLAYBACK REFUSES WITHOUT IT (ruling 10). Every
+   * pressed note is stored as a distance from a chord root, and a root
+   * resolves from key + degree — so with no key there is nothing to
+   * anchor the voicings to and nothing honest to play.
+   */
+  key?: string;
+  /** Its own time signature, from the same presets a song section
+   *  offers (ruling 6). */
+  timeSignature: string;
+  /** The chord events, in the lead sheet's own shape. */
+  placements: ChordPlacement[];
+  /** Playback speed in BPM, remembered per movement (ruling 8). This
+   *  is NOT the metronome and does not read its settings. */
+  playbackBpm: number;
+  /** Whether the left hand is played louder than the right (ruling
+   *  12). Silas will decide by ear whether this stays. */
+  bassBalance: 'forward' | 'even';
+  createdAt: number;
+  updatedAt: number;
+}
+
+/**
+ * The one arrangement id every movement placement carries.
+ *
+ * A movement has one grid. The field exists because `ChordPlacement` is
+ * the lead sheet's type and a movement uses it unchanged — see the
+ * header above for why that is the right trade.
+ */
+export const MOVEMENT_ARRANGEMENT_ID = 'movement';
+
+/**
  * Centralized prompt orchestration row. All proactive prompts
  * route through this table — Phase 1 only fires the "set goals"
  * nudge user-visibly, plus simple banners for vacation_return
@@ -2952,6 +3048,9 @@ export class AppDB extends Dexie {
   voicingPatterns!: Table<VoicingPattern, string>;
   // Per-week override of the practice-consistency days target — v28
   weeklyOverrides!: Table<WeeklyOverride, string>;
+  // Captured chord movements and passes — v41. NOT songs; see the
+  // interface header for why this is a table rather than a flag.
+  chordMovements!: Table<ChordMovement, string>;
 
   constructor() {
     super('musical-journey');
@@ -4534,6 +4633,21 @@ export class AppDB extends Dexie {
         + `blocked / broken, ${cleared} non-chord session(s) cleared, `
         + `${withStyle.length} inert spacingState style(s) dropped.`,
       );
+    });
+
+    /**
+     * Chord movements get a table of their own.
+     *
+     * NO UPGRADE FUNCTION, because there is nothing to carry across:
+     * the concept did not exist before this version, so there are no
+     * rows anywhere that should become one. A movement is created by
+     * hand or not at all.
+     *
+     * `updatedAt` is indexed because the list orders by it. Nothing
+     * else here is queried by anything but its id.
+     */
+    this.version(41).stores({
+      chordMovements: 'id, updatedAt',
     });
   }
 }
