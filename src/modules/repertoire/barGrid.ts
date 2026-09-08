@@ -226,6 +226,17 @@ export interface Bar {
 /** Parse a time-signature string into its numerator / denominator.
  *  Falls back to 4/4 for unrecognised or missing input. Free-text
  *  values like "12/8" or "5/4" parse normally; gibberish defaults. */
+/**
+ * The time signatures a section — or a chord movement — may be set to.
+ *
+ * SHARED RATHER THAN COPIED. It lived beside the picker in
+ * `BarGridView.tsx`; ruling 6 gives a movement its own time signature
+ * "chosen from the same presets a song section uses", and the only way
+ * for that sentence to stay true is for there to be one list.
+ */
+export const SECTION_TIME_SIGNATURE_PRESETS: readonly string[] =
+  ['4/4', '3/4', '6/8', '5/4', '7/8', '12/8'];
+
 export function parseTimeSignature(ts: string | undefined | null): {
   beatsPerBar: number;
   beatUnit: number;

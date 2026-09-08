@@ -17,6 +17,21 @@ export function shapesSectionPath(section: ShapesSectionId): string {
 }
 
 /**
+ * Chord Movements & Passes, and one movement inside it.
+ *
+ * NOT A `ShapesSectionId`. The four sections are what `shapesCards`
+ * computes coverage over and what `sectionTargets` reads; a movement
+ * has no targets to be a fraction of, so it is a page under the module
+ * rather than a fifth entry in that list. Same URL shape, different
+ * kind of thing — which is why the two helpers sit together.
+ */
+export const MOVEMENTS_PATH = '/shapes-and-patterns/movements';
+
+export function movementPath(id: string): string {
+  return `${MOVEMENTS_PATH}/${id}`;
+}
+
+/**
  * What a card's Progress Detail button puts in `location.state` on its
  * way to the section page.
  *

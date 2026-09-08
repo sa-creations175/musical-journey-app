@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import TodayAndAttention from './TodayAndAttention';
 import {
   cleanupGhostKeyboardIfNeeded,
@@ -16,7 +16,7 @@ import {
   isShapesSectionId,
   shapesCards,
 } from './homeCards';
-import { SCROLL_TO_DETAIL_STATE, shapesSectionPath } from './sectionRoutes';
+import { MOVEMENTS_PATH, SCROLL_TO_DETAIL_STATE, shapesSectionPath } from './sectionRoutes';
 import { shapesTimeInvested } from './timeInvested';
 
 export default function ShapesAndPatterns() {
@@ -120,6 +120,19 @@ export default function ShapesAndPatterns() {
         sortable
         now={now}
       />
+
+      {/* CHORD MOVEMENTS & PASSES IS NOT ONE OF THE CARDS, and that is
+          the point of it being a link. A card carries coverage — a
+          fraction of a target — and a movement has no target to be a
+          fraction of. It is a place things are kept, so it reads as a
+          way in rather than as progress. */}
+      <Link
+        to={MOVEMENTS_PATH}
+        data-testid="movements-entry"
+        className="block rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-3 hover:border-fluent"
+      >
+        <span className="text-base font-semibold">Chord Movements &amp; Passes</span>
+      </Link>
     </div>
   );
 }

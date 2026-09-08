@@ -53,6 +53,7 @@ import ShapesAndPatterns from './modules/shapes-and-patterns/ShapesAndPatterns';
 import ShapesAndPatternsSection from './modules/shapes-and-patterns/ShapesAndPatternsSection';
 import ShapesAndPatternsCalendar from './modules/shapes-and-patterns/ShapesAndPatternsCalendar';
 import MovementScreen from './modules/shapes-and-patterns/movements/MovementScreen';
+import MovementsList from './modules/shapes-and-patterns/movements/MovementsList';
 import Production from './modules/production/Production';
 import SessionLog from './modules/session-log/SessionLog';
 import SkillsCatalogue from './modules/skills/SkillsCatalogue';
@@ -302,6 +303,7 @@ export default function App() {
             {/* ONE MOVEMENT'S OWN PAGE. Declared above the `:section`
                 route for the same reason `calendar` is: a static
                 segment must not be readable as a section slug. */}
+            <Route path="shapes-and-patterns/movements" element={<MovementsList />} />
             <Route
               path="shapes-and-patterns/movements/:movementId"
               element={<MovementScreen />}

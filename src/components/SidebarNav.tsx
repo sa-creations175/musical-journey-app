@@ -170,6 +170,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'chord shape drills',  to: '/shapes-and-patterns/chord-shapes' },
           { label: 'voice-leading drills',to: '/shapes-and-patterns/voice-leading' },
           { label: 'mental visualisation',to: '/shapes-and-patterns/mental-viz' },
+          { label: 'chord movements',     to: '/shapes-and-patterns/movements' },
         ],
       },
       {

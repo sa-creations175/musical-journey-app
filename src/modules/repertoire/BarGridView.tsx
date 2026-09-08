@@ -39,6 +39,7 @@ import {
   effectiveHarmonicTag,
   effectiveTimeSignature,
   parseTimeSignature,
+  SECTION_TIME_SIGNATURE_PRESETS,
 } from './barGrid';
 import {
   beatNoteName,
@@ -794,7 +795,6 @@ function AddBarButton({ onAddBar }: { onAddBar: () => void }) {
 // Time-signature presets surfaced in the section-level picker.
 // Mirrors `SongDetailView.TIME_SIGNATURE_PRESETS` so picks match
 // across the song-meta editor and the per-section override.
-const SECTION_TIME_SIGNATURE_PRESETS = ['4/4', '3/4', '6/8', '5/4', '7/8', '12/8'];
 
 function BarGridHeader({
   timeSignature,
