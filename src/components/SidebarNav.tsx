@@ -168,9 +168,13 @@ const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'scale drills',        to: '/shapes-and-patterns/scales' },
           { label: 'chord shape drills',  to: '/shapes-and-patterns/chord-shapes' },
-          { label: 'voice-leading drills',to: '/shapes-and-patterns/voice-leading' },
           { label: 'mental visualisation',to: '/shapes-and-patterns/mental-viz' },
+          // CHORD MOVEMENTS & PASSES, AND VOICE LEADING UNDER IT
+          // (ruling 3). The nav is one level deep, so the nesting shows
+          // as order rather than as indentation — the two sit together
+          // and the sub-module comes first.
           { label: 'chord movements',     to: '/shapes-and-patterns/movements' },
+          { label: 'voice-leading drills',to: '/shapes-and-patterns/movements/voice-leading' },
         ],
       },
       {

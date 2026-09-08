@@ -55,6 +55,14 @@ async function renderAt(path: string) {
         <Probe />
         <Routes>
           <Route path="/shapes-and-patterns" element={<ShapesAndPatterns />} />
+          {/* VOICE LEADING'S PAGE MOVED UNDER CHORD MOVEMENTS
+              (ruling 3) — same component, same section, a different
+              address. Declared here the way `App.tsx` declares it, so
+              this harness routes what the app routes. */}
+          <Route
+            path="/shapes-and-patterns/movements/voice-leading"
+            element={<ShapesAndPatternsSection section="voice-leading" />}
+          />
           <Route path="/shapes-and-patterns/:section" element={<ShapesAndPatternsSection />} />
         </Routes>
       </MemoryRouter>,
@@ -102,7 +110,10 @@ describe('the module home', () => {
     const el = await renderAt('/shapes-and-patterns');
     await click(card('voice-leading')!.querySelector('[data-testid="category-card-toggle"]'));
     await click(card('voice-leading')!.querySelector('[data-testid="category-card-progress-detail"]'));
-    expect(at()).toBe('/shapes-and-patterns/voice-leading');
+    // Under Chord Movements & Passes since 8 Sep 2026. `shapesSectionPath`
+    // owns which address that is, and the card reads it — so the card
+    // never learned the new one.
+    expect(at()).toBe('/shapes-and-patterns/movements/voice-leading');
     // And the detail it asked about is on the page it landed on.
     expect(el.querySelector('[data-testid="shapes-section-detail"]')).not.toBeNull();
   });
@@ -190,6 +201,14 @@ async function renderAtWithDetailRequest(path: string) {
         <Probe />
         <Routes>
           <Route path="/shapes-and-patterns" element={<ShapesAndPatterns />} />
+          {/* VOICE LEADING'S PAGE MOVED UNDER CHORD MOVEMENTS
+              (ruling 3) — same component, same section, a different
+              address. Declared here the way `App.tsx` declares it, so
+              this harness routes what the app routes. */}
+          <Route
+            path="/shapes-and-patterns/movements/voice-leading"
+            element={<ShapesAndPatternsSection section="voice-leading" />}
+          />
           <Route path="/shapes-and-patterns/:section" element={<ShapesAndPatternsSection />} />
         </Routes>
       </MemoryRouter>,

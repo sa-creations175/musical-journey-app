@@ -51,8 +51,20 @@ const PREF_CHORD_SCOPE = 'shapesAndPatternsChordScope';
  * press to a different sub-module would leave every `useState` here
  * describing the one just left.
  */
-export default function ShapesAndPatternsSection() {
-  const { section } = useParams<{ section: string }>();
+export default function ShapesAndPatternsSection(
+  /**
+   * `section` overrides the URL param, for a sub-module whose address
+   * is not `/shapes-and-patterns/<id>`.
+   *
+   * VOICE LEADING IS THE ONLY ONE. Ruling 3 moves its page under Chord
+   * Movements & Passes, so its route is static and carries no param —
+   * and the page itself is unchanged, which is the whole requirement.
+   * `shapesSectionPath` still owns which address that is.
+   */
+  { section: fixed }: { section?: ShapesSectionId } = {},
+) {
+  const { section: fromUrl } = useParams<{ section: string }>();
+  const section = fixed ?? fromUrl;
   if (section === undefined || !isShapesSectionId(section)) {
     return <Navigate to="/shapes-and-patterns" replace />;
   }

@@ -1,7 +1,7 @@
 // Future feature ideas live in /ROADMAP.md at the project root.
 import { Suspense, lazy } from 'react';
 import { useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
 import { backfillChartingEngagement } from './modules/repertoire/chartingEngagement';
 import { describeWipe, wipeRetiredCellFields } from './modules/repertoire/wipeRetiredCellFields';
@@ -304,9 +304,25 @@ export default function App() {
                 route for the same reason `calendar` is: a static
                 segment must not be readable as a section slug. */}
             <Route path="shapes-and-patterns/movements" element={<MovementsList />} />
+            {/* VOICE LEADING MOVED UNDER CHORD MOVEMENTS (ruling 3).
+                The PAGE is unchanged — same component, same section,
+                same counting — only its address and its place in the
+                nav moved. Declared above `:movementId` so a static
+                segment cannot be read as a movement id. */}
+            <Route
+              path="shapes-and-patterns/movements/voice-leading"
+              element={<ShapesAndPatternsSection section="voice-leading" />}
+            />
             <Route
               path="shapes-and-patterns/movements/:movementId"
               element={<MovementScreen />}
+            />
+            {/* THE OLD ADDRESS STILL LANDS. It is in the sidebar's
+                history and may be bookmarked; a 404 for a page that
+                moved is the app losing something the reader kept. */}
+            <Route
+              path="shapes-and-patterns/voice-leading"
+              element={<Navigate to="/shapes-and-patterns/movements/voice-leading" replace />}
             />
             {/* The dynamic segment is ranked below `calendar` by
                 react-router, so a static sibling cannot be read as a
