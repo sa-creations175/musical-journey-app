@@ -21,6 +21,8 @@
 //     step of its body. The `await` that follows only suspends the
 //     continuation — the gesture attribution is already set.
 
+import type { PlaybackHandle } from './musicalPlayback';
+
 export type Instrument = 'piano' | 'rhodes' | 'strings' | 'voice' | 'organ';
 
 let ctx: AudioContext | null = null;
@@ -78,6 +80,17 @@ function chordVolume(noteCount: number): number {
 type Voice = {
   stop: (time: number) => void;
 };
+
+/**
+ * The stop handle every sequencer in this app returns.
+ *
+ * IMPORTED RATHER THAN RESTATED. `musicalPlayback.ts` defines it and
+ * already imports from here; the import is type-only, so it is erased
+ * and there is no runtime cycle. A second one-line interface with the
+ * same shape is how two players come to disagree about what stopping
+ * means.
+ */
+export type { PlaybackHandle };
 
 function playPiano(freq: number, start: number, duration: number, context: AudioContext, volume: number): Voice {
   const master = context.createGain();
@@ -454,31 +467,151 @@ export function playBassNote(midi: number, time: number, context: AudioContext, 
   playNote(midiToFreq(midi), time, duration, context, 0.32);
 }
 
-export type SeqChord = { intervals: number[]; beats?: number };
+/**
+ * One chord in a sequence: exact notes, its own length, and which hand
+ * plays each note.
+ *
+ * `hands` is INDEX-ALIGNED with `intervals` and may be absent, in which
+ * case every note is right-hand — the same reading `normalizeVoicing`
+ * gives a legacy bare-number voicing.
+ */
+export type SeqChord = {
+  intervals: number[];
+  beats?: number;
+  hands?: Array<'L' | 'R'>;
+};
 
+/** Which hand is louder, if either. */
+export type BassBalance = 'forward' | 'even';
+
+/**
+ * How much of the chord's own volume each hand gets.
+ *
+ * =====================================================================
+ * THE NUMBERS ARE THE PROTOTYPE'S, NORMALISED. Silas judged the hand
+ * balance by ear on
+ * `docs/chord-movement-playback-prototype_1.html`, which plays the
+ * left hand at 0.5 and the right at 0.11 when bass is forward, and both
+ * at 0.24 when it is even. Dividing through by the even value gives the
+ * ratio he heard — 2.08 and 0.46 — and applying it to `chordVolume`
+ * keeps the app's own polyphony scaling underneath.
+ *
+ * Reproducing the RATIO rather than the absolute gains is the point:
+ * the prototype's are for a raw triangle oscillator and this plays
+ * through the app's instruments. Its low-note lift (×1.15 below C3) is
+ * deliberately not carried across — that compensates for the
+ * prototype's synth, not for a hand.
+ * =====================================================================
+ */
+const HAND_GAIN: Readonly<Record<BassBalance, Readonly<Record<'L' | 'R', number>>>> = {
+  forward: { L: 2.08, R: 0.46 },
+  even: { L: 1, R: 1 },
+};
+
+export interface SeqChordsOptions {
+  speedMultiplier?: number;
+  /** Fires as each chord starts, for a moving highlight. */
+  onStep?: (index: number) => void;
+  /**
+   * How many times to play the whole sequence, or `'untilStopped'`.
+   *
+   * A COUNT IS SCHEDULED UP FRONT, the way `playModalVamp` does it.
+   * `'untilStopped'` cannot be — nothing can schedule forever — so it
+   * plays one pass and arms a timer to schedule the next, which is what
+   * the prototype does and what makes Stop land immediately rather than
+   * after the passes already queued.
+   */
+  loop?: number | 'untilStopped';
+  bassBalance?: BassBalance;
+}
+
+/**
+ * Play a sequence of exact voicings against a root.
+ *
+ * =====================================================================
+ * IT RETURNS A HANDLE NOW, AND TAKES A LOOP AND THE HANDS.
+ *
+ * This function has existed since the ear-training work and had ZERO
+ * callers — the clearest evidence available that nothing had yet needed
+ * to play back what a person actually pressed. Chord Movements is the
+ * first thing that does, and it needs three things the old shape could
+ * not give: a way to stop what has been scheduled, a way to run
+ * continuously, and a way to sound the left hand differently from the
+ * right.
+ *
+ * CHANGED IN PLACE RATHER THAN WRAPPED, because with no callers there
+ * is nothing to break and a wrapper would leave two functions that both
+ * look like the one to use. The stop and loop shapes are copied from
+ * `playModalVamp` and `playNoteSequence` rather than invented.
+ * =====================================================================
+ */
 export async function playSeqChords(
   chords: SeqChord[],
   rootMidi: number,
   bpm: number,
-  speedMultiplier = 1.0,
-  onStep?: (index: number) => void,
-) {
+  opts: SeqChordsOptions = {},
+): Promise<PlaybackHandle> {
   const context = await ensureRunning();
-  const effBpm = bpm * clampSpeed(speedMultiplier);
-  const now = context.currentTime + 0.05;
+  const effBpm = bpm * clampSpeed(opts.speedMultiplier ?? 1.0);
   const secPerBeat = 60 / effBpm;
-  let cursor = now;
-  chords.forEach((chord, idx) => {
-    const beats = chord.beats ?? 2;
-    const duration = secPerBeat * beats;
-    const vol = chordVolume(chord.intervals.length);
-    chord.intervals.forEach(iv => {
-      playNote(midiToFreq(rootMidi + iv), cursor, duration * 0.95, context, vol);
+  const gains = HAND_GAIN[opts.bassBalance ?? 'even'];
+  const passBeats = chords.reduce((sum, c) => sum + (c.beats ?? 2), 0);
+  const passSeconds = passBeats * secPerBeat;
+
+  const voices: Voice[] = [];
+  const timers: number[] = [];
+  let stopped = false;
+
+  /** One pass through the sequence, starting at an absolute time. */
+  const schedulePass = (startAt: number) => {
+    let cursor = startAt;
+    chords.forEach((chord, idx) => {
+      const beats = chord.beats ?? 2;
+      const duration = secPerBeat * beats;
+      const vol = chordVolume(chord.intervals.length);
+      chord.intervals.forEach((iv, note) => {
+        const hand = chord.hands?.[note] ?? 'R';
+        voices.push(playNote(
+          midiToFreq(rootMidi + iv), cursor, duration * 0.95, context, vol * gains[hand],
+        ));
+      });
+      if (opts.onStep) {
+        const fireAt = (cursor - context.currentTime) * 1000;
+        const cb = opts.onStep;
+        timers.push(window.setTimeout(() => cb(idx), Math.max(0, fireAt)));
+      }
+      cursor += duration;
     });
-    if (onStep) {
-      const fireAt = cursor - now;
-      setTimeout(() => onStep(idx), Math.max(0, fireAt * 1000));
-    }
-    cursor += duration;
-  });
+    return cursor;
+  };
+
+  const now = context.currentTime + 0.05;
+
+  if (opts.loop === 'untilStopped') {
+    // ARM THE NEXT PASS AS THIS ONE ENDS. Scheduling a large finite
+    // number instead would make Stop silent but leave the notes already
+    // queued in the audio graph — which is the bug the handle exists to
+    // prevent.
+    const armNext = (startAt: number) => {
+      if (stopped) return;
+      const end = schedulePass(startAt);
+      timers.push(window.setTimeout(
+        () => armNext(end),
+        Math.max(0, (end - context.currentTime) * 1000),
+      ));
+    };
+    armNext(now);
+  } else {
+    const passes = Math.max(1, Math.floor(opts.loop ?? 1));
+    for (let i = 0; i < passes; i++) schedulePass(now + i * passSeconds);
+  }
+
+  return {
+    stop: () => {
+      stopped = true;
+      const fadeAt = context.currentTime + 0.05;
+      for (const v of voices) v.stop(fadeAt);
+      for (const id of timers) window.clearTimeout(id);
+    },
+  };
 }
