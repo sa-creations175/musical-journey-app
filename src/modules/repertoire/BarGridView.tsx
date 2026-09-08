@@ -8,7 +8,6 @@ import {
 import type { DraggableAttributes } from '@dnd-kit/core';
 import { SortableContext, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useLiveQuery } from 'dexie-react-hooks';
 import type {
   ChordFunction,
   LyricLine,
@@ -16,8 +15,6 @@ import type {
   SongLyricLine,
   SongSection,
   VoicingEntry,
-  VoicingHand,
-  VoicingPattern,
 } from '../../lib/db';
 import {
   type CellOccupant,
@@ -29,15 +26,8 @@ import {
 import { chordToDisplay, parseChordFunction } from './chordFunction';
 import { useSpelling } from '../../lib/spellingPref';
 import { pitchClassOf } from './chordParser';
-import { chordRootNote, normalizeVoicing, sanitizeVoicing } from './voicingHelpers';
-import PianoKeyboard from '../../components/PianoKeyboard';
-import { qualityIdFromSuffix } from '../shapes-and-patterns/voicingQualityMap';
-import { CHORD_QUALITY_BY_ID } from '../shapes-and-patterns/catalog';
-import {
-  loadVoicingCandidates,
-  orderVoicingCandidates,
-  createUserVoicingPattern,
-} from '../shapes-and-patterns/voicingPatterns';
+import { chordRootNote } from './voicingHelpers';
+import ChordVoicingPanel from '../../components/ChordVoicingPanel';
 import { useNotationMode } from '../../lib/notationPref';
 import {
   type Bar,
@@ -2980,222 +2970,22 @@ function ChordEditorPopover({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [customDraft, setCustomDraft] = useState('');
 
-  // Piano voicing. The root resolves from the song key + chord degree;
-  // when the key is unknown we can't anchor offsets, so the voicing UI
-  // shows a "set the key" hint instead. Edit mode drives a local draft;
-  // Save commits via onVoicingChange. (The popover is keyed by
-  // placementId at the render site, so this local state resets cleanly
-  // when the user opens a different chord.)
+  // Piano voicing. The root resolves from the song key + chord degree,
+  // and the panel below shows a "set the key" hint when it cannot.
+  //
+  // THE PANEL IS THE SHARED ONE NOW. Everything that used to live here
+  // — the draft, the save, the carousel, the library naming — moved to
+  // `components/ChordVoicingPanel.tsx` so a chord movement presses its
+  // notes with the same editor rather than a second one. Only what the
+  // popover needs to ANCHOR it stays: the root and the spelling.
   const rootNote = sectionKey ? chordRootNote(sectionKey, cell.chord.function, spelling) : '';
   const rootPc = pitchClassOf(rootNote);
-  const canVoice = Boolean(onVoicingChange) && rootPc >= 0;
   const savedVoicing = cell.voicing;
-  const hasVoicing = Boolean(savedVoicing && savedVoicing.length > 0);
   // Was derived from the key name (`keyPrefersFlats`). Spelling is the
   // user's choice now, so the popover keyboard reads the same setting
   // as the chord symbol above it — the two disagreeing on one popover
   // was the shape this whole seam exists to prevent.
   const preferFlats = spelling === 'flat';
-  const [editingVoicing, setEditingVoicing] = useState(false);
-  const [draftVoicing, setDraftVoicing] = useState<VoicingEntry[]>([]);
-  // "Save to library" naming flow: when set, an inline name field is shown
-  // and confirming persists these offsets as a named user pattern.
-  const [namingPattern, setNamingPattern] = useState<{
-    offsets: VoicingEntry[];
-    thenStopEditing: boolean;
-  } | null>(null);
-  const [nameDraft, setNameDraft] = useState('');
-  const closeNaming = () => {
-    setNamingPattern(null);
-    setNameDraft('');
-  };
-
-  const beginEditVoicing = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    closeNaming();
-    setDraftVoicing(normalizeVoicing(savedVoicing));
-    setEditingVoicing(true);
-  };
-  // Tap a key: if its offset is already present (any hand) remove it,
-  // otherwise add it with the hand the keyboard's L/R pill has selected.
-  const toggleVoicingOffset = (offset: number, hand: VoicingHand) => {
-    setDraftVoicing(prev =>
-      prev.some(e => e.offset === offset)
-        ? prev.filter(e => e.offset !== offset)
-        : [...prev, { offset, hand }].sort((a, b) => a.offset - b.offset),
-    );
-  };
-  const saveVoicing = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!onVoicingChange) return;
-    // Hand-edit → no pattern id (clears provenance). sanitizeVoicing
-    // de-dupes + sorts; not a register rewrite (offsets are canonical).
-    void onVoicingChange(cell, sanitizeVoicing(draftVoicing));
-    closeNaming();
-    setEditingVoicing(false);
-  };
-  const cancelVoicing = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    closeNaming();
-    setEditingVoicing(false);
-  };
-
-  // --- Voicing carousel: candidate patterns for this chord's quality ---
-  // Live so the set updates when the user saves a pattern or pins/unpins.
-  const qualityMatch = qualityIdFromSuffix(cell.chord.quality);
-  const qualityId = qualityMatch.id;
-  // When the chord's quality isn't a known one, we voice the nearest base —
-  // name it so the user knows the candidates are a best-effort match.
-  const approxLabel = qualityMatch.exact
-    ? null
-    : CHORD_QUALITY_BY_ID.get(qualityId)?.label ?? qualityId;
-  const pinnedIds = cell.pinnedVoicingIds ?? [];
-  const pinnedKey = pinnedIds.join('|');
-  const candidates = useLiveQuery(
-    async () =>
-      orderVoicingCandidates(
-        await loadVoicingCandidates(qualityId, pinnedIds),
-        pinnedIds,
-      ),
-    [qualityId, pinnedKey],
-    [] as VoicingPattern[],
-  );
-  // A hand-edited voicing that isn't one of the saved patterns gets a
-  // synthetic leading "Custom" slide so browse mode always reflects what's
-  // actually applied (and offers to save it as a pattern).
-  const CUSTOM_SLIDE_ID = '__custom__';
-  const appliedIsPattern = candidates.some(p => p.id === cell.voicingPatternId);
-  const customSlide: VoicingPattern | null =
-    hasVoicing && !appliedIsPattern
-      ? {
-          id: CUSTOM_SLIDE_ID,
-          qualityId,
-          label: 'Custom',
-          offsets: normalizeVoicing(savedVoicing),
-          isSystem: false,
-          sortOrder: -1,
-          source: 'user',
-          createdAt: 0,
-          updatedAt: 0,
-        }
-      : null;
-  const slides: VoicingPattern[] = customSlide ? [customSlide, ...candidates] : candidates;
-
-  // Default to the applied slide until the user navigates.
-  const appliedIndex = customSlide
-    ? 0
-    : slides.findIndex(p => p.id === cell.voicingPatternId);
-  const [navIndex, setNavIndex] = useState<number | null>(null);
-  const rawIndex = navIndex ?? (appliedIndex >= 0 ? appliedIndex : 0);
-  const carouselIndex = slides.length
-    ? Math.min(Math.max(rawIndex, 0), slides.length - 1)
-    : 0;
-  const current: VoicingPattern | undefined = slides[carouselIndex];
-  const isCustomSlide = current?.id === CUSTOM_SLIDE_ID;
-  const currentIsApplied = isCustomSlide || current?.id === cell.voicingPatternId;
-  const currentIsPinned = !isCustomSlide && !!current && pinnedIds.includes(current.id);
-
-  const stepCarousel = (delta: number) => (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const n = slides.length;
-    if (n === 0) return;
-    setNavIndex((((carouselIndex + delta) % n) + n) % n);
-  };
-  const applyCurrent = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!onVoicingChange || !current) return;
-    void onVoicingChange(cell, sanitizeVoicing(current.offsets), current.id);
-  };
-  const togglePinCurrent = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!onVoicingPinsChange || !current || isCustomSlide) return;
-    const id = current.id;
-    void onVoicingPinsChange(
-      cell,
-      pinnedIds.includes(id) ? pinnedIds.filter(x => x !== id) : [...pinnedIds, id],
-    );
-  };
-  // Persist a voicing as a reusable, named user pattern (global for the
-  // quality, O2), then apply it. Used from edit mode (the draft) and the
-  // Custom slide. label maps to VoicingPattern.label.
-  const persistAsPattern = (
-    offsets: VoicingEntry[],
-    thenStopEditing: boolean,
-    label?: string,
-  ) => {
-    if (!onVoicingChange) return;
-    const clean = sanitizeVoicing(offsets);
-    if (clean.length === 0) return;
-    void (async () => {
-      const p = await createUserVoicingPattern(qualityId, clean, label);
-      await onVoicingChange(cell, clean, p.id);
-      if (thenStopEditing) setEditingVoicing(false);
-    })();
-  };
-  // "Save to library" opens the inline name field; confirming persists.
-  const beginNaming = (offsets: VoicingEntry[], thenStopEditing: boolean) => {
-    if (sanitizeVoicing(offsets).length === 0) return;
-    setNameDraft('');
-    setNamingPattern({ offsets, thenStopEditing });
-  };
-  const confirmNaming = () => {
-    if (!namingPattern) return;
-    persistAsPattern(
-      namingPattern.offsets,
-      namingPattern.thenStopEditing,
-      nameDraft.trim() || undefined,
-    );
-    closeNaming();
-  };
-  const saveAsPattern = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    beginNaming(draftVoicing, true);
-  };
-  const saveCustomAsPattern = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (current) beginNaming(normalizeVoicing(current.offsets), false);
-  };
-  const namingField = (
-    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-      <input
-        autoFocus
-        type="text"
-        value={nameDraft}
-        onChange={e => setNameDraft(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            confirmNaming();
-          } else if (e.key === 'Escape') {
-            e.preventDefault();
-            closeNaming();
-          }
-        }}
-        placeholder="Voicing Name…"
-        className="flex-1 min-w-0 rounded border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-1.5 py-0.5 text-[11px]"
-      />
-      <button
-        type="button"
-        onClick={e => {
-          e.stopPropagation();
-          confirmNaming();
-        }}
-        className="text-fluent hover:underline text-[11px]"
-      >
-        Save
-      </button>
-      <button
-        type="button"
-        onClick={e => {
-          e.stopPropagation();
-          closeNaming();
-        }}
-        className="text-neutral-500 hover:text-needswork text-[11px]"
-      >
-        Cancel
-      </button>
-    </div>
-  );
 
   // Stepping is already the right size: one SLOT is half a beat on an
   // eighths song and a whole beat otherwise, which is exactly the
@@ -3384,127 +3174,30 @@ function ChordEditorPopover({
         </div>
       )}
 
-      {onVoicingChange && (
-        <div className="px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-800 space-y-1.5">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-neutral-500">Voicing</span>
-            {canVoice ? (
-              editingVoicing ? (
-                <div className="flex items-center gap-2">
-                  <button type="button" onClick={saveVoicing} className="text-fluent hover:underline">
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveAsPattern}
-                    disabled={draftVoicing.length === 0}
-                    className="text-fluent hover:underline disabled:opacity-30"
-                  >
-                    Save to Library
-                  </button>
-                  <button type="button" onClick={cancelVoicing} className="text-neutral-500 hover:text-needswork">
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <button type="button" onClick={beginEditVoicing} className="text-fluent hover:underline">
-                  {hasVoicing ? 'Edit / custom' : '+ Custom voicing'}
-                </button>
-              )
-            ) : null}
-          </div>
-
-          {!canVoice ? (
-            <p className="text-[11px] text-neutral-400 italic">
-              set the song key to add a voicing
-            </p>
-          ) : editingVoicing ? (
-            <div onClick={e => e.stopPropagation()} className="space-y-1">
-              <PianoKeyboard
-                rootPc={rootPc}
-                preferFlats={preferFlats}
-                voicing={draftVoicing}
-                editable
-                onToggle={toggleVoicingOffset}
-                octaves={4}
-                absoluteOffsets
-              />
-              {namingPattern && namingField}
-            </div>
-          ) : (
-            <div onClick={e => e.stopPropagation()} className="space-y-1">
-              {approxLabel && (
-                <p className="text-[10px] text-neutral-400 italic text-center">
-                  ≈ closest match: {approxLabel}
-                </p>
-              )}
-              <PianoKeyboard
-                rootPc={rootPc}
-                preferFlats={preferFlats}
-                voicing={current?.offsets ?? []}
-                faint={!current}
-                octaves={4}
-                absoluteOffsets
-              />
-              {current && (
-                <>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <button
-                      type="button"
-                      onClick={stepCarousel(-1)}
-                      disabled={slides.length < 2}
-                      aria-label="previous voicing"
-                      className="px-1.5 py-0.5 rounded hover:text-fluent disabled:opacity-30"
-                    >
-                      ‹
-                    </button>
-                    <div className="flex flex-col items-center leading-tight">
-                      <span className="text-neutral-600 dark:text-neutral-300">{current.label}</span>
-                      <span className="text-neutral-400">
-                        {carouselIndex + 1} of {slides.length}
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={stepCarousel(1)}
-                      disabled={slides.length < 2}
-                      aria-label="next voicing"
-                      className="px-1.5 py-0.5 rounded hover:text-fluent disabled:opacity-30"
-                    >
-                      ›
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    {isCustomSlide ? (
-                      <button type="button" onClick={saveCustomAsPattern} className="text-fluent hover:underline">
-                        Save to Library
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={togglePinCurrent}
-                        aria-pressed={currentIsPinned}
-                        className={currentIsPinned ? 'text-amber-500' : 'text-neutral-400 hover:text-amber-500'}
-                      >
-                        {currentIsPinned ? '★ pinned' : '☆ pin'}
-                      </button>
-                    )}
-                    {currentIsApplied ? (
-                      <span className="text-fluent">✓ Applied</span>
-                    ) : (
-                      <button type="button" onClick={applyCurrent} className="text-fluent hover:underline">
-                        Use this voicing
-                      </button>
-                    )}
-                  </div>
-                  {namingPattern && namingField}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
+      <ChordVoicingPanel
+        chord={cell.chord}
+        voicing={savedVoicing}
+        voicingPatternId={cell.voicingPatternId}
+        pinnedVoicingIds={cell.pinnedVoicingIds}
+        rootPc={rootPc}
+        preferFlats={preferFlats}
+        keyIsSet={Boolean(sectionKey)}
+        onVoicingChange={
+          onVoicingChange
+            ? (v, patternId) => onVoicingChange(cell, v, patternId)
+            : undefined
+        }
+        onVoicingPinsChange={
+          onVoicingPinsChange
+            ? pins => onVoicingPinsChange(cell, pins)
+            : undefined
+        }
+        /* THE LEAD SHEET BEHAVES EXACTLY AS IT DID. Save / Cancel
+           rather than live presses, the library on, and nothing that
+           sounds or copies — see the panel's allowed-to-differ list,
+           items 2 to 6. */
+        showLibrary
+      />
       {(onCopyChord || onDelete) && (
         <div className="flex items-center gap-2 px-2 py-1.5 border-t border-neutral-200 dark:border-neutral-800">
           {onCopyChord && (
