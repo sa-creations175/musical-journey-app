@@ -26,6 +26,7 @@ import LydianChordRows from './LydianChordRows';
 import DegreeGroundedRows from './DegreeGroundedRows';
 import CardPlayback from './CardPlayback';
 import DegreeNoteReveal from './DegreeNoteReveal';
+import ModalScaleReveal from './ModalScaleReveal';
 import DegreeKeyboardAnswer from './DegreeKeyboardAnswer';
 import { degreeNoteOptionLabel, isPressedCard, parsePressedId } from './degreeNoteCards';
 import DegreeKeyboard, { degreeKeyboardSpec } from './DegreeKeyboard';
@@ -378,6 +379,17 @@ function CardReference({ card, answered }: { card: Flashcard; answered: boolean 
     return (
       <DegreeNoteReveal root={pair.root} degreeId={pair.degreeId} card={card} />
     );
+  }
+  /**
+   * MODAL IMPROVISATION DRAWS ITS ANSWER SCALE, then plays it.
+   *
+   * The only family whose explanation names something on screen — "the
+   * highlighted notes are the ones C major does not have" — so it is
+   * the only one that has to put something there. See
+   * `ModalScaleReveal`, which renders the play control itself.
+   */
+  if (card.category === 'modal-improvisation') {
+    return <ModalScaleReveal card={card} />;
   }
   /**
    * EVERY OTHER FAMILY THAT HAS A SOUND (ruling 33).

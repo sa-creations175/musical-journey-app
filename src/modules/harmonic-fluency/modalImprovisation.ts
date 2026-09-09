@@ -64,6 +64,9 @@ import { chooseDecoys, chooseDecoysOrNull } from './decoyGuard';
 import {
   THIRTEEN_KEYS, degreeAscii, degreeAsciiOrNull, noteLabel,
 } from './catalogExpansions';
+import {
+  semitoneValue, type Accidental, type Letter,
+} from '../reading/pitch';
 
 /** The row a reader sees above the family. */
 export const MODAL_IMPROV_CATEGORY_NAME = 'Modal Improvisation';
@@ -192,6 +195,76 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
           + `the ${chordName} chord's third.`
         : ''),
   };
+}
+
+/**
+ * The seven notes of the answer scale, from its own root, with the ones
+ * the home key does not hold marked.
+ *
+ * =====================================================================
+ * THE SENTENCE ALREADY SAID THIS AND NOTHING DREW IT.
+ *
+ * Every borrowed card's explanation ends "The highlighted notes are the
+ * ones C major does not have" — the prototype's words, and on the
+ * prototype there were notes to highlight. On a flashcard there were
+ * not, so the sentence pointed at nothing. Ruled 9 Sep 2026: draw them.
+ *
+ * A DEGREE OF THE SCALE'S OWN ROOT, not a transposition table. Major is
+ * 1 2 3 4 5 6 7 of the root and melodic minor is 1 2 ♭3 4 5 6 7 — both
+ * already in `degreeAscii`'s table — so G♯ melodic minor spells its
+ * seventh F𝄪 rather than G, which is the letter that makes it a
+ * seventh at all.
+ *
+ * MARKED BY PITCH, NAMED BY LETTER. "Does the key of C major have this
+ * note" is a question about sound, and D melodic minor's C♯ is outside
+ * C major whatever it is called. The prototype compares pitch classes
+ * for the same reason.
+ *
+ * AN IN-KEY CARD MARKS NOTHING, because the answer scale IS the key and
+ * a row where every note is unmarked is the fact that card teaches.
+ * =====================================================================
+ */
+export interface ModalScaleNote {
+  /** The note as the card draws it — glyphs, including doubles. */
+  note: string;
+  /** Whether the home key does not hold this pitch. */
+  outside: boolean;
+}
+
+/** Major and melodic minor, as degrees of their own root. */
+const MAJOR_DEGREES: ReadonlyArray<string> = ['1', '2', '3', '4', '5', '6', '7'];
+const MELODIC_MINOR_DEGREES: ReadonlyArray<string> =
+  ['1', '2', 'b3', '4', '5', '6', '7'];
+
+/** Pitch class of a spelling, doubles included — which is why this
+ *  goes through `reading/pitch` rather than `spelling.pitchClassOf`,
+ *  whose table stops at one accidental. */
+function pitchClassOfAscii(ascii: string): number {
+  const semis = semitoneValue({
+    letter: ascii[0] as Letter,
+    accidental: (ascii.slice(1) === '' ? null : ascii.slice(1)) as Accidental,
+    octave: 4,
+  });
+  return ((semis % 12) + 12) % 12;
+}
+
+export function modalAnswerScale(
+  root: string, chord: ModalChord,
+): ModalScaleNote[] {
+  const home = new Set(
+    MAJOR_DEGREES.map(d => pitchClassOfAscii(degreeAscii(root, d))));
+  const borrowed = chord.kind === 'borrow';
+  const scaleRoot = borrowed ? degreeAscii(root, chord.target!) : root;
+  const degrees = borrowed && MINOR_TARGETS.has(chord.target!)
+    ? MELODIC_MINOR_DEGREES
+    : MAJOR_DEGREES;
+  return degrees.map(d => {
+    const ascii = degreeAscii(scaleRoot, d);
+    return {
+      note: noteLabel(ascii),
+      outside: borrowed && !home.has(pitchClassOfAscii(ascii)),
+    };
+  });
 }
 
 /**

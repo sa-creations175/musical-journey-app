@@ -20,6 +20,14 @@ export default {
         developing: '#EF9F27',
         needswork: '#E24B4A',
         started: '#C7DDF5',
+        // NOT A STATUS EITHER, and deliberately not `developing`.
+        // Modal Improvisation's reveal draws the answer scale and marks
+        // the notes the home key does not hold; the status oranges
+        // encode a RATING, and a note wearing one would read as "this
+        // note is Developing". This is the accent the signed-off
+        // prototype used for exactly that mark, and it carries the same
+        // hex in both themes because the prototype does.
+        borrowed: '#F0722B',
         // NOT A STATUS. `info` is the app's non-grading informational
         // blue — the "compare" wash on a lead sheet, a low-priority
         // pill, a note that is not a score. Started used to borrow it

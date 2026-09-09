@@ -14,7 +14,7 @@
  * at. This is the third copy that makes the other two checkable.
  *
  * =====================================================================
- * ONE REPAIR, ON THIRTY ROWS, AND IT IS IN THE REPORT.
+ * ONE REPAIR, ON THIRTY ROWS.
  *
  * The prototype's `parse()` reads an accidental by counting '#' and 'b'
  * characters, but `spell()` hands it names already drawn with GLYPHS —
@@ -22,7 +22,7 @@
  * natural, and `nameOf(tRoot, 7, 4)` named the borrowed chord a fifth
  * above the WRONG note. On screen: "In D, the band is on C7 (5 of 3)"
  * answered by "Notes of the F♯ melodic minor scale" — and C7 is not the
- * 5 of F♯m, C♯7 is. Thirty of the sixty-five borrowed cards name a
+ * 5 of F♯m, C♯7 is. Thirty of the sixty-five borrowed cards named a
  * chord that cannot resolve to the chord the same card names.
  *
  * RULED 9 SEP 2026: THE REPAIR STAYS, so for the chord NAMES the app is
@@ -30,10 +30,12 @@
  * had it spelled them right. Every other word here is still the
  * prototype's, and still what the app is held to.
  *
- * The rows below are the prototype's output with that one bug repaired,
- * which is what the app builds. NOTHING ELSE MOVED: the answer is
- * identical on all 130, and so is every `seq` — the sound is computed
- * from pitch classes and never goes through `parse`. The thirty:
+ * The same bug reached `scaleNotes`, which is where the `scale` column
+ * below comes from — `spell(tRoot, …)` took the same mis-parsed root —
+ * so those rows are repaired in the same way and by the same argument.
+ * NOTHING ELSE MOVED: the answer is identical on all 130, and so is
+ * every `seq`, because the sound is computed from pitch classes and
+ * never goes through `parse`. The thirty:
  *
  *   Db 5 of 2  B7    → B♭7
  *   Db 5 of 4  D7    → D♭7
@@ -65,22 +67,30 @@
  *   B 5 of 3   A7    → A♯7
  *   B 5 of 5   C7    → C♯7
  *   B 5 of 6   D7    → D♯7
- *
- * =====================================================================
- * ALL 130 ROWS ARE HERE, INCLUDING THE FOUR THAT ARE NOT IN THE DECK.
- *
- * `MODAL_IMPROV_STOPS` names those four and says why, and the test
- * asserts the deck is exactly this list minus exactly those — so a stop
- * cannot quietly become five, and a card cannot quietly come back
- * without its words being checked.
  * =====================================================================
  */
+export interface PrototypeScaleNote {
+  /** The note as the prototype draws it, glyphs and all. */
+  note: string;
+  /**
+   * Whether the home key does NOT hold this pitch — the prototype's
+   * `.alt` class, which it draws in its borrow orange.
+   *
+   * Always false on an in-key card: the answer scale IS the key, so
+   * there is nothing to mark, and the prototype passes `alt: null`
+   * rather than an empty set.
+   */
+  outside: boolean;
+}
+
 export interface PrototypeRow {
   key: string;
   chord: string;
   question: string;
   answer: string;
   explanation: string;
+  /** The seven notes of the answer scale, from its own root. */
+  scale: readonly PrototypeScaleNote[];
 }
 
 export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
@@ -91,6 +101,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C major scale',
     explanation:
       'Dm is the 2 of C. Every note it holds is already in C major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+    ],
   },
   {
     key: 'C', chord: '3m',
@@ -99,6 +118,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C major scale',
     explanation:
       'Em is the 3 of C. Every note it holds is already in C major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+    ],
   },
   {
     key: 'C', chord: '4',
@@ -107,6 +135,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C major scale',
     explanation:
       'F is the 4 of C. Every note it holds is already in C major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+    ],
   },
   {
     key: 'C', chord: '5',
@@ -115,6 +152,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C major scale',
     explanation:
       'G7 is the 5 of C. Every note it holds is already in C major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+    ],
   },
   {
     key: 'C', chord: '6m',
@@ -123,6 +169,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C major scale',
     explanation:
       'Am is the 6 of C. Every note it holds is already in C major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+    ],
   },
   {
     key: 'C', chord: '5of2',
@@ -131,6 +186,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D melodic minor scale',
     explanation:
       'A7 is not in C major; it is the 5 of Dm. Play the notes of the key it points to for that bar. The highlighted notes are the ones C major does not have. For a minor target that is just C major with one note raised: the A7 chord\'s third.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: true },
+    ],
   },
   {
     key: 'C', chord: '5of3',
@@ -139,6 +203,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E melodic minor scale',
     explanation:
       'B7 is not in C major; it is the 5 of Em. Play the notes of the key it points to for that bar. The highlighted notes are the ones C major does not have. For a minor target that is just C major with one note raised: the B7 chord\'s third.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: true },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: true },
+      { note: 'D♯', outside: true },
+    ],
   },
   {
     key: 'C', chord: '5of4',
@@ -147,6 +220,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F major scale',
     explanation:
       'C7 is not in C major; it is the 5 of F. Play the notes of the key it points to for that bar. The highlighted notes are the ones C major does not have.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: true },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+    ],
   },
   {
     key: 'C', chord: '5of5',
@@ -155,6 +237,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G major scale',
     explanation:
       'D7 is not in C major; it is the 5 of G. Play the notes of the key it points to for that bar. The highlighted notes are the ones C major does not have.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: true },
+    ],
   },
   {
     key: 'C', chord: '5of6',
@@ -163,6 +254,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A melodic minor scale',
     explanation:
       'E7 is not in C major; it is the 5 of Am. Play the notes of the key it points to for that bar. The highlighted notes are the ones C major does not have. For a minor target that is just C major with one note raised: the E7 chord\'s third.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: true },
+      { note: 'G♯', outside: true },
+    ],
   },
   {
     key: 'Db', chord: '2m',
@@ -171,6 +271,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♭ major scale',
     explanation:
       'E♭m is the 2 of D♭. Every note it holds is already in D♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+    ],
   },
   {
     key: 'Db', chord: '3m',
@@ -179,6 +288,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♭ major scale',
     explanation:
       'Fm is the 3 of D♭. Every note it holds is already in D♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+    ],
   },
   {
     key: 'Db', chord: '4',
@@ -187,6 +305,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♭ major scale',
     explanation:
       'G♭ is the 4 of D♭. Every note it holds is already in D♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+    ],
   },
   {
     key: 'Db', chord: '5',
@@ -195,6 +322,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♭ major scale',
     explanation:
       'A♭7 is the 5 of D♭. Every note it holds is already in D♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+    ],
   },
   {
     key: 'Db', chord: '6m',
@@ -203,6 +339,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♭ major scale',
     explanation:
       'B♭m is the 6 of D♭. Every note it holds is already in D♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+    ],
   },
   {
     key: 'Db', chord: '5of2',
@@ -211,6 +356,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ melodic minor scale',
     explanation:
       'B♭7 is not in D♭ major; it is the 5 of E♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones D♭ major does not have. For a minor target that is just D♭ major with one note raised: the B♭7 chord\'s third.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: true },
+    ],
   },
   {
     key: 'Db', chord: '5of3',
@@ -219,6 +373,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F melodic minor scale',
     explanation:
       'C7 is not in D♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. The highlighted notes are the ones D♭ major does not have. For a minor target that is just D♭ major with one note raised: the C7 chord\'s third.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: true },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: true },
+      { note: 'E', outside: true },
+    ],
   },
   {
     key: 'Db', chord: '5of4',
@@ -227,6 +390,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♭ major scale',
     explanation:
       'D♭7 is not in D♭ major; it is the 5 of G♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones D♭ major does not have.',
+    scale: [
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C♭', outside: true },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+    ],
   },
   {
     key: 'Db', chord: '5of5',
@@ -235,6 +407,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♭ major scale',
     explanation:
       'E♭7 is not in D♭ major; it is the 5 of A♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones D♭ major does not have.',
+    scale: [
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: true },
+    ],
   },
   {
     key: 'Db', chord: '5of6',
@@ -243,6 +424,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ melodic minor scale',
     explanation:
       'F7 is not in D♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones D♭ major does not have. For a minor target that is just D♭ major with one note raised: the F7 chord\'s third.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: true },
+      { note: 'A', outside: true },
+    ],
   },
   {
     key: 'D', chord: '2m',
@@ -251,6 +441,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D major scale',
     explanation:
       'Em is the 2 of D. Every note it holds is already in D major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+    ],
   },
   {
     key: 'D', chord: '3m',
@@ -259,6 +458,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D major scale',
     explanation:
       'F♯m is the 3 of D. Every note it holds is already in D major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+    ],
   },
   {
     key: 'D', chord: '4',
@@ -267,6 +475,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D major scale',
     explanation:
       'G is the 4 of D. Every note it holds is already in D major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+    ],
   },
   {
     key: 'D', chord: '5',
@@ -275,6 +492,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D major scale',
     explanation:
       'A7 is the 5 of D. Every note it holds is already in D major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+    ],
   },
   {
     key: 'D', chord: '6m',
@@ -283,6 +509,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D major scale',
     explanation:
       'Bm is the 6 of D. Every note it holds is already in D major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+    ],
   },
   {
     key: 'D', chord: '5of2',
@@ -291,6 +526,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E melodic minor scale',
     explanation:
       'B7 is not in D major; it is the 5 of Em. Play the notes of the key it points to for that bar. The highlighted notes are the ones D major does not have. For a minor target that is just D major with one note raised: the B7 chord\'s third.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: true },
+    ],
   },
   {
     key: 'D', chord: '5of3',
@@ -299,6 +543,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ melodic minor scale',
     explanation:
       'C♯7 is not in D major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones D major does not have. For a minor target that is just D major with one note raised: the C♯7 chord\'s third.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: true },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: true },
+      { note: 'E♯', outside: true },
+    ],
   },
   {
     key: 'D', chord: '5of4',
@@ -307,6 +560,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G major scale',
     explanation:
       'D7 is not in D major; it is the 5 of G. Play the notes of the key it points to for that bar. The highlighted notes are the ones D major does not have.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: true },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+    ],
   },
   {
     key: 'D', chord: '5of5',
@@ -315,6 +577,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A major scale',
     explanation:
       'E7 is not in D major; it is the 5 of A. Play the notes of the key it points to for that bar. The highlighted notes are the ones D major does not have.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: true },
+    ],
   },
   {
     key: 'D', chord: '5of6',
@@ -323,6 +594,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B melodic minor scale',
     explanation:
       'F♯7 is not in D major; it is the 5 of Bm. Play the notes of the key it points to for that bar. The highlighted notes are the ones D major does not have. For a minor target that is just D major with one note raised: the F♯7 chord\'s third.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: true },
+      { note: 'A♯', outside: true },
+    ],
   },
   {
     key: 'Eb', chord: '2m',
@@ -331,6 +611,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ major scale',
     explanation:
       'Fm is the 2 of E♭. Every note it holds is already in E♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+    ],
   },
   {
     key: 'Eb', chord: '3m',
@@ -339,6 +628,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ major scale',
     explanation:
       'Gm is the 3 of E♭. Every note it holds is already in E♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+    ],
   },
   {
     key: 'Eb', chord: '4',
@@ -347,6 +645,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ major scale',
     explanation:
       'A♭ is the 4 of E♭. Every note it holds is already in E♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+    ],
   },
   {
     key: 'Eb', chord: '5',
@@ -355,6 +662,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ major scale',
     explanation:
       'B♭7 is the 5 of E♭. Every note it holds is already in E♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+    ],
   },
   {
     key: 'Eb', chord: '6m',
@@ -363,6 +679,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ major scale',
     explanation:
       'Cm is the 6 of E♭. Every note it holds is already in E♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+    ],
   },
   {
     key: 'Eb', chord: '5of2',
@@ -371,6 +696,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F melodic minor scale',
     explanation:
       'C7 is not in E♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. The highlighted notes are the ones E♭ major does not have. For a minor target that is just E♭ major with one note raised: the C7 chord\'s third.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: true },
+    ],
   },
   {
     key: 'Eb', chord: '5of3',
@@ -379,6 +713,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G melodic minor scale',
     explanation:
       'D7 is not in E♭ major; it is the 5 of Gm. Play the notes of the key it points to for that bar. The highlighted notes are the ones E♭ major does not have. For a minor target that is just E♭ major with one note raised: the D7 chord\'s third.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: true },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: true },
+      { note: 'F♯', outside: true },
+    ],
   },
   {
     key: 'Eb', chord: '5of4',
@@ -387,6 +730,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♭ major scale',
     explanation:
       'E♭7 is not in E♭ major; it is the 5 of A♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones E♭ major does not have.',
+    scale: [
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: true },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+    ],
   },
   {
     key: 'Eb', chord: '5of5',
@@ -395,6 +747,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ major scale',
     explanation:
       'F7 is not in E♭ major; it is the 5 of B♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones E♭ major does not have.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: true },
+    ],
   },
   {
     key: 'Eb', chord: '5of6',
@@ -403,6 +764,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C melodic minor scale',
     explanation:
       'G7 is not in E♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. The highlighted notes are the ones E♭ major does not have. For a minor target that is just E♭ major with one note raised: the G7 chord\'s third.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: true },
+      { note: 'B', outside: true },
+    ],
   },
   {
     key: 'E', chord: '2m',
@@ -411,6 +781,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E major scale',
     explanation:
       'F♯m is the 2 of E. Every note it holds is already in E major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+    ],
   },
   {
     key: 'E', chord: '3m',
@@ -419,6 +798,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E major scale',
     explanation:
       'G♯m is the 3 of E. Every note it holds is already in E major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+    ],
   },
   {
     key: 'E', chord: '4',
@@ -427,6 +815,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E major scale',
     explanation:
       'A is the 4 of E. Every note it holds is already in E major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+    ],
   },
   {
     key: 'E', chord: '5',
@@ -435,6 +832,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E major scale',
     explanation:
       'B7 is the 5 of E. Every note it holds is already in E major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+    ],
   },
   {
     key: 'E', chord: '6m',
@@ -443,6 +849,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E major scale',
     explanation:
       'C♯m is the 6 of E. Every note it holds is already in E major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+    ],
   },
   {
     key: 'E', chord: '5of2',
@@ -451,6 +866,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ melodic minor scale',
     explanation:
       'C♯7 is not in E major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones E major does not have. For a minor target that is just E major with one note raised: the C♯7 chord\'s third.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: true },
+    ],
   },
   {
     key: 'E', chord: '5of3',
@@ -459,6 +883,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♯ melodic minor scale',
     explanation:
       'D♯7 is not in E major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones E major does not have. For a minor target that is just E major with one note raised: the D♯7 chord\'s third.',
+    scale: [
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: true },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: true },
+      { note: 'F𝄪', outside: true },
+    ],
   },
   {
     key: 'E', chord: '5of4',
@@ -467,6 +900,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A major scale',
     explanation:
       'E7 is not in E major; it is the 5 of A. Play the notes of the key it points to for that bar. The highlighted notes are the ones E major does not have.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: true },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+    ],
   },
   {
     key: 'E', chord: '5of5',
@@ -475,6 +917,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B major scale',
     explanation:
       'F♯7 is not in E major; it is the 5 of B. Play the notes of the key it points to for that bar. The highlighted notes are the ones E major does not have.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: true },
+    ],
   },
   {
     key: 'E', chord: '5of6',
@@ -483,6 +934,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C♯ melodic minor scale',
     explanation:
       'G♯7 is not in E major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones E major does not have. For a minor target that is just E major with one note raised: the G♯7 chord\'s third.',
+    scale: [
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: true },
+      { note: 'B♯', outside: true },
+    ],
   },
   {
     key: 'F', chord: '2m',
@@ -491,6 +951,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F major scale',
     explanation:
       'Gm is the 2 of F. Every note it holds is already in F major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+    ],
   },
   {
     key: 'F', chord: '3m',
@@ -499,6 +968,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F major scale',
     explanation:
       'Am is the 3 of F. Every note it holds is already in F major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+    ],
   },
   {
     key: 'F', chord: '4',
@@ -507,6 +985,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F major scale',
     explanation:
       'B♭ is the 4 of F. Every note it holds is already in F major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+    ],
   },
   {
     key: 'F', chord: '5',
@@ -515,6 +1002,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F major scale',
     explanation:
       'C7 is the 5 of F. Every note it holds is already in F major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+    ],
   },
   {
     key: 'F', chord: '6m',
@@ -523,6 +1019,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F major scale',
     explanation:
       'Dm is the 6 of F. Every note it holds is already in F major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+    ],
   },
   {
     key: 'F', chord: '5of2',
@@ -531,6 +1036,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G melodic minor scale',
     explanation:
       'D7 is not in F major; it is the 5 of Gm. Play the notes of the key it points to for that bar. The highlighted notes are the ones F major does not have. For a minor target that is just F major with one note raised: the D7 chord\'s third.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: true },
+    ],
   },
   {
     key: 'F', chord: '5of3',
@@ -539,6 +1053,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A melodic minor scale',
     explanation:
       'E7 is not in F major; it is the 5 of Am. Play the notes of the key it points to for that bar. The highlighted notes are the ones F major does not have. For a minor target that is just F major with one note raised: the E7 chord\'s third.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: true },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: true },
+      { note: 'G♯', outside: true },
+    ],
   },
   {
     key: 'F', chord: '5of4',
@@ -547,6 +1070,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ major scale',
     explanation:
       'F7 is not in F major; it is the 5 of B♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones F major does not have.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: true },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+    ],
   },
   {
     key: 'F', chord: '5of5',
@@ -555,6 +1087,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C major scale',
     explanation:
       'G7 is not in F major; it is the 5 of C. Play the notes of the key it points to for that bar. The highlighted notes are the ones F major does not have.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: true },
+    ],
   },
   {
     key: 'F', chord: '5of6',
@@ -563,6 +1104,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D melodic minor scale',
     explanation:
       'A7 is not in F major; it is the 5 of Dm. Play the notes of the key it points to for that bar. The highlighted notes are the ones F major does not have. For a minor target that is just F major with one note raised: the A7 chord\'s third.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: true },
+      { note: 'C♯', outside: true },
+    ],
   },
   {
     key: 'F#', chord: '2m',
@@ -571,6 +1121,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ major scale',
     explanation:
       'G♯m is the 2 of F♯. Every note it holds is already in F♯ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+    ],
   },
   {
     key: 'F#', chord: '3m',
@@ -579,6 +1138,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ major scale',
     explanation:
       'A♯m is the 3 of F♯. Every note it holds is already in F♯ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+    ],
   },
   {
     key: 'F#', chord: '4',
@@ -587,6 +1155,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ major scale',
     explanation:
       'B is the 4 of F♯. Every note it holds is already in F♯ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+    ],
   },
   {
     key: 'F#', chord: '5',
@@ -595,6 +1172,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ major scale',
     explanation:
       'C♯7 is the 5 of F♯. Every note it holds is already in F♯ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+    ],
   },
   {
     key: 'F#', chord: '6m',
@@ -603,6 +1189,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ major scale',
     explanation:
       'D♯m is the 6 of F♯. Every note it holds is already in F♯ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+    ],
   },
   {
     key: 'F#', chord: '5of2',
@@ -611,6 +1206,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♯ melodic minor scale',
     explanation:
       'D♯7 is not in F♯ major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones F♯ major does not have. For a minor target that is just F♯ major with one note raised: the D♯7 chord\'s third.',
+    scale: [
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+      { note: 'F𝄪', outside: true },
+    ],
   },
   {
     key: 'F#', chord: '5of3',
@@ -619,6 +1223,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♯ melodic minor scale',
     explanation:
       'E♯7 is not in F♯ major; it is the 5 of A♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones F♯ major does not have. For a minor target that is just F♯ major with one note raised: the E♯7 chord\'s third.',
+    scale: [
+      { note: 'A♯', outside: false },
+      { note: 'B♯', outside: true },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+      { note: 'F𝄪', outside: true },
+      { note: 'G𝄪', outside: true },
+    ],
   },
   {
     key: 'F#', chord: '5of4',
@@ -627,6 +1240,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B major scale',
     explanation:
       'F♯7 is not in F♯ major; it is the 5 of B. Play the notes of the key it points to for that bar. The highlighted notes are the ones F♯ major does not have.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: true },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+    ],
   },
   {
     key: 'F#', chord: '5of5',
@@ -635,6 +1257,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C♯ major scale',
     explanation:
       'G♯7 is not in F♯ major; it is the 5 of C♯. Play the notes of the key it points to for that bar. The highlighted notes are the ones F♯ major does not have.',
+    scale: [
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B♯', outside: true },
+    ],
   },
   {
     key: 'F#', chord: '5of6',
@@ -643,6 +1274,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♯ melodic minor scale',
     explanation:
       'A♯7 is not in F♯ major; it is the 5 of D♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones F♯ major does not have. For a minor target that is just F♯ major with one note raised: the A♯7 chord\'s third.',
+    scale: [
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B♯', outside: true },
+      { note: 'C𝄪', outside: true },
+    ],
   },
   {
     key: 'Gb', chord: '2m',
@@ -651,6 +1291,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♭ major scale',
     explanation:
       'A♭m is the 2 of G♭. Every note it holds is already in G♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C♭', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+    ],
   },
   {
     key: 'Gb', chord: '3m',
@@ -659,6 +1308,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♭ major scale',
     explanation:
       'B♭m is the 3 of G♭. Every note it holds is already in G♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C♭', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+    ],
   },
   {
     key: 'Gb', chord: '4',
@@ -667,6 +1325,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♭ major scale',
     explanation:
       'C♭ is the 4 of G♭. Every note it holds is already in G♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C♭', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+    ],
   },
   {
     key: 'Gb', chord: '5',
@@ -675,6 +1342,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♭ major scale',
     explanation:
       'D♭7 is the 5 of G♭. Every note it holds is already in G♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C♭', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+    ],
   },
   {
     key: 'Gb', chord: '6m',
@@ -683,6 +1359,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♭ major scale',
     explanation:
       'E♭m is the 6 of G♭. Every note it holds is already in G♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C♭', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+    ],
   },
   {
     key: 'Gb', chord: '5of2',
@@ -691,6 +1376,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♭ melodic minor scale',
     explanation:
       'E♭7 is not in G♭ major; it is the 5 of A♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones G♭ major does not have. For a minor target that is just G♭ major with one note raised: the E♭7 chord\'s third.',
+    scale: [
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C♭', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: true },
+    ],
   },
   {
     key: 'Gb', chord: '5of3',
@@ -699,6 +1393,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ melodic minor scale',
     explanation:
       'F7 is not in G♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones G♭ major does not have. For a minor target that is just G♭ major with one note raised: the F7 chord\'s third.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: true },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: true },
+      { note: 'A', outside: true },
+    ],
   },
   {
     key: 'Gb', chord: '5of4',
@@ -707,6 +1410,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C♭ major scale',
     explanation:
       'G♭7 is not in G♭ major; it is the 5 of C♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones G♭ major does not have.',
+    scale: [
+      { note: 'C♭', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F♭', outside: true },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+    ],
   },
   {
     key: 'Gb', chord: '5of5',
@@ -715,6 +1427,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♭ major scale',
     explanation:
       'A♭7 is not in G♭ major; it is the 5 of D♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones G♭ major does not have.',
+    scale: [
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: true },
+    ],
   },
   {
     key: 'Gb', chord: '5of6',
@@ -723,6 +1444,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ melodic minor scale',
     explanation:
       'B♭7 is not in G♭ major; it is the 5 of E♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones G♭ major does not have. For a minor target that is just G♭ major with one note raised: the B♭7 chord\'s third.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: true },
+      { note: 'D', outside: true },
+    ],
   },
   {
     key: 'G', chord: '2m',
@@ -731,6 +1461,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G major scale',
     explanation:
       'Am is the 2 of G. Every note it holds is already in G major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+    ],
   },
   {
     key: 'G', chord: '3m',
@@ -739,6 +1478,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G major scale',
     explanation:
       'Bm is the 3 of G. Every note it holds is already in G major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+    ],
   },
   {
     key: 'G', chord: '4',
@@ -747,6 +1495,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G major scale',
     explanation:
       'C is the 4 of G. Every note it holds is already in G major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+    ],
   },
   {
     key: 'G', chord: '5',
@@ -755,6 +1512,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G major scale',
     explanation:
       'D7 is the 5 of G. Every note it holds is already in G major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+    ],
   },
   {
     key: 'G', chord: '6m',
@@ -763,6 +1529,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G major scale',
     explanation:
       'Em is the 6 of G. Every note it holds is already in G major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+    ],
   },
   {
     key: 'G', chord: '5of2',
@@ -771,6 +1546,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A melodic minor scale',
     explanation:
       'E7 is not in G major; it is the 5 of Am. Play the notes of the key it points to for that bar. The highlighted notes are the ones G major does not have. For a minor target that is just G major with one note raised: the E7 chord\'s third.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: true },
+    ],
   },
   {
     key: 'G', chord: '5of3',
@@ -779,6 +1563,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B melodic minor scale',
     explanation:
       'F♯7 is not in G major; it is the 5 of Bm. Play the notes of the key it points to for that bar. The highlighted notes are the ones G major does not have. For a minor target that is just G major with one note raised: the F♯7 chord\'s third.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: true },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: true },
+      { note: 'A♯', outside: true },
+    ],
   },
   {
     key: 'G', chord: '5of4',
@@ -787,6 +1580,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C major scale',
     explanation:
       'G7 is not in G major; it is the 5 of C. Play the notes of the key it points to for that bar. The highlighted notes are the ones G major does not have.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F', outside: true },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+    ],
   },
   {
     key: 'G', chord: '5of5',
@@ -795,6 +1597,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D major scale',
     explanation:
       'A7 is not in G major; it is the 5 of D. Play the notes of the key it points to for that bar. The highlighted notes are the ones G major does not have.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: true },
+    ],
   },
   {
     key: 'G', chord: '5of6',
@@ -803,6 +1614,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E melodic minor scale',
     explanation:
       'B7 is not in G major; it is the 5 of Em. Play the notes of the key it points to for that bar. The highlighted notes are the ones G major does not have. For a minor target that is just G major with one note raised: the B7 chord\'s third.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: true },
+      { note: 'D♯', outside: true },
+    ],
   },
   {
     key: 'Ab', chord: '2m',
@@ -811,6 +1631,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♭ major scale',
     explanation:
       'B♭m is the 2 of A♭. Every note it holds is already in A♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+    ],
   },
   {
     key: 'Ab', chord: '3m',
@@ -819,6 +1648,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♭ major scale',
     explanation:
       'Cm is the 3 of A♭. Every note it holds is already in A♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+    ],
   },
   {
     key: 'Ab', chord: '4',
@@ -827,6 +1665,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♭ major scale',
     explanation:
       'D♭ is the 4 of A♭. Every note it holds is already in A♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+    ],
   },
   {
     key: 'Ab', chord: '5',
@@ -835,6 +1682,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♭ major scale',
     explanation:
       'E♭7 is the 5 of A♭. Every note it holds is already in A♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+    ],
   },
   {
     key: 'Ab', chord: '6m',
@@ -843,6 +1699,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A♭ major scale',
     explanation:
       'Fm is the 6 of A♭. Every note it holds is already in A♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+    ],
   },
   {
     key: 'Ab', chord: '5of2',
@@ -851,6 +1716,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ melodic minor scale',
     explanation:
       'F7 is not in A♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones A♭ major does not have. For a minor target that is just A♭ major with one note raised: the F7 chord\'s third.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: true },
+    ],
   },
   {
     key: 'Ab', chord: '5of3',
@@ -859,6 +1733,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C melodic minor scale',
     explanation:
       'G7 is not in A♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. The highlighted notes are the ones A♭ major does not have. For a minor target that is just A♭ major with one note raised: the G7 chord\'s third.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: true },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: true },
+      { note: 'B', outside: true },
+    ],
   },
   {
     key: 'Ab', chord: '5of4',
@@ -867,6 +1750,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♭ major scale',
     explanation:
       'A♭7 is not in A♭ major; it is the 5 of D♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones A♭ major does not have.',
+    scale: [
+      { note: 'D♭', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G♭', outside: true },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+    ],
   },
   {
     key: 'Ab', chord: '5of5',
@@ -875,6 +1767,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ major scale',
     explanation:
       'B♭7 is not in A♭ major; it is the 5 of E♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones A♭ major does not have.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: true },
+    ],
   },
   {
     key: 'Ab', chord: '5of6',
@@ -883,6 +1784,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F melodic minor scale',
     explanation:
       'C7 is not in A♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. The highlighted notes are the ones A♭ major does not have. For a minor target that is just A♭ major with one note raised: the C7 chord\'s third.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: true },
+      { note: 'E', outside: true },
+    ],
   },
   {
     key: 'A', chord: '2m',
@@ -891,6 +1801,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A major scale',
     explanation:
       'Bm is the 2 of A. Every note it holds is already in A major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+    ],
   },
   {
     key: 'A', chord: '3m',
@@ -899,6 +1818,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A major scale',
     explanation:
       'C♯m is the 3 of A. Every note it holds is already in A major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+    ],
   },
   {
     key: 'A', chord: '4',
@@ -907,6 +1835,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A major scale',
     explanation:
       'D is the 4 of A. Every note it holds is already in A major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+    ],
   },
   {
     key: 'A', chord: '5',
@@ -915,6 +1852,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A major scale',
     explanation:
       'E7 is the 5 of A. Every note it holds is already in A major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+    ],
   },
   {
     key: 'A', chord: '6m',
@@ -923,6 +1869,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the A major scale',
     explanation:
       'F♯m is the 6 of A. Every note it holds is already in A major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+    ],
   },
   {
     key: 'A', chord: '5of2',
@@ -931,6 +1886,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B melodic minor scale',
     explanation:
       'F♯7 is not in A major; it is the 5 of Bm. Play the notes of the key it points to for that bar. The highlighted notes are the ones A major does not have. For a minor target that is just A major with one note raised: the F♯7 chord\'s third.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: true },
+    ],
   },
   {
     key: 'A', chord: '5of3',
@@ -939,6 +1903,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C♯ melodic minor scale',
     explanation:
       'G♯7 is not in A major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones A major does not have. For a minor target that is just A major with one note raised: the G♯7 chord\'s third.',
+    scale: [
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: true },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: true },
+      { note: 'B♯', outside: true },
+    ],
   },
   {
     key: 'A', chord: '5of4',
@@ -947,6 +1920,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D major scale',
     explanation:
       'A7 is not in A major; it is the 5 of D. Play the notes of the key it points to for that bar. The highlighted notes are the ones A major does not have.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G', outside: true },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+    ],
   },
   {
     key: 'A', chord: '5of5',
@@ -955,6 +1937,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E major scale',
     explanation:
       'B7 is not in A major; it is the 5 of E. Play the notes of the key it points to for that bar. The highlighted notes are the ones A major does not have.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: true },
+    ],
   },
   {
     key: 'A', chord: '5of6',
@@ -963,6 +1954,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ melodic minor scale',
     explanation:
       'C♯7 is not in A major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones A major does not have. For a minor target that is just A major with one note raised: the C♯7 chord\'s third.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: true },
+      { note: 'E♯', outside: true },
+    ],
   },
   {
     key: 'Bb', chord: '2m',
@@ -971,6 +1971,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ major scale',
     explanation:
       'Cm is the 2 of B♭. Every note it holds is already in B♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+    ],
   },
   {
     key: 'Bb', chord: '3m',
@@ -979,6 +1988,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ major scale',
     explanation:
       'Dm is the 3 of B♭. Every note it holds is already in B♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+    ],
   },
   {
     key: 'Bb', chord: '4',
@@ -987,6 +2005,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ major scale',
     explanation:
       'E♭ is the 4 of B♭. Every note it holds is already in B♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+    ],
   },
   {
     key: 'Bb', chord: '5',
@@ -995,6 +2022,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ major scale',
     explanation:
       'F7 is the 5 of B♭. Every note it holds is already in B♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+    ],
   },
   {
     key: 'Bb', chord: '6m',
@@ -1003,6 +2039,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B♭ major scale',
     explanation:
       'Gm is the 6 of B♭. Every note it holds is already in B♭ major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+    ],
   },
   {
     key: 'Bb', chord: '5of2',
@@ -1011,6 +2056,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C melodic minor scale',
     explanation:
       'G7 is not in B♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. The highlighted notes are the ones B♭ major does not have. For a minor target that is just B♭ major with one note raised: the G7 chord\'s third.',
+    scale: [
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: true },
+    ],
   },
   {
     key: 'Bb', chord: '5of3',
@@ -1019,6 +2073,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D melodic minor scale',
     explanation:
       'A7 is not in B♭ major; it is the 5 of Dm. Play the notes of the key it points to for that bar. The highlighted notes are the ones B♭ major does not have. For a minor target that is just B♭ major with one note raised: the A7 chord\'s third.',
+    scale: [
+      { note: 'D', outside: false },
+      { note: 'E', outside: true },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B', outside: true },
+      { note: 'C♯', outside: true },
+    ],
   },
   {
     key: 'Bb', chord: '5of4',
@@ -1027,6 +2090,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E♭ major scale',
     explanation:
       'B♭7 is not in B♭ major; it is the 5 of E♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones B♭ major does not have.',
+    scale: [
+      { note: 'E♭', outside: false },
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A♭', outside: true },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+    ],
   },
   {
     key: 'Bb', chord: '5of5',
@@ -1035,6 +2107,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F major scale',
     explanation:
       'C7 is not in B♭ major; it is the 5 of F. Play the notes of the key it points to for that bar. The highlighted notes are the ones B♭ major does not have.',
+    scale: [
+      { note: 'F', outside: false },
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: true },
+    ],
   },
   {
     key: 'Bb', chord: '5of6',
@@ -1043,6 +2124,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G melodic minor scale',
     explanation:
       'D7 is not in B♭ major; it is the 5 of Gm. Play the notes of the key it points to for that bar. The highlighted notes are the ones B♭ major does not have. For a minor target that is just B♭ major with one note raised: the D7 chord\'s third.',
+    scale: [
+      { note: 'G', outside: false },
+      { note: 'A', outside: false },
+      { note: 'B♭', outside: false },
+      { note: 'C', outside: false },
+      { note: 'D', outside: false },
+      { note: 'E', outside: true },
+      { note: 'F♯', outside: true },
+    ],
   },
   {
     key: 'B', chord: '2m',
@@ -1051,6 +2141,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B major scale',
     explanation:
       'C♯m is the 2 of B. Every note it holds is already in B major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+    ],
   },
   {
     key: 'B', chord: '3m',
@@ -1059,6 +2158,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B major scale',
     explanation:
       'D♯m is the 3 of B. Every note it holds is already in B major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+    ],
   },
   {
     key: 'B', chord: '4',
@@ -1067,6 +2175,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B major scale',
     explanation:
       'E is the 4 of B. Every note it holds is already in B major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+    ],
   },
   {
     key: 'B', chord: '5',
@@ -1075,6 +2192,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B major scale',
     explanation:
       'F♯7 is the 5 of B. Every note it holds is already in B major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+    ],
   },
   {
     key: 'B', chord: '6m',
@@ -1083,6 +2209,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the B major scale',
     explanation:
       'G♯m is the 6 of B. Every note it holds is already in B major, so nothing changes: stay in the key.',
+    scale: [
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+    ],
   },
   {
     key: 'B', chord: '5of2',
@@ -1091,6 +2226,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the C♯ melodic minor scale',
     explanation:
       'G♯7 is not in B major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones B major does not have. For a minor target that is just B major with one note raised: the G♯7 chord\'s third.',
+    scale: [
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B♯', outside: true },
+    ],
   },
   {
     key: 'B', chord: '5of3',
@@ -1099,6 +2243,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the D♯ melodic minor scale',
     explanation:
       'A♯7 is not in B major; it is the 5 of D♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones B major does not have. For a minor target that is just B major with one note raised: the A♯7 chord\'s third.',
+    scale: [
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: true },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B♯', outside: true },
+      { note: 'C𝄪', outside: true },
+    ],
   },
   {
     key: 'B', chord: '5of4',
@@ -1107,6 +2260,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the E major scale',
     explanation:
       'B7 is not in B major; it is the 5 of E. Play the notes of the key it points to for that bar. The highlighted notes are the ones B major does not have.',
+    scale: [
+      { note: 'E', outside: false },
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A', outside: true },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+    ],
   },
   {
     key: 'B', chord: '5of5',
@@ -1115,6 +2277,15 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the F♯ major scale',
     explanation:
       'C♯7 is not in B major; it is the 5 of F♯. Play the notes of the key it points to for that bar. The highlighted notes are the ones B major does not have.',
+    scale: [
+      { note: 'F♯', outside: false },
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: true },
+    ],
   },
   {
     key: 'B', chord: '5of6',
@@ -1123,5 +2294,14 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
     answer: 'Notes of the G♯ melodic minor scale',
     explanation:
       'D♯7 is not in B major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones B major does not have. For a minor target that is just B major with one note raised: the D♯7 chord\'s third.',
+    scale: [
+      { note: 'G♯', outside: false },
+      { note: 'A♯', outside: false },
+      { note: 'B', outside: false },
+      { note: 'C♯', outside: false },
+      { note: 'D♯', outside: false },
+      { note: 'E♯', outside: true },
+      { note: 'F𝄪', outside: true },
+    ],
   },
 ];
