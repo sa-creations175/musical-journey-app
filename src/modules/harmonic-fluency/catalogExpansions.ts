@@ -1902,7 +1902,13 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
   {
     id: 'backdoor',
     facet: 'backdoor',
-    ask: k => `The backdoor progression I-IV-bVII-I in ${k} major is _____`,
+    // NUMBERS LEAD, NAMES FOLLOW. The question was "The backdoor
+    // progression I-IV-bVII-I in F major is _____", which put a name
+    // and a roman-numeral spelling in front of the numbers this deck
+    // teaches in. The name is what a player calls it, so it keeps its
+    // place — in brackets, after the thing it names. Same pattern for
+    // any named progression added later.
+    ask: k => `The 1 4 ♭7 1 (backdoor) in ${k} major is _____`,
     chords: [['1', ''], ['4', ''], ['b7', ''], ['1', '']],
     explain: (k, c) => `The backdoor progression in ${k} is ${c.join(' → ')} — `
       + `the bVII (${c[2]}) sneaks in instead of a V. It's a gospel/soul `

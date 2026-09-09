@@ -60,6 +60,29 @@ const RULED_ONTO_THE_2_5_1: ReadonlyArray<RuledByAnswer> =
       + 'two sentences (ruling 26); the answer is the same three chords',
   }));
 
+/**
+ * The backdoor's question was rewritten, so its hand-written card can
+ * no longer pair on text.
+ *
+ * `pr-7` asked "The backdoor progression I-IV-bVII-I in F major is
+ * _____" and the generated card now asks "The 1 4 ♭7 1 (backdoor) in F
+ * major is _____" — numbers lead, names follow. Same card, same four
+ * chords, one sentence rewritten, so it takes the same ruled route as
+ * the cadences rather than the identity rule being loosened for
+ * everyone. F - B♭ - E♭ - F is given by exactly one live card.
+ */
+const RULED_BY_REWORDING: ReadonlyArray<RuledByAnswer> = [
+  {
+    from: 'pr-7',
+    why: 'the backdoor question reads numbers-first now; the four chords '
+      + 'are unchanged',
+  },
+];
+
+const RULED: ReadonlyArray<RuledByAnswer> = [
+  ...RULED_ONTO_THE_2_5_1, ...RULED_BY_REWORDING,
+];
+
 /** Every progression card that has left the deck, as it was. */
 export function retiredProgressionCards(): RetiredCard[] {
   return [
@@ -73,12 +96,12 @@ export function retiredProgressionCards(): RetiredCard[] {
  *  card. See `foldInByIdentity` for what "the same card" means. */
 export function progressionMapping() {
   return identityMapping(
-    retiredProgressionCards(), undefined, RULED_ONTO_THE_2_5_1,
+    retiredProgressionCards(), undefined, RULED,
   );
 }
 
 export async function foldInProgressionCards(): Promise<FoldInReport> {
-  return foldInByIdentity(retiredProgressionCards(), RULED_ONTO_THE_2_5_1);
+  return foldInByIdentity(retiredProgressionCards(), RULED);
 }
 
 export function describeProgressionFoldIn(r: FoldInReport): string | null {

@@ -70,13 +70,18 @@ Ruling 26. The stored value is unchanged and still what a link carries.
 | 1-6-4-5 | 1 6 4 5 |
 | 1-6-2-5 | 1 6 2 5 |
 | 1-4-5 | 1 4 5 |
-| backdoor | backdoor |
+| backdoor | 1 4 ♭7 1 (backdoor) |
 
 **One chip per generated progression, and the row shrinks when the deck does.**
 It was four, then twelve, and is eight: `6-4-1-5`, *gospel walk-up*, *rhythm
 changes* and *neo-soul* left with their cards, because a chip for a progression
 the deck no longer generates is a filter that finds nothing. The numbered ones
 apply ruling 26's own rule — the dashes become spaces.
+
+**Numbers lead, names follow.** A progression with a name reads as the numbers
+first and the name in brackets, on the chip and in the card's own question:
+*The 1 4 ♭7 1 (backdoor) in F major is _____*. The stored value is still
+`backdoor`, so every link that named it resolves.
 
 **`ii-V-I` is one chip for both families.** Progression Vocabulary's 2-5-1 cards
 carry the same stored value as Functional Harmony's, because ruling 26 said a 5 1

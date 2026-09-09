@@ -95,9 +95,10 @@ describe('which generated card each retired one became', () => {
     const old = new Map(retiredProgressionCards().map(c => [c.id, c]));
     const ascii = (s: string) => s.replace(/♭/g, 'b').replace(/♯/g, '#');
     for (const { from, to } of moves) {
-      // The eleven cadences are the ruled exception and are proved on
-      // the answer alone, in their own block below.
-      if (from.startsWith('fh-')) continue;
+      // The ruled exceptions are proved on the answer alone, in their
+      // own block below: the eleven cadences, and `pr-7`, whose
+      // question was rewritten numbers-first.
+      if (from.startsWith('fh-') || from === 'pr-7') continue;
       expect(ascii(live.get(to)!.question), from)
         .toBe(ascii(old.get(from)!.question));
       expect(ascii(live.get(to)!.correctAnswer), from)
@@ -114,7 +115,7 @@ describe('which generated card each retired one became', () => {
 // The ruled exception: the ii-V-I cadence IS the 2-5-1
 // =====================================================================
 
-describe('the 2-5-1 lives once', () => {
+describe('the ruled exceptions, pair by pair', () => {
   const { moves } = progressionMapping();
   const byFrom = new Map(moves.map(m => [m.from, m.to]));
 
@@ -154,6 +155,18 @@ describe('the 2-5-1 lives once', () => {
       expect(live.get(to)!.question, from)
         .not.toBe(old.get(from)!.question);
     }
+  });
+
+  it('takes the backdoor the same way, for a rewritten question', () => {
+    // Numbers lead, names follow: `pr-7` asked "The backdoor
+    // progression I-IV-bVII-I in F major is _____" and the card asks
+    // "The 1 4 ♭7 1 (backdoor) in F major is _____". One sentence
+    // rewritten, four chords unchanged — the same narrow exception, not
+    // a looser rule.
+    expect(byFrom.get('pr-7')).toBe('pr-prog-backdoor-F');
+    const live = FLASHCARDS.find(c => c.id === 'pr-prog-backdoor-F')!;
+    expect(live.question).toBe('The 1 4 ♭7 1 (backdoor) in F major is _____');
+    expect(live.correctAnswer).toBe('F - B♭ - E♭ - F');
   });
 
   it('leaves the F♯ 2-5-1 alone, with its own answer', () => {
