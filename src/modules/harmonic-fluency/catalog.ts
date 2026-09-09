@@ -8,7 +8,6 @@ import { DEGREE_NOTE_CATEGORY_NAME, degreeNoteCards } from './degreeNoteCards';
 import { DEGREE_MATH_CATEGORY_NAME } from './scaleDegreeQualityCards';
 import { withFacets } from './facets';
 import { INTERVAL_NAMES } from './intervalInversion';
-import { intervalInversionCards } from './intervalInversionCards';
 import {
   MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
   noteList, pentatonicCardId, pentatonicDecoys, relativeMinorRoot, scaleName,
@@ -423,9 +422,9 @@ export function generateReversePivotCards(): Flashcard[] {
 
 // --- Category 8: Intervals (systematic) -----------------------------
 
-// INTERVAL_NAMES moved to `intervalInversion.ts`, beside the pairing
+// INTERVAL_NAMES moved to `intervalInversion.ts`, beside the inversion
 // rule that reads it. It was private here while `seed.ts` held the same
-// thirteen again; the inversion cards would have made a third copy.
+// thirteen again, and a third copy was one caller away.
 
 /**
  * The twenty hand-picked interval pairs, as they were before ruling 43.
@@ -1998,7 +1997,13 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   // generatedCardIds.test.ts. These carry root-suffixed ids and cannot
   // collide with, or repoint, anything above.
   ...expansionCards(),
-  ...intervalInversionCards(),
+  // `intervalInversionCards()` WAS HERE — fifteen fact cards about the
+  // rule ("a Major 3rd inverted is a _____", "an interval and its
+  // inversion always add up to _____"). The skill is the relationship
+  // between two notes on the keyboard, both ways, and the grid already
+  // asks both directions of every one of them. "Quality flips" and
+  // "adds up to 9" are explanation, not a test, so they moved into the
+  // reveal of every interval card and the fact cards went.
   // The quality-carrying rebuild of scale-degree math, ALONGSIDE the
   // 84 above rather than in place of them. Those 84 are this set's
   // alteration-zero subset one for one, so retiring them is a separate

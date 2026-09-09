@@ -100,6 +100,20 @@ export const REMOVED_WITHOUT_SUCCESSOR: ReadonlyArray<string> = [
   'pent-relative-E', 'pent-relative-F', 'pent-relative-F#',
   'pent-relative-G', 'pent-relative-Ab', 'pent-relative-A',
   'pent-relative-Bb', 'pent-relative-B',
+  // THE FIFTEEN INVERSION FACT CARDS (9 Sep 2026). "A Major 3rd
+  // inverted is a _____", "an interval and its inversion always add up
+  // to _____", "when an interval inverts, its quality _____". The skill
+  // is the relationship between two notes on the keyboard, both ways,
+  // and the interval grid asks both directions of every pair already —
+  // A up to F♯ is a Major 6th and F♯ up to A is a minor 3rd are two
+  // cards it has. What these fifteen asked is explanation, and it moved
+  // into the reveal of every interval card rather than being drilled as
+  // a fact of its own. Nothing replaces them, so nothing pairs.
+  'iv-inv-of-unison', 'iv-inv-of-octave', 'iv-inv-of-minor-2nd',
+  'iv-inv-of-major-7th', 'iv-inv-of-major-2nd', 'iv-inv-of-minor-7th',
+  'iv-inv-of-minor-3rd', 'iv-inv-of-major-6th', 'iv-inv-of-major-3rd',
+  'iv-inv-of-minor-6th', 'iv-inv-of-perfect-4th', 'iv-inv-of-perfect-5th',
+  'iv-inv-of-tritone', 'iv-inv-sum', 'iv-inv-quality-rule',
 ];
 
 /** One card whose rows are kept, and what a reader wrote on it. */

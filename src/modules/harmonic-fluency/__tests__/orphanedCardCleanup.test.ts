@@ -84,8 +84,11 @@ describe('the authorised set', () => {
   it('is the cards removed with no successor, and nothing else', () => {
     // Twelve for the 6/♭7 shape (ruling 30), two for the key
     // signatures that named two keys at once, five pentatonic formula
-    // cards and twelve "share the same" ones (commit 8).
-    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(31);
+    // cards and twelve "share the same" ones (commit 8), and the
+    // fifteen interval inversion fact cards.
+    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(46);
+    expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('iv-inv')))
+      .toHaveLength(15);
     expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('sc-6-b7-')))
       .toHaveLength(11);
     expect(REMOVED_WITHOUT_SUCCESSOR).toContain('sc-11');

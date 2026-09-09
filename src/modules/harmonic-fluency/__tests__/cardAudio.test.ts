@@ -329,10 +329,7 @@ describe('intervals', () => {
     expect(seen).toBe(156);
   });
 
-  it('says nothing for the inversion cards, which name no two notes', () => {
-    expect(cardSound(card('iv-inv-sum'))).toBeNull();
-    expect(cardSound(card('iv-inv-quality-rule'))).toBeNull();
-  });
+
 });
 
 describe('what stays silent, and why', () => {

@@ -79,12 +79,12 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // draws its decoys from the thirteen key names rather than from a
   // hand-picked three.
   { category: 'key-signatures', rule: 'only-accidental', cards: 1 },
-  // One card, hand-written and prose-answered where the rest of the
-  // category names intervals: iv-inv-quality-rule answers "flips
-  // major↔minor; perfect stays perfect" against three short rules. The
-  // twenty generated interval cards and the five top-ups went from 9
-  // to 0 through the chooser.
-  { category: 'intervals', rule: 'longest', cards: 1 },
+  // `intervals / longest` WAS HERE, AT ONE CARD, AND THE ALLOWLIST
+  // SHRANK. It was `iv-inv-quality-rule`, hand-written and
+  // prose-answered where the rest of the category names intervals:
+  // "flips major↔minor; perfect stays perfect" against three short
+  // rules. That card and its fourteen siblings left the deck on
+  // 9 Sep 2026, so the entry goes with them.
   // key-signatures / only-natural stood at 1: the parallel minor of B
   // major is B minor, and a fixed 6/2/5 decoy list gave it G♯, C♯ and
   // F♯ for company — the answer was the only plain name on screen. Both
@@ -391,7 +391,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 24, tell: 7, distinct: 31 });
+      .toEqual({ blind: 23, tell: 7, distinct: 30 });
   });
 
   it('keeps the tell allowlist honest', () => {

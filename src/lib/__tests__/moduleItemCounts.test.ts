@@ -70,7 +70,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 168 + 293 = 1553
+// Harmonic Fluency — 949 + 143 + 168 + 278 = 1538
+// (9 Sep 2026, intervals settled: 1553 → 1538. The fifteen inversion
+//  FACT cards went — the skill is the relationship between two notes
+//  on the keyboard, both ways, and the grid asks both directions of
+//  every pair already. Intervals 171 → 156, earRecognition 293 → 278.)
 // (9 Sep 2026, commit 8: 1463 → 1553. Progression Vocabulary
 //  regenerated — the eight named progressions that can be written in
 //  a major key, in all thirteen. Eight hand-written in-key cards and
@@ -146,12 +150,12 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(168);
   });
 
-  it('earRecognition = mo 107 + iv 171 + et 15 = 293', () => {
-    expect(c.byGroup.earRecognition).toBe(293);
+  it('earRecognition = mo 107 + iv 156 + et 15 = 278', () => {
+    expect(c.byGroup.earRecognition).toBe(278);
   });
 
-  it('total = 1553 across all 13 categories', () => {
-    expect(c.total).toBe(1553);
+  it('total = 1538 across all 13 categories', () => {
+    expect(c.total).toBe(1538);
   });
 
   it('total equals sum of group totals', () => {

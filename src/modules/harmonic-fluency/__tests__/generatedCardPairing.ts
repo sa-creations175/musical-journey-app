@@ -64,6 +64,15 @@
  * and `identityIdMigration.ts` carries their rows across. The other
  * fourteen had none.
  * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 — FIFTEEN `iv-inv-` LINES ARE REMOVED, AND NOTHING
+ * TAKES THEIR PLACE.
+ *
+ * The interval inversion FACT cards left the deck: the skill is the
+ * relationship between two notes on the keyboard, both ways, and the
+ * grid asks both directions of every pair already. Removals with no
+ * additions, so no id was repointed — which is the change this fixture
+ * is indifferent to and `orphanedCardCleanup` is not.
+ * ---------------------------------------------------------------
  * 9 SEPTEMBER 2026 — THE PROGRESSION BLOCK IS RE-PINNED, AND NOT ONE
  * OLD PAIRING SURVIVES INTO A NEW ID.
  *
@@ -1170,21 +1179,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-B-up-10|The interval from B to A ascending = ?',
   'iv-B-up-11|The interval from B to A♯ ascending = ?',
   'iv-B-up-12|The interval from B to B ascending = ?',
-  'iv-inv-of-unison|A Unison inverted is a _____',
-  'iv-inv-of-octave|An Octave inverted is a _____',
-  'iv-inv-of-minor-2nd|A minor 2nd inverted is a _____',
-  'iv-inv-of-major-7th|A Major 7th inverted is a _____',
-  'iv-inv-of-major-2nd|A Major 2nd inverted is a _____',
-  'iv-inv-of-minor-7th|A minor 7th inverted is a _____',
-  'iv-inv-of-minor-3rd|A minor 3rd inverted is a _____',
-  'iv-inv-of-major-6th|A Major 6th inverted is a _____',
-  'iv-inv-of-major-3rd|A Major 3rd inverted is a _____',
-  'iv-inv-of-minor-6th|A minor 6th inverted is a _____',
-  'iv-inv-of-perfect-4th|A Perfect 4th inverted is a _____',
-  'iv-inv-of-perfect-5th|A Perfect 5th inverted is a _____',
-  'iv-inv-of-tritone|A Tritone inverted is a _____',
-  'iv-inv-sum|An interval and its inversion always add up to _____',
-  'iv-inv-quality-rule|When an interval inverts, its quality _____',
   // --- enharmonic-equivalents ---
   'enh-n-1|Enharmonic equivalent of Ab?',
   'enh-n-2|Enharmonic equivalent of G#?',
