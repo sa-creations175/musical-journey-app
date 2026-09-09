@@ -10,8 +10,8 @@ import { voiceLeadingSurface } from './practiceTest/makeSurfaces';
 import { parseVoiceLeadingItemRef, voiceLeadingSubCellLabel } from './catalog';
 import { VOICE_LEADING_PATTERN_BY_ID } from './catalog';
 import {
-  applyRemove,
   applyRename,
+  isRemovedCustomPattern,
   mergePatternList,
   type CustomPattern,
 } from './voiceLeadingPatternList';
@@ -107,9 +107,6 @@ export default function VoiceLeadingDrills() {
   };
   const [custom, setCustom] = useState<CustomPattern[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [newLabel, setNewLabel] = useState('');
-  const [newDescription, setNewDescription] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   /** Which axis runs down the side. Page-wide, so every pattern turns
@@ -195,7 +192,13 @@ export default function VoiceLeadingDrills() {
   useEffect(() => {
     (async () => {
       const saved = await getPref<CustomPattern[]>(PREF_CUSTOM_PATTERNS, []);
-      setCustom(Array.isArray(saved) ? saved : []);
+      // RESIDUE IS DROPPED ON THE WAY IN (ruling 32). The database
+      // migration deletes these, and this is the second net: a device
+      // that pulls an old pref row from another one before upgrading
+      // should not resurrect a pattern nothing can drill.
+      setCustom(Array.isArray(saved)
+        ? saved.filter(c => !isRemovedCustomPattern(c))
+        : []);
       setLoaded(true);
     })();
   }, []);
@@ -208,22 +211,6 @@ export default function VoiceLeadingDrills() {
   const persistCustom = async (next: CustomPattern[]) => {
     setCustom(next);
     if (loaded) await setPref(PREF_CUSTOM_PATTERNS, next);
-  };
-
-  const addPattern = async () => {
-    const trimmed = newLabel.trim();
-    if (trimmed === '') return;
-    const id = `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    await persistCustom([...custom, {
-      id,
-      label: trimmed,
-      description: newDescription.trim() || undefined,
-      createdAt: Date.now(),
-    }]);
-    setAdding(false);
-    setNewLabel('');
-    setNewDescription('');
-    toast({ message: `Pattern added: ${trimmed}`, variant: 'success' });
   };
 
   const saveRename = async (patternId: string) => {
@@ -399,31 +386,19 @@ export default function VoiceLeadingDrills() {
                   <p className="text-xs text-neutral-500 mt-0.5">{effective.description}</p>
                 )}
               </div>
-              {/* REMOVE IS FOR THE READER'S OWN PATTERNS ONLY.
-                  A built-in cannot be removed — it ships — so a link
-                  offering to is a promise the app cannot keep. There is
-                  no restore control either: renaming is a display name
-                  and nothing more, and typing the shipped name back is
-                  how you undo it. The override under the hood is only
-                  how that name persists; none of it is on screen. */}
-              {!pattern.builtin && (
-                <button
-                  onClick={async () => {
-                    if (!confirm(`Remove pattern "${effective.label}"? Existing drill data stays but is hidden from this tab.`)) return;
-                    await persistCustom(applyRemove(custom, pattern.id));
-                    toast({ message: 'Custom pattern removed.', variant: 'warning' });
-                  }}
-                  className="text-neutral-400 hover:text-needswork text-[11px]"
-                >
-                  Remove
-                </button>
-              )}
+              {/* NO REMOVE. Every row here is a built-in and a built-in
+                  cannot be removed — it ships — so a link offering to
+                  is a promise the app cannot keep. There is no restore
+                  control either: renaming is a display name and nothing
+                  more, and typing the shipped name back is how you undo
+                  it. The override under the hood is only how that name
+                  persists; none of it is on screen. */}
             </div>
             <VoiceLeadingPatternGrid
               patternId={effective.id}
               layout={layout}
               selectedRef={selected}
-              onCellOpen={pattern.builtin ? pickCell : undefined}
+              onCellOpen={pickCell}
             />
           </section>
         );
@@ -469,47 +444,13 @@ export default function VoiceLeadingDrills() {
         />
       )}
 
-      {adding ? (
-        <section className="rounded-2xl border border-fluent/40 bg-fluent/5 p-3 sm:p-5 space-y-2">
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-neutral-500 text-xs uppercase tracking-wide">pattern name</span>
-            <input
-              autoFocus
-              value={newLabel}
-              onChange={e => setNewLabel(e.target.value)}
-              placeholder="e.g. Stepwise 7-3 connecting"
-              className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-neutral-500 text-xs uppercase tracking-wide">short description (optional)</span>
-            <input
-              value={newDescription}
-              onChange={e => setNewDescription(e.target.value)}
-              className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-            />
-          </label>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={addPattern}
-              disabled={newLabel.trim() === ''}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium text-white ${
-                newLabel.trim() === ''
-                  ? 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed'
-                  : 'bg-fluent hover:opacity-90'
-              }`}
-            >
-              Add Pattern
-            </button>
-            <button
-              onClick={() => { setAdding(false); setNewLabel(''); setNewDescription(''); }}
-              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
-            >
-              Cancel
-            </button>
-          </div>
-        </section>
-      ) : addMovement}
+      {/* THE ADD-A-PATTERN BOX WAS HERE (ruling 32). What it made was
+          a row with a name and nothing behind it — no sub-cells, no
+          itemRefs, no spacing rows — which printed "sub-cell drill flow
+          isn't available" and could never be drilled. The thing it was
+          reaching for exists properly now, one control down: a
+          movement. */}
+      {addMovement}
 
       <ConfirmDialog
         open={confirmingRemove !== null}

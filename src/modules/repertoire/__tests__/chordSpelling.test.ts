@@ -62,7 +62,11 @@ describe('renderConcrete honours the spelling, not the key', () => {
  * THE ROUND TRIP — the actual defect risk in this step.
  */
 describe('what the app renders, the app can read back', () => {
-  const DEGREES = ['1', 'b2', '2', 'b3', '3', '4', '#4', '5', 'b6', '6', 'b7', '7'];
+  // `#4` WAS IN THIS LIST and ruling 31 took it out: it is no longer a
+  // degree anything STORES — it folds to `b5` at entry and comes back
+  // as ♯4 only on the way to the eye. The round trip is about storage,
+  // so the storage vocabulary is what it walks.
+  const DEGREES = ['1', 'b2', '2', 'b3', '3', '4', 'b5', '5', 'b6', '6', 'b7', '7'];
   const KEYS = ['C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D', 'G'];
 
   it('re-parses every rendered chord back to the degree it came from', () => {

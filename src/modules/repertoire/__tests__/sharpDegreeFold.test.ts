@@ -13,14 +13,24 @@
  * Ruling 22 folds them at ENTRY rather than widening the table, because
  * the reader's spelling setting decides how a degree SHOWS anyway.
  *
- * `#4` IS NOT FOLDED, and that is the assertion that keeps this from
- * becoming a rule about accidentals. It and `b5` are the same pitch and
- * two different degrees, and the app names both.
+ * `#4` FOLDS TOO, AND THE REASON IS THE OPPOSITE ONE (ruling 31,
+ * reversing the exception this file used to pin).
+ *
+ * The other four fold because the app has NO name for the sharp side.
+ * The tritone folds because it has TWO names for one degree, and which
+ * of the two a reader sees is a spelling decision the app already has
+ * a setting for. Storing both would be storing a display decision —
+ * which is the same argument, arriving at the same place, from the
+ * other end.
+ *
+ * So this file pins both halves: the fold at entry, and `spellDegree`
+ * giving the ♯4 back on the way to the eye.
  * =====================================================================
  */
 import { describe, expect, it } from 'vitest';
 import {
-  parseChordFunction, SEMI_BY_DEGREE, SHARP_DEGREE_FOLD,
+  parseChordFunction, renderNumbers, renderRoman, spellDegree,
+  SEMI_BY_DEGREE, SHARP_DEGREE_FOLD,
 } from '../chordFunction';
 import { chordRootNote } from '../voicingHelpers';
 
@@ -32,6 +42,15 @@ describe('the four with no name of their own', () => {
     expect(fn('#2')).toBe('b3');
     expect(fn('#5')).toBe('b6');
     expect(fn('#6')).toBe('b7');
+  });
+
+  it('and never gives the sharp name back, because there is none', () => {
+    // The guard on `spellDegree`. A reader on sharps sees ♭6, not ♯5:
+    // nothing in this vocabulary calls a chord a ♯5, and printing one
+    // to honour a preference would invent a name.
+    for (const flat of ['b2', 'b3', 'b6', 'b7']) {
+      expect(spellDegree(flat, 'sharp'), flat).toBe(flat);
+    }
   });
 
   it('keeps the quality that came with it', () => {
@@ -55,21 +74,55 @@ describe('the four with no name of their own', () => {
   });
 });
 
-describe('what it does NOT touch', () => {
-  it('leaves ♯4 alone, because the app names it', () => {
-    // ♯4 and ♭5 are the same pitch and two different degrees — the ♯4
-    // rises out of a major context, the ♭5 falls inside a minor one.
-    // Folding it would erase a distinction the whole degree-note family
-    // exists to teach.
-    expect(fn('#4')).toBe('#4');
-    expect(fn('#4dim')).toBe('#4');
-    expect(SHARP_DEGREE_FOLD['#4']).toBeUndefined();
+describe('the tritone, which has two names and one storage', () => {
+  it('stores ♯4 as ♭5, like every other typed sharp', () => {
+    // Ruling 31. THIS FILE USED TO PIN THE OPPOSITE and the reversal is
+    // the point: ♯4 and ♭5 are one degree with two names, so which one
+    // is stored is not a musical fact, it is a display decision — and
+    // the app already has a setting that makes display decisions.
+    expect(fn('#4')).toBe('b5');
+    expect(fn('#4dim')).toBe('b5');
+    expect(SHARP_DEGREE_FOLD['#4']).toBe('b5');
   });
 
+  it('folds a ♯4 bass too', () => {
+    expect(parseChordFunction('1/#4')!.bass).toBe('b5');
+  });
+
+  it('gives the ♯4 back when the reader is on sharps', () => {
+    expect(spellDegree('b5', 'sharp')).toBe('#4');
+    expect(spellDegree('b5', 'flat')).toBe('b5');
+  });
+
+  it('and gives it back on the page, in both notations', () => {
+    // The end of it, stated as what a reader sees. One stored degree,
+    // two spellings, and the setting alone deciding.
+    const dim = parseChordFunction('#4dim')!;
+    expect(renderNumbers(dim, 'sharp')).toBe('#4dim');
+    expect(renderNumbers(dim, 'flat')).toBe('b5dim');
+    // The numeral's CASE is the quality's business, not the
+    // spelling's — a diminished chord is lowercase either way.
+    expect(renderRoman(dim, 'sharp')).toBe('#ivdim');
+    expect(renderRoman(dim, 'flat')).toBe('bvdim');
+    const plain = parseChordFunction('#4')!;
+    expect(renderRoman(plain, 'sharp')).toBe('#IV');
+    expect(renderRoman(plain, 'flat')).toBe('bV');
+  });
+
+  it('spells a slash bass by the same setting', () => {
+    const chord = parseChordFunction('1/#4')!;
+    expect(renderNumbers(chord, 'sharp')).toBe('1/#4');
+    expect(renderNumbers(chord, 'flat')).toBe('1/b5');
+  });
+});
+
+describe('what it does NOT touch', () => {
   it('leaves every flat degree alone', () => {
     for (const d of ['b2', 'b3', 'b5', 'b6', 'b7']) {
       expect(fn(d), d).toBe(d);
     }
+    // Including the one the tritone folds ONTO: `b5` is the storage,
+    // so it cannot itself be rewritten by anything here.
   });
 
   it('leaves the plain degrees alone', () => {
@@ -85,11 +138,17 @@ describe('why these four and not others', () => {
     // table are two halves of one fact: a degree that survives parsing
     // must have a distance above the tonic, or it cannot be voiced or
     // played. This asserts the two agree rather than trusting them to.
-    for (const sharp of Object.keys(SHARP_DEGREE_FOLD)) {
-      expect(SEMI_BY_DEGREE[sharp], sharp).toBeUndefined();
-    }
     for (const flat of Object.values(SHARP_DEGREE_FOLD)) {
       expect(SEMI_BY_DEGREE[flat], flat).toBeTypeOf('number');
+    }
+    // THE OTHER HALF USED TO SAY "everything folded is unresolvable",
+    // and ruling 31 broke that: `#4` resolves perfectly well and folds
+    // anyway, because its reason is a spelling one rather than a
+    // missing-name one. `SEMI_BY_DEGREE` keeps its `#4` row so a chord
+    // stored before the fold can still find its root.
+    expect(SEMI_BY_DEGREE['#4']).toBe(SEMI_BY_DEGREE['b5']);
+    for (const sharp of ['#1', '#2', '#5', '#6']) {
+      expect(SEMI_BY_DEGREE[sharp], sharp).toBeUndefined();
     }
   });
 

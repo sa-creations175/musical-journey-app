@@ -226,7 +226,11 @@ describe('the walk-up, from nothing', () => {
     ]);
     expect(inOrder.map(p => p.chord.function))
       .toEqual(['1', '1', '3', '2', 'b6', '6', '6']);
-    expect(inOrder[3].chord.bass).toBe('#4');
+    // `2/#4` IS TYPED AS THE PROTOTYPE SAYS AND STORES AS `b5`
+    // (ruling 31, reversing the exception ruling 22 made for it). One
+    // stored degree; the spelling setting alone decides whether a
+    // reader sees ♯4 or ♭5 — see `spellDegree`.
+    expect(inOrder[3].chord.bass).toBe('b5');
 
     // And it plays: the transport turns over rather than refusing.
     await click(byTestId('movement-play'));

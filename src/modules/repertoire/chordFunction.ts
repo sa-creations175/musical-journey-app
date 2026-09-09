@@ -221,15 +221,25 @@ function parseConcreteNotation(input: string, sectionKey?: string): ChordFunctio
  * anyway — a `b6` stored is a ♯5 on screen the moment sharps are
  * chosen. Storing both would be storing a display decision.
  *
- * `#4` IS NOT ON THIS LIST AND MUST NOT JOIN IT. It and `b5` are the
- * same pitch and two different degrees — the ♯4 rises out of a major
- * context and the ♭5 falls inside a minor one — and the app names both.
- * Every other sharp degree here has no such twin: nothing in this
- * vocabulary calls anything a ♯5 rather than a ♭6.
+ * `#4` JOINED THE LIST ON 8 SEPTEMBER (ruling 31), REVERSING THE
+ * EXCEPTION THE 8 SEPTEMBER MORNING BUILD MADE FOR IT.
+ *
+ * The exception's argument was that ♯4 and ♭5 are two different degrees
+ * the app names both of, so folding one into the other would erase a
+ * distinction. What that missed is that ♯4/♭5 is not the SHAPE the other
+ * four are. The other four fold because the app has no name for the
+ * sharp side at all. This one folds because it has TWO names for one
+ * degree, and which of the two you see is a spelling decision — the
+ * same kind of decision that decides between A♭ and G♯, and one the app
+ * already has a setting for.
+ *
+ * So the storage holds one degree and `spellDegree` decides what a
+ * reader sees. Storing both would be storing a display decision, which
+ * is precisely the argument the other four are folded on.
  * =====================================================================
  */
 export const SHARP_DEGREE_FOLD: Readonly<Record<string, string>> = {
-  '#1': 'b2', '#2': 'b3', '#5': 'b6', '#6': 'b7',
+  '#1': 'b2', '#2': 'b3', '#4': 'b5', '#5': 'b6', '#6': 'b7',
 };
 
 /** A degree label, in the vocabulary the app can resolve. */
@@ -267,19 +277,51 @@ export function parseChordFunction(input: string, sectionKey?: string): ChordFun
 
 // --- Renderers ------------------------------------------------------
 
-/** Number-notation display. */
-export function renderNumbers(cf: ChordFunction): string {
+/**
+ * The one degree this app names BOTH ways, and the two names.
+ *
+ * =====================================================================
+ * THIS IS NOT THE FOLD TABLE READ BACKWARDS, AND IT MUST NOT BECOME IT.
+ *
+ * Four degrees fold because the sharp name does not exist in this
+ * vocabulary: nothing here calls a chord a ♯5, and printing `#5` under
+ * a sharp setting would invent a name to honour a preference. The
+ * tritone is the one entry where both names are real and in use — the
+ * ♯4 rising out of a major context, the ♭5 falling inside a minor one
+ * — so it is the one entry where the setting has something to choose
+ * BETWEEN.
+ *
+ * Ruling 31 is exactly that: one stored degree, and the spelling
+ * setting alone decides which of the two names it wears.
+ * =====================================================================
+ */
+const TRITONE_FLAT = 'b5';
+const TRITONE_SHARP = '#4';
+
+/** A stored degree, in the reader's spelling. */
+export function spellDegree(fn: string, spelling: Spelling): string {
+  return spelling === 'sharp' && fn === TRITONE_FLAT ? TRITONE_SHARP : fn;
+}
+
+/**
+ * Number-notation display.
+ *
+ * The spelling defaults to flats, which is what every caller got
+ * before this parameter existed — a caller that has no opinion reads
+ * exactly as it did.
+ */
+export function renderNumbers(cf: ChordFunction, spelling: Spelling = 'flat'): string {
   if (cf.unparsed) return cf.raw ?? '';
-  const base = cf.function + cf.quality;
-  if (cf.bass) return `${base}/${cf.bass}`;
+  const base = spellDegree(cf.function, spelling) + cf.quality;
+  if (cf.bass) return `${base}/${spellDegree(cf.bass, spelling)}`;
   return base;
 }
 
 /** Convert a function label ("b6") to its Roman numeral given a case
  *  determined by the quality (lowercase for minor, uppercase for
  *  major / dominant / diminished conventionally). */
-function functionToRoman(fn: string, quality: string): string {
-  const m = fn.match(/^([b#]*)([1-7])$/);
+function functionToRoman(fn: string, quality: string, spelling: Spelling = 'flat'): string {
+  const m = spellDegree(fn, spelling).match(/^([b#]*)([1-7])$/);
   if (!m) return fn;
   const accidentals = m[1];
   const degree = parseInt(m[2], 10) - 1;
@@ -296,9 +338,9 @@ function functionToRoman(fn: string, quality: string): string {
 
 /** Roman-numeral display. Minor qualities fold case into the numeral
  *  so the explicit "m" drops from the quality. */
-export function renderRoman(cf: ChordFunction): string {
+export function renderRoman(cf: ChordFunction, spelling: Spelling = 'flat'): string {
   if (cf.unparsed) return cf.raw ?? '';
-  const roman = functionToRoman(cf.function, cf.quality);
+  const roman = functionToRoman(cf.function, cf.quality, spelling);
   // When we lowercased the Roman because quality had "m", drop the
   // leading "m" from the quality string. Keep "maj", "m7b5", "m7"
   // → "m7" stays but it's already implied by lowercase so strip the
@@ -318,7 +360,7 @@ export function renderRoman(cf: ChordFunction): string {
     quality = quality.slice(1);
   }
   let out = roman + quality;
-  if (cf.bass) out += '/' + functionToRoman(cf.bass, '');
+  if (cf.bass) out += '/' + functionToRoman(cf.bass, '', spelling);
   return out;
 }
 
@@ -353,10 +395,10 @@ export function renderChordFunction(
   spelling: Spelling,
 ): string {
   switch (mode) {
-    case 'numbers':  return renderNumbers(cf);
-    case 'roman':    return renderRoman(cf);
+    case 'numbers':  return renderNumbers(cf, spelling);
+    case 'roman':    return renderRoman(cf, spelling);
     case 'concrete': return renderConcrete(cf, sectionKey, spelling);
-    case 'stacked':  return renderNumbers(cf);
+    case 'stacked':  return renderNumbers(cf, spelling);
   }
 }
 

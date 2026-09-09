@@ -1,9 +1,25 @@
 /**
- * The list of voice-leading patterns the page draws — catalog and the
- * reader's own, MERGED BY ID.
+ * The list of voice-leading patterns the page draws — the catalog,
+ * with the reader's renames applied.
  *
  * =====================================================================
- * IT USED TO CONCATENATE, AND THAT IS THE WHOLE BUG.
+ * A PATTERN OF THE READER'S OWN IS NO LONGER A THING (ruling 32).
+ *
+ * There used to be an "+ Add Voice-Leading Pattern" box. What it made
+ * was a row with a name and nothing behind it: no `kind`, no `types`,
+ * no `positions`, so no sub-cells, no itemRefs, no spacing rows — a
+ * grid that printed "sub-cell drill flow isn't available" and could
+ * never be drilled. It was a promise the app could not keep, and the
+ * thing it was reaching for exists properly now: a MOVEMENT, which
+ * Silas builds bar by bar and which drills like everything else.
+ *
+ * So the box is gone, and a stored row it left behind is dropped here
+ * as well as deleted by the database migration — a device that pulls
+ * an old pref from another one before upgrading should not resurrect
+ * a row nothing can drill.
+ *
+ * =====================================================================
+ * WHAT SURVIVES IS THE OVERRIDE, AND IT USED TO CONCATENATE.
  *
  * The page built `[...catalog, ...custom]`. Renaming a built-in wrote a
  * custom entry carrying the BUILT-IN'S OWN ID and never removed the
@@ -12,9 +28,10 @@
  * second section whose cells had no click handler and whose React key
  * collided with the first.
  *
- * An override is an override. A custom entry whose id matches a
- * built-in REPLACES fields on that built-in; it never becomes a
- * pattern of its own. One id, one section, always.
+ * An override is an override. A stored entry whose id matches a
+ * built-in REPLACES fields on that built-in; one id, one section,
+ * always. An entry whose id matches nothing is not a pattern — it is
+ * the residue of a feature that has been removed.
  * =====================================================================
  */
 import { VOICE_LEADING_PATTERNS } from './catalog';
@@ -44,15 +61,24 @@ export interface DisplayPattern {
   id: string;
   label: string;
   description?: string;
-  /**
-   * The id is in the catalog.
-   *
-   * TRUE FOR AN OVERRIDDEN BUILT-IN TOO, and that is the property the
-   * old code got wrong. It drives whether cells are drillable, and an
-   * overridden built-in is still a built-in — renaming a pattern must
-   * not take its drill flow away.
-   */
-  builtin: boolean;
+}
+
+/**
+ * The prefix the removed "+ Add Voice-Leading Pattern" box minted its
+ * ids under — `custom-<when>-<random>`.
+ *
+ * NAMED RATHER THAN DERIVED FROM THE CATALOG, so the database
+ * migration and this file can agree without the migration having to
+ * import a module catalog that will keep changing. A catalog id has
+ * never looked like this and never will; anything wearing it came out
+ * of that box.
+ */
+export const REMOVED_CUSTOM_PATTERN_PREFIX = 'custom-';
+
+/** Whether a stored entry is one of the un-drillable rows ruling 32
+ *  removed. */
+export function isRemovedCustomPattern(entry: { id: string }): boolean {
+  return entry.id.startsWith(REMOVED_CUSTOM_PATTERN_PREFIX);
 }
 
 // THERE IS NO `overridden` FLAG, and its absence is deliberate. It
@@ -82,11 +108,11 @@ export function overrideIsEmpty(
 }
 
 /**
- * Catalog first, in catalog order, then the reader's own patterns.
+ * The catalog, in catalog order, with any rename applied.
  *
- * A custom entry is either an OVERRIDE (its id is a catalog id) or a
- * PATTERN OF ITS OWN (its id is not). The first never adds a section;
- * the second always does.
+ * ONE SECTION PER CATALOG PATTERN AND NO OTHERS. A stored entry whose
+ * id is a catalog id is an override; one whose id is not is residue
+ * (ruling 32) and adds nothing.
  */
 export function mergePatternList(
   custom: ReadonlyArray<CustomPattern>,
@@ -98,7 +124,7 @@ export function mergePatternList(
     if (catalogIds.has(c.id)) overrideById.set(c.id, c);
   }
 
-  const merged: DisplayPattern[] = VOICE_LEADING_PATTERNS.map(p => {
+  return VOICE_LEADING_PATTERNS.map(p => {
     const o = overrideById.get(p.id);
     const active = o !== undefined && !overrideIsEmpty(o, p.label);
     return {
@@ -107,21 +133,8 @@ export function mergePatternList(
       ...( (active ? o!.description : p.description) !== undefined
         ? { description: active ? o!.description : p.description }
         : {}),
-      builtin: true,
     };
   });
-
-  for (const c of custom) {
-    if (catalogIds.has(c.id)) continue;
-    merged.push({
-      id: c.id,
-      label: c.label,
-      ...(c.description !== undefined ? { description: c.description } : {}),
-      builtin: false,
-    });
-  }
-
-  return merged;
 }
 
 /**
@@ -158,23 +171,18 @@ export function applyRename(
     }];
   }
 
-  const existing = custom.find(c => c.id === patternId);
-  if (!existing) return null;
-  return [...without, { ...existing, label }];
+  // NOT A CATALOG PATTERN, so there is nothing to rename: the only
+  // rows on the page are built-ins (ruling 32). `null` means write
+  // nothing.
+  return null;
 }
 
 /**
- * The stored list after Remove.
- *
- * For an OVERRIDDEN BUILT-IN this deletes the override, which restores
- * the catalog default — the pattern itself cannot be removed, because
- * it is shipped. For a pattern of the reader's own it drops the
- * pattern. Both are the same operation on the stored list; they differ
- * only in what remains afterwards.
+ * `applyRemove` WAS HERE, and it went with the thing it removed
+ * (ruling 32). It deleted a stored entry by id, which for a built-in's
+ * override was a restore-the-shipped-name control nothing on screen
+ * offered, and for a pattern of the reader's own was the Remove beside
+ * a row that could never be drilled. Neither exists now: a rename is
+ * undone by typing the shipped name back, and there is nothing else in
+ * the list to remove.
  */
-export function applyRemove(
-  custom: ReadonlyArray<CustomPattern>,
-  patternId: string,
-): CustomPattern[] {
-  return custom.filter(c => c.id !== patternId);
-}

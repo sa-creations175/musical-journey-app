@@ -1,19 +1,24 @@
 /**
- * The pattern list: one section per id, and an overridden built-in is
- * still a built-in.
+ * The pattern list: the catalog, with renames applied, and nothing
+ * else in it.
  *
  * THE REGRESSION THIS PINS. `minor-251` rendered twice — once from the
  * catalog and once from a custom entry carrying the same id — and the
- * second section had `builtin: false`, so its cells were handed no
- * click handler and its React key collided with the first. Both halves
- * of that are asserted below, because a fix that removes the duplicate
- * while also removing the drill flow would look right on screen and be
- * worse than the bug.
+ * second section had no click handler on its cells and a React key
+ * that collided with the first. Both halves are still asserted, because
+ * a fix that removes the duplicate while also removing the drill flow
+ * would look right on screen and be worse than the bug.
+ *
+ * WHAT CHANGED ON 8 SEPTEMBER (ruling 32): a stored entry whose id is
+ * NOT a catalog id no longer gets a section at all. It never got a
+ * drillable one — no `kind`, no `types`, no `positions`, so no
+ * sub-cells and no itemRefs — and the box that made such entries is
+ * gone. `builtin` went with it: every row is one.
  */
 import { describe, expect, it } from 'vitest';
 import {
-  applyRemove,
   applyRename,
+  isRemovedCustomPattern,
   mergePatternList,
   overrideIsEmpty,
   type CustomPattern,
@@ -30,7 +35,9 @@ const STRAY_ROW: CustomPattern = {
   createdAt: Date.parse('2026-08-28T04:31:47.176Z'),
 };
 
-const OWN_PATTERN: CustomPattern = {
+/** What "+ Add Voice-Leading Pattern" used to write. Ruling 32 removed
+ *  the box; this is the shape of what it left behind. */
+const RESIDUE: CustomPattern = {
   id: 'custom-1756-abcd',
   label: 'Stepwise 7-3 Connecting',
   createdAt: 1,
@@ -47,45 +54,55 @@ describe('one section per id', () => {
     const merged = mergePatternList([
       STRAY_ROW,
       { id: 'five-one', label: 'Renamed', createdAt: 2 },
-      OWN_PATTERN,
+      RESIDUE,
     ]);
     const ids = merged.map(p => p.id);
     expect(new Set(ids).size, `duplicate ids: ${ids.join(', ')}`)
       .toBe(ids.length);
   });
 
-  it("a pattern of the reader's own still gets its own section", () => {
-    const merged = mergePatternList([OWN_PATTERN]);
-    expect(merged).toHaveLength(VOICE_LEADING_PATTERNS.length + 1);
-    const own = merged.find(p => p.id === OWN_PATTERN.id)!;
-    expect(own.builtin).toBe(false);
+  it('residue from the removed box gets no section at all', () => {
+    // Ruling 32. It used to get one, and the grid inside it printed
+    // "sub-cell drill flow isn't available for user-added patterns
+    // yet" — a row that could never be drilled.
+    const merged = mergePatternList([RESIDUE]);
+    expect(merged).toHaveLength(VOICE_LEADING_PATTERNS.length);
+    expect(merged.find(p => p.id === RESIDUE.id)).toBeUndefined();
+  });
+
+  it('and is recognised by the prefix the box minted, not by the catalog', () => {
+    // The database migration tells the two apart the same way. Asking
+    // the catalog instead would make a pattern RETIRED from the catalog
+    // turn its rename into residue and delete it.
+    expect(isRemovedCustomPattern(RESIDUE)).toBe(true);
+    expect(isRemovedCustomPattern(STRAY_ROW)).toBe(false);
+    for (const p of VOICE_LEADING_PATTERNS) {
+      expect(isRemovedCustomPattern(p), p.id).toBe(false);
+    }
   });
 });
 
-describe('an overridden built-in keeps built-in behaviour', () => {
-  /**
-   * `builtin` is what the page tests before passing `onCellOpen`. If a
-   * rename flipped it to false the one remaining grid would have dead
-   * cells — the bug's worst symptom, surviving the fix.
-   */
-  it('stays drillable after a real rename', () => {
+describe('an overridden built-in is still the built-in', () => {
+  it('keeps its name change and its place', () => {
     const merged = mergePatternList([
       { id: 'minor-251', label: 'Minor ii-V-i, my voicing', createdAt: 3 },
     ]);
     const row = merged.find(p => p.id === 'minor-251')!;
-    expect(row.builtin, 'an overridden built-in must still be drillable')
-      .toBe(true);
     expect(row.label).toBe('Minor ii-V-i, my voicing');
   });
 
-  it('every catalog pattern is drillable no matter what is stored', () => {
+  it('every catalog pattern survives whatever is stored', () => {
+    // The page hands `onCellOpen` to every row it draws, so "is it in
+    // this list" IS "is it drillable" now — which is why the whole
+    // catalog being present is the assertion that replaces `builtin`.
     const merged = mergePatternList([
       STRAY_ROW,
       { id: 'dom7b9', label: 'Dark one', createdAt: 4 },
-      OWN_PATTERN,
+      RESIDUE,
     ]);
+    expect(merged).toHaveLength(VOICE_LEADING_PATTERNS.length);
     for (const p of VOICE_LEADING_PATTERNS) {
-      expect(merged.find(m => m.id === p.id)!.builtin, p.id).toBe(true);
+      expect(merged.find(m => m.id === p.id), p.id).toBeDefined();
     }
   });
 });
@@ -148,23 +165,65 @@ describe('renaming is undone by renaming, not by a control', () => {
 
     const row = mergePatternList(undone).find(p => p.id === 'minor-251')!;
     expect(row.label).toBe(MINOR_251.label);
-    expect(row.builtin).toBe(true);
     expect(mergePatternList(undone).filter(p => p.id === 'minor-251'))
       .toHaveLength(1);
   });
 });
 
-describe("Remove is only for the reader's own patterns", () => {
-  it('removing one drops its section', () => {
-    const after = applyRemove([OWN_PATTERN], OWN_PATTERN.id);
-    expect(mergePatternList(after)).toHaveLength(VOICE_LEADING_PATTERNS.length);
+describe('what the database migration deletes', () => {
+  /**
+   * db.ts v42 walks the one pref and drops the rows the removed box
+   * minted. Its filter is restated here rather than imported — a Dexie
+   * upgrade runs once per browser and cannot be replayed — so what is
+   * asserted alongside it is the PROPERTY, which no copy can fake: what
+   * survives renders as exactly the catalog, and every rename in the
+   * pref survives.
+   */
+  const migrate = (stored: ReadonlyArray<CustomPattern>) =>
+    stored.filter(p => !p.id.startsWith('custom-'));
+
+  it('drops the residue and keeps the renames', () => {
+    const renamed: CustomPattern = { id: 'five-one', label: 'My 5-1', createdAt: 9 };
+    const kept = migrate([RESIDUE, renamed, STRAY_ROW]);
+    expect(kept).toEqual([renamed, STRAY_ROW]);
   });
 
-  it('the catalog is never shortened by it', () => {
-    // `applyRemove` on a built-in id would drop an override, but no UI
-    // path reaches it — the link does not render on a built-in. The
-    // catalog itself is untouchable either way.
-    const after = applyRemove([STRAY_ROW], 'minor-251');
+  it('agrees with the predicate the page reads by', () => {
+    // Two places decide "is this residue" and they must not disagree,
+    // or a row deleted on one device comes back drawn on another.
+    for (const row of [RESIDUE, STRAY_ROW,
+      { id: 'five-one', label: 'My 5-1', createdAt: 9 }]) {
+      expect(migrate([row]).length === 0, row.id)
+        .toBe(isRemovedCustomPattern(row));
+    }
+  });
+
+  it('leaves a rename working after it has run', () => {
+    const renamed: CustomPattern = { id: 'five-one', label: 'My 5-1', createdAt: 9 };
+    const after = migrate([RESIDUE, renamed]);
+    expect(mergePatternList(after).find(p => p.id === 'five-one')!.label)
+      .toBe('My 5-1');
     expect(mergePatternList(after)).toHaveLength(VOICE_LEADING_PATTERNS.length);
+  });
+});
+
+describe('there is nothing left to Remove', () => {
+  /**
+   * `applyRemove` WENT WITH THE BOX (ruling 32). It served one control,
+   * beside one kind of row, and both are gone. The claim that replaces
+   * it is the one that matters: whatever is stored, the page draws the
+   * catalog and only the catalog.
+   */
+  it('the list is the catalog whatever the pref holds', () => {
+    for (const stored of [[], [STRAY_ROW], [RESIDUE], [STRAY_ROW, RESIDUE]]) {
+      expect(mergePatternList(stored), JSON.stringify(stored))
+        .toHaveLength(VOICE_LEADING_PATTERNS.length);
+    }
+  });
+
+  it('renaming something that is not a catalog pattern writes nothing', () => {
+    // The only writer left. A residue row cannot be renamed into
+    // existence.
+    expect(applyRename([RESIDUE], RESIDUE.id, 'Anything', 8)).toBeNull();
   });
 });

@@ -4676,6 +4676,57 @@ export class AppDB extends Dexie {
     this.version(41).stores({
       chordMovements: 'id, updatedAt',
     });
+
+    /**
+     * The empty voice-leading patterns go (ruling 32).
+     *
+     * =====================================================================
+     * A ROW WITH A NAME AND NOTHING BEHIND IT.
+     *
+     * "+ Add Voice-Leading Pattern" wrote `{ id, label, description }`
+     * into one pref and stopped there. A pattern's SHAPE — its `kind`,
+     * its voicing `types`, its starting `positions` — is what decides
+     * which sub-cells exist and therefore which itemRefs are legal, and
+     * the box could not supply any of it. So the row drew a grid that
+     * said "sub-cell drill flow isn't available for user-added patterns
+     * yet" and there was no path from there to a drill. The thing it was
+     * reaching for exists properly now: a movement, in `chordMovements`,
+     * built bar by bar and drilled like everything else.
+     *
+     * =====================================================================
+     * IT DELETES BY THE PREFIX THE BOX MINTED, NOT BY "not in the
+     * catalog".
+     *
+     * The other thing in this pref is an OVERRIDE — a rename of a
+     * shipped pattern, carrying that pattern's own id — and those stay.
+     * Telling the two apart by asking the catalog would make this
+     * migration's behaviour depend on a module catalog that keeps
+     * changing: a pattern retired from the catalog next year would turn
+     * its rename into residue and delete it. The prefix `custom-` is
+     * what the removed box wrote and nothing else ever wore it.
+     *
+     * NOTHING ELSE IS TOUCHED. These rows have no spacing state, no
+     * attempts and no drill sessions, because a cell that cannot be
+     * opened cannot have been drilled — which is the same fact that
+     * made them worth removing.
+     */
+    this.version(42).stores({}).upgrade(async tx => {
+      const KEY = 'shapesAndPatternsCustomVoiceLeading';
+      const REMOVED_PREFIX = 'custom-';
+      const row = await tx.table('userPrefs').get(KEY);
+      if (!row || !Array.isArray(row.value)) return;
+      const stored = row.value as Array<{ id?: unknown }>;
+      const kept = stored.filter(
+        p => typeof p?.id !== 'string' || !p.id.startsWith(REMOVED_PREFIX),
+      );
+      if (kept.length === stored.length) return;
+      await tx.table('userPrefs').put({ key: KEY, value: kept });
+      console.info(
+        `[shapes] voice-leading patterns: ${stored.length - kept.length} `
+        + 'empty custom row(s) deleted (ruling 32); '
+        + `${kept.length} rename override(s) kept.`,
+      );
+    });
   }
 }
 
