@@ -343,12 +343,64 @@ export function generateVofViCards(): Flashcard[] {
 // Modes — the mode of {key} major starting on {degree}
 // =====================================================================
 
-/** The three the hand-written C cards drilled, by degree. Exported for
- *  the modes grid's row order. */
+/**
+ * The seven modes, by the degree of the major scale they start on.
+ * Exported for the modes grid's row order.
+ *
+ * IT WAS THREE — the ones the hand-written C cards happened to drill,
+ * and the only ones the generator produced. Ruling 42 makes it all
+ * seven in every key, which is what the category has always claimed to
+ * be about.
+ */
 export const MODE_BY_DEGREE: ReadonlyArray<{ degree: string; mode: string }> = [
+  { degree: '1', mode: 'Ionian' },
+  { degree: '2', mode: 'Dorian' },
+  { degree: '3', mode: 'Phrygian' },
+  { degree: '4', mode: 'Lydian' },
+  { degree: '5', mode: 'Mixolydian' },
+  { degree: '6', mode: 'Aeolian' },
+  { degree: '7', mode: 'Locrian' },
+];
+
+/**
+ * The three degrees the generator covered before ruling 42, and the
+ * roots it covered them in.
+ *
+ * KEPT SO THE FOLD-IN HAS SOMETHING TO COMPARE AGAINST. `modeFoldIn`
+ * proves which new card each retired one became by re-deriving the old
+ * card and matching its question and answer; a hand-written table could
+ * only be trusted. It goes when the fold-in goes.
+ */
+const RETIRED_MODE_DEGREES: ReadonlyArray<{ degree: string; mode: string }> = [
   { degree: '2', mode: 'Dorian' },
   { degree: '5', mode: 'Mixolydian' },
   { degree: '6', mode: 'Aeolian' },
+];
+
+/**
+ * THE THIRTEEN KEYS (rulings 39 and 40).
+ *
+ * =====================================================================
+ * F♯ MAJOR AND G♭ MAJOR ARE TWO KEYS, NOT ONE KEY SPELLED TWO WAYS.
+ *
+ * The mode of G♭ major starting on its 2 is A♭ Dorian. The mode of F♯
+ * major starting on its 2 is G♯ Dorian. Same seven keys on a piano, two
+ * different answers on the page — exactly the reason `nn-12` survived
+ * the degree-note fold-in, where the 4 of F♯ is B and the 4 of G♭ is
+ * C♭.
+ *
+ * THIS REVERSES A DECISION THE MODULE MADE DELIBERATELY, and the
+ * reversal is ruling 40's, not this file's. `circleOfFourths` holds ONE
+ * identity name per pitch class and `identityRoot` folds G♭ onto F♯;
+ * a previous commit went through the deck making every id and axis
+ * coordinate mint from that vocabulary, and the twelve-column key axis
+ * in `progressGrids` is the visible result. A family that needs both
+ * spellings cannot use that vocabulary for its coordinates, so this one
+ * does not — see `modeCardId`.
+ * =====================================================================
+ */
+export const THIRTEEN_KEYS: ReadonlyArray<string> = [
+  'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B',
 ];
 
 /**
@@ -386,17 +438,75 @@ const MODE_CONTEXT =
   + 'home. The key signature never changes; what changes is which chord the '
   + 'music keeps returning to.';
 
+/**
+ * A mode card's id.
+ *
+ * =====================================================================
+ * THE KEY AS WRITTEN, NOT THE IDENTITY — AND THAT IS FORCED.
+ *
+ * Every other generated family mints its id from `identityRoot`, which
+ * is the app-wide rule and the right one where a pitch class has one
+ * name. Ruling 40 gives this family two, and an identity id cannot tell
+ * `mo-mode-F#-2` (G♯ Dorian) from `mo-mode-Gb-2` (A♭ Dorian).
+ *
+ * THE PREFIX CHANGED FROM `mo-mode-of-` TO `mo-mode-`, and that is not
+ * tidying. The old ids meant the G♭ cards while SPELLING F♯, so the
+ * obvious move — give G♭ its own id and let F♯ take the one that
+ * already reads F♯ — would mint `mo-mode-of-F#-2` for a different
+ * question than it means today. A retired id minted again is the one
+ * thing a flag-free, run-it-twice migration cannot survive: the second
+ * run would move the new card's practice onto the old card's
+ * destination. So the whole family takes a shape that has never
+ * existed, every old id retires for good, and `modeFoldIn` carries the
+ * history across. `foldInByIdentity`'s `reusedIds` asserts it.
+ * =====================================================================
+ */
+export function modeCardId(root: string, degree: string): string {
+  return `mo-mode-${root}-${degree}`;
+}
+
+/**
+ * The mode cards as they were before ruling 42 — three degrees, eleven
+ * keys, ids minted from the identity vocabulary.
+ *
+ * OUT OF THE DECK AND STILL EXPORTED. `modeFoldIn` reads it to prove
+ * which new card each retired one became. It goes when the fold-in
+ * goes.
+ */
+export function retiredModeOfCards(): Flashcard[] {
+  return buildModeCards(FLAT_TWELVE, RETIRED_MODE_DEGREES, {
+    skipC: true,
+    id: (root, degree) => `mo-mode-of-${identityRoot(root)}-${degree}`,
+  });
+}
+
+/** Every mode of every key — 13 x 7 (ruling 42). */
 export function generateModeOfCards(): Flashcard[] {
+  return buildModeCards(THIRTEEN_KEYS, MODE_BY_DEGREE, {
+    skipC: false,
+    id: modeCardId,
+  });
+}
+
+function buildModeCards(
+  roots: ReadonlyArray<string>,
+  degrees: ReadonlyArray<{ degree: string; mode: string }>,
+  opts: { skipC: boolean; id: (root: string, degree: string) => string },
+): Flashcard[] {
   const out: Flashcard[] = [];
-  for (const root of FLAT_TWELVE) {
-    if (root === 'C') continue;
-    for (const { degree, mode } of MODE_BY_DEGREE) {
+  for (const root of roots) {
+    if (opts.skipC && root === 'C') continue;
+    for (const { degree, mode } of degrees) {
       const start = degreeLabel(root, degree);
       const startGlossed = degreeLabelGlossed(root, degree);
       out.push({
         ...base('modes', 'Modes'),
-        id: `mo-mode-of-${identityRoot(root)}-${degree}`,
-        axis: { key: identityRoot(root), degree: Number(degree) },
+        id: opts.id(root, degree),
+        // THE KEY AS WRITTEN. The coordinate has to separate F♯ major
+        // from G♭ major for the same reason the id does — a filter that
+        // merged them would gather fourteen cards under one chip and
+        // answer two different questions with one.
+        axis: { key: root, degree: Number(degree) },
         question: `The mode of ${noteLabel(root)} major starting on ${startGlossed} is _____`,
         correctAnswer: `${start} ${mode}`,
         // The same starting note under three other mode names — the
@@ -416,7 +526,7 @@ export function generateModeOfCards(): Flashcard[] {
           + `${start} ${mode}.`
           + keyboardNote(degreeAscii(root, degree))
           + ` ${MODE_CONTEXT}`,
-        skillTag: `mode-of-${identityRoot(root)}-${degree}`,
+        skillTag: `mode-of-${root}-${degree}`,
       });
     }
   }

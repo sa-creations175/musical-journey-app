@@ -22,8 +22,9 @@ import {
   SCALE_DEGREES,
 } from './catalog';
 import {
-  FLAT_TWELVE, MODE_BY_DEGREE, SLASH_SHAPES,
+  FLAT_TWELVE, MODE_BY_DEGREE, SLASH_SHAPES, THIRTEEN_KEYS,
 } from './catalogExpansions';
+import { withAccidentalGlyphs } from '../reading/pitch';
 import { DEGREE_MOVEMENTS } from './scaleDegreeQualityCards';
 import { canonicaliseKey, sortByCircleOfFourths } from '../repertoire/circleOfFourths';
 import { spellKey } from '../../lib/spelling';
@@ -127,6 +128,40 @@ const keyAxis: AxisSpec = {
 const degreeAxis = axis('degree', 'number', SCALE_DEGREES);
 
 /**
+ * The mode family's own key axis — THIRTEEN columns, labelled as
+ * written (rulings 40 and 42).
+ *
+ * =====================================================================
+ * THIS IS THE TWELVE-COLUMN ARGUMENT ABOVE, REVERSED BY A RULING.
+ *
+ * That argument is still right for every family whose keys are pitch
+ * classes: one name each, one column each, laid out by the shared
+ * wheel. The mode family is not one of those any more. "The mode of F♯
+ * major starting on G♯" and "the mode of G♭ major starting on A♭" are
+ * two questions with two answers, so they are two cards and they need
+ * two columns.
+ *
+ * AND THE HEADER IS NOT SPELLED BY THE SETTING. `spellKeyColumn` runs
+ * every column through `spellKey(_, 'flat')`, which would print "G♭"
+ * over both of these. Ruling 40 says the ♭/♯ setting changes how a note
+ * INSIDE a key is spelled and never merges or hides a key, so the
+ * header is the key's own name with its accidental drawn properly —
+ * a respelling of one letter, not a choice between two keys.
+ *
+ * ONE VIEW, not the circle/chromatic pair the other grids offer. The
+ * wheel holds twelve names and cannot order thirteen; a toggle whose
+ * two orderings had to disagree about which keys exist is worse than no
+ * toggle, and `AxisViewToggle` renders nothing for a single ordering.
+ * =====================================================================
+ */
+const modeKeyAxis: AxisSpec = {
+  field: 'key',
+  label: 'key',
+  labelFor: v => withAccidentalGlyphs(String(v)),
+  views: [{ id: 'default', label: 'key', values: THIRTEEN_KEYS }],
+};
+
+/**
  * Scale degree math — 7 start degrees down, 24 movements across.
  *
  * IT SCROLLS SIDEWAYS, AND THAT IS ACCEPTED. The grid was briefly
@@ -183,7 +218,7 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   },
 
   [CATEGORY_LABELS.modes]: {
-    columns: keyAxis,
+    columns: modeKeyAxis,
     // "number", not "degree" (ruling 29) — the field stays `degree`
     // because the cards are built from it; the word above the rows is
     // what a reader reads.

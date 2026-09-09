@@ -201,7 +201,9 @@ describe('absent means flat list, not broken', () => {
       'functional-harmony': 33,
       'intervals': 25,
       'key-signatures': 17,
-      'modes': 33,
+      // 33 before ruling 42 — three modes in eleven keys. Every mode
+      // in every key now, and F♯ major and G♭ major are two of them.
+      'modes': 91,
       'degree-notes': 625,
       'pentatonic-scales': 36,
       'progressions': 6,
@@ -295,10 +297,11 @@ describe('the grid reads the passed list, not the coordinates present', () => {
   it('keeps both key views over the same twelve', async () => {
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
     const { viewsAgree } = await import('../../../components/moduleHome/axis');
-    // Mode Identification, since Named Notes and then Reverse Key
-    // Pivots retired — the same `keyAxis`, which is the thing under
-    // test.
-    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS.modes];
+    // SLASH CHORDS, NOT MODES. `keyAxis` is the thing under test, and
+    // Mode Identification stopped using it under ruling 40 — its
+    // thirteen keys cannot be ordered by a wheel that holds twelve, so
+    // it has one view. `identitySplit` pins that.
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['slash-chords']];
     expect(grid.columns.views).toHaveLength(2);
     expect(viewsAgree(grid.columns)).toBe(true);
     // And they really are different orders, or the toggle is decoration.

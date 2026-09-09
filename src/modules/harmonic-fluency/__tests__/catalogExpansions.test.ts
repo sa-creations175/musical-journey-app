@@ -210,12 +210,11 @@ describe('ids are root-suffixed, never positional', () => {
   it('leaves every hand-written C card exactly where it was', () => {
     // The originals keep their ids AND their hand-written decoys; only
     // the other eleven keys are generated.
-    // EVERY SLASH CARD LEFT THIS LIST. `sc-11` went with the 6/♭7
-    // shape (ruling 30); `sc-8`, `sc-9` and `sc-10` folded into the
-    // generator (ruling 37), which covers C for every shape now. What
-    // is left is functional harmony and modes, where a hand-written C
-    // card is still the one the generator skips.
-    for (const id of ['fh-3', 'fh-11', 'fh-12', 'mo-11', 'mo-12', 'mo-13']) {
+    // ONLY FUNCTIONAL HARMONY IS LEFT. Every slash card went (rulings
+    // 30 and 37) and `mo-11` to `mo-13` went with ruling 42, which
+    // generates every key including C. Functional harmony is the last
+    // family whose C card is hand-written and whose generator skips it.
+    for (const id of ['fh-3', 'fh-11', 'fh-12']) {
       expect(FLASHCARDS.find(c => c.id === id)?.question).toContain('C');
     }
   });
@@ -237,8 +236,10 @@ describe('coverage reaches twelve', () => {
       .toBe(12);
   });
 
-  it('mode-of-major in all twelve', () => {
-    expect(keysIn('modes', new RegExp(`mode of (${N}) major starting`), 'q').size).toBe(12);
+  it('mode-of-major in all thirteen', () => {
+    // THIRTEEN, not twelve (ruling 40). F♯ major and G♭ major are two
+    // keys with two answers, so the regex counts both.
+    expect(keysIn('modes', new RegExp(`mode of (${N}) major starting`), 'q').size).toBe(13);
   });
 
   it('every slash shape in all twelve', () => {

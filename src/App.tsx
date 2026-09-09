@@ -18,6 +18,10 @@ import {
   foldInSlashCCards,
 } from './modules/harmonic-fluency/slashCFoldIn';
 import {
+  describeModeFoldIn,
+  foldInModeCards,
+} from './modules/harmonic-fluency/modeFoldIn';
+import {
   cleanUpRetiredCard,
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
@@ -218,6 +222,18 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] slash C fold-in failed', err);
+      });
+    // Mode Identification regenerated to every key by every mode
+    // (ruling 42). Thirty-six old cards fold into the new grid by the
+    // same question-and-answer proof, and every old id retires for good
+    // — see `modeFoldIn` for why the whole family took a new id shape.
+    void foldInModeCards()
+      .then(r => {
+        const line = describeModeFoldIn(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] mode fold-in failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from

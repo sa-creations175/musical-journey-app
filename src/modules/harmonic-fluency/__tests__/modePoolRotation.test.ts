@@ -16,12 +16,16 @@
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 
-const GENERATED = FLASHCARDS.filter(c => c.id.startsWith('mo-mode-of-'));
+// `mo-mode-` since ruling 42 renamed the family — see `modeFoldIn` for
+// why every id had to move rather than only the two that clashed.
+const GENERATED = FLASHCARDS.filter(c => c.id.startsWith('mo-mode-'));
 const modeOf = (option: string) => option.trim().split(/\s+/).at(-1)!;
 
 describe('the mode decoy pool rotates', () => {
-  it('generates a card for eleven roots × three degrees', () => {
-    expect(GENERATED.length).toBe(33);
+  it('generates a card for thirteen keys × seven modes', () => {
+    // Eleven roots by three degrees before ruling 42. F♯ major and G♭
+    // major are two of the thirteen (ruling 40).
+    expect(GENERATED.length).toBe(91);
   });
 
   it('never lets one mode name pin one answer', () => {
@@ -72,5 +76,15 @@ describe('the mode decoy pool rotates', () => {
     const aeolian = GENERATED.filter(c => modeOf(c.correctAnswer) === 'Aeolian');
     const shapes = new Set(aeolian.map(c => c.decoys.map(modeOf).sort().join('|')));
     expect(shapes.size).toBeGreaterThan(1);
+  });
+
+  it('gives F♯ major and G♭ major different cards', () => {
+    // Ruling 40. Same seven keys on a piano, two different answers on
+    // the page — and two ids, because a retired id minted again is what
+    // a run-it-twice migration cannot survive.
+    const sharp = FLASHCARDS.find(c => c.id === 'mo-mode-F#-2')!;
+    const flat = FLASHCARDS.find(c => c.id === 'mo-mode-Gb-2')!;
+    expect(sharp.correctAnswer).toBe('G♯ Dorian');
+    expect(flat.correctAnswer).toBe('A♭ Dorian');
   });
 });

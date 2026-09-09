@@ -24,7 +24,10 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   ['ii-V-I',           /^fh-ii-v-i-/,   11, ['key', 'shape']],
   ['V/V',              /^fh-v-of-v-/,   11, ['key', 'shape']],
   ['V/vi',             /^fh-v-of-vi-/,  11, ['key', 'shape']],
-  ['mode-of',          /^mo-mode-of-/,  33, ['degree', 'key']],
+  // 33 before ruling 42 — three modes in eleven keys. Thirteen keys by
+  // seven modes now, under an id shape that has never existed, because
+  // the old one could not tell F♯ major from G♭ major.
+  ['mode-of',          /^mo-mode-/,     91, ['degree', 'key']],
   // 44 before ruling 30 — eleven keys x four shapes. Seven shapes
   // across twelve keys now; ruling 37 removed the three hand-written C
   // cards that were keeping the generator out of that key.

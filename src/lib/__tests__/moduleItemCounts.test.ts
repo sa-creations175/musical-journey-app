@@ -70,7 +70,12 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 925 + 136 + 78 + 107 = 1246
+// Harmonic Fluency — 925 + 136 + 78 + 162 = 1301
+// (9 Sep 2026: 1246 → 1301. Ruling 42 regenerated Mode Identification
+//  to every key by every mode — 33 generated cards became 91, and the
+//  three hand-written C cards folded into them. Ruling 40 makes F♯
+//  major and G♭ major two of the thirteen keys. Modes 52 → 107,
+//  earRecognition 107 → 162.)
 // (8 Sep 2026: 1210 → 1246. Ruling 30 rebuilt the slash deck — 6/♭7
 //  out, 1/5, 5/1, 1/4 and 2m/1 in, and the generator now covers C for
 //  the four that have no hand-written card there. Slash chords 60 → 96,
@@ -116,12 +121,12 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(78);
   });
 
-  it('earRecognition = mo 52 + iv 40 + et 15 = 107', () => {
-    expect(c.byGroup.earRecognition).toBe(107);
+  it('earRecognition = mo 107 + iv 40 + et 15 = 162', () => {
+    expect(c.byGroup.earRecognition).toBe(162);
   });
 
-  it('total = 1246 across all 13 categories', () => {
-    expect(c.total).toBe(1246);
+  it('total = 1301 across all 13 categories', () => {
+    expect(c.total).toBe(1301);
   });
 
   it('total equals sum of group totals', () => {

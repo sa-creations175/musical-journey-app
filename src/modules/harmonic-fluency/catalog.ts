@@ -1038,24 +1038,11 @@ const MODE_CARDS: Flashcard[] = [
     correctAnswer: 'b2', decoys: ['b3', 'b6', '#4'],
     explanation: "Phrygian's signature is the flat-2 — that half-step right above the tonic. It's what gives the mode its Spanish/Middle-Eastern flavor when played over a minor tonic.",
     skillTag: 'mode-phrygian-signature' },
-  { id: 'mo-11', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'The mode of C major starting on A is _____',
-    correctAnswer: 'A Aeolian',
-    decoys: ['A Dorian', 'A Phrygian', 'A Locrian'],
-    explanation: "Starting a C-major scale on A gives you A Aeolian — C major's relative minor. Same seven notes, just centered on A; the chord vocabulary shifts (Am becomes home instead of C) but the key signature stays put.",
-    skillTag: 'mode-of-C-on-A' },
-  { id: 'mo-12', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'The mode of C major starting on D is _____',
-    correctAnswer: 'D Dorian',
-    decoys: ['D Phrygian', 'D Mixolydian', 'D Aeolian'],
-    explanation: "Starting C major from D gives D Dorian — D-E-F-G-A-B-C. This is what session musicians mean when they say 'stay in C, just vamp on Dm' — you're playing Dorian whether you call it that or not.",
-    skillTag: 'mode-of-C-on-D' },
-  { id: 'mo-13', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'The mode of C major starting on G is _____',
-    correctAnswer: 'G Mixolydian',
-    decoys: ['G Lydian', 'G Dorian', 'G Ionian'],
-    explanation: "Starting C major from G gives G Mixolydian — G-A-B-C-D-E-F. That F natural (instead of F#) is what makes a G chord sit as a G7 tonic that never wants to resolve.",
-    skillTag: 'mode-of-C-on-G' },
+  // `mo-11`, `mo-12` AND `mo-13` WERE HERE — the hand-written C mode
+  // cards. Ruling 42 generates every key including C, so they asked
+  // the identical question with the identical answer as
+  // `mo-mode-C-6`, `mo-mode-C-2` and `mo-mode-C-5`. Their practice
+  // moved onto those; see `modeFoldIn.ts`, which holds the proof.
   { id: 'mo-14', category: 'modes', categoryName: CATEGORY_LABELS.modes,
     question: "The signature chord that says 'Dorian' is _____",
     correctAnswer: 'i minor 7 with a major IV',

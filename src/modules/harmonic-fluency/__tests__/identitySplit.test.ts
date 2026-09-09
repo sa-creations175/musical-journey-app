@@ -23,9 +23,13 @@ import { HARMONIC_FLUENCY_GRIDS } from '../progressGrids';
 import { CIRCLE_OF_FOURTHS } from '../../repertoire/circleOfFourths';
 import { IDENTITY_ID_MOVES, refusalFor } from '../identityIdMigration';
 
-// Mode Identification, since Named Notes and then Reverse Key Pivots
-// retired — the same `keyAxis`, which is what these pin.
-const keyGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS.modes]!;
+// SLASH CHORDS, NOT MODES. These pin the shared `keyAxis`, and Mode
+// Identification stopped using it under ruling 40 — F♯ major and G♭
+// major are two keys there, which the identity vocabulary cannot say.
+// Every other key-axis family still holds twelve, and this is what says
+// so. The mode grid's thirteen are pinned in their own block below.
+const keyGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['slash-chords']]!;
+const modeGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS.modes]!;
 const pentGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['pentatonic-scales']]!;
 
 describe('the key axis is twelve columns', () => {
@@ -55,6 +59,36 @@ describe('the key axis is twelve columns', () => {
         expect(CIRCLE_OF_FOURTHS, String(v)).toContain(String(v));
       }
     }
+  });
+});
+
+describe('the mode axis is thirteen, and that is a ruling', () => {
+  /**
+   * RULING 40 REVERSES THE ARGUMENT ABOVE, FOR THIS FAMILY ONLY.
+   *
+   * "The mode of F♯ major starting on G♯" and "the mode of G♭ major
+   * starting on A♭" are two questions with two answers. One column
+   * would have to answer both, so there are two — and the header is the
+   * key's own name rather than whatever `spellKey` would call it, which
+   * would print G♭ over each.
+   */
+  it('holds both spellings of the sixth pitch', () => {
+    const values = modeGrid.columns.views[0].values.map(String);
+    expect(values).toHaveLength(13);
+    expect(values).toContain('F#');
+    expect(values).toContain('Gb');
+  });
+
+  it('labels each with its own name, not with the setting\'s', () => {
+    expect(modeGrid.columns.labelFor!('F#')).toBe('F♯');
+    expect(modeGrid.columns.labelFor!('Gb')).toBe('G♭');
+  });
+
+  it('offers one ordering, because the wheel holds twelve', () => {
+    // A toggle whose two views had to disagree about which keys exist
+    // is worse than no toggle. `AxisViewToggle` renders nothing for a
+    // single ordering.
+    expect(modeGrid.columns.views).toHaveLength(1);
   });
 });
 

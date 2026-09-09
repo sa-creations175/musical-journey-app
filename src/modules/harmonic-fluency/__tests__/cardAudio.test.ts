@@ -193,7 +193,7 @@ describe('modes', () => {
     // Mixolydian and the card teaches that a mode is a major scale with
     // an odd starting note, which is the misunderstanding the category
     // exists to correct. D♭ is 49, so its 5 — A♭ — folds to 56.
-    const s = soundOf('mo-mode-of-Db-5');
+    const s = soundOf('mo-mode-Db-5');
     expect(s.rootMidi).toBe(48 + 8);
     expect(s.orient).toEqual(MAJ);
   });
@@ -201,24 +201,42 @@ describe('modes', () => {
   it('takes the triad from the mode\'s own third', () => {
     // Mixolydian is major, Dorian and Aeolian minor. Read off the
     // scale rather than off a table of mode names.
-    expect(soundOf('mo-mode-of-Db-5').orient).toEqual(MAJ);
-    expect(soundOf('mo-mode-of-Db-2').orient).toEqual(MIN);
-    expect(soundOf('mo-mode-of-Db-6').orient).toEqual(MIN);
+    expect(soundOf('mo-mode-Db-5').orient).toEqual(MAJ);
+    expect(soundOf('mo-mode-Db-2').orient).toEqual(MIN);
+    expect(soundOf('mo-mode-Db-6').orient).toEqual(MIN);
   });
 
   it('walks seven notes and lands on the octave', () => {
     // The eighth note is not a flourish: a mode that stops on its 7 or
     // ♭7 ends in mid-air on the one note that most tells the modes
     // apart.
-    expect(steps(soundOf('mo-mode-of-Db-2')))
+    expect(steps(soundOf('mo-mode-Db-2')))
       .toEqual([[0], [2], [3], [5], [7], [9], [10], [12]]);
-    expect(steps(soundOf('mo-mode-of-Db-5')))
+    expect(steps(soundOf('mo-mode-Db-5')))
       .toEqual([[0], [2], [4], [5], [7], [9], [10], [12]]);
   });
 
   it('holds the root underneath, an octave down', () => {
-    const s = soundOf('mo-mode-of-Db-2');
+    const s = soundOf('mo-mode-Db-2');
     expect(s.pedal).toBe(-12);
+  });
+
+  it('gives F♯ major and G♭ major two different scales', () => {
+    // Ruling 40, made audible. Same seven keys on a piano; two
+    // different spellings, and — because the mode starts on the key's
+    // own 2 — two different starting pitches.
+    expect(soundOf('mo-mode-F#-2').rootMidi).toBe(48 + 8);   // G♯
+    expect(soundOf('mo-mode-Gb-2').rootMidi).toBe(48 + 8);   // A♭, same pitch
+    expect(steps(soundOf('mo-mode-F#-2')))
+      .toEqual(steps(soundOf('mo-mode-Gb-2')));
+  });
+
+  it('covers every mode, not only the three it started with', () => {
+    // Ruling 42. Ionian through Locrian, in every key.
+    for (let degree = 1; degree <= 7; degree += 1) {
+      const s = soundOf(`mo-mode-C-${degree}`);
+      expect(s.steps, `degree ${degree}`).toHaveLength(8);
+    }
   });
 
   it('is the parent scale started somewhere else, on every card', () => {
@@ -242,8 +260,8 @@ describe('modes', () => {
       expect([...heard].sort((a, b) => a - b), c.id)
         .toEqual([...parent].sort((a, b) => a - b));
     }
-    // 11 keys x 3 degrees. The nineteen prose cards carry no axis.
-    expect(seen).toBe(33);
+    // 13 keys x 7 modes. The sixteen prose cards carry no axis.
+    expect(seen).toBe(91);
   });
 });
 
