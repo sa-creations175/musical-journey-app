@@ -864,6 +864,41 @@ function atPositionOf(
  * arrangement is chords over them. A bar cannot exist in one
  * arrangement and not another.
  */
+/**
+ * Bring a bar layout back into agreement with the placements.
+ *
+ * After a chord op changes which bars hold placements, `barLayout` can
+ * fall out of sync — a bar marked 'empty' might now hold one, or the
+ * other way round. `deriveBarGridAnchored` lets the LAYOUT win, so an
+ * unreconciled layout hides a moved chord behind an 'empty' entry.
+ *
+ * Returns undefined when there is no layout to reconcile, in which case
+ * the grid derives its bar count from the placements' highest bar.
+ *
+ * SHARED RATHER THAN LOCAL. This was inside `LeadSheetSection`; a
+ * movement's grid needs the identical rule, and two copies of "which
+ * bars are occupied" is how one surface comes to hide a chord the other
+ * shows.
+ */
+export function reconcileBarLayout(
+  layout: ReadonlyArray<'chord' | 'empty'> | undefined,
+  placements: ReadonlyArray<ChordPlacement>,
+): Array<'chord' | 'empty'> | undefined {
+  if (!layout) return undefined;
+  const occupied = new Set<number>();
+  let maxBar = -1;
+  for (const p of placements) {
+    occupied.add(p.barIndex);
+    if (p.barIndex > maxBar) maxBar = p.barIndex;
+  }
+  const next: Array<'chord' | 'empty'> = [];
+  const total = Math.max(layout.length, maxBar + 1);
+  for (let i = 0; i < total; i++) {
+    next.push(occupied.has(i) ? 'chord' : 'empty');
+  }
+  return next;
+}
+
 export function deleteBarFromPlacements(
   placements: ReadonlyArray<ChordPlacement>,
   barIndex: number,

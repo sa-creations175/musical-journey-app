@@ -373,6 +373,18 @@ does the naming pass. Two of them are settled and are marked as such.
 - What is sounding
 - Colour is the interval from the chord root, as on the lead sheet. Left hand is dimmer.
 
+### The editor header — new with the hosted grid, 8 Sep 2026
+
+The grid's own popover does not open on a movement (ruling 18's
+allowed-to-differ list, item 4), so these three sit in the inline
+editor's header instead. **Length**, **Copy chord** and **Delete chord**
+are the lead sheet's own approved words, kept exactly; only where they
+sit has changed.
+
+- Length
+- Copy chord
+- Delete chord
+
 ### The octave navigation
 
 - ◀ Lower octave

@@ -21,26 +21,84 @@
  * so with no key there is nothing to anchor to. The control explains
  * that rather than guessing a key, because a movement played in a key
  * nobody chose is a movement nobody can trust.
+ *
+ * =====================================================================
+ * THE GRID IS THE LEAD SHEET'S OWN (ruling 18). `BarGridView`, the same
+ * component the song lead sheet renders, driven by the movement's own
+ * placements through `movementGrid`'s view of them. Tap-to-add with the
+ * numbers parser and its preview, Paste chord, the Length rules, drag a
+ * chord, drag bars, "+ bar" and delete bar all arrive with it and not
+ * one of them is written here.
+ *
+ * WHAT IS ALLOWED TO DIFFER BETWEEN A SONG SECTION'S GRID AND A
+ * MOVEMENT'S, AND WHY. Anything not on this list may not differ. If a
+ * difference is needed that is not here, it goes on this list with its
+ * reason or it does not happen.
+ *
+ *  1. NO LYRICS, NO PHRASE LINES, NO LYRIC STAGING. A movement has no
+ *     words. Every lyric prop is optional on the grid and none is
+ *     passed, so the lyric row, the tray and the syllable popovers
+ *     never render — nothing was switched off, they simply have no
+ *     data.
+ *
+ *  2. NO PER-SONG SPELLING OVERRIDE. A movement follows the global
+ *     setting only. It is not a song and has no override to resolve;
+ *     the grid already reads `useSpelling` directly, so this is a
+ *     difference in what EXISTS rather than in what is read.
+ *
+ *  3. THE CHORD BOXES LEAD WITH THE SCALE-DEGREE NUMBER, name beneath,
+ *     and the number re-spells with the global setting (ruling 14).
+ *     `chordToDisplay`'s `numbers` mode cannot do it — it prints the
+ *     stored ASCII degree, `b6dim`, and ignores the spelling — so the
+ *     cell takes a `chordCellLead` line from its host. A variant of the
+ *     cell, not a second cell.
+ *
+ *  4. TAPPING A CHORD SELECTS IT IN THE INLINE EDITOR AND OPENS NO
+ *     POPOVER. The movement carries the shared voicing panel below the
+ *     grid, permanently; opening the grid's popover as well would put
+ *     two editors on one chord from one tap. Silas ruled on this
+ *     directly. Length, Copy chord and Delete chord live in the inline
+ *     editor's header instead, which is what the signed-off entry
+ *     prototype draws — and Copy chord fills the same clipboard the
+ *     grid's add box reads for Paste chord, so nothing is lost.
+ *
+ *  5. THE PLAY HIGHLIGHT. The lead sheet has no playback, so it has no
+ *     sounding chord to mark. The mark is on the movement's own layer
+ *     over the grid rather than inside the cell, because "which chord
+ *     is sounding" is not a fact about a chord.
+ *
+ *  6. THE "FILLED IN" MARKING on a chord with nothing pressed (ruling
+ *     11). A movement is about to PLAY that guess and says so; a lead
+ *     sheet plays nothing and has nothing to disclose. Same reason as
+ *     the voicing panel's own item 6.
+ *
+ * Everything else — the slots, the add box and its parser, the
+ * durations, the drag targets, the bar header, the empty-bar delete —
+ * is the lead sheet's, unchanged.
  * =====================================================================
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
 import PianoKeyboard from '../../../components/PianoKeyboard';
 import ChordVoicingPanel from '../../../components/ChordVoicingPanel';
-import { db, type ChordPlacement, type VoicingHand } from '../../../lib/db';
+import { db, type ChordFunction, type ChordPlacement, type VoicingHand } from '../../../lib/db';
 import { ensureRunning, midiToFreq, playNote, playSeqChords, type PlaybackHandle } from '../../../lib/audio';
 import { useSpelling } from '../../../lib/spellingPref';
-import { useNotationMode } from '../../../lib/notationPref';
 import type { CopiedVoicing } from '../../../lib/voicingClipboard';
 import { chordToDisplay } from '../../repertoire/chordFunction';
 import { chordRootNote, sanitizeVoicing } from '../../repertoire/voicingHelpers';
 import { pitchClassOf } from '../../repertoire/chordParser';
-import { parseTimeSignature } from '../../repertoire/barGrid';
-import { normalizeVoicing } from '../../../lib/voicingColors';
+import BarGridView, { parseSlotDropId } from '../../repertoire/BarGridView';
 import { KEYS } from '../catalog';
-import { movementBarCount, updateMovement } from './movementStore';
+import { updateMovement } from './movementStore';
 import { movementDegreeName } from './movementLabels';
+import {
+  addBar, addChord, deleteBar, deleteChord, moveChord, movementGridView,
+  reorderBars, setChordLength, swapChords, type MovementPatch,
+} from './movementGrid';
 import { toPlayableMovement, voicingForPlacement } from './movementPlayback';
 
 const NO_KEY = '__none__';
@@ -57,8 +115,11 @@ export default function MovementScreen() {
   );
 
   const [spelling, setSpelling] = useSpelling();
-  const [notationMode] = useNotationMode();
   const [pickedId, setPickedId] = useState<string | null>(null);
+  /** The whole-chord clipboard the grid's add box reads for its Paste
+   *  option. Filled by Copy chord in the editor header below, since the
+   *  grid's own popover never opens here — allowed-to-differ item 4. */
+  const [copiedChord, setCopiedChord] = useState<ChordFunction | null>(null);
   const [loop, setLoop] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [soundingId, setSoundingId] = useState<string | null>(null);
@@ -67,8 +128,12 @@ export default function MovementScreen() {
   const handle = useRef<PlaybackHandle | null>(null);
 
   const placements = useMemo(() => movement?.placements ?? [], [movement]);
-  const { beatsPerBar } = parseTimeSignature(movement?.timeSignature);
-  const barCount = movement ? movementBarCount(movement) : 1;
+  // The grid drags with a pointer sensor and a small activation
+  // distance, the way the lead sheet's does — without one, a tap to
+  // select a chord registers as a drag of zero length.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+  );
 
   const ordered = useMemo(
     () => [...placements].sort((a, b) =>
@@ -108,6 +173,41 @@ export default function MovementScreen() {
 
   const savePlacement = (id: string, patch: Partial<ChordPlacement>) =>
     save({ placements: placements.map(p => (p.id === id ? { ...p, ...patch } : p)) });
+
+  /** Every grid gesture goes through `movementGrid`, which goes through
+   *  `barGrid.ts`. Nothing about a placement is decided here. */
+  const apply = (patch: MovementPatch) => {
+    if (Object.keys(patch).length > 0) save(patch);
+  };
+
+  const grid = movementGridView(movement);
+
+  const onDragEnd = (event: DragEndEvent) => {
+    const activeId = String(event.active.id);
+    const overId = event.over?.id ? String(event.over.id) : null;
+    if (!overId) return;
+    // The lead sheet's own two branches, and none of its lyric ones —
+    // a movement has no words to drop.
+    if (activeId.startsWith('bar:') && overId.startsWith('bar:')) {
+      const from = parseInt(activeId.slice(4), 10);
+      const to = parseInt(overId.slice(4), 10);
+      if (Number.isFinite(from) && Number.isFinite(to)) {
+        apply(reorderBars(movement, from, to));
+      }
+      return;
+    }
+    if (!activeId.startsWith('chord:')) return;
+    const fromId = activeId.slice('chord:'.length);
+    if (overId.startsWith('chord:')) {
+      const toId = overId.slice('chord:'.length);
+      if (fromId !== toId) apply(swapChords(movement, fromId, toId));
+      return;
+    }
+    if (overId.startsWith('emptybeat:')) {
+      const slot = parseSlotDropId(overId);
+      if (slot) apply(moveChord(movement, fromId, slot.barIndex, slot.beatPos));
+    }
+  };
 
   const stop = () => {
     handle.current?.stop();
@@ -341,56 +441,38 @@ export default function MovementScreen() {
         Select a chord to create, edit or review its voicing.
       </h2>
 
-      {/* --- the bar grid ----------------------------------------- */}
-      <div className="grid gap-3 sm:grid-cols-3" data-testid="movement-grid">
-        {Array.from({ length: barCount }).map((_, bar) => (
-          <div
-            key={bar}
-            className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-2.5"
-          >
-            <div className="flex justify-between text-[10px] uppercase tracking-wide text-neutral-500 mb-1.5">
-              <span>Bar {bar + 1}</span>
-              <span>{movement.timeSignature}</span>
-            </div>
-            <div className="relative grid gap-1" style={{ gridTemplateColumns: `repeat(${beatsPerBar}, 1fr)` }}>
-              {Array.from({ length: beatsPerBar }).map((_, slot) => (
-                <div
-                  key={slot}
-                  className="h-16 rounded-md border border-dashed border-neutral-300 dark:border-neutral-700 px-1 text-[10px] text-neutral-400"
-                >
-                  {slot + 1}
-                </div>
-              ))}
-              {ordered.filter(p => p.barIndex === bar).map(p => {
-                const width = 100 / beatsPerBar;
-                const derived = normalizeVoicing(p.voicing).length === 0;
-                const name = movementDegreeName(p.chord, spelling);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    data-testid={`movement-chord-${p.id}`}
-                    data-sounding={soundingId === p.id ? 'true' : 'false'}
-                    data-derived={derived ? 'true' : 'false'}
-                    onClick={() => setPickedId(p.id)}
-                    style={{ left: `${p.beatPos * width}%`, width: `calc(${p.beats * width}% - 4px)` }}
-                    className={boxClass(derived, soundingId === p.id, selectedId === p.id)}
-                  >
-                    <span className="text-sm font-semibold leading-tight truncate w-full text-left">
-                      {name.degree}
-                      {name.raised ? <sup>{name.quality}</sup> : name.quality}
-                      {name.bass ? `/${name.bass}` : ''}
-                    </span>
-                    <span className="text-[11px] text-neutral-500 truncate w-full text-left">
-                      {chordToDisplay(p.chord, notationMode === 'numbers' ? 'concrete' : notationMode, movement.key, spelling)}
-                      {derived ? ' · filled in' : ''}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+      {/* --- the bar grid: the lead sheet's own ------------------- */}
+      <div data-testid="movement-grid" data-sounding={soundingId ?? ''}>
+        <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+          <BarGridView
+            song={grid.song}
+            section={grid.section}
+            activeArrangementId={grid.arrangementId}
+            chordsAreSortable
+            onChordAdd={(barIndex, beatPos, chord, offbeat) =>
+              apply(addChord(movement, barIndex, beatPos, chord, offbeat))}
+            onChordSelect={setPickedId}
+            onAddBar={() => apply(addBar(movement))}
+            onDeleteBar={barIndex => apply(deleteBar(movement, barIndex))}
+            onBarReorder={(from, to) => apply(reorderBars(movement, from, to))}
+            copiedChord={copiedChord}
+            highlightPlacementId={soundingId}
+            markUnvoiced
+            /* THE LEAD (ruling 14) — the degree, re-spelled with the
+               global setting, above the chord name the cell already
+               draws. See allowed-to-differ item 3. */
+            chordCellLead={chord => {
+              const name = movementDegreeName(chord, spelling);
+              return (
+                <>
+                  {name.degree}
+                  {name.raised ? <sup>{name.quality}</sup> : name.quality}
+                  {name.bass ? `/${name.bass}` : ''}
+                </>
+              );
+            }}
+          />
+        </DndContext>
       </div>
 
       {/* --- the shared editor ------------------------------------ */}
@@ -399,6 +481,62 @@ export default function MovementScreen() {
           data-testid="movement-editor"
           className="rounded-lg border border-fluent bg-white dark:bg-neutral-900"
         >
+          {/* LENGTH, COPY CHORD AND DELETE CHORD LIVE HERE, not in the
+              grid's popover, which never opens on a movement — see
+              allowed-to-differ item 4. This is what the signed-off
+              entry prototype draws, and Copy chord fills the same
+              clipboard the grid's add box reads for Paste chord.
+
+              THE RULES ARE THE GRID'S. `setChordLength` clamps to the
+              room a bar offers and cascades the chords after it, both
+              through `barGrid.ts` — nothing about a duration is
+              decided on this screen. */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 px-2 py-1.5 text-[11px]">
+            <span className="text-neutral-500">Length</span>
+            <button
+              type="button"
+              data-testid="length-dec"
+              aria-label="shorten chord"
+              disabled={selected.beats <= 1}
+              onClick={() => apply(setChordLength(movement, selected.id, selected.beats - 1))}
+              className="w-6 h-6 leading-none rounded border border-neutral-300 dark:border-neutral-700 disabled:opacity-30"
+            >
+              −
+            </button>
+            <span data-testid="length-value" className="font-mono tabular-nums w-6 text-center">
+              {selected.beats}
+            </span>
+            <button
+              type="button"
+              data-testid="length-inc"
+              aria-label="lengthen chord"
+              disabled={selected.beats >= grid.barSlots}
+              onClick={() => apply(setChordLength(movement, selected.id, selected.beats + 1))}
+              className="w-6 h-6 leading-none rounded border border-neutral-300 dark:border-neutral-700 disabled:opacity-30"
+            >
+              +
+            </button>
+            <span className="flex-1" />
+            <button
+              type="button"
+              data-testid="copy-chord"
+              onClick={() => setCopiedChord(selected.chord)}
+              className="rounded border border-neutral-300 dark:border-neutral-700 px-2 py-1 hover:border-fluent hover:text-fluent"
+            >
+              Copy chord
+            </button>
+            <button
+              type="button"
+              data-testid="delete-chord"
+              onClick={() => {
+                setPickedId(null);
+                apply(deleteChord(movement, selected.id));
+              }}
+              className="rounded border border-neutral-300 dark:border-neutral-700 px-2 py-1 hover:border-needswork hover:text-needswork"
+            >
+              Delete chord
+            </button>
+          </div>
           <ChordVoicingPanel
             chord={selected.chord}
             voicing={selected.voicing}
@@ -445,16 +583,4 @@ function clampBpm(raw: string): number {
   return Math.min(160, Math.max(30, Math.round(n)));
 }
 
-/** WHOLE LITERALS, never assembled. Tailwind only sees class names it
- *  can read in the source, so a class built from a variable is a class
- *  that is not in the built CSS. */
-function boxClass(derived: boolean, sounding: boolean, selected: boolean): string {
-  const base = 'absolute top-0 h-16 rounded-md border px-1.5 py-1 flex flex-col justify-between overflow-hidden text-left';
-  const skin = sounding
-    ? 'border-amber-400 bg-amber-100 dark:bg-amber-900/40'
-    : derived
-      ? 'border-dashed border-neutral-400 bg-neutral-100 dark:bg-neutral-800'
-      : 'border-neutral-400 dark:border-neutral-600 bg-white dark:bg-neutral-900';
-  const ring = selected ? 'ring-2 ring-fluent' : '';
-  return `${base} ${skin} ${ring}`;
-}
+

@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback, useEffect, useMemo, useRef, useState,
+  type CSSProperties, type ReactNode,
+} from 'react';
 import { useLongPress } from '../../lib/useLongPress';
 import {
   type DraggableSyntheticListeners,
@@ -301,6 +304,54 @@ interface Props {
    *  undo/redo) and the + bar button, and renders empty beat slots as
    *  nothing so only occupied chords show. */
   playMode?: boolean;
+  /**
+   * When supplied, tapping a chord cell calls THIS and the grid's own
+   * chord popover never opens.
+   *
+   * FOR A HOST THAT ALREADY HAS AN EDITOR ON SCREEN. A movement's
+   * screen carries the shared voicing panel inline, permanently, below
+   * the grid — so opening the popover as well would put two editors on
+   * one chord from one tap. Silas chose the inline one; Length, Copy
+   * chord and Delete chord live in its header there, which is what the
+   * signed-off entry prototype draws.
+   *
+   * The lead sheet supplies nothing here and is unchanged.
+   */
+  onChordSelect?: (placementId: string) => void;
+  /**
+   * A line to set ABOVE the chord name in every chord cell.
+   *
+   * A VARIANT OF THE CELL, NOT A SECOND CELL. Ruling 14 wants a
+   * movement's boxes to read the scale-degree NUMBER first with the
+   * name under it, and the number to re-spell with the global setting —
+   * ♭6° in flats, ♯5° in sharps. `chordToDisplay`'s `numbers` mode
+   * cannot do that: it prints the stored ASCII degree (`b6dim`) and
+   * ignores the spelling entirely. So the host supplies the line and
+   * the cell makes room for it.
+   *
+   * The lead sheet supplies nothing and its cells are unchanged.
+   */
+  chordCellLead?: (chord: ChordFunction) => ReactNode;
+  /**
+   * The placement to ring while it is sounding.
+   *
+   * THE LEAD SHEET HAS NO PLAYBACK, so it has no sounding chord to
+   * mark and passes nothing. It is a prop rather than a class the host
+   * paints on, because which cell is which is the grid's own knowledge
+   * — a host reaching in to find one would be reaching into the layout.
+   */
+  highlightPlacementId?: string | null;
+  /**
+   * Mark a chord with nothing pressed as filled in by the app.
+   *
+   * A MOVEMENT IS ABOUT TO PLAY THAT GUESS (ruling 11) and says so. A
+   * lead sheet plays nothing, and an unvoiced chord there is the
+   * ordinary case — marking every one of them would be noise about a
+   * state that means nothing yet. So it is asked for, not assumed, and
+   * the cell reads its own `voicing` rather than being handed a list to
+   * keep in step.
+   */
+  markUnvoiced?: boolean;
 }
 
 interface EditingState {
@@ -356,6 +407,10 @@ export default function BarGridView({
   copiedChord,
   onCopyChord,
   playMode = false,
+  onChordSelect,
+  chordCellLead,
+  highlightPlacementId = null,
+  markUnvoiced = false,
 }: Props) {
   const eighths = song.eighths === true;
   const [notationMode] = useNotationMode();
@@ -518,9 +573,11 @@ export default function BarGridView({
     rows.push(bars.slice(i, i + barsPerRow));
   }
 
-  const editable = Boolean(onChordBeatsChange || onChordTagChange);
+  const editable = Boolean(onChordBeatsChange || onChordTagChange || onChordSelect);
 
-  const handleCellClick = editable
+  const handleCellClick = onChordSelect
+    ? (cell: BarCell) => { onChordSelect(cell.placementId); }
+    : editable
     ? (cell: BarCell, barIndex: number) => {
         // Opening the chord-edit popover dismisses any chord-add
         // popover in progress; the two anchor to the same bar and
@@ -623,6 +680,9 @@ export default function BarGridView({
                   notationMode={notationMode}
                   editing={editing}
                   onCellClick={handleCellClick}
+                  chordCellLead={chordCellLead}
+                  highlightPlacementId={highlightPlacementId}
+                  markUnvoiced={markUnvoiced}
                   onBeatsChange={handleBeatsChange}
                   onTagChange={handleTagChange}
                   onDelete={handleDelete}
@@ -1082,6 +1142,9 @@ function BarBox({
   onChordAddSubmit,
   onChordAddCancel,
   playMode,
+  chordCellLead,
+  highlightPlacementId,
+  markUnvoiced,
 }: {
   bar: Bar;
   eighths: boolean;
@@ -1118,6 +1181,9 @@ function BarBox({
   ) => void;
   onChordAddCancel: () => void;
   playMode: boolean;
+  chordCellLead?: (chord: ChordFunction) => ReactNode;
+  highlightPlacementId?: string | null;
+  markUnvoiced?: boolean;
 }) {
   const editingCellInThisBar =
     editing && editing.barIndex === bar.index
@@ -1245,6 +1311,9 @@ function BarBox({
                 isEditing={isEditing}
                 foundationMode={foundationMode}
                 onClick={onCellClick ? c => onCellClick(c, bar.index) : undefined}
+                lead={chordCellLead}
+                sounding={cell.placementId === highlightPlacementId}
+                markUnvoiced={markUnvoiced}
               />
             );
           }
@@ -1258,6 +1327,9 @@ function BarBox({
               isEditing={isEditing}
               foundationMode={foundationMode}
               onClick={onCellClick ? c => onCellClick(c, bar.index) : undefined}
+              lead={chordCellLead}
+              sounding={cell.placementId === highlightPlacementId}
+              markUnvoiced={markUnvoiced}
             />
           );
         })}
@@ -2736,6 +2808,9 @@ function SortableChordCell({
   isEditing,
   foundationMode,
   onClick,
+  lead,
+  sounding,
+  markUnvoiced,
 }: {
   cell: BarCell;
   widthPct: number;
@@ -2744,6 +2819,9 @@ function SortableChordCell({
   isEditing: boolean;
   foundationMode: boolean;
   onClick?: (cell: BarCell) => void;
+  lead?: (chord: ChordFunction) => ReactNode;
+  sounding?: boolean;
+  markUnvoiced?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: DRAG_ID.chord(cell.placementId) });
@@ -2762,6 +2840,9 @@ function SortableChordCell({
       isEditing={isEditing}
       foundationMode={foundationMode}
       onClick={onClick}
+      lead={lead}
+      sounding={sounding}
+      markUnvoiced={markUnvoiced}
       dragRef={setNodeRef}
       dragAttributes={attributes}
       dragListeners={listeners}
@@ -2783,6 +2864,9 @@ function ChordCellBox({
   dragListeners,
   dragStyle,
   extraClassName,
+  lead,
+  sounding = false,
+  markUnvoiced = false,
 }: {
   cell: BarCell;
   widthPct: number;
@@ -2796,6 +2880,12 @@ function ChordCellBox({
   dragListeners?: DraggableSyntheticListeners;
   dragStyle?: CSSProperties;
   extraClassName?: string;
+  /** A line to set ABOVE the chord name — see `chordCellLead`. */
+  lead?: (chord: ChordFunction) => ReactNode;
+  /** Ringed because it is sounding — see `highlightPlacementId`. */
+  sounding?: boolean;
+  /** Say so when nothing is pressed — see `markUnvoiced`. */
+  markUnvoiced?: boolean;
 }) {
   const [spelling] = useSpelling();
   const text = chordToDisplay(cell.chord, notationMode, sectionKey, spelling);
@@ -2870,7 +2960,10 @@ function ChordCellBox({
       {...(dragListeners ?? {})}
       className={`relative flex flex-col items-center justify-between py-0.5 px-0.5 border-2 ${borderStyleClass} ${surfaceClass} ${radiusClass} overflow-hidden touch-none shrink ${
         interactive ? 'cursor-pointer hover:brightness-105' : ''
-      } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''} ${extraClassName ?? ''}`}
+      } ${isEditing ? 'ring-2 ring-fluent ring-offset-1 ring-offset-white dark:ring-offset-neutral-900' : ''} ${sounding ? 'ring-2 ring-amber-400' : ''} ${extraClassName ?? ''}`}
+      data-placement-id={cell.placementId}
+      data-sounding={sounding ? 'true' : 'false'}
+      data-derived={markUnvoiced && !hasVoicing ? 'true' : 'false'}
       style={{ ...baseStyle, ...surfaceStyle }}
       title={cell.chord.raw ?? text}
     >
@@ -2881,14 +2974,30 @@ function ChordCellBox({
           className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-fluent"
         />
       )}
+      {lead && (
+        <div
+          className={`text-[11px] leading-tight font-semibold ${textClass} truncate w-full text-center`}
+          style={textStyle}
+          data-testid="chord-cell-lead"
+        >
+          {lead(cell.chord)}
+        </div>
+      )}
       <div
-        className={`text-[11px] leading-tight font-semibold ${textClass} truncate w-full text-center`}
+        className={
+          lead
+            ? `text-[9px] leading-tight ${textClass} truncate w-full text-center opacity-70`
+            : `text-[11px] leading-tight font-semibold ${textClass} truncate w-full text-center`
+        }
         style={textStyle}
       >
         {text ? (
           <ChordGlyph text={text} numeratorPill={numeratorPill} />
         ) : (
           <span className="opacity-40">—</span>
+        )}
+        {markUnvoiced && !hasVoicing && (
+          <span data-testid="chord-cell-filled-in"> · filled in</span>
         )}
       </div>
       <div

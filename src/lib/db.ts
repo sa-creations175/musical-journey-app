@@ -2565,6 +2565,17 @@ export interface ChordMovement {
   timeSignature: string;
   /** The chord events, in the lead sheet's own shape. */
   placements: ChordPlacement[];
+  /**
+   * What kind of bar sits at each position — the section's own field,
+   * the same shape, read by the same `deriveBarGrid`.
+   *
+   * OPTIONAL, AND ABSENT MEANS DERIVED. A movement saved before "+ bar"
+   * existed has none, and reads exactly as it always did: as many bars
+   * as its placements reach. It appears the first time a bar is added
+   * or deleted, because an EMPTY bar is the one thing placements cannot
+   * express.
+   */
+  barLayout?: Array<'chord' | 'empty'>;
   /** Playback speed in BPM, remembered per movement (ruling 8). This
    *  is NOT the metronome and does not read its settings. */
   playbackBpm: number;

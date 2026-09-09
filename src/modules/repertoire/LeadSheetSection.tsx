@@ -109,6 +109,7 @@ import {
   deleteBarFromPlacements,
   materializeChordPlacements,
   moveChordPlacement,
+  reconcileBarLayout,
   parseTimeSignature,
   removeChordPlacement,
   reorderBar,
@@ -585,27 +586,9 @@ export default function LeadSheetSection({
   // Returns `undefined` when there's no layout to reconcile (in which
   // case deriveBarGridAnchored derives the bar count from the
   // placements' max barIndex + 1).
-  const reconcileBarLayout = (
-    layout: Array<'chord' | 'empty'> | undefined,
-    placements: ChordPlacement[],
-  ): Array<'chord' | 'empty'> | undefined => {
-    if (!layout) return undefined;
-    const occupied = new Set<number>();
-    for (const p of placements) occupied.add(p.barIndex);
-    let maxBar = -1;
-    for (const p of placements) {
-      if (p.barIndex > maxBar) maxBar = p.barIndex;
-    }
-    const next: Array<'chord' | 'empty'> = [];
-    const total = Math.max(layout.length, maxBar + 1);
-    for (let i = 0; i < total; i++) {
-      const existing = layout[i];
-      if (occupied.has(i)) next.push('chord');
-      else if (existing === 'empty' || existing === 'chord') next.push('empty');
-      else next.push('empty');
-    }
-    return next;
-  };
+  // `reconcileBarLayout` is `barGrid.ts`'s now — a movement's grid
+  // needs the identical rule, and two copies of "which bars are
+  // occupied" is how one surface hides a chord the other shows.
 
   const handleChordBeatsChange = async (placementId: string, beats: number) => {
     const { placements, realPlacementId } = ensurePlacementsForOp(placementId);

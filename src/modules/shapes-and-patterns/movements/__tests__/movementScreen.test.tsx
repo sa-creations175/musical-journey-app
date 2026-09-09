@@ -13,7 +13,7 @@
  * =====================================================================
  */
 import 'fake-indexeddb/auto';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -23,6 +23,24 @@ import { newMovement } from '../movementStore';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
+
+// jsdom has no matchMedia, and the lead sheet's grid reads it to pick
+// one or two bars per row. Reports "not mobile" so the layout is
+// deterministic — the same stub `BarGridView.test.tsx` uses.
+beforeAll(() => {
+  if (!window.matchMedia) {
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+  }
+});
 
 const L = (offset: number) => ({ offset, hand: 'L' as const });
 const R = (offset: number) => ({ offset, hand: 'R' as const });
@@ -99,6 +117,13 @@ async function open(over: Partial<ReturnType<typeof newMovement>> = {}) {
 
 const settle = () => act(async () => { await new Promise(r => setTimeout(r, 20)); });
 const byTestId = (id: string) => container!.querySelector(`[data-testid="${id}"]`);
+/** A chord box in the lead sheet's grid, found by the placement it
+ *  draws. The cells are the grid's own now — see ruling 18. */
+const chordCell = (placementId: string) =>
+  container!.querySelector(`[data-placement-id="${placementId}"]`);
+/** The scale-degree line the cell leads with (ruling 14). */
+const degreeLine = (placementId: string) =>
+  chordCell(placementId)!.querySelector('[data-testid="chord-cell-lead"]')!.textContent;
 const click = async (el: Element | null) => {
   expect(el).not.toBeNull();
   await act(async () => { (el as HTMLElement).click(); });
@@ -138,15 +163,14 @@ describe('step 1 — the name, the description, and the first chord', () => {
     // arriving after one.
     await open();
     expect(byTestId('movement-editor')).not.toBeNull();
-    expect(byTestId('movement-chord-c1')?.className).toContain('ring-fluent');
-    expect(byTestId('movement-chord-e7')?.className).not.toContain('ring-fluent');
+    // The editor is showing the first chord's own voicing.
+    expect(byTestId('length-value')!.textContent).toBe('3');
   });
 
   it('reads the number first and the chord name under it', async () => {
     // Ruling 14. The walk-up reads 1, 1, 3⁷, 2/♭5, ♭6°, 6m, 6m.
     await open();
-    const degrees = ['c1', 'c2', 'e7', 'dfs', 'gsdim', 'am1', 'am2']
-      .map(id => byTestId(`movement-chord-${id}`)!.firstElementChild!.textContent);
+    const degrees = ['c1', 'c2', 'e7', 'dfs', 'gsdim', 'am1', 'am2'].map(degreeLine);
     expect(degrees).toEqual(['1', '1', '37', '2/♭5', '♭6°', '6m', '6m']);
   });
 });
@@ -179,10 +203,9 @@ describe('step 3 — the key moves the sound, the spelling does not', () => {
     // chord, and showing the name in sharps beside a number in flats is
     // showing it two ways at once.
     await open();
-    const degree = () => byTestId('movement-chord-gsdim')!.firstElementChild!.textContent;
-    expect(degree()).toBe('♭6°');
+    expect(degreeLine('gsdim')).toBe('♭6°');
     await click(byTestId('spelling-sharp'));
-    expect(degree()).toBe('♯5°');
+    expect(degreeLine('gsdim')).toBe('♯5°');
   });
 
   it('the spelling control is the global setting, not a movement’s own', async () => {
@@ -216,18 +239,18 @@ describe('step 7 — the chord with nothing pressed', () => {
   it('is marked on the grid and says so in the editor', async () => {
     // Ruling 11. It is about to be PLAYED as a guess, so it discloses.
     await open();
-    expect(byTestId('movement-chord-dfs')!.getAttribute('data-derived')).toBe('true');
-    expect(byTestId('movement-chord-e7')!.getAttribute('data-derived')).toBe('false');
-    expect(byTestId('movement-chord-dfs')!.textContent).toContain('filled in');
+    expect(chordCell('dfs')!.getAttribute('data-derived')).toBe('true');
+    expect(chordCell('e7')!.getAttribute('data-derived')).toBe('false');
+    expect(chordCell('dfs')!.textContent).toContain('filled in');
 
-    await click(byTestId('movement-chord-dfs'));
+    await click(chordCell('dfs'));
     expect(byTestId('voicing-derived-note')!.textContent)
       .toBe('Filled in from the chord symbol');
   });
 
   it('and a press makes it his, immediately', async () => {
     await open();
-    await click(byTestId('movement-chord-dfs'));
+    await click(chordCell('dfs'));
     // The panel commits on press; there is no Save to forget.
     expect([...container!.querySelectorAll('button')]
       .some(b => b.textContent === 'Save')).toBe(false);
@@ -260,7 +283,7 @@ describe('step 9 — copy and paste a voicing', () => {
     // Ruling 13: a C shape pasted onto the A minor comes out minor.
     await open();
     await click(byTestId('voicing-copy'));
-    await click(byTestId('movement-chord-am1'));
+    await click(chordCell('am1'));
     await click(byTestId('voicing-paste'));
     const am = (await stored())!.placements.find(p => p.id === 'am1')!;
     // The C voicing's major third became a minor third.
