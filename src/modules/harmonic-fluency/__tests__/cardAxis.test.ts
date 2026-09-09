@@ -180,7 +180,7 @@ describe('absent means flat list, not broken', () => {
     // and none carries coordinates — inventing them to force a 1x1
     // grid would be making structure up.
     const pr = inCategory('progressions').filter(c => /^pr-\d+$/.test(c.id));
-    expect(pr.length).toBe(12);
+    expect(pr.length).toBe(11);
     for (const c of pr) expect(Object.hasOwn(c, 'axis'), c.id).toBe(false);
   });
 
@@ -227,10 +227,10 @@ describe('absent means flat list, not broken', () => {
       // 36 before commit 8, when five formula cards carried none.
       // Every pentatonic card has a root now.
       'pentatonic-scales': 38,
-      // 6 before commit 8 — one shape in six keys. Eight named
+      // 6 before commit 8 — one shape in six keys. Ten named
       // progressions across thirteen keys now, under a prefix that has
       // never existed.
-      'progressions': 104,
+      'progressions': 130,
       // 44 before ruling 30: eleven keys x four shapes. Seven shapes
       // across thirteen keys now — ruling 37 took the three
       // hand-written C cards that kept the generator out of that key,

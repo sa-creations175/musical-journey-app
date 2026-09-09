@@ -64,6 +64,13 @@
  * and `identityIdMigration.ts` carries their rows across. The other
  * fourteen had none.
  * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 — TWENTY-SIX `pr-prog-` LINES ADDED, ONE REMOVED.
+ *
+ * The turnaround 1-6-2-5 and the 1-4-5 joined the generated set at
+ * thirteen keys each. `pr-18` — the 1-4-5 in A, hand-written — asks the
+ * generated card's exact question and gives its exact answer, so it
+ * folds in and its line goes. Nothing was repointed.
+ * ---------------------------------------------------------------
  * 9 SEPTEMBER 2026 — FIFTEEN `iv-inv-` LINES ARE REMOVED, AND NOTHING
  * TAKES THEIR PLACE.
  *
@@ -1529,13 +1536,14 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-15|The 4-1-5-6 in D major is _____',
   'pr-16|A tonic-pedal progression keeps which note in the bass?',
   'pr-17|A dominant pedal progression keeps which note in the bass?',
-  'pr-18|The 1-4-5 in A major is _____',
   'pr-19|The Coltrane changes cycle through how many key centers?',
   'pr-20|The 1-b7-4 progression in C major is _____',
   'pr-prog-1-5-6-4-C|The 1-5-6-4 progression in C major is _____',
   'pr-prog-2-5-1-C|The 2-5-1 in C major is _____',
   'pr-prog-1-6-4-5-C|The 1-6-4-5 in C major is _____',
   'pr-prog-6-4-1-5-C|The 6-4-1-5 in C major is _____',
+  'pr-prog-1-6-2-5-C|The 1-6-2-5 in C major is _____',
+  'pr-prog-1-4-5-C|The 1-4-5 in C major is _____',
   'pr-prog-gospel-walk-up-C|The gospel walk-up I-II-iii-IV in C major is _____',
   'pr-prog-rhythm-changes-C|Rhythm changes A section in C major starts with _____',
   'pr-prog-backdoor-C|The backdoor progression I-IV-bVII-I in C major is _____',
@@ -1544,6 +1552,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-Db|The 2-5-1 in D♭ major is _____',
   'pr-prog-1-6-4-5-Db|The 1-6-4-5 in D♭ major is _____',
   'pr-prog-6-4-1-5-Db|The 6-4-1-5 in D♭ major is _____',
+  'pr-prog-1-6-2-5-Db|The 1-6-2-5 in D♭ major is _____',
+  'pr-prog-1-4-5-Db|The 1-4-5 in D♭ major is _____',
   'pr-prog-gospel-walk-up-Db|The gospel walk-up I-II-iii-IV in D♭ major is _____',
   'pr-prog-rhythm-changes-Db|Rhythm changes A section in D♭ major starts with _____',
   'pr-prog-backdoor-Db|The backdoor progression I-IV-bVII-I in D♭ major is _____',
@@ -1552,6 +1562,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-D|The 2-5-1 in D major is _____',
   'pr-prog-1-6-4-5-D|The 1-6-4-5 in D major is _____',
   'pr-prog-6-4-1-5-D|The 6-4-1-5 in D major is _____',
+  'pr-prog-1-6-2-5-D|The 1-6-2-5 in D major is _____',
+  'pr-prog-1-4-5-D|The 1-4-5 in D major is _____',
   'pr-prog-gospel-walk-up-D|The gospel walk-up I-II-iii-IV in D major is _____',
   'pr-prog-rhythm-changes-D|Rhythm changes A section in D major starts with _____',
   'pr-prog-backdoor-D|The backdoor progression I-IV-bVII-I in D major is _____',
@@ -1560,6 +1572,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-Eb|The 2-5-1 in E♭ major is _____',
   'pr-prog-1-6-4-5-Eb|The 1-6-4-5 in E♭ major is _____',
   'pr-prog-6-4-1-5-Eb|The 6-4-1-5 in E♭ major is _____',
+  'pr-prog-1-6-2-5-Eb|The 1-6-2-5 in E♭ major is _____',
+  'pr-prog-1-4-5-Eb|The 1-4-5 in E♭ major is _____',
   'pr-prog-gospel-walk-up-Eb|The gospel walk-up I-II-iii-IV in E♭ major is _____',
   'pr-prog-rhythm-changes-Eb|Rhythm changes A section in E♭ major starts with _____',
   'pr-prog-backdoor-Eb|The backdoor progression I-IV-bVII-I in E♭ major is _____',
@@ -1568,6 +1582,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-E|The 2-5-1 in E major is _____',
   'pr-prog-1-6-4-5-E|The 1-6-4-5 in E major is _____',
   'pr-prog-6-4-1-5-E|The 6-4-1-5 in E major is _____',
+  'pr-prog-1-6-2-5-E|The 1-6-2-5 in E major is _____',
+  'pr-prog-1-4-5-E|The 1-4-5 in E major is _____',
   'pr-prog-gospel-walk-up-E|The gospel walk-up I-II-iii-IV in E major is _____',
   'pr-prog-rhythm-changes-E|Rhythm changes A section in E major starts with _____',
   'pr-prog-backdoor-E|The backdoor progression I-IV-bVII-I in E major is _____',
@@ -1576,6 +1592,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-F|The 2-5-1 in F major is _____',
   'pr-prog-1-6-4-5-F|The 1-6-4-5 in F major is _____',
   'pr-prog-6-4-1-5-F|The 6-4-1-5 in F major is _____',
+  'pr-prog-1-6-2-5-F|The 1-6-2-5 in F major is _____',
+  'pr-prog-1-4-5-F|The 1-4-5 in F major is _____',
   'pr-prog-gospel-walk-up-F|The gospel walk-up I-II-iii-IV in F major is _____',
   'pr-prog-rhythm-changes-F|Rhythm changes A section in F major starts with _____',
   'pr-prog-backdoor-F|The backdoor progression I-IV-bVII-I in F major is _____',
@@ -1584,6 +1602,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-F#|The 2-5-1 in F♯ major is _____',
   'pr-prog-1-6-4-5-F#|The 1-6-4-5 in F♯ major is _____',
   'pr-prog-6-4-1-5-F#|The 6-4-1-5 in F♯ major is _____',
+  'pr-prog-1-6-2-5-F#|The 1-6-2-5 in F♯ major is _____',
+  'pr-prog-1-4-5-F#|The 1-4-5 in F♯ major is _____',
   'pr-prog-gospel-walk-up-F#|The gospel walk-up I-II-iii-IV in F♯ major is _____',
   'pr-prog-rhythm-changes-F#|Rhythm changes A section in F♯ major starts with _____',
   'pr-prog-backdoor-F#|The backdoor progression I-IV-bVII-I in F♯ major is _____',
@@ -1592,6 +1612,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-Gb|The 2-5-1 in G♭ major is _____',
   'pr-prog-1-6-4-5-Gb|The 1-6-4-5 in G♭ major is _____',
   'pr-prog-6-4-1-5-Gb|The 6-4-1-5 in G♭ major is _____',
+  'pr-prog-1-6-2-5-Gb|The 1-6-2-5 in G♭ major is _____',
+  'pr-prog-1-4-5-Gb|The 1-4-5 in G♭ major is _____',
   'pr-prog-gospel-walk-up-Gb|The gospel walk-up I-II-iii-IV in G♭ major is _____',
   'pr-prog-rhythm-changes-Gb|Rhythm changes A section in G♭ major starts with _____',
   'pr-prog-backdoor-Gb|The backdoor progression I-IV-bVII-I in G♭ major is _____',
@@ -1600,6 +1622,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-G|The 2-5-1 in G major is _____',
   'pr-prog-1-6-4-5-G|The 1-6-4-5 in G major is _____',
   'pr-prog-6-4-1-5-G|The 6-4-1-5 in G major is _____',
+  'pr-prog-1-6-2-5-G|The 1-6-2-5 in G major is _____',
+  'pr-prog-1-4-5-G|The 1-4-5 in G major is _____',
   'pr-prog-gospel-walk-up-G|The gospel walk-up I-II-iii-IV in G major is _____',
   'pr-prog-rhythm-changes-G|Rhythm changes A section in G major starts with _____',
   'pr-prog-backdoor-G|The backdoor progression I-IV-bVII-I in G major is _____',
@@ -1608,6 +1632,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-Ab|The 2-5-1 in A♭ major is _____',
   'pr-prog-1-6-4-5-Ab|The 1-6-4-5 in A♭ major is _____',
   'pr-prog-6-4-1-5-Ab|The 6-4-1-5 in A♭ major is _____',
+  'pr-prog-1-6-2-5-Ab|The 1-6-2-5 in A♭ major is _____',
+  'pr-prog-1-4-5-Ab|The 1-4-5 in A♭ major is _____',
   'pr-prog-gospel-walk-up-Ab|The gospel walk-up I-II-iii-IV in A♭ major is _____',
   'pr-prog-rhythm-changes-Ab|Rhythm changes A section in A♭ major starts with _____',
   'pr-prog-backdoor-Ab|The backdoor progression I-IV-bVII-I in A♭ major is _____',
@@ -1616,6 +1642,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-A|The 2-5-1 in A major is _____',
   'pr-prog-1-6-4-5-A|The 1-6-4-5 in A major is _____',
   'pr-prog-6-4-1-5-A|The 6-4-1-5 in A major is _____',
+  'pr-prog-1-6-2-5-A|The 1-6-2-5 in A major is _____',
+  'pr-prog-1-4-5-A|The 1-4-5 in A major is _____',
   'pr-prog-gospel-walk-up-A|The gospel walk-up I-II-iii-IV in A major is _____',
   'pr-prog-rhythm-changes-A|Rhythm changes A section in A major starts with _____',
   'pr-prog-backdoor-A|The backdoor progression I-IV-bVII-I in A major is _____',
@@ -1624,6 +1652,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-Bb|The 2-5-1 in B♭ major is _____',
   'pr-prog-1-6-4-5-Bb|The 1-6-4-5 in B♭ major is _____',
   'pr-prog-6-4-1-5-Bb|The 6-4-1-5 in B♭ major is _____',
+  'pr-prog-1-6-2-5-Bb|The 1-6-2-5 in B♭ major is _____',
+  'pr-prog-1-4-5-Bb|The 1-4-5 in B♭ major is _____',
   'pr-prog-gospel-walk-up-Bb|The gospel walk-up I-II-iii-IV in B♭ major is _____',
   'pr-prog-rhythm-changes-Bb|Rhythm changes A section in B♭ major starts with _____',
   'pr-prog-backdoor-Bb|The backdoor progression I-IV-bVII-I in B♭ major is _____',
@@ -1632,6 +1662,8 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-2-5-1-B|The 2-5-1 in B major is _____',
   'pr-prog-1-6-4-5-B|The 1-6-4-5 in B major is _____',
   'pr-prog-6-4-1-5-B|The 6-4-1-5 in B major is _____',
+  'pr-prog-1-6-2-5-B|The 1-6-2-5 in B major is _____',
+  'pr-prog-1-4-5-B|The 1-4-5 in B major is _____',
   'pr-prog-gospel-walk-up-B|The gospel walk-up I-II-iii-IV in B major is _____',
   'pr-prog-rhythm-changes-B|Rhythm changes A section in B major starts with _____',
   'pr-prog-backdoor-B|The backdoor progression I-IV-bVII-I in B major is _____',

@@ -59,9 +59,9 @@ beforeEach(async () => {
 describe('which generated card each retired one became', () => {
   const { moves, unpaired } = progressionMapping();
 
-  it('pairs all fourteen and leaves none behind', () => {
-    expect(retiredProgressionCards()).toHaveLength(14);
-    expect(moves).toHaveLength(14);
+  it('pairs all fifteen and leaves none behind', () => {
+    expect(retiredProgressionCards()).toHaveLength(15);
+    expect(moves).toHaveLength(15);
     expect(unpaired).toEqual([]);
   });
 
@@ -73,6 +73,9 @@ describe('which generated card each retired one became', () => {
     expect(by.get('pr-6')).toBe('pr-prog-rhythm-changes-Bb');
     expect(by.get('pr-7')).toBe('pr-prog-backdoor-F');
     expect(by.get('pr-10')).toBe('pr-prog-neo-soul-C');
+    // The 1-4-5 joined the generated set on 9 Sep and `pr-18` asked its
+    // question in A word for word.
+    expect(by.get('pr-18')).toBe('pr-prog-1-4-5-A');
   });
 
   it('sends the F♯-id top-up to the G♭ card, because its text says G♭', () => {
@@ -106,7 +109,7 @@ describe('which generated card each retired one became', () => {
 // What did NOT move
 // =====================================================================
 
-describe('the twelve one-offs are untouched', () => {
+describe('the one-offs that stay are untouched', () => {
   const ids = new Set(FLASHCARDS.map(c => c.id));
 
   it('keeps every card that names no key', () => {
@@ -117,11 +120,11 @@ describe('the twelve one-offs are untouched', () => {
     }
   });
 
-  it('keeps every progression the ruled list does not name', () => {
-    // The bossa turnaround, the Dorian vamp, 4-1-5-6, 1-4-5 and 1-♭7-4.
-    // Generating these would be ADDING progressions to the family,
-    // which is the one thing the brief says not to do.
-    for (const id of ['pr-13', 'pr-14', 'pr-15', 'pr-18', 'pr-20']) {
+  it('keeps every progression not yet ruled into the generated set', () => {
+    // WAS FIVE, IS FOUR. `pr-18`'s 1-4-5 is generated in thirteen keys
+    // now and the card folded into the A one. The other four are still
+    // one-key cards; the report says which of them Silas has ruled on.
+    for (const id of ['pr-13', 'pr-14', 'pr-15', 'pr-20']) {
       expect(ids.has(id), id).toBe(true);
     }
   });

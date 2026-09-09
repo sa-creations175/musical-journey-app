@@ -42,7 +42,7 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   // reached. Eight named progressions across thirteen keys now, under a
   // prefix that has never existed: `pr-1564-F#` was the G♭ card, so
   // minting that id again is exactly what a fold-in cannot survive.
-  ['progression',      /^pr-prog-/,    104, ['key', 'shape']],
+  ['progression',      /^pr-prog-/,    130, ['key', 'shape']],
   // The relative top-ups retired in commit 8 into three generated sets
   // over thirteen keys. The parallel set is untouched — Silas has not
   // ruled on it — and gained only an `ask` row so it lands on the
@@ -156,17 +156,17 @@ const place = (categoryLabel: string) => {
 };
 
 describe('the grids place what the generators produced', () => {
-  it('puts every keyed progression in the grid and the twelve in the tail', () => {
+  it('puts every keyed progression in the grid and the eleven in the tail', () => {
     // The grid-plus-tail shape, on the category that motivated it.
     // 26/20/6 before commit 8; the tail is still a tail, and it is
     // still the answer for a card that names no key.
     const { grid, tail, items } = place(CATEGORY_LABELS.progressions);
-    expect(items).toHaveLength(116);
-    expect(tail).toHaveLength(12);
-    expect(items.filter(i => i.axis !== undefined)).toHaveLength(104);
+    expect(items).toHaveLength(141);
+    expect(tail).toHaveLength(11);
+    expect(items.filter(i => i.axis !== undefined)).toHaveLength(130);
     const placed = [...grid!.cells.values()]
       .flatMap(col => [...col.values()].flat());
-    expect(placed).toHaveLength(104);
+    expect(placed).toHaveLength(130);
   });
 
   it('places every pentatonic card, both spellings of the roots', () => {

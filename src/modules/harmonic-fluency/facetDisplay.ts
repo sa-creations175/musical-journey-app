@@ -158,6 +158,10 @@ const PROGRESSION_WORDS: Readonly<Record<string, string>> = {
   // it prints as stored.
   '1-6-4-5': '1 6 4 5',
   '6-4-1-5': '6 4 1 5',
+  // The turnaround and the 1-4-5, added when they joined the generated
+  // set. Same rule again, and no new words.
+  '1-6-2-5': '1 6 2 5',
+  '1-4-5': '1 4 5',
   'gospel walk-up': 'gospel walk-up',
   'rhythm changes': 'rhythm changes',
   'neo-soul': 'neo-soul',

@@ -1412,6 +1412,11 @@ const RETIRED_PROGRESSION_IDS: ReadonlySet<string> = new Set([
   'pr-6',  // rhythm changes in B♭
   'pr-7',  // the backdoor in F
   'pr-10', // the neo-soul cycle in C
+  // 9 Sep, the follow-ups: 1-4-5 joined the generated set and `pr-18`
+  // asks its exact question and gives its exact answer in A, so it
+  // pairs and its history moves. The turnaround has no such card — see
+  // the report on `pr-13`.
+  'pr-18', // the 1-4-5 in A
 ]);
 
 export const RETIRED_PROGRESSION_CARDS: Flashcard[] =

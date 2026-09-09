@@ -69,6 +69,8 @@ Ruling 26. The stored value is unchanged and still what a link carries.
 | 1-5-6-4 | 1 5 6 4 |
 | 1-6-4-5 | 1 6 4 5 |
 | 6-4-1-5 | 6 4 1 5 |
+| 1-6-2-5 | 1 6 2 5 |
+| 1-4-5 | 1 4 5 |
 | gospel walk-up | gospel walk-up |
 | rhythm changes | rhythm changes |
 | backdoor | backdoor |

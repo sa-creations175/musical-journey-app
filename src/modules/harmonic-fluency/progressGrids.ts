@@ -241,7 +241,7 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   },
 
   /**
-   * THIRTEEN COLUMNS AND EIGHT ROWS.
+   * THIRTEEN COLUMNS AND TEN ROWS.
    *
    * One row and six cards before commit 8. Every progression the family
    * names AND can be written in a major key is now generated in all
@@ -257,7 +257,7 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   [CATEGORY_LABELS.progressions]: {
     columns: thirteenKeyAxis,
     rows: axis('shape', 'progression', [
-      '1-5-6-4', 'ii-V-I', '1-6-4-5', '6-4-1-5',
+      '1-5-6-4', 'ii-V-I', '1-6-4-5', '6-4-1-5', '1-6-2-5', '1-4-5',
       'gospel walk-up', 'rhythm changes', 'backdoor', 'neo-soul',
     ]),
   },

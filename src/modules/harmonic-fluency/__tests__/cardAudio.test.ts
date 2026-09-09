@@ -125,11 +125,12 @@ describe('the little progressions', () => {
   });
 
   it('leaves none of the generated progressions silent', () => {
-    // Eight shapes across thirteen keys. A shape added to the text
-    // without a voicing would be a card that reads and does not play,
-    // which is the gap ruling 34 closed for every other family.
+    // Ten shapes across thirteen keys — eight, until the turnaround
+    // and the 1-4-5 joined them. A shape added to the text without a
+    // voicing would be a card that reads and does not play, which is
+    // the gap ruling 34 closed for every other family.
     const generated = FLASHCARDS.filter(c => c.id.startsWith('pr-prog-'));
-    expect(generated).toHaveLength(104);
+    expect(generated).toHaveLength(130);
     for (const c of generated) expect(cardSound(c), c.id).not.toBeNull();
   });
 });

@@ -205,8 +205,8 @@ export const FACET_VALUES: Readonly<Record<FacetName, readonly (string | number)
   // and Progression Vocabulary's 2-5-1 are the same little progression,
   // which is ruling 26's own argument.
   progression: [
-    'ii-V-I', 'V/V', 'V/vi', '1-5-6-4', '1-6-4-5', '6-4-1-5',
-    'gospel walk-up', 'rhythm changes', 'backdoor', 'neo-soul',
+    'ii-V-I', 'V/V', 'V/vi', '1-5-6-4', '1-6-4-5', '6-4-1-5', '1-6-2-5',
+    '1-4-5', 'gospel walk-up', 'rhythm changes', 'backdoor', 'neo-soul',
   ],
   // DERIVED FROM THE GENERATOR'S OWN LIST. Ruling 30 changed the
   // shapes, and a vocabulary written out again here is a vocabulary

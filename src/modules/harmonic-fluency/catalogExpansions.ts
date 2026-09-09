@@ -1858,6 +1858,32 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
       + 'themselves are identical.',
   },
   {
+    id: '1-6-2-5',
+    facet: '1-6-2-5',
+    ask: k => `The 1-6-2-5 in ${k} major is _____`,
+    chords: [['1', ''], ['6', 'm'], ['2', 'm'], ['5', '']],
+    // NEW COPY, AND IT IS FLAGGED IN THE REPORT. Every other
+    // explanation here was lifted from the hand-written card that
+    // taught that progression in one key; the turnaround had no such
+    // card, so this says what the deck can already prove — the shape,
+    // the name Silas gave it, and the card that plays the same four
+    // numbers as sevenths — and nothing about how it feels.
+    explain: (k, c) => `1-6-2-5 in ${k} is ${c.join(' → ')} — the turnaround. `
+      + 'It closes a section by walking back to the 1, ready to go round '
+      + 'again. Rhythm changes is the same four numbers played as sevenths.',
+  },
+  {
+    id: '1-4-5',
+    facet: '1-4-5',
+    ask: k => `The 1-4-5 in ${k} major is _____`,
+    chords: [['1', ''], ['4', ''], ['5', '']],
+    explain: (k, c) => `${c.join(' → ')} is 1-4-5 in ${k} — the most `
+      + 'fundamental progression in Western popular music. Every blues, '
+      + 'country tune, and early rock and R&B song cycles I-IV-V; modern '
+      + 'soul, gospel, and hip-hop still use it as the underlying '
+      + 'scaffolding.',
+  },
+  {
     id: 'gospel-walk-up',
     facet: 'gospel walk-up',
     ask: k => `The gospel walk-up I-II-iii-IV in ${k} major is _____`,
@@ -1972,6 +1998,42 @@ function progressionDecoyPool(
   const degrees = shape.chords.map(([d]) => d);
   const repeatsAllowed = degrees.length - new Set(degrees).size;
   const out: string[] = [...(shape.extra?.(root) ?? [])];
+  // THE RIGHT CHORD WITH THE WRONG QUALITY, position by position — a
+  // major triad played minor or a minor played major. It is the
+  // sharpest near-miss the family's own hand-written decoys made
+  // ("A - Dm - E" under `pr-18`, "F - Bbm - Eb - F" under `pr-7`), and
+  // a borrowed minor iv is a chord the deck teaches in its own right.
+  //
+  // IT IS ALSO WHAT MAKES A 1-4-5 CARD POSSIBLE AT ALL. Every chord in
+  // a 1-4-5 is major, so every DEGREE swap has to reach outside 1, 4
+  // and 5 — and in the key of E those are the only three chords with no
+  // sharp in them, which left the answer as the only plain name on
+  // screen and `chooseDecoys` refusing the card. Changing a quality
+  // keeps the letter, so it keeps the accidental.
+  // INTERIOR CHORDS ONLY, and the guard is what says so. A quality
+  // flip keeps the chord's letter, so on the FIRST or the LAST chord it
+  // produces a decoy whose first or last word is always the answer's
+  // plus an "m" — "a decoy ending Fm means the answer ends F", on every
+  // card of the shape. `findTells` reported nine of those the first
+  // time this ran. Flipping a chord in the middle changes nothing a
+  // tokeniser can see from the outside. It is also the same rule the
+  // degree swaps already follow: never the landing.
+  for (let i = 1; i < shape.chords.length - 1; i += 1) {
+    const quality = shape.chords[i][1];
+    if (quality !== '' && quality !== 'm') continue;
+    out.push(shape.chords
+      .map(([d, q], j) => `${degreeLabel(root, d)}${
+        j === i ? (quality === 'm' ? '' : 'm') : q}`)
+      .join(' - '));
+    // AND THE SAME CHORD WITH A SEVENTH ON IT — `pr-3` offered
+    // "G - Em - C - D7sus4" and `pr-18` "A - D - E7 only", so a
+    // wrong-flavour chord is a miss this family already made. Interior
+    // for the same reason as above.
+    out.push(shape.chords
+      .map(([d, q], j) => `${degreeLabel(root, d)}${
+        j === i ? `${quality}7` : q}`)
+      .join(' - '));
+  }
   // EVERY OPTION LANDS WHERE THE PROGRESSION LANDS. Two reasons, and
   // the second is the one that decided it. A wrong landing is the
   // weakest decoy on the card: the question names the key, so the 1 of
