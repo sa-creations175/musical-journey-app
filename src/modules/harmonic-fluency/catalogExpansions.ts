@@ -1828,6 +1828,19 @@ interface ProgressionShape {
   extra?: (root: string) => string[];
 }
 
+/**
+ * =====================================================================
+ * SIX, NOT TEN, AND THE FOUR THAT WENT ARE IN `catalog.ts`'s own note.
+ *
+ * A progression Silas has no reference for yet does not earn thirteen
+ * cards. The gospel walk-up, rhythm changes and the neo-soul cycle went
+ * on that rule; `6-4-1-5` went on a different one — it is the 1-5-6-4
+ * loop started in a different place (1-5-6-4, 5-6-4-1, 6-4-1-5, 4-1-5-6
+ * are one loop, four entry points), and `pr-9` teaches that rotation as
+ * a fact. `1-6-4-5` is a DIFFERENT loop, with the 6 straight after the
+ * 1, so it stays.
+ * =====================================================================
+ */
 const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
   {
     id: '1-5-6-4',
@@ -1861,16 +1874,6 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
       + 'pop ballads. Same chord set as 1-5-6-4, just rotated.',
   },
   {
-    id: '6-4-1-5',
-    facet: '6-4-1-5',
-    ask: k => `The 6-4-1-5 in ${k} major is _____`,
-    chords: [['6', 'm'], ['4', ''], ['1', ''], ['5', '']],
-    explain: (k, c) => `6-4-1-5 in ${k} is ${c.join(' → ')} — same four chords `
-      + 'as 1-5-6-4, just started from the vi. Starting on the minor makes the '
-      + 'song feel darker and more contemplative even though the chords '
-      + 'themselves are identical.',
-  },
-  {
     id: '1-6-2-5',
     facet: '1-6-2-5',
     ask: k => `The 1-6-2-5 in ${k} major is _____`,
@@ -1897,34 +1900,6 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
       + 'scaffolding.',
   },
   {
-    id: 'gospel-walk-up',
-    facet: 'gospel walk-up',
-    ask: k => `The gospel walk-up I-II-iii-IV in ${k} major is _____`,
-    chords: [['1', ''], ['2', ''], ['3', 'm'], ['4', '']],
-    explain: (_k, c) => `${c.join(' → ')} is the classic gospel walk-up — note `
-      + `the II is ${c[1]} MAJOR (a secondary dominant pointing at iii), not `
-      + `${c[1]}m. You hear this rising-line move in gospel and soul bridges `
-      + "constantly; it's a signature 'lift' device.",
-    // The II played minor — the mistake the explanation is written to
-    // catch, and the one `pr-5` led with.
-    extra: root => [[
-      degreeLabel(root, '1'), `${degreeLabel(root, '2')}m`,
-      `${degreeLabel(root, '3')}m`, degreeLabel(root, '4'),
-    ].join(' - ')],
-  },
-  {
-    id: 'rhythm-changes',
-    facet: 'rhythm changes',
-    ask: k => `Rhythm changes A section in ${k} major starts with _____`,
-    chords: [['1', 'maj7'], ['6', 'm7'], ['2', 'm7'], ['5', '7']],
-    // BARS, NOT ARROWS. `pr-6` wrote this one with pipes because it is
-    // a form rather than a loop, and that is kept.
-    explain: (k, c) => `Rhythm changes A-section in ${k}: ${c.join(' | ')} `
-      + "(I - vi - ii - V). Based on Gershwin's 'I Got Rhythm,' it's one of "
-      + 'the most-played forms in jazz — hundreds of bebop heads are written '
-      + 'over this 32-bar structure.',
-  },
-  {
     id: 'backdoor',
     facet: 'backdoor',
     ask: k => `The backdoor progression I-IV-bVII-I in ${k} major is _____`,
@@ -1940,16 +1915,6 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
       degreeLabel(root, '1'), degreeLabel(root, '4'),
       degreeLabel(root, '7'), degreeLabel(root, '1'),
     ].join(' - ')],
-  },
-  {
-    id: 'neo-soul',
-    facet: 'neo-soul',
-    ask: k => `The neo-soul cycle Imaj7-iii7-vi7-IVmaj7 in ${k} is _____`,
-    chords: [['1', 'maj7'], ['3', 'm7'], ['6', 'm7'], ['4', 'maj7']],
-    explain: (_k, c) => `${c.join(' → ')} is the neo-soul cycle — lush, `
-      + 'cycling, rarely fully resolving. Tom Misch, D’Angelo, Daniel Caesar, '
-      + 'and Snoh Aalegra tracks live in this kind of harmonic space where '
-      + 'everything stays beautifully suspended.',
   },
 ];
 
@@ -2011,65 +1976,69 @@ function progressionDecoyPool(
   const degrees = shape.chords.map(([d]) => d);
   const repeatsAllowed = degrees.length - new Set(degrees).size;
   const out: string[] = [...(shape.extra?.(root) ?? [])];
-  // THE RIGHT CHORD WITH THE WRONG QUALITY, position by position — a
-  // major triad played minor or a minor played major. It is the
-  // sharpest near-miss the family's own hand-written decoys made
-  // ("A - Dm - E" under `pr-18`, "F - Bbm - Eb - F" under `pr-7`), and
-  // a borrowed minor iv is a chord the deck teaches in its own right.
+  const write = (i: number, chord: string) => {
+    const text = shape.chords
+      .map(([d, q], j) => (j === i ? chord : `${degreeLabel(root, d)}${q}`))
+      .join(' - ');
+    if (text !== answer) out.push(text);
+  };
+
+  // =====================================================================
+  // THE FIRST CHORD AND THE LANDING ARE GIVEN; WHAT IS WRONG IS ON THE
+  // WAY. Both ends are fixed, and `findTells` is what fixed them.
   //
-  // IT IS ALSO WHAT MAKES A 1-4-5 CARD POSSIBLE AT ALL. Every chord in
-  // a 1-4-5 is major, so every DEGREE swap has to reach outside 1, 4
-  // and 5 — and in the key of E those are the only three chords with no
-  // sharp in them, which left the answer as the only plain name on
-  // screen and `chooseDecoys` refusing the card. Changing a quality
-  // keeps the letter, so it keeps the accidental.
-  // INTERIOR CHORDS ONLY, and the guard is what says so. A quality
-  // flip keeps the chord's letter, so on the FIRST or the LAST chord it
-  // produces a decoy whose first or last word is always the answer's
-  // plus an "m" — "a decoy ending Fm means the answer ends F", on every
-  // card of the shape. `findTells` reported nine of those the first
-  // time this ran. Flipping a chord in the middle changes nothing a
-  // tokeniser can see from the outside. It is also the same rule the
-  // degree swaps already follow: never the landing.
+  // THE LANDING, because a wrong one is the weakest decoy on the card —
+  // the question names the key, so the 1 of a 2-5-1 is already on
+  // screen — and because swapping it produced five cross-card tells
+  // ("an option ending C♯m means the answer ends E").
+  //
+  // THE FIRST CHORD, because five of the six generated progressions
+  // start on the 1. Any swap there makes a decoy that starts somewhere
+  // else, on every card of every one of those five, so "an option
+  // starting A♭m means the answer starts G♭" holds across the key. Six
+  // cards were given away that way the moment the list shrank from ten
+  // shapes to six.
+  //
+  // A rule-written decoy set repeats itself in a way a hand-written one
+  // does not, which is what makes both of these visible at all.
+  // =====================================================================
   for (let i = 1; i < shape.chords.length - 1; i += 1) {
-    const quality = shape.chords[i][1];
-    if (quality !== '' && quality !== 'm') continue;
-    out.push(shape.chords
-      .map(([d, q], j) => `${degreeLabel(root, d)}${
-        j === i ? (quality === 'm' ? '' : 'm') : q}`)
-      .join(' - '));
-    // AND THE SAME CHORD WITH A SEVENTH ON IT — `pr-3` offered
-    // "G - Em - C - D7sus4" and `pr-18` "A - D - E7 only", so a
-    // wrong-flavour chord is a miss this family already made. Interior
-    // for the same reason as above.
-    out.push(shape.chords
-      .map(([d, q], j) => `${degreeLabel(root, d)}${
-        j === i ? `${quality}7` : q}`)
-      .join(' - '));
-  }
-  // EVERY OPTION LANDS WHERE THE PROGRESSION LANDS. Two reasons, and
-  // the second is the one that decided it. A wrong landing is the
-  // weakest decoy on the card: the question names the key, so the 1 of
-  // a 2-5-1 is already on screen and a reader who has read the question
-  // can strike that option without knowing the progression at all.
-  // And swapping it produced a cross-card tell the guard caught — five
-  // of them, "an option ending C♯m means the answer ends E" and its
-  // like — because a rule-written decoy set repeats itself in a way a
-  // hand-written one does not. What differs is what happens on the way.
-  for (let i = 0; i < shape.chords.length - 1; i += 1) {
-    const seventh = shape.chords[i][1].includes('7');
+    const [own, quality] = shape.chords[i];
+    const seventh = quality.includes('7');
+
+    // A DIFFERENT CHORD OF THE KEY, at the same weight — a triad for a
+    // triad, a seventh for a seventh — so the options are the same
+    // length and spelled the same way and only knowing the progression
+    // separates them.
     for (const degree of ['2', '3', '6', '4', '5', '1']) {
-      if (degree === shape.chords[i][0]) continue;
+      if (degree === own) continue;
       const swapped = degrees.map((d, j) => (j === i ? degree : d));
       if (swapped.length - new Set(swapped).size !== repeatsAllowed) continue;
-      const text = shape.chords
-        .map(([d, q], j) => (j === i
-          ? `${degreeLabel(root, degree)}${
-            seventh ? DIATONIC_SEVENTH[degree] : DIATONIC_TRIAD[degree]}`
-          : `${degreeLabel(root, d)}${q}`))
-        .join(' - ');
-      if (text !== answer) out.push(text);
+      write(i, `${degreeLabel(root, degree)}${
+        seventh ? DIATONIC_SEVENTH[degree] : DIATONIC_TRIAD[degree]}`);
     }
+
+    // THE RIGHT CHORD WITH THE WRONG QUALITY — a major played minor, a
+    // dominant played minor. The sharpest near-miss the family's own
+    // hand-written decoys made: "A - Dm - E" on `pr-18`, "F - Bbm - Eb
+    // - F" on `pr-7`, and the whole question of whether the 5 of a
+    // 2-5-1 is a dominant or not.
+    //
+    // IT IS ALSO WHAT MAKES A 1-4-5 CARD POSSIBLE AT ALL. Every chord
+    // in a 1-4-5 is major, so every DEGREE swap has to reach outside
+    // the 1, the 4 and the 5 — and in the key of E those are the only
+    // three chords with no sharp in them, which left the answer as the
+    // only plain name on screen and `chooseDecoys` refusing the card.
+    // Changing a quality keeps the letter, so it keeps the accidental.
+    for (const other of seventh ? ['maj7', 'm7', '7'] : ['', 'm']) {
+      if (other === quality) continue;
+      write(i, `${degreeLabel(root, own)}${other}`);
+    }
+
+    // AND A TRIAD WITH A SEVENTH ON IT — `pr-3` offered
+    // "G - Em - C - D7sus4" and `pr-18` "A - D - E7 only", so a
+    // wrong-flavour chord is a miss this family already made.
+    if (!seventh) write(i, `${degreeLabel(root, own)}${quality}7`);
   }
   return [...new Set(out)];
 }

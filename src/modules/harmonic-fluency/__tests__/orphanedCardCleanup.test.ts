@@ -85,11 +85,18 @@ describe('the authorised set', () => {
     // Twelve for the 6/♭7 shape (ruling 30), two for the key
     // signatures that named two keys at once, five pentatonic formula
     // cards and twelve "share the same" ones (commit 8), and the
-    // fifteen interval inversion fact cards, and the four one-key
-    // progression cards.
-    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(50);
+    // fifteen interval inversion fact cards, the four one-key
+    // progression cards, and the four generated progressions that did
+    // not survive the family being read in full — 52 generated ids
+    // plus the four hand-written cards they folded in from.
+    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(106);
     expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => /^pr-\d+$/.test(id)))
-      .toEqual(['pr-11', 'pr-14', 'pr-15', 'pr-20']);
+      .toEqual(['pr-11', 'pr-14', 'pr-15', 'pr-20', 'pr-4', 'pr-5', 'pr-6', 'pr-10']);
+    // BOTH SIDES OF COMMIT 8'S FOLD-IN. A device that ran it holds the
+    // rows under the generated id; one that has not still holds them
+    // under `pr-5`. Thirteen keys x four shapes.
+    expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('pr-prog-')))
+      .toHaveLength(52);
     expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('iv-inv')))
       .toHaveLength(15);
     expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('sc-6-b7-')))

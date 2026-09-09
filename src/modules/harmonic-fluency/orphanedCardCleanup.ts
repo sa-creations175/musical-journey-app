@@ -122,6 +122,43 @@ export const REMOVED_WITHOUT_SUCCESSOR: ReadonlyArray<string> = [
   // `REMOVED_PROGRESSION_IDS` for the reasoning card by card; the
   // plagal vamp names no key and is the exception that stays.
   'pr-11', 'pr-14', 'pr-15', 'pr-20',
+  // THE FOUR GENERATED SETS THAT DID NOT SURVIVE THE FAMILY BEING READ
+  // IN FULL (9 Sep 2026). A progression Silas has no reference for yet
+  // does not earn thirteen cards — the gospel walk-up, rhythm changes
+  // and the neo-soul cycle. `6-4-1-5` went for a different reason: it
+  // is the 1-5-6-4 loop started in a different place, and `pr-9`
+  // teaches that rotation as a fact on its own.
+  //
+  // AND THE FOUR HAND-WRITTEN CARDS THEY FOLDED IN FROM, because the
+  // history is in two places. A device that ran commit 8's fold-in
+  // holds it under the generated id; one that has not still holds it
+  // under `pr-5`. Listing both sides is what makes the deletion
+  // complete on either.
+  'pr-4', 'pr-5', 'pr-6', 'pr-10',
+  'pr-prog-6-4-1-5-C', 'pr-prog-6-4-1-5-Db', 'pr-prog-6-4-1-5-D',
+  'pr-prog-6-4-1-5-Eb', 'pr-prog-6-4-1-5-E', 'pr-prog-6-4-1-5-F',
+  'pr-prog-6-4-1-5-F#', 'pr-prog-6-4-1-5-Gb', 'pr-prog-6-4-1-5-G',
+  'pr-prog-6-4-1-5-Ab', 'pr-prog-6-4-1-5-A', 'pr-prog-6-4-1-5-Bb',
+  'pr-prog-6-4-1-5-B',
+  'pr-prog-gospel-walk-up-C', 'pr-prog-gospel-walk-up-Db',
+  'pr-prog-gospel-walk-up-D', 'pr-prog-gospel-walk-up-Eb',
+  'pr-prog-gospel-walk-up-E', 'pr-prog-gospel-walk-up-F',
+  'pr-prog-gospel-walk-up-F#', 'pr-prog-gospel-walk-up-Gb',
+  'pr-prog-gospel-walk-up-G', 'pr-prog-gospel-walk-up-Ab',
+  'pr-prog-gospel-walk-up-A', 'pr-prog-gospel-walk-up-Bb',
+  'pr-prog-gospel-walk-up-B',
+  'pr-prog-rhythm-changes-C', 'pr-prog-rhythm-changes-Db',
+  'pr-prog-rhythm-changes-D', 'pr-prog-rhythm-changes-Eb',
+  'pr-prog-rhythm-changes-E', 'pr-prog-rhythm-changes-F',
+  'pr-prog-rhythm-changes-F#', 'pr-prog-rhythm-changes-Gb',
+  'pr-prog-rhythm-changes-G', 'pr-prog-rhythm-changes-Ab',
+  'pr-prog-rhythm-changes-A', 'pr-prog-rhythm-changes-Bb',
+  'pr-prog-rhythm-changes-B',
+  'pr-prog-neo-soul-C', 'pr-prog-neo-soul-Db', 'pr-prog-neo-soul-D',
+  'pr-prog-neo-soul-Eb', 'pr-prog-neo-soul-E', 'pr-prog-neo-soul-F',
+  'pr-prog-neo-soul-F#', 'pr-prog-neo-soul-Gb', 'pr-prog-neo-soul-G',
+  'pr-prog-neo-soul-Ab', 'pr-prog-neo-soul-A', 'pr-prog-neo-soul-Bb',
+  'pr-prog-neo-soul-B',
 ];
 
 /** One card whose rows are kept, and what a reader wrote on it. */

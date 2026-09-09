@@ -150,16 +150,13 @@ const PROGRESSION_WORDS: Readonly<Record<string, string>> = {
   'V/V': '5 of 5',
   'V/vi': '5 of 6',
   '1-5-6-4': '1 5 6 4',
-  // SIX ADDED IN COMMIT 8, AND NONE OF IT IS NEW COPY. The numbered
-  // three take ruling 26's own rule — dashes become spaces. The named
-  // three are the words the family's own question sentences already
-  // use: "The gospel walk-up I-II-iii-IV in C major", "Rhythm changes A
-  // section", "The neo-soul cycle". `backdoor` needs no entry at all;
-  // it prints as stored.
+  // ONE ENTRY PER GENERATED PROGRESSION, AND NONE OF IT IS NEW COPY.
+  // Ruling 26's own rule — dashes become spaces.
+  //
+  // `6-4-1-5`, `gospel walk-up`, `rhythm changes` and `neo-soul` WERE
+  // HERE and went with their cards: a chip for a progression the deck
+  // no longer generates is a filter that finds nothing.
   '1-6-4-5': '1 6 4 5',
-  '6-4-1-5': '6 4 1 5',
-  // The turnaround and the 1-4-5, added when they joined the generated
-  // set. Same rule again, and no new words.
   '1-6-2-5': '1 6 2 5',
   '1-4-5': '1 4 5',
   'gospel walk-up': 'gospel walk-up',

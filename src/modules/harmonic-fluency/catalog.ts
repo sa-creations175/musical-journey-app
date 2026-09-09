@@ -1270,6 +1270,19 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
  * one key teaches a shape in the one place a reader least needs it and
  * reads as coverage the family does not have.
  *
+ * FOUR MORE WENT ON 9 SEP, WITH THE GENERATED SETS THEY FOLDED INTO.
+ * A progression Silas has no reference for yet does not earn thirteen
+ * cards: `pr-5`'s gospel walk-up, `pr-6`'s rhythm changes and `pr-10`'s
+ * neo-soul cycle. `pr-4`'s 6-4-1-5 went for a different reason — it is
+ * the 1-5-6-4 loop started in a different place, and `pr-9` teaches
+ * that rotation as a fact on its own.
+ *
+ * THEIR HISTORY IS IN TWO PLACES AND BOTH ARE AUTHORISED. Commit 8
+ * moved each one's rows onto its generated twin, so a device that has
+ * run that migration holds them at `pr-prog-gospel-walk-up-C` and a
+ * device that has not still holds them at `pr-5`. Every id from both
+ * sides is in `REMOVED_WITHOUT_SUCCESSOR`.
+ *
  * `pr-11` was the descending minor i-♭VII-♭VI-V in A MINOR, and the
  * thirteen keys are a major-key vocabulary — read as minor tonics they
  * would name D♭ minor and G♭ minor. `pr-14` was the Dorian vamp, in a
@@ -1302,23 +1315,6 @@ const PROGRESSION_CARDS_ALL: Flashcard[] = [
     decoys: ['G - Am - C - D', 'G - Em - Am - D', 'G - Em - C - D7sus4'],
     explanation: "1-6-4-5 in G is G → Em → C → D — the 50s doo-wop progression that became the bedrock of countless soul, gospel, and pop ballads. Same chord set as 1-5-6-4, just rotated.",
     skillTag: 'progression-1-6-4-5-in-G' },
-  { id: 'pr-4', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The 6-4-1-5 in D major is _____', correctAnswer: 'Bm - G - D - A',
-    decoys: ['Bm - Em - D - A', 'Gm - G - D - A', 'Bm - G - Dsus4 - A'],
-    explanation: "6-4-1-5 in D is Bm → G → D → A — same four chords as 1-5-6-4, just started from the vi. Starting on the minor makes the song feel darker and more contemplative even though the chords themselves are identical.",
-    skillTag: 'progression-6-4-1-5-in-D' },
-  { id: 'pr-5', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The gospel walk-up I-II-iii-IV in C major is _____',
-    correctAnswer: 'C - D - Em - F',
-    decoys: ['C - Dm - Em - F', 'C - D - E - F', 'C - D7 - Em - F'],
-    explanation: "C → D → Em → F is the classic gospel walk-up — note the II is D MAJOR (a secondary dominant pointing at iii), not Dm. You hear this rising-line move in gospel and soul bridges constantly; it's a signature 'lift' device.",
-    skillTag: 'progression-gospel-walkup-in-C' },
-  { id: 'pr-6', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'Rhythm changes A section in Bb major starts with _____',
-    correctAnswer: 'Bbmaj7 - Gm7 - Cm7 - F7',
-    decoys: ['Bbmaj7 - Dm7 - Cm7 - F7', 'Bbmaj7 - Gm7 - Am7 - Dm7', 'Bbmaj7 - Eb7 - Cm7 - F7'],
-    explanation: "Rhythm changes A-section: Bbmaj7 | Gm7 | Cm7 | F7 (I - vi - ii - V). Based on Gershwin's 'I Got Rhythm,' it's one of the most-played forms in jazz — hundreds of bebop heads are written over this 32-bar structure.",
-    skillTag: 'progression-rhythm-changes-in-Bb' },
   { id: 'pr-7', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'The backdoor progression I-IV-bVII-I in F major is _____',
     correctAnswer: 'F - Bb - Eb - F',
@@ -1337,12 +1333,6 @@ const PROGRESSION_CARDS_ALL: Flashcard[] = [
     decoys: ['The chord qualities', 'The key', 'The duration of each chord'],
     explanation: "1-5-6-4 and 6-4-1-5 use the same four chords — a rotation, just started at different points. That's why you hear these progressions in thousands of songs but they feel different: the starting point (and which chord becomes the emotional 'home' base) changes the whole mood.",
     skillTag: 'progression-rotation-concept' },
-  { id: 'pr-10', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The neo-soul cycle Imaj7-iii7-vi7-IVmaj7 in C is _____',
-    correctAnswer: 'Cmaj7 - Em7 - Am7 - Fmaj7',
-    decoys: ['Cmaj7 - Dm7 - Am7 - Fmaj7', 'Cmaj7 - Em7 - Am7 - Dm7', 'Cmaj7 - Em7 - Am - F'],
-    explanation: "Cmaj7 → Em7 → Am7 → Fmaj7 is the neo-soul cycle — lush, cycling, rarely fully resolving. Tom Misch, D'Angelo, Daniel Caesar, and Snoh Aalegra tracks live in this kind of harmonic space where everything stays beautifully suspended.",
-    skillTag: 'progression-neo-soul-in-C' },
   { id: 'pr-12', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'In the 12-bar blues, bars 5-6 typically go to which chord?',
     correctAnswer: 'IV7',
@@ -1407,11 +1397,7 @@ const RETIRED_PROGRESSION_IDS: ReadonlySet<string> = new Set([
   'pr-1',  // 1-5-6-4 in C
   'pr-2',  // 2-5-1 in B♭
   'pr-3',  // 1-6-4-5 in G
-  'pr-4',  // 6-4-1-5 in D
-  'pr-5',  // the gospel walk-up in C
-  'pr-6',  // rhythm changes in B♭
   'pr-7',  // the backdoor in F
-  'pr-10', // the neo-soul cycle in C
   // 9 Sep, the follow-ups: 1-4-5 joined the generated set and `pr-18`
   // asks its exact question and gives its exact answer in A, so it
   // pairs and its history moves. The turnaround has no such card — see

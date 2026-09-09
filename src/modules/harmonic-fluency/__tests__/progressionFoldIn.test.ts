@@ -59,10 +59,13 @@ beforeEach(async () => {
 describe('which generated card each retired one became', () => {
   const { moves, unpaired } = progressionMapping();
 
-  it('pairs all twenty-six and leaves none behind', () => {
-    // Fifteen progression cards and the eleven ii-V-I cadences.
-    expect(retiredProgressionCards()).toHaveLength(26);
-    expect(moves).toHaveLength(26);
+  it('pairs all twenty-two and leaves none behind', () => {
+    // Eleven progression cards and the eleven ii-V-I cadences. It was
+    // twenty-six: `pr-4`, `pr-5`, `pr-6` and `pr-10` folded into four
+    // generated sets that have since left the deck, so they are
+    // deletions now rather than fold-ins and are not in this list.
+    expect(retiredProgressionCards()).toHaveLength(22);
+    expect(moves).toHaveLength(22);
     expect(unpaired).toEqual([]);
   });
 
@@ -70,10 +73,8 @@ describe('which generated card each retired one became', () => {
     const by = new Map(moves.map(m => [m.from, m.to]));
     expect(by.get('pr-1')).toBe('pr-prog-1-5-6-4-C');
     expect(by.get('pr-2')).toBe('pr-prog-2-5-1-Bb');
-    expect(by.get('pr-5')).toBe('pr-prog-gospel-walk-up-C');
-    expect(by.get('pr-6')).toBe('pr-prog-rhythm-changes-Bb');
+    expect(by.get('pr-3')).toBe('pr-prog-1-6-4-5-G');
     expect(by.get('pr-7')).toBe('pr-prog-backdoor-F');
-    expect(by.get('pr-10')).toBe('pr-prog-neo-soul-C');
     // The 1-4-5 joined the generated set on 9 Sep and `pr-18` asked its
     // question in A word for word.
     expect(by.get('pr-18')).toBe('pr-prog-1-4-5-A');
@@ -183,19 +184,36 @@ describe('the one-offs that stay are untouched', () => {
 
   it('keeps every card that names no key', () => {
     // Ruled explicitly: the rotation card, the 12-bar structure and the
-    // rest stay prose.
+    // rest stay prose. `pr-9` matters more now than it did — 6-4-1-5
+    // left the deck as a rotation of the 1-5-6-4, and this is the card
+    // that carries that idea.
     for (const id of ['pr-8', 'pr-9', 'pr-12', 'pr-16', 'pr-17', 'pr-19']) {
       expect(ids.has(id), id).toBe(true);
     }
   });
 
-  it('removes the four one-key cards outright, and keeps the bossa', () => {
+  it('generates six progressions, not ten', () => {
+    // The gospel walk-up, rhythm changes and the neo-soul cycle went
+    // for want of a reference; 6-4-1-5 went as a rotation of the
+    // 1-5-6-4 loop. `1-6-4-5` is a different loop — the 6 straight
+    // after the 1 — and stays.
+    const shapes = new Set(
+      FLASHCARDS.filter(c => c.id.startsWith('pr-prog-'))
+        .map(c => String(c.axis!.shape)),
+    );
+    expect([...shapes].sort()).toEqual(
+      ['1-4-5', '1-5-6-4', '1-6-2-5', '1-6-4-5', 'backdoor', 'ii-V-I'],
+    );
+  });
+
+  it('removes the one-key cards outright, and keeps the bossa', () => {
     // A progression is in every key or it is not in the deck. The
     // descending minor, the Dorian vamp, 4-1-5-6 and 1-♭7-4 are gone
     // with their history — REMOVALS, not fold-ins, so they are in
     // `REMOVED_WITHOUT_SUCCESSOR` and not in the retired list here.
     const retired = new Set(retiredProgressionCards().map(c => c.id));
-    for (const id of ['pr-11', 'pr-14', 'pr-15', 'pr-20']) {
+    for (const id of ['pr-11', 'pr-14', 'pr-15', 'pr-20',
+      'pr-4', 'pr-5', 'pr-6', 'pr-10']) {
       expect(ids.has(id), id).toBe(false);
       expect(retired.has(id), id).toBe(false);
     }
@@ -222,19 +240,19 @@ describe('the one-offs that stay are untouched', () => {
 
 describe('what follows the card', () => {
   it('moves the spacing row, its flags, the attempts, the annotation and the diary', async () => {
-    await db.spacingState.add(spacingRow('pr-5'));
+    await db.spacingState.add(spacingRow('pr-3'));
     await db.attempts.bulkAdd([
-      { id: 'a1', moduleId: MODULE, itemId: 'pr-5', timestamp: T, isCorrect: true },
-      { id: 'a2', moduleId: MODULE, itemId: 'pr-5', timestamp: T + 1, isCorrect: false },
+      { id: 'a1', moduleId: MODULE, itemId: 'pr-3', timestamp: T, isCorrect: true },
+      { id: 'a2', moduleId: MODULE, itemId: 'pr-3', timestamp: T + 1, isCorrect: false },
     ] as never[]);
     await db.skillAnnotations.add({
-      skillId: canonicalSkillId(MODULE, 'card', 'pr-5'),
-      priority: 'high', tags: ['gospel'], note: 'the lift',
+      skillId: canonicalSkillId(MODULE, 'card', 'pr-3'),
+      priority: 'high', tags: ['gospel'], note: 'the doo-wop one',
       createdAt: T, updatedAt: T,
     } as never);
     await db.harmonicDiaryEntries.add({
-      entryId: 'hd-1', skillId: canonicalSkillId(MODULE, 'card', 'pr-5'),
-      userText: 'every bridge I have ever played', createdAt: T, updatedAt: T,
+      entryId: 'hd-1', skillId: canonicalSkillId(MODULE, 'card', 'pr-3'),
+      userText: 'every ballad I have ever played', createdAt: T, updatedAt: T,
     } as never);
 
     const r = await foldInProgressionCards();
@@ -244,19 +262,19 @@ describe('what follows the card', () => {
     });
 
     const moved = (await db.spacingState.toArray())[0];
-    expect(moved.itemRef).toBe('pr-prog-gospel-walk-up-C');
+    expect(moved.itemRef).toBe('pr-prog-1-6-4-5-G');
     expect(moved.studyLater).toBe(true);
     expect(moved.reviewFlagNote).toBe('the II is major');
     // The primary key does not move — what makes the two-device case an
     // upsert rather than a delete. See `cardRowMove`.
-    expect(moved.id).toBe(spacingRowId(MODULE, 'pr-5', 'both'));
+    expect(moved.id).toBe(spacingRowId(MODULE, 'pr-3', 'both'));
 
     expect((await db.attempts.toArray()).map(a => a.itemId))
-      .toEqual(['pr-prog-gospel-walk-up-C', 'pr-prog-gospel-walk-up-C']);
+      .toEqual(['pr-prog-1-6-4-5-G', 'pr-prog-1-6-4-5-G']);
     expect((await db.skillAnnotations.toArray())[0].skillId)
-      .toBe(canonicalSkillId(MODULE, 'card', 'pr-prog-gospel-walk-up-C'));
+      .toBe(canonicalSkillId(MODULE, 'card', 'pr-prog-1-6-4-5-G'));
     expect((await db.harmonicDiaryEntries.toArray())[0].skillId)
-      .toBe(canonicalSkillId(MODULE, 'card', 'pr-prog-gospel-walk-up-C'));
+      .toBe(canonicalSkillId(MODULE, 'card', 'pr-prog-1-6-4-5-G'));
   });
 
   it('touches nothing belonging to a card that stayed', async () => {

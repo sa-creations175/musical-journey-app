@@ -199,14 +199,15 @@ export const FACET_VALUES: Readonly<Record<FacetName, readonly (string | number)
   // ONE ROW, FOUR CHIPS (ruling 26). The three that were `cadence`
   // first, in the order the module teaches them, then the one that was
   // already here.
-  // FOUR CHIPS BECAME TEN IN COMMIT 8 — not a new filter row, the same
-  // row with the progressions the deck did not previously generate.
+  // FOUR CHIPS, THEN TWELVE, AND EIGHT ONCE THE FAMILY WAS READ IN
+  // FULL — not a new filter row, the same row with whatever the deck
+  // actually generates.
   // `ii-V-I` covers both families: Functional Harmony's 2-5-1 cadence
   // and Progression Vocabulary's 2-5-1 are the same little progression,
   // which is ruling 26's own argument.
   progression: [
-    'ii-V-I', 'V/V', 'V/vi', '1-5-6-4', '1-6-4-5', '6-4-1-5', '1-6-2-5',
-    '1-4-5', 'gospel walk-up', 'rhythm changes', 'backdoor', 'neo-soul',
+    'ii-V-I', 'V/V', 'V/vi', '1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5',
+    'backdoor',
   ],
   // DERIVED FROM THE GENERATOR'S OWN LIST. Ruling 30 changed the
   // shapes, and a vocabulary written out again here is a vocabulary

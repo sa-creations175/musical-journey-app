@@ -230,10 +230,10 @@ describe('absent means flat list, not broken', () => {
       // 36 before commit 8, when five formula cards carried none.
       // Every pentatonic card has a root now.
       'pentatonic-scales': 38,
-      // 6 before commit 8 — one shape in six keys. Ten named
+      // 6 before commit 8 — one shape in six keys. Six named
       // progressions across thirteen keys now, under a prefix that has
       // never existed.
-      'progressions': 130,
+      'progressions': 78,
       // 44 before ruling 30: eleven keys x four shapes. Seven shapes
       // across thirteen keys now — ruling 37 took the three
       // hand-written C cards that kept the generator out of that key,

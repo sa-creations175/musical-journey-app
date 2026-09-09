@@ -70,7 +70,12 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 178 + 278 = 1548
+// Harmonic Fluency — 949 + 143 + 126 + 278 = 1496
+// (9 Sep 2026, the family read in full: 1548 → 1496. The generated
+//  progression list settles at six — the gospel walk-up, rhythm
+//  changes, the neo-soul cycle and 6-4-1-5 went, with the four
+//  hand-written cards they folded in from. Progressions 137 → 85,
+//  functionalApplied 178 → 126.)
 // (9 Sep 2026, progression follow-ups: 1559 → 1548. The 2-5-1 lives
 //  once: Functional Harmony's eleven `fh-ii-v-i-` cards fold into
 //  Progression Vocabulary's thirteen, which already asked the same
@@ -160,16 +165,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
-  it('functionalApplied = fh 41 + pr 137 = 178', () => {
-    expect(c.byGroup.functionalApplied).toBe(178);
+  it('functionalApplied = fh 41 + pr 85 = 126', () => {
+    expect(c.byGroup.functionalApplied).toBe(126);
   });
 
   it('earRecognition = mo 107 + iv 156 + et 15 = 278', () => {
     expect(c.byGroup.earRecognition).toBe(278);
   });
 
-  it('total = 1548 across all 13 categories', () => {
-    expect(c.total).toBe(1548);
+  it('total = 1496 across all 13 categories', () => {
+    expect(c.total).toBe(1496);
   });
 
   it('total equals sum of group totals', () => {
