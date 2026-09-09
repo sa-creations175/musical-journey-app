@@ -48,7 +48,7 @@
 import { retiredModeOfCards } from './catalogExpansions';
 import {
   describeFoldIn, foldInByIdentity, identityMapping,
-  type FoldInReport, type RetiredCard,
+  type FoldInReport, type RetiredCard, type RuledByAnswer,
 } from './foldInByIdentity';
 
 /**
@@ -60,6 +60,27 @@ export const RETIRED_C_MODE_CARDS: ReadonlyArray<RetiredCard> = [
   { id: 'mo-12', question: 'The mode of C major starting on D is _____', correctAnswer: 'D Dorian' },
   { id: 'mo-13', question: 'The mode of C major starting on G is _____', correctAnswer: 'G Mixolydian' },
 ];
+
+/**
+ * The three hand-written C cards can no longer pair on text.
+ *
+ * "The mode of C major starting on A is _____" is "The mode of the key
+ * of C major starting on A is _____" now — Silas's standing rule of
+ * 9 Sep 2026. The thirty-three generated ones are RE-DERIVED from the
+ * generator the live cards share, so their recorded text moved with it
+ * and they still pair on the question; these three are frozen literals
+ * and do not.
+ *
+ * SAFE BECAUSE A MODE NAMES ITSELF. "A Aeolian" is the answer of
+ * exactly one live card — the mode of the key of C major on its 6 —
+ * and no other key produces it.
+ */
+const RULED_BY_THE_KEY_CLAUSE: ReadonlyArray<RuledByAnswer> =
+  RETIRED_C_MODE_CARDS.map(c => ({
+    from: c.id,
+    why: 'the question names the key as a key now ("the mode of the key of '
+      + 'C major"); the mode it answers is given by one live card',
+  }));
 
 /** Every mode card that has left the deck, as it was. */
 export function retiredModeCards(): RetiredCard[] {
@@ -74,11 +95,11 @@ export function retiredModeCards(): RetiredCard[] {
 /** Old id → new id, derived from the live deck and asserted card by
  *  card. See `foldInByIdentity` for what "the same card" means. */
 export function modeMapping() {
-  return identityMapping(retiredModeCards());
+  return identityMapping(retiredModeCards(), undefined, RULED_BY_THE_KEY_CLAUSE);
 }
 
 export async function foldInModeCards(): Promise<FoldInReport> {
-  return foldInByIdentity(retiredModeCards());
+  return foldInByIdentity(retiredModeCards(), RULED_BY_THE_KEY_CLAUSE);
 }
 
 export function describeModeFoldIn(r: FoldInReport): string | null {

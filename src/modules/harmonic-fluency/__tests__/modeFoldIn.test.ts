@@ -77,9 +77,35 @@ describe('which new card each retired one became', () => {
   it('proves each with the same question and the same answer', () => {
     const live = new Map(FLASHCARDS.map(c => [c.id, c]));
     const old = new Map(retiredModeCards().map(c => [c.id, c]));
+    // THE THREE HAND-WRITTEN C CARDS ARE PROVED ON THE ANSWER ALONE,
+    // in the block below: the question names the key as a key now
+    // ("the mode of the key of C major") and their frozen records do
+    // not. The thirty-three generated ones are re-derived from the
+    // generator the live cards share, so they still match byte for
+    // byte — which is what this asserts.
+    const ruled = new Set(['mo-11', 'mo-12', 'mo-13']);
     for (const { from, to } of moves) {
+      if (ruled.has(from)) continue;
       expect(live.get(to)!.question, from).toBe(old.get(from)!.question);
       expect(live.get(to)!.correctAnswer, from).toBe(old.get(from)!.correctAnswer);
+    }
+  });
+
+  it('proves the three on the answer, which one card gives', () => {
+    const live = new Map(FLASHCARDS.map(c => [c.id, c]));
+    const old = new Map(retiredModeCards().map(c => [c.id, c]));
+    for (const from of ['mo-11', 'mo-12', 'mo-13']) {
+      const to = new Map(moves.map(m => [m.from, m.to])).get(from)!;
+      const answer = old.get(from)!.correctAnswer;
+      expect(live.get(to)!.correctAnswer, from).toBe(answer);
+      // And it is the ONLY card that gives it, which is what makes the
+      // answer a proof rather than a guess.
+      expect(FLASHCARDS.filter(c => c.correctAnswer === answer), from)
+        .toHaveLength(1);
+      // The question moved, and moved in exactly one way.
+      expect(live.get(to)!.question, from)
+        .toBe(old.get(from)!.question.replace('The mode of C major',
+          'The mode of the key of C major'));
     }
   });
 

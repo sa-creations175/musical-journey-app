@@ -104,51 +104,43 @@ would be the row a reader has to know is the same row.
 
 Approved by Silas, 9 Sep 2026. A standing rule, not a one-family one.
 
-**A key is always written "the key of C major" or "the key of C minor".** Never a
-bare letter, and never "C" alone. A capital letter on its own mid-sentence reads
-as a stray word rather than as a key, which is the confusion `CLAUDE.md` records
-as having been caused more than once.
-
-Applied so far to **Modal Improvisation's question**, which now reads:
+**A key is written "the key of C major" or "the key of C minor".** Never a bare
+letter, never "C" alone, and never "C major" without "the key of" where the
+sentence is about the key. A capital letter on its own mid-sentence reads as a
+stray word rather than as a key, which is the confusion `CLAUDE.md` records as
+having been caused more than once.
 
 ```
 In the key of C major, the band is on D7 (5 of 5). Which notes fit?
 ```
 
-**Not yet applied elsewhere.** That family's own explanations still say "the 2 of
-C", and the other families still ask "The 2-5-1 in B♭ major is _____". Those are
-a separate pass and are not covered by this entry.
+**Applied across the deck** — every generated question and explanation where a
+key is named, and the hand-written prose cards with it:
 
----
+| family | now reads |
+|---|---|
+| Progression Vocabulary | The 2-5-1 in the key of B♭ major is _____ |
+| Mode Identification | The mode of the key of C major starting on D is _____ |
+| Notes of the Number System | In the key of C major, what is the ♭6? |
+| Functional Harmony | V/vi in the key of C major resolves to _____ |
+| Pentatonic Scales | You're in the key of C major. Which minor pentatonic fits… |
+| Key Signatures | The parallel minor of the key of D major is _____ |
+| Modal Improvisation | Dm is the 2 of the key of C major. |
 
-## The minor-target sentence
+**A chord is not a key and a scale is not a key.** "Cm7", "the 5 of G" where G is
+a chord, "E♭ major pentatonic", "D melodic minor" and "A Aeolian" all stay as
+they are. Interval cards name two notes and no key, so none of them changed.
 
-Approved by Silas, 9 Sep 2026. Modal Improvisation's `5 of 2`, `5 of 3` and
-`5 of 6` cards, generated per card so the chords, the numbers and the key are
-the card's own. This is the `5 of 6` in the key of C major:
-
-```
-When a secondary dominant takes you to a minor chord, improvise over that
-dominant with the melodic minor of the chord you're landing on, which is just
-that chord's major scale with a ♭3. Here E7 (the 3 as a dominant, the 5 of 6)
-lands on Am (the 6m), so while you're on the E7 play A melodic minor: A major
-with a C (♭3) instead of a C♯ (3). Once you land, you're back in the key. The
-marked notes are the ones the key of C major does not have.
-```
-
-The number in the first bracket is **the dominant's own degree in the key** —
-`5 of 2` is the 6, `5 of 3` is the 7, `5 of 6` is the 3. The second is the
-target's degree with "m". The two notes in the last clause are the target's 3
-and ♭3, spelled in the target's key.
-
-**It replaced "For a minor target that is just C major with one note raised: the
-E7 chord's third"**, which was true on a `5 of 2` and on nothing else. It also
-takes the "highlighted notes" sentence with it — its own last clause says the
-same thing — so a minor-target card carries one such clause and not two.
-
-**"an F", not "a F".** Silas's example is "a C (♭3) instead of a C♯ (3)", which
-is right for C and wrong for A, E and F. The letter decides the article and the
-accidental never does — the same rule the Distance chips already take.
+**Three question shapes are held back, and it is a history decision, not a copy
+one.** `X major has _____ sharps`, `The relative minor of X major is _____` and
+`The relative major of X minor is _____` in Key Signatures, and
+`What is 1/3 in X major?` in Slash Chords, are the questions that retired
+hand-written cards pair onto by asking the identical sentence. Their answers —
+"1", "A minor", "C/E" — are each given by more than one live card, so the ruled
+answer-only route cannot prove the pairing and rewording them would orphan a
+reader's practice rather than move it. **Their explanations take the phrase**,
+because nothing pairs on an explanation. The generators say so where they are
+written.
 
 ---
 

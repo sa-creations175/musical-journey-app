@@ -200,7 +200,7 @@ describe('the category as it now ships', () => {
   it('asks which minor pentatonic to play, not what two scales share', () => {
     const lick = cards().find(c => c.id === 'pent-lick-Ab')!;
     expect(lick.question)
-      .toBe("You're in the key of A♭. Which minor pentatonic fits for riffs and licks?");
+      .toBe("You're in the key of A♭ major. Which minor pentatonic fits for riffs and licks?");
     expect(lick.correctAnswer).toBe('F minor pentatonic');
   });
 

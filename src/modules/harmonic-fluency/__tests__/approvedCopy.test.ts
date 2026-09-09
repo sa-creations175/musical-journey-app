@@ -32,6 +32,7 @@ import { HEAR_IT_LABEL } from '../CardPlayback';
 import { DEGREE_MATH_CATEGORY_NAME } from '../scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, placeItCards } from '../degreeNoteCards';
 import { MODAL_IMPROV_DESCRIPTION } from '../modalImprovisation';
+import { withAccidentalGlyphs } from '../../reading/pitch';
 import { skillDescriptionFor } from '../../dashboard/read/affordances';
 import type { TreeNode } from '../../dashboard/read/tree';
 
@@ -147,50 +148,70 @@ describe('key names carry their mode', () => {
     }
   });
 
-  it('says the rule is not applied elsewhere yet', () => {
-    // Named rather than merely untrue. The other families still ask
-    // "The 2-5-1 in B♭ major is _____", and a rule recorded as though
-    // it were deck-wide is a rule the next reader would assume held.
-    expect(COPY).toContain('Not yet applied elsewhere');
-    expect(FLASHCARDS.find(c => c.id === 'pr-prog-2-5-1-Bb')?.question)
-      .toBe('The 2-5-1 in B♭ major is _____');
-  });
-});
-
-describe('the minor-target sentence', () => {
-  const MINOR_TARGETS = ['5of2', '5of3', '5of6'];
-  const minorCards = FLASHCARDS.filter(
-    c => MINOR_TARGETS.some(t => c.id.startsWith(`mi-modal-${t}-`)));
-
-  it('reads on the 5 of 6 in C exactly as the file says', () => {
-    const card = FLASHCARDS.find(c => c.id === 'mi-modal-5of6-C')!;
-    expect(card.explanation).toContain(blockUnder('The minor-target sentence'));
-  });
-
-  it('is on all 39 minor-target cards, and only those', () => {
-    expect(minorCards).toHaveLength(39);
-    const opening = 'When a secondary dominant takes you to a minor chord';
-    for (const c of minorCards) expect(c.explanation, c.id).toContain(opening);
-    const others = FLASHCARDS.filter(
-      c => c.category === 'modal-improvisation' && !minorCards.includes(c));
-    for (const c of others) expect(c.explanation, c.id).not.toContain(opening);
+  it('is applied to the other families too', () => {
+    // The rule was Modal Improvisation's alone for an afternoon. It is
+    // the deck's now, and this asserts one card per family rather than
+    // trusting the document's own table.
+    const asks = (id: string) => FLASHCARDS.find(c => c.id === id)?.question;
+    expect(asks('pr-prog-2-5-1-Bb'))
+      .toBe('The 2-5-1 in the key of B♭ major is _____');
+    expect(asks('mo-mode-C-2'))
+      .toBe('The mode of the key of C major starting on D is _____');
+    expect(asks('dgn-C-b6')).toBe('In the key of C major, what is the ♭6?');
+    expect(asks('fh-v-of-vi-Db'))
+      .toBe('V/vi in the key of D♭ major resolves to _____');
+    expect(asks('ks-parallel-Db'))
+      .toBe('The parallel minor of the key of D♭ major is _____');
+    expect(asks('pent-lick-C')).toBe(
+      "You're in the key of C major. Which minor pentatonic fits for riffs "
+      + 'and licks?');
   });
 
-  it('says the marked notes once, and never the old claim', () => {
-    for (const c of minorCards) {
-      expect(c.explanation, c.id).not.toContain('one note raised');
-      expect(c.explanation, c.id).not.toContain('highlighted notes');
-      const marked = (c.explanation ?? '').split('The marked notes are').length - 1;
-      expect(marked, c.id).toBe(1);
-    }
+  it('leaves a chord and a scale alone, because neither is a key', () => {
+    const expl = (id: string) => FLASHCARDS.find(c => c.id === id)?.explanation;
+    // "the 5 of G" — G is the chord it resolves to, not a key.
+    expect(expl('mi-modal-5of5-C')).toContain('it is the 5 of G.');
+    // A scale name keeps its own shape.
+    expect(FLASHCARDS.find(c => c.id === 'pent-notes-minor-C')?.question)
+      .toBe('In C minor pentatonic, the notes are _____');
+    // And an interval card names no key at all.
+    expect(FLASHCARDS.find(c => c.id === 'iv-C-up-2')?.question)
+      .toBe('The interval from C to D ascending = ?');
   });
 
-  it('gets the article right on every note it names', () => {
-    // "an F", not "a F". A, E and F are said with a vowel however they
-    // are spelled after the letter.
-    for (const c of minorCards) {
-      expect(c.explanation, c.id).not.toMatch(/\ba [AEF]/);
-      expect(c.explanation, c.id).not.toMatch(/\ban [BCDG]/);
+  it('names the four questions held back, and why', () => {
+    // A HISTORY DECISION, NOT A COPY ONE. Retired hand-written cards
+    // pair onto these by asking the identical sentence, and their
+    // answers are each given by more than one live card — so the ruled
+    // answer-only route cannot prove the pairing.
+    expect(COPY).toContain('Three question shapes are held back');
+    const asks = (id: string) => FLASHCARDS.find(c => c.id === id)?.question;
+    expect(asks('ks-count-G')).toBe('G major has _____ sharps');
+    expect(asks('ks-relminor-C')).toBe('The relative minor of C major is _____');
+    expect(asks('ks-relmajor-C')).toBe('The relative major of A minor is _____');
+    expect(asks('sc-slash-1-3-C')).toBe('What is 1/3 in C major?');
+    // Their EXPLANATIONS take it, because nothing pairs on one.
+    expect(FLASHCARDS.find(c => c.id === 'ks-count-G')?.explanation)
+      .toContain('The key of G major has');
+    expect(FLASHCARDS.find(c => c.id === 'sc-slash-1-3-C')?.explanation)
+      .toContain('in the key of C major');
+  });
+
+  it('never names a key without "the key of", anywhere in the deck', () => {
+    // THE RULE ITSELF, asserted rather than illustrated: wherever a
+    // card's OWN key appears followed by "major" or "minor", it is
+    // preceded by "the key of". A chord ("the 5 of G") and a scale
+    // ("D melodic minor") name no key and are not matched, because
+    // neither is this card's key followed by its mode.
+    //
+    // The four held-back questions are the only exceptions and they are
+    // listed above; this runs over explanations, where there are none.
+    for (const c of FLASHCARDS) {
+      const key = c.facets?.key;
+      if (key === undefined || c.explanation === undefined) continue;
+      const name = withAccidentalGlyphs(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const bare = new RegExp(`(?<!key of )\\b${name} (major|minor)\\b`);
+      expect(c.explanation, `${c.id}: ${c.explanation}`).not.toMatch(bare);
     }
   });
 });

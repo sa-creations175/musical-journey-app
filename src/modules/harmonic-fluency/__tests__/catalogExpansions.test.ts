@@ -364,14 +364,16 @@ describe('coverage reaches twelve', () => {
     // twelve. The 2-5-1 lives once now and it lives where a
     // progression is a progression — which also took it from twelve
     // keys to thirteen.
-    expect(keysIn('progressions', new RegExp(`The 2-5-1 in (${N}) major`), 'q').size)
-      .toBe(13);
+    // "in the key of" since 9 Sep 2026 — the standing rule.
+    expect(keysIn('progressions',
+      new RegExp(`The 2-5-1 in the key of (${N}) major`), 'q').size).toBe(13);
   });
 
   it('mode-of-major in all thirteen', () => {
     // THIRTEEN, not twelve (ruling 40). F♯ major and G♭ major are two
     // keys with two answers, so the regex counts both.
-    expect(keysIn('modes', new RegExp(`mode of (${N}) major starting`), 'q').size).toBe(13);
+    expect(keysIn('modes',
+      new RegExp(`mode of the key of (${N}) major starting`), 'q').size).toBe(13);
   });
 
   it('every slash shape in all thirteen', () => {
@@ -399,8 +401,8 @@ describe('coverage reaches twelve', () => {
   it('progressions reach all thirteen', () => {
     // TWELVE UNTIL COMMIT 8. Ruling 40 again: the 1-5-6-4 of G♭ ends on
     // C♭ and the 1-5-6-4 of F♯ ends on B, so both are asked.
-    expect(keysIn('progressions', new RegExp(`in (${N})(?: major| minor)?`), 'q').size)
-      .toBe(13);
+    expect(keysIn('progressions',
+      new RegExp(`in the key of (${N})(?: major| minor)?`), 'q').size).toBe(13);
   });
 
   it('intervals start on all thirteen', () => {
@@ -416,7 +418,11 @@ describe('coverage reaches twelve', () => {
     // stated here rather than left for someone to find on the grid.
     expect(keysIn('key-signatures', new RegExp(`relative minor of (${N}) major`), 'q').size)
       .toBe(13);
-    expect(keysIn('key-signatures', new RegExp(`parallel minor of (${N}) major`), 'q').size)
+    // The parallel question takes the "key of" clause; the relative
+    // and count questions are held back so their retired cards can
+    // still pair on text — see `generateRelativeCards`.
+    expect(keysIn('key-signatures',
+      new RegExp(`parallel minor of the key of (${N}) major`), 'q').size)
       .toBe(12);
   });
 });

@@ -175,9 +175,9 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
    * mid-sentence reads as a stray word rather than as a key, which is
    * the confusion `CLAUDE.md` says has been caused more than once.
    *
-   * THE QUESTION ONLY, in this family, because that is what was ruled.
-   * The explanations still say "the 2 of C" and "not in C major"; both
-   * are named in the report rather than swept up here.
+   * IT REACHED THE EXPLANATIONS TOO on 9 Sep 2026, when the rule was
+   * applied across the deck. "the 2 of C" is "the 2 of the key of C
+   * major" and "not in C major" is "not in the key of C major".
    */
   const inKeyOf = `In the key of ${key} major`;
 
@@ -188,8 +188,9 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
       question:
         `${inKeyOf}, the band is on ${chordName} (${chord.num}). Which notes fit?`,
       answer: `Notes of the ${key} major scale`,
-      explanation: `${chordName} is the ${chord.num} of ${key}. Every note it `
-        + `holds is already in ${key} major, so nothing changes: stay in the key.`,
+      explanation: `${chordName} is the ${chord.num} of the key of ${key} `
+        + `major. Every note it holds is already in the key of ${key} major, `
+        + 'so nothing changes: stay in the key.',
     };
   }
 
@@ -214,11 +215,13 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
     // The degree is the coordinate the generator already holds: the
     // 5 of 5 is built on the 2, the 5 of 4 on the 1.
     explanation: `${chordName}${minor ? '' : ` (the ${chord.degree} as a `
-      + `dominant, the ${chord.num})`} is not in ${key} major; it is the 5 of `
-      + `${targetChord}. Play the notes of the key it points to for that bar. `
+      + `dominant, the ${chord.num})`} is not in the key of ${key} major; it `
+      + `is the 5 of ${targetChord}. Play the notes of the key it points to `
+      + 'for that bar. '
       + (minor
         ? minorTargetSentence(root, chord, chordName, targetRoot, targetChord)
-        : `The highlighted notes are the ones ${key} major does not have.`),
+        : `The highlighted notes are the ones the key of ${key} major does `
+          + 'not have.'),
   };
 }
 

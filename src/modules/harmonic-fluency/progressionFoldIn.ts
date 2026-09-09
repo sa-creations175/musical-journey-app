@@ -81,8 +81,40 @@ const RULED_BY_REWORDING: ReadonlyArray<RuledByAnswer> = [
   },
 ];
 
+/**
+ * Every progression question now names the key as a key.
+ *
+ * =====================================================================
+ * "The 2-5-1 in B♭ major" BECAME "The 2-5-1 in the key of B♭ major".
+ *
+ * Silas's standing rule of 9 Sep 2026, applied across the deck. It is
+ * one clause and it changes no card's identity — but the four
+ * hand-written progression cards and the six `pr-1564-` top-ups are
+ * FROZEN RECORDS of what a retired card said, so they can no longer
+ * pair on text.
+ *
+ * THE ANSWER IS WHY THIS IS SAFE HERE and is not everywhere. A
+ * progression's answer is its own chords in order — "C - G - Am - F",
+ * "D♭ - A♭ - B♭m - G♭" — and exactly one live card gives each. The
+ * key-signature family could not take the same route, because its
+ * answers are bare counts and bare key names that several live cards
+ * share; three of its questions are held back for that reason and say
+ * so where they are written.
+ * =====================================================================
+ */
+const RULED_BY_THE_KEY_CLAUSE: ReadonlyArray<RuledByAnswer> = [
+  'pr-1', 'pr-2', 'pr-3', 'pr-18',
+  'pr-1564-Db', 'pr-1564-Eb', 'pr-1564-E', 'pr-1564-F#', 'pr-1564-Ab',
+  'pr-1564-B',
+].map(from => ({
+  from,
+  why: 'the question names the key as a key now ("in the key of B♭ major"); '
+    + 'the progression and its chords are unchanged, and one live card '
+    + 'gives them',
+}));
+
 const RULED: ReadonlyArray<RuledByAnswer> = [
-  ...RULED_ONTO_THE_2_5_1, ...RULED_BY_REWORDING,
+  ...RULED_ONTO_THE_2_5_1, ...RULED_BY_REWORDING, ...RULED_BY_THE_KEY_CLAUSE,
 ];
 
 /** Every progression card that has left the deck, as it was. */

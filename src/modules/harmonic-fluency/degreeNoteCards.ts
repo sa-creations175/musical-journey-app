@@ -459,13 +459,15 @@ export function nameItCards(): Flashcard[] {
       category: DEGREE_NOTE_CATEGORY,
       categoryName: DEGREE_NOTE_CATEGORY_NAME,
       axis: { key: identityRoot(root), degree: degreeId },
-      question: `In the key of ${root}, what is the ${degreeLabel(degreeId)}?`,
+      question:
+        `In the key of ${root} major, what is the ${degreeLabel(degreeId)}?`,
       correctAnswer: note,
       decoys: chooseDecoys(note, noteDecoyPool(root, degreeId), {
         count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
       }),
       explanation:
-        `The ${degreeAnswerLabel(degreeId)} of ${root} is ${noteAnswerDisplay(root, degreeId)}.`,
+        `The ${degreeAnswerLabel(degreeId)} of the key of ${root} major `
+        + `is ${noteAnswerDisplay(root, degreeId)}.`,
       skillTag: `degree-note-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });
@@ -481,7 +483,8 @@ export function placeItCards(): Flashcard[] {
       categoryName: DEGREE_NOTE_CATEGORY_NAME,
       axis: { key: identityRoot(root), degree: degreeId },
       // "which number", never "which degree" (ruling 29).
-      question: `In the key of ${root}, ${noteDisplay(root, degreeId)} is which number?`,
+      question: `In the key of ${root} major, `
+        + `${noteDisplay(root, degreeId)} is which number?`,
       correctAnswer: degreeId,
       decoys: chooseDecoys(degreeId, degreeDecoyPool(degreeId), {
         count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
@@ -503,7 +506,8 @@ export function placeItCards(): Flashcard[] {
           : () => true,
       }),
       explanation:
-        `${noteAnswerDisplay(root, degreeId)} is the ${degreeAnswerLabel(degreeId)} of ${root}.`,
+        `${noteAnswerDisplay(root, degreeId)} is the `
+        + `${degreeAnswerLabel(degreeId)} of the key of ${root} major.`,
       skillTag: `note-degree-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });
@@ -525,13 +529,15 @@ export function pressItCards(): Flashcard[] {
       category: DEGREE_NOTE_CATEGORY,
       categoryName: DEGREE_NOTE_CATEGORY_NAME,
       axis: { key: identityRoot(root), degree: degreeId },
-      question: `In the key of ${root}, press the ${degreeLabel(degreeId)}.`,
+      question:
+        `In the key of ${root} major, press the ${degreeLabel(degreeId)}.`,
       correctAnswer: note,
       decoys: chooseDecoys(note, noteDecoyPool(root, degreeId), {
         count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
       }),
       explanation:
-        `The ${degreeAnswerLabel(degreeId)} of ${root} is ${noteAnswerDisplay(root, degreeId)}.`,
+        `The ${degreeAnswerLabel(degreeId)} of the key of ${root} major `
+        + `is ${noteAnswerDisplay(root, degreeId)}.`,
       skillTag: `degree-press-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });
@@ -636,7 +642,8 @@ export function findKeyCards(): Flashcard[] {
       // PLACEHOLDER — the same sentence `placeItCards` uses, because it
       // is the same fact stated the same way.
       explanation:
-        `${noteAnswerDisplay(root, degreeId)} is the ${degreeAnswerLabel(degreeId)} of ${root}.`,
+        `${noteAnswerDisplay(root, degreeId)} is the `
+        + `${degreeAnswerLabel(degreeId)} of the key of ${root} major.`,
       skillTag: `degree-key-${idRoot(root)}-${idDegree(degreeId)}`,
     };
   });

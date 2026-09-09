@@ -358,12 +358,14 @@ export function generateVofVCards(): Flashcard[] {
       ...base('functional-harmony', 'Functional Harmony'),
       id: `fh-v-of-v-${identityRoot(root)}`,
       axis: { key: identityRoot(root), shape: 'V/V' },
-      question: `A secondary dominant V/V in ${noteLabel(root)} major is which chord?`,
+      question: 'A secondary dominant V/V in the key of '
+        + `${noteLabel(root)} major is which chord?`,
       correctAnswer: `${two}7`,
       // The other three dominants a player might reach for: the real V,
       // the VI7 and the III7.
       decoys: [`${five}7`, `${six}7`, `${three}7`],
-      explanation: `V/V points at the V. In ${noteLabel(root)} the V is `
+      explanation: 'V/V points at the V. In the key of '
+        + `${noteLabel(root)} major the V is `
         + `${five}, so its own dominant is ${two}7 — the 2 chord made major `
         + `and sevenths, resolving to ${five}7.`
         + keyboardNote(degreeAscii(root, '2'), degreeAscii(root, '5'))
@@ -387,11 +389,11 @@ export function generateVofViCards(): Flashcard[] {
       ...base('functional-harmony', 'Functional Harmony'),
       id: `fh-v-of-vi-${identityRoot(root)}`,
       axis: { key: identityRoot(root), shape: 'V/vi' },
-      question: `V/vi in ${noteLabel(root)} major resolves to _____`,
+      question: `V/vi in the key of ${noteLabel(root)} major resolves to _____`,
       correctAnswer: `${six}m`,
       decoys: [`${three}m`, `${two}m`, `${four}maj7`],
-      explanation: `V/vi is the V chord pointing at the vi. In `
-        + `${noteLabel(root)} the vi is ${six}m, so the move is `
+      explanation: 'V/vi is the V chord pointing at the vi. In the key of '
+        + `${noteLabel(root)} major the vi is ${six}m, so the move is `
         + `${degreeLabel(root, '3')}7 → ${six}m. You hear it whenever a song `
         + `pivots into its relative minor for a bridge before drifting home.`
         + keyboardNote(degreeAscii(root, '6'), degreeAscii(root, '3')),
@@ -569,7 +571,8 @@ function buildModeCards(
         // merged them would gather fourteen cards under one chip and
         // answer two different questions with one.
         axis: { key: root, degree: Number(degree) },
-        question: `The mode of ${noteLabel(root)} major starting on ${startGlossed} is _____`,
+        question: 'The mode of the key of '
+          + `${noteLabel(root)} major starting on ${startGlossed} is _____`,
         correctAnswer: `${start} ${mode}`,
         // The same starting note under three other mode names — the
         // question is which mode, never which note. WHICH three comes
@@ -584,7 +587,8 @@ function buildModeCards(
             category: 'modes',
           },
         ),
-        explanation: `Starting ${noteLabel(root)} major on its ${degree} gives `
+        explanation: 'Starting the key of '
+          + `${noteLabel(root)} major on its ${degree} gives `
           + `${start} ${mode}.`
           + keyboardNote(degreeAscii(root, degree))
           + ` ${MODE_CONTEXT}`,
@@ -832,6 +836,15 @@ function buildSlashCards(
         // G♭ would gather fourteen cards under one chip and answer two
         // different questions with one.
         axis: { key: axisKey(root), shape: shape.id },
+        // HELD BACK FROM THE "key of" RULE, and the reason is `C/E`.
+        // `sc-8` … `sc-10` are frozen records that pair onto these by
+        // asking the identical question, and a slash chord is not
+        // unique to one key: `C/E` is 1/3 in the key of C major AND
+        // 5/7 in the key of F major, so the ruled answer-only route
+        // finds two live cards and refuses. Rewording this would
+        // orphan two readers' histories rather than move them. The
+        // EXPLANATION takes the phrase, which nothing pairs on.
+        // See the report of 9 Sep 2026.
         question: `What is ${shape.label} in ${noteLabel(root)} major?`,
         correctAnswer: answer,
         decoys,
@@ -840,8 +853,8 @@ function buildSlashCards(
         // what makes a newline a newline — the same seam scale-degree
         // math's worked arithmetic uses.
         explanation: `${shape.label} means the ${shape.chord} chord with the `
-          + `${shape.bass} scale degree in the bass — in ${noteLabel(root)} `
-          + `that is ${chord}/${bass}.`
+          + `${shape.bass} scale degree in the bass — in the key of `
+          + `${noteLabel(root)} major that is ${chord}/${bass}.`
           + keyboardNote(degreeAscii(root, shape.bass), degreeAscii(root, shape.chord))
           + ` ${SLASH_CONTEXT}`
           + `\n${asSentence(shape.reading)}`,
@@ -1103,6 +1116,14 @@ export function generateKeyCountCards(): Flashcard[] {
       ...base('key-signatures', 'Key Signatures'),
       id,
       axis: { key: sig.root, ask: 'count' },
+      // HELD BACK FROM THE "key of" RULE, and this is the only reason.
+      // `ks-1` … `ks-12` are hand-written retired cards that pair onto
+      // these by asking the identical question, and their answers are
+      // bare counts — "1", "2" — which four live cards each give. So
+      // the ruled answer-only route cannot prove the pairing, and
+      // rewording this question would orphan twelve readers' histories
+      // rather than move them. The EXPLANATION takes the phrase, which
+      // nothing pairs on. See the report of 9 Sep 2026.
       question: `${noteLabel(sig.root)} major has _____ ${sig.kind}`,
       correctAnswer: String(sig.count),
       // THE SAME DERIVATION THE HAND-WRITTEN TWELVE USE. It targets a
@@ -1118,8 +1139,8 @@ export function generateKeyCountCards(): Flashcard[] {
       // So the generated explanation is the first half only, derived,
       // and the colour is Silas's to add back if he wants it.
       explanation: named.length === 0
-        ? `${majorKeyName(sig.root)} has no sharps and no flats.`
-        : `${majorKeyName(sig.root)} has ${sig.count} `
+        ? `The key of ${majorKeyName(sig.root)} has no sharps and no flats.`
+        : `The key of ${majorKeyName(sig.root)} has ${sig.count} `
           + `${sig.count === 1 ? sig.kind.slice(0, -1) : sig.kind}: `
           + `${named.map(noteLabel).join(' ')}.`
           + keyboardNote(...named),
@@ -1150,12 +1171,18 @@ export function generateRelativeCards(): Flashcard[] {
       ...base('key-signatures', 'Key Signatures'),
       id: minorId,
       axis: { key: root, ask: 'relative', relation: 'relative' },
+      // HELD BACK — see the note on the count question above. `ks-13`,
+      // `ks-14`, `ks-15` and the nine `ks-relative-` top-ups pair onto
+      // these by question text, and "A minor" is also what the parallel
+      // card for the key of A major answers, so the answer-only route
+      // is ambiguous.
       question: `The relative minor of ${noteLabel(root)} major is _____`,
       correctAnswer: minor,
       decoys: chooseDecoys(minor, minorNames, {
         count: 3, seed: minorId, label: minorId, category: 'key-signatures',
       }),
-      explanation: `${minor} is the relative minor of ${major}.`
+      explanation: `The key of ${minor} is the relative minor of `
+        + `the key of ${major}.`
         + keyboardNote(six)
         + ` ${RELATIVE_CONTEXT}`,
       skillTag: `relative-minor-${root}`,
@@ -1166,12 +1193,15 @@ export function generateRelativeCards(): Flashcard[] {
       ...base('key-signatures', 'Key Signatures'),
       id: majorId,
       axis: { key: root, ask: 'relative major' },
+      // HELD BACK — `ks-16` and `ksc-4` … `ksc-14` pair onto these, and
+      // "C major" is what a count-to-key card answers too.
       question: `The relative major of ${noteLabel(six)} minor is _____`,
       correctAnswer: major,
       decoys: chooseDecoys(major, majorNames, {
         count: 3, seed: majorId, label: majorId, category: 'key-signatures',
       }),
-      explanation: `${major} is the relative major of ${minor}.`
+      explanation: `The key of ${major} is the relative major of `
+        + `the key of ${minor}.`
         + keyboardNote(six)
         + ` ${RELATIVE_CONTEXT}`,
       skillTag: `relative-major-${root}`,
@@ -1219,7 +1249,7 @@ export function generateKeyFromCountCards(): Flashcard[] {
       decoys: chooseDecoys(major, majorNames, {
         count: 3, seed: majorId, label: majorId, category: 'key-signatures',
       }),
-      explanation: `${asked} is ${major}.`
+      explanation: `${asked} is the key of ${major}.`
         + ` ${RELATIVE_CONTEXT}`,
       skillTag: `key-from-signature-major-${sig.root}`,
     });
@@ -1234,7 +1264,7 @@ export function generateKeyFromCountCards(): Flashcard[] {
       decoys: chooseDecoys(minor, minorNames, {
         count: 3, seed: minorId, label: minorId, category: 'key-signatures',
       }),
-      explanation: `${asked} is ${minor}.`
+      explanation: `${asked} is the key of ${minor}.`
         + keyboardNote(relativeMinorAscii(sig.root))
         + ` ${RELATIVE_CONTEXT}`,
       skillTag: `key-from-signature-minor-${sig.root}`,
@@ -1290,7 +1320,8 @@ export function generateParallelMinorTopUps(): Flashcard[] {
     // thirteen columns and six rows, and a card whose coordinate is not
     // on the axis lands in the tail with nothing on screen to say so.
     axis: { key: root, ask: 'parallel', relation: 'parallel' },
-    question: `The parallel minor of ${noteLabel(root)} major is _____`,
+    question: 'The parallel minor of the key of '
+      + `${noteLabel(root)} major is _____`,
     correctAnswer: `${noteLabel(root)} minor`,
     decoys: chooseDecoys(
       `${noteLabel(root)} minor`,
@@ -1302,8 +1333,8 @@ export function generateParallelMinorTopUps(): Flashcard[] {
         category: 'key-signatures',
       },
     ),
-    explanation: `${noteLabel(root)} minor — same root, opposite quality. `
-      + PARALLEL_CONTEXT,
+    explanation: `The key of ${noteLabel(root)} minor — same root, opposite `
+      + `quality. ${PARALLEL_CONTEXT}`,
     skillTag: `parallel-minor-${identityRoot(root)}`,
   }));
 }
@@ -1756,7 +1787,7 @@ export function generatePentatonicLickCards(): Flashcard[] {
       ...base('pentatonic-scales', 'Pentatonic Scales'),
       id,
       axis: { root, shape: 'lick' },
-      question: `You're in the key of ${scaleName(root, 'major')}. `
+      question: `You're in the key of ${scaleName(root, 'major')} major. `
         + 'Which minor pentatonic fits for riffs and licks?',
       correctAnswer: answer,
       decoys: chooseDecoys(answer, answers, {
@@ -1850,9 +1881,10 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
   {
     id: '1-5-6-4',
     facet: '1-5-6-4',
-    ask: k => `The 1-5-6-4 progression in ${k} major is _____`,
+    ask: k => `The 1-5-6-4 progression in the key of ${k} major is _____`,
     chords: [['1', ''], ['5', ''], ['6', 'm'], ['4', '']],
-    explain: (k, c) => `1-5-6-4 in ${k} is ${c.join(' → ')} — the `
+    explain: (k, c) => `1-5-6-4 in the key of ${k} major is `
+      + `${c.join(' → ')} — the `
       + "'pop progression' (or 'axis' chords). You've heard this in hundreds "
       + 'of songs across pop, gospel, R&B, and worship; it works because it '
       + 'cycles through all four tonal functions in a tight loop.',
@@ -1860,28 +1892,30 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
   {
     id: '2-5-1',
     facet: 'ii-V-I',
-    ask: k => `The 2-5-1 in ${k} major is _____`,
+    ask: k => `The 2-5-1 in the key of ${k} major is _____`,
     chords: [['2', 'm7'], ['5', '7'], ['1', 'maj7']],
     // THE B♭-ONLY CLAUSE IS GONE, not rewritten for twelve more keys.
     // "so many horn charts default here" is true of B♭ and of nowhere
     // else, and inventing a reason to care about each of the others is
     // exactly the copy this generator has no business writing.
-    explain: (k, c) => `The 2-5-1 in ${k} is ${c.join(' → ')}. Memorize this `
+    explain: (k, c) => `The 2-5-1 in the key of ${k} major is `
+      + `${c.join(' → ')}. Memorize this `
       + "in every key and you've got half of jazz standard vocabulary.",
   },
   {
     id: '1-6-4-5',
     facet: '1-6-4-5',
-    ask: k => `The 1-6-4-5 in ${k} major is _____`,
+    ask: k => `The 1-6-4-5 in the key of ${k} major is _____`,
     chords: [['1', ''], ['6', 'm'], ['4', ''], ['5', '']],
-    explain: (k, c) => `1-6-4-5 in ${k} is ${c.join(' → ')} — the 50s doo-wop `
+    explain: (k, c) => `1-6-4-5 in the key of ${k} major is `
+      + `${c.join(' → ')} — the 50s doo-wop `
       + 'progression that became the bedrock of countless soul, gospel, and '
       + 'pop ballads. Same chord set as 1-5-6-4, just rotated.',
   },
   {
     id: '1-6-2-5',
     facet: '1-6-2-5',
-    ask: k => `The 1-6-2-5 in ${k} major is _____`,
+    ask: k => `The 1-6-2-5 in the key of ${k} major is _____`,
     chords: [['1', ''], ['6', 'm'], ['2', 'm'], ['5', '']],
     // NEW COPY, AND IT IS FLAGGED IN THE REPORT. Every other
     // explanation here was lifted from the hand-written card that
@@ -1889,16 +1923,18 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
     // card, so this says what the deck can already prove — the shape,
     // the name Silas gave it, and the card that plays the same four
     // numbers as sevenths — and nothing about how it feels.
-    explain: (k, c) => `1-6-2-5 in ${k} is ${c.join(' → ')} — the turnaround. `
+    explain: (k, c) => `1-6-2-5 in the key of ${k} major is `
+      + `${c.join(' → ')} — the turnaround. `
       + 'It closes a section by walking back to the 1, ready to go round '
       + 'again. Rhythm changes is the same four numbers played as sevenths.',
   },
   {
     id: '1-4-5',
     facet: '1-4-5',
-    ask: k => `The 1-4-5 in ${k} major is _____`,
+    ask: k => `The 1-4-5 in the key of ${k} major is _____`,
     chords: [['1', ''], ['4', ''], ['5', '']],
-    explain: (k, c) => `${c.join(' → ')} is 1-4-5 in ${k} — the most `
+    explain: (k, c) => `${c.join(' → ')} is 1-4-5 in the key of ${k} major `
+      + '— the most '
       + 'fundamental progression in Western popular music. Every blues, '
       + 'country tune, and early rock and R&B song cycles I-IV-V; modern '
       + 'soul, gospel, and hip-hop still use it as the underlying '
@@ -1913,9 +1949,10 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
     // teaches in. The name is what a player calls it, so it keeps its
     // place — in brackets, after the thing it names. Same pattern for
     // any named progression added later.
-    ask: k => `The 1 4 ♭7 1 (backdoor) in ${k} major is _____`,
+    ask: k => `The 1 4 ♭7 1 (backdoor) in the key of ${k} major is _____`,
     chords: [['1', ''], ['4', ''], ['b7', ''], ['1', '']],
-    explain: (k, c) => `The backdoor progression in ${k} is ${c.join(' → ')} — `
+    explain: (k, c) => `The backdoor progression in the key of ${k} major is `
+      + `${c.join(' → ')} — `
       + `the bVII (${c[2]}) sneaks in instead of a V. It's a gospel/soul `
       + 'favorite: less expected than a V-I, more melodic, and gives that '
       + 'broad, modal landing.',

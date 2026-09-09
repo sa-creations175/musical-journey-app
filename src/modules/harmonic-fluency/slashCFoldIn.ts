@@ -65,6 +65,21 @@ export const FOLDED_C_CARDS: ReadonlyArray<{
   { id: 'sc-10', question: 'What is 4/5 in C major?', correctAnswer: 'F/G' },
 ];
 
+/**
+ * NO RULED ROUTE HERE, AND THAT IS A DECISION.
+ *
+ * Silas's standing rule of 9 Sep 2026 writes a key as "the key of C
+ * major", and these three questions would have become "What is 1/3 in
+ * the key of C major?". They did not, and the generated question they
+ * pair onto was held back with them — see `buildSlashCards`.
+ *
+ * THE ANSWER CANNOT PROVE THE PAIRING. `C/E` is 1/3 in the key of C
+ * major and 5/7 in the key of F major, so two live cards give it and
+ * the ruled route refuses rather than tossing a coin. `G/B` is the same
+ * both ways. Pairing on the identical question is the only proof these
+ * three have, so the question stays as it was.
+ */
+
 /** Old id → new id, derived from the live deck and asserted card by
  *  card. See `foldInByIdentity` for what "the same card" means. */
 export function slashCMapping() {

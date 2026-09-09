@@ -87,7 +87,7 @@ describe('a question still names one degree', () => {
 
   it('says both in the explanation, which is the answer side', () => {
     const card = nameItCards().find(c => c.id === 'dgn-C-s4')!;
-    expect(card.explanation).toBe(`The ${BOTH} (tritone) of C is F♯ / G♭.`);
+    expect(card.explanation).toBe(`The ${BOTH} (tritone) of the key of C major is F♯ / G♭.`);
   });
 });
 
@@ -97,15 +97,15 @@ describe('a joint answer is in the same order as the joint label', () => {
     // say the same sentence, because it is one fact.
     for (const id of ['dgn-C-s4', 'dgn-C-b5']) {
       expect(nameItCards().find(c => c.id === id)!.explanation)
-        .toBe(`The ${BOTH} (tritone) of C is F♯ / G♭.`);
+        .toBe(`The ${BOTH} (tritone) of the key of C major is F♯ / G♭.`);
     }
     for (const id of ['dgd-C-s4', 'dgd-C-b5']) {
       expect(placeItCards().find(c => c.id === id)!.explanation)
-        .toBe(`F♯ / G♭ is the ${BOTH} (tritone) of C.`);
+        .toBe(`F♯ / G♭ is the ${BOTH} (tritone) of the key of C major.`);
     }
     for (const id of ['dgp-C-s4', 'dgp-C-b5']) {
       expect(pressItCards().find(c => c.id === id)!.explanation)
-        .toBe(`The ${BOTH} (tritone) of C is F♯ / G♭.`);
+        .toBe(`The ${BOTH} (tritone) of the key of C major is F♯ / G♭.`);
     }
   });
 
@@ -127,7 +127,7 @@ describe('a joint answer is in the same order as the joint label', () => {
         .map((half, i) => withoutSiblingGloss(half, raw[1 - i]))
         .join(' / ');
       expect(card.explanation, root)
-        .toBe(`The ${names} (tritone) of ${root} is ${notes}.`);
+        .toBe(`The ${names} (tritone) of the key of ${root} major is ${notes}.`);
     }
   });
 
@@ -135,9 +135,9 @@ describe('a joint answer is in the same order as the joint label', () => {
     // Only the joint label changes. Nothing else in the thirteen has
     // two names, and none of them gained a second note.
     expect(nameItCards().find(c => c.id === 'dgn-Ab-b6')!.explanation)
-      .toBe('The ♭6 of Ab is F♭ (E).');
+      .toBe('The ♭6 of the key of Ab major is F♭ (E).');
     expect(placeItCards().find(c => c.id === 'dgd-C-5')!.explanation)
-      .toBe('G is the 5 of C.');
+      .toBe('G is the 5 of the key of C major.');
     for (const card of [...nameItCards(), ...placeItCards(), ...pressItCards()]) {
       const joint = card.explanation!.includes(BOTH);
       expect(joint, card.id).toBe(isTritoneDegree(String(
@@ -201,7 +201,7 @@ describe('a joint answer is in the same order as the joint label', () => {
     expect(noteAnswerDisplay('Eb', 'b6')).toBe('C♭ (B)');
     expect(noteAnswerDisplay('Db', 'b2')).toBe('E𝄫 (D)');
     expect(nameItCards().find(c => c.id === 'dgn-Ab-b6')!.explanation)
-      .toBe('The ♭6 of Ab is F♭ (E).');
+      .toBe('The ♭6 of the key of Ab major is F♭ (E).');
   });
 
   it('never drops when the sibling carries a bracket of its own', () => {
@@ -303,6 +303,6 @@ describe('on the pressed card, either name is the same key', () => {
 
   it('and asks for one of them at a time', () => {
     const card = pressItCards().find(c => c.id === 'dgp-C-b5')!;
-    expect(card.question).toBe('In the key of C, press the ♭5.');
+    expect(card.question).toBe('In the key of C major, press the ♭5.');
   });
 });

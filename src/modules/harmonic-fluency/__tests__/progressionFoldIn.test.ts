@@ -56,6 +56,15 @@ beforeEach(async () => {
 // The pairing
 // =====================================================================
 
+/** The ten frozen records whose live card gained the "key of" clause
+ *  on 9 Sep 2026. Held here so the two blocks below cannot disagree
+ *  about which cards take which route. */
+const RULED_BY_THE_KEY_CLAUSE: ReadonlySet<string> = new Set([
+  'pr-1', 'pr-2', 'pr-3', 'pr-18',
+  'pr-1564-Db', 'pr-1564-Eb', 'pr-1564-E', 'pr-1564-F#', 'pr-1564-Ab',
+  'pr-1564-B',
+]);
+
 describe('which generated card each retired one became', () => {
   const { moves, unpaired } = progressionMapping();
 
@@ -96,13 +105,40 @@ describe('which generated card each retired one became', () => {
     const ascii = (s: string) => s.replace(/♭/g, 'b').replace(/♯/g, '#');
     for (const { from, to } of moves) {
       // The ruled exceptions are proved on the answer alone, in their
-      // own block below: the eleven cadences, and `pr-7`, whose
-      // question was rewritten numbers-first.
+      // own block below: the eleven cadences; `pr-7`, whose question
+      // was rewritten numbers-first; and the ten frozen records whose
+      // live card now names the key as a key ("in the key of B♭
+      // major") — the standing rule of 9 Sep 2026.
       if (from.startsWith('fh-') || from === 'pr-7') continue;
+      if (RULED_BY_THE_KEY_CLAUSE.has(from)) continue;
       expect(ascii(live.get(to)!.question), from)
         .toBe(ascii(old.get(from)!.question));
       expect(ascii(live.get(to)!.correctAnswer), from)
         .toBe(ascii(old.get(from)!.correctAnswer));
+    }
+  });
+
+  it('proves the ten key-clause cards on the answer, which is unique', () => {
+    // A progression's answer is its own chords in order, so one live
+    // card gives it — which is why this family could take the ruled
+    // route where the key signatures could not.
+    const live = new Map(FLASHCARDS.map(c => [c.id, c]));
+    const old = new Map(retiredProgressionCards().map(c => [c.id, c]));
+    const by = new Map(moves.map(m => [m.from, m.to]));
+    const ascii = (s: string) => s.replace(/♭/g, 'b').replace(/♯/g, '#');
+    for (const from of RULED_BY_THE_KEY_CLAUSE) {
+      const to = by.get(from);
+      expect(to, from).toBeDefined();
+      const answer = old.get(from)!.correctAnswer;
+      expect(ascii(live.get(to!)!.correctAnswer), from).toBe(ascii(answer));
+      expect(
+        FLASHCARDS.filter(c => ascii(c.correctAnswer) === ascii(answer)),
+        from,
+      ).toHaveLength(1);
+      // And the only thing that moved in the question is the clause.
+      expect(ascii(live.get(to!)!.question), from)
+        .toBe(ascii(old.get(from)!.question).replace(/ in ([A-G][b#]?) major/,
+          ' in the key of $1 major'));
     }
   });
 
@@ -169,7 +205,7 @@ describe('the ruled exceptions, pair by pair', () => {
     // a looser rule.
     expect(byFrom.get('pr-7')).toBe('pr-prog-backdoor-F');
     const live = FLASHCARDS.find(c => c.id === 'pr-prog-backdoor-F')!;
-    expect(live.question).toBe('The 1 4 ♭7 1 (backdoor) in F major is _____');
+    expect(live.question).toBe('The 1 4 ♭7 1 (backdoor) in the key of F major is _____');
     expect(live.correctAnswer).toBe('F - B♭ - E♭ - F');
   });
 

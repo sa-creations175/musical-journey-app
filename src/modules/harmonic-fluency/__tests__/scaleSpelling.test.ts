@@ -20,7 +20,8 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS, degreeNote, scaleDegreeSpelled } from '../catalog';
 
 const fSharpCard = () =>
-  FLASHCARDS.find(c => c.question === 'In F# major, 4 of the scale = ?')!;
+  FLASHCARDS.find(
+    c => c.question === 'In the key of F# major, 4 of the scale = ?')!;
 
 describe('F♯ major has a seventh, and it is E♯', () => {
   it('writes the seventh as E# (F) in the explanation', () => {
@@ -35,13 +36,16 @@ describe('F♯ major has a seventh, and it is E♯', () => {
 
   it('reaches the card the reader actually sees', () => {
     const card = fSharpCard();
+    // "The key of F# major is …" since 9 Sep 2026 — the scale itself
+    // is what this pins, and it is unchanged.
     expect(card.explanation ?? '').toContain('F# G# A# B C# D# E# (F)');
   });
 
   it('leaves no bare F in that scale — the F-letter is taken', () => {
     // A bare " F " or a trailing " F" in the list is the old output.
     const card = fSharpCard();
-    const scale = (card.explanation ?? '').split(' — ')[0];
+    const scale = (card.explanation ?? '').split(' — ')[0]
+      .replace('The key of F# major is ', '');
     expect(scale.split(' ')).not.toContain('F');
   });
 });
