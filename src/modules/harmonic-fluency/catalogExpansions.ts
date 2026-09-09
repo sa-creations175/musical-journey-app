@@ -478,28 +478,6 @@ export const SLASH_SHAPES: ReadonlyArray<{
     reading: "the 2 minor over the key's home note" },
 ];
 
-/**
- * The shapes whose C card is hand-written in `catalog.ts`, and which
- * the generator therefore skips in C.
- *
- * =====================================================================
- * IT USED TO BE "SKIP C", FULL STOP, AND THAT WOULD HAVE COST THE FOUR
- * NEW SHAPES A KEY.
- *
- * Three shapes have a longer, hand-written C card that says the
- * chord-tone reading in its own words. The four new ones have nothing
- * in C, so a blanket skip would have shipped them in eleven keys while
- * every other family in the module covers twelve.
- *
- * THE HAND-WRITTEN THREE ARE A SECOND IMPLEMENTATION OF THIS
- * GENERATOR and they are left alone here deliberately: they carry no
- * `axis`, so the Slash Chord filter row cannot see them, and unifying
- * them would move three cards' practice history. That is a ruling
- * nobody has made — it is raised in the report rather than taken.
- * =====================================================================
- */
-const HANDWRITTEN_C_SHAPES: ReadonlySet<string> =
-  new Set(['1-3', '5-7', '4-5']);
 
 /**
  * Bass degrees a decoy may use, in order of how plausible a misread is.
@@ -518,8 +496,15 @@ const HANDWRITTEN_C_SHAPES: ReadonlySet<string> =
  * it. The chromatic degrees are the company that fixes that — the ♭3
  * of B is D and the ♭6 is G, both plain.
  *
- * The order is still musical relevance, first five first; what changed
- * is that there is something to fall through TO.
+ * THE ORDER HERE IS MUSICAL RELEVANCE AND `chooseDecoys` DOES NOT KEEP
+ * IT, which is worth knowing rather than assuming. The chooser rotates
+ * a pool by the card's own id before it picks — deliberately, so two
+ * cards drawing from one pool do not show the same three decoys — so a
+ * widened pool means chromatic bass notes turn up as wrong answers on
+ * most cards rather than only where the diatonic seven cannot give the
+ * answer company. That is the module's own convention, followed here
+ * rather than worked around; it is raised in the report as a question
+ * rather than decided.
  * =====================================================================
  */
 const SLASH_BASS_CANDIDATES: ReadonlyArray<string> = [
@@ -568,9 +553,15 @@ export function generateSlashCards(): Flashcard[] {
    * =====================================================================
    */
   const spentOn = new Map<string, Set<string>>();
+  // TWELVE KEYS, SEVEN SHAPES, NO EXCEPTIONS (ruling 37). Three shapes
+  // used to be skipped in C because `catalog.ts` held a hand-written
+  // card for each — a second implementation of this generator, asking
+  // the identical question with the identical answer and carrying no
+  // `axis`, so the filter row could not see it and it had no sound.
+  // The three are gone and their practice moved here; see
+  // `slashCFoldIn.ts`.
   for (const root of FLAT_TWELVE) {
     for (const shape of SLASH_SHAPES) {
-      if (root === 'C' && HANDWRITTEN_C_SHAPES.has(shape.id)) continue;
       const chordRoot = degreeLabel(root, shape.chord);
       const chord = `${chordRoot}${shape.quality}`;
       const bass = degreeLabel(root, shape.bass);

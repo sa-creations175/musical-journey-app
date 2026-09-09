@@ -161,10 +161,10 @@ describe('the slash chord deck', () => {
   });
 
   it('puts that reading on a line of its own, on every card', () => {
-    // The GENERATED cards only. Three shapes also have a longer,
-    // hand-written C card that says the same thing in its own words —
-    // they are `sc-1` … `sc-16` and are left exactly as Silas wrote
-    // them; the report says so.
+    // The GENERATED cards only. `sc-1` … `sc-16` are the hand-written
+    // prose cards, which say other things about slash chords and carry
+    // no shape; ruling 37 took the three that duplicated this
+    // generator, so C is now generated like every other key.
     let seen = 0;
     for (const card of FLASHCARDS.filter(c => c.category === 'slash-chords')) {
       const shape = SLASH_SHAPES.find(s => card.id.startsWith(`sc-${s.id}-`));
@@ -174,8 +174,8 @@ describe('the slash chord deck', () => {
       expect(lines[lines.length - 1], card.id)
         .toBe(`${shape.reading.charAt(0).toUpperCase()}${shape.reading.slice(1)}.`);
     }
-    // 7 shapes × 12 keys, less the three C cards already hand-written.
-    expect(seen).toBe(SLASH_SHAPES.length * 12 - 3);
+    // 7 shapes × 12 keys, no exceptions (ruling 37).
+    expect(seen).toBe(SLASH_SHAPES.length * 12);
   });
 
   it('never offers a chord over its own root as a wrong answer', () => {

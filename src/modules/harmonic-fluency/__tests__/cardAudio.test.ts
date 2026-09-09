@@ -64,7 +64,7 @@ describe('slash chords', () => {
       const bass = notes[0];
       expect(bass, c.id).toBeLessThan(Math.min(...notes.slice(1)));
     }
-    expect(seen).toBe(SLASH_SHAPES.length * 12 - 3);
+    expect(seen).toBe(SLASH_SHAPES.length * 12);
   });
 
   it('5/7 in G is F♯ under a D triad', () => {
@@ -188,11 +188,13 @@ describe('enharmonic equivalents', () => {
 
 describe('what stays silent, and why', () => {
   it('says nothing for a card that has not said what it is about', () => {
-    // The hand-written slash cards carry no `axis` — the same reason
-    // the Slash Chord filter row cannot see them. A sound derived from
-    // their question text would be a sound derived from prose.
-    expect(cardSound(card('sc-8'))).toBeNull();
+    // The hand-written PROSE slash cards carry no `axis` — the same
+    // reason the Slash Chord filter row cannot see them. A sound
+    // derived from their question text would be a sound derived from
+    // prose. The three that duplicated the generator are gone
+    // (ruling 37); these ask about slash chords in general.
     expect(cardSound(card('sc-13'))).toBeNull();
+    expect(cardSound(card('sc-14'))).toBeNull();
   });
 
   it('says nothing for the five families ruling 33 stopped on', () => {

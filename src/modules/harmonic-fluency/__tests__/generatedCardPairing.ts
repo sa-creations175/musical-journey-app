@@ -76,11 +76,26 @@
  * a reset.
  *
  * THE TWELVE THAT LEFT MAY HAVE PRACTICE HISTORY BEHIND THEM, and
- * nothing here deletes it. Their `flashcardStates`, `attempts` and
- * `spacingState` rows sit in the database with no card to point at.
- * That is raised in the report rather than swept: whether they are
- * deleted, and what a star or a flag note on one of them is worth, is
- * a ruling nobody has made.
+ * nothing here deletes it. Their `attempts` and `spacingState` rows sit
+ * in the database with no card to point at. That was raised in the
+ * report rather than swept; ruling 36 answered it the next day and
+ * `orphanedCardCleanup.ts` removes them, keeping anything a reader
+ * wrote by hand.
+ * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 — THREE IDS LEAVE AND THREE ARRIVE, AND THE PAIRING
+ * IS WHAT PROVES IT IS THE SAME CARD.
+ *
+ * Ruling 37 deleted the hand-written C slash cards `sc-8`, `sc-9` and
+ * `sc-10` and let the generator cover C, which mints `sc-1-3-C`,
+ * `sc-5-7-C` and `sc-4-5-C`. The QUESTION on each new id is
+ * byte-identical to the question on the old one — "What is 1/3 in C
+ * major?" — which is exactly what this fixture records, and it is the
+ * evidence `slashCFoldIn.ts` re-derives its mapping from on every run
+ * before it moves a row.
+ *
+ * So this is the "almost never" the rule above allows for, twice over:
+ * nothing was repointed, and what moved is moving WITH its history
+ * rather than losing it.
  * ---------------------------------------------------------------
  */
 export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
@@ -1144,15 +1159,15 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'sc-5|A 2nd inversion triad has which note in the bass?',
   'sc-6|A 1st inversion triad has which note in the bass?',
   'sc-7|F/G in the key of C major is most often used as _____',
-  'sc-8|What is 1/3 in C major?',
-  'sc-9|What is 5/7 in C major?',
-  'sc-10|What is 4/5 in C major?',
   'sc-12|The descending bass line 1 - 5/7 - 6 - 1/3 moves the bass by _____',
   'sc-13|A pedal-tone progression using slash chords over a single bass note is called a _____',
   'sc-14|A slash chord X/Y where Y is NOT a chord tone is sometimes called _____',
   'sc-15|The main purpose of using slash chords is to _____',
   'sc-16|The V chord in first inversion has which chord tone in the bass?',
+  'sc-1-3-C|What is 1/3 in C major?',
+  'sc-5-7-C|What is 5/7 in C major?',
   'sc-1-5-C|What is 1/5 in C major?',
+  'sc-4-5-C|What is 4/5 in C major?',
   'sc-5-1-C|What is 5/1 in C major?',
   'sc-1-4-C|What is 1/4 in C major?',
   'sc-2-1-C|What is 2m/1 in C major?',

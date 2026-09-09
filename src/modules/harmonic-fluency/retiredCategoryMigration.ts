@@ -121,12 +121,10 @@ import {
   generateTritonePairCards, type Flashcard,
 } from './catalog';
 import { generatePivotTopUps } from './catalogExpansions';
-import { db, type SpacingState } from '../../lib/db';
 import { pitchClassOf, toAsciiAccidentals } from '../../lib/spelling';
-import { canonicalSkillId } from '../skills/registry';
-import { PERFORMANCE_HISTORY_MAX } from '../../lib/spacingState';
-
-const MODULE_REF = 'harmonic-fluency';
+import {
+  moveCardRows, movedTotal, NOTHING_MOVED, type MovedRows,
+} from './cardRowMove';
 
 /**
  * Each retired category, and the question shape in `degree-notes` it
@@ -290,158 +288,29 @@ export function retiredIdMap(): ReadonlyMap<string, string> {
   return new Map(retiredCardMapping().moves.map(m => [m.from, m.to]));
 }
 
-export interface MigrationReport {
-  attempts: number;
-  spacing: number;
-  spacingMerged: number;
-  annotations: number;
-  diary: number;
+export interface MigrationReport extends MovedRows {
   unpaired: Unpaired[];
 }
 
 const NOTHING = (unpaired: Unpaired[]): MigrationReport => ({
-  attempts: 0, spacing: 0, spacingMerged: 0, annotations: 0, diary: 0, unpaired,
+  ...NOTHING_MOVED, unpaired,
 });
 
+/**
+ * THE MOVING LIVES IN `cardRowMove`, AND ONLY THE PROOF LIVES HERE.
+ *
+ * Ruling 37 folds three hand-written slash cards into their generated
+ * twins — a different proof over the identical machinery — so the four
+ * tables, the merge and the two-device reasoning moved to one place
+ * rather than being written a second time. What stayed is the part that
+ * is about THESE cards: which new card each retired one became, and the
+ * four conditions that have to hold before a row is allowed to follow.
+ */
 export async function migrateRetiredCategories(): Promise<MigrationReport> {
   const { moves, unpaired } = retiredCardMapping();
   const map = new Map(moves.map(m => [m.from, m.to]));
   if (map.size === 0) return NOTHING(unpaired);
-
-  const skillMap = new Map(
-    [...map].map(([from, to]) => [
-      canonicalSkillId(MODULE_REF, 'card', from),
-      canonicalSkillId(MODULE_REF, 'card', to),
-    ]),
-  );
-
-  // Indexed reads, not full scans: `attempts` grows forever and this
-  // runs on every app start.
-  const legacyAttempts = (await db.attempts.where('moduleId').equals(MODULE_REF).toArray())
-    .filter(a => map.has(a.itemId));
-  const moduleSpacing = await db.spacingState.where('moduleRef').equals(MODULE_REF).toArray();
-  const legacySpacing = moduleSpacing.filter(s => map.has(s.itemRef));
-  const legacyAnnotations = await db.skillAnnotations
-    .where('skillId').anyOf([...skillMap.keys()]).toArray();
-  const legacyDiary = await db.harmonicDiaryEntries
-    .where('skillId').anyOf([...skillMap.keys()]).toArray();
-
-  // AN EARLY EXIT, NOT THE IDEMPOTENCY. Idempotency is that the four
-  // queries above come back empty on a second run, because every row
-  // they look for now carries a new id. Deleting this line changes
-  // nothing but the cost of a boot with nothing to do.
-  if (
-    legacyAttempts.length === 0 && legacySpacing.length === 0
-    && legacyAnnotations.length === 0 && legacyDiary.length === 0
-  ) return NOTHING(unpaired);
-
-  let spacing = 0;
-  let spacingMerged = 0;
-  let annotations = 0;
-
-  await db.transaction(
-    'rw',
-    [db.attempts, db.spacingState, db.skillAnnotations,
-      db.harmonicDiaryEntries, db.syncQueue],
-    async () => {
-      for (const attempt of legacyAttempts) {
-        // ONLY THE ID MOVES. The timestamp is when the answer was
-        // given, and rewriting it would turn a migration into a
-        // falsified record.
-        await db.attempts.update(attempt.id!, { itemId: map.get(attempt.itemId)! });
-      }
-
-      for (const row of legacySpacing) {
-        const to = map.get(row.itemRef)!;
-        const clash = moduleSpacing.find(
-          r => r.itemRef === to && r.hand === row.hand && r.id !== row.id,
-        );
-        if (clash === undefined) {
-          // THE PRIMARY KEY STAYS. See the header — this is what makes
-          // the two-device case an upsert rather than a delete.
-          await db.spacingState.update(row.id, { itemRef: to });
-          spacing += 1;
-          continue;
-        }
-        await db.spacingState.update(clash.id, mergedFields(clash, row));
-        await db.spacingState.delete(row.id);
-        spacingMerged += 1;
-      }
-
-      for (const annotation of legacyAnnotations) {
-        const to = skillMap.get(annotation.skillId)!;
-        const existing = await db.skillAnnotations.get(to);
-        await db.skillAnnotations.put({
-          ...annotation,
-          ...existing,
-          skillId: to,
-          // A TAG IS ADDITIVE and two sets of them are one set. Every
-          // other field prefers what is already on the destination,
-          // because that is the more recent thought about the card, and
-          // falls back to the legacy so nothing written by hand is
-          // dropped.
-          tags: [...new Set([...(existing?.tags ?? []), ...annotation.tags])],
-          priority: existing?.priority ?? annotation.priority,
-          customName: existing?.customName ?? annotation.customName,
-          note: existing?.note ?? annotation.note,
-          createdAt: Math.min(existing?.createdAt ?? annotation.createdAt, annotation.createdAt),
-          updatedAt: Math.max(existing?.updatedAt ?? 0, annotation.updatedAt),
-        });
-        await db.skillAnnotations.delete(annotation.skillId);
-        annotations += 1;
-      }
-
-      for (const entry of legacyDiary) {
-        // NOT MERGED, AND NOT DEDUPED. A diary entry is something a
-        // reader wrote; two of them against one skill is two thoughts,
-        // and picking one to keep is not a migration's decision.
-        await db.harmonicDiaryEntries.update(entry.entryId, {
-          skillId: skillMap.get(entry.skillId)!,
-        });
-      }
-    },
-  );
-
-  return {
-    attempts: legacyAttempts.length,
-    spacing,
-    spacingMerged,
-    annotations,
-    diary: legacyDiary.length,
-    unpaired,
-  };
-}
-
-/**
- * Two rows for one card, folded into one.
- *
- * Only reachable AFTER this has shipped — the destination card did not
- * exist before it, so nothing could have been drilled on it. It happens
- * when a device that was behind pushes a legacy row back and the reader
- * has since drilled the new card. Histories concatenate in time order,
- * the flags OR (a flag is a request, and two requests are one), and the
- * SCHEDULE comes from whichever row was engaged with last, because that
- * is the one that reflects what the reader actually knows now.
- */
-export function mergedFields(
-  destination: SpacingState, legacy: SpacingState,
-): Partial<SpacingState> {
-  const history = [...destination.performanceHistory, ...legacy.performanceHistory]
-    .sort((a, b) => Number(a.t ?? 0) - Number(b.t ?? 0))
-    .slice(-PERFORMANCE_HISTORY_MAX);
-  const legacyIsFresher =
-    (legacy.lastEngagedAt ?? 0) > (destination.lastEngagedAt ?? 0);
-  const schedule = legacyIsFresher ? legacy : destination;
-  return {
-    performanceHistory: history,
-    lastEngagedAt: Math.max(destination.lastEngagedAt ?? 0, legacy.lastEngagedAt ?? 0),
-    currentIntervalDays: schedule.currentIntervalDays,
-    nextDueAt: schedule.nextDueAt,
-    acquisitionStage: schedule.acquisitionStage,
-    studyLater: (destination.studyLater ?? false) || (legacy.studyLater ?? false),
-    reviewFlagged: (destination.reviewFlagged ?? false) || (legacy.reviewFlagged ?? false),
-    reviewFlagNote: destination.reviewFlagNote ?? legacy.reviewFlagNote,
-  };
+  return { ...await moveCardRows(map), unpaired };
 }
 
 /**
@@ -453,8 +322,7 @@ export function mergedFields(
 export function describeRetiredCategoryMigration(
   r: MigrationReport,
 ): string | null {
-  const moved = r.attempts + r.spacing + r.spacingMerged + r.annotations + r.diary;
-  if (moved === 0 && r.unpaired.length === 0) return null;
+  if (movedTotal(r) === 0 && r.unpaired.length === 0) return null;
   const parts = [
     `[hf] retired categories: ${r.attempts} attempt(s), `
     + `${r.spacing} spacing row(s) repointed, ${r.spacingMerged} merged, `

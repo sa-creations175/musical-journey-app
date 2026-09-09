@@ -210,10 +210,12 @@ describe('ids are root-suffixed, never positional', () => {
   it('leaves every hand-written C card exactly where it was', () => {
     // The originals keep their ids AND their hand-written decoys; only
     // the other eleven keys are generated.
-    // `sc-11` WAS IN THIS LIST — the hand-written 6/b7 card in C. It
-    // went with the shape under ruling 30.
-    for (const id of ['fh-3', 'fh-11', 'fh-12', 'mo-11', 'mo-12', 'mo-13',
-      'sc-8', 'sc-9', 'sc-10']) {
+    // EVERY SLASH CARD LEFT THIS LIST. `sc-11` went with the 6/♭7
+    // shape (ruling 30); `sc-8`, `sc-9` and `sc-10` folded into the
+    // generator (ruling 37), which covers C for every shape now. What
+    // is left is functional harmony and modes, where a hand-written C
+    // card is still the one the generator skips.
+    for (const id of ['fh-3', 'fh-11', 'fh-12', 'mo-11', 'mo-12', 'mo-13']) {
       expect(FLASHCARDS.find(c => c.id === id)?.question).toContain('C');
     }
   });

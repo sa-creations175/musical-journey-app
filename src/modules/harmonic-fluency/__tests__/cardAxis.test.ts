@@ -205,10 +205,10 @@ describe('absent means flat list, not broken', () => {
       'degree-notes': 625,
       'pentatonic-scales': 36,
       'progressions': 6,
-      // 44 before ruling 30: eleven keys x four shapes. Now seven
-      // shapes across twelve keys, less the three C cards that are
-      // hand-written and carry no axis.
-      'slash-chords': 81,
+      // 44 before ruling 30: eleven keys x four shapes. Seven shapes
+      // across twelve keys now — ruling 37 took the three hand-written
+      // C cards that were keeping the generator out of that key.
+      'slash-chords': 84,
     });
   });
 });

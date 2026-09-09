@@ -14,6 +14,10 @@ import {
   describeOrphanCleanup,
 } from './modules/harmonic-fluency/orphanedCardCleanup';
 import {
+  describeSlashCFoldIn,
+  foldInSlashCCards,
+} from './modules/harmonic-fluency/slashCFoldIn';
+import {
   cleanUpRetiredCard,
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
@@ -202,6 +206,18 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] orphaned-card cleanup failed', err);
+      });
+    // The three hand-written C slash cards folded into the generator
+    // (ruling 37). Same machinery and same two-device reasoning as the
+    // retired-category migration below — the difference is the proof,
+    // which here is a byte-identical question and answer.
+    void foldInSlashCCards()
+      .then(r => {
+        const line = describeSlashCFoldIn(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] slash C fold-in failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from

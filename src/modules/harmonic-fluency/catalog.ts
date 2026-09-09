@@ -1400,27 +1400,13 @@ const SLASH_CHORD_CARDS: Flashcard[] = [
     decoys: ['a IV inversion', 'a bII chord', 'a secondary dominant'],
     explanation: "F/G in C is a classic V7sus4 substitute — G in the bass, F-A-C on top gives you the G7sus sound without the 3rd. Widely used in neo-soul, gospel, and modern R&B for a suspended, 'held' feel before resolution to the I. Chord-tone view: G isn't a tone of F (F-A-C), so this is a hybrid/slash chord, not an inversion.",
     skillTag: 'slash-function-F-G' },
-  { id: 'sc-8', category: 'slash-chords', categoryName: CATEGORY_LABELS['slash-chords'],
-    question: 'What is 1/3 in C major?',
-    correctAnswer: 'C/E',
-    decoys: ['C/G', 'C/B', 'E/C'],
-    explanation: "1/3 means the 1 chord with the 3rd scale degree in the bass — in C that's C/E. The number after the slash is the BASS scale degree (Nashville notation), NOT a secondary dominant. Chord-tone view: E is the 3rd of C, so C/E is the 1 chord in 1st inversion.",
-    skillTag: 'slash-notation-I-3-in-C' },
-  { id: 'sc-9', category: 'slash-chords', categoryName: CATEGORY_LABELS['slash-chords'],
-    question: 'What is 5/7 in C major?',
-    correctAnswer: 'G/B',
-    decoys: ['G/F', 'G/D', 'G/F#'],
-    explanation: "5/7 means the 5 chord with the 7th scale degree (B) in the bass — in C that's G/B. The number after the slash is the BASS scale degree (Nashville notation), NOT the Roman 'V/x' which means a secondary dominant. Chord-tone view: B is the 3rd of G, so G/B is the 5 chord in 1st inversion; that leading-tone bass resolves up to 1 (B → C).",
-    skillTag: 'slash-notation-V-7-in-C' },
-  { id: 'sc-10', category: 'slash-chords', categoryName: CATEGORY_LABELS['slash-chords'],
-    question: 'What is 4/5 in C major?',
-    correctAnswer: 'F/G',
-    decoys: ['F/C', 'F/A', 'F/D'],
-    explanation: "4/5 means the 4 chord with the 5th scale degree (G) in the bass — in C that's F/G. Chord-tone heads-up: G is NOT a tone of F (F-A-C), so this is a hybrid/slash chord, not an inversion — it sounds and functions like a G7sus4, a 'held' dominant that resolves down to 1.",
-    skillTag: 'slash-notation-IV-5-in-C' },
-  // `sc-11` WAS HERE — the hand-written 6/b7 card in C. Ruling 30 took
-  // 6/♭7 out of the deck, and its C card goes with the eleven the
-  // generator made. See `SLASH_SHAPES`.
+  // `sc-8`, `sc-9` AND `sc-10` WERE HERE — the hand-written C cards for
+  // 1/3, 5/7 and 4/5. Ruling 37 folded them into the generator, which
+  // covers C for every shape now. They asked the identical question
+  // with the identical answer and carried no `axis`, so the Slash Chord
+  // filter could not see them and they had no sound; their practice
+  // moved onto the generated cards. See `slashCFoldIn.ts`, which holds
+  // the proof.
   { id: 'sc-12', category: 'slash-chords', categoryName: CATEGORY_LABELS['slash-chords'],
     question: 'The descending bass line 1 - 5/7 - 6 - 1/3 moves the bass by _____',
     correctAnswer: 'step',
