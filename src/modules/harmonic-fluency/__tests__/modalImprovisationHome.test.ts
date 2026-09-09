@@ -118,7 +118,7 @@ describe('the row a reader can reach', () => {
     expect(categoryPath('modal-improvisation')).toBe('/harmonic-fluency/modal-improvisation');
   });
 
-  it('says what it is, in the prototype\'s own words', () => {
+  it('says what it is, in Silas\'s own words', () => {
     // The key is the joined path, which `affordances.test.ts` already
     // asserts resolves to a real node in an assembled tree.
     const described = skillDescriptionFor(
@@ -130,10 +130,6 @@ describe('the row a reader can reach', () => {
     );
     expect(described?.text).toBe(MODAL_IMPROV_DESCRIPTION);
     expect(described?.inheritedFrom).toBeUndefined();
-    // Straight off the prototype's `<p class="sub">`, uncorrected —
-    // including "Hear It", where the button reads "Hear it".
-    expect(MODAL_IMPROV_DESCRIPTION.startsWith('Pick a key and a chord')).toBe(true);
-    expect(MODAL_IMPROV_DESCRIPTION).toContain('press Hear It');
   });
 });
 

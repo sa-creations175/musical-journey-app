@@ -74,18 +74,19 @@ export const MODAL_IMPROV_CATEGORY_NAME = 'Modal Improvisation';
 /**
  * What the family is, on the dashboard.
  *
- * THE PROTOTYPE'S OWN `<p class="sub">`, UNCHANGED — which is what the
- * brief ruled. It is written as page copy rather than as a row
- * description ("Pick a key and a chord…"), and it says "Hear It" where
- * the button says "Hear it". Both are in the report rather than
- * quietly corrected here.
+ * SILAS'S SENTENCE, 9 SEP 2026, and it is in
+ * `docs/HARMONIC_FLUENCY_COPY.md` where the test can read it.
+ *
+ * THE PROTOTYPE'S `<p class="sub">` WAS HERE and is gone. It was page
+ * copy rather than a row description — it opened by telling the reader
+ * to pick something, which no other row does — and it said "Hear It"
+ * where the button says "Hear it". This says what the family IS, which
+ * is what a row description is for.
  */
 export const MODAL_IMPROV_DESCRIPTION =
-  'Pick a key and a chord the band is sitting on. The card asks which '
-  + 'notes fit over it; press Hear It to hear the answer as a small '
-  + 'phrase: home with a run, the chord with a run from the answer '
-  + 'scale, where it lands with its own scale, and home again with its '
-  + 'scale.';
+  'Modal Improvisation: the band lands on a chord; name the scale that '
+  + 'fits over it. In-key chords stay in the key; a borrowed chord uses '
+  + "the key of the chord it's pulling toward.";
 
 /**
  * One of the ten chords the band can be sitting on.

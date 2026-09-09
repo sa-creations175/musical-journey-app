@@ -31,6 +31,9 @@ import { CLEAR_FILTERS_LABEL, FILTERS_LABEL } from '../FacetFilterRow';
 import { HEAR_IT_LABEL } from '../CardPlayback';
 import { DEGREE_MATH_CATEGORY_NAME } from '../scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, placeItCards } from '../degreeNoteCards';
+import { MODAL_IMPROV_DESCRIPTION } from '../modalImprovisation';
+import { skillDescriptionFor } from '../../dashboard/read/affordances';
+import type { TreeNode } from '../../dashboard/read/tree';
 
 
 /**
@@ -99,6 +102,59 @@ describe('the filter row — the controls', () => {
     // character.
     expect(COPY).toContain('`Filters · 2`');
     expect(`${FILTERS_LABEL} · 2`).toBe('Filters · 2');
+  });
+});
+
+/**
+ * The fenced block under a heading, as one line.
+ *
+ * A row description is a SENTENCE, not a table, and it is wrapped in
+ * the document so the file stays readable at 80 columns. The fence is
+ * what marks where it starts and stops; collapsing the wrap is what
+ * makes it comparable to the string the app holds.
+ */
+function blockUnder(heading: string): string {
+  const lines = COPY.split('\n');
+  const start = lines.findIndex((l: string) => l.trim() === `## ${heading}`);
+  expect(start, `heading "${heading}" is in the copy file`).toBeGreaterThan(-1);
+  const out: string[] = [];
+  let inside = false;
+  for (const line of lines.slice(start + 1)) {
+    if (line.startsWith('## ')) break;
+    if (line.trim() === '```') {
+      if (inside) break;
+      inside = true;
+      continue;
+    }
+    if (inside) out.push(line.trim());
+  }
+  return out.join(' ');
+}
+
+describe('the Modal Improvisation row', () => {
+  it('says Silas\'s sentence, word for word', () => {
+    expect(MODAL_IMPROV_DESCRIPTION).toBe(blockUnder('The Modal Improvisation row'));
+  });
+
+  it('and the row on screen is that sentence', () => {
+    // The description reaches the dashboard through `affordances`,
+    // which reads this constant rather than holding a second copy.
+    expect(skillDescriptionFor(
+      {
+        id: `harmonic-fluency/${CATEGORY_LABELS['modal-improvisation']}`,
+        label: CATEGORY_LABELS['modal-improvisation'],
+      } as TreeNode,
+      'harmonic-fluency',
+    )?.text).toBe(MODAL_IMPROV_DESCRIPTION);
+  });
+
+  it('is not the prototype\'s page copy any more', () => {
+    // Named rather than merely absent: it was on screen for an
+    // afternoon, and "Pick a key…" reads plausibly enough that its
+    // return would not be noticed.
+    expect(MODAL_IMPROV_DESCRIPTION).not.toContain('Pick a key');
+    expect(MODAL_IMPROV_DESCRIPTION).not.toContain('Hear It');
+    expect(COPY).toContain('Pick a key and a chord');
   });
 });
 

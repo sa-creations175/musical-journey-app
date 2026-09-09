@@ -100,6 +100,25 @@ would be the row a reader has to know is the same row.
 
 ---
 
+## The Modal Improvisation row
+
+Approved by Silas, 9 Sep 2026. What the family is, on the dashboard and anywhere
+else a row has to describe itself.
+
+```
+Modal Improvisation: the band lands on a chord; name the scale that fits over
+it. In-key chords stay in the key; a borrowed chord uses the key of the chord
+it's pulling toward.
+```
+
+**It replaced the prototype's own page copy**, which read "Pick a key and a chord
+the band is sitting on…". That was written to sit above a click-through with
+chips on it: it opened by telling the reader to pick something, which no other
+row description does, and it named the play control "Hear It" where the button
+says "Hear it".
+
+---
+
 ## The Distance chips
 
 Ruling 27. Interval words, never half-step counts and never the coordinate.
