@@ -25,7 +25,9 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   ['V/V',              /^fh-v-of-v-/,   11, ['key', 'shape']],
   ['V/vi',             /^fh-v-of-vi-/,  11, ['key', 'shape']],
   ['mode-of',          /^mo-mode-of-/,  33, ['degree', 'key']],
-  ['slash',            /^sc-\d-/,       44, ['key', 'shape']],
+  // 44 before ruling 30 — eleven keys x four shapes. Seven shapes now,
+  // across twelve keys, less the three C cards that are hand-written.
+  ['slash',            /^sc-\d-/,       81, ['key', 'shape']],
   // `pivot top-ups` WAS HERE. Reverse Key Pivots folded into
   // `degree-notes` on 3 Sep 2026 and its three top-ups went with it;
   // `retiredCategoryMigration` reads the generator now.

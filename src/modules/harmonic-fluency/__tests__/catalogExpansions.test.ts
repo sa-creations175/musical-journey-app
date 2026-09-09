@@ -10,6 +10,7 @@ import { FLASHCARDS, generateReversePivotCards } from '../catalog';
 import {
   FLAT_TWELVE, degreeAscii, degreeLabel, degreeLabelGlossed, expansionCards,
   generatePivotTopUps, keyboardNote, needsPracticalName, noteLabelGlossed,
+  SLASH_SHAPES,
 } from '../catalogExpansions';
 
 /** The four spellings that are correct and never said out loud. */
@@ -71,8 +72,14 @@ describe('but the teaching survives the move', () => {
   });
 
   it('says where the hand goes for the card this rule was built for', () => {
-    const card = FLASHCARDS.find(c => c.id === 'sc-6-b7-Db')!;
-    expect(card.correctAnswer).toBe('B♭m/C♭');
+    // THE CARD THIS WAS WRITTEN AGAINST IS GONE. `sc-6-b7-Db` — the
+    // ♭7 of D♭ is C♭ — left the deck with 6/♭7 under ruling 30. The
+    // claim it was making is about the RULE, not about that card, so
+    // it is made on the card that reaches C♭ now: the 4 of G♭, whose
+    // id carries the identity spelling F♯ while every word in the card
+    // reads the flat side.
+    const card = FLASHCARDS.find(c => c.id === 'sc-1-4-F#')!;
+    expect(card.correctAnswer).toBe('G♭/C♭');
     expect(card.explanation).toContain('C♭ is B on the keyboard');
   });
 
@@ -203,8 +210,10 @@ describe('ids are root-suffixed, never positional', () => {
   it('leaves every hand-written C card exactly where it was', () => {
     // The originals keep their ids AND their hand-written decoys; only
     // the other eleven keys are generated.
+    // `sc-11` WAS IN THIS LIST — the hand-written 6/b7 card in C. It
+    // went with the shape under ruling 30.
     for (const id of ['fh-3', 'fh-11', 'fh-12', 'mo-11', 'mo-12', 'mo-13',
-      'sc-8', 'sc-9', 'sc-10', 'sc-11']) {
+      'sc-8', 'sc-9', 'sc-10']) {
       expect(FLASHCARDS.find(c => c.id === id)?.question).toContain('C');
     }
   });
@@ -231,7 +240,10 @@ describe('coverage reaches twelve', () => {
   });
 
   it('every slash shape in all twelve', () => {
-    for (const shape of ['1/3', '5/7', '4/5', '6/b7']) {
+    // Read off the shape list rather than written again beside it, so
+    // a shape added or removed by a ruling is covered without being
+    // remembered here. Ruling 30 dropped 6/♭7 and added four.
+    for (const shape of SLASH_SHAPES.map(sh => sh.label)) {
       const s = keysIn('slash-chords',
         new RegExp(`${shape.replace('/', '\\/')} in (${N}) major`), 'q');
       expect(s.size, shape).toBe(12);

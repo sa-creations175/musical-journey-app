@@ -63,10 +63,20 @@ function identityRoot(root: string): string {
   return canonicaliseKey(root) ?? root;
 }
 
-/** (diatonic steps, semitones) from the tonic, per scale degree. */
+/**
+ * (diatonic steps, semitones) from the tonic, per scale degree.
+ *
+ * THE THREE FLATTENED ONES ARE FOR DECOYS, not for questions. A slash
+ * chord's bass is asked about as a degree of the key, and on the sharp
+ * side the diatonic degrees alone cannot give an answer any plain
+ * company — the ♭3 of B is D and the ♭6 is G. They are unspellable
+ * from some flat roots (the ♭3 of G♭ is B♭♭), which is why every
+ * caller reaching for one goes through `degreeAsciiOrNull`.
+ */
 const DEGREE: Readonly<Record<string, readonly [number, number]>> = {
   '1': [0, 0], '2': [1, 2], '3': [2, 4], '4': [3, 5],
   '5': [4, 7], '6': [5, 9], '7': [6, 11], 'b7': [6, 10],
+  'b2': [1, 1], 'b3': [2, 3], 'b6': [5, 8],
 };
 
 const GLYPH: Readonly<Record<string, string>> = {
@@ -111,10 +121,25 @@ function parse(name: string): Pitch {
 
 /** ASCII form — "Eb", "F#", "Cb". Storage and comparison. */
 export function degreeAscii(root: string, degree: string): string {
+  const ascii = degreeAsciiOrNull(root, degree);
+  if (ascii === null) throw new Error(`unspellable: ${degree} of ${root}`);
+  return ascii;
+}
+
+/**
+ * The same, declining rather than throwing.
+ *
+ * `null` means the name would need a double accidental — the ♭3 of G♭
+ * is B♭♭, which is a correct note nobody writes. A QUESTION may not
+ * reach one, and throwing is right there. A DECOY POOL may, because it
+ * walks degrees looking for company, and a pool that threw would take
+ * the build down over an option nobody was going to use.
+ */
+export function degreeAsciiOrNull(root: string, degree: string): string | null {
   const spec = DEGREE[degree];
+  if (spec === undefined) return null;
   const p = spellInterval(parse(root), spec[0], spec[1]);
-  if (p === null) throw new Error(`unspellable: ${degree} of ${root}`);
-  return `${p.letter}${p.accidental ?? ''}`;
+  return p === null ? null : `${p.letter}${p.accidental ?? ''}`;
 }
 
 /**
@@ -402,17 +427,79 @@ export function generateModeOfCards(): Flashcard[] {
 // Slash chords — Nashville degree notation
 // =====================================================================
 
-/** The four shapes the hand-written C cards drilled. */
-/** Exported so the slash-chord grid reads the same shape order the
- *  generator emits, rather than a second list beside it. */
+/**
+ * The seven shapes the deck drills (ruling 30).
+ *
+ * =====================================================================
+ * 6/♭7 IS GONE AND FOUR ARE NEW.
+ *
+ * The old four were the ones the hand-written C cards happened to
+ * cover. 6/♭7 was the odd one out — a voice-leading trick rather than
+ * a shape a chart puts in front of you — and four that a chart does
+ * put in front of you were missing: the second inversion, the 5 over
+ * the tonic, the 1 over its 4th, and the 2 minor over the tonic.
+ *
+ * =====================================================================
+ * `reading` IS SILAS'S OWN SENTENCE, VERBATIM.
+ *
+ * Every card asks in scale degrees, because that is what a chart says.
+ * The reveal then adds ONE line saying what the shape IS in chord
+ * tones, which is the thing a reader has to build for themselves
+ * otherwise — and it is different in kind per shape: three of these
+ * are inversions and four are not, and calling the 4/5 an inversion
+ * would be teaching something false.
+ *
+ * The words are approved copy — `docs/HARMONIC_FLUENCY_COPY.md` — and
+ * a test reads them from there. NO SHAPE ADDED LATER GETS A LINE
+ * INVENTED FOR IT; ruling 30 says so in terms, and the type makes it
+ * required so the omission is a conversation rather than a silence.
+ *
+ * Exported so the slash-chord grid reads the same shape order the
+ * generator emits, rather than a second list beside it.
+ * =====================================================================
+ */
 export const SLASH_SHAPES: ReadonlyArray<{
   id: string; label: string; chord: string; bass: string; quality: string;
+  reading: string;
 }> = [
-  { id: '1-3', label: '1/3', chord: '1', bass: '3', quality: '' },
-  { id: '5-7', label: '5/7', chord: '5', bass: '7', quality: '' },
-  { id: '4-5', label: '4/5', chord: '4', bass: '5', quality: '' },
-  { id: '6-b7', label: '6/b7', chord: '6', bass: 'b7', quality: 'm' },
+  { id: '1-3', label: '1/3', chord: '1', bass: '3', quality: '',
+    reading: 'the 1 in first inversion' },
+  { id: '5-7', label: '5/7', chord: '5', bass: '7', quality: '',
+    reading: 'the 5 in first inversion' },
+  { id: '1-5', label: '1/5', chord: '1', bass: '5', quality: '',
+    reading: 'the 1 in second inversion' },
+  { id: '4-5', label: '4/5', chord: '4', bass: '5', quality: '',
+    reading: 'the dominant sus sound (9sus4)' },
+  { id: '5-1', label: '5/1', chord: '5', bass: '1', quality: '',
+    reading: 'the 5 over its 4th, a suspended sound' },
+  { id: '1-4', label: '1/4', chord: '1', bass: '4', quality: '',
+    reading: 'the 1 over its 4th' },
+  { id: '2-1', label: '2m/1', chord: '2', bass: '1', quality: 'm',
+    reading: "the 2 minor over the key's home note" },
 ];
+
+/**
+ * The shapes whose C card is hand-written in `catalog.ts`, and which
+ * the generator therefore skips in C.
+ *
+ * =====================================================================
+ * IT USED TO BE "SKIP C", FULL STOP, AND THAT WOULD HAVE COST THE FOUR
+ * NEW SHAPES A KEY.
+ *
+ * Three shapes have a longer, hand-written C card that says the
+ * chord-tone reading in its own words. The four new ones have nothing
+ * in C, so a blanket skip would have shipped them in eleven keys while
+ * every other family in the module covers twelve.
+ *
+ * THE HAND-WRITTEN THREE ARE A SECOND IMPLEMENTATION OF THIS
+ * GENERATOR and they are left alone here deliberately: they carry no
+ * `axis`, so the Slash Chord filter row cannot see them, and unifying
+ * them would move three cards' practice history. That is a ruling
+ * nobody has made — it is raised in the report rather than taken.
+ * =====================================================================
+ */
+const HANDWRITTEN_C_SHAPES: ReadonlySet<string> =
+  new Set(['1-3', '5-7', '4-5']);
 
 /**
  * Bass degrees a decoy may use, in order of how plausible a misread is.
@@ -420,8 +507,29 @@ export const SLASH_SHAPES: ReadonlyArray<{
  * The question is always which BASS, never which chord, so every decoy
  * keeps the chord and moves the bass. A decoy that changed the chord
  * would be answerable without reading the notation at all.
+ *
+ * =====================================================================
+ * IT RUNS PAST THE FIVE THAT USED TO BE THE WHOLE LIST.
+ *
+ * Five was enough while the four shapes it was written for all sat on
+ * the flat side of things. `1/4` in the key of B broke it: the 5, 3
+ * and 7 of B are F♯, D♯ and A♯, so B/E was the only option on screen
+ * without an accidental and the card could be answered without reading
+ * it. The chromatic degrees are the company that fixes that — the ♭3
+ * of B is D and the ♭6 is G, both plain.
+ *
+ * The order is still musical relevance, first five first; what changed
+ * is that there is something to fall through TO.
+ * =====================================================================
  */
-const SLASH_BASS_CANDIDATES: ReadonlyArray<string> = ['5', '3', '7', 'b7', '1'];
+const SLASH_BASS_CANDIDATES: ReadonlyArray<string> = [
+  '5', '3', '7', 'b7', '1', '2', '6', '4', 'b3', 'b6', 'b2',
+];
+
+/** Silas's phrase, as a line — his words with a capital and a stop. */
+function asSentence(text: string): string {
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}.`;
+}
 
 const SLASH_CONTEXT =
   'The number after the slash is the BASS scale degree (Nashville notation), '
@@ -439,32 +547,89 @@ const SLASH_CONTEXT =
  */
 export function generateSlashCards(): Flashcard[] {
   const out: Flashcard[] = [];
+  /**
+   * Which wrong answers a given right answer has already been offered
+   * against.
+   *
+   * =====================================================================
+   * TWO SHAPES CAN NAME THE SAME CHORD, AND RULING 30 MADE THAT TRUE.
+   *
+   * `G/C` is 1/4 in the key of G and 5/1 in the key of C — the same
+   * two names, asked two different ways, which is a good pair of cards
+   * and not a duplicate. But if both offer `G/A` as a wrong answer,
+   * then `G/A` on screen means the answer is `G/C`, on every card that
+   * shows it. `findTells` calls that a tell and it is right to: a
+   * reader who has met the pair twice can answer the third sighting
+   * without reading the question.
+   *
+   * So a decoy already spent on an answer is out of the pool for the
+   * next card that shares it. The pool is eight or nine deep and three
+   * are taken, so the second card always has enough left.
+   * =====================================================================
+   */
+  const spentOn = new Map<string, Set<string>>();
   for (const root of FLAT_TWELVE) {
-    if (root === 'C') continue;
     for (const shape of SLASH_SHAPES) {
-      const chord = `${degreeLabel(root, shape.chord)}${shape.quality}`;
+      if (root === 'C' && HANDWRITTEN_C_SHAPES.has(shape.id)) continue;
+      const chordRoot = degreeLabel(root, shape.chord);
+      const chord = `${chordRoot}${shape.quality}`;
       const bass = degreeLabel(root, shape.bass);
-      // Three OTHER bass degrees, taken in a fixed order of
-      // plausibility and skipping the right answer. A fixed candidate
-      // list rather than arithmetic on the correct degree: the latter
-      // collided with itself on 1/3, where two families both resolved
-      // to the 5 and the card shipped with two decoys instead of three.
-      const decoys = SLASH_BASS_CANDIDATES
+      // OTHER BASS DEGREES, ordered by how plausible a misread is,
+      // and then handed to the deck's own chooser rather than sliced.
+      //
+      // IT USED TO TAKE THE FIRST THREE, and that could not adapt: in
+      // the key of B the first three are all sharp, so `B/E` was the
+      // only plain name on screen. Every other generator in the module
+      // goes through `chooseDecoys`, which rejects a set a blind rule
+      // can solve and keeps the caller's ordering where it can; this
+      // was the last one hand-rolling it.
+      //
+      // THE CHORD'S OWN ROOT IS OUT OF THE POOL, which is a defect
+      // this found rather than a precaution. On 5/7 the candidate
+      // list's `5` resolves to the chord's own root, so every one of
+      // those cards offered `G/G` as a wrong answer — a chord over
+      // itself, which is not a slash chord at all and is answerable
+      // without reading anything. The new 5/1 would have done the same.
+      const pool = SLASH_BASS_CANDIDATES
         .filter(d => d !== shape.bass)
-        .slice(0, 3)
-        .map(d => `${chord}/${degreeLabel(root, d)}`);
+        .map(d => degreeAsciiOrNull(root, d))
+        // A degree this root cannot spell AT ALL is dropped rather
+        // than thrown over — see `degreeAsciiOrNull`.
+        .filter((a): a is string => a !== null)
+        // AND ONE IT CAN ONLY SPELL WITH A DOUBLE goes too. The ♭2 of
+        // D♭ is E𝄫: a correct note, and not a name anybody would put
+        // on a chart or recognise as a wrong answer. The rule the
+        // whole file follows — see the header on `FLAT_TWELVE` — is
+        // that nothing here reaches past one accidental.
+        .filter(a => a.slice(1).length <= 1)
+        .map(noteLabel)
+        .filter(bassName => bassName !== chordRoot)
+        .map(bassName => `${chord}/${bassName}`);
+      const id = `sc-${shape.id}-${identityRoot(root)}`;
+      const answer = `${chord}/${bass}`;
+      const spent = spentOn.get(answer) ?? new Set<string>();
+      const decoys = chooseDecoys(answer, pool.filter(o => !spent.has(o)), {
+        count: 3, seed: id, label: id, category: 'slash-chords',
+      });
+      for (const d of decoys) spent.add(d);
+      spentOn.set(answer, spent);
       out.push({
         ...base('slash-chords', 'Slash Chords'),
-        id: `sc-${shape.id}-${identityRoot(root)}`,
+        id,
         axis: { key: identityRoot(root), shape: shape.id },
         question: `What is ${shape.label} in ${noteLabel(root)} major?`,
-        correctAnswer: `${chord}/${bass}`,
+        correctAnswer: answer,
         decoys,
+        // ONE LINE FOR THE CHORD-TONE READING, at the end, on its own
+        // line (ruling 30). `whitespace-pre-wrap` on the reveal is
+        // what makes a newline a newline — the same seam scale-degree
+        // math's worked arithmetic uses.
         explanation: `${shape.label} means the ${shape.chord} chord with the `
           + `${shape.bass} scale degree in the bass — in ${noteLabel(root)} `
           + `that is ${chord}/${bass}.`
           + keyboardNote(degreeAscii(root, shape.bass), degreeAscii(root, shape.chord))
-          + ` ${SLASH_CONTEXT}`,
+          + ` ${SLASH_CONTEXT}`
+          + `\n${asSentence(shape.reading)}`,
         skillTag: `slash-${shape.id}-${identityRoot(root)}`,
       });
     }

@@ -64,6 +64,24 @@
  * and `identityIdMigration.ts` carries their rows across. The other
  * fourteen had none.
  * ---------------------------------------------------------------
+ * 8 SEPTEMBER 2026 — THE SLASH BLOCK IS RE-PINNED, AND THIS ONE IS A
+ * DECK CHANGE RATHER THAN A RENAME.
+ *
+ * Ruling 30 took 6/♭7 out and put 1/5, 5/1, 1/4 and 2m/1 in. So the
+ * twelve `sc-6-b7-*` ids are GONE — eleven generated plus the
+ * hand-written `sc-11` — and forty-eight new ids arrive, four shapes
+ * across twelve keys. Nothing was repointed: every id that stayed
+ * carries the identical question it carried before, which is what the
+ * pairing exists to prove and what makes a re-pin readable rather than
+ * a reset.
+ *
+ * THE TWELVE THAT LEFT MAY HAVE PRACTICE HISTORY BEHIND THEM, and
+ * nothing here deletes it. Their `flashcardStates`, `attempts` and
+ * `spacingState` rows sit in the database with no card to point at.
+ * That is raised in the report rather than swept: whether they are
+ * deleted, and what a star or a flag note on one of them is worth, is
+ * a ruling nobody has made.
+ * ---------------------------------------------------------------
  */
 export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   // --- scale-degree-math ---
@@ -1129,56 +1147,92 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'sc-8|What is 1/3 in C major?',
   'sc-9|What is 5/7 in C major?',
   'sc-10|What is 4/5 in C major?',
-  'sc-11|What is 6/b7 in C major?',
   'sc-12|The descending bass line 1 - 5/7 - 6 - 1/3 moves the bass by _____',
   'sc-13|A pedal-tone progression using slash chords over a single bass note is called a _____',
   'sc-14|A slash chord X/Y where Y is NOT a chord tone is sometimes called _____',
   'sc-15|The main purpose of using slash chords is to _____',
   'sc-16|The V chord in first inversion has which chord tone in the bass?',
+  'sc-1-5-C|What is 1/5 in C major?',
+  'sc-5-1-C|What is 5/1 in C major?',
+  'sc-1-4-C|What is 1/4 in C major?',
+  'sc-2-1-C|What is 2m/1 in C major?',
   'sc-1-3-Db|What is 1/3 in D♭ major?',
   'sc-5-7-Db|What is 5/7 in D♭ major?',
+  'sc-1-5-Db|What is 1/5 in D♭ major?',
   'sc-4-5-Db|What is 4/5 in D♭ major?',
-  'sc-6-b7-Db|What is 6/b7 in D♭ major?',
+  'sc-5-1-Db|What is 5/1 in D♭ major?',
+  'sc-1-4-Db|What is 1/4 in D♭ major?',
+  'sc-2-1-Db|What is 2m/1 in D♭ major?',
   'sc-1-3-D|What is 1/3 in D major?',
   'sc-5-7-D|What is 5/7 in D major?',
+  'sc-1-5-D|What is 1/5 in D major?',
   'sc-4-5-D|What is 4/5 in D major?',
-  'sc-6-b7-D|What is 6/b7 in D major?',
+  'sc-5-1-D|What is 5/1 in D major?',
+  'sc-1-4-D|What is 1/4 in D major?',
+  'sc-2-1-D|What is 2m/1 in D major?',
   'sc-1-3-Eb|What is 1/3 in E♭ major?',
   'sc-5-7-Eb|What is 5/7 in E♭ major?',
+  'sc-1-5-Eb|What is 1/5 in E♭ major?',
   'sc-4-5-Eb|What is 4/5 in E♭ major?',
-  'sc-6-b7-Eb|What is 6/b7 in E♭ major?',
+  'sc-5-1-Eb|What is 5/1 in E♭ major?',
+  'sc-1-4-Eb|What is 1/4 in E♭ major?',
+  'sc-2-1-Eb|What is 2m/1 in E♭ major?',
   'sc-1-3-E|What is 1/3 in E major?',
   'sc-5-7-E|What is 5/7 in E major?',
+  'sc-1-5-E|What is 1/5 in E major?',
   'sc-4-5-E|What is 4/5 in E major?',
-  'sc-6-b7-E|What is 6/b7 in E major?',
+  'sc-5-1-E|What is 5/1 in E major?',
+  'sc-1-4-E|What is 1/4 in E major?',
+  'sc-2-1-E|What is 2m/1 in E major?',
   'sc-1-3-F|What is 1/3 in F major?',
   'sc-5-7-F|What is 5/7 in F major?',
+  'sc-1-5-F|What is 1/5 in F major?',
   'sc-4-5-F|What is 4/5 in F major?',
-  'sc-6-b7-F|What is 6/b7 in F major?',
+  'sc-5-1-F|What is 5/1 in F major?',
+  'sc-1-4-F|What is 1/4 in F major?',
+  'sc-2-1-F|What is 2m/1 in F major?',
   'sc-1-3-F#|What is 1/3 in G♭ major?',
   'sc-5-7-F#|What is 5/7 in G♭ major?',
+  'sc-1-5-F#|What is 1/5 in G♭ major?',
   'sc-4-5-F#|What is 4/5 in G♭ major?',
-  'sc-6-b7-F#|What is 6/b7 in G♭ major?',
+  'sc-5-1-F#|What is 5/1 in G♭ major?',
+  'sc-1-4-F#|What is 1/4 in G♭ major?',
+  'sc-2-1-F#|What is 2m/1 in G♭ major?',
   'sc-1-3-G|What is 1/3 in G major?',
   'sc-5-7-G|What is 5/7 in G major?',
+  'sc-1-5-G|What is 1/5 in G major?',
   'sc-4-5-G|What is 4/5 in G major?',
-  'sc-6-b7-G|What is 6/b7 in G major?',
+  'sc-5-1-G|What is 5/1 in G major?',
+  'sc-1-4-G|What is 1/4 in G major?',
+  'sc-2-1-G|What is 2m/1 in G major?',
   'sc-1-3-Ab|What is 1/3 in A♭ major?',
   'sc-5-7-Ab|What is 5/7 in A♭ major?',
+  'sc-1-5-Ab|What is 1/5 in A♭ major?',
   'sc-4-5-Ab|What is 4/5 in A♭ major?',
-  'sc-6-b7-Ab|What is 6/b7 in A♭ major?',
+  'sc-5-1-Ab|What is 5/1 in A♭ major?',
+  'sc-1-4-Ab|What is 1/4 in A♭ major?',
+  'sc-2-1-Ab|What is 2m/1 in A♭ major?',
   'sc-1-3-A|What is 1/3 in A major?',
   'sc-5-7-A|What is 5/7 in A major?',
+  'sc-1-5-A|What is 1/5 in A major?',
   'sc-4-5-A|What is 4/5 in A major?',
-  'sc-6-b7-A|What is 6/b7 in A major?',
+  'sc-5-1-A|What is 5/1 in A major?',
+  'sc-1-4-A|What is 1/4 in A major?',
+  'sc-2-1-A|What is 2m/1 in A major?',
   'sc-1-3-Bb|What is 1/3 in B♭ major?',
   'sc-5-7-Bb|What is 5/7 in B♭ major?',
+  'sc-1-5-Bb|What is 1/5 in B♭ major?',
   'sc-4-5-Bb|What is 4/5 in B♭ major?',
-  'sc-6-b7-Bb|What is 6/b7 in B♭ major?',
+  'sc-5-1-Bb|What is 5/1 in B♭ major?',
+  'sc-1-4-Bb|What is 1/4 in B♭ major?',
+  'sc-2-1-Bb|What is 2m/1 in B♭ major?',
   'sc-1-3-B|What is 1/3 in B major?',
   'sc-5-7-B|What is 5/7 in B major?',
+  'sc-1-5-B|What is 1/5 in B major?',
   'sc-4-5-B|What is 4/5 in B major?',
-  'sc-6-b7-B|What is 6/b7 in B major?',
+  'sc-5-1-B|What is 5/1 in B major?',
+  'sc-1-4-B|What is 1/4 in B major?',
+  'sc-2-1-B|What is 2m/1 in B major?',
   // --- progressions ---
   'pr-1|The 1-5-6-4 progression in C major is _____',
   'pr-2|The 2-5-1 in Bb major is _____',

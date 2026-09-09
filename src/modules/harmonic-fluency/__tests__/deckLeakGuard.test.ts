@@ -102,7 +102,11 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // offsets now come from the card's identity, so the answer's rank
   // cycles. Entry deleted rather than left at 0: an entry pinned at a
   // number nothing reaches is headroom.
-  { category: 'slash-chords', rule: 'only-accidental', cards: 4 },
+  // slash-chords / only-accidental stood at 4. Ruling 30 rebuilt the
+  // deck: the bass-degree pool now runs past the diatonic seven, so a
+  // sharp-key answer can be given company that is also sharp, and the
+  // whole generated family went to 0. `only-slash` is one hand-written
+  // prose card, `sc-13`, whose answer is the only one carrying a slash.
   { category: 'slash-chords', rule: 'only-slash', cards: 1 },
 ];
 
@@ -303,10 +307,14 @@ const TELL_ALLOWLIST: ReadonlyArray<{ category: string; tokeniser: string; cards
   { category: 'pentatonic-scales', tokeniser: 'without-key', cards: 12 },
   { category: 'pentatonic-scales', tokeniser: 'last-word', cards: 12 },
   { category: 'pentatonic-scales', tokeniser: 'first-word', cards: 12 },
-  { category: 'slash-chords', tokeniser: 'whole', cards: 2 },
-  { category: 'slash-chords', tokeniser: 'without-key', cards: 2 },
-  { category: 'slash-chords', tokeniser: 'last-word', cards: 5 },
-  { category: 'slash-chords', tokeniser: 'first-word', cards: 2 },
+  // slash-chords stood at 2 / 2 / 5 / 2. Three of the four entries are
+  // gone and the fourth is down to three: 6/♭7 left the deck with
+  // ruling 30, and the generated family no longer repeats a wrong
+  // answer against a right one two shapes can both produce — see
+  // `spentOn` in `generateSlashCards`. What is left is `sc-12` to
+  // `sc-14`, three hand-written prose cards where "…position" among
+  // the decoys means the answer ends "inversion".
+  { category: 'slash-chords', tokeniser: 'last-word', cards: 3 },
 ];
 
 function tellCounts(): Map<string, number> {
@@ -347,11 +355,12 @@ describe('no decoy pins its answer', () => {
     // tripping two rules is counted twice and a pentatonic card seen
     // under four tokenisers is counted four times. Adding the columns
     // adds up to more than the deck can supply. The real figures are
-    // 29 and 21, overlapping on nothing, for 50 in all — against 124
-    // and 36 before the guard existed. It ROSE from 41 when `longest`
-    // was scoped in: nine cards that were always answerable started
-    // being counted, which is a guard getting sharper rather than a
-    // deck getting worse.
+    // 25 and 19, overlapping on nothing, for 44 in all — against 124
+    // and 36 before the guard existed. It ROSE from 41 to 50 when
+    // `longest` was scoped in: nine cards that were always answerable
+    // started being counted, which is a guard getting sharper rather
+    // than a deck getting worse. Ruling 30's rebuilt slash deck took
+    // it back down by six.
     //
     // So the honest aggregate is derived here rather than written into
     // a commit message, where nobody can check it.
@@ -376,7 +385,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 29, tell: 21, distinct: 50 });
+      .toEqual({ blind: 25, tell: 19, distinct: 44 });
   });
 
   it('keeps the tell allowlist honest', () => {

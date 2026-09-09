@@ -1418,12 +1418,9 @@ const SLASH_CHORD_CARDS: Flashcard[] = [
     decoys: ['F/C', 'F/A', 'F/D'],
     explanation: "4/5 means the 4 chord with the 5th scale degree (G) in the bass — in C that's F/G. Chord-tone heads-up: G is NOT a tone of F (F-A-C), so this is a hybrid/slash chord, not an inversion — it sounds and functions like a G7sus4, a 'held' dominant that resolves down to 1.",
     skillTag: 'slash-notation-IV-5-in-C' },
-  { id: 'sc-11', category: 'slash-chords', categoryName: CATEGORY_LABELS['slash-chords'],
-    question: 'What is 6/b7 in C major?',
-    correctAnswer: 'Am/Bb',
-    decoys: ['Am/B', 'Am/G', 'Am/C'],
-    explanation: "6/b7 means the 6 chord with the flat-7 scale degree (Bb) in the bass — in C that's Am/Bb. Chord-tone heads-up: Bb is NOT a tone of Am (A-C-E), so this is a hybrid/slash chord, not an inversion. The Bb sets up a chromatic descent (B → Bb → A) or a half-step pull up to 1; a slick voice-leading trick in jazz reharms.",
-    skillTag: 'slash-notation-vi-b7-in-C' },
+  // `sc-11` WAS HERE — the hand-written 6/b7 card in C. Ruling 30 took
+  // 6/♭7 out of the deck, and its C card goes with the eleven the
+  // generator made. See `SLASH_SHAPES`.
   { id: 'sc-12', category: 'slash-chords', categoryName: CATEGORY_LABELS['slash-chords'],
     question: 'The descending bass line 1 - 5/7 - 6 - 1/3 moves the bass by _____',
     correctAnswer: 'step',

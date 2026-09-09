@@ -63,6 +63,7 @@ import { DEGREE_BY_ID } from './chromaticDegrees';
 import { LETTERS } from '../reading/pitch';
 import { qualityByShape } from './scaleDegreeQuality';
 import { movementId } from './scaleDegreeQualityCards';
+import { SLASH_SHAPES } from './catalogExpansions';
 
 /**
  * The facets a card may carry. Every one is optional, and every one
@@ -196,7 +197,10 @@ export const FACET_VALUES: Readonly<Record<FacetName, readonly (string | number)
   // first, in the order the module teaches them, then the one that was
   // already here.
   progression: ['ii-V-I', 'V/V', 'V/vi', '1-5-6-4'],
-  slashDegrees: ['1-3', '5-7', '4-5', '6-b7'],
+  // DERIVED FROM THE GENERATOR'S OWN LIST. Ruling 30 changed the
+  // shapes, and a vocabulary written out again here is a vocabulary
+  // that would have been changed in one place.
+  slashDegrees: SLASH_SHAPES.map(s => s.id),
   keyRelation: ['relative', 'parallel'],
   enharmonicKind: ['note', 'interval'],
   // The enharmonic sets, as the generator names them.

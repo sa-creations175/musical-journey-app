@@ -109,6 +109,28 @@ distance from their two notes.
 
 ---
 
+## The slash chord deck
+
+Ruling 30. Seven shapes. 6/♭7 is out. The card asks in scale degrees, because
+that is what a chart says; the reveal adds **one line** underneath with the
+chord-tone reading.
+
+| shape | chord-tone reading |
+|---|---|
+| 1/3 | the 1 in first inversion |
+| 5/7 | the 5 in first inversion |
+| 1/5 | the 1 in second inversion |
+| 4/5 | the dominant sus sound (9sus4) |
+| 5/1 | the 5 over its 4th, a suspended sound |
+| 1/4 | the 1 over its 4th |
+| 2m/1 | the 2 minor over the key's home note |
+
+The line is rendered as a sentence — first letter capitalised, full stop — and
+nothing else about it is written. **No shape added later gets a line invented
+for it.**
+
+---
+
 ## Category names
 
 Ruling 29. "Number", not "Degree".

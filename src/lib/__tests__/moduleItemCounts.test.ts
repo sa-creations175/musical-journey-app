@@ -70,7 +70,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 925 + 100 + 78 + 107 = 1210
+// Harmonic Fluency — 925 + 136 + 78 + 107 = 1246
+// (8 Sep 2026: 1210 → 1246. Ruling 30 rebuilt the slash deck — 6/♭7
+//  out, 1/5, 5/1, 1/4 and 2m/1 in, and the generator now covers C for
+//  the four that have no hand-written card there. Slash chords 60 → 96,
+//  chordKnowledge 100 → 136.)
 // (3 Sep 2026, later the same day: 1081 → 1210. Reverse Key Pivots —
 //  the third leg of the same triangle — generated to the family's own
 //  grid at 156 and retired into it. Foundational 769 → 925,
@@ -104,8 +108,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.foundational).toBe(925);
   });
 
-  it('chordKnowledge = dq 20 + cc 20 + sc 60 = 100', () => {
-    expect(c.byGroup.chordKnowledge).toBe(100);
+  it('chordKnowledge = dq 20 + cc 20 + sc 96 = 136', () => {
+    expect(c.byGroup.chordKnowledge).toBe(136);
   });
 
   it('functionalApplied = fh 52 + pr 26 = 78', () => {
@@ -116,8 +120,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(107);
   });
 
-  it('total = 1210 across all 13 categories', () => {
-    expect(c.total).toBe(1210);
+  it('total = 1246 across all 13 categories', () => {
+    expect(c.total).toBe(1246);
   });
 
   it('total equals sum of group totals', () => {

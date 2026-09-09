@@ -22,7 +22,8 @@ import { describe, expect, it } from 'vitest';
 // has no node types — and because a bundler import fails loudly if the
 // document is ever moved, where a path string would fail at runtime.
 import COPY from '../../../../docs/HARMONIC_FLUENCY_COPY.md?raw';
-import { CATEGORY_LABELS } from '../catalog';
+import { CATEGORY_LABELS, FLASHCARDS } from '../catalog';
+import { SLASH_SHAPES } from '../catalogExpansions';
 import {
   FACET_ROW, MOVEMENT_LABELS, facetValueLabel,
 } from '../facetDisplay';
@@ -133,6 +134,59 @@ describe('the Distance chips', () => {
 
   it('never prints a half-step count', () => {
     for (const [, chip] of rows) expect(chip).not.toMatch(/\d/);
+  });
+});
+
+describe('the slash chord deck', () => {
+  const rows = tableUnder('The slash chord deck');
+
+  it('drills exactly the shapes the file lists, in its order', () => {
+    expect(SLASH_SHAPES.map(s => s.label)).toEqual(rows.map(([label]) => label));
+  });
+
+  it('has 6/♭7 in neither', () => {
+    // Ruling 30 removed it. Named rather than merely absent, because
+    // a shape quietly missing from a list looks like an oversight.
+    expect(SLASH_SHAPES.map(s => s.id)).not.toContain('6-b7');
+    expect(FLASHCARDS.filter(c => c.id.includes('6-b7'))).toEqual([]);
+    expect(FLASHCARDS.filter(c => c.question.includes('6/b7'))).toEqual([]);
+  });
+
+  it('reads each shape back in Silas\'s own words', () => {
+    const reading = new Map(SLASH_SHAPES.map(s => [s.label, s.reading] as const));
+    for (const [label, words] of rows) {
+      expect(reading.get(label), label).toBe(words);
+    }
+  });
+
+  it('puts that reading on a line of its own, on every card', () => {
+    // The GENERATED cards only. Three shapes also have a longer,
+    // hand-written C card that says the same thing in its own words —
+    // they are `sc-1` … `sc-16` and are left exactly as Silas wrote
+    // them; the report says so.
+    let seen = 0;
+    for (const card of FLASHCARDS.filter(c => c.category === 'slash-chords')) {
+      const shape = SLASH_SHAPES.find(s => card.id.startsWith(`sc-${s.id}-`));
+      if (shape === undefined) continue;
+      seen += 1;
+      const lines = (card.explanation ?? '').split('\n');
+      expect(lines[lines.length - 1], card.id)
+        .toBe(`${shape.reading.charAt(0).toUpperCase()}${shape.reading.slice(1)}.`);
+    }
+    // 7 shapes × 12 keys, less the three C cards already hand-written.
+    expect(seen).toBe(SLASH_SHAPES.length * 12 - 3);
+  });
+
+  it('never offers a chord over its own root as a wrong answer', () => {
+    // `G/G` is not a slash chord, and it was on every 5/7 card until
+    // this deck was rebuilt.
+    for (const card of FLASHCARDS.filter(c => c.category === 'slash-chords')) {
+      for (const decoy of card.decoys) {
+        const [chord, bass] = decoy.split('/');
+        if (bass === undefined) continue;
+        expect(chord.replace(/m$/, ''), `${card.id}: ${decoy}`).not.toBe(bass);
+      }
+    }
   });
 });
 
