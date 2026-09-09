@@ -1,6 +1,10 @@
 import {
   spellInterval, type Accidental, type Letter, type Pitch,
 } from '../reading/pitch';
+import {
+  INTERVAL_NAMES, article, intervalNameAt,
+} from './intervalInversion';
+import { INTERVAL_QUALITIES } from './scaleDegreeQuality';
 import type { Flashcard } from './catalog';
 import { chooseDecoys } from './decoyGuard';
 import { PRACTICAL_NAME as PRACTICAL_SPELLINGS } from '../../lib/theoreticalSpellings';
@@ -903,16 +907,181 @@ const INTERVAL_CONTEXT =
   'Intervals are the raw material of melody and voicing: every lick and every '
   + 'chord shape is a specific sequence of these distances.';
 
-const INTERVAL_NAME_BY_SEMITONES: Readonly<Record<number, string>> = {
-  0: 'Unison', 1: 'Minor 2nd', 2: 'Major 2nd', 3: 'Minor 3rd',
-  4: 'Major 3rd', 5: 'Perfect 4th', 6: 'Tritone', 7: 'Perfect 5th',
-  8: 'Minor 6th', 9: 'Major 6th', 10: 'Minor 7th', 11: 'Major 7th',
-  12: 'Octave',
+/**
+ * WHAT AN INTERVAL IS CALLED — read from `INTERVAL_NAMES`, which is the
+ * one table.
+ *
+ * =====================================================================
+ * IT WAS A SECOND COPY, AND THE COPIES DISAGREED.
+ *
+ * A local `INTERVAL_NAME_BY_SEMITONES` stood here saying "Minor 3rd"
+ * while `INTERVAL_NAMES` — the table whose own header says "ONE TABLE,
+ * NOT THREE" — says "minor 3rd". So the deck answered the same question
+ * two ways depending on which generator wrote the card, which is
+ * exactly the drift that header exists to prevent, arriving from the
+ * direction it did not anticipate.
+ *
+ * The five top-up cards that used it all happened to answer Major or
+ * Perfect names, where the two tables agree, which is why nothing ever
+ * looked wrong.
+ * =====================================================================
+ */
+function intervalName(semitones: number): string {
+  const name = intervalNameAt(semitones);
+  if (name === undefined) throw new Error(`no interval name at ${semitones}`);
+  return name;
+}
+
+/** Every span an interval card asks about, in semitones — a minor 2nd
+ *  up to the octave (ruling 43). The unison is not a distance anybody
+ *  is asked to name. */
+const INTERVAL_SPANS: ReadonlyArray<number> =
+  Array.from({ length: 12 }, (_, i) => i + 1);
+
+/**
+ * How many LETTER steps an interval of this many semitones moves.
+ *
+ * =====================================================================
+ * THE LETTER COUNT IS WHAT DECIDES THE SPELLING, and this table is the
+ * one reading the deck already takes. Six semitones is written as an
+ * augmented 4th — three letter steps — because that is what `iv-17`,
+ * "the interval from F to B", has always been. The other reading, a
+ * diminished 5th, is a different card the family does not ask.
+ * =====================================================================
+ */
+const LETTER_STEPS_BY_SEMITONES: Readonly<Record<number, number>> = {
+  1: 1, 2: 1, 3: 2, 4: 2, 5: 3, 6: 3, 7: 4, 8: 5, 9: 5, 10: 6, 11: 6, 12: 7,
 };
+
+/**
+ * The note this interval lands on, or null where the answer would need
+ * a double accidental.
+ *
+ * SIX OF THE 156 COMBINATIONS ARE NULL and every one is real rather
+ * than a gap: the minor 2nd above D♭ is E𝄫, and there is no
+ * single-accidental name for it that is still a minor 2nd. Writing "D♭
+ * to D" would be an augmented unison and would teach the opposite of
+ * what the card asks. The deck's own rule — no double accidentals in
+ * any family, asserted by a test — decides it.
+ */
+export function intervalToAscii(from: string, semitones: number): string | null {
+  const steps = LETTER_STEPS_BY_SEMITONES[semitones];
+  if (steps === undefined) return null;
+  const p = spellInterval(parse(from), steps, semitones);
+  if (p === null) return null;
+  const accidental = p.accidental ?? '';
+  return accidental.length > 1 ? null : `${p.letter}${accidental}`;
+}
+
+/**
+ * The interval names a wrong answer may take, nearest distance first.
+ *
+ * A semitone out is the mistake worth making, so those come first; then
+ * the rest of the table, so the chooser has room to find company for a
+ * long answer name. `longest` is asserted in this category — "Perfect
+ * 4th" beside three shorter names was the answer without the question
+ * being read.
+ */
+function intervalDecoyPool(semitones: number): string[] {
+  return INTERVAL_NAMES
+    .map(i => i.semitones)
+    .sort((a, b) => Math.abs(a - semitones) - Math.abs(b - semitones) || a - b)
+    .map(intervalName);
+}
+
+/**
+ * Every note, every distance, ascending (ruling 43).
+ *
+ * =====================================================================
+ * THIRTEEN NOTES BECAUSE THIRTEEN KEYS.
+ *
+ * `THIRTEEN_KEYS` is a list of KEYS and this is a list of NOTES, and
+ * they are the same list on purpose: ruling 43 defines the note
+ * vocabulary as "the twelve pitch classes in the app's flat-default
+ * spelling, plus the sharp twins where a key uses them", and F♯ is the
+ * only sharp twin a key uses. Two lists of the same thirteen strings is
+ * how one comes to hold a note the other does not.
+ *
+ * ASCENDING ONLY, and that is not an omission. Ruling 43 says to add a
+ * descending shape only if the family already has one, and it does not
+ * — every card in it has said "ascending" since it was written.
+ *
+ * 150 CARDS, NOT 156. Six spellings need a double accidental and are
+ * skipped rather than written wrong; `intervalToAscii` says which and
+ * why, and the report lists them.
+ * =====================================================================
+ */
+export function generateIntervalGrid(): Flashcard[] {
+  const out: Flashcard[] = [];
+  for (const from of THIRTEEN_KEYS) {
+    for (const semitones of INTERVAL_SPANS) {
+      const toAscii = intervalToAscii(from, semitones);
+      if (toAscii === null) continue;
+      const correct = intervalName(semitones);
+      const id = `iv-${from}-up-${semitones}`;
+      out.push({
+        ...base('intervals', 'Intervals'),
+        id,
+        // `from` IS NOT CANONICALISED, and that is the point. It is a
+        // NOTE in an interval, not a key being related to another —
+        // and under ruling 40 the row axis holds both spellings of the
+        // sixth pitch, so folding G♭ onto F♯ would drop half of them
+        // into one row.
+        //
+        // `movement` is carried rather than derived (ruling 43), so the
+        // Distance chip gathers these beside the movement cards without
+        // re-reading two note names to work out what it already knew.
+        axis: {
+          from,
+          to: toAscii,
+          semitones,
+          ...(movementForSpan(semitones) === null
+            ? {}
+            : { movement: movementForSpan(semitones)! }),
+        },
+        question: `The interval from ${noteLabel(from)} to `
+          + `${noteLabelGlossed(toAscii)} ascending = ?`,
+        correctAnswer: correct,
+        decoys: chooseDecoys(correct, intervalDecoyPool(semitones), {
+          count: 3, seed: id, label: id, category: 'intervals',
+        }),
+        explanation: `${noteLabel(from)} up to ${noteLabel(toAscii)} spans `
+          + `${semitones} semitones — ${article(correct)} ${correct}.`
+          + keyboardNote(toAscii)
+          + ` ${INTERVAL_CONTEXT}`,
+        skillTag: `interval-${from}-up-${semitones}`,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * The movement id for a span, or null where the deck has no name for
+ * it.
+ *
+ * THE OCTAVE HAS NONE. `INTERVAL_QUALITIES` runs from the minor 2nd to
+ * the major 7th, because a movement card asks where a degree lands and
+ * a degree cannot move an octave and land somewhere else. So an octave
+ * card carries no `movement` and the Distance row does not offer it —
+ * which is honest, rather than inventing a thirteenth quality to fill
+ * a column.
+ */
+function movementForSpan(semitones: number): string | null {
+  const steps = LETTER_STEPS_BY_SEMITONES[semitones];
+  const quality = INTERVAL_QUALITIES.find(
+    q => q.letterSteps === steps && q.semitones === semitones,
+  );
+  return quality === undefined ? null : `up:${quality.id}`;
+}
 
 /**
  * One card per previously-unused start note, each a different interval
  * so the five do not drill one distance five times.
+ *
+ * OUT OF THE DECK SINCE RULING 43 and still exported, like the mode
+ * generator before it: `intervalFoldIn` reads it to prove which new
+ * card each retired one became.
  */
 export function generateIntervalTopUps(): Flashcard[] {
   const missing: ReadonlyArray<{ from: string; degree: string }> = [
@@ -926,7 +1095,7 @@ export function generateIntervalTopUps(): Flashcard[] {
     const to = degreeLabel(from, degree);
     const toGlossed = degreeLabelGlossed(from, degree);
     const semitones = DEGREE[degree][1];
-    const correct = INTERVAL_NAME_BY_SEMITONES[semitones];
+    const correct = intervalName(semitones);
     // Nearest distances first — a semitone out is the mistake worth
     // making — then the rest of the table, so the chooser has room to
     // find company for a long answer name. `longest` is asserted in
@@ -934,10 +1103,7 @@ export function generateIntervalTopUps(): Flashcard[] {
     // answer without the question being read.
     const decoys = chooseDecoys(
       correct,
-      Object.keys(INTERVAL_NAME_BY_SEMITONES)
-        .map(Number)
-        .sort((a, b) => Math.abs(a - semitones) - Math.abs(b - semitones) || a - b)
-        .map(sem => INTERVAL_NAME_BY_SEMITONES[sem]),
+      intervalDecoyPool(semitones),
       {
         count: 3,
         seed: `iv-${from}-${degree}`,
@@ -985,6 +1151,6 @@ export function expansionCards(): Flashcard[] {
     ...generateProgressionTopUps(),
     ...generateRelativeMinorTopUps(),
     ...generateParallelMinorTopUps(),
-    ...generateIntervalTopUps(),
+    ...generateIntervalGrid(),
   ];
 }

@@ -170,8 +170,14 @@ describe('what a card is allowed to say', () => {
     // Tritone Pairs was the third and is folded in — its twelve
     // questions are the ♯4 and ♭5 cards now, which is the whole point
     // of gathering by the distance rather than by the category.
-    expect(six.length).toBeGreaterThan(FLASHCARDS
-      .filter(c => c.category === 'intervals').length);
+    //
+    // COUNTED AGAINST THE TRITONE CARDS IN EACH FAMILY, not against
+    // the interval category's size: ruling 43 grew that category to
+    // 165, of which thirteen are tritones, so comparing with the whole
+    // category stopped measuring anything.
+    const inIntervals = six.filter(c => c.category === 'intervals').length;
+    expect(inIntervals).toBe(13);
+    expect(six.length).toBeGreaterThan(inIntervals * 2);
   });
 });
 

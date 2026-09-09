@@ -70,7 +70,12 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 925 + 136 + 78 + 162 = 1301
+// Harmonic Fluency — 925 + 136 + 78 + 287 = 1426
+// (9 Sep 2026, second half: 1301 → 1426. Ruling 43 regenerated Interval
+//  Identification to every note by every distance — twenty hand-picked
+//  pairs and five top-ups became 150, six of the 156 combinations being
+//  unspellable without a double accidental. Intervals 40 → 165,
+//  earRecognition 162 → 287.)
 // (9 Sep 2026: 1246 → 1301. Ruling 42 regenerated Mode Identification
 //  to every key by every mode — 33 generated cards became 91, and the
 //  three hand-written C cards folded into them. Ruling 40 makes F♯
@@ -121,12 +126,12 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(78);
   });
 
-  it('earRecognition = mo 107 + iv 40 + et 15 = 162', () => {
-    expect(c.byGroup.earRecognition).toBe(162);
+  it('earRecognition = mo 107 + iv 165 + et 15 = 287', () => {
+    expect(c.byGroup.earRecognition).toBe(287);
   });
 
-  it('total = 1301 across all 13 categories', () => {
-    expect(c.total).toBe(1301);
+  it('total = 1426 across all 13 categories', () => {
+    expect(c.total).toBe(1426);
   });
 
   it('total equals sum of group totals', () => {

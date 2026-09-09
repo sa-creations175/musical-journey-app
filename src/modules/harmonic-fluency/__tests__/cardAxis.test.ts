@@ -86,13 +86,23 @@ describe('reverse key pivots (retired — read by the migration)', () => {
 });
 
 describe('intervals', () => {
-  const cards = generated('intervals', /^iv-\d+$/);
+  // `iv-{from}-up-{span}` since ruling 43. The positional `iv-1` shape
+  // retired with the twenty hand-picked pairs it numbered.
+  const cards = generated('intervals', /^iv-[^-]+-up-\d+$/);
 
-  it('carries from, to and the computed span', () => {
-    expect(cards.length).toBe(20);
+  it('carries from, to, the computed span and the movement', () => {
+    // 13 notes x 12 distances, less the six that would need a double
+    // accidental.
+    expect(cards.length).toBe(150);
     for (const c of cards) {
       expect(Object.hasOwn(c, 'axis'), c.id).toBe(true);
-      expect(Object.keys(c.axis!).sort()).toEqual(['from', 'semitones', 'to']);
+      // `movement` is absent on the octave and only there — the
+      // movement vocabulary runs from the minor 2nd to the major 7th,
+      // because a degree cannot move an octave and land somewhere else.
+      const expected = c.axis!.semitones === 12
+        ? ['from', 'semitones', 'to']
+        : ['from', 'movement', 'semitones', 'to'];
+      expect(Object.keys(c.axis!).sort(), c.id).toEqual(expected);
     }
   });
 
@@ -199,11 +209,13 @@ describe('absent means flat list, not broken', () => {
       'enharmonic-equivalents': 35,
       'scale-degree-math': 168,
       'functional-harmony': 33,
-      'intervals': 25,
+      'intervals': 150,
       'key-signatures': 17,
       // 33 before ruling 42 — three modes in eleven keys. Every mode
       // in every key now, and F♯ major and G♭ major are two of them.
       'modes': 91,
+      // Ruling 43: every note by every distance, less the six
+      // combinations that would need a double accidental.
       'degree-notes': 625,
       'pentatonic-scales': 36,
       'progressions': 6,

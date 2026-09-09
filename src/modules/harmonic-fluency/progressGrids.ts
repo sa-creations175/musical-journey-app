@@ -202,9 +202,15 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
 
   // Intervals compare along their SPAN, and the starting note is what
   // makes two cards of the same span different questions.
+  //
+  // THIRTEEN ROWS SINCE RULING 43, for the mode axis's reason: the
+  // start-note vocabulary is the key vocabulary, and F♯ and G♭ are two
+  // of it. The row header is the note's own name — running it through
+  // the spelling setting would print G♭ over both.
   [CATEGORY_LABELS.intervals]: {
     columns: axis('semitones', 'semitones', INTERVAL_SEMITONES),
-    rows: axis('from', 'from', FLAT_TWELVE),
+    rows: axis('from', 'from', THIRTEEN_KEYS,
+      v => withAccidentalGlyphs(String(v))),
   },
 
   // Two kinds share this category — respelled notes and respelled

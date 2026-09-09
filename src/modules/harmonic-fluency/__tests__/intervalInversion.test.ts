@@ -195,9 +195,12 @@ describe('ids and placement', () => {
   it('collides with no existing iv-* id', () => {
     const ids = FLASHCARDS.map(c => c.id);
     expect(new Set(ids).size).toBe(ids.length);
-    // The originals are untouched.
-    expect(FLASHCARDS.find(c => c.id === 'iv-1')?.question)
+    // The grid is untouched. It used to be `iv-1`, the first of twenty
+    // hand-picked pairs; ruling 43 retired the positional ids and the
+    // question it asked now lives on `iv-C-up-7`.
+    expect(FLASHCARDS.find(c => c.id === 'iv-C-up-7')?.question)
       .toBe('The interval from C to G ascending = ?');
+    expect(FLASHCARDS.find(c => c.id === 'iv-1')).toBeUndefined();
   });
 
   it('lands in Interval Identification, not Scale Degree Math', () => {

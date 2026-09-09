@@ -164,7 +164,9 @@ describe('what the control offers', () => {
     // anchored on a NOTE and named in no key at all.
     const intervals = FLASHCARDS.filter(c => c.category === 'intervals');
     expect(availableValues(intervals, 'key')).toEqual([]);
-    expect(availableValues(intervals, 'note').length).toBe(12);
+    // Thirteen since ruling 43 — the start-note vocabulary is the key
+    // vocabulary, and F♯ and G♭ are two of it.
+    expect(availableValues(intervals, 'note').length).toBe(13);
   });
 
   it('offers no facet that cannot change what is on screen', () => {

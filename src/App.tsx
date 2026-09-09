@@ -22,6 +22,10 @@ import {
   foldInModeCards,
 } from './modules/harmonic-fluency/modeFoldIn';
 import {
+  describeIntervalFoldIn,
+  foldInIntervalCards,
+} from './modules/harmonic-fluency/intervalFoldIn';
+import {
   cleanUpRetiredCard,
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
@@ -234,6 +238,18 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] mode fold-in failed', err);
+      });
+    // Interval Identification regenerated to every note by every
+    // distance (ruling 43). Twenty hand-picked pairs and five top-ups
+    // fold into the grid; their positional and degree-named ids retire
+    // for good — see `intervalFoldIn` for why neither could be kept.
+    void foldInIntervalCards()
+      .then(r => {
+        const line = describeIntervalFoldIn(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] interval fold-in failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from

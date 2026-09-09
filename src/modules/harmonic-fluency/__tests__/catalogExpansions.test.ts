@@ -269,8 +269,10 @@ describe('coverage reaches twelve', () => {
       .toBe(12);
   });
 
-  it('intervals start on all twelve', () => {
-    expect(keysIn('intervals', new RegExp(`interval from (${N}) to`), 'q').size).toBe(12);
+  it('intervals start on all thirteen', () => {
+    // Thirteen, not twelve (rulings 40 and 43): F♯ and G♭ are two start
+    // notes with two sets of answers.
+    expect(keysIn('intervals', new RegExp(`interval from (${N}) to`), 'q').size).toBe(13);
   });
 
   it('relative and parallel minor each reach all twelve', () => {

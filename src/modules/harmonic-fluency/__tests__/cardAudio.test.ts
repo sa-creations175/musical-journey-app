@@ -269,7 +269,7 @@ describe('intervals', () => {
   it('plays the two notes, ascending, with nothing in front', () => {
     // Ruling 38. No key in the card, so no key in the sound — an
     // orienting chord would answer a question it did not ask.
-    const s = soundOf('iv-1');
+    const s = soundOf('iv-C-up-7');
     expect(s.orient).toBeNull();
     expect(s.pedal).toBeUndefined();
     expect(steps(s)).toEqual([[0], [7]]);
@@ -287,9 +287,10 @@ describe('intervals', () => {
       expect(steps(s), c.id).toEqual([[0], [axis.semitones]]);
       expect(s.orient, c.id).toBeNull();
     }
-    // The twenty original pairs and the five top-ups. The fifteen
-    // inversion cards are prose and carry no notes.
-    expect(seen).toBe(25);
+    // Every note by every distance (ruling 43), less the six
+    // unspellable ones. The fifteen inversion cards are prose and name
+    // no two notes.
+    expect(seen).toBe(150);
   });
 
   it('says nothing for the inversion cards, which name no two notes', () => {

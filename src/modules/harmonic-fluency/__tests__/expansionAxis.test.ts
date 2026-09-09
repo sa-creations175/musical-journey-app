@@ -38,7 +38,14 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   ['progression 1564', /^pr-1564-/,      6, ['key', 'shape']],
   ['relative minor',   /^ks-relative-/,  9, ['key', 'relation']],
   ['parallel minor',   /^ks-parallel-/,  8, ['key', 'relation']],
-  ['interval top-ups', /^iv-[A-G][b#]?-\d/, 5, ['from', 'semitones', 'to']],
+  // THE FIVE TOP-UPS RETIRED WITH THE TWENTY (ruling 43). The grid
+  // that replaced them is every note by every distance, less the six
+  // that would need a double accidental; `movement` rides along so the
+  // Distance chip gathers them beside the movement cards.
+  // The octave is the one span with no movement id, so it is excluded
+  // here and asserted in its own test below.
+  ['interval grid', /^iv-[^-]+-up-(?!12$)\d+$/, 137,
+    ['from', 'movement', 'semitones', 'to']],
 ];
 
 describe('every keyed generator supplies coordinates', () => {
@@ -72,12 +79,28 @@ describe('every keyed generator supplies coordinates', () => {
     expect(cells.size).toBe(fh.length);
   });
 
-  it('lands the interval top-ups in the SAME grid as the main generator', () => {
-    // Same field names, so the five top-ups are extra cells rather than
-    // a parallel category that quietly falls to the tail.
-    const main = byPrefix(/^iv-\d+$/)[0].axis!;
-    const topUp = byPrefix(/^iv-[A-G][b#]?-\d/)[0].axis!;
-    expect(Object.keys(main).sort()).toEqual(Object.keys(topUp).sort());
+  it('gives the octave no movement, and only the octave', () => {
+    // The movement vocabulary runs from the minor 2nd to the major
+    // 7th, because a degree cannot move an octave and land somewhere
+    // else. Thirteen octave cards, one per start note.
+    const octaves = byPrefix(/^iv-[^-]+-up-12$/);
+    expect(octaves).toHaveLength(13);
+    for (const c of octaves) {
+      expect(Object.keys(c.axis!).sort(), c.id).toEqual(['from', 'semitones', 'to']);
+    }
+  });
+
+  it('lands every interval card in ONE grid', () => {
+    // Same field names on every card, so no card falls to the tail.
+    // It used to be two generators — twenty hand-picked pairs and five
+    // top-ups — and this asserted the two agreed. Ruling 43 makes it
+    // one, and the claim becomes that the one is uniform.
+    const cards = byPrefix(/^iv-[^-]+-up-\d+$/);
+    const shapes = new Set(cards.map(c => Object.keys(c.axis!).sort().join('+')));
+    expect([...shapes].sort()).toEqual([
+      'from+movement+semitones+to',   // every distance the deck names
+      'from+semitones+to',            // the octave, which it does not
+    ]);
   });
 });
 

@@ -424,6 +424,23 @@ export function generateReversePivotCards(): Flashcard[] {
 // rule that reads it. It was private here while `seed.ts` held the same
 // thirteen again; the inversion cards would have made a third copy.
 
+/**
+ * The twenty hand-picked interval pairs, as they were before ruling 43.
+ *
+ * OUT OF THE DECK AND STILL EXPORTED, the same arrangement
+ * `retiredModeOfCards` uses: `intervalFoldIn` reads it to prove which
+ * new card each retired one became, and a hand-written table of twenty
+ * questions could only be trusted. It goes when the fold-in goes.
+ *
+ * ITS IDS WERE POSITIONAL — `iv-1` numbers by index into the array
+ * below — which is the shape `generatedCardPairing` exists to catch.
+ * Nothing renumbers them now: they are retired, and the grid that
+ * replaced them is content-suffixed.
+ */
+export function retiredIntervalPairCards(): Flashcard[] {
+  return generateIntervalCards();
+}
+
 function generateIntervalCards(): Flashcard[] {
   const pairs: Array<{ from: string; to: string }> = [
     { from: 'C', to: 'G' }, { from: 'C', to: 'E' }, { from: 'C', to: 'F' },
@@ -1906,7 +1923,9 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   ...MODE_CARDS,
   ...PENTATONIC_CARDS,
   ...generatePentatonicKeyCards(),
-  ...generateIntervalCards(),
+  // `generateIntervalCards()` WAS HERE. Ruling 43 replaced its twenty
+  // hand-picked pairs with the full grid in `catalogExpansions`, and
+  // their practice moved onto it — see `intervalFoldIn.ts`.
   ...CHORD_CONSTRUCTION_CARDS,
   ...PROGRESSION_CARDS,
   ...SLASH_CHORD_CARDS,
