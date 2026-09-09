@@ -158,13 +158,13 @@ const place = (categoryLabel: string) => {
 };
 
 describe('the grids place what the generators produced', () => {
-  it('puts every keyed progression in the grid and the seven in the tail', () => {
+  it('puts every keyed progression in the grid and the six in the tail', () => {
     // The grid-plus-tail shape, on the category that motivated it.
     // 26/20/6 before commit 8; the tail is still a tail, and it is
     // still the answer for a card that names no key.
     const { grid, tail, items } = place(CATEGORY_LABELS.progressions);
-    expect(items).toHaveLength(85);
-    expect(tail).toHaveLength(7);
+    expect(items).toHaveLength(84);
+    expect(tail).toHaveLength(6);
     expect(items.filter(i => i.axis !== undefined)).toHaveLength(78);
     const placed = [...grid!.cells.values()]
       .flatMap(col => [...col.values()].flat());

@@ -1302,6 +1302,13 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
  * device that has not still holds them at `pr-5`. Every id from both
  * sides is in `REMOVED_WITHOUT_SUCCESSOR`.
  *
+ * `pr-13` WAS THE BOSSA TURNAROUND, I-VI-ii-V in F with the VI played
+ * as a secondary dominant. It is the dominant-6 variation of the
+ * 1-6-2-5, which is generated in thirteen keys — so it will live as a
+ * VARIATION on that card rather than as a progression of its own, and
+ * a one-key card holding its place until then is the thing this rule
+ * removes.
+ *
  * `pr-11` was the descending minor i-♭VII-♭VI-V in A MINOR, and the
  * thirteen keys are a major-key vocabulary — read as minor tonics they
  * would name D♭ minor and G♭ minor. `pr-14` was the Dorian vamp, in a
@@ -1358,12 +1365,6 @@ const PROGRESSION_CARDS_ALL: Flashcard[] = [
     decoys: ['ii7', 'V7', 'vi'],
     explanation: "In the 12-bar blues form, bars 5 and 6 land on IV7 — the 'second chord' of the blues structure. This move is what turns a generic rock/pop tune into a proper blues: the IV appears right on schedule every time, and your ear knows.",
     skillTag: 'progression-12-bar-blues-structure' },
-  { id: 'pr-13', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The bossa nova standard I-VI-ii-V in F is _____',
-    correctAnswer: 'Fmaj7 - D7 - Gm7 - C7',
-    decoys: ['Fmaj7 - Dm7 - Gm7 - C7', 'Fmaj7 - D7 - Am7 - C7', 'Fmaj7 - D7 - Gm7 - Cmaj7'],
-    explanation: "Fmaj7 → D7 → Gm7 → C7 — bossa turnaround in F. The D7 is a secondary dominant (V/ii) pointing at Gm7. This shape is the harmonic spine of countless jazz standards, Brazilian tunes, and lounge-soul reharmonizations.",
-    skillTag: 'progression-bossa-in-F' },
   { id: 'pr-16', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'A tonic-pedal progression keeps which note in the bass?',
     correctAnswer: 'the 1 (tonic)',

@@ -70,7 +70,10 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 125 + 278 = 1495
+// Harmonic Fluency — 949 + 143 + 124 + 278 = 1494
+// (9 Sep 2026: 1495 → 1494. `pr-13`, the bossa I-VI-ii-V in F, is the
+//  dominant-6 variation of the 1-6-2-5 and will live as a variation on
+//  that card. Progressions 85 → 84, functionalApplied 125 → 124.)
 // (9 Sep 2026: 1496 → 1495. `fh-3`, the hand-written ii-V-I in C, is
 //  the twelfth cadence card to fold into the 2-5-1. functional-harmony
 //  41 → 40, functionalApplied 126 → 125.)
@@ -168,16 +171,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
-  it('functionalApplied = fh 40 + pr 85 = 125', () => {
-    expect(c.byGroup.functionalApplied).toBe(125);
+  it('functionalApplied = fh 40 + pr 84 = 124', () => {
+    expect(c.byGroup.functionalApplied).toBe(124);
   });
 
   it('earRecognition = mo 107 + iv 156 + et 15 = 278', () => {
     expect(c.byGroup.earRecognition).toBe(278);
   });
 
-  it('total = 1495 across all 13 categories', () => {
-    expect(c.total).toBe(1495);
+  it('total = 1494 across all 13 categories', () => {
+    expect(c.total).toBe(1494);
   });
 
   it('total equals sum of group totals', () => {

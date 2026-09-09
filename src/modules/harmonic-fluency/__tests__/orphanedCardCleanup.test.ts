@@ -89,9 +89,10 @@ describe('the authorised set', () => {
     // progression cards, and the four generated progressions that did
     // not survive the family being read in full — 52 generated ids
     // plus the four hand-written cards they folded in from.
-    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(106);
+    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(107);
     expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => /^pr-\d+$/.test(id)))
-      .toEqual(['pr-11', 'pr-14', 'pr-15', 'pr-20', 'pr-4', 'pr-5', 'pr-6', 'pr-10']);
+      .toEqual(['pr-11', 'pr-14', 'pr-15', 'pr-20', 'pr-13',
+        'pr-4', 'pr-5', 'pr-6', 'pr-10']);
     // BOTH SIDES OF COMMIT 8'S FOLD-IN. A device that ran it holds the
     // rows under the generated id; one that has not still holds them
     // under `pr-5`. Thirteen keys x four shapes.

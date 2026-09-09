@@ -223,20 +223,22 @@ describe('the one-offs that stay are untouched', () => {
     );
   });
 
-  it('removes the one-key cards outright, and keeps the bossa', () => {
+  it('removes every one-key card outright', () => {
     // A progression is in every key or it is not in the deck. The
     // descending minor, the Dorian vamp, 4-1-5-6 and 1-♭7-4 are gone
     // with their history — REMOVALS, not fold-ins, so they are in
     // `REMOVED_WITHOUT_SUCCESSOR` and not in the retired list here.
     const retired = new Set(retiredProgressionCards().map(c => c.id));
-    for (const id of ['pr-11', 'pr-14', 'pr-15', 'pr-20',
+    for (const id of ['pr-11', 'pr-13', 'pr-14', 'pr-15', 'pr-20',
       'pr-4', 'pr-5', 'pr-6', 'pr-10']) {
       expect(ids.has(id), id).toBe(false);
       expect(retired.has(id), id).toBe(false);
     }
-    // `pr-13`, the bossa I-VI-ii-V in F, is the one one-key progression
-    // card left and Silas has not ruled on it — see the report.
-    expect(ids.has('pr-13')).toBe(true);
+    // AND THAT IS ALL OF THEM. Every progression card that names a key
+    // is generated in thirteen now; what is left names none.
+    for (const c of FLASHCARDS.filter(x => /^pr-\d+$/.test(x.id))) {
+      expect(c.question, c.id).not.toMatch(/ in [A-G][♯♭]? /);
+    }
   });
 
   it('generates no minor-key progression to replace the one removed', () => {

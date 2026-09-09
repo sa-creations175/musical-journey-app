@@ -173,15 +173,15 @@ describe('enharmonic equivalents', () => {
 
 describe('absent means flat list, not broken', () => {
   it('leaves the hand-written cards without an axis', () => {
-    // SEVEN ONE-OFFS, down from twenty. Nine named a progression in one
-    // key that the generator now writes in thirteen, and four more were
-    // removed outright — a progression is in every key or it is not in
-    // the deck. Of the seven left, six ask about a progression in no
-    // key at all and one is the bossa turnaround; none carries
-    // coordinates, and inventing them to force a 1x1 grid would be
-    // making structure up.
+    // SIX ONE-OFFS, down from twenty, AND EVERY ONE OF THEM NAMES NO
+    // KEY. A progression is in every key or it is not in the deck, so
+    // the ones that could be generated were and the rest went. What is
+    // left asks about a progression in the abstract — the rotation, the
+    // plagal vamp, the 12-bar structure, the two pedals, the Coltrane
+    // cycle — and none carries coordinates. Inventing them to force a
+    // 1x1 grid would be making structure up.
     const pr = inCategory('progressions').filter(c => /^pr-\d+$/.test(c.id));
-    expect(pr.length).toBe(7);
+    expect(pr.length).toBe(6);
     for (const c of pr) expect(Object.hasOwn(c, 'axis'), c.id).toBe(false);
   });
 

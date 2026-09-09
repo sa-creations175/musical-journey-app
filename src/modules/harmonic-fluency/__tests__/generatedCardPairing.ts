@@ -64,6 +64,12 @@
  * and `identityIdMigration.ts` carries their rows across. The other
  * fourteen had none.
  * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 — `pr-13` REMOVED, THE LAST ONE-KEY PROGRESSION.
+ *
+ * The bossa I-VI-ii-V in F is the dominant-6 variation of the 1-6-2-5
+ * and will live as a variation on that card. Every `pr-` line left in
+ * this block names no key at all.
+ * ---------------------------------------------------------------
  * 9 SEPTEMBER 2026 — `fh-3` REMOVED, THE TWELFTH ii-V-I.
  *
  * The eleven generated ones went first; this was the hand-written C.
@@ -1567,7 +1573,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-8|A plagal vamp is which two chords alternating?',
   'pr-9|The 1-5-6-4 and 6-4-1-5 progressions use the same chords; what changes?',
   'pr-12|In the 12-bar blues, bars 5-6 typically go to which chord?',
-  'pr-13|The bossa nova standard I-VI-ii-V in F is _____',
   'pr-16|A tonic-pedal progression keeps which note in the bass?',
   'pr-17|A dominant pedal progression keeps which note in the bass?',
   'pr-19|The Coltrane changes cycle through how many key centers?',

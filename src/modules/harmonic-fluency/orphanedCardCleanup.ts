@@ -122,6 +122,12 @@ export const REMOVED_WITHOUT_SUCCESSOR: ReadonlyArray<string> = [
   // `REMOVED_PROGRESSION_IDS` for the reasoning card by card; the
   // plagal vamp names no key and is the exception that stays.
   'pr-11', 'pr-14', 'pr-15', 'pr-20',
+  // AND THE BOSSA TURNAROUND (9 Sep 2026). `pr-13` was I-VI-ii-V in F
+  // with the VI played as a secondary dominant — the dominant-6
+  // variation of the 1-6-2-5, which is generated in thirteen keys. It
+  // will live as a variation on that card rather than as a progression
+  // of its own.
+  'pr-13',
   // THE FOUR GENERATED SETS THAT DID NOT SURVIVE THE FAMILY BEING READ
   // IN FULL (9 Sep 2026). A progression Silas has no reference for yet
   // does not earn thirteen cards — the gospel walk-up, rhythm changes
