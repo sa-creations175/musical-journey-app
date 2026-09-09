@@ -348,11 +348,13 @@ describe('ids are root-suffixed, never positional', () => {
   it('leaves every hand-written C card exactly where it was', () => {
     // The originals keep their ids AND their hand-written decoys; only
     // the other eleven keys are generated.
-    // ONLY FUNCTIONAL HARMONY IS LEFT. Every slash card went (rulings
-    // 30 and 37) and `mo-11` to `mo-13` went with ruling 42, which
-    // generates every key including C. Functional harmony is the last
-    // family whose C card is hand-written and whose generator skips it.
-    for (const id of ['fh-3', 'fh-11', 'fh-12']) {
+    // ONLY FUNCTIONAL HARMONY IS LEFT, AND ONLY THE TWO SECONDARY
+    // DOMINANTS. Every slash card went (rulings 30 and 37) and `mo-11`
+    // to `mo-13` went with ruling 42, which generates every key
+    // including C. `fh-3` was the third here until the 2-5-1 moved to
+    // Progression Vocabulary, which asks it in all thirteen keys and
+    // needs no hand-written C.
+    for (const id of ['fh-11', 'fh-12']) {
       expect(FLASHCARDS.find(c => c.id === id)?.question).toContain('C');
     }
   });

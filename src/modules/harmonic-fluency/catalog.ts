@@ -621,6 +621,31 @@ const DIATONIC_QUALITY_CARDS: Flashcard[] = [
     skillTag: 'chord-quality-major-IV-triad' },
 ];
 
+/**
+ * `fh-3` IS NOT IN HERE ANY MORE — the twelfth ii-V-I.
+ *
+ * Eleven generated cadence cards folded into Progression Vocabulary's
+ * 2-5-1 on 9 Sep; this was the hand-written one, in C, and it asked
+ * exactly what `pr-prog-2-5-1-C` asks in different words. The 2-5-1
+ * lives once, and leaving one key behind in the family that gave it up
+ * would have been the worst of both.
+ *
+ * Kept below the array rather than deleted, because `progressionFoldIn`
+ * compares against its exact text to prove which card it became.
+ */
+const RETIRED_II_V_I_IN_C: Flashcard =
+{ id: 'fh-3', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
+    question: 'The ii-V-I cadence in C major is _____',
+    correctAnswer: 'Dm7 - G7 - Cmaj7',
+    decoys: ['Dm7 - F7 - Cmaj7', 'D7 - G7 - Cmaj7', 'Em7 - G7 - Cmaj7'],
+    explanation: "The ii-V-I is the backbone of jazz and neo-soul harmony. In C: Dm7 → G7 → Cmaj7. Memorize this in every key and you've got half of jazz standard vocabulary; Robert Glasper, D'Angelo, and every Berklee grad live inside this shape.",
+    skillTag: 'cadence-2-5-1-in-C' };
+
+/** Exported for the fold-in, which is the only thing that reads it. */
+export function retiredIiViInC(): Flashcard[] {
+  return [RETIRED_II_V_I_IN_C];
+}
+
 const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
   { id: 'fh-1', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
     question: 'The V chord most strongly resolves to _____',
@@ -632,12 +657,6 @@ const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
     correctAnswer: '1', decoys: ['2', '5', '6'],
     explanation: "The leading tone (7) sits a half-step below the tonic and wants to rise — your ear expects 'ti → do.' That tiny half-step pull is the strongest melodic expectation in tonal music; vocal runs and bass lines exploit it constantly.",
     skillTag: 'leading-tone-resolution' },
-  { id: 'fh-3', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
-    question: 'The ii-V-I cadence in C major is _____',
-    correctAnswer: 'Dm7 - G7 - Cmaj7',
-    decoys: ['Dm7 - F7 - Cmaj7', 'D7 - G7 - Cmaj7', 'Em7 - G7 - Cmaj7'],
-    explanation: "The ii-V-I is the backbone of jazz and neo-soul harmony. In C: Dm7 → G7 → Cmaj7. Memorize this in every key and you've got half of jazz standard vocabulary; Robert Glasper, D'Angelo, and every Berklee grad live inside this shape.",
-    skillTag: 'cadence-2-5-1-in-C' },
   { id: 'fh-4', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
     question: 'The IV → I move (the "Amen" cadence) is also called the _____',
     correctAnswer: 'plagal cadence',

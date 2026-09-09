@@ -59,13 +59,13 @@ beforeEach(async () => {
 describe('which generated card each retired one became', () => {
   const { moves, unpaired } = progressionMapping();
 
-  it('pairs all twenty-two and leaves none behind', () => {
-    // Eleven progression cards and the eleven ii-V-I cadences. It was
+  it('pairs all twenty-three and leaves none behind', () => {
+    // Eleven progression cards and the twelve ii-V-I cadences. It was
     // twenty-six: `pr-4`, `pr-5`, `pr-6` and `pr-10` folded into four
     // generated sets that have since left the deck, so they are
     // deletions now rather than fold-ins and are not in this list.
-    expect(retiredProgressionCards()).toHaveLength(22);
-    expect(moves).toHaveLength(22);
+    expect(retiredProgressionCards()).toHaveLength(23);
+    expect(moves).toHaveLength(23);
     expect(unpaired).toEqual([]);
   });
 
@@ -119,12 +119,16 @@ describe('the ruled exceptions, pair by pair', () => {
   const { moves } = progressionMapping();
   const byFrom = new Map(moves.map(m => [m.from, m.to]));
 
-  it('pins all eleven pairs, key by key', () => {
+  it('pins all twelve pairs, key by key', () => {
     // THE ONLY PAIRING IN THE DECK NOT MADE ON THE QUESTION, so it is
     // the one written out in full rather than derived. A line that
     // changed here would be a history attached to the wrong key.
     expect(new Map([...byFrom].filter(([from]) => from.startsWith('fh-'))))
       .toEqual(new Map([
+        // THE TWELFTH, hand-written, in the one key the generator
+        // skipped. Leaving it would have kept the 2-5-1 alive twice in
+        // C and once everywhere else.
+        ['fh-3', 'pr-prog-2-5-1-C'],
         ['fh-ii-v-i-Db', 'pr-prog-2-5-1-Db'],
         ['fh-ii-v-i-D', 'pr-prog-2-5-1-D'],
         ['fh-ii-v-i-Eb', 'pr-prog-2-5-1-Eb'],
@@ -181,10 +185,10 @@ describe('the ruled exceptions, pair by pair', () => {
     expect(fh.filter(c => c.id.startsWith('fh-ii-v-i-'))).toHaveLength(0);
     expect(fh.filter(c => c.id.startsWith('fh-v-of-v-'))).toHaveLength(11);
     expect(fh.filter(c => c.id.startsWith('fh-v-of-vi-'))).toHaveLength(11);
-    // `fh-3` asks the cadence in C and is hand-written rather than
-    // generated. It is not on Silas's list of eleven and is not
-    // touched — it is in the report.
-    expect(fh.some(c => c.id === 'fh-3')).toBe(true);
+    // `fh-3` went with the eleven — the twelfth key, hand-written.
+    expect(fh.some(c => c.id === 'fh-3')).toBe(false);
+    // Everything else it had, it keeps: eighteen hand-written cards.
+    expect(fh.filter(c => /^fh-\d+$/.test(c.id))).toHaveLength(18);
   });
 });
 

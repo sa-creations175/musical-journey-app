@@ -64,6 +64,12 @@
  * and `identityIdMigration.ts` carries their rows across. The other
  * fourteen had none.
  * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 — `fh-3` REMOVED, THE TWELFTH ii-V-I.
+ *
+ * The eleven generated ones went first; this was the hand-written C.
+ * Its history takes the same ruled answer-side route onto
+ * `pr-prog-2-5-1-C`.
+ * ---------------------------------------------------------------
  * 9 SEPTEMBER 2026 — THIRTEEN `pr-prog-backdoor-` QUESTIONS RE-PINNED,
  * AND THIS IS THE "ALMOST NEVER" AGAIN.
  *
@@ -1307,7 +1313,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   // --- functional-harmony ---
   'fh-1|The V chord most strongly resolves to _____',
   'fh-2|The leading tone (7th scale degree) resolves to _____',
-  'fh-3|The ii-V-I cadence in C major is _____',
   'fh-4|The IV → I move (the "Amen" cadence) is also called the _____',
   'fh-5|The strongest "going home" cadence — V → I — is also called the _____',
   'fh-6|When V goes to vi instead of I (the "fake-out" resolution), the cadence is called _____',

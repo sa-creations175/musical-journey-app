@@ -24,7 +24,7 @@
  * deck — see `RETIRED_PROGRESSION_IDS` for why each one stayed.
  * =====================================================================
  */
-import { RETIRED_PROGRESSION_CARDS } from './catalog';
+import { RETIRED_PROGRESSION_CARDS, retiredIiViInC } from './catalog';
 import { generateIiViCards, generateProgressionTopUps } from './catalogExpansions';
 import {
   describeFoldIn, foldInByIdentity, identityMapping,
@@ -48,13 +48,15 @@ import {
  * destination is still derived from the deck — see `RuledByAnswer`,
  * which is where the reasoning lives.
  *
- * ELEVEN, NOT TWELVE. `fh-3` asks the ii-V-I in C and is hand-written
- * rather than generated; it is not on Silas's list and is not touched.
- * It is in the report.
+ * TWELVE, NOT ELEVEN. `fh-3` asked the ii-V-I in C and was
+ * hand-written rather than generated — the one key the generator
+ * skipped. Leaving it behind would have kept the 2-5-1 alive twice in
+ * C and once everywhere else, which is the worst of both, so it takes
+ * the same route.
  * =====================================================================
  */
 const RULED_ONTO_THE_2_5_1: ReadonlyArray<RuledByAnswer> =
-  generateIiViCards().map(c => ({
+  [...generateIiViCards(), ...retiredIiViInC()].map(c => ({
     from: c.id,
     why: 'the ii-V-I cadence and the 2-5-1 are one progression asked in '
       + 'two sentences (ruling 26); the answer is the same three chords',
@@ -89,6 +91,7 @@ export function retiredProgressionCards(): RetiredCard[] {
     ...RETIRED_PROGRESSION_CARDS,
     ...generateProgressionTopUps(),
     ...generateIiViCards(),
+    ...retiredIiViInC(),
   ].map(c => ({ id: c.id, question: c.question, correctAnswer: c.correctAnswer }));
 }
 

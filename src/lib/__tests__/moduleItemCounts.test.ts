@@ -70,7 +70,10 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 126 + 278 = 1496
+// Harmonic Fluency — 949 + 143 + 125 + 278 = 1495
+// (9 Sep 2026: 1496 → 1495. `fh-3`, the hand-written ii-V-I in C, is
+//  the twelfth cadence card to fold into the 2-5-1. functional-harmony
+//  41 → 40, functionalApplied 126 → 125.)
 // (9 Sep 2026, the family read in full: 1548 → 1496. The generated
 //  progression list settles at six — the gospel walk-up, rhythm
 //  changes, the neo-soul cycle and 6-4-1-5 went, with the four
@@ -165,16 +168,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
-  it('functionalApplied = fh 41 + pr 85 = 126', () => {
-    expect(c.byGroup.functionalApplied).toBe(126);
+  it('functionalApplied = fh 40 + pr 85 = 125', () => {
+    expect(c.byGroup.functionalApplied).toBe(125);
   });
 
   it('earRecognition = mo 107 + iv 156 + et 15 = 278', () => {
     expect(c.byGroup.earRecognition).toBe(278);
   });
 
-  it('total = 1496 across all 13 categories', () => {
-    expect(c.total).toBe(1496);
+  it('total = 1495 across all 13 categories', () => {
+    expect(c.total).toBe(1495);
   });
 
   it('total equals sum of group totals', () => {
