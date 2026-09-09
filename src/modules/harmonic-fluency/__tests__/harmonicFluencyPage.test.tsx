@@ -8,7 +8,7 @@
  * nothing is drilling until asked.
  */
 import 'fake-indexeddb/auto';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
@@ -21,6 +21,22 @@ import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
 // Attempts carry client-minted ids (see db.ts), so seed rows are
 // stamped the way the production write path stamps them.
 const withAttemptId = (r: AttemptRecord): AttemptRecord => ({ id: newAttemptId(), ...r });
+
+/**
+ * jsdom HAS NO `ResizeObserver`, AND THE DECK DECIDES WHETHER THAT
+ * MATTERS.
+ *
+ * A drill on this page can serve a "press the number" card, which draws
+ * `AnswerKeyboard`, which measures itself. Which card the queue serves
+ * depends on the scheduler, so this file passed or failed depending on
+ * what came up — a flake with no diff behind it. The stub is the one
+ * ten other test files in the repo already use.
+ */
+vi.stubGlobal('ResizeObserver', class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+});
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
