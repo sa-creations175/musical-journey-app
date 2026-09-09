@@ -37,7 +37,7 @@ const T = Date.UTC(2026, 8, 1);
 const ORPHAN = 'sc-6-b7-Eb';
 /** A card that is still in the deck, laid down in every case as the
  *  thing that must survive. */
-const LIVE = 'sc-1-3-Eb';
+const LIVE = 'sc-slash-1-3-Eb';
 
 function spacingRow(itemRef: string, over: Record<string, unknown> = {}) {
   return {

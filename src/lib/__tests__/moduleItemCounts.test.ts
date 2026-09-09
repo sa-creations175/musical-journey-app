@@ -70,7 +70,10 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 925 + 136 + 78 + 293 = 1432
+// Harmonic Fluency — 925 + 143 + 78 + 293 = 1439
+// (9 Sep 2026, commit 8: 1432 → 1439. Slash Chords regenerated for the
+//  thirteen keys — 84 generated cards became 91. chordKnowledge
+//  136 → 143.)
 // (9 Sep 2026, follow-up: 1426 → 1432. The six interval cards that had
 //  been skipped over spelling came back — the minor 2nd above D♭ is
 //  E𝄫 (D), written the way the deck already writes E♯ (F). Intervals
@@ -122,8 +125,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.foundational).toBe(925);
   });
 
-  it('chordKnowledge = dq 20 + cc 20 + sc 96 = 136', () => {
-    expect(c.byGroup.chordKnowledge).toBe(136);
+  it('chordKnowledge = dq 20 + cc 20 + sc 103 = 143', () => {
+    expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
   it('functionalApplied = fh 52 + pr 26 = 78', () => {
@@ -134,8 +137,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(293);
   });
 
-  it('total = 1432 across all 13 categories', () => {
-    expect(c.total).toBe(1432);
+  it('total = 1439 across all 13 categories', () => {
+    expect(c.total).toBe(1439);
   });
 
   it('total equals sum of group totals', () => {

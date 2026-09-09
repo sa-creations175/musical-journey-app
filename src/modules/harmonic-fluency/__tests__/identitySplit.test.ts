@@ -23,12 +23,12 @@ import { HARMONIC_FLUENCY_GRIDS } from '../progressGrids';
 import { CIRCLE_OF_FOURTHS } from '../../repertoire/circleOfFourths';
 import { IDENTITY_ID_MOVES, refusalFor } from '../identityIdMigration';
 
-// SLASH CHORDS, NOT MODES. These pin the shared `keyAxis`, and Mode
-// Identification stopped using it under ruling 40 — F♯ major and G♭
-// major are two keys there, which the identity vocabulary cannot say.
-// Every other key-axis family still holds twelve, and this is what says
-// so. The mode grid's thirteen are pinned in their own block below.
-const keyGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['slash-chords']]!;
+// FUNCTIONAL HARMONY, which still uses the shared `keyAxis`. Modes and
+// then the four families of ruling 39 stopped using it — F♯ major and
+// G♭ major are two keys there, which the identity vocabulary cannot
+// say. A family that has not been regenerated still holds twelve, and
+// this is what says so; the thirteen are pinned in their own block.
+const keyGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['functional-harmony']]!;
 const modeGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS.modes]!;
 const pentGrid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['pentatonic-scales']]!;
 

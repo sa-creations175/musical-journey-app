@@ -684,7 +684,46 @@ const SLASH_CONTEXT =
  * 3rd, and over the degree one step away from the right answer — the
  * near-miss that catches a misread digit.
  */
+/**
+ * A slash card's id.
+ *
+ * THE KEY AS WRITTEN, AND A PREFIX THAT HAS NEVER EXISTED — the mode
+ * family's arrangement, for the mode family's reason. Ruling 40 makes
+ * F♯ major and G♭ major two keys; `identityRoot` folds them into one,
+ * so the old `sc-1-3-F#` MEANS the G♭ card while SPELLING F♯. Letting
+ * F♯ take that id would mint a retired id again, which no flag-free,
+ * run-it-twice migration can survive. `slashFoldIn` carries the
+ * history across and `reusedIds` asserts nothing comes back.
+ *
+ * `sc-slash-` also cannot collide with the hand-written prose cards,
+ * which are `sc-1` to `sc-16`.
+ */
+export function slashCardId(shapeId: string, root: string): string {
+  return `sc-slash-${shapeId}-${root}`;
+}
+
+/**
+ * The slash cards as they were before ruling 39 — twelve keys, ids
+ * minted from the identity vocabulary.
+ *
+ * OUT OF THE DECK AND STILL EXPORTED, so `slashFoldIn` can prove which
+ * new card each retired one became. It goes when the fold-in goes.
+ */
+export function retiredSlashCards(): Flashcard[] {
+  return buildSlashCards(FLAT_TWELVE, (shapeId, root) =>
+    `sc-${shapeId}-${identityRoot(root)}`, identityRoot);
+}
+
+/** Every shape in every key — 13 x 7 (rulings 39 and 40). */
 export function generateSlashCards(): Flashcard[] {
+  return buildSlashCards(THIRTEEN_KEYS, slashCardId, root => root);
+}
+
+function buildSlashCards(
+  roots: ReadonlyArray<string>,
+  id: (shapeId: string, root: string) => string,
+  axisKey: (root: string) => string,
+): Flashcard[] {
   const out: Flashcard[] = [];
   /**
    * Which wrong answers a given right answer has already been offered
@@ -707,14 +746,14 @@ export function generateSlashCards(): Flashcard[] {
    * =====================================================================
    */
   const spentOn = new Map<string, Set<string>>();
-  // TWELVE KEYS, SEVEN SHAPES, NO EXCEPTIONS (ruling 37). Three shapes
-  // used to be skipped in C because `catalog.ts` held a hand-written
-  // card for each — a second implementation of this generator, asking
-  // the identical question with the identical answer and carrying no
-  // `axis`, so the filter row could not see it and it had no sound.
-  // The three are gone and their practice moved here; see
-  // `slashCFoldIn.ts`.
-  for (const root of FLAT_TWELVE) {
+  // EVERY KEY, EVERY SHAPE, NO EXCEPTIONS. Three shapes used to be
+  // skipped in C because `catalog.ts` held a hand-written card for each
+  // — a second implementation of this generator, asking the identical
+  // question with the identical answer and carrying no `axis`, so the
+  // filter row could not see it and it had no sound. The three are gone
+  // and their practice moved here (ruling 37; see `slashCFoldIn.ts`).
+  // Thirteen keys since ruling 40, F♯ major and G♭ major both.
+  for (const root of roots) {
     for (const shape of SLASH_SHAPES) {
       const chordRoot = degreeLabel(root, shape.chord);
       const chord = `${chordRoot}${shape.quality}`;
@@ -750,18 +789,31 @@ export function generateSlashCards(): Flashcard[] {
         .map(noteLabel)
         .filter(bassName => bassName !== chordRoot)
         .map(bassName => `${chord}/${bassName}`);
-      const id = `sc-${shape.id}-${identityRoot(root)}`;
+      const cardId = id(shape.id, root);
       const answer = `${chord}/${bass}`;
       const spent = spentOn.get(answer) ?? new Set<string>();
       const decoys = chooseDecoys(answer, pool.filter(o => !spent.has(o)), {
-        count: 3, seed: id, label: id, category: 'slash-chords',
+        // SEEDED ON THE OLD ID SHAPE, deliberately. The seed decides
+        // which three of the pool a card shows; changing it would
+        // reshuffle every existing card's wrong answers for no reason,
+        // and a fold-in pairs on the QUESTION and the ANSWER, which the
+        // decoys are not part of. F♯ and G♭ therefore share a rotation
+        // offset, which is harmless: they draw from different pools and
+        // answer differently, so the sets still differ.
+        count: 3,
+        seed: `sc-${shape.id}-${identityRoot(root)}`,
+        label: cardId,
+        category: 'slash-chords',
       });
       for (const d of decoys) spent.add(d);
       spentOn.set(answer, spent);
       out.push({
         ...base('slash-chords', 'Slash Chords'),
-        id,
-        axis: { key: identityRoot(root), shape: shape.id },
+        id: cardId,
+        // THE KEY AS WRITTEN (ruling 40) — a filter that merged F♯ and
+        // G♭ would gather fourteen cards under one chip and answer two
+        // different questions with one.
+        axis: { key: axisKey(root), shape: shape.id },
         question: `What is ${shape.label} in ${noteLabel(root)} major?`,
         correctAnswer: answer,
         decoys,
@@ -775,7 +827,7 @@ export function generateSlashCards(): Flashcard[] {
           + keyboardNote(degreeAscii(root, shape.bass), degreeAscii(root, shape.chord))
           + ` ${SLASH_CONTEXT}`
           + `\n${asSentence(shape.reading)}`,
-        skillTag: `slash-${shape.id}-${identityRoot(root)}`,
+        skillTag: `slash-${shape.id}-${axisKey(root)}`,
       });
     }
   }

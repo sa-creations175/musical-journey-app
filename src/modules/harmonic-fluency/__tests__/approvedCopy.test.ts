@@ -167,15 +167,15 @@ describe('the slash chord deck', () => {
     // generator, so C is now generated like every other key.
     let seen = 0;
     for (const card of FLASHCARDS.filter(c => c.category === 'slash-chords')) {
-      const shape = SLASH_SHAPES.find(s => card.id.startsWith(`sc-${s.id}-`));
+      const shape = SLASH_SHAPES.find(s => card.id.startsWith(`sc-slash-${s.id}-`));
       if (shape === undefined) continue;
       seen += 1;
       const lines = (card.explanation ?? '').split('\n');
       expect(lines[lines.length - 1], card.id)
         .toBe(`${shape.reading.charAt(0).toUpperCase()}${shape.reading.slice(1)}.`);
     }
-    // 7 shapes × 12 keys, no exceptions (ruling 37).
-    expect(seen).toBe(SLASH_SHAPES.length * 12);
+    // 7 shapes × 13 keys, no exceptions (rulings 37, 39 and 40).
+    expect(seen).toBe(SLASH_SHAPES.length * 13);
   });
 
   it('never offers a chord over its own root as a wrong answer', () => {

@@ -75,10 +75,10 @@ describe('but the teaching survives the move', () => {
     // THE CARD THIS WAS WRITTEN AGAINST IS GONE. `sc-6-b7-Db` — the
     // ♭7 of D♭ is C♭ — left the deck with 6/♭7 under ruling 30. The
     // claim it was making is about the RULE, not about that card, so
-    // it is made on the card that reaches C♭ now: the 4 of G♭, whose
-    // id carries the identity spelling F♯ while every word in the card
-    // reads the flat side.
-    const card = FLASHCARDS.find(c => c.id === 'sc-1-4-F#')!;
+    // it is made on the card that reaches C♭ now: the 4 of G♭. Its id
+    // spells the key as written since ruling 40 — F♯ major is a
+    // different card with a different answer.
+    const card = FLASHCARDS.find(c => c.id === 'sc-slash-1-4-Gb')!;
     expect(card.correctAnswer).toBe('G♭/C♭');
     expect(card.explanation).toContain('C♭ is B on the keyboard');
   });
@@ -288,14 +288,14 @@ describe('coverage reaches twelve', () => {
     expect(keysIn('modes', new RegExp(`mode of (${N}) major starting`), 'q').size).toBe(13);
   });
 
-  it('every slash shape in all twelve', () => {
+  it('every slash shape in all thirteen', () => {
     // Read off the shape list rather than written again beside it, so
     // a shape added or removed by a ruling is covered without being
     // remembered here. Ruling 30 dropped 6/♭7 and added four.
     for (const shape of SLASH_SHAPES.map(sh => sh.label)) {
       const s = keysIn('slash-chords',
         new RegExp(`${shape.replace('/', '\\/')} in (${N}) major`), 'q');
-      expect(s.size, shape).toBe(12);
+      expect(s.size, shape).toBe(13);
     }
   });
 

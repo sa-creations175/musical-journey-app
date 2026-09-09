@@ -128,18 +128,18 @@ const keyAxis: AxisSpec = {
 const degreeAxis = axis('degree', 'number', SCALE_DEGREES);
 
 /**
- * The mode family's own key axis — THIRTEEN columns, labelled as
- * written (rulings 40 and 42).
+ * The thirteen-key axis, labelled as written (rulings 39, 40 and 42).
  *
  * =====================================================================
  * THIS IS THE TWELVE-COLUMN ARGUMENT ABOVE, REVERSED BY A RULING.
  *
- * That argument is still right for every family whose keys are pitch
+ * That argument is still right for a family whose keys are pitch
  * classes: one name each, one column each, laid out by the shared
- * wheel. The mode family is not one of those any more. "The mode of F♯
- * major starting on G♯" and "the mode of G♭ major starting on A♭" are
- * two questions with two answers, so they are two cards and they need
- * two columns.
+ * wheel. The families that regenerate under ruling 39 are not those any
+ * more. "The mode of F♯ major starting on G♯" and "the mode of G♭ major
+ * starting on A♭" are two questions with two answers, so they are two
+ * cards and they need two columns; the same holds for a slash chord, a
+ * key signature, a pentatonic and a progression.
  *
  * AND THE HEADER IS NOT SPELLED BY THE SETTING. `spellKeyColumn` runs
  * every column through `spellKey(_, 'flat')`, which would print "G♭"
@@ -154,7 +154,7 @@ const degreeAxis = axis('degree', 'number', SCALE_DEGREES);
  * toggle, and `AxisViewToggle` renders nothing for a single ordering.
  * =====================================================================
  */
-const modeKeyAxis: AxisSpec = {
+const thirteenKeyAxis: AxisSpec = {
   field: 'key',
   label: 'key',
   labelFor: v => withAccidentalGlyphs(String(v)),
@@ -224,7 +224,7 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   },
 
   [CATEGORY_LABELS.modes]: {
-    columns: modeKeyAxis,
+    columns: thirteenKeyAxis,
     // "number", not "degree" (ruling 29) — the field stays `degree`
     // because the cards are built from it; the word above the rows is
     // what a reader reads.
@@ -232,8 +232,10 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
       v => MODE_BY_DEGREE.find(m => Number(m.degree) === v)?.mode ?? String(v)),
   },
 
+  // THIRTEEN COLUMNS SINCE RULING 40, the mode axis's reason: F♯ major
+  // and G♭ major are two keys with two sets of answers.
   [CATEGORY_LABELS['slash-chords']]: {
-    columns: keyAxis,
+    columns: thirteenKeyAxis,
     rows: axis('shape', 'shape', SLASH_SHAPES.map(sh => sh.id),
       v => SLASH_SHAPES.find(sh => sh.id === v)?.label ?? String(v)),
   },

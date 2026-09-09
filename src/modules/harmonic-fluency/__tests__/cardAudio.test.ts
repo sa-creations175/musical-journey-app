@@ -34,7 +34,7 @@ describe('the shape is the same everywhere', () => {
   it('is the key\'s own chord first, then the material', () => {
     // Ruling 33's one sentence, asserted across the five families it
     // gave a voice to plus the two that already had one.
-    for (const id of ['sc-1-3-G', 'fh-ii-v-i-Eb', 'pr-1564-Eb',
+    for (const id of ['sc-slash-1-3-G', 'fh-ii-v-i-Eb', 'pr-1564-Eb',
       'pent-major-Ab', 'ks-relative-Eb', 'dgn-Ab-b6', 'sdm-1-up-P5']) {
       const s = soundOf(id);
       expect(s.orient, id).not.toBeNull();
@@ -56,7 +56,7 @@ describe('slash chords', () => {
     // chord with the same name.
     let seen = 0;
     for (const c of FLASHCARDS.filter(x => x.category === 'slash-chords')) {
-      const shape = SLASH_SHAPES.find(sh => c.id.startsWith(`sc-${sh.id}-`));
+      const shape = SLASH_SHAPES.find(sh => c.id.startsWith(`sc-slash-${sh.id}-`));
       if (shape === undefined) continue;
       seen += 1;
       const s = cardSound(c)!;
@@ -65,19 +65,19 @@ describe('slash chords', () => {
       const bass = notes[0];
       expect(bass, c.id).toBeLessThan(Math.min(...notes.slice(1)));
     }
-    expect(seen).toBe(SLASH_SHAPES.length * 12);
+    expect(seen).toBe(SLASH_SHAPES.length * 13);
   });
 
   it('5/7 in G is F♯ under a D triad', () => {
     // Read off in semitones from G: the 7 is 11, dropped an octave to
     // −1; the 5 is 7 and its triad is 7, 11, 14.
-    expect(steps(soundOf('sc-5-7-G'))).toEqual([[11 - 12, 7, 11, 14]]);
+    expect(steps(soundOf('sc-slash-5-7-G'))).toEqual([[11 - 12, 7, 11, 14]]);
   });
 
   it('2m/1 is a MINOR triad over the tonic', () => {
     // The one shape whose chord is not major. A major triad here would
     // be a chord that does not exist in the key.
-    expect(steps(soundOf('sc-2-1-G'))).toEqual([[0 - 12, 2, 5, 9]]);
+    expect(steps(soundOf('sc-slash-2-1-G'))).toEqual([[0 - 12, 2, 5, 9]]);
   });
 });
 

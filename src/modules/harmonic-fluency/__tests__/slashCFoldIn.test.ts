@@ -61,9 +61,9 @@ describe('which generated card each hand-written one became', () => {
 
   it('lands each on the generated card for its own shape in C', () => {
     expect(new Map(moves.map(m => [m.from, m.to]))).toEqual(new Map([
-      ['sc-8', 'sc-1-3-C'],
-      ['sc-9', 'sc-5-7-C'],
-      ['sc-10', 'sc-4-5-C'],
+      ['sc-8', 'sc-slash-1-3-C'],
+      ['sc-9', 'sc-slash-5-7-C'],
+      ['sc-10', 'sc-slash-4-5-C'],
     ]));
   });
 
@@ -125,7 +125,7 @@ describe('what follows the card', () => {
     });
 
     const moved = (await db.spacingState.toArray())[0];
-    expect(moved.itemRef).toBe('sc-5-7-C');
+    expect(moved.itemRef).toBe('sc-slash-5-7-C');
     // THE FLAGS TRAVEL. They are the reader's own words about a card,
     // and the card is the same card.
     expect(moved.studyLater).toBe(true);
@@ -135,11 +135,11 @@ describe('what follows the card', () => {
     expect(moved.id).toBe(spacingRowId(MODULE, 'sc-9', 'both'));
 
     expect((await db.attempts.toArray()).map(a => a.itemId))
-      .toEqual(['sc-5-7-C', 'sc-5-7-C']);
+      .toEqual(['sc-slash-5-7-C', 'sc-slash-5-7-C']);
     expect((await db.skillAnnotations.toArray())[0].skillId)
-      .toBe(canonicalSkillId(MODULE, 'card', 'sc-5-7-C'));
+      .toBe(canonicalSkillId(MODULE, 'card', 'sc-slash-5-7-C'));
     expect((await db.harmonicDiaryEntries.toArray())[0].skillId)
-      .toBe(canonicalSkillId(MODULE, 'card', 'sc-5-7-C'));
+      .toBe(canonicalSkillId(MODULE, 'card', 'sc-slash-5-7-C'));
   });
 
   it('keeps the attempt timestamps exactly as they were', async () => {
@@ -153,11 +153,11 @@ describe('what follows the card', () => {
 
   it('touches nothing belonging to another card', async () => {
     await db.spacingState.bulkPut([
-      spacingRow('sc-8'), spacingRow('sc-1-3-Db'), spacingRow('sc-13'),
+      spacingRow('sc-8'), spacingRow('sc-slash-1-3-Db'), spacingRow('sc-13'),
     ] as never[]);
     await foldInSlashCCards();
     const refs = (await db.spacingState.toArray()).map(s => s.itemRef).sort();
-    expect(refs).toEqual(['sc-1-3-C', 'sc-1-3-Db', 'sc-13']);
+    expect(refs).toEqual(['sc-13', 'sc-slash-1-3-C', 'sc-slash-1-3-Db']);
   });
 });
 
@@ -177,7 +177,7 @@ describe('safe on either device, in either order, more than once', () => {
   it('merges rather than duplicates when a lagging device pushes one back', async () => {
     // The phone syncs up its copy of the old row after the laptop has
     // already moved its own and drilled the new card.
-    await db.spacingState.add(spacingRow('sc-1-3-C', {
+    await db.spacingState.add(spacingRow('sc-slash-1-3-C', {
       lastEngagedAt: T + 5000, studyLater: false, reviewFlagNote: undefined,
     }));
     await db.spacingState.add(spacingRow('sc-8', { lastEngagedAt: T }));
@@ -187,7 +187,7 @@ describe('safe on either device, in either order, more than once', () => {
 
     const rows = await db.spacingState.toArray();
     expect(rows).toHaveLength(1);
-    expect(rows[0].itemRef).toBe('sc-1-3-C');
+    expect(rows[0].itemRef).toBe('sc-slash-1-3-C');
     // A FLAG IS A REQUEST, AND TWO REQUESTS ARE ONE.
     expect(rows[0].studyLater).toBe(true);
     // The schedule comes from whichever row was engaged with last.

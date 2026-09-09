@@ -220,9 +220,10 @@ describe('absent means flat list, not broken', () => {
       'pentatonic-scales': 36,
       'progressions': 6,
       // 44 before ruling 30: eleven keys x four shapes. Seven shapes
-      // across twelve keys now — ruling 37 took the three hand-written
-      // C cards that were keeping the generator out of that key.
-      'slash-chords': 84,
+      // across thirteen keys now — ruling 37 took the three
+      // hand-written C cards that kept the generator out of that key,
+      // and ruling 40 made F♯ major and G♭ major two of the thirteen.
+      'slash-chords': 91,
     });
   });
 });
@@ -309,11 +310,11 @@ describe('the grid reads the passed list, not the coordinates present', () => {
   it('keeps both key views over the same twelve', async () => {
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
     const { viewsAgree } = await import('../../../components/moduleHome/axis');
-    // SLASH CHORDS, NOT MODES. `keyAxis` is the thing under test, and
-    // Mode Identification stopped using it under ruling 40 — its
-    // thirteen keys cannot be ordered by a wheel that holds twelve, so
-    // it has one view. `identitySplit` pins that.
-    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['slash-chords']];
+    // FUNCTIONAL HARMONY, which still uses `keyAxis` — the thing under
+    // test. The regenerated families' thirteen keys cannot be ordered
+    // by a wheel that holds twelve, so they have one view;
+    // `identitySplit` pins that.
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['functional-harmony']];
     expect(grid.columns.views).toHaveLength(2);
     expect(viewsAgree(grid.columns)).toBe(true);
     // And they really are different orders, or the toggle is decoration.

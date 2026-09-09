@@ -26,6 +26,10 @@ import {
   foldInIntervalCards,
 } from './modules/harmonic-fluency/intervalFoldIn';
 import {
+  describeSlashFoldIn,
+  foldInSlashCards,
+} from './modules/harmonic-fluency/slashFoldIn';
+import {
   cleanUpRetiredCard,
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
@@ -250,6 +254,17 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] interval fold-in failed', err);
+      });
+    // Slash Chords regenerated for thirteen keys (rulings 39 and 40).
+    // Every old id retires for good, for the reason `slashFoldIn`
+    // gives: the old shape could not tell F♯ major from G♭ major.
+    void foldInSlashCards()
+      .then(r => {
+        const line = describeSlashFoldIn(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] slash fold-in failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from
