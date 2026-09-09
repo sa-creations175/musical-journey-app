@@ -93,7 +93,7 @@ describe('intervals', () => {
   it('carries from, to, the computed span and the movement', () => {
     // 13 notes x 12 distances, none missing: the six that need a
     // double accidental write one, glossed.
-    expect(cards.length).toBe(156);
+    expect(cards.length).toBe(143);
     for (const c of cards) {
       expect(Object.hasOwn(c, 'axis'), c.id).toBe(true);
       // `movement` is absent on the octave and only there — the
@@ -215,7 +215,10 @@ describe('absent means flat list, not broken', () => {
       // 33 before the 2-5-1 moved to Progression Vocabulary — eleven
       // cards each for ii-V-I, V/V and V/vi. Two generators now.
       'functional-harmony': 22,
-      'intervals': 156,
+      // 156 for a day: thirteen notes by twelve distances. The octave
+      // went for asking nothing — "the interval from D♭ to D♭" — so it
+      // is eleven distances now.
+      'intervals': 143,
       // 17 before commit 8 — nine relative top-ups and eight parallel.
       // Three generated sets over thirteen keys now (count, the
       // relative pair both ways, and a count-to-key card per mode),

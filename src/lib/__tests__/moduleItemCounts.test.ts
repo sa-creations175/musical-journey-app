@@ -70,7 +70,10 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 124 + 278 = 1494
+// Harmonic Fluency — 949 + 143 + 124 + 265 = 1481
+// (9 Sep 2026: 1494 → 1481. The thirteen octave interval cards went —
+//  "the interval from D♭ to D♭ ascending" answers itself. Intervals
+//  156 → 143, earRecognition 278 → 265.)
 // (9 Sep 2026: 1495 → 1494. `pr-13`, the bossa I-VI-ii-V in F, is the
 //  dominant-6 variation of the 1-6-2-5 and will live as a variation on
 //  that card. Progressions 85 → 84, functionalApplied 125 → 124.)
@@ -175,12 +178,12 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(124);
   });
 
-  it('earRecognition = mo 107 + iv 156 + et 15 = 278', () => {
-    expect(c.byGroup.earRecognition).toBe(278);
+  it('earRecognition = mo 107 + iv 143 + et 15 = 265', () => {
+    expect(c.byGroup.earRecognition).toBe(265);
   });
 
-  it('total = 1494 across all 13 categories', () => {
-    expect(c.total).toBe(1494);
+  it('total = 1481 across all 13 categories', () => {
+    expect(c.total).toBe(1481);
   });
 
   it('total equals sum of group totals', () => {

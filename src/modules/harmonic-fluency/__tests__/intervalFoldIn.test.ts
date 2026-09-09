@@ -95,14 +95,16 @@ describe('the grid it folded into', () => {
   const grid = FLASHCARDS.filter(c => /^iv-[^-]+-up-\d+$/.test(c.id));
 
   it('is every note by every distance, none missing', () => {
-    // 13 x 12 = 156. Six of them need a double flat — the minor 2nd
+    // 13 x 11 = 143. Six of them need a double flat — the minor 2nd
     // above D♭ is E𝄫 — and write it, with the plain name beside it.
-    expect(grid).toHaveLength(156);
+    // It was 156 for a day: the octave was a twelfth distance until it
+    // went for asking nothing a reader has to know.
+    expect(grid).toHaveLength(143);
   });
 
   it('starts on both spellings of the sixth pitch', () => {
-    expect(grid.filter(c => c.id.startsWith('iv-F#-up-'))).toHaveLength(12);
-    expect(grid.filter(c => c.id.startsWith('iv-Gb-up-'))).toHaveLength(12);
+    expect(grid.filter(c => c.id.startsWith('iv-F#-up-'))).toHaveLength(11);
+    expect(grid.filter(c => c.id.startsWith('iv-Gb-up-'))).toHaveLength(11);
   });
 
   it('names every distance from the one table', () => {
@@ -114,10 +116,17 @@ describe('the grid it folded into', () => {
     expect(answers.has('Minor 3rd')).toBe(false);
   });
 
-  it('says "an Octave", never "a Octave"', () => {
-    const octave = FLASHCARDS.find(c => c.id === 'iv-C-up-12')!;
-    expect(octave.correctAnswer).toBe('Octave');
-    expect(octave.explanation).toContain('an Octave');
+  it('says "an augmented", never "a augmented"', () => {
+    // WAS THE OCTAVE, which was the vowel case in the deck until it
+    // stopped being a card. Every remaining name that takes "an" does
+    // so in a flip sentence rather than as an answer, and `article`
+    // decides it by sound in both places.
+    const grid143 = FLASHCARDS.filter(c => /^iv-[^-]+-up-\d+$/.test(c.id));
+    for (const c of grid143) {
+      expect(c.explanation ?? '', c.id).not.toMatch(/\ba (?=[AEIO])/);
+      expect(c.explanation ?? '', c.id).not.toMatch(/\ban (?=[BCDFGJKLMNPQRSTVWXYZ])/);
+    }
+    expect(grid143.some(c => /-up-12$/.test(c.id))).toBe(false);
   });
 });
 

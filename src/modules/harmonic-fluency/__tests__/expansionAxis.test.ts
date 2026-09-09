@@ -59,9 +59,10 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   // that replaced them is every note by every distance, none missing;
   // `movement` rides along so the Distance chip gathers them beside the
   // movement cards.
-  // The octave is the one span with no movement id, so it is excluded
-  // here and asserted in its own test below.
-  ['interval grid', /^iv-[^-]+-up-(?!12$)\d+$/, 143,
+  // Thirteen notes by eleven distances. The octave was a twelfth span
+  // until it went for asking nothing; it was also the only one with no
+  // movement id, which is why this pattern used to exclude it.
+  ['interval grid', /^iv-[^-]+-up-\d+$/, 143,
     ['from', 'movement', 'semitones', 'to']],
 ];
 
@@ -101,15 +102,14 @@ describe('every keyed generator supplies coordinates', () => {
     expect(cells.size).toBe(fh.length);
   });
 
-  it('gives the octave no movement, and only the octave', () => {
-    // The movement vocabulary runs from the minor 2nd to the major
-    // 7th, because a degree cannot move an octave and land somewhere
-    // else. Thirteen octave cards, one per start note.
-    const octaves = byPrefix(/^iv-[^-]+-up-12$/);
-    expect(octaves).toHaveLength(13);
-    for (const c of octaves) {
-      expect(Object.keys(c.axis!).sort(), c.id).toEqual(['from', 'semitones', 'to']);
-    }
+  it('asks no interval from a note to itself', () => {
+    // THE THIRTEEN OCTAVE CARDS WENT. "The interval from D♭ to D♭
+    // ascending = ?" answers itself off the two note names, and the
+    // movement vocabulary — a minor 2nd to a major 7th — never had a
+    // word for it either, so it was also the only span carrying no
+    // Distance chip.
+    expect(byPrefix(/^iv-[^-]+-up-12$/)).toHaveLength(0);
+    expect(byPrefix(/^iv-[^-]+-up-\d+$/)).toHaveLength(143);
   });
 
   it('lands every interval card in ONE grid', () => {
@@ -119,10 +119,10 @@ describe('every keyed generator supplies coordinates', () => {
     // one, and the claim becomes that the one is uniform.
     const cards = byPrefix(/^iv-[^-]+-up-\d+$/);
     const shapes = new Set(cards.map(c => Object.keys(c.axis!).sort().join('+')));
-    expect([...shapes].sort()).toEqual([
-      'from+movement+semitones+to',   // every distance the deck names
-      'from+semitones+to',            // the octave, which it does not
-    ]);
+    // ONE SHAPE NOW, WHERE THERE WERE TWO. The second was the octave,
+    // the only span the movement vocabulary has no word for, and it is
+    // not a card any more.
+    expect([...shapes].sort()).toEqual(['from+movement+semitones+to']);
   });
 });
 

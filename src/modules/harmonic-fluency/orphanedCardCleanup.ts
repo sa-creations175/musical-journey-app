@@ -165,6 +165,15 @@ export const REMOVED_WITHOUT_SUCCESSOR: ReadonlyArray<string> = [
   'pr-prog-neo-soul-F#', 'pr-prog-neo-soul-Gb', 'pr-prog-neo-soul-G',
   'pr-prog-neo-soul-Ab', 'pr-prog-neo-soul-A', 'pr-prog-neo-soul-Bb',
   'pr-prog-neo-soul-B',
+  // THE THIRTEEN OCTAVE CARDS (9 Sep 2026). "The interval from D♭ to
+  // D♭ ascending = ?" answers itself off the two note names, without
+  // reading the word "ascending" or knowing anything. Ruling 43 asked
+  // for every note by every distance, and an interval from a note to
+  // itself is not one. Nothing replaces them.
+  'iv-C-up-12', 'iv-Db-up-12', 'iv-D-up-12', 'iv-Eb-up-12',
+  'iv-E-up-12', 'iv-F-up-12', 'iv-F#-up-12', 'iv-Gb-up-12',
+  'iv-G-up-12', 'iv-Ab-up-12', 'iv-A-up-12', 'iv-Bb-up-12',
+  'iv-B-up-12',
 ];
 
 /** One card whose rows are kept, and what a reader wrote on it. */

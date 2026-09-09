@@ -329,7 +329,7 @@ describe('intervals', () => {
     }
     // Every note by every distance — 13 x 12, none missing. The
     // fifteen inversion cards are prose and name no two notes.
-    expect(seen).toBe(156);
+    expect(seen).toBe(143);
   });
 
 

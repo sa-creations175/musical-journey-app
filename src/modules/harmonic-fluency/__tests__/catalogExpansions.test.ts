@@ -140,35 +140,23 @@ describe('the gloss is derived, not typed', () => {
 describe('every interval reveal names the flip, and no half steps', () => {
   const GRID = () => expansionCards().filter(c => /^iv-[^-]+-up-\d+$/.test(c.id));
 
-  it('says the same two notes the other way up, on 143 of the 156', () => {
+  it('says the same two notes the other way up, on all 143', () => {
     // Derived from the card, not from a table written here: the two
     // note names come out of the question and the two interval names
     // out of the answer and its flip. A generator that printed the
     // right sentence about the wrong pair would pass a spot check.
     const cards = GRID();
-    expect(cards).toHaveLength(156);
-    let said = 0;
+    expect(cards).toHaveLength(143);
     for (const c of cards) {
       const m = c.question.match(/^The interval from (.+) to (.+?)(?: \(.+\))? ascending/)!;
       const [, low, high] = m;
       const span = Number(c.id.match(/-up-(\d+)$/)![1]);
       const flipped = intervalNameAt(invertedSemitones(span))!;
-      if (low === high) continue;
-      said += 1;
+      // AND THE TWO NOTES ARE ALWAYS DIFFERENT, which is what the
+      // octave's departure bought: no card has to skip the sentence.
+      expect(low, c.id).not.toBe(high);
       expect(c.explanation ?? '', c.id)
         .toContain(`Flipped, ${high} up to ${low} is ${article(flipped)} ${flipped}.`);
-    }
-    expect(said).toBe(143);
-  });
-
-  it('leaves the octave alone, because its two notes have one name', () => {
-    // The only card where "the same two notes turned over" cannot be
-    // told apart from the sentence before it.
-    const octaves = GRID().filter(c => /-up-12$/.test(c.id));
-    expect(octaves).toHaveLength(13);
-    for (const c of octaves) {
-      expect(c.explanation ?? '', c.id).not.toContain('Flipped');
-      expect(c.explanation ?? '', c.id).not.toContain('Unison');
     }
   });
 

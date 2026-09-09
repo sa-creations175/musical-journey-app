@@ -64,6 +64,12 @@
  * and `identityIdMigration.ts` carries their rows across. The other
  * fourteen had none.
  * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 — THIRTEEN `iv-*-up-12` LINES REMOVED.
+ *
+ * "The interval from D♭ to D♭ ascending = ?" answers itself off the two
+ * note names. Removals with no additions repoint nothing; the history
+ * behind them goes through `orphanedCardCleanup`.
+ * ---------------------------------------------------------------
  * 9 SEPTEMBER 2026 — `pr-13` REMOVED, THE LAST ONE-KEY PROGRESSION.
  *
  * The bossa I-VI-ii-V in F is the dominant-6 variation of the 1-6-2-5
@@ -1096,7 +1102,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-C-up-9|The interval from C to A ascending = ?',
   'iv-C-up-10|The interval from C to B♭ ascending = ?',
   'iv-C-up-11|The interval from C to B ascending = ?',
-  'iv-C-up-12|The interval from C to C ascending = ?',
   'iv-Db-up-1|The interval from D♭ to E𝄫 (D) ascending = ?',
   'iv-Db-up-2|The interval from D♭ to E♭ ascending = ?',
   'iv-Db-up-3|The interval from D♭ to F♭ (E) ascending = ?',
@@ -1108,7 +1113,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-Db-up-9|The interval from D♭ to B♭ ascending = ?',
   'iv-Db-up-10|The interval from D♭ to C♭ (B) ascending = ?',
   'iv-Db-up-11|The interval from D♭ to C ascending = ?',
-  'iv-Db-up-12|The interval from D♭ to D♭ ascending = ?',
   'iv-D-up-1|The interval from D to E♭ ascending = ?',
   'iv-D-up-2|The interval from D to E ascending = ?',
   'iv-D-up-3|The interval from D to F ascending = ?',
@@ -1120,7 +1124,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-D-up-9|The interval from D to B ascending = ?',
   'iv-D-up-10|The interval from D to C ascending = ?',
   'iv-D-up-11|The interval from D to C♯ ascending = ?',
-  'iv-D-up-12|The interval from D to D ascending = ?',
   'iv-Eb-up-1|The interval from E♭ to F♭ (E) ascending = ?',
   'iv-Eb-up-2|The interval from E♭ to F ascending = ?',
   'iv-Eb-up-3|The interval from E♭ to G♭ ascending = ?',
@@ -1132,7 +1135,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-Eb-up-9|The interval from E♭ to C ascending = ?',
   'iv-Eb-up-10|The interval from E♭ to D♭ ascending = ?',
   'iv-Eb-up-11|The interval from E♭ to D ascending = ?',
-  'iv-Eb-up-12|The interval from E♭ to E♭ ascending = ?',
   'iv-E-up-1|The interval from E to F ascending = ?',
   'iv-E-up-2|The interval from E to F♯ ascending = ?',
   'iv-E-up-3|The interval from E to G ascending = ?',
@@ -1144,7 +1146,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-E-up-9|The interval from E to C♯ ascending = ?',
   'iv-E-up-10|The interval from E to D ascending = ?',
   'iv-E-up-11|The interval from E to D♯ ascending = ?',
-  'iv-E-up-12|The interval from E to E ascending = ?',
   'iv-F-up-1|The interval from F to G♭ ascending = ?',
   'iv-F-up-2|The interval from F to G ascending = ?',
   'iv-F-up-3|The interval from F to A♭ ascending = ?',
@@ -1156,7 +1157,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-F-up-9|The interval from F to D ascending = ?',
   'iv-F-up-10|The interval from F to E♭ ascending = ?',
   'iv-F-up-11|The interval from F to E ascending = ?',
-  'iv-F-up-12|The interval from F to F ascending = ?',
   'iv-F#-up-1|The interval from F♯ to G ascending = ?',
   'iv-F#-up-2|The interval from F♯ to G♯ ascending = ?',
   'iv-F#-up-3|The interval from F♯ to A ascending = ?',
@@ -1168,7 +1168,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-F#-up-9|The interval from F♯ to D♯ ascending = ?',
   'iv-F#-up-10|The interval from F♯ to E ascending = ?',
   'iv-F#-up-11|The interval from F♯ to E♯ (F) ascending = ?',
-  'iv-F#-up-12|The interval from F♯ to F♯ ascending = ?',
   'iv-Gb-up-1|The interval from G♭ to A𝄫 (G) ascending = ?',
   'iv-Gb-up-2|The interval from G♭ to A♭ ascending = ?',
   'iv-Gb-up-3|The interval from G♭ to B𝄫 (A) ascending = ?',
@@ -1180,7 +1179,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-Gb-up-9|The interval from G♭ to E♭ ascending = ?',
   'iv-Gb-up-10|The interval from G♭ to F♭ (E) ascending = ?',
   'iv-Gb-up-11|The interval from G♭ to F ascending = ?',
-  'iv-Gb-up-12|The interval from G♭ to G♭ ascending = ?',
   'iv-G-up-1|The interval from G to A♭ ascending = ?',
   'iv-G-up-2|The interval from G to A ascending = ?',
   'iv-G-up-3|The interval from G to B♭ ascending = ?',
@@ -1192,7 +1190,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-G-up-9|The interval from G to E ascending = ?',
   'iv-G-up-10|The interval from G to F ascending = ?',
   'iv-G-up-11|The interval from G to F♯ ascending = ?',
-  'iv-G-up-12|The interval from G to G ascending = ?',
   'iv-Ab-up-1|The interval from A♭ to B𝄫 (A) ascending = ?',
   'iv-Ab-up-2|The interval from A♭ to B♭ ascending = ?',
   'iv-Ab-up-3|The interval from A♭ to C♭ (B) ascending = ?',
@@ -1204,7 +1201,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-Ab-up-9|The interval from A♭ to F ascending = ?',
   'iv-Ab-up-10|The interval from A♭ to G♭ ascending = ?',
   'iv-Ab-up-11|The interval from A♭ to G ascending = ?',
-  'iv-Ab-up-12|The interval from A♭ to A♭ ascending = ?',
   'iv-A-up-1|The interval from A to B♭ ascending = ?',
   'iv-A-up-2|The interval from A to B ascending = ?',
   'iv-A-up-3|The interval from A to C ascending = ?',
@@ -1216,7 +1212,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-A-up-9|The interval from A to F♯ ascending = ?',
   'iv-A-up-10|The interval from A to G ascending = ?',
   'iv-A-up-11|The interval from A to G♯ ascending = ?',
-  'iv-A-up-12|The interval from A to A ascending = ?',
   'iv-Bb-up-1|The interval from B♭ to C♭ (B) ascending = ?',
   'iv-Bb-up-2|The interval from B♭ to C ascending = ?',
   'iv-Bb-up-3|The interval from B♭ to D♭ ascending = ?',
@@ -1228,7 +1223,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-Bb-up-9|The interval from B♭ to G ascending = ?',
   'iv-Bb-up-10|The interval from B♭ to A♭ ascending = ?',
   'iv-Bb-up-11|The interval from B♭ to A ascending = ?',
-  'iv-Bb-up-12|The interval from B♭ to B♭ ascending = ?',
   'iv-B-up-1|The interval from B to C ascending = ?',
   'iv-B-up-2|The interval from B to C♯ ascending = ?',
   'iv-B-up-3|The interval from B to D ascending = ?',
@@ -1240,7 +1234,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'iv-B-up-9|The interval from B to G♯ ascending = ?',
   'iv-B-up-10|The interval from B to A ascending = ?',
   'iv-B-up-11|The interval from B to A♯ ascending = ?',
-  'iv-B-up-12|The interval from B to B ascending = ?',
   // --- enharmonic-equivalents ---
   'enh-n-1|Enharmonic equivalent of Ab?',
   'enh-n-2|Enharmonic equivalent of G#?',

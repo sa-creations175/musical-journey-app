@@ -1363,11 +1363,20 @@ const OTHER_READINGS: Readonly<Record<string, string>> = {
   Tritone: ', also called the augmented 4th or ♭5',
 };
 
-/** Every span an interval card asks about, in semitones — a minor 2nd
- *  up to the octave (ruling 43). The unison is not a distance anybody
- *  is asked to name. */
+/**
+ * Every span an interval card asks about, in semitones — a minor 2nd up
+ * to a major 7th.
+ *
+ * NEITHER END OF THE OCTAVE IS ASKED. The unison never was: "the
+ * interval from D♭ to D♭" is not a distance anybody is asked to name.
+ * The octave was, for a week, and it is the same card — "The interval
+ * from D♭ to D♭ ascending = ?" answers itself off the two note names,
+ * without reading the word "ascending" or knowing anything. Ruling 43
+ * asked for every note by every distance; an interval from a note to
+ * itself is not one.
+ */
 const INTERVAL_SPANS: ReadonlyArray<number> =
-  Array.from({ length: 12 }, (_, i) => i + 1);
+  Array.from({ length: 11 }, (_, i) => i + 1);
 
 /**
  * How many LETTER steps an interval of this many semitones moves.
@@ -1448,11 +1457,12 @@ function intervalDecoyPool(semitones: number): string[] {
  * descending shape only if the family already has one, and it does not
  * — every card in it has said "ascending" since it was written.
  *
- * 156 CARDS. It was 150 for a week: six spellings need a double
- * accidental — the minor 2nd above D♭ is E𝄫 — and were skipped rather
- * than written wrong. The follow-up ruling says a card is never skipped
- * over spelling, so all six are written, glossed; `intervalToAscii`
- * says how.
+ * 143 CARDS — thirteen notes by eleven distances. It was 150 for a
+ * week, then 156: six spellings need a double accidental (the minor 2nd
+ * above D♭ is E𝄫) and were skipped rather than written wrong, until the
+ * follow-up ruling said a card is never skipped over spelling, so all
+ * six are written and glossed. Then the thirteen octave cards went, for
+ * asking nothing at all.
  * =====================================================================
  */
 export function generateIntervalGrid(): Flashcard[] {
@@ -1525,35 +1535,30 @@ export function generateIntervalGrid(): Flashcard[] {
  * of the reader rather than being asked in the abstract, and both names
  * come from the one interval-name table.
  *
- * =====================================================================
- * THE OCTAVE GETS NO FLIP SENTENCE, AND IT IS THE ONLY ONE.
- *
- * Its two notes have the SAME NAME. "D♭ up to D♭ is an Octave. Flipped,
- * D♭ up to D♭ is a Unison." is true of a different pair of D♭s and
- * reads as a contradiction — the one card where the sentence's own
- * premise, the same two notes turned over, cannot be told apart from
- * the sentence before it. Thirteen cards say nothing rather than say
- * that; it is in the report.
+ * NO SPECIAL CASE ANY MORE. The octave used to need one — its two notes
+ * have the same name, so "D♭ up to D♭ is an Octave. Flipped, D♭ up to
+ * D♭ is a Unison." read as a contradiction — and the answer turned out
+ * to be that the octave is not a card. Every span left has two
+ * different note names, so every card says its flip.
  * =====================================================================
  */
 function flipSentence(from: string, toAscii: string, semitones: number): string {
-  const low = noteLabel(from);
-  const high = noteLabel(toAscii);
-  if (low === high) return '';
   const flipped = intervalName(invertedSemitones(semitones));
-  return ` Flipped, ${high} up to ${low} is ${article(flipped)} ${flipped}.`;
+  return ` Flipped, ${noteLabel(toAscii)} up to ${noteLabel(from)} is `
+    + `${article(flipped)} ${flipped}.`;
 }
 
 /**
  * The movement id for a span, or null where the deck has no name for
  * it.
  *
- * THE OCTAVE HAS NONE. `INTERVAL_QUALITIES` runs from the minor 2nd to
- * the major 7th, because a movement card asks where a degree lands and
- * a degree cannot move an octave and land somewhere else. So an octave
- * card carries no `movement` and the Distance row does not offer it —
- * which is honest, rather than inventing a thirteenth quality to fill
- * a column.
+ * NOTHING IN THE GRID REACHES ONE ANY MORE. `INTERVAL_QUALITIES` runs
+ * from the minor 2nd to the major 7th, because a movement card asks
+ * where a degree lands and a degree cannot move an octave and land
+ * somewhere else — and the octave cards, the only spans without a
+ * movement, left the deck. The null branch stays because the null is
+ * still the honest answer for a span the deck has no word for; it is
+ * simply unreachable from here today.
  */
 function movementForSpan(semitones: number): string | null {
   const steps = LETTER_STEPS_BY_SEMITONES[semitones];
