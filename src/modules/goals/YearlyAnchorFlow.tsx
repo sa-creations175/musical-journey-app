@@ -2,6 +2,8 @@ import { useState } from 'react';
 import Modal from '../../components/Modal';
 import { db, type Goal } from '../../lib/db';
 import { earTrainingCounts, harmonicFluencyCounts, productionCounts, shapesCounts } from '../../lib/moduleItemCounts';
+import { useMovementIds } from '../shapes-and-patterns/movements/useMovementIds';
+import { listMovementIds } from '../shapes-and-patterns/movements/movementStore';
 import { DASHBOARD_META, PRACTICE_SESSIONS_META, moduleMetaById } from '../../lib/moduleMeta';
 import type { GoalFlowModuleId } from './goalVocabulary';
 import {
@@ -842,9 +844,11 @@ function encodeHarmonicFluencyDimensions(hf: HarmonicFluencyAnchor): DimensionRe
   return records;
 }
 
-function encodeShapesDimensions(sp: ShapesPatternsAnchor): DimensionRecordSpec[] {
+function encodeShapesDimensions(
+  sp: ShapesPatternsAnchor, movementIds: readonly string[],
+): DimensionRecordSpec[] {
   const records: DimensionRecordSpec[] = [];
-  const counts = shapesCounts();
+  const counts = shapesCounts(undefined, movementIds);
   const areaCount = (id: ShapesAreaId): number => {
     if (id === 'chord_shape_drills') return counts.chordShapeDrills;
     if (id === 'scale_drills')        return counts.scaleDrills;
@@ -1076,7 +1080,11 @@ export async function saveAnchor(
   const initialAnchor = opts.initialAnchor ?? null;
   const isEditing = !!initialAnchor;
 
-  const specs = encodeDimensionRecords(draft);
+  // The movements are part of the pool the moment they exist
+  // (follow-up ruling 3), so the total an anchor is SAVED with is the
+  // total it is measured against. Asked of Shapes & Patterns rather
+  // than read here — see `listMovementIds`.
+  const specs = encodeDimensionRecords(draft, await listMovementIds());
   if (specs.length === 0) return null;
 
   const umbrellaId = isEditing ? initialAnchor!.id : idFor('goal');
@@ -1150,7 +1158,12 @@ export async function saveAnchor(
  * the active module slot on the draft. Save logic layers shared
  * fields (id, parentGoalId, dates, status) over each spec.
  */
-export function encodeDimensionRecords(draft: AnchorDraft): DimensionRecordSpec[] {
+export function encodeDimensionRecords(
+  draft: AnchorDraft,
+  /** The movements that exist. Part of the shapes total an anchor is
+   *  offered at and stored with (follow-up ruling 3). */
+  movementIds: readonly string[] = [],
+): DimensionRecordSpec[] {
   if (draft.moduleId === 'ear-training' && draft.earTraining) {
     return encodeEarTrainingDimensions(draft.earTraining);
   }
@@ -1158,7 +1171,7 @@ export function encodeDimensionRecords(draft: AnchorDraft): DimensionRecordSpec[
     return encodeHarmonicFluencyDimensions(draft.harmonicFluency);
   }
   if (draft.moduleId === 'shapes-and-patterns' && draft.shapesPatterns) {
-    return encodeShapesDimensions(draft.shapesPatterns);
+    return encodeShapesDimensions(draft.shapesPatterns, movementIds);
   }
   if (draft.moduleId === 'repertoire' && draft.songRepertoire) {
     return encodeSongRepertoireDimensions(draft.songRepertoire);
@@ -1790,7 +1803,7 @@ function Screen1ShapesPatterns({
   focusDimension: AnchorDimension | null;
 }) {
   useFocusDimension(focusDimension);
-  const counts = shapesCounts();
+  const counts = shapesCounts(undefined, useMovementIds());
   const spAccent = moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a';
 
   const breadthGroupOptions: BreadthGroupOption[] = SHAPES_AREA_IDS.map(id => ({
@@ -2303,8 +2316,9 @@ function ScreenReview({
   const year = new Date().getFullYear();
   const placeholder = defaultAnchorName(draft.moduleId, year);
   const resolvedName = draft.name?.trim() ? draft.name : placeholder;
-  const rows = dimensionRowsFor(draft);
-  const summary = summarizeAnchor(draft, year, resolvedName);
+  const movementIds = useMovementIds();
+  const rows = dimensionRowsFor(draft, movementIds);
+  const summary = summarizeAnchor(draft, year, resolvedName, movementIds);
 
   return (
     <div className="flex flex-col gap-5">

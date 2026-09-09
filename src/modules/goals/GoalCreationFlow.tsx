@@ -62,6 +62,8 @@ import {
   shapesCounts,
   productionCounts,
 } from '../../lib/moduleItemCounts';
+import { useMovementIds } from '../shapes-and-patterns/movements/useMovementIds';
+import { listMovementIds } from '../shapes-and-patterns/movements/movementStore';
 import YearlyAnchorInterstitial from './YearlyAnchorInterstitial';
 import { anchorExistsForModule } from './yearlyAnchorTrigger';
 import SongTargetSection, { SongPreview } from './SongTargetSection';
@@ -844,7 +846,9 @@ export default function GoalCreationFlow({
         );
       }
 
-      const records = encodeRecordsForDraft(draft, songRecord, sectionNamesById);
+      const records = encodeRecordsForDraft(
+        draft, songRecord, sectionNamesById, await listMovementIds(),
+      );
       if (records.length === 0) {
         console.warn('[goal-flow] no records to save; aborting');
         setSaving(false);
@@ -2478,7 +2482,22 @@ function shapeLabel(area: ShapesActivityArea, shapeId: string): string | null {
  * Catalog growth (new chord qualities, new scales, new patterns)
  * flows in automatically via shapesCoverageGroups.ts.
  */
-const SP_COUNTS = shapesCounts();
+/**
+ * THE OFFERED TOTAL IS THE MEASURED TOTAL (follow-up ruling 3).
+ *
+ * This was `const SP_COUNTS = shapesCounts()` — evaluated at import,
+ * before any component exists and long before Dexie can be asked, so
+ * the number a goal was OFFERED at stopped at the catalog while the
+ * number it was MEASURED against counted every movement too. A movement
+ * is part of the pool from the moment it exists.
+ *
+ * A function of the list rather than a constant, which is
+ * `cellTargets`'s own "AN ARGUMENT, NOT A READ" rule reaching as far as
+ * it can. `useMovementIds` is where it runs out.
+ */
+function shapesTotalItems(movementIds: readonly string[]): number {
+  return shapesCounts(undefined, movementIds).total;
+}
 const SHAPES_COVERAGE_GROUPS: ReadonlyArray<{
   id: ShapesCoverageGroupId;
   label: string;
@@ -2494,8 +2513,6 @@ const SHAPES_COVERAGE_GROUPS: ReadonlyArray<{
   denominator: g.denominator,
 }));
 
-const SHAPES_TOTAL_ITEMS = SP_COUNTS.total;
-
 function Step2ShapesPatterns({
   draft,
   onUpdate,
@@ -2506,13 +2523,14 @@ function Step2ShapesPatterns({
   const target = draft.shapesPatterns;
   const setTarget = (next: ShapesPatternsTarget) => onUpdate({ shapesPatterns: next });
   const fallbackTarget = draft.targetDate ?? Date.now() + 30 * 24 * 60 * 60 * 1000;
+  const movementIds = useMovementIds();
   const coverageMinutes = useMemo(
     () => coverageWeeklyMinutes({
-      records: encodeShapesPatterns(target),
+      records: encodeShapesPatterns(target, movementIds),
       moduleId: 'shapes-and-patterns',
       targetDate: fallbackTarget,
     }),
-    [target, fallbackTarget],
+    [target, fallbackTarget, movementIds],
   );
 
   return (
@@ -2528,12 +2546,12 @@ function Step2ShapesPatterns({
         unitMode="days"
         coverageWeeklyMinutes={coverageMinutes}
       />
-      <TargetPreview text={previewShapesPatternsTarget(target)} />
+      <TargetPreview text={previewShapesPatternsTarget(target, movementIds)} />
       {draft.scope === 'monthly' && (
         <YearlyAnchorSuggestionPanel
           draft={{
             moduleId: 'shapes-and-patterns',
-            encodedRecords: encodeShapesPatterns(target),
+            encodedRecords: encodeShapesPatterns(target, movementIds),
             pendingRelatedItems: draft.pendingRelatedItems,
             pendingTargetBump: draft.pendingTargetBump,
           }}
@@ -2558,6 +2576,10 @@ function ShapesPatternsCoverageCard({
 }) {
   const shapesAccent =
     moduleMetaById('shapes-and-patterns')?.accentHex ?? '#7a5aa8';
+  // The movements are part of the pool the moment they exist
+  // (follow-up ruling 3), so the number this card OFFERS is the number
+  // the goal is measured against.
+  const movementIds = useMovementIds();
   const toggle = () => onChange({ ...target, coverageEnabled: !target.coverageEnabled });
   const setScope = (scope: ShapesPatternsTarget['coverageScope']) => {
     if (scope === target.coverageScope) return;
@@ -2587,7 +2609,7 @@ function ShapesPatternsCoverageCard({
       <Field label="Scope">
         <div className="flex gap-1.5">
           <PillButton
-            label={`All of shapes & patterns (${SHAPES_TOTAL_ITEMS} items)`}
+            label={`All of shapes & patterns (${shapesTotalItems(movementIds)} items)`}
             active={target.coverageScope === 'overall'}
             onClick={() => setScope('overall')}
           />
@@ -2782,11 +2804,16 @@ function ShapeOptionsForArea({ area }: { area: ShapesActivityArea }) {
  * Major scale in C"). Chord and voice-leading labels are already
  * complete nouns in the catalog so no suffix is added.
  */
-function previewShapesPatternsTarget(target: ShapesPatternsTarget): string | null {
+function previewShapesPatternsTarget(
+  target: ShapesPatternsTarget,
+  movementIds: readonly string[] = [],
+): string | null {
   const parts: string[] = [];
   if (target.coverageEnabled) {
     if (target.coverageScope === 'overall') {
-      parts.push(`Cover all ${SHAPES_TOTAL_ITEMS} shapes & patterns items (acquired)`);
+      parts.push(
+        `Cover all ${shapesTotalItems(movementIds)} shapes & patterns items (acquired)`,
+      );
     } else {
       const picked = SHAPES_COVERAGE_GROUPS.filter(g =>
         target.coverageGroupIds.includes(g.id),
@@ -3773,7 +3800,10 @@ export function encodeHarmonicFluency(t: HarmonicFluencyTarget): EncodedRecord[]
   return records;
 }
 
-export function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
+export function encodeShapesPatterns(
+  t: ShapesPatternsTarget,
+  movementIds: readonly string[] = [],
+): EncodedRecord[] {
   const records: EncodedRecord[] = [];
   // Coverage emitted FIRST so multi-target goals list breadth before
   // proficiency + consistency — matches the design doc dimension
@@ -3781,9 +3811,10 @@ export function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
   if (t.coverageEnabled) {
     if (t.coverageScope === 'overall') {
       records.push({
-        description: `Cover all ${SHAPES_TOTAL_ITEMS} shapes & patterns items (acquired)`,
+        description:
+          `Cover all ${shapesTotalItems(movementIds)} shapes & patterns items (acquired)`,
         targetMetric: COVERAGE_OVERALL_METRIC.SHAPES,
-        targetValue: SHAPES_TOTAL_ITEMS,
+        targetValue: shapesTotalItems(movementIds),
         targetUnit: 'items',
       });
     } else {
@@ -3809,7 +3840,7 @@ export function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
       ...t,
       coverageEnabled: false,
       consistencyEnabled: false,
-    });
+    }, movementIds);
     if (sliced) {
       if (t.proficiencyScope === 'overall') {
         records.push({
@@ -3833,7 +3864,7 @@ export function encodeShapesPatterns(t: ShapesPatternsTarget): EncodedRecord[] {
       ...t,
       coverageEnabled: false,
       proficiencyEnabled: false,
-    });
+    }, movementIds);
     if (sliced) {
       records.push({
         description: sliced,
@@ -3968,6 +3999,9 @@ export function encodeRecordsForDraft(
   draft: Draft,
   songRecord: Song | undefined,
   sectionNamesById: ReadonlyMap<string, string>,
+  /** The movements that exist. Part of the shapes total a goal is
+   *  offered at and stored with (follow-up ruling 3). */
+  movementIds: readonly string[] = [],
 ): EncodedRecord[] {
   switch (draft.moduleId) {
     case 'repertoire':
@@ -3975,7 +4009,7 @@ export function encodeRecordsForDraft(
       return encodeSongRecord(draft, songRecord, sectionNamesById);
     case 'ear-training':         return encodeEarTraining(draft.earTraining);
     case 'harmonic-fluency':     return encodeHarmonicFluency(draft.harmonicFluency);
-    case 'shapes-and-patterns':  return encodeShapesPatterns(draft.shapesPatterns);
+    case 'shapes-and-patterns':  return encodeShapesPatterns(draft.shapesPatterns, movementIds);
     case 'production':           return encodeProduction(draft.production);
     case 'practice-consistency': return encodePracticeConsistency(draft.practiceConsistency);
     default:                     return [];
@@ -4263,6 +4297,7 @@ function computeGoalDescription(
   draft: Draft,
   songRecord: Song | undefined,
   sectionNamesById: ReadonlyMap<string, string>,
+  movementIds: readonly string[] = [],
 ): string | null {
   switch (draft.moduleId) {
     case 'repertoire':
@@ -4274,7 +4309,8 @@ function computeGoalDescription(
       });
     case 'ear-training':         return previewEarTrainingTarget(draft.earTraining);
     case 'harmonic-fluency':     return previewHarmonicFluencyTarget(draft.harmonicFluency);
-    case 'shapes-and-patterns':  return previewShapesPatternsTarget(draft.shapesPatterns);
+    case 'shapes-and-patterns':
+      return previewShapesPatternsTarget(draft.shapesPatterns, movementIds);
     case 'production':           return previewProductionTarget(draft.production);
     case 'practice-consistency': return previewPracticeConsistencyTarget(draft.practiceConsistency);
     default:                     return null;
@@ -4318,9 +4354,10 @@ function Step4View({ draft }: { draft: Draft }) {
     return m;
   }, [matrixSections]);
 
+  const movementIds = useMovementIds();
   const description = useMemo(
-    () => computeGoalDescription(draft, songRecord, sectionNamesById),
-    [draft, songRecord, sectionNamesById],
+    () => computeGoalDescription(draft, songRecord, sectionNamesById, movementIds),
+    [draft, songRecord, sectionNamesById, movementIds],
   );
 
   const moduleLabel = draft.moduleId !== null ? moduleLabelForCard(draft.moduleId) : null;

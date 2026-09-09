@@ -32,6 +32,9 @@ import { shapesTargetUniverse } from '../../modules/shapes-and-patterns/cellTarg
 import { shapesCoverageDenominator } from '../../modules/goals/shapesCoverageGroups';
 import { loadScopeMaintenanceViews } from '../sessionAlgorithm/scopeMaintenanceResolve';
 import { listMovementIds } from '../../modules/shapes-and-patterns/movements/movementStore';
+import { encodeShapesPatterns } from '../../modules/goals/GoalCreationFlow';
+import { encodeDimensionRecords } from '../../modules/goals/YearlyAnchorFlow';
+import { dimensionRowsFor } from '../../modules/goals/yearlyAnchorReview';
 
 const KEYS_PER_MOVEMENT = 12;
 const MOVEMENTS = ['mv-walk-up', 'mv-turnaround'];
@@ -76,6 +79,66 @@ describe('the universe a goal is scoped out of', () => {
     const before = shapesCoverageDenominator('voice_leading');
     const after = shapesCoverageDenominator('voice_leading', undefined, MOVEMENTS);
     expect(after - before).toBe(MOVEMENTS.length * KEYS_PER_MOVEMENT);
+  });
+});
+
+describe('the number a goal is OFFERED at', () => {
+  /**
+   * FOLLOW-UP RULING 3. It was the catalog-only total while the number
+   * the goal is MEASURED against counted movements too — so a goal
+   * saved today would carry a `targetValue` it could exceed. A movement
+   * is part of the pool from the moment it exists.
+   *
+   * The four callers named in the commit-7 report all take the list
+   * now; these assert the two ends of the chain that actually store a
+   * number.
+   */
+  const sp = () => ({
+    coverageEnabled: true,
+    coverageScope: 'overall' as const,
+    coverageGroupIds: [],
+    proficiencyEnabled: false,
+    consistencyEnabled: false,
+    consistencyCount: 0,
+  });
+
+  it('is the measured total, in the goal wizard', () => {
+    const withOut = encodeShapesPatterns(sp() as never);
+    const withIn = encodeShapesPatterns(sp() as never, MOVEMENTS);
+    expect(withIn[0].targetValue! - withOut[0].targetValue!)
+      .toBe(MOVEMENTS.length * KEYS_PER_MOVEMENT);
+    expect(withIn[0].description).toContain(String(withIn[0].targetValue));
+  });
+
+  it('is the measured total, in the yearly anchor', () => {
+    const draft = {
+      moduleId: 'shapes-and-patterns' as const,
+      shapesPatterns: {
+        breadth: { kind: 'all' as const, groupIds: [] },
+        depth: { areaIds: [] },
+        mastery: { areaIds: [] },
+        consistency: { count: 3, cadence: 'week' as const },
+      },
+    };
+    const withOut = encodeDimensionRecords(draft as never);
+    const withIn = encodeDimensionRecords(draft as never, MOVEMENTS);
+    expect(withIn[0].targetValue! - withOut[0].targetValue!)
+      .toBe(MOVEMENTS.length * KEYS_PER_MOVEMENT);
+  });
+
+  it('and the review sentence agrees with what was saved', () => {
+    const draft = {
+      moduleId: 'shapes-and-patterns' as const,
+      shapesPatterns: {
+        breadth: { kind: 'all' as const, groupIds: [] },
+        depth: { areaIds: [] },
+        mastery: { areaIds: [] },
+        consistency: { count: 3, cadence: 'week' as const },
+      },
+    };
+    const saved = encodeDimensionRecords(draft as never, MOVEMENTS)[0].targetValue!;
+    const rows = dimensionRowsFor(draft as never, MOVEMENTS);
+    expect(rows[0].value).toContain(String(saved));
   });
 });
 

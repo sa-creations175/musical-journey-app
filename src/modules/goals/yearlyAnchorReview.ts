@@ -236,9 +236,11 @@ function summarizeHarmonicFluency(hf: HarmonicFluencyAnchor, year: number): stri
 // Per-module: Shapes & Patterns
 // =====================================================================
 
-function summarizeShapesBreadth(sp: ShapesPatternsAnchor): string {
+function summarizeShapesBreadth(
+  sp: ShapesPatternsAnchor, movementIds: readonly string[],
+): string {
   if (sp.breadth.kind === 'all') {
-    const total = shapesCounts().total;
+    const total = shapesCounts(undefined, movementIds).total;
     return `All ${total} shapes`;
   }
   if (sp.breadth.groupIds.length === 0) return 'Not yet picked';
@@ -255,19 +257,23 @@ function summarizeShapesMastery(sp: ShapesPatternsAnchor): string {
   return `Truly own ${joinAnd(sp.mastery.areaIds.map(id => SHAPES_AREA_LABELS[id]))}`;
 }
 
-function dimensionRowsForShapes(sp: ShapesPatternsAnchor): DimensionReviewRow[] {
+function dimensionRowsForShapes(
+  sp: ShapesPatternsAnchor, movementIds: readonly string[],
+): DimensionReviewRow[] {
   // Order matches Screen 1: Breadth → Depth → Mastery → Consistency.
   return [
-    { dimension: 'breadth',     title: 'Breadth',     value: summarizeShapesBreadth(sp) },
+    { dimension: 'breadth',     title: 'Breadth',     value: summarizeShapesBreadth(sp, movementIds) },
     { dimension: 'depth',       title: 'Depth',       value: summarizeShapesDepth(sp) },
     { dimension: 'mastery',     title: 'Mastery',     value: summarizeShapesMastery(sp) },
     { dimension: 'consistency', title: 'Consistency', value: `${sp.consistency.count} minutes per ${cadenceLabel(sp.consistency.cadence)}` },
   ];
 }
 
-function summarizeShapes(sp: ShapesPatternsAnchor, year: number): string {
+function summarizeShapes(
+  sp: ShapesPatternsAnchor, year: number, movementIds: readonly string[],
+): string {
   const breadthClause = sp.breadth.kind === 'all'
-    ? `work toward Comfortable status across all ${shapesCounts().total} shapes`
+    ? `work toward Comfortable status across all ${shapesCounts(undefined, movementIds).total} shapes`
     : sp.breadth.groupIds.length === 0
       ? 'work toward Comfortable status in the areas you choose'
       : `work toward Comfortable status in ${joinAnd(sp.breadth.groupIds.map(id => SHAPES_AREA_LABELS[id as keyof typeof SHAPES_AREA_LABELS]))}`;
@@ -375,7 +381,12 @@ function summarizePracticeConsistency(pc: PracticeConsistencyAnchor, year: numbe
  * (defensive — should not happen in normal flow since
  * buildInitialDraft seeds the slot for every supported moduleId).
  */
-export function dimensionRowsFor(draft: AnchorDraft): DimensionReviewRow[] {
+export function dimensionRowsFor(
+  draft: AnchorDraft,
+  /** The movements that exist. Part of the shapes total an anchor is
+   *  offered at (follow-up ruling 3). */
+  movementIds: readonly string[] = [],
+): DimensionReviewRow[] {
   if (draft.moduleId === 'ear-training' && draft.earTraining) {
     return dimensionRowsForEarTraining(draft.earTraining);
   }
@@ -383,7 +394,7 @@ export function dimensionRowsFor(draft: AnchorDraft): DimensionReviewRow[] {
     return dimensionRowsForHarmonicFluency(draft.harmonicFluency);
   }
   if (draft.moduleId === 'shapes-and-patterns' && draft.shapesPatterns) {
-    return dimensionRowsForShapes(draft.shapesPatterns);
+    return dimensionRowsForShapes(draft.shapesPatterns, movementIds);
   }
   if (draft.moduleId === 'repertoire' && draft.songRepertoire) {
     return dimensionRowsForSongRepertoire(draft.songRepertoire);
@@ -412,6 +423,8 @@ export function summarizeAnchor(
   // For now the summary is name-agnostic; the param keeps the
   // function signature stable when that copy lands.
   _name: string,
+  /** The movements that exist (follow-up ruling 3). */
+  movementIds: readonly string[] = [],
 ): string {
   if (draft.moduleId === 'ear-training' && draft.earTraining) {
     return summarizeEarTraining(draft.earTraining, year);
@@ -420,7 +433,7 @@ export function summarizeAnchor(
     return summarizeHarmonicFluency(draft.harmonicFluency, year);
   }
   if (draft.moduleId === 'shapes-and-patterns' && draft.shapesPatterns) {
-    return summarizeShapes(draft.shapesPatterns, year);
+    return summarizeShapes(draft.shapesPatterns, year, movementIds);
   }
   if (draft.moduleId === 'repertoire' && draft.songRepertoire) {
     return summarizeSongRepertoire(draft.songRepertoire, year);

@@ -65,6 +65,7 @@ import {
   productionCounts,
   shapesCounts,
 } from '../../lib/moduleItemCounts';
+import { useMovementIds } from '../shapes-and-patterns/movements/useMovementIds';
 import { PRODUCTION_PATHS } from '../production/content/paths';
 import { moduleMetaById, PRACTICE_SESSIONS_META, DASHBOARD_META } from '../../lib/moduleMeta';
 
@@ -952,6 +953,10 @@ type EncodableSlice =
 function encodeShim(
   moduleId: EncodableSlice['moduleId'],
   target: EncodableSlice['target'],
+  /** The movements that exist. Part of the shapes total a goal is
+   *  offered at and stored with (follow-up ruling 3); ignored by every
+   *  other module. */
+  movementIds: readonly string[] = [],
 ): EncodedRecord[] {
   const draftShim: Record<string, unknown> = { moduleId };
   switch (moduleId) {
@@ -962,7 +967,7 @@ function encodeShim(
     case 'practice-consistency': draftShim.practiceConsistency = target; break;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return encodeRecordsForDraft(draftShim as any, undefined, new Map());
+  return encodeRecordsForDraft(draftShim as any, undefined, new Map(), movementIds);
 }
 
 interface PersistArgs {
@@ -1443,7 +1448,18 @@ function EtAccuracySection({
 // Shapes & Patterns body
 // =====================================================================
 
-const SP_COUNTS = shapesCounts();
+/**
+ * THE OFFERED TOTAL IS THE MEASURED TOTAL (follow-up ruling 3).
+ *
+ * `const SP_COUNTS = shapesCounts()` ran at import, before any
+ * component existed and long before Dexie could be asked, so the number
+ * this flow offered stopped at the catalog while the number the goal is
+ * measured against counts every movement. A function of the list, and
+ * `useMovementIds` supplies it at the one place that renders it.
+ */
+function shapesTotalItems(movementIds: readonly string[]): number {
+  return shapesCounts(undefined, movementIds).total;
+}
 
 interface ShapesCoverageGroupOption {
   id: ShapesCoverageGroupId;
@@ -1618,7 +1634,11 @@ function ShapesPatternsMonthlyBody({
         ? defaultTargetDate(scope, periodNow)
         : (initialSuggestion.defaultTargetDate ?? defaultTargetDate(scope))),
   );
-  const records = useMemo(() => encodeShim('shapes-and-patterns', target), [target]);
+  const movementIds = useMovementIds();
+  const records = useMemo(
+    () => encodeShim('shapes-and-patterns', target, movementIds),
+    [target, movementIds],
+  );
   const coverageMinutes = useMemo(
     () => coverageWeeklyMinutes({
       records,
@@ -1815,6 +1835,9 @@ function ShapesFocusSection({
   const showMinorPentSpReveal = minorPentBroadSelected || anyMinorPentSpSelected;
 
   const shapesAccent = moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a';
+  // The movements are part of the pool the moment they exist
+  // (follow-up ruling 3).
+  const movementIds = useMovementIds();
   const triadInversionsDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
     g => g.id === 'chord_shape_triads',
   );
@@ -1854,7 +1877,7 @@ function ShapesFocusSection({
       </header>
       <div className="flex gap-1.5 flex-wrap">
         <PillButton
-          label={`All of shapes (${SP_COUNTS.total} items)`}
+          label={`All of shapes (${shapesTotalItems(movementIds)} items)`}
           active={target.coverageScope === 'overall'}
           onClick={() => setScope('overall')}
         />
