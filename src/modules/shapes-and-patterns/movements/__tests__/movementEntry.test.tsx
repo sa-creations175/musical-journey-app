@@ -198,11 +198,12 @@ describe('the walk-up, from nothing', () => {
     await click(byTestId('add-bar'));
     await addChordAt(0, '3dom7');
     await addChordAt(0, '2/#4');
-    // `b6dim`, NOT the prototype's `#5dim`. Both name the same chord;
-    // only one of them has a root in `SEMI_BY_DEGREE`, which knows `b6`
-    // and not `#5`. See the report — a `#5` chord parses, stores, and
-    // then cannot be voiced or played, on this screen or a lead sheet.
-    await addChordAt(0, 'b6dim');
+    // `#5dim`, EXACTLY AS THE PROTOTYPE SAYS TO TYPE IT. It used to
+    // parse, store, and then have no root at all — `SEMI_BY_DEGREE`
+    // knows `b6` and not `#5`. Ruling 22 folds it at entry, so what
+    // lands is a `b6` and it can be voiced and played. The assertion
+    // below reads `b6`, which is the whole point of the fold.
+    await addChordAt(0, '#5dim');
     await addChordAt(0, '6m');
     await click(byTestId('length-inc'));
     await click(byTestId('length-inc'));

@@ -203,6 +203,40 @@ function parseConcreteNotation(input: string, sectionKey?: string): ChordFunctio
  * when the input is non-empty but couldn't be mapped to a functional
  * position (so the caller can still render raw text with a warning).
  */
+/**
+ * The four sharp degrees the app has no name for, and the flat twins
+ * they fold onto (ruling 22).
+ *
+ * =====================================================================
+ * `#5dim` PARSED, STORED, AND THEN COULD NOT BE PLAYED.
+ *
+ * `SEMI_BY_DEGREE` — the one table that turns a degree into a distance
+ * above the tonic — knows `b6` and not `#5`. So a chord typed the sharp
+ * way went in cleanly, drew on the grid, and then `chordRootNote`
+ * returned nothing: no root, no voicing, no sound, and no error to say
+ * why. The same hole sat on `#1`, `#2` and `#6`.
+ *
+ * Ruling 22 closes it at ENTRY rather than by widening the table,
+ * because the reader's spelling setting decides how a degree SHOWS
+ * anyway — a `b6` stored is a ♯5 on screen the moment sharps are
+ * chosen. Storing both would be storing a display decision.
+ *
+ * `#4` IS NOT ON THIS LIST AND MUST NOT JOIN IT. It and `b5` are the
+ * same pitch and two different degrees — the ♯4 rises out of a major
+ * context and the ♭5 falls inside a minor one — and the app names both.
+ * Every other sharp degree here has no such twin: nothing in this
+ * vocabulary calls anything a ♯5 rather than a ♭6.
+ * =====================================================================
+ */
+export const SHARP_DEGREE_FOLD: Readonly<Record<string, string>> = {
+  '#1': 'b2', '#2': 'b3', '#5': 'b6', '#6': 'b7',
+};
+
+/** A degree label, in the vocabulary the app can resolve. */
+export function foldSharpDegree(fn: string): string {
+  return SHARP_DEGREE_FOLD[fn] ?? fn;
+}
+
 export function parseChordFunction(input: string, sectionKey?: string): ChordFunction | null {
   const trimmed = input.trim();
   if (trimmed === '') return null;
@@ -219,7 +253,16 @@ export function parseChordFunction(input: string, sectionKey?: string): ChordFun
   if (!parsed) {
     return { function: '', quality: '', raw: trimmed, unparsed: true };
   }
-  return parsed;
+  // AT THE ONE DOOR EVERY CHORD COMES THROUGH (ruling 22). Both the
+  // lead sheet's add box and a movement's call this; folding here is
+  // what makes "on the lead sheet and on a movement alike" true by
+  // construction rather than by two callers remembering.
+  //
+  // `raw` is left exactly as typed — it is the record of what was
+  // written, and rewriting it would lose the only evidence of the fold.
+  const folded: ChordFunction = { ...parsed, function: foldSharpDegree(parsed.function) };
+  if (folded.bass !== undefined) folded.bass = foldSharpDegree(folded.bass);
+  return folded;
 }
 
 // --- Renderers ------------------------------------------------------
