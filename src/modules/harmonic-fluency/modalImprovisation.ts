@@ -203,7 +203,18 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
     question:
       `${inKeyOf}, the band is on ${chordName} (${chord.num}). Which notes fit?`,
     answer: `Notes of the ${scaleName} scale`,
-    explanation: `${chordName} is not in ${key} major; it is the 5 of `
+    // WHICH DEGREE THE DOMINANT IS, ON EVERY BORROWED CARD.
+    //
+    // A minor-target card says it inside Silas's sentence — "Here E7
+    // (the 3 as a dominant, the 5 of 6) lands on Am" — so this is the
+    // major-target half of the same fact, in the same bracket form and
+    // in the one place the card names the chord. Saying it twice on a
+    // minor card would be saying it twice.
+    //
+    // The degree is the coordinate the generator already holds: the
+    // 5 of 5 is built on the 2, the 5 of 4 on the 1.
+    explanation: `${chordName}${minor ? '' : ` (the ${chord.degree} as a `
+      + `dominant, the ${chord.num})`} is not in ${key} major; it is the 5 of `
       + `${targetChord}. Play the notes of the key it points to for that bar. `
       + (minor
         ? minorTargetSentence(root, chord, chordName, targetRoot, targetChord)

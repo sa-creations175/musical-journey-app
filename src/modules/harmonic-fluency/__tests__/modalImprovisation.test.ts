@@ -97,6 +97,33 @@ describe('the ids and the coordinates', () => {
     }
   });
 
+  it('names the dominant\'s own degree on every borrowed card', () => {
+    // "D7 (the 2 as a dominant, the 5 of 5)". One bracket per card,
+    // wherever the card first names the chord — inside Silas's sentence
+    // on a minor target, in the opening clause on a major one.
+    for (const c of CARDS) {
+      const chord = MODAL_CHORDS.find(m => m.id === c.axis!.chord)!;
+      if (chord.kind === 'in') {
+        expect(c.explanation, c.id).not.toContain('as a dominant');
+        continue;
+      }
+      const bracket = `(the ${chord.degree} as a dominant, the ${chord.num})`;
+      expect(c.explanation, c.id).toContain(bracket);
+      expect((c.explanation ?? '').split('as a dominant').length - 1, c.id).toBe(1);
+    }
+  });
+
+  it('takes that degree from the coordinate rather than from the name', () => {
+    // The 5 of 5 is built on the 2, the 5 of 4 on the 1, the 5 of 2 on
+    // the 6, the 5 of 3 on the 7, the 5 of 6 on the 3. Pinned so a
+    // reordering of the chord list cannot renumber them silently.
+    expect(Object.fromEntries(MODAL_CHORDS
+      .filter(c => c.kind === 'borrow')
+      .map(c => [c.num, c.degree]))).toEqual({
+      '5 of 2': '6', '5 of 3': '7', '5 of 4': '1', '5 of 5': '2', '5 of 6': '3',
+    });
+  });
+
   it('spells the three new secondary dominants the way the two old ones are', () => {
     expect(MODAL_CHORDS.filter(c => c.kind === 'borrow').map(c => c.facet))
       .toEqual(['V/ii', 'V/iii', 'V/IV', 'V/V', 'V/vi']);
