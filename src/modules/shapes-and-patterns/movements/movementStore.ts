@@ -91,6 +91,28 @@ export async function listMovements(): Promise<ChordMovement[]> {
   return rows.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
+/**
+ * Just the ids, for the callers that only need to know which movements
+ * exist (ruling 48).
+ *
+ * =====================================================================
+ * THE TABLE'S NAME STAYS INSIDE ITS OWN MODULE.
+ *
+ * A movement is part of the shapes coverage DENOMINATOR — twelve keys
+ * of one row on the voice-leading section — so the goal machinery has
+ * to know how many there are. It must never be repertoire, and this
+ * module's own test asserts that by checking that nothing under
+ * `modules/goals/`, `modules/repertoire/`, `modules/dashboard/` or
+ * `lib/sessionAlgorithm/` so much as names `chordMovements`.
+ *
+ * Those two are only in tension if everyone reads the table. They ask
+ * for the list instead, and the claim stays checkable.
+ * =====================================================================
+ */
+export async function listMovementIds(): Promise<string[]> {
+  return (await db.chordMovements.toArray()).map(m => m.id);
+}
+
 export async function getMovement(id: string): Promise<ChordMovement | undefined> {
   return db.chordMovements.get(id);
 }

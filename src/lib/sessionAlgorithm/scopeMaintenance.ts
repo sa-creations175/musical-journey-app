@@ -268,6 +268,10 @@ export function scopeQualifiesForMaintenance(
   rows: ReadonlyArray<MaintenanceItemRow>,
   itemInScope: (itemRef: string) => boolean,
   moduleRefs: readonly string[],
+  /** The movements the caller has in hand (ruling 48) — part of the
+   *  shapes denominator, and the caller's to supply because a movement
+   *  lives in Dexie and everything here is pure. */
+  movementIds: readonly string[] = [],
 ): MaintenanceQualification {
   const empty = { catalogTotal: null, acquiredCount: 0 };
 
@@ -278,7 +282,7 @@ export function scopeQualifiesForMaintenance(
     return { qualifies: false, reason: 'no-accuracy-signal', ...empty };
   }
 
-  const catalogTotal = catalogTotalForGoal(goal);
+  const catalogTotal = catalogTotalForGoal(goal, undefined, movementIds);
   if (catalogTotal === null || catalogTotal <= 0) {
     return { qualifies: false, reason: 'unknown-catalog-total', ...empty };
   }

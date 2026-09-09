@@ -151,6 +151,7 @@ import {
   type SPTier,
 } from '../shapes-and-patterns/spTiers';
 import { parseScaleItemRef } from '../shapes-and-patterns/scaleSkills';
+import { listMovementIds } from '../shapes-and-patterns/movements/movementStore';
 import {
   itemRefMatcherForCoverageGroup,
   enumerateChordShapeItemRefs,
@@ -321,7 +322,14 @@ export async function buildSessionProposals(
   // Scope-level maintenance: confirmed scopes select acquired-and-due
   // items instead of not-yet-acquired ones, and their modules take a
   // reduced slice. Loaded once and used by both stages.
-  const maintenanceViews = await loadScopeMaintenanceViews(now);
+  //
+  // THE MOVEMENTS GO WITH IT (ruling 48). They are part of the shapes
+  // denominator a scope is measured against, and Shapes & Patterns is
+  // asked for its own list rather than the goal machinery reading its
+  // table — see `listMovementIds`.
+  const maintenanceViews = await loadScopeMaintenanceViews(
+    now, await listMovementIds(),
+  );
   const maintenanceScopeKeys = maintenanceScopeKeysFrom(maintenanceViews);
   const maintenanceModules = maintenanceModulesFrom(maintenanceViews);
 
@@ -502,7 +510,9 @@ export async function buildSessionPlan(
   });
   const factorByModule = neutralizePhaseBPaceFactors(intentFactor, phaseBModules);
   const etEligibleByModule = await loadEtEligibleByModule(spacingRows);
-  const maintenanceViews = await loadScopeMaintenanceViews(now);
+  const maintenanceViews = await loadScopeMaintenanceViews(
+    now, await listMovementIds(),
+  );
   const maintenanceScopeKeys = maintenanceScopeKeysFrom(maintenanceViews);
   const maintenanceModules = maintenanceModulesFrom(maintenanceViews);
 

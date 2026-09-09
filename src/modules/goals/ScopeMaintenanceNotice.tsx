@@ -30,6 +30,7 @@ import {
   dismissScopeMaintenanceSuggestion,
   releaseScopeMaintenance,
 } from '../../lib/sessionAlgorithm/scopeMaintenanceState';
+import { listMovementIds } from '../shapes-and-patterns/movements/movementStore';
 import {
   loadScopeMaintenanceViews,
   type ScopeMaintenanceView,
@@ -47,9 +48,13 @@ export function useScopeMaintenanceViews(): {
 
   useEffect(() => {
     let live = true;
-    void loadScopeMaintenanceViews().then(v => {
-      if (live) setViews(v);
-    });
+    void listMovementIds()
+      // The movements are part of the shapes denominator a scope is
+      // measured against (ruling 48). Asked of Shapes & Patterns rather
+      // than read here: this file is under `modules/goals/`, which
+      // `movementStore`'s own test forbids from naming that table.
+      .then(movementIds => loadScopeMaintenanceViews(Date.now(), movementIds))
+      .then(v => { if (live) setViews(v); });
     return () => { live = false; };
   }, [nonce]);
 

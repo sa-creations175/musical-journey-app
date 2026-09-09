@@ -215,10 +215,31 @@ export interface ShapesCounts {
   total: number;
 }
 
-export function shapesCounts(outOfScore?: OutOfScore): ShapesCounts {
+/**
+ * `movementIds` — THE MOVEMENTS THE CALLER HAS IN HAND (ruling 48).
+ *
+ * A movement is a drillable thing on Chord Movements & Passes, twelve
+ * keys of one row, and the card has counted them since ruling 20. This
+ * did not, so a coverage goal's denominator stopped at the catalog
+ * while its numerator counted every spacing row — the shape that made
+ * a chord-shape goal read over 100% before the hand axis was fixed,
+ * waiting to happen again.
+ *
+ * AN ARGUMENT, NOT A READ, which is `cellTargets`'s own rule and its
+ * reason: everything on this path is pure and synchronous — the goals
+ * encoder, the session generator's scope and the maintenance resolver
+ * all call it without awaiting anything — and a movement lives in
+ * Dexie. `loadScopeMaintenanceViews` is the one async entry point on
+ * that path and it supplies the list; a caller that has no list gets
+ * exactly the catalog, which is what it got before.
+ */
+export function shapesCounts(
+  outOfScore?: OutOfScore,
+  movementIds: readonly string[] = [],
+): ShapesCounts {
   const chordShapeDrills = sectionTargetCount('chord-shapes', outOfScore);
   const scaleDrills = sectionTargetCount('scales', outOfScore);
-  const voiceLeading = sectionTargetCount('voice-leading', outOfScore);
+  const voiceLeading = sectionTargetCount('voice-leading', outOfScore, movementIds);
   return {
     chordShapeDrills,
     scaleDrills,

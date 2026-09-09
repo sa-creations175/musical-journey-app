@@ -120,7 +120,13 @@ export function scopeKeyForGoal(goal: Goal): string | null {
  * =====================================================================
  */
 export function catalogTotalForGoal(
-  goal: Goal, outOfScore?: OutOfScore,
+  goal: Goal,
+  outOfScore?: OutOfScore,
+  /** The movements the caller has in hand (ruling 48). Threaded rather
+   *  than read: everything on this path is pure and synchronous, and
+   *  `loadScopeMaintenanceViews` is the one place that has awaited
+   *  Dexie already. */
+  movementIds: readonly string[] = [],
 ): number | null {
   const metric = goal.targetMetric;
   if (!metric) return null;
@@ -132,7 +138,7 @@ export function catalogTotalForGoal(
       case COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY:
         return harmonicFluencyCounts().total;
       case COVERAGE_OVERALL_METRIC.SHAPES:
-        return shapesCounts(outOfScore).total;
+        return shapesCounts(outOfScore, movementIds).total;
       case COVERAGE_OVERALL_METRIC.PRODUCTION:
         return productionCounts().total;
     }
@@ -156,7 +162,7 @@ export function catalogTotalForGoal(
         // own `denominator` is the at-rest figure — everything in the
         // catalog. This has to be the score-aware one.
         return getShapesCoverageGroup(unit)
-          ? shapesCoverageDenominator(unit, outOfScore)
+          ? shapesCoverageDenominator(unit, outOfScore, movementIds)
           : null;
       }
       case COVERAGE_SPECIFIC_METRIC.PRODUCTION: {

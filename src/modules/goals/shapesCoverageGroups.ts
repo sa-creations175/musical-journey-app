@@ -351,11 +351,15 @@ export const CHORD_QUALITIES_BY_KIND: Record<QualityKind, ReadonlyArray<string>>
  * =====================================================================
  */
 export function shapesCoverageDenominator(
-  groupId: string, outOfScore?: OutOfScore,
+  groupId: string,
+  outOfScore?: OutOfScore,
+  /** The movements the caller has in hand (ruling 48) — see
+   *  `shapesCounts` for why this is an argument. */
+  movementIds: readonly string[] = [],
 ): number {
   const matcher = itemRefMatcherForCoverageGroup(groupId);
   if (!matcher) return 0;
-  return shapesTargetUniverse(outOfScore)
+  return shapesTargetUniverse(outOfScore, movementIds)
     .filter(t => matcher(t.itemRef))
     .length;
 }

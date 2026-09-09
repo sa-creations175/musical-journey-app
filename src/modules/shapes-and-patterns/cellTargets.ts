@@ -270,16 +270,27 @@ export function targetsAcrossKeys(key: string): string[] {
   return [key];
 }
 
-/** Every target in the three keyed sections — the universe a goal
- *  denominator is scoped out of. Mental visualisation is excluded, per
- *  the April 27 call: it counts toward consistency only. */
+/**
+ * Every target in the three keyed sections — the universe a goal
+ * denominator is scoped out of. Mental visualisation is excluded, per
+ * the April 27 call: it counts toward consistency only.
+ *
+ * `movementIds` RIDES THROUGH FOR THE SAME REASON IT DOES ABOVE
+ * (ruling 48). A movement is a drillable thing on the voice-leading
+ * section, so drilling one writes spacing rows that a coverage
+ * NUMERATOR counts. A denominator that did not count them could be
+ * outrun — the failure this file's header describes, arriving from a
+ * new direction. A caller with the list passes it; one without gets
+ * exactly the catalog.
+ */
 export function shapesTargetUniverse(
   outOfScore: OutOfScore = NOTHING_OUT,
+  movementIds: readonly string[] = [],
 ): CellTarget[] {
   return [
     ...sectionTargets('scales', outOfScore),
     ...sectionTargets('chord-shapes', outOfScore),
-    ...sectionTargets('voice-leading', outOfScore),
+    ...sectionTargets('voice-leading', outOfScore, movementIds),
   ];
 }
 

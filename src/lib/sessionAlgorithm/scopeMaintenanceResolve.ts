@@ -79,6 +79,11 @@ export function resolveScopeMaintenanceViews(
   spacingRows: ReadonlyArray<SpacingState>,
   state: ScopeMaintenanceMap,
   now: number,
+  /** The movements, which are part of the shapes denominator
+   *  (ruling 48). Passed in with the rows, for the reason the rest of
+   *  this file's inputs are passed in: the Dexie read is the caller's
+   *  job and this stays pure. */
+  movementIds: readonly string[] = [],
 ): ScopeMaintenanceView[] {
   const rows = toMaintenanceRows(spacingRows);
   const out: ScopeMaintenanceView[] = [];
@@ -97,7 +102,7 @@ export function resolveScopeMaintenanceViews(
 
     const inScope = spec.itemRefFilter ?? (() => true);
     const qualification = scopeQualifiesForMaintenance(
-      goal, rows, inScope, spec.moduleRefs,
+      goal, rows, inScope, spec.moduleRefs, movementIds,
     );
     const record = recordForScope(state, scopeKey);
     const slipped = scopeShouldSuggestRelease(rows, inScope, spec.moduleRefs);
@@ -125,14 +130,29 @@ export function maintenanceScopeKeysFrom(
   return new Set(views.filter(v => v.inMaintenance).map(v => v.scopeKey));
 }
 
-/** Load state + goals + rows and resolve. The one async entry point. */
+/**
+ * Load state + goals + rows and resolve. The one async entry point.
+ *
+ * `movementIds` IS PASSED IN RATHER THAN READ HERE (ruling 48), and
+ * that is a rule about who owns a table rather than about async. The
+ * movements table belongs to Shapes & Patterns, and `movementStore`'s
+ * own test asserts that nothing under `lib/sessionAlgorithm/` — the
+ * machinery that counts repertoire and resolves goals — so much as
+ * names it. A movement is part of the shapes DENOMINATOR and must
+ * never be repertoire; reading that table here would have made the
+ * second claim untestable to buy the first.
+ *
+ * So the caller asks Shapes & Patterns for its own list and hands it
+ * over. `listMovementIds` is that ask.
+ */
 export async function loadScopeMaintenanceViews(
   now: number = Date.now(),
+  movementIds: readonly string[] = [],
 ): Promise<ScopeMaintenanceView[]> {
   const [goals, spacingRows, state] = await Promise.all([
     db.goals.toArray(),
     db.spacingState.toArray(),
     loadScopeMaintenance(),
   ]);
-  return resolveScopeMaintenanceViews(goals, spacingRows, state, now);
+  return resolveScopeMaintenanceViews(goals, spacingRows, state, now, movementIds);
 }
