@@ -1060,10 +1060,17 @@ export async function loadShapesSplitContext(
   for (const r of spacingRows) {
     if (r.moduleRef === SHAPES_MODULE_REF) rowsByItemRef.set(r.itemRef, r);
   }
-  const [unlockedTier, allGoals] = await Promise.all([
+  const [unlockedTier, allGoals, movementRows] = await Promise.all([
     getSPUnlockedTier(),
     db.goals.toArray(),
+    // THE MOVEMENTS SILAS HAS CAPTURED (ruling 20). They are cells on
+    // the voice-leading section and enter the pool with the shipped
+    // patterns; the Dexie read lives here because the splitter is pure.
+    db.chordMovements.toArray(),
   ]);
+  const movements = movementRows
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map(m => ({ id: m.id, label: m.name || 'Unnamed movement' }));
 
   // Note: song-derived key data (formerly activeSongKeys +
   // activeSongTitlesByKey + sotmAnchorKey) is no longer threaded
@@ -1112,6 +1119,7 @@ export async function loadShapesSplitContext(
     rowsByItemRef,
     unlockedTier,
     now,
+    movements,
     scalesGoalDueSeconds,
     // Same reasoning as loadRepertoireSplitContext: read once at the
     // single loader so the three S&P label builders cannot spell

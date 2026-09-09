@@ -57,6 +57,7 @@ import {
   parseScaleItemRef,
   type ScaleKind,
 } from './scaleSkills';
+import { movementItemRef } from './movements/movementCells';
 import {
   CIRCLE_OF_FOURTHS,
   SP_TIERS,
@@ -150,6 +151,14 @@ export interface ShapesSplitContext {
   unlockedTier: SPTier;
   /** Reference time. Cells with nextDueAt ≤ now (or null) are due. */
   now: number;
+  /**
+   * The movements Silas has captured — id and display name.
+   *
+   * AN ARGUMENT, NOT A READ, like everything else this pure splitter
+   * needs: the loader does the Dexie access. A caller that passes none
+   * gets exactly the catalog-only pool it always got.
+   */
+  movements?: ReadonlyArray<{ id: string; label: string }>;
   /** Goal-aware proportional Scales budget — total drill seconds
    *  across every due scale cell that matches at least one active
    *  Scales coverage goal, computed once at the loader. The
@@ -790,9 +799,22 @@ type VLTier = typeof VL_TIER_DUE | typeof VL_TIER_UNSTARTED | typeof VL_TIER_NOT
 
 interface VLCell {
   itemRef: string;
-  desc: VoiceLeadingItemRefDescriptor;
-  pattern: VoiceLeadingPattern;
+  /**
+   * The catalog descriptor and pattern — ABSENT FOR A MOVEMENT.
+   *
+   * A movement is not in the catalog and has no sub-cell dimensions
+   * (ruling 20): no starting position, no voicing type, no inversion.
+   * The three things that read these — the prerequisite check, the
+   * within-pattern ordering and the per-type time seed — each have an
+   * answer for a cell that has none, and each says so where it is.
+   */
+  desc: VoiceLeadingItemRefDescriptor | null;
+  pattern: VoiceLeadingPattern | null;
+  /** How the label names its group. A movement's own name, or the
+   *  pattern's. */
   patternLabel: string;
+  /** What groups it in a label — a pattern id, or a movement id. */
+  groupId: string;
   keyName: string;
   seconds: number;
   nextDueAt: number | null;
@@ -966,6 +988,7 @@ function buildVoiceLeadingSegment(
           desc,
           pattern,
           patternLabel: pattern.label,
+          groupId: pattern.id,
           keyName: desc.keyName,
           seconds: voiceLeadingCellSeconds(desc),
           nextDueAt,
@@ -979,6 +1002,59 @@ function buildVoiceLeadingSegment(
       }
     }
   }
+
+  /**
+   * The movements Silas has captured, in the same pool (ruling 20).
+   *
+   * =====================================================================
+   * THE POOL DID NOT SEE THEM, AND THAT WAS THE WHOLE GAP. Everything
+   * downstream of a cell — the spacing rows, the drill session, the
+   * demand in seconds — already treated a movement's ref as an ordinary
+   * `vl:` one. But this walk enumerated the static catalog, so a
+   * movement could never be PROPOSED, however overdue it was.
+   *
+   * NO PREREQUISITE, because there is nothing before it: a movement is
+   * one row, not the third position of a type that expects the second
+   * to have been started. NO SUB-INDEXES for the same reason.
+   *
+   * THE SECONDS ARE `CHORD_SHAPE_CELL_SECONDS`, which is not a guess: it
+   * is exactly what `computeAlgoSpacingDemandSeconds` already charges
+   * for a `vl:` row it cannot parse — which is what a movement's row is.
+   * The two have to agree or the generator would plan a block it had not
+   * budgeted for.
+   *
+   * THEY SORT AFTER THE CATALOG in the unstarted tier — the shipped
+   * patterns are the ground under everything else — and by nothing but
+   * due date once either has been drilled, which is the same rule the
+   * patterns follow.
+   * =====================================================================
+   */
+  const movements = ctx.movements ?? [];
+  for (let i = 0; i < movements.length; i++) {
+    const movement = movements[i];
+    for (const keyName of KEYS) {
+      const itemRef = movementItemRef(movement.id, keyName);
+      const row = ctx.rowsByItemRef.get(itemRef);
+      const nextDueAt = row?.nextDueAt ?? null;
+      cells.push({
+        itemRef,
+        desc: null,
+        pattern: null,
+        patternLabel: movement.label,
+        groupId: movement.id,
+        keyName,
+        seconds: CHORD_SHAPE_CELL_SECONDS,
+        nextDueAt,
+        tier: vlTierFor(nextDueAt, ctx.now),
+        patternIndex: VOICE_LEADING_PATTERNS.length + i,
+        typeIndex: 0,
+        positionIndex: 0,
+        keyIndex: vlKeyIndex(keyName),
+        blockIndex: enumIdx++,
+      });
+    }
+  }
+
   if (cells.length === 0) return null;
 
   cells.sort((a, b) => {
@@ -1029,8 +1105,8 @@ function formatVoiceLeadingLabel(cells: ReadonlyArray<VLCell>, spelling: Spellin
   const seenPatterns = new Set<string>();
   const patternLabels: string[] = [];
   for (const c of cells) {
-    if (!seenPatterns.has(c.pattern.id)) {
-      seenPatterns.add(c.pattern.id);
+    if (!seenPatterns.has(c.groupId)) {
+      seenPatterns.add(c.groupId);
       patternLabels.push(c.patternLabel);
     }
   }

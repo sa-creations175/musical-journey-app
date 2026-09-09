@@ -142,7 +142,7 @@ describe('a movement is not a song', () => {
     .filter(f => !f.includes('__tests__/'))
     .sort();
 
-  it('is named by the schema, the sync config and Shapes & Patterns', () => {
+  it('is named by the schema, the sync config, Shapes & Patterns and the generator', () => {
     // DERIVED FROM THE TREE, not from a list kept by hand. A file that
     // learns the word shows up here by name, which is the whole point:
     // the failure names the surface that started counting it.
@@ -150,9 +150,15 @@ describe('a movement is not a song', () => {
     // Shapes & Patterns joined the list when ruling 19 made the
     // voice-leading page the movements page: the page draws them, and
     // the module home and its section page count them (ruling 20).
+    //
+    // The session generator joined it with ruling 20's other half: a
+    // movement enters the candidate pool like a pattern, and the pure
+    // splitter takes the list as an argument, so the one Dexie read
+    // lives in the generator's loader.
     for (const file of namers) {
       const allowed = file === 'lib/db.ts'
         || file === 'lib/sync/tables.ts'
+        || file === 'modules/practice/sessionGenerator.ts'
         || file.startsWith('modules/shapes-and-patterns/');
       expect(allowed, `${file} reads chordMovements`).toBe(true);
     }
@@ -162,20 +168,24 @@ describe('a movement is not a song', () => {
     expect(namers).toContain('lib/sync/tables.ts');
   });
 
-  it('is invisible to every module that counts songs', () => {
+  it('is invisible to every surface that counts songs', () => {
     // THE CLAIM RULING 1 ACTUALLY MAKES, stated as its own assertion
-    // rather than left as a consequence of the allowlist above. These
-    // four are where a song is counted: the repertoire list, the
-    // dashboard's squares, session generation, and goals.
+    // rather than left as a consequence of the allowlist above.
     //
-    // A movement DOES enter the practice schedule (ruling 20) — through
-    // its spacing rows, under the `vl:` refs every other Shapes item
-    // uses. Nothing has to know the word `chordMovements` to schedule
-    // one, and nothing here does.
+    // A movement DOES enter the practice schedule (ruling 20), as a
+    // SHAPES item — one row per key, under a `vl:` ref, beside the
+    // patterns. What it must never do is enter the SONG pool, or be
+    // counted as repertoire, or appear on the dashboard's song
+    // squares, or be something a goal can be set on. Those are the
+    // four, and none of them may name the table.
+    //
+    // `sessionGenerator` is not on this list on purpose: it schedules
+    // every module, and `repertoireSplit` — the file that actually
+    // builds the song pool — is.
     for (const file of namers) {
       for (const counter of [
-        'modules/repertoire/', 'modules/dashboard/',
-        'modules/practice/', 'modules/goals/', 'lib/sessionAlgorithm/',
+        'modules/repertoire/', 'modules/dashboard/', 'modules/goals/',
+        'modules/practice/repertoireSplit', 'lib/sessionAlgorithm/',
       ]) {
         expect(file.startsWith(counter), `${file} reads chordMovements`).toBe(false);
       }

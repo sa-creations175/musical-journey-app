@@ -109,15 +109,22 @@ describe('loadShapesSplitContext — song keys are NOT threaded into the warm-up
     // field, which is what this test guards: it comes from userPrefs,
     // is used for LABELS only, and the song below still contributes
     // nothing to the context.
+    //
+    // `movements` joined it with ruling 20 — the movements Silas has
+    // captured are Shapes cells and enter the pool with the patterns.
+    // Also not song-derived: a movement is explicitly not a song, and
+    // the song below contributes nothing to it either.
     await db.songs.add(song({ id: 's1', key: 'Db', stage: 'learning' }));
     const ctx = await loadShapesSplitContext([], NOW);
     expect(Object.keys(ctx).sort()).toEqual([
+      'movements',
       'now',
       'rowsByItemRef',
       'scalesGoalDueSeconds',
       'spelling',
       'unlockedTier',
     ]);
+    expect(ctx.movements).toEqual([]);
   });
 });
 
