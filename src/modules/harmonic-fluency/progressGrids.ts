@@ -184,7 +184,10 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
 
   [CATEGORY_LABELS.modes]: {
     columns: keyAxis,
-    rows: axis('degree', 'degree', MODE_BY_DEGREE.map(m => Number(m.degree)),
+    // "number", not "degree" (ruling 29) — the field stays `degree`
+    // because the cards are built from it; the word above the rows is
+    // what a reader reads.
+    rows: axis('degree', 'number', MODE_BY_DEGREE.map(m => Number(m.degree)),
       v => MODE_BY_DEGREE.find(m => Number(m.degree) === v)?.mode ?? String(v)),
   },
 
