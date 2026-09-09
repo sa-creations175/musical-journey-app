@@ -47,8 +47,22 @@
  *    cards have. Same reason: the drone is what keeps the ear on the
  *    mode's own tonic while the scale walks away from it.
  *
- * Not on that list, and therefore shared: the tempo, the speed setting,
- * the tonic-context preference, the button, its label, stopping on
+ * 7. CHORDS UNDER THE MATERIAL (Modal Improvisation). Entry 6 is one
+ *    NOTE held under the whole of `steps`; this is a lane of CHORDS,
+ *    each held under the stretch of the line above it. The family is
+ *    about which notes fit over a chord, so the chord has to be
+ *    sounding while they go past — a run played after the chord has
+ *    stopped is a different question, and one the reader can answer
+ *    from the written scale name alone.
+ * 8. THE TEMPO (Modal Improvisation). Everything else here places one
+ *    sound against a reference and wants to be slow. This is a phrase
+ *    with a shape — four bars, home out and back — and it was walked
+ *    and signed off at the prototype's 72 rather than at 60. So
+ *    `CardSound.bpm` overrides, and the default stays what every other
+ *    family already sounds at.
+ *
+ * Not on that list, and therefore shared: the speed setting, the
+ * tonic-context preference, the button, its label, stopping on
  * unmount, and reveal-side-only.
  *
  * =====================================================================
@@ -66,6 +80,7 @@ import type { Flashcard } from './catalog';
 import { keyToRootMidi } from '../ear-training/chord-progressions/progressionTheory';
 import { DEGREE_BY_ID } from './chromaticDegrees';
 import { SLASH_SHAPES, progressionVoicing } from './catalogExpansions';
+import { MINOR_TARGETS, MODAL_CHORDS, type ModalChord } from './modalImprovisation';
 import { INTERVAL_QUALITIES, type Direction } from './scaleDegreeQuality';
 
 /**
@@ -97,6 +112,30 @@ export interface CardSound {
    * the allowed-to-differ list.
    */
   pedal?: number;
+  /**
+   * Chords sounded UNDER `steps`, in a lane of their own — same root,
+   * same clock, started at the same instant, so entry N here is
+   * underneath whatever of the line above it its beats reach.
+   *
+   * A SECOND LANE RATHER THAN A FIELD ON EACH STEP. A chord that lasts
+   * eight notes of a run would otherwise have to be written onto the
+   * first of them and read forward, which makes every step's meaning
+   * depend on the one before it. Two lists that start together and
+   * each carry their own beats cannot drift apart in that way — and a
+   * rest is a step with nothing in it, which is what lets the lanes
+   * stay level across a gap.
+   *
+   * `pedal` is the same idea with one note and no rhythm, kept as it
+   * is because the mode cards' drone is not a chord and is not
+   * re-struck. Absent everywhere but Modal Improvisation — see entry 7
+   * of the allowed-to-differ list.
+   */
+  under?: readonly SoundStep[];
+  /**
+   * The tempo this card's own material is counted at, when it is not
+   * the deck's. See entry 8 of the allowed-to-differ list.
+   */
+  bpm?: number;
 }
 
 /**
@@ -177,6 +216,109 @@ function modeSemitones(startingDegree: number): readonly number[] | null {
   // most tells the modes apart — and landing back on the root is what
   // makes the ear hear the whole thing as one scale.
   return [...scale, 12];
+}
+
+/**
+ * =====================================================================
+ * MODAL IMPROVISATION'S PHRASE, AS THE PROTOTYPE PLAYS IT.
+ *
+ * Four segments for a borrowed chord and three for an in-key one, each
+ * of them a chord with a SCALE RUN over it — never a composed riff.
+ * Home and its scale, the card's chord and a run from the answer scale
+ * starting on that chord's own root, where it lands and its own scale,
+ * home again.
+ *
+ * THE REGISTER RULE IS THE PROTOTYPE'S AND IS NOT TIDIED. A run sits
+ * an octave above middle C when its chord's root is F or below and an
+ * octave lower when it is above — so a phrase never climbs away from
+ * the hand across four segments. It puts the 5 chord's run underneath
+ * home's, which looks odd written down and is what was walked and
+ * signed off.
+ *
+ * A MELODIC MINOR POOL OVER THE DOMINANT, AND A DIATONIC ONE WHERE IT
+ * LANDS. A7 into Dm in C draws on D melodic minor — C major with the
+ * A7's own third raised — but the Dm it lands on is the 2 of C and
+ * takes the notes of C. Two different scales in two neighbouring bars
+ * is the fact the family teaches, so the phrase has to play both.
+ * =====================================================================
+ */
+const MEL_MINOR: readonly number[] = [0, 2, 3, 5, 7, 9, 11];
+
+/** The tempo the prototype was signed off at. Entry 8 of the
+ *  allowed-to-differ list. */
+export const MODAL_IMPROV_BPM = 72;
+
+/** Half a beat a note, so a seven-note scale and its octave fill the
+ *  bar the chord underneath is held for. */
+const RUN_NOTE_BEATS = 0.5;
+/** The breath between one segment and the next — the prototype's own
+ *  `beat * 0.3`, carried in both lanes so they stay level. */
+const SEGMENT_GAP_BEATS = 0.3;
+
+/** A scale rotated to start on its own Nth degree — the mode of it.
+ *  The prototype's `rotate`, which is also `modeSemitones`' argument
+ *  made general. */
+function rotated(scale: readonly number[], from: number): number[] {
+  return scale.slice(from).map(x => x - scale[from])
+    .concat(scale.slice(0, from).map(x => x + 12 - scale[from]));
+}
+
+/** One chord and the run over it, in the phrase's own terms. */
+interface ModalSegment {
+  /** Pitch class of the chord's root, 0-11. */
+  rootPc: number;
+  /** The suffix it carries — '', 'm' or '7'. */
+  quality: string;
+  /** The scale the run walks, as semitones above that root. */
+  scale: readonly number[];
+}
+
+/**
+ * The chord voicing the prototype plays: the root, its octave, the
+ * third above that and the fifth on top, with the seventh added for a
+ * dominant.
+ */
+function modalVoicing(quality: string): number[] {
+  const third = quality === 'm' ? 3 : 4;
+  const chord = [0, 12, 12 + third, 19];
+  return quality === '7' ? [...chord, 22] : chord;
+}
+
+/** The four (or three) segments of one card's phrase. */
+function modalSegments(keyPc: number, chord: ModalChord): ModalSegment[] {
+  const home: ModalSegment = { rootPc: keyPc, quality: '', scale: MAJOR_SCALE };
+  if (chord.kind === 'in') {
+    const from = Number(chord.degree) - 1;
+    return [
+      home,
+      {
+        rootPc: (keyPc + MAJOR_SCALE[from]) % 12,
+        quality: chord.quality ?? '',
+        scale: rotated(MAJOR_SCALE, from),
+      },
+      home,
+    ];
+  }
+  const from = Number(chord.target) - 1;
+  const targetPc = (keyPc + MAJOR_SCALE[from]) % 12;
+  const minor = MINOR_TARGETS.has(chord.target!);
+  const answerScale = minor ? MEL_MINOR : MAJOR_SCALE;
+  return [
+    home,
+    // The dominant, over the fifth mode of the scale it points to.
+    {
+      rootPc: (targetPc + 7) % 12,
+      quality: '7',
+      scale: rotated(answerScale, 4),
+    },
+    // Where it lands, over the key's own mode on that degree.
+    {
+      rootPc: targetPc,
+      quality: minor ? 'm' : '',
+      scale: minor ? rotated(MAJOR_SCALE, from) : MAJOR_SCALE,
+    },
+    home,
+  ];
 }
 
 /** Whether a mode's own third is major or minor — which decides the
@@ -393,6 +535,48 @@ export function cardSound(card: Flashcard): CardSound | null {
         // tonic and the drone is what keeps the ear on it.
         pedal: -12,
       };
+    }
+
+    case 'modal-improvisation': {
+      // NO ORIENTING CHORD, AND THAT IS NOT AN OMISSION. The phrase
+      // OPENS at home with its scale — the orientation is the first
+      // bar of the music rather than a reference in front of it — and
+      // adding one would strike the tonic twice in a row, which is
+      // what `degree-notes` above stopped doing for the same reason.
+      const chord = MODAL_CHORDS.find(m => m.id === str(axis?.chord));
+      if (key === undefined || chord === undefined) return null;
+      const rootMidi = keyToRootMidi(key);
+      const keyPc = rootMidi - 48;
+      const steps: SoundStep[] = [];
+      const under: SoundStep[] = [];
+      const segments = modalSegments(keyPc, chord);
+      segments.forEach((segment, i) => {
+        // THE RUN, from the chord's root up an octave. The prototype's
+        // register rule, kept: a chord rooted above F drops its run an
+        // octave so the phrase stays under one hand.
+        const base = segment.rootPc > 6 ? 60 : 72;
+        const run = [...segment.scale, 12];
+        for (const degree of run) {
+          steps.push({
+            semitones: [base + segment.rootPc + degree - rootMidi],
+            beats: RUN_NOTE_BEATS,
+          });
+        }
+        // THE CHORD, held under exactly that many beats, in its own
+        // lane. Both lanes start together, so a bar's chord is
+        // underneath a bar's notes without either list saying so.
+        under.push({
+          semitones: modalVoicing(segment.quality)
+            .map(v => 48 + segment.rootPc + v - rootMidi),
+          beats: run.length * RUN_NOTE_BEATS,
+        });
+        if (i < segments.length - 1) {
+          const rest = { semitones: [], beats: SEGMENT_GAP_BEATS };
+          steps.push(rest);
+          under.push(rest);
+        }
+      });
+      return { rootMidi, orient: null, steps, under, bpm: MODAL_IMPROV_BPM };
     }
 
     case 'intervals': {

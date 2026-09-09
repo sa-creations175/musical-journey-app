@@ -115,7 +115,7 @@ export const ACCURACY_ROLLING_WINDOW = 200;
 export const HF_GROUP_CATEGORIES: Record<string, ReadonlyArray<FlashcardCategory>> = {
   'foundational':       ['scale-degree-math', 'degree-notes', 'key-signatures', 'pentatonic-scales', 'enharmonic-equivalents'],
   'chord-knowledge':    ['diatonic-qualities', 'chord-construction', 'slash-chords'],
-  'functional-applied': ['functional-harmony', 'progressions'],
+  'functional-applied': ['functional-harmony', 'progressions', 'modal-improvisation'],
   'ear-recognition':    ['modes', 'intervals', 'ear-theory'],
 };
 

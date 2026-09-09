@@ -68,6 +68,13 @@ export async function playCardSound(
     defaultSpeed(CARD_AUDIO_MODULE),
   );
 
+  // THE CARD'S OWN TEMPO WHERE IT HAS ONE, the deck's otherwise —
+  // `cardAudio`'s allowed-to-differ list, entry 8. The orienting chord
+  // below is deliberately NOT counted at it: it is a reference in
+  // front of the music, and a two-second tonic stays two seconds
+  // whatever the phrase after it is played at.
+  const bpm = sound.bpm ?? CARD_AUDIO_BPM;
+
   const handles: PlaybackHandle[] = [];
   if (sound.orient !== null && context === 'singleNote') {
     handles.push(await playBlocked(
@@ -98,15 +105,39 @@ export async function playCardSound(
       sound.rootMidi + sound.pedal,
       [0],
       beats,
-      CARD_AUDIO_BPM,
+      bpm,
       { speedMultiplier: speed, velocity: PEDAL_VELOCITY },
+    ));
+  }
+
+  /**
+   * A LANE OF CHORDS UNDER THE LINE (`cardAudio` entry 7), on Modal
+   * Improvisation and nowhere else.
+   *
+   * SCHEDULED FIRST, and both lanes take their own cursor from the
+   * context clock at the moment they are scheduled — the same shape
+   * the drone above already has. It is the chord the reader is being
+   * asked to play over, so it wants to be sounding before the note
+   * that is meant to fit it, not after.
+   *
+   * NO VELOCITY OVERRIDE. `playBlockedSequence` already scales a
+   * four-note block down by the square root of its polyphony, which
+   * puts a chord underneath a single-note line without a second
+   * number deciding how far.
+   */
+  if (sound.under !== undefined) {
+    handles.push(await playBlockedSequence(
+      sound.under,
+      sound.rootMidi,
+      bpm,
+      { speedMultiplier: speed },
     ));
   }
 
   handles.push(await playBlockedSequence(
     sound.steps,
     sound.rootMidi,
-    CARD_AUDIO_BPM,
+    bpm,
     { speedMultiplier: speed },
   ));
 
