@@ -513,15 +513,60 @@ export function chooseDecoys(
   candidates: readonly string[],
   opts: ChooseOptions,
 ): string[] {
+  const found = searchDecoys(correct, candidates, opts);
+  if (!found.ok) throw new Error(found.why);
+  return found.decoys;
+}
+
+/**
+ * The same search, declining rather than throwing.
+ *
+ * =====================================================================
+ * THE SHAPE `degreeAsciiOrNull` ALREADY HAS, FOR THE SAME REASON.
+ *
+ * There, a QUESTION may not reach an unspellable note and throwing is
+ * right, while a DECOY POOL may, because it walks candidates looking
+ * for company. Here it is one level up: a card that has ONE pool and
+ * cannot be built from it is a build failure, and `chooseDecoys` says
+ * so on the day it is written. A caller that has a SECOND pool to try
+ * is asking a different question — "is this one enough?" — and the
+ * answer to that is a value, not an exception.
+ *
+ * IT IS NOT AN ESCAPE HATCH. Nothing here is relaxed: the returned set
+ * still passes every blind rule and every `require`. The only thing a
+ * caller gains is the ability to widen and ask again, which is exactly
+ * what the throw's own message tells it to do.
+ * =====================================================================
+ */
+export function chooseDecoysOrNull(
+  correct: string,
+  candidates: readonly string[],
+  opts: ChooseOptions,
+): string[] | null {
+  const found = searchDecoys(correct, candidates, opts);
+  return found.ok ? found.decoys : null;
+}
+
+type Choice =
+  | { ok: true; decoys: string[] }
+  | { ok: false; why: string };
+
+function searchDecoys(
+  correct: string,
+  candidates: readonly string[],
+  opts: ChooseOptions,
+): Choice {
   const pool = rotate(
     [...new Set(candidates)].filter(c => c !== correct),
     opts.seed,
   ).slice(0, MAX_CANDIDATES);
 
   if (pool.length < opts.count) {
-    throw new Error(
-      `[decoyGuard] ${opts.label}: needs ${opts.count} decoys, pool has ${pool.length}`,
-    );
+    return {
+      ok: false,
+      why: `[decoyGuard] ${opts.label}: needs ${opts.count} decoys, `
+        + `pool has ${pool.length}`,
+    };
   }
 
   let best: { set: string[]; cost: number } | null = null;
@@ -549,13 +594,14 @@ export function chooseDecoys(
   walk(0);
 
   if (best === null) {
-    throw new Error(
-      `[decoyGuard] ${opts.label}: no clean decoy set for "${correct}" `
-      + `from ${pool.length} candidates — every combination is answerable `
-      + `without the question. Widen the pool.`,
-    );
+    return {
+      ok: false,
+      why: `[decoyGuard] ${opts.label}: no clean decoy set for "${correct}" `
+        + `from ${pool.length} candidates — every combination is answerable `
+        + `without the question. Widen the pool.`,
+    };
   }
-  return (best as { set: string[] }).set;
+  return { ok: true, decoys: (best as { set: string[] }).set };
 }
 
 // =====================================================================

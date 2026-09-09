@@ -242,10 +242,11 @@ describe('absent means flat list, not broken', () => {
       // hand-written C cards that kept the generator out of that key,
       // and ruling 40 made F♯ major and G♭ major two of the thirteen.
       'slash-chords': 91,
-      // Thirteen keys by ten chords, less the four cards whose own
-      // key cannot give them a fair set of wrong answers — see
-      // `MODAL_IMPROV_STOPS`.
-      'modal-improvisation': 126,
+      // Thirteen keys by ten chords. It was 126 for an afternoon —
+      // four cards whose own key could not give them a fair set of
+      // wrong answers — until the pool reached one key next door. See
+      // `MODAL_IMPROV_WIDENED`.
+      'modal-improvisation': 130,
     });
   });
 });

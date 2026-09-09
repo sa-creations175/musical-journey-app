@@ -70,7 +70,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 250 + 265 = 1607
+// Harmonic Fluency — 949 + 143 + 254 + 265 = 1611
+// (9 Sep 2026: 1607 → 1611. The four Modal Improvisation cards whose
+//  own key could not give them a fair set of wrong answers come back,
+//  drawing on one neighbouring key. Modal Improvisation 126 → 130,
+//  functionalApplied 250 → 254.)
 // (9 Sep 2026: 1481 → 1607. Modal Improvisation, a new family: which
 //  notes fit over the chord the band is on, ten chords in thirteen
 //  keys less the four the decoy guard refuses. functionalApplied
@@ -178,16 +182,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
-  it('functionalApplied = fh 40 + pr 84 + mi 126 = 250', () => {
-    expect(c.byGroup.functionalApplied).toBe(250);
+  it('functionalApplied = fh 40 + pr 84 + mi 130 = 254', () => {
+    expect(c.byGroup.functionalApplied).toBe(254);
   });
 
   it('earRecognition = mo 107 + iv 143 + et 15 = 265', () => {
     expect(c.byGroup.earRecognition).toBe(265);
   });
 
-  it('total = 1607 across all 14 categories', () => {
-    expect(c.total).toBe(1607);
+  it('total = 1611 across all 14 categories', () => {
+    expect(c.total).toBe(1611);
   });
 
   it('total equals sum of group totals', () => {

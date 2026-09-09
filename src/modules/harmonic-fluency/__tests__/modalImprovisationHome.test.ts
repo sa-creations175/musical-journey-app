@@ -12,7 +12,6 @@ import { CATEGORY_LABELS, CATEGORY_ORDER, FLASHCARDS } from '../catalog';
 import { THIRTEEN_KEYS } from '../catalogExpansions';
 import {
   MODAL_CHORDS, MODAL_IMPROV_CATEGORY_NAME, MODAL_IMPROV_DESCRIPTION,
-  MODAL_IMPROV_STOPS,
 } from '../modalImprovisation';
 import { HARMONIC_FLUENCY_GRIDS } from '../progressGrids';
 import { isCategory, categoryPath } from '../categoryRoutes';
@@ -74,23 +73,24 @@ describe('the Progress Detail grid', () => {
     expect(placed.tail).toHaveLength(0);
     const cells = [...placed.grid!.cells.values()]
       .flatMap(col => [...col.values()].flat());
-    expect(cells).toHaveLength(126);
+    expect(cells).toHaveLength(130);
   });
 
-  it('leaves exactly the four stopped cells empty', () => {
+  it('fills every cell — one card each, no holes', () => {
+    // FOUR WERE EMPTY UNTIL THE POOL WIDENED. The grid is the family's
+    // own picture of itself, so a hole in it was the stop on screen;
+    // a hole in it now would be a card that failed to build.
     const items = CARDS.map(asRecord);
     const placed = placeItems(
       items, spec, resolveView(spec.columns, null),
       spec.rows ? resolveView(spec.rows, null) : SINGLE_ROW,
     );
-    const empty: string[] = [];
     for (const key of THIRTEEN_KEYS) {
       for (const chord of MODAL_CHORDS) {
-        const cell = placed.grid!.cells.get(key)?.get(chord.id) ?? [];
-        if (cell.length === 0) empty.push(`${key}|${chord.id}`);
+        expect(placed.grid!.cells.get(key)?.get(chord.id) ?? [], `${key}|${chord.id}`)
+          .toHaveLength(1);
       }
     }
-    expect(empty).toEqual(MODAL_IMPROV_STOPS.map(s => `${s.key}|${s.chord}`));
   });
 });
 
@@ -140,7 +140,7 @@ describe('the row a reader can reach', () => {
 describe('the counts and the schedule', () => {
   it('counts the family into Functional / Applied', () => {
     const counts = harmonicFluencyCounts();
-    expect(counts.byCategory['modal-improvisation']).toBe(126);
+    expect(counts.byCategory['modal-improvisation']).toBe(130);
     expect(counts.byGroup.functionalApplied).toBe(
       counts.byCategory['functional-harmony']
       + counts.byCategory.progressions
@@ -166,7 +166,7 @@ describe('the counts and the schedule', () => {
     // cards, showed its grid, and was silently absent from the walk.
     const order = harmonicFluencyColdStartOrder();
     const ours = order.filter(id => id.startsWith('mi-modal-'));
-    expect(ours).toHaveLength(126);
+    expect(ours).toHaveLength(130);
     expect(new Set(order).size).toBe(FLASHCARDS.length);
   });
 });

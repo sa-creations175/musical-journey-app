@@ -1732,9 +1732,11 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'ks-parallel-A|The parallel minor of A major is _____',
   'ks-parallel-B|The parallel minor of B major is _____',
   // modal-improvisation — ten chords the band can be sitting on, in
-  // thirteen keys, less the four `MODAL_IMPROV_STOPS` names. The id
-  // carries the key and the chord, so reordering either list cannot
-  // repoint a card.
+  // thirteen keys. The id carries the key and the chord, so reordering
+  // either list cannot repoint a card. FOUR ARRIVED LATE — the cards
+  // whose own key could not give them a fair set of wrong answers —
+  // and they are appended in their own place in the walk rather than
+  // at the end, because the id says where they belong.
   'mi-modal-2m-C|In C, the band is on Dm (2). Which notes fit?',
   'mi-modal-3m-C|In C, the band is on Em (3). Which notes fit?',
   'mi-modal-4-C|In C, the band is on F (4). Which notes fit?',
@@ -1751,6 +1753,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'mi-modal-5-Db|In D♭, the band is on A♭7 (5). Which notes fit?',
   'mi-modal-6m-Db|In D♭, the band is on B♭m (6). Which notes fit?',
   'mi-modal-5of2-Db|In D♭, the band is on B♭7 (5 of 2). Which notes fit?',
+  'mi-modal-5of3-Db|In D♭, the band is on C7 (5 of 3). Which notes fit?',
   'mi-modal-5of4-Db|In D♭, the band is on D♭7 (5 of 4). Which notes fit?',
   'mi-modal-5of5-Db|In D♭, the band is on E♭7 (5 of 5). Which notes fit?',
   'mi-modal-5of6-Db|In D♭, the band is on F7 (5 of 6). Which notes fit?',
@@ -1760,6 +1763,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'mi-modal-5-D|In D, the band is on A7 (5). Which notes fit?',
   'mi-modal-6m-D|In D, the band is on Bm (6). Which notes fit?',
   'mi-modal-5of2-D|In D, the band is on B7 (5 of 2). Which notes fit?',
+  'mi-modal-5of3-D|In D, the band is on C♯7 (5 of 3). Which notes fit?',
   'mi-modal-5of4-D|In D, the band is on D7 (5 of 4). Which notes fit?',
   'mi-modal-5of5-D|In D, the band is on E7 (5 of 5). Which notes fit?',
   'mi-modal-5of6-D|In D, the band is on F♯7 (5 of 6). Which notes fit?',
@@ -1790,6 +1794,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'mi-modal-6m-F|In F, the band is on Dm (6). Which notes fit?',
   'mi-modal-5of2-F|In F, the band is on D7 (5 of 2). Which notes fit?',
   'mi-modal-5of3-F|In F, the band is on E7 (5 of 3). Which notes fit?',
+  'mi-modal-5of4-F|In F, the band is on F7 (5 of 4). Which notes fit?',
   'mi-modal-5of5-F|In F, the band is on G7 (5 of 5). Which notes fit?',
   'mi-modal-5of6-F|In F, the band is on A7 (5 of 6). Which notes fit?',
   'mi-modal-2m-F#|In F♯, the band is on G♯m (2). Which notes fit?',
@@ -1799,6 +1804,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'mi-modal-6m-F#|In F♯, the band is on D♯m (6). Which notes fit?',
   'mi-modal-5of2-F#|In F♯, the band is on D♯7 (5 of 2). Which notes fit?',
   'mi-modal-5of3-F#|In F♯, the band is on E♯7 (5 of 3). Which notes fit?',
+  'mi-modal-5of4-F#|In F♯, the band is on F♯7 (5 of 4). Which notes fit?',
   'mi-modal-5of5-F#|In F♯, the band is on G♯7 (5 of 5). Which notes fit?',
   'mi-modal-5of6-F#|In F♯, the band is on A♯7 (5 of 6). Which notes fit?',
   'mi-modal-2m-Gb|In G♭, the band is on A♭m (2). Which notes fit?',

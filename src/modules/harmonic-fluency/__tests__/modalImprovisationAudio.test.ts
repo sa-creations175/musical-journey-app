@@ -36,14 +36,13 @@ describe('the phrase is the prototype\'s, note for note', () => {
     const pinned = PROTOTYPE_PHRASES
       .map(p => modalCardId(p.chord, p.key))
       .filter(id => ids.has(id));
-    expect(pinned).toHaveLength(126);
+    expect(pinned).toHaveLength(130);
     for (const c of CARDS) expect(hasSound(c), c.id).toBe(true);
   });
 
-  it('matches the prototype on all 126', () => {
+  it('matches the prototype on all 130', () => {
     for (const phrase of PROTOTYPE_PHRASES) {
       const id = modalCardId(phrase.chord, phrase.key);
-      if (!BY_ID.has(id)) continue;
       expect(played(id).map(s => ({ chord: s.chord, run: s.run })), id)
         .toEqual(phrase.segments.map(s => ({ chord: [...s.chord], run: [...s.run] })));
     }

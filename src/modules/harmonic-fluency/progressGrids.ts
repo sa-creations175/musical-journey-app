@@ -336,11 +336,11 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
    * is the 5 of 5 in G and the 4 in A; the number is the one word that
    * means the same thing down a column of thirteen keys.
    *
-   * FOUR CELLS ARE EMPTY AND EACH ONE IS A STOP. The decoy guard
-   * refuses `5 of 3` in D♭ and D and `5 of 4` in F and F♯ — see
-   * `MODAL_IMPROV_STOPS`, which names them and says why. The same
-   * shape as G♭ minor pentatonic's missing cell above: a rule said
-   * stop, and the stop is on screen rather than papered over.
+   * EVERY CELL IS FILLED. Four were empty for an afternoon — the decoy
+   * guard could not give `5 of 3` in D♭ and D or `5 of 4` in F and F♯
+   * a fair set of wrong answers out of their own key — and the pool
+   * reaches one key next door for exactly those four now. See
+   * `MODAL_IMPROV_WIDENED`.
    */
   [CATEGORY_LABELS['modal-improvisation']]: {
     columns: thirteenKeyAxis,

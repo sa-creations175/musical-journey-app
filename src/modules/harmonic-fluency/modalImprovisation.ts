@@ -60,8 +60,10 @@
  * =====================================================================
  */
 import type { Flashcard } from './catalog';
-import { chooseDecoys } from './decoyGuard';
-import { THIRTEEN_KEYS, degreeAscii, noteLabel } from './catalogExpansions';
+import { chooseDecoys, chooseDecoysOrNull } from './decoyGuard';
+import {
+  THIRTEEN_KEYS, degreeAscii, degreeAsciiOrNull, noteLabel,
+} from './catalogExpansions';
 
 /** The row a reader sees above the family. */
 export const MODAL_IMPROV_CATEGORY_NAME = 'Modal Improvisation';
@@ -194,68 +196,116 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
 
 /**
  * =====================================================================
- * FOUR CARDS THE DECOY GUARD REFUSES, NAMED RATHER THAN WORKED AROUND.
+ * FOUR CARDS WHOSE POOL REACHES ONE KEY NEXT DOOR.
  *
- * Every wrong answer this family offers is another of the SAME key's
- * ten answers — a real scale, correctly named, wrong for this chord.
- * That is the whole pool, and on four cards it cannot make a fair
- * question:
+ * Every wrong answer this family offers is another "Notes of the …
+ * scale" — a real scale, correctly named, wrong for this chord. The
+ * key's own ten answers are the pool, and on four cards they cannot
+ * make a fair question:
  *
- *   In D, only F♯ melodic minor carries an accidental. In F, only B♭
- *   does. So on those two cards the answer is the only option with a
- *   sharp or a flat in it, whichever three decoys are picked.
+ *   In the key of D major, only F♯ melodic minor carries an accidental;
+ *   in F major, only B♭ major does. So on those two the answer is the
+ *   only option with a sharp or a flat in it, whichever three decoys
+ *   are picked.
  *
- *   In D♭, only F melodic minor carries none. In F♯, only B major
- *   does. Same tell, the other way up.
+ *   In D♭ major, only F melodic minor carries none. In F♯ major, only
+ *   B major does. The same tell, the other way up.
  *
- * `only-accidental` and `only-natural` are two of the guard's eight
- * blind rules, and `chooseDecoys` throws rather than shipping a card
- * they can answer. Widening the pool past the key would fix all four
- * — the same scale from a neighbouring key is a real scale and a
- * plausible wrong answer — but the brief ruled the pool at the key's
- * own ten, so these four STOP. They are in the report with the
- * remedy; they are not in the deck.
+ * `only-accidental` and `only-natural` are two of the guard's blind
+ * rules, and it refused all four rather than ship a card they could
+ * answer. Ruled 9 Sep 2026: widen the pool by one neighbouring key.
  *
- * PINNED AS A LIST, AND THE TEST PROVES IT IS EXACT — every card named
- * here really is refused, and no card not named here is. A silent
- * `try/catch` would let a fifth join them without anyone noticing,
- * which is the failure this whole guard exists to prevent.
+ * THE 5 FIRST, THEN THE 4, AND THE GUARD PICKS. One neighbour is a
+ * step toward more accidentals and the other a step toward fewer, and
+ * what a stuck card is short of is always one or the other — so trying
+ * both in a fixed order needs no rule about which, and no list of keys
+ * written down beside the cards. The key next door is named FROM THE
+ * CARD'S OWN KEY (`degreeAscii(root, '5')`), so a sharp key gets a
+ * sharp neighbour; where that names something outside the thirteen —
+ * the 5 of F♯ major is C♯ major — it is skipped.
+ *
+ * THE OTHER 126 ARE UNTOUCHED, and that is why the widening is tried
+ * SECOND rather than folded into one big pool. `chooseDecoys` rotates
+ * the whole pool by the card's seed, so a longer pool would have given
+ * every card in the family different wrong answers to make four of
+ * them work.
+ *
+ * PINNED AS A LIST, AND THE TEST PROVES IT EXACT — every card named
+ * here really does need the second pool, and no card not named here
+ * does. So a fifth cannot join them unnoticed.
  * =====================================================================
  */
-export const MODAL_IMPROV_STOPS: ReadonlyArray<{
-  key: string; chord: string; rule: string;
+export const MODAL_IMPROV_WIDENED: ReadonlyArray<{
+  key: string; chord: string; rule: string; from: string;
 }> = [
-  { key: 'Db', chord: '5of3', rule: 'only-natural' },
-  { key: 'D', chord: '5of3', rule: 'only-accidental' },
-  { key: 'F', chord: '5of4', rule: 'only-accidental' },
-  { key: 'F#', chord: '5of4', rule: 'only-natural' },
+  { key: 'Db', chord: '5of3', rule: 'only-natural', from: 'Ab' },
+  { key: 'D', chord: '5of3', rule: 'only-accidental', from: 'A' },
+  { key: 'F', chord: '5of4', rule: 'only-accidental', from: 'Bb' },
+  { key: 'F#', chord: '5of4', rule: 'only-natural', from: 'B' },
 ];
 
-const STOPPED = new Set(MODAL_IMPROV_STOPS.map(s => `${s.key}|${s.chord}`));
-
 /**
- * The other nine answers of this key, in the family's own chord order.
+ * The answers of one key, in the family's own chord order.
  *
  * DEDUPED, because the five in-key chords all answer with the key's
  * own scale — which is the fact the family is teaching, not an
- * oversight. So a key offers six distinct answers and any one card
- * draws its decoys from the five that are not its own.
+ * oversight. So a key offers six distinct answers.
  */
-function decoyPool(root: string, correct: string): string[] {
+function answersOf(root: string): string[] {
   const out: string[] = [];
   for (const chord of MODAL_CHORDS) {
     const { answer } = modalCardText(root, chord);
-    if (answer !== correct && !out.includes(answer)) out.push(answer);
+    if (!out.includes(answer)) out.push(answer);
   }
   return out;
 }
 
-/** Ten chords in thirteen keys, less the four the guard refuses. */
+/**
+ * The pools one card may draw on, narrowest first: its own key, then
+ * its own key plus the key on its 5, then plus the key on its 4.
+ *
+ * EXPORTED SO THE TEST CAN ASK THE SAME QUESTION THE GENERATOR DOES.
+ * A test that rebuilt the pools itself would be checking its own
+ * arithmetic.
+ */
+export function modalDecoyPools(root: string, correct: string): string[][] {
+  const own = answersOf(root).filter(a => a !== correct);
+  const pools = [own];
+  for (const degree of ['5', '4']) {
+    const neighbour = degreeAsciiOrNull(root, degree);
+    if (neighbour === null || !THIRTEEN_KEYS.includes(neighbour)) continue;
+    pools.push([
+      ...own,
+      ...answersOf(neighbour).filter(a => a !== correct && !own.includes(a)),
+    ]);
+  }
+  return pools;
+}
+
+/**
+ * Three wrong answers, from the narrowest pool that can give them.
+ *
+ * The last pool goes through `chooseDecoys` rather than the nullable
+ * one, so a card that cannot be built even next door takes the build
+ * down with the guard's own message instead of shipping.
+ */
+function chooseModalDecoys(root: string, id: string, correct: string): string[] {
+  const opts = {
+    count: 3, seed: id, label: id, category: 'modal-improvisation',
+  };
+  const pools = modalDecoyPools(root, correct);
+  for (const pool of pools.slice(0, -1)) {
+    const found = chooseDecoysOrNull(correct, pool, opts);
+    if (found !== null) return found;
+  }
+  return chooseDecoys(correct, pools[pools.length - 1], opts);
+}
+
+/** Ten chords in thirteen keys. */
 export function modalImprovisationCards(): Flashcard[] {
   const out: Flashcard[] = [];
   for (const root of THIRTEEN_KEYS) {
     for (const chord of MODAL_CHORDS) {
-      if (STOPPED.has(`${root}|${chord.id}`)) continue;
       const id = modalCardId(chord.id, root);
       const text = modalCardText(root, chord);
       out.push({
@@ -264,9 +314,7 @@ export function modalImprovisationCards(): Flashcard[] {
         categoryName: MODAL_IMPROV_CATEGORY_NAME,
         question: text.question,
         correctAnswer: text.answer,
-        decoys: chooseDecoys(text.answer, decoyPool(root, text.answer), {
-          count: 3, seed: id, label: id, category: 'modal-improvisation',
-        }),
+        decoys: chooseModalDecoys(root, id, text.answer),
         explanation: text.explanation,
         // THE KEY AS WRITTEN. F♯ and G♭ are two keys with two sets of
         // answers, exactly as they are for the modes and the slash
