@@ -54,6 +54,7 @@ import {
 } from './coverageMetrics';
 import {
   SHAPES_COVERAGE_PICKER_DEFS,
+  shapesCoverageDenominators,
   type ShapesCoverageGroupId,
 } from './shapesCoverageGroups';
 import {
@@ -2578,8 +2579,10 @@ function ShapesPatternsCoverageCard({
     moduleMetaById('shapes-and-patterns')?.accentHex ?? '#7a5aa8';
   // The movements are part of the pool the moment they exist
   // (follow-up ruling 3), so the number this card OFFERS is the number
-  // the goal is measured against.
+  // the goal is measured against — the overall total and the
+  // voice-leading group's alike.
   const movementIds = useMovementIds();
+  const liveDenominators = shapesCoverageDenominators(movementIds);
   const toggle = () => onChange({ ...target, coverageEnabled: !target.coverageEnabled });
   const setScope = (scope: ShapesPatternsTarget['coverageScope']) => {
     if (scope === target.coverageScope) return;
@@ -2626,7 +2629,7 @@ function ShapesPatternsCoverageCard({
             {SHAPES_COVERAGE_GROUPS.map(group => (
               <CategoryPillButton
                 key={group.id}
-                label={`${group.label} (${group.denominator} items)`}
+                label={`${group.label} (${liveDenominators.get(group.id) ?? group.denominator} items)`}
                 accentHex={shapesAccent}
                 active={target.coverageGroupIds.includes(group.id)}
                 onClick={() => toggleGroup(group.id)}
@@ -2819,7 +2822,13 @@ function previewShapesPatternsTarget(
         target.coverageGroupIds.includes(g.id),
       );
       if (picked.length === 0) return parts.length > 0 ? parts.join(' and ') : null;
-      const totalDenominator = picked.reduce((sum, g) => sum + g.denominator, 0);
+      // LIVE, NOT THE AT-REST FIGURE. The voice-leading group counts
+      // movements the moment they exist; the defs are module constants
+      // and cannot.
+      const live = shapesCoverageDenominators(movementIds);
+      const totalDenominator = picked.reduce(
+        (sum, g) => sum + (live.get(g.id) ?? g.denominator), 0,
+      );
       const labelList = joinAnd(picked.map(g => g.label));
       const itemPhrase = picked.length === 1 ? `items in ${labelList}` : `items across ${labelList}`;
       parts.push(`Cover all ${totalDenominator} ${itemPhrase} (acquired)`);
@@ -3823,13 +3832,15 @@ export function encodeShapesPatterns(
       // parent_goal_id (auto-umbrella encoding from 2b's handleSave
       // edit). On edit, each child is opened independently per the
       // single-target-per-record convention.
+      const live = shapesCoverageDenominators(movementIds);
       for (const groupId of t.coverageGroupIds) {
         const group = SHAPES_COVERAGE_GROUPS.find(g => g.id === groupId);
         if (!group) continue;
+        const denominator = live.get(group.id) ?? group.denominator;
         records.push({
-          description: `Cover all ${group.denominator} items in ${group.label} (acquired)`,
+          description: `Cover all ${denominator} items in ${group.label} (acquired)`,
           targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
-          targetValue: group.denominator,
+          targetValue: denominator,
           targetUnit: group.id,
         });
       }

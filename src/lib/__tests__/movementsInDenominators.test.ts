@@ -29,7 +29,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../db';
 import { shapesCounts } from '../moduleItemCounts';
 import { shapesTargetUniverse } from '../../modules/shapes-and-patterns/cellTargets';
-import { shapesCoverageDenominator } from '../../modules/goals/shapesCoverageGroups';
+import {
+  shapesCoverageDenominator, shapesCoverageDenominators,
+} from '../../modules/goals/shapesCoverageGroups';
 import { loadScopeMaintenanceViews } from '../sessionAlgorithm/scopeMaintenanceResolve';
 import { listMovementIds } from '../../modules/shapes-and-patterns/movements/movementStore';
 import { encodeShapesPatterns } from '../../modules/goals/GoalCreationFlow';
@@ -124,6 +126,25 @@ describe('the number a goal is OFFERED at', () => {
     const withIn = encodeDimensionRecords(draft as never, MOVEMENTS);
     expect(withIn[0].targetValue! - withOut[0].targetValue!)
       .toBe(MOVEMENTS.length * KEYS_PER_MOVEMENT);
+  });
+
+  it('is the measured total for the voice-leading GROUP too', () => {
+    // The one level down from the overall figure: a goal set on the
+    // voice-leading group alone was offered at the catalog number while
+    // being measured against one that counts movements.
+    const live = shapesCoverageDenominators(MOVEMENTS);
+    const atRest = shapesCoverageDenominators();
+    expect(live.get('voice_leading')! - atRest.get('voice_leading')!)
+      .toBe(MOVEMENTS.length * KEYS_PER_MOVEMENT);
+  });
+
+  it('and leaves the per-pattern groups alone, because a movement is not a pattern', () => {
+    const live = shapesCoverageDenominators(MOVEMENTS);
+    const atRest = shapesCoverageDenominators();
+    for (const [id, n] of atRest) {
+      if (id === 'voice_leading') continue;
+      expect(live.get(id), id).toBe(n);
+    }
   });
 
   it('and the review sentence agrees with what was saved', () => {

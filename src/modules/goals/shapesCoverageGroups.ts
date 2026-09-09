@@ -546,6 +546,39 @@ export const SHAPES_COVERAGE_GROUP_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
 export const SHAPES_COVERAGE_PICKER_DEFS: ReadonlyArray<ShapesCoverageGroupDef> =
   SHAPES_COVERAGE_GROUP_DEFS.filter(g => g.denominator > 0);
 
+/**
+ * Every group's denominator for a given set of movements.
+ *
+ * =====================================================================
+ * THE DEFS ABOVE ARE THE AT-REST FIGURES, AND THAT IS THE PROBLEM THIS
+ * SOLVES.
+ *
+ * They are module-scope constants, evaluated at import, so they count
+ * the catalog and nothing else. A movement is part of the voice-leading
+ * group from the moment it exists — the denominator a goal is MEASURED
+ * against has counted them since ruling 48 — so a picker reading
+ * `def.denominator` offers a number the goal can exceed.
+ *
+ * ONE GROUP ACTUALLY MOVES. `voice_leading` matches every `vl:` ref,
+ * movements included. The per-pattern sub-groups parse the ref and
+ * compare a PATTERN id, which a movement's ref never carries, so they
+ * are unchanged — and that is right: a movement is not one of the
+ * shipped patterns.
+ *
+ * A map rather than a second def list, because the label, the id and
+ * the matcher have not changed and only the number has.
+ * =====================================================================
+ */
+export function shapesCoverageDenominators(
+  movementIds: readonly string[] = [],
+  outOfScore?: OutOfScore,
+): ReadonlyMap<string, number> {
+  return new Map(
+    SHAPES_COVERAGE_GROUP_DEFS.map(g =>
+      [g.id, shapesCoverageDenominator(g.id, outOfScore, movementIds)] as const),
+  );
+}
+
 /** Build the single per-pattern VL coverage-group def. Returns an
  *  empty array when the catalog has no matching pattern — defensive
  *  against catalog drift; the picker silently drops the missing

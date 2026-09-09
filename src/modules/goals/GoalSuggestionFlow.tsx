@@ -41,6 +41,7 @@ import { findAnchorGoalForModule } from './anchorLookup';
 import { loadGoalForEdit, type EditPrefill } from './editLoad';
 import {
   SHAPES_COVERAGE_PICKER_DEFS,
+  shapesCoverageDenominators,
   type ShapesCoverageGroupId,
 } from './shapesCoverageGroups';
 import { suggestHfMonthly } from './suggestions/hfMonthly';
@@ -1836,19 +1837,23 @@ function ShapesFocusSection({
 
   const shapesAccent = moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a';
   // The movements are part of the pool the moment they exist
-  // (follow-up ruling 3).
+  // (follow-up ruling 3) — the overall total and the voice-leading
+  // group's denominator alike.
   const movementIds = useMovementIds();
+  const liveDenominators = shapesCoverageDenominators(movementIds);
+  const den = (g: { id: string; denominator: number }) =>
+    liveDenominators.get(g.id) ?? g.denominator;
   const triadInversionsDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
     g => g.id === 'chord_shape_triads',
   );
   const triadInversionsLabel = triadInversionsDef
-    ? `${triadInversionsDef.label} (${triadInversionsDef.denominator})`
+    ? `${triadInversionsDef.label} (${den(triadInversionsDef)})`
     : 'triad inversions (288)';
   const seventhsShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
     g => g.id === 'chord_shape_sevenths',
   );
   const seventhsShortcutLabel = seventhsShortcutDef
-    ? `${seventhsShortcutDef.label} (${seventhsShortcutDef.denominator})`
+    ? `${seventhsShortcutDef.label} (${den(seventhsShortcutDef)})`
     : 'seventh-chord inversions (360)';
   const extensionsShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(
     g => g.id === 'chord_shape_extensions',
@@ -1856,15 +1861,15 @@ function ShapesFocusSection({
   // No hardcoded fallback: if the def is gone the section doesn't
   // render at all, and a stale "extensions (168)" pill would be a lie.
   const extensionsShortcutLabel = extensionsShortcutDef
-    ? `${extensionsShortcutDef.label} (${extensionsShortcutDef.denominator})`
+    ? `${extensionsShortcutDef.label} (${den(extensionsShortcutDef)})`
     : '';
   const scalesShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'scale_drills');
   const scalesShortcutLabel = scalesShortcutDef
-    ? `${scalesShortcutDef.label} (${scalesShortcutDef.denominator})`
+    ? `${scalesShortcutDef.label} (${den(scalesShortcutDef)})`
     : 'scale drills (96)';
   const vlShortcutDef = SHAPES_COVERAGE_GROUP_OPTIONS.find(g => g.id === 'voice_leading');
   const vlShortcutLabel = vlShortcutDef
-    ? `${vlShortcutDef.label} (${vlShortcutDef.denominator})`
+    ? `${vlShortcutDef.label} (${den(vlShortcutDef)})`
     : 'voice-leading (372)';
 
   return (
@@ -1923,7 +1928,7 @@ function ShapesFocusSection({
             {SHAPES_LAYER1_OPTIONS.map(group => (
               <CategoryPillButton
                 key={group.id}
-                label={`${group.label} (${group.denominator})`}
+                label={`${group.label} (${den(group)})`}
                 accentHex={shapesAccent}
                 active={target.coverageGroupIds.includes(group.id)}
                 onClick={() => toggleGroup(group.id)}
@@ -1968,7 +1973,7 @@ function ShapesFocusSection({
                 {SHAPES_TRIAD_QUALITY_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${group.denominator})`}
+                    label={`${group.label} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -1987,7 +1992,7 @@ function ShapesFocusSection({
                 {SHAPES_SEVENTH_QUALITY_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${group.denominator})`}
+                    label={`${group.label} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2006,7 +2011,7 @@ function ShapesFocusSection({
                 {SHAPES_EXTENSION_FAMILY_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${group.denominator})`}
+                    label={`${group.label} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2025,7 +2030,7 @@ function ShapesFocusSection({
                 {SHAPES_SCALE_KIND_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${group.denominator})`}
+                    label={`${group.label} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2044,7 +2049,7 @@ function ShapesFocusSection({
                 {SHAPES_VL_PATTERN_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${group.denominator})`}
+                    label={`${group.label} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2063,7 +2068,7 @@ function ShapesFocusSection({
                 {SHAPES_MAJOR_PENT_SP_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${group.denominator})`}
+                    label={`${group.label} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2082,7 +2087,7 @@ function ShapesFocusSection({
                 {SHAPES_MINOR_PENT_SP_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${group.denominator})`}
+                    label={`${group.label} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
