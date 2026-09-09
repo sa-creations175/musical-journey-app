@@ -1,5 +1,5 @@
 import {
-  useCallback, useEffect, useMemo, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
   type CSSProperties, type ReactNode,
 } from 'react';
 import { useLongPress } from '../../lib/useLongPress';
@@ -28,6 +28,28 @@ import {
 } from './lyricSyllables';
 import { chordToDisplay, parseChordFunction } from './chordFunction';
 import { useSpelling } from '../../lib/spellingPref';
+import type { Spelling } from '../../lib/spelling';
+
+/**
+ * The spelling this grid draws in, handed down rather than threaded.
+ *
+ * A CONTEXT BECAUSE THE READERS ARE FOUR LAYERS DOWN. The chord cell,
+ * the add box and the chord popover each asked the GLOBAL setting
+ * directly, which is why a song set to sharps kept its lead sheet in
+ * flats. Threading a prop through BarBox to reach them is four chances
+ * for one layer to forget; a context cannot be forgotten by a component
+ * that does not know it exists.
+ *
+ * `null` means the host said nothing, and the global answers — exactly
+ * what these three did before.
+ */
+const GridSpelling = createContext<Spelling | null>(null);
+
+function useGridSpelling(): Spelling {
+  const host = useContext(GridSpelling);
+  const [global] = useSpelling();
+  return host ?? global;
+}
 import { pitchClassOf } from './chordParser';
 import { chordRootNote } from './voicingHelpers';
 import ChordVoicingPanel from '../../components/ChordVoicingPanel';
@@ -352,6 +374,26 @@ interface Props {
    * keep in step.
    */
   markUnvoiced?: boolean;
+  /**
+   * How this host spells key and note names — ALREADY RESOLVED.
+   *
+   * =====================================================================
+   * THE GRID USED TO READ THE GLOBAL SETTING DIRECTLY, in three places,
+   * and that is why a song set to sharps kept a lead sheet in flats: the
+   * per-song override reached the song's detail page and its matrix and
+   * stopped at the grid. Ruling 23 fixes it here rather than at each
+   * call site, so it lands for songs and movements together.
+   *
+   * The HOST resolves it — `useSongSpelling(song)` on a lead sheet,
+   * `resolveSpelling(movement.spelling, global)` on a movement — because
+   * "whose opinion wins" is a fact about the thing being drawn, not
+   * about the grid. `resolveSpelling` is the one place that rule lives.
+   *
+   * Optional, defaulting to the global, so a caller not yet updated
+   * reads exactly as it did.
+   * =====================================================================
+   */
+  spelling?: Spelling;
 }
 
 interface EditingState {
@@ -411,6 +453,7 @@ export default function BarGridView({
   chordCellLead,
   highlightPlacementId = null,
   markUnvoiced = false,
+  spelling: hostSpelling,
 }: Props) {
   const eighths = song.eighths === true;
   const [notationMode] = useNotationMode();
@@ -808,6 +851,7 @@ export default function BarGridView({
   );
 
   return (
+    <GridSpelling.Provider value={hostSpelling ?? null}>
     <div
       ref={containerRef}
       className="rounded-md border border-black/[0.07] px-2 py-3 md:p-3 bg-neutral-50/40 dark:bg-neutral-900/40"
@@ -834,6 +878,7 @@ export default function BarGridView({
         body
       )}
     </div>
+    </GridSpelling.Provider>
   );
 }
 
@@ -2672,7 +2717,7 @@ function ChordAddPopover({
 }) {
   const [draft, setDraft] = useState('');
   const trimmed = draft.trim();
-  const [spelling] = useSpelling();
+  const spelling = useGridSpelling();
   const parsed = trimmed === '' ? null : parseChordFunction(trimmed, sectionKey);
   const isReady =
     parsed !== null &&
@@ -2888,7 +2933,7 @@ function ChordCellBox({
   /** Say so when nothing is pressed — see `markUnvoiced`. */
   markUnvoiced?: boolean;
 }) {
-  const [spelling] = useSpelling();
+  const spelling = useGridSpelling();
   const text = chordToDisplay(cell.chord, notationMode, sectionKey, spelling);
   const hasVoicing = Boolean(cell.voicing && cell.voicing.length > 0);
   const isDark = useIsDarkMode();
@@ -3070,7 +3115,7 @@ function ChordEditorPopover({
   const chordBeats = cell.beats;
   const canDec = chordBeats > 1;
   const canInc = chordBeats < barSlots;
-  const [spelling] = useSpelling();
+  const spelling = useGridSpelling();
   const text = chordToDisplay(cell.chord, notationMode, sectionKey, spelling);
 
   const manualTag = cell.chord.harmonicTag;

@@ -131,6 +131,16 @@ const click = async (el: Element | null) => {
 };
 const stored = () => db.chordMovements.get(MOVEMENT_ID);
 
+/** Pick one of the three options on the movement's own spelling select. */
+async function chooseSpelling(value: 'inherit' | 'flat' | 'sharp') {
+  const select = byTestId('movement-spelling') as HTMLSelectElement;
+  await act(async () => {
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await settle();
+}
+
 /**
  * Type into a controlled input the way React hears it.
  *
@@ -204,15 +214,31 @@ describe('step 3 — the key moves the sound, the spelling does not', () => {
     // showing it two ways at once.
     await open();
     expect(degreeLine('gsdim')).toBe('♭6°');
-    await click(byTestId('spelling-sharp'));
+    await chooseSpelling('sharp');
     expect(degreeLine('gsdim')).toBe('♯5°');
   });
 
-  it('the spelling control is the global setting, not a movement’s own', async () => {
+  it('the control is the movement’s OWN override now (ruling 23)', async () => {
+    // It used to write the global setting. A movement has its own
+    // opinion now, exactly as a song does — so this writes the record
+    // and leaves the global alone, and the global still lives in
+    // Settings where a song's does.
     await open();
-    await click(byTestId('spelling-sharp'));
-    expect(await db.userPrefs.get('enharmonicSpelling')).toMatchObject({ value: 'sharp' });
-    expect(Object.keys((await stored())!)).not.toContain('spelling');
+    await chooseSpelling('sharp');
+    expect((await stored())!.spelling).toBe('sharp');
+    expect(await db.userPrefs.get('enharmonicSpelling')).toBeUndefined();
+  });
+
+  it('and “follow global” is a state it can go back to', async () => {
+    // THE REASON THE SELECT REPLACED THE TOGGLE. A two-way control
+    // cannot show that a movement is inheriting, only which side is
+    // lit — and `undefined` is not the same as storing the default.
+    await open();
+    await chooseSpelling('sharp');
+    expect((await stored())!.spelling).toBe('sharp');
+    await chooseSpelling('inherit');
+    expect((await stored())!.spelling).toBeUndefined();
+    expect(degreeLine('gsdim')).toBe('♭6°');
   });
 });
 

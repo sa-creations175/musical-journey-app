@@ -150,6 +150,14 @@ Silas's naming pass.
 
     Ruled out: building the grid's override handling twice.
 
+    **This supersedes the note under ruling 14's build**, which said the
+    movement screen's Spelling control changes the global setting and is
+    not a per-movement override. It is the override now, and it uses the
+    song's own three-option select — inherit / Always Flats / Always
+    Sharps — rather than the two-way toggle it replaced, because a
+    two-way control cannot show that a movement is INHERITING. The
+    global still lives in Settings, where a song's does.
+
 ---
 
 ## Parked

@@ -75,6 +75,7 @@ import { useAddedFromRepertoireSet } from '../ear-training/useEtCurations';
 import { useToast } from '../../components/Toaster';
 import { useNotationMode } from '../../lib/notationPref';
 import { useSpelling } from '../../lib/spellingPref';
+import { useSongSpelling } from './useSongSpelling';
 import {
   normalizeArrangements,
   normalizePhrase,
@@ -368,6 +369,19 @@ export default function LeadSheetSection({
   // cells can never disagree about notation.
   const [notationMode] = useNotationMode();
   const [spelling] = useSpelling();
+  /**
+   * What the GRID spells in — the song's own opinion where it has one.
+   *
+   * THIS CLOSES THE 6 SEP FINDING. The per-song override reached the
+   * song's detail page and its matrix and stopped at the lead sheet,
+   * because the grid read the global setting directly. `resolveSpelling`
+   * is the one place the "own opinion, else the global" rule lives, and
+   * `useSongSpelling` is how a song asks it.
+   *
+   * The `spelling` above is left alone: it is what this file's OWN
+   * non-grid surfaces use, and untangling those is a separate change.
+   */
+  const gridSpelling = useSongSpelling(song);
   const isDark = useIsDarkMode();
 
   const [showNotes, setShowNotes] = useState(Boolean(section.notes));
@@ -2267,6 +2281,7 @@ export default function LeadSheetSection({
               canUndo={canUndo}
               onRedo={handleRedo}
               canRedo={canRedo}
+              spelling={gridSpelling}
               onTimeSignatureChange={handleTimeSignatureChange}
               onChordAdd={handleChordAdd}
               playMode={playMode}

@@ -87,6 +87,7 @@ import ChordVoicingPanel from '../../../components/ChordVoicingPanel';
 import { db, type ChordFunction, type ChordPlacement, type VoicingHand } from '../../../lib/db';
 import { ensureRunning, midiToFreq, playNote, playSeqChords, type PlaybackHandle } from '../../../lib/audio';
 import { useSpelling } from '../../../lib/spellingPref';
+import { resolveSpelling, type Spelling } from '../../../lib/spelling';
 import type { CopiedVoicing } from '../../../lib/voicingClipboard';
 import { chordToDisplay } from '../../repertoire/chordFunction';
 import { chordRootNote, sanitizeVoicing } from '../../repertoire/voicingHelpers';
@@ -114,7 +115,7 @@ export default function MovementScreen() {
     [movementId],
   );
 
-  const [spelling, setSpelling] = useSpelling();
+  const [globalSpelling] = useSpelling();
   const [pickedId, setPickedId] = useState<string | null>(null);
   /** The whole-chord clipboard the grid's add box reads for its Paste
    *  option. Filled by Copy chord in the editor header below, since the
@@ -126,6 +127,16 @@ export default function MovementScreen() {
   const [showNoKey, setShowNoKey] = useState(false);
   const [clipboard, setClipboard] = useState<CopiedVoicing | null>(null);
   const handle = useRef<PlaybackHandle | null>(null);
+
+  /**
+   * What this screen spells in — the movement's own opinion where it
+   * has one (ruling 23).
+   *
+   * THE SAME RULE A SONG FOLLOWS, through the same `resolveSpelling`.
+   * `undefined` means no opinion and tracks the global, which is why
+   * nothing writes a default into the field.
+   */
+  const spelling = resolveSpelling(movement?.spelling, globalSpelling);
 
   const placements = useMemo(() => movement?.placements ?? [], [movement]);
   // The grid drags with a pointer sensor and a small activation
@@ -353,33 +364,36 @@ export default function MovementScreen() {
           </select>
         </label>
 
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] uppercase tracking-wide text-neutral-500">Spelling</span>
-          <div className="inline-flex overflow-hidden rounded-lg border border-neutral-300 dark:border-neutral-700">
-            <button
-              type="button"
-              data-testid="spelling-flat"
-              aria-pressed={spelling === 'flat'}
-              onClick={() => void setSpelling('flat')}
-              className={spelling === 'flat'
-                ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-3 py-1.5 text-sm'
-                : 'px-3 py-1.5 text-sm'}
-            >
-              ♭
-            </button>
-            <button
-              type="button"
-              data-testid="spelling-sharp"
-              aria-pressed={spelling === 'sharp'}
-              onClick={() => void setSpelling('sharp')}
-              className={spelling === 'sharp'
-                ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900 px-3 py-1.5 text-sm'
-                : 'px-3 py-1.5 text-sm'}
-            >
-              ♯
-            </button>
-          </div>
-        </div>
+        {/* THE SONG'S OWN CONTROL, NOT A NEW ONE (ruling 23). It was a
+            two-way ♭/♯ that wrote the GLOBAL setting; a movement has
+            its own override now, exactly as a song does, and this is
+            the select a song's detail page uses for it — word for word.
+
+            THREE OPTIONS, NOT TWO, and that is the reason to reuse it
+            rather than keep the toggle: a two-way control cannot show
+            that a movement is INHERITING, only which side is lit. The
+            global still lives in Settings, where a song's does. */}
+        <label className="flex items-center gap-2 text-sm">
+          <span className="text-[11px] uppercase tracking-wide text-neutral-500">
+            shows as
+          </span>
+          <select
+            data-testid="movement-spelling"
+            value={movement.spelling ?? 'inherit'}
+            onChange={e => {
+              const v = e.target.value;
+              save({ spelling: v === 'inherit' ? undefined : (v as Spelling) });
+            }}
+            className="rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5 text-sm"
+            title="how this movement's key and chord names are spelled. changes names only — no practice data moves."
+          >
+            <option value="inherit">
+              follow global ({globalSpelling === 'flat' ? 'flats' : 'sharps'})
+            </option>
+            <option value="flat">Always Flats</option>
+            <option value="sharp">Always Sharps</option>
+          </select>
+        </label>
 
         <div className="flex items-center gap-2">
           <span className="text-[11px] uppercase tracking-wide text-neutral-500">Bass</span>
@@ -480,6 +494,7 @@ export default function MovementScreen() {
             copiedChord={copiedChord}
             highlightPlacementId={soundingId}
             markUnvoiced
+            spelling={spelling}
             /* THE LEAD (ruling 14) — the degree, re-spelled with the
                global setting, above the chord name the cell already
                draws. See allowed-to-differ item 3. */

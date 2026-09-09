@@ -1,3 +1,4 @@
+import type { Spelling } from './spelling';
 import Dexie, { type Table } from 'dexie';
 import type { Feel } from './fluencyScale';
 import type { PracticeActivity } from './practiceActivities';
@@ -2576,6 +2577,21 @@ export interface ChordMovement {
    * express.
    */
   barLayout?: Array<'chord' | 'empty'>;
+  /**
+   * How this movement's key and chord names are spelled, when it has an
+   * opinion (ruling 23).
+   *
+   * EXACTLY AS A SONG'S `spelling` WORKS, and resolved through the same
+   * `resolveSpelling`. `undefined` means no opinion and follows the
+   * global setting — which is not the same as storing the default: a
+   * movement that stored 'flat' when it was made would stop tracking
+   * the global for ever, and a global setting that only applies to
+   * things created before it is not a global setting.
+   *
+   * Nothing backfills it. Every movement already saved is in the state
+   * it should be in.
+   */
+  spelling?: Spelling;
   /** Playback speed in BPM, remembered per movement (ruling 8). This
    *  is NOT the metronome and does not read its settings. */
   playbackBpm: number;

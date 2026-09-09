@@ -406,6 +406,18 @@ every user-facing string. The internal ids are unchanged.
 - The iiø → V → i movement. Guide tones and extended voicings across two
   starting positions; seventh chords across three.
 
+### The spelling override — the song's own words, 8 Sep 2026 (ruling 23)
+
+Taken verbatim from the song detail page's "shows as" control. Nothing
+here is new copy; it is the same control on a second host.
+
+- shows as
+- follow global (flats) / follow global (sharps)
+- Always Flats
+- Always Sharps
+- how this movement's key and chord names are spelled. changes names
+  only — no practice data moves.
+
 ### Removing a movement — new, 8 Sep 2026
 
 Through `ConfirmDialog`, the app's own confirm for an action that can
