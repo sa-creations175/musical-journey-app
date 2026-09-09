@@ -37,6 +37,15 @@
  * 4. WHERE THE CONTROL SITS on the card. `CardPlayback` is one
  *    component either way; the degree-and-note card puts it under its
  *    keyboard and everything else puts it under the explanation.
+ * 5. WHICH ROOT A CARD ORIENTS ON (ruling 38). Everywhere else it is
+ *    the card's key. A MODE orients on the mode's own root — B♭ major
+ *    for "the mode of E♭ major starting on B♭", not E♭ — because a mode
+ *    only sounds like itself when its own note is home. Play the parent
+ *    chord and B♭ Mixolydian is just E♭ major with an odd starting
+ *    note, which is the misunderstanding the category exists to correct.
+ * 6. A HELD ROOT UNDER THE MATERIAL (ruling 38), which only the mode
+ *    cards have. Same reason: the drone is what keeps the ear on the
+ *    mode's own tonic while the scale walks away from it.
  *
  * Not on that list, and therefore shared: the tempo, the speed setting,
  * the tonic-context preference, the button, its label, stopping on
@@ -82,6 +91,12 @@ export interface CardSound {
   orient: readonly number[] | null;
   /** What the card is about. */
   steps: readonly SoundStep[];
+  /**
+   * A note held under the whole of `steps`, as semitones from
+   * `rootMidi`. Absent everywhere but the mode cards — see entry 6 of
+   * the allowed-to-differ list.
+   */
+  pedal?: number;
 }
 
 /**
@@ -133,10 +148,48 @@ function note(semitones: number): SoundStep {
 const MINOR_PENT_SEMIS: readonly number[] = [0, 3, 5, 7, 10];
 const MAJOR_PENT_SEMIS: readonly number[] = [0, 2, 4, 7, 9];
 
+/** Semitones above the tonic, per degree of the major scale. */
+const MAJOR_SCALE: readonly number[] = [0, 2, 4, 5, 7, 9, 11];
+
+/**
+ * A mode, as semitones above ITS OWN root: seven notes and the octave.
+ *
+ * ROTATED OUT OF THE MAJOR SCALE rather than listed. Seven hand-written
+ * rows would be seven chances to mistype a mode, and the whole claim the
+ * category makes is that they ARE the major scale started somewhere
+ * else — a table would state that claim twice and could disagree with
+ * itself.
+ */
+function modeSemitones(startingDegree: number): readonly number[] | null {
+  const from = MAJOR_SCALE[startingDegree - 1];
+  if (from === undefined) return null;
+  const scale = MAJOR_SCALE.map(
+    (_, i) => ((MAJOR_SCALE[(startingDegree - 1 + i) % 7] - from) % 12 + 12) % 12,
+  );
+  // THE OCTAVE IS THE EIGHTH NOTE, not a flourish. A mode heard without
+  // it ends in mid-air on the ♭7 or the 7, which is the one note that
+  // most tells the modes apart — and landing back on the root is what
+  // makes the ear hear the whole thing as one scale.
+  return [...scale, 12];
+}
+
+/** Whether a mode's own third is major or minor — which decides the
+ *  chord it orients on. Locrian's third is minor, and its diminished
+ *  fifth is not what a one-chord orientation is for. */
+function modeTriad(semitones: readonly number[]): readonly number[] {
+  return semitones[2] === 4 ? MAJ : MIN;
+}
+
 type Axis = Readonly<Record<string, string | number>> | undefined;
 
 function str(v: string | number | undefined): string | undefined {
   return v === undefined ? undefined : String(v);
+}
+
+function num(v: string | number | undefined): number | undefined {
+  if (v === undefined) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 /** The pitch class an enharmonic NOTE spelling names — "F#", "Cb". */
@@ -287,11 +340,45 @@ export function cardSound(card: Flashcard): CardSound | null {
       return null;
     }
 
+    case 'modes': {
+      // THE MODE'S OWN ROOT IS HOME, NOT THE PARENT KEY'S (ruling 38).
+      // B♭ major, then B♭ C D E♭ F G A♭ B♭ over a held B♭ — play E♭
+      // instead and the card teaches that B♭ Mixolydian is E♭ major
+      // with an odd starting note, which is exactly the
+      // misunderstanding the category exists to correct.
+      const degree = Number(axis?.degree);
+      const semitones = modeSemitones(degree);
+      if (key === undefined || semitones === null) return null;
+      const modeRoot = keyToRootMidi(key) + MAJOR_SCALE[degree - 1];
+      return {
+        // Folded back into the register `keyToRootMidi` works in, so a
+        // mode on the 7 does not sound an octave above one on the 1.
+        rootMidi: 48 + (modeRoot % 12),
+        orient: modeTriad(semitones),
+        steps: semitones.map(note),
+        // UNDERNEATH, an octave down. The scale walks away from its own
+        // tonic and the drone is what keeps the ear on it.
+        pedal: -12,
+      };
+    }
+
+    case 'intervals': {
+      // THE TWO NOTES, ASCENDING, NOTHING IN FRONT (ruling 38). The
+      // card names two notes and asks what the distance between them
+      // is; a key would answer a question it did not ask, and there is
+      // no key in the card to take one from.
+      const from = str(axis?.from);
+      const semitones = num(axis?.semitones);
+      if (from === undefined || semitones === undefined) return null;
+      const root = keyToRootMidi(from);
+      return { rootMidi: root, orient: null, steps: [note(0), note(semitones)] };
+    }
+
     // NOTHING FOR THE REST, AND THAT IS THE HONEST ANSWER. Diatonic
-    // Chord Qualities, Chord Construction, Ear-Theory Crossover, Mode
-    // Identification and Interval Identification are named in the
-    // report with what their material would be. Ruling 33 says to list
-    // them rather than build them.
+    // Chord Qualities, Chord Construction and Ear-Theory Crossover
+    // carry no coordinates at all — a prose card about how a chord
+    // feels has no key and no notes — so they are named in the report
+    // rather than given a sound nobody ruled on.
     default:
       return null;
   }

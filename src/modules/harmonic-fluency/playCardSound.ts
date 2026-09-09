@@ -32,6 +32,16 @@ import { CARD_AUDIO_BPM, type CardSound } from './cardAudio';
  *  one setting governs the whole deck. */
 export const CARD_AUDIO_MODULE = 'harmonic-fluency';
 
+/**
+ * How loud a drone sits under a scale.
+ *
+ * QUIETER THAN THE NOTES ON TOP OF IT. `playTonicDrone` reaches for
+ * 0.22 for the same job and the single-voice default is 0.3; a drone at
+ * the melody's own level stops being underneath it and starts competing
+ * with the degree the reader is trying to hear.
+ */
+const PEDAL_VELOCITY = 0.18;
+
 function wait(ms: number): Promise<void> {
   return new Promise(resolve => { window.setTimeout(resolve, ms); });
 }
@@ -67,6 +77,30 @@ export async function playCardSound(
       CARD_AUDIO_BPM,
     ));
     await wait(tonicLeadInSeconds(context) * 1000);
+  }
+
+  /**
+   * A HELD ROOT UNDER THE WHOLE OF IT (ruling 38), on the mode cards
+   * and nowhere else.
+   *
+   * Scheduled as ONE note as long as the material rather than as a note
+   * per step, because it is a drone: re-struck under every degree it
+   * would become a rhythm, and the point of it is that nothing about
+   * the tonic moves while the scale walks away from it.
+   *
+   * It scales with the speed setting exactly as the sequence does —
+   * they are the same music, unlike the priming chord above, which is a
+   * reference in front of it.
+   */
+  if (sound.pedal !== undefined) {
+    const beats = sound.steps.reduce((n, step) => n + step.beats, 0);
+    handles.push(await playBlocked(
+      sound.rootMidi + sound.pedal,
+      [0],
+      beats,
+      CARD_AUDIO_BPM,
+      { speedMultiplier: speed, velocity: PEDAL_VELOCITY },
+    ));
   }
 
   handles.push(await playBlockedSequence(

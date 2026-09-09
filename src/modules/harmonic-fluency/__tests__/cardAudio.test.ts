@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import { cardSound, type CardSound } from '../cardAudio';
 import { SLASH_SHAPES } from '../catalogExpansions';
+import { pitchClassOf } from '../../../lib/spelling';
 
 const card = (id: string) => FLASHCARDS.find(c => c.id === id)!;
 const soundOf = (id: string): CardSound => {
@@ -186,6 +187,99 @@ describe('enharmonic equivalents', () => {
   });
 });
 
+describe('modes', () => {
+  it('orients on the MODE\'s own root, not the parent key\'s', () => {
+    // Ruling 38, and the reason it is a ruling: play E♭ in front of B♭
+    // Mixolydian and the card teaches that a mode is a major scale with
+    // an odd starting note, which is the misunderstanding the category
+    // exists to correct. D♭ is 49, so its 5 — A♭ — folds to 56.
+    const s = soundOf('mo-mode-of-Db-5');
+    expect(s.rootMidi).toBe(48 + 8);
+    expect(s.orient).toEqual(MAJ);
+  });
+
+  it('takes the triad from the mode\'s own third', () => {
+    // Mixolydian is major, Dorian and Aeolian minor. Read off the
+    // scale rather than off a table of mode names.
+    expect(soundOf('mo-mode-of-Db-5').orient).toEqual(MAJ);
+    expect(soundOf('mo-mode-of-Db-2').orient).toEqual(MIN);
+    expect(soundOf('mo-mode-of-Db-6').orient).toEqual(MIN);
+  });
+
+  it('walks seven notes and lands on the octave', () => {
+    // The eighth note is not a flourish: a mode that stops on its 7 or
+    // ♭7 ends in mid-air on the one note that most tells the modes
+    // apart.
+    expect(steps(soundOf('mo-mode-of-Db-2')))
+      .toEqual([[0], [2], [3], [5], [7], [9], [10], [12]]);
+    expect(steps(soundOf('mo-mode-of-Db-5')))
+      .toEqual([[0], [2], [4], [5], [7], [9], [10], [12]]);
+  });
+
+  it('holds the root underneath, an octave down', () => {
+    const s = soundOf('mo-mode-of-Db-2');
+    expect(s.pedal).toBe(-12);
+  });
+
+  it('is the parent scale started somewhere else, on every card', () => {
+    // THE CLAIM THE WHOLE CATEGORY MAKES, MADE AUDIBLE. A mode is the
+    // parent major scale from a different note; if the notes that come
+    // out are not that scale's notes, the sound is teaching the
+    // opposite of what the card says.
+    const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+    let seen = 0;
+    for (const c of FLASHCARDS.filter(x => x.category === 'modes')) {
+      const s = cardSound(c);
+      if (s === null) continue;
+      seen += 1;
+      const key = (c as { axis?: { key?: string } }).axis!.key!;
+      const keyPc = pitchClassOf(key)!;
+      const parent = new Set(MAJOR.map(i => (keyPc + i) % 12));
+      const heard = new Set(
+        s.steps.map(st => ((s.rootMidi + st.semitones[0]) % 12 + 12) % 12),
+      );
+      expect(heard.size, c.id).toBe(7);
+      expect([...heard].sort((a, b) => a - b), c.id)
+        .toEqual([...parent].sort((a, b) => a - b));
+    }
+    // 11 keys x 3 degrees. The nineteen prose cards carry no axis.
+    expect(seen).toBe(33);
+  });
+});
+
+describe('intervals', () => {
+  it('plays the two notes, ascending, with nothing in front', () => {
+    // Ruling 38. No key in the card, so no key in the sound — an
+    // orienting chord would answer a question it did not ask.
+    const s = soundOf('iv-1');
+    expect(s.orient).toBeNull();
+    expect(s.pedal).toBeUndefined();
+    expect(steps(s)).toEqual([[0], [7]]);
+    // C is 48, and the second note is its 5th.
+    expect(s.rootMidi).toBe(48);
+  });
+
+  it('sounds the distance the card asks about, on every card', () => {
+    let seen = 0;
+    for (const c of FLASHCARDS.filter(x => x.category === 'intervals')) {
+      const s = cardSound(c);
+      if (s === null) continue;
+      seen += 1;
+      const axis = (c as { axis?: { semitones?: number } }).axis!;
+      expect(steps(s), c.id).toEqual([[0], [axis.semitones]]);
+      expect(s.orient, c.id).toBeNull();
+    }
+    // The twenty original pairs and the five top-ups. The fifteen
+    // inversion cards are prose and carry no notes.
+    expect(seen).toBe(25);
+  });
+
+  it('says nothing for the inversion cards, which name no two notes', () => {
+    expect(cardSound(card('iv-inv-sum'))).toBeNull();
+    expect(cardSound(card('iv-inv-quality-rule'))).toBeNull();
+  });
+});
+
 describe('what stays silent, and why', () => {
   it('says nothing for a card that has not said what it is about', () => {
     // The hand-written PROSE slash cards carry no `axis` — the same
@@ -197,11 +291,12 @@ describe('what stays silent, and why', () => {
     expect(cardSound(card('sc-14'))).toBeNull();
   });
 
-  it('says nothing for the five families ruling 33 stopped on', () => {
-    // Listed in the report with what their material would be, and NOT
-    // built: a family given a sound nobody ruled on is a family taught
-    // something nobody approved.
-    for (const category of ['modes', 'intervals', 'chord-construction',
+  it('says nothing for the three families that carry no coordinates', () => {
+    // Modes and intervals got a voice under ruling 38. These three
+    // carry no `axis` at all — a prose card about how a chord feels has
+    // no key and no notes — so giving them a sound would need a content
+    // decision first. Listed in the report rather than invented.
+    for (const category of ['chord-construction',
       'ear-theory', 'diatonic-qualities']) {
       for (const c of FLASHCARDS.filter(x => x.category === category)) {
         expect(cardSound(c), c.id).toBeNull();
