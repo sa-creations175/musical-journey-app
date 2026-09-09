@@ -94,15 +94,15 @@ describe('which new card each retired one became', () => {
 describe('the grid it folded into', () => {
   const grid = FLASHCARDS.filter(c => /^iv-[^-]+-up-\d+$/.test(c.id));
 
-  it('is every note by every distance, less the unspellable six', () => {
-    // 13 x 12 = 156. The minor 2nd above D♭ is E𝄫 and there is no
-    // single-accidental name for it that is still a minor 2nd.
-    expect(grid).toHaveLength(150);
+  it('is every note by every distance, none missing', () => {
+    // 13 x 12 = 156. Six of them need a double flat — the minor 2nd
+    // above D♭ is E𝄫 — and write it, with the plain name beside it.
+    expect(grid).toHaveLength(156);
   });
 
   it('starts on both spellings of the sixth pitch', () => {
     expect(grid.filter(c => c.id.startsWith('iv-F#-up-'))).toHaveLength(12);
-    expect(grid.filter(c => c.id.startsWith('iv-Gb-up-'))).toHaveLength(9);
+    expect(grid.filter(c => c.id.startsWith('iv-Gb-up-'))).toHaveLength(12);
   });
 
   it('names every distance from the one table', () => {

@@ -70,7 +70,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 925 + 136 + 78 + 287 = 1426
+// Harmonic Fluency — 925 + 136 + 78 + 293 = 1432
+// (9 Sep 2026, follow-up: 1426 → 1432. The six interval cards that had
+//  been skipped over spelling came back — the minor 2nd above D♭ is
+//  E𝄫 (D), written the way the deck already writes E♯ (F). Intervals
+//  165 → 171, earRecognition 287 → 293.)
 // (9 Sep 2026, second half: 1301 → 1426. Ruling 43 regenerated Interval
 //  Identification to every note by every distance — twenty hand-picked
 //  pairs and five top-ups became 150, six of the 156 combinations being
@@ -126,12 +130,12 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(78);
   });
 
-  it('earRecognition = mo 107 + iv 165 + et 15 = 287', () => {
-    expect(c.byGroup.earRecognition).toBe(287);
+  it('earRecognition = mo 107 + iv 171 + et 15 = 293', () => {
+    expect(c.byGroup.earRecognition).toBe(293);
   });
 
-  it('total = 1426 across all 13 categories', () => {
-    expect(c.total).toBe(1426);
+  it('total = 1432 across all 13 categories', () => {
+    expect(c.total).toBe(1432);
   });
 
   it('total equals sum of group totals', () => {

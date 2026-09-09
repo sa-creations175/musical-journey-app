@@ -39,12 +39,12 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   ['relative minor',   /^ks-relative-/,  9, ['key', 'relation']],
   ['parallel minor',   /^ks-parallel-/,  8, ['key', 'relation']],
   // THE FIVE TOP-UPS RETIRED WITH THE TWENTY (ruling 43). The grid
-  // that replaced them is every note by every distance, less the six
-  // that would need a double accidental; `movement` rides along so the
-  // Distance chip gathers them beside the movement cards.
+  // that replaced them is every note by every distance, none missing;
+  // `movement` rides along so the Distance chip gathers them beside the
+  // movement cards.
   // The octave is the one span with no movement id, so it is excluded
   // here and asserted in its own test below.
-  ['interval grid', /^iv-[^-]+-up-(?!12$)\d+$/, 137,
+  ['interval grid', /^iv-[^-]+-up-(?!12$)\d+$/, 143,
     ['from', 'movement', 'semitones', 'to']],
 ];
 

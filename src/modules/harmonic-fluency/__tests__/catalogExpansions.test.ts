@@ -136,15 +136,61 @@ describe('the gloss is derived, not typed', () => {
   });
 });
 
-describe('no double accidentals, in any key of any family', () => {
+describe('a double accidental is allowed where it is the only honest spelling', () => {
   const DOUBLE = /𝄪|𝄫|##|bb/;
 
-  it('across every generated card', () => {
+  /**
+   * =====================================================================
+   * THE RULE NARROWED; IT DID NOT GO.
+   *
+   * It used to be "no double accidental in any family", and six interval
+   * cards were skipped to keep it — the minor 2nd above D♭ is E𝄫 and
+   * there is no other spelling of it that is still a minor 2nd. Ruling 1
+   * of the follow-up brief says a card is never skipped over spelling.
+   *
+   * So the rule is now: a double may appear ONLY in the interval grid,
+   * only in question text and explanation, never in an option, and never
+   * without the plain name in brackets beside it. Everything else in the
+   * deck must still be free of one, which is what the second half asserts
+   * — this narrows the guard rather than turning it off.
+   * =====================================================================
+   */
+  const INTERVAL_GRID = /^iv-[^-]+-up-\d+$/;
+
+  it('across every generated card that is not an interval', () => {
     for (const card of expansionCards()) {
+      if (INTERVAL_GRID.test(card.id)) continue;
       const all = [card.question, card.correctAnswer, ...(card.decoys ?? []),
         card.explanation ?? ''].join(' ');
-      expect(all).not.toMatch(DOUBLE);
+      expect(all, card.id).not.toMatch(DOUBLE);
     }
+  });
+
+  it('never in an interval card\'s options, only in what it says', () => {
+    // An option is an identity string and a bracket on one option is a
+    // tell. The gloss lives in the question and the explanation, where
+    // every reader sees it and no reader can pick by it.
+    for (const card of expansionCards()) {
+      if (!INTERVAL_GRID.test(card.id)) continue;
+      expect(card.correctAnswer, card.id).not.toMatch(DOUBLE);
+      for (const d of card.decoys ?? []) expect(d, card.id).not.toMatch(DOUBLE);
+    }
+  });
+
+  it('and never without the plain name beside it', () => {
+    // `E𝄫` alone is a note a reader cannot act on. Six cards reach one
+    // and all six say what to press, in the question and again in the
+    // explanation.
+    let seen = 0;
+    for (const card of expansionCards()) {
+      if (!INTERVAL_GRID.test(card.id)) continue;
+      if (!DOUBLE.test(card.question)) continue;
+      seen += 1;
+      expect(card.question, card.id).toMatch(/[A-G]𝄫 \([A-G][♯♭]?\)/);
+      expect(card.explanation ?? '', card.id).toMatch(/𝄫 is [A-G][♯♭]? on the keyboard/);
+    }
+    // D♭ and G♭ reach two each, G♭ a third, A♭ one.
+    expect(seen).toBe(6);
   });
 
   it('across every degree of every key, directly', () => {

@@ -250,8 +250,13 @@ export function noteWithPlayable(p: Pitch): string {
  *
  * Direction follows the accidental: a double flat has been pushed down
  * past the letter below it, a double sharp up past the letter above.
+ *
+ * EXPORTED FOR THE INTERVAL GRID, which reaches a double flat for six
+ * of its 156 cards — the minor 2nd above D♭ is E𝄫 — and needs the same
+ * answer to the same question. It renders it in PLAIN brackets rather
+ * than the bold ones this file uses; see `noteLabelGlossed`.
  */
-function playableName(p: Pitch): string {
+export function playableName(p: Pitch): string {
   const target = spellInterval(p, p.accidental === '##' ? 1 : -1, 0);
   if (target === null) throw new Error(`[scaleDegreeQuality] no playable name for ${ascii(p)}`);
   return `${target.letter}${target.accidental === null ? '' : GLYPH[target.accidental] ?? target.accidental}`;

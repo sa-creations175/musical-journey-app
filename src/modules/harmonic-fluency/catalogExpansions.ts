@@ -4,7 +4,7 @@ import {
 import {
   INTERVAL_NAMES, article, intervalNameAt,
 } from './intervalInversion';
-import { INTERVAL_QUALITIES } from './scaleDegreeQuality';
+import { INTERVAL_QUALITIES, playableName } from './scaleDegreeQuality';
 import type { Flashcard } from './catalog';
 import { chooseDecoys } from './decoyGuard';
 import { PRACTICAL_NAME as PRACTICAL_SPELLINGS } from '../../lib/theoreticalSpellings';
@@ -175,10 +175,39 @@ export function noteLabel(ascii: string): string {
   return acc === '' ? letter : `${letter}${GLYPH[acc] ?? acc}`;
 }
 
-/** Display form WITH the practical name, spaced for prose. Question
- *  text and explanations; options are glossed at render instead, and
- *  more tightly. */
+/**
+ * Display form WITH the practical name, spaced for prose. Question
+ * text and explanations; options are glossed at render instead, and
+ * more tightly.
+ *
+ * =====================================================================
+ * A DOUBLE ACCIDENTAL IS GLOSSED TOO, AND IN PLAIN BRACKETS.
+ *
+ * `PRACTICAL_NAME` holds the four single-accidental spellings that name
+ * a white key — C♭, F♭, B♯, E♯ — and its header proves that is the
+ * complete set AT SINGLE ACCIDENTALS. A double flat is the other case
+ * and needs the same courtesy for a stronger reason: C♭ (B) is a note a
+ * reader could find by reasoning, and E𝄫 (D) is one they cannot play
+ * until they are told.
+ *
+ * `scaleDegreeQuality` makes exactly that argument and renders it
+ * `B𝄫 (**A**)` — bold, because there the parenthetical IS the
+ * instruction. Here the brackets are plain, for two reasons: this is
+ * question text rather than a rendered row, so the asterisks would
+ * print as asterisks; and the shape a reader already knows from
+ * "E♯ (F)" is the shape ruling 1 asked for. The two conventions stay
+ * distinct, which that file's header asks in terms.
+ *
+ * The playable name comes from `playableName` rather than a second
+ * table — one letter across at the same pitch, which is the rule, and a
+ * table of double flats would be that rule written down again.
+ * =====================================================================
+ */
 export function noteLabelGlossed(ascii: string): string {
+  const p = parse(ascii);
+  if (p.accidental === 'bb' || p.accidental === '##') {
+    return `${noteLabel(ascii)} (${playableName(p)})`;
+  }
   const practical = PRACTICAL_NAME[ascii];
   return practical === undefined
     ? noteLabel(ascii)
@@ -204,8 +233,19 @@ export function degreeLabelGlossed(root: string, degree: string): string {
  */
 export function keyboardNote(...asciiNotes: string[]): string {
   const glossed = [...new Set(asciiNotes)]
-    .filter(n => n in PRACTICAL_NAME)
-    .map(n => `${noteLabel(n)} is ${PRACTICAL_NAME[n]} on the keyboard`);
+    .map(n => {
+      // A DOUBLE ACCIDENTAL EARNS THE SENTENCE MORE THAN THE FOUR DO.
+      // C♭ is a note a reader could find by reasoning; E𝄫 is one they
+      // cannot play until they are told. Same sentence, same shape.
+      const p = parse(n);
+      if (p.accidental === 'bb' || p.accidental === '##') {
+        return `${noteLabel(n)} is ${playableName(p)} on the keyboard`;
+      }
+      return n in PRACTICAL_NAME
+        ? `${noteLabel(n)} is ${PRACTICAL_NAME[n]} on the keyboard`
+        : null;
+    })
+    .filter((line): line is string => line !== null);
   return glossed.length === 0 ? '' : ` ${glossed.join('; ')}.`;
 }
 
@@ -954,23 +994,34 @@ const LETTER_STEPS_BY_SEMITONES: Readonly<Record<number, number>> = {
 };
 
 /**
- * The note this interval lands on, or null where the answer would need
- * a double accidental.
+ * The note this interval lands on.
  *
- * SIX OF THE 156 COMBINATIONS ARE NULL and every one is real rather
- * than a gap: the minor 2nd above D♭ is E𝄫, and there is no
- * single-accidental name for it that is still a minor 2nd. Writing "D♭
- * to D" would be an augmented unison and would teach the opposite of
- * what the card asks. The deck's own rule — no double accidentals in
- * any family, asserted by a test — decides it.
+ * =====================================================================
+ * A CARD IS NEVER SKIPPED OVER SPELLING.
+ *
+ * Six of the 156 need a double flat — the minor 2nd above D♭ is E𝄫 —
+ * and for a while those six were left out. That was the wrong trade.
+ * The minor 2nd above D♭ is a real interval and a reader meets it; the
+ * only alternative name, "D♭ to D", is an augmented unison and would
+ * teach the opposite of what the card asks.
+ *
+ * So the true spelling is written and the plain name follows it in
+ * brackets, the way the deck already writes E♯ (F) and C♭ (B). The
+ * no-double-accidentals rule is narrowed rather than dropped: a double
+ * is allowed where it is the only honest spelling and it always carries
+ * the bracket. Nothing outside this family reaches one, and the test
+ * still fails if anything does.
+ *
+ * `null` is left for a spelling `spellInterval` cannot produce at all,
+ * which nothing in this grid reaches.
+ * =====================================================================
  */
 export function intervalToAscii(from: string, semitones: number): string | null {
   const steps = LETTER_STEPS_BY_SEMITONES[semitones];
   if (steps === undefined) return null;
   const p = spellInterval(parse(from), steps, semitones);
   if (p === null) return null;
-  const accidental = p.accidental ?? '';
-  return accidental.length > 1 ? null : `${p.letter}${accidental}`;
+  return `${p.letter}${p.accidental ?? ''}`;
 }
 
 /**
@@ -1046,7 +1097,12 @@ export function generateIntervalGrid(): Flashcard[] {
           count: 3, seed: id, label: id, category: 'intervals',
         }),
         explanation: `${noteLabel(from)} up to ${noteLabel(toAscii)} spans `
-          + `${semitones} semitones — ${article(correct)} ${correct}.`
+          // ONE SEMITONE, NOT ONE SEMITONES. The sentence was written
+          // for the five top-up cards, whose spans ran from 4 to 11, so
+          // the plural was safe to hardcode until the grid reached a
+          // minor 2nd. Agreement, not new wording.
+          + `${semitones} semitone${semitones === 1 ? '' : 's'} — `
+          + `${article(correct)} ${correct}.`
           + keyboardNote(toAscii)
           + ` ${INTERVAL_CONTEXT}`,
         skillTag: `interval-${from}-up-${semitones}`,

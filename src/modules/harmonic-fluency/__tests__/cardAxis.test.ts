@@ -91,9 +91,9 @@ describe('intervals', () => {
   const cards = generated('intervals', /^iv-[^-]+-up-\d+$/);
 
   it('carries from, to, the computed span and the movement', () => {
-    // 13 notes x 12 distances, less the six that would need a double
-    // accidental.
-    expect(cards.length).toBe(150);
+    // 13 notes x 12 distances, none missing: the six that need a
+    // double accidental write one, glossed.
+    expect(cards.length).toBe(156);
     for (const c of cards) {
       expect(Object.hasOwn(c, 'axis'), c.id).toBe(true);
       // `movement` is absent on the octave and only there — the
@@ -209,7 +209,7 @@ describe('absent means flat list, not broken', () => {
       'enharmonic-equivalents': 35,
       'scale-degree-math': 168,
       'functional-harmony': 33,
-      'intervals': 150,
+      'intervals': 156,
       'key-signatures': 17,
       // 33 before ruling 42 — three modes in eleven keys. Every mode
       // in every key now, and F♯ major and G♭ major are two of them.
