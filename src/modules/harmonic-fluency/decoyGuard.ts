@@ -127,9 +127,26 @@ function loneBy(
  *
  * A bare `/b/` would call "dominant 7" an accidental, and a bare
  * `/[#♯♭]/` would miss every ASCII flat in the named-notes category.
+ *
+ * =====================================================================
+ * THE `u` FLAG IS LOAD-BEARING, AND IT WAS MISSING.
+ *
+ * 𝄪 and 𝄫 are outside the BMP: each is a SURROGATE PAIR. Without `u`, a
+ * character class reads them as their halves, so `[#♯♭𝄪𝄫]` was really
+ * `[#♯♭\uD834\uDD2A\uDD2B]` — a class of five code units, three of
+ * them lone surrogates. It happened to give the right answer on this
+ * deck, because every 𝄪 and 𝄫 carries the shared high surrogate
+ * \uD834 and nothing else in the deck does; but it would also have
+ * called any other U+1D1xx musical symbol an accidental, and a lone
+ * \uD834 in a string is not a note at all.
+ *
+ * With `u` the class is the five characters it reads as. A test pins
+ * that the answer is unchanged on every option in the deck, so the
+ * repair is provably a repair rather than a behaviour change.
+ * =====================================================================
  */
 export function hasAccidental(label: string): boolean {
-  return /[#♯♭𝄪𝄫]/.test(label)
+  return /[#♯♭𝄪𝄫]/u.test(label)
     || /(^|[\s(,/])[A-G]b/.test(label)
     || /(^|[\s(,/])b\d/.test(label);
 }
