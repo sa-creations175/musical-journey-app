@@ -54,6 +54,9 @@ import { reachableChordRefs } from '../modules/ear-training/chord-recognition/in
 import { PROGRESSIONS } from '../modules/ear-training/chord-progressions/catalog';
 import { MODES } from '../modules/ear-training/scales-modes/catalog';
 import { FLASHCARDS, type FlashcardCategory } from '../modules/harmonic-fluency/catalog';
+import {
+  HF_CATEGORIES_BY_GROUP, type HarmonicFluencyGroupId,
+} from '../modules/harmonic-fluency/coverageGroups';
 import { PRODUCTION_PATHS } from '../modules/production/content/paths';
 import { lessonsByPath } from '../modules/production/content/lessons';
 import { readingSkillForItemRef } from '../modules/reading/catalog';
@@ -121,23 +124,17 @@ export function earTrainingCounts(): EarTrainingCounts {
 // Harmonic Fluency
 // =====================================================================
 
-/** Categories that make up each coverage group. Mirrors
- *  HARMONIC_FLUENCY_GROUPS in GoalCreationFlow.tsx — kept here so the
- *  helper owns the group → category mapping that the denominators
- *  depend on. If a category is added, both lists update; if a category
- *  moves groups, both lists update. */
-const HF_GROUP_CATEGORIES: Record<HarmonicFluencyGroupId, ReadonlyArray<FlashcardCategory>> = {
-  foundational:        ['scale-degree-math', 'degree-notes', 'key-signatures', 'pentatonic-scales', 'enharmonic-equivalents'],
-  chordKnowledge:      ['diatonic-qualities', 'chord-construction', 'slash-chords'],
-  functionalApplied:   ['functional-harmony', 'progressions', 'modal-improvisation'],
-  earRecognition:      ['modes', 'intervals', 'ear-theory'],
-};
+/**
+ * Categories that make up each coverage group.
+ *
+ * ONE SOURCE, in `harmonic-fluency/coverageGroups.ts`. This used to be
+ * a hand-maintained copy with a comment saying it mirrored the three
+ * others; that file's header records what the four had actually
+ * drifted into.
+ */
+const HF_GROUP_CATEGORIES = HF_CATEGORIES_BY_GROUP;
 
-export type HarmonicFluencyGroupId =
-  | 'foundational'
-  | 'chordKnowledge'
-  | 'functionalApplied'
-  | 'earRecognition';
+export type { HarmonicFluencyGroupId };
 
 export interface HarmonicFluencyCounts {
   /** Per-coverage-group totals (sums of the categories below). */

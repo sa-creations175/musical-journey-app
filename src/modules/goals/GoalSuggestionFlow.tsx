@@ -61,6 +61,9 @@ import {
 import { promoteWantToLearnEntry } from './GoalCreationFlow';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
 import {
+  HARMONIC_FLUENCY_GROUPS as HF_GROUPS,
+} from '../harmonic-fluency/coverageGroups';
+import {
   earTrainingCounts,
   harmonicFluencyCounts,
   productionCounts,
@@ -132,12 +135,22 @@ interface HfCoverageGroupOption {
   accentHex: string;
 }
 
-const HF_COVERAGE_GROUPS: ReadonlyArray<HfCoverageGroupOption> = [
-  { id: 'foundational',       label: 'Foundational / Math',  denominator: HF_COUNTS.byGroup.foundational,      accentHex: DASHBOARD_META.accentHex },
-  { id: 'chord-knowledge',    label: 'Chord Knowledge',      denominator: HF_COUNTS.byGroup.chordKnowledge,    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
-  { id: 'functional-applied', label: 'Functional / Applied', denominator: HF_COUNTS.byGroup.functionalApplied, accentHex: PRACTICE_SESSIONS_META.accentHex },
-  { id: 'ear-recognition',    label: 'Ear & Recognition',    denominator: HF_COUNTS.byGroup.earRecognition,    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
-];
+const HF_GROUP_ACCENT: Readonly<Record<string, string>> = {
+  'foundational':       DASHBOARD_META.accentHex,                              // slate-blue
+  'chord-knowledge':    moduleMetaById('repertoire')?.accentHex ?? '#a8556b',   // deep rose
+  'functional-applied': PRACTICE_SESSIONS_META.accentHex,                      // teal
+  'ear-recognition':    moduleMetaById('ear-training')?.accentHex ?? '#5a8752', // forest green
+};
+
+/** The coverage pills — the same four groups, with their live
+ *  denominators. Derived, so a fifth group would appear here too. */
+const HF_COVERAGE_GROUPS: ReadonlyArray<HfCoverageGroupOption> =
+  HF_GROUPS.map(group => ({
+    id: group.unit,
+    label: group.title,
+    denominator: HF_COUNTS.byGroup[group.id],
+    accentHex: HF_GROUP_ACCENT[group.unit] ?? DASHBOARD_META.accentHex,
+  }));
 
 const MODULE_LABEL: Record<SuggestionFlowModule, string> = {
   'harmonic-fluency':    'Harmonic Fluency',
@@ -755,6 +768,21 @@ const ACCURACY_PCT_MIN = 50;
 const ACCURACY_PCT_MAX = 100;
 const ACCURACY_PCT_STEP = 5;
 
+/**
+ * The four groups as this picker draws them — the shared mapping, with
+ * an accent hung on each.
+ *
+ * THE CATEGORY LIST IS NO LONGER WRITTEN HERE. It was, and it had
+ * drifted: no `pentatonic-scales` under Foundational, and
+ * `reverse-key-pivots` still under Functional / Applied a week after
+ * that category's cards left the deck. See
+ * `harmonic-fluency/coverageGroups.ts`.
+ *
+ * THE ACCENTS STAY, because they are this screen's business and
+ * nothing outside it reads them. They are borrowed from sibling
+ * modules, which is a rendering decision rather than a fact about
+ * which cards are in which group.
+ */
 interface HarmonicFluencyGroup {
   id: string;
   title: string;
@@ -762,32 +790,13 @@ interface HarmonicFluencyGroup {
   categories: ReadonlyArray<FlashcardCategory>;
 }
 
-const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
-  {
-    id: 'foundational',
-    title: 'Foundational / Math',
-    accentHex: DASHBOARD_META.accentHex,
-    categories: ['scale-degree-math', 'degree-notes', 'key-signatures', 'enharmonic-equivalents'],
-  },
-  {
-    id: 'chord-knowledge',
-    title: 'Chord Knowledge',
-    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b',
-    categories: ['diatonic-qualities', 'chord-construction', 'slash-chords'],
-  },
-  {
-    id: 'functional-applied',
-    title: 'Functional / Applied',
-    accentHex: PRACTICE_SESSIONS_META.accentHex,
-    categories: ['functional-harmony', 'reverse-key-pivots', 'progressions', 'modal-improvisation'],
-  },
-  {
-    id: 'ear-recognition',
-    title: 'Ear & Recognition',
-    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752',
-    categories: ['modes', 'intervals', 'ear-theory'],
-  },
-];
+const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> =
+  HF_GROUPS.map(group => ({
+    id: group.unit,
+    title: group.title,
+    accentHex: HF_GROUP_ACCENT[group.unit] ?? DASHBOARD_META.accentHex,
+    categories: group.categories,
+  }));
 
 function HfAccuracySection({
   target,

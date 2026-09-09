@@ -200,11 +200,16 @@ describe('catalogTotalForGoal', () => {
   });
 
   it('DRIFT GUARD: the two HF group mappings still describe the same groups', () => {
-    // progress.ts (kebab, what a goal's targetUnit carries) and
-    // moduleItemCounts.ts (camelCase, what the denominators are keyed
-    // by) keep independent hand-maintained copies of the same
-    // group→category mapping. If either gains or loses a group this
-    // fails, rather than a scope silently resolving to a null total.
+    // THEY ARE NO LONGER INDEPENDENT. progress.ts (kebab, what a
+    // goal's targetUnit carries) and moduleItemCounts.ts (camelCase,
+    // what the denominators are keyed by) are two readings of one list
+    // in `harmonic-fluency/coverageGroups.ts`, so this can no longer
+    // catch a hand-maintained copy going stale.
+    //
+    // It is kept because what it actually asserts is the SEAM — that
+    // the translation table still spans both vocabularies and that the
+    // counts object still has those four fields. A group renamed on
+    // one side only would still fail here.
     const kebab = Object.keys(HF_GROUP_CATEGORIES).sort();
     const translated = Object.keys(HF_UNIT_TO_COUNT_GROUP).sort();
     expect(translated).toEqual(kebab);

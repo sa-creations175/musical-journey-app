@@ -33,6 +33,7 @@
 import { db, type AcquisitionStage, type AttemptRecord, type Goal, type GoalScope, type SpacingState } from '../../lib/db';
 import { MIN_ATTEMPTS_FOR_TIER } from '../../lib/tier';
 import { cardById, type FlashcardCategory } from '../harmonic-fluency/catalog';
+import { HF_CATEGORIES_BY_UNIT } from '../harmonic-fluency/coverageGroups';
 import { lessonsByPath } from '../production/content/lessons';
 import {
   COVERAGE_OVERALL_METRIC,
@@ -105,19 +106,18 @@ const ET_ATTEMPT_MODULE_IDS = ET_MODULE_REFS;
  *  doing lately." */
 export const ACCURACY_ROLLING_WINDOW = 200;
 
-/** HF coverage-group id → constituent FlashcardCategory list. Keys
- *  use the kebab-case `group.id` form stored in goal.targetUnit by
- *  the encoder (see HARMONIC_FLUENCY_COVERAGE_GROUPS in
- *  GoalCreationFlow.tsx). Mirrors the camelCase mapping in
- *  moduleItemCounts.ts; kept separate here because the two consumers
- *  key by different domains (UI denominators vs stored
- *  goal.targetUnit). */
-export const HF_GROUP_CATEGORIES: Record<string, ReadonlyArray<FlashcardCategory>> = {
-  'foundational':       ['scale-degree-math', 'degree-notes', 'key-signatures', 'pentatonic-scales', 'enharmonic-equivalents'],
-  'chord-knowledge':    ['diatonic-qualities', 'chord-construction', 'slash-chords'],
-  'functional-applied': ['functional-harmony', 'progressions', 'modal-improvisation'],
-  'ear-recognition':    ['modes', 'intervals', 'ear-theory'],
-};
+/**
+ * HF coverage-group id → constituent FlashcardCategory list, keyed by
+ * the kebab-case `group.id` form stored in `goal.targetUnit`.
+ *
+ * ONE SOURCE, in `harmonic-fluency/coverageGroups.ts`. This was a
+ * hand-maintained copy with a comment saying it mirrored the camelCase
+ * one; that file's header records what the four copies had actually
+ * drifted into, this one included.
+ */
+export const HF_GROUP_CATEGORIES: Readonly<
+  Record<string, ReadonlyArray<FlashcardCategory>>
+> = HF_CATEGORIES_BY_UNIT;
 
 /** S&P sub-area id → spacingState itemRef prefix. Legacy single-
  *  bucket map, kept for callers that still reason about activity

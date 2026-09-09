@@ -19,6 +19,9 @@ import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
 import { DEFAULT_STAGE } from '../repertoire/stage';
 import { assignNextLearningOrder } from '../repertoire/seedSongs';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
+import {
+  HARMONIC_FLUENCY_GROUPS as HF_COVERAGE_GROUPS,
+} from '../harmonic-fluency/coverageGroups';
 import { YearlyAnchorSuggestionPanel } from './YearlyAnchorSuggestionPanel';
 import {
   CHORD_QUALITIES,
@@ -2079,47 +2082,42 @@ function previewEarTrainingTarget(target: EarTrainingTarget): string | null {
  * lockstep with the existing module's vocabulary if a label is ever
  * retuned.
  */
+/**
+ * The four groups as this picker draws them — the shared mapping, with
+ * an accent hung on each.
+ *
+ * THE CATEGORY LIST IS NO LONGER WRITTEN HERE. It was, and it had
+ * drifted: no `pentatonic-scales` under Foundational, and
+ * `reverse-key-pivots` still under Functional / Applied a week after
+ * that category's cards left the deck. See
+ * `harmonic-fluency/coverageGroups.ts`.
+ *
+ * THE ACCENTS STAY, because they are this screen's business and
+ * nothing outside it reads them. They are borrowed from sibling
+ * modules, which is a rendering decision rather than a fact about
+ * which cards are in which group.
+ */
+const HF_GROUP_ACCENT: Readonly<Record<string, string>> = {
+  'foundational':       DASHBOARD_META.accentHex,                              // slate-blue
+  'chord-knowledge':    moduleMetaById('repertoire')?.accentHex ?? '#a8556b',   // deep rose
+  'functional-applied': PRACTICE_SESSIONS_META.accentHex,                      // teal
+  'ear-recognition':    moduleMetaById('ear-training')?.accentHex ?? '#5a8752', // forest green
+};
+
 interface HarmonicFluencyGroup {
   id: string;
   title: string;
-  /** Subtle accent borrowed from an existing module's canonical hex —
-   *  resolved through moduleMetaById / *_META exports so the goal flow
-   *  stays in lockstep with the rest of the app if a hex is retuned.
-   *  Used for the group header text and the resting border tint of
-   *  each category card. Selected state stays fluent (HF's parent
-   *  accent) so the chosen category reads as "selected for this
-   *  harmonic fluency goal" rather than "selected within group". */
   accentHex: string;
   categories: ReadonlyArray<FlashcardCategory>;
 }
 
-const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
-  {
-    id: 'foundational',
-    title: 'Foundational / Math',
-    accentHex: DASHBOARD_META.accentHex,                                // slate-blue
-    categories: ['scale-degree-math', 'degree-notes', 'key-signatures', 'enharmonic-equivalents'],
-  },
-  {
-    id: 'chord-knowledge',
-    title: 'Chord Knowledge',
-    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b',    // deep rose
-    categories: ['diatonic-qualities', 'chord-construction', 'slash-chords'],
-  },
-  {
-    id: 'functional-applied',
-    title: 'Functional / Applied',
-    accentHex: PRACTICE_SESSIONS_META.accentHex,                        // teal
-    categories: ['functional-harmony', 'reverse-key-pivots', 'progressions', 'modal-improvisation'],
-  },
-  {
-    id: 'ear-recognition',
-    title: 'Ear & Recognition',
-    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752',  // forest green — direct semantic match
-    categories: ['modes', 'intervals', 'ear-theory'],
-  },
-];
-
+const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> =
+  HF_COVERAGE_GROUPS.map(group => ({
+    id: group.unit,
+    title: group.title,
+    accentHex: HF_GROUP_ACCENT[group.unit] ?? DASHBOARD_META.accentHex,
+    categories: group.categories,
+  }));
 /**
  * Coverage-target groups for harmonic fluency. Each group's
  * `denominator` is the count of distinct flashcards the user must
@@ -2153,12 +2151,15 @@ interface HarmonicFluencyCoverageGroup {
 }
 
 const HF_COUNTS = harmonicFluencyCounts();
-const HARMONIC_FLUENCY_COVERAGE_GROUPS: ReadonlyArray<HarmonicFluencyCoverageGroup> = [
-  { id: 'foundational',       label: 'Foundational / Math',  denominator: HF_COUNTS.byGroup.foundational,      accentHex: DASHBOARD_META.accentHex },
-  { id: 'chord-knowledge',    label: 'Chord Knowledge',      denominator: HF_COUNTS.byGroup.chordKnowledge,    accentHex: moduleMetaById('repertoire')?.accentHex ?? '#a8556b' },
-  { id: 'functional-applied', label: 'Functional / Applied', denominator: HF_COUNTS.byGroup.functionalApplied, accentHex: PRACTICE_SESSIONS_META.accentHex },
-  { id: 'ear-recognition',    label: 'Ear & Recognition',    denominator: HF_COUNTS.byGroup.earRecognition,    accentHex: moduleMetaById('ear-training')?.accentHex ?? '#5a8752' },
-];
+/** The same four groups again, with their live denominators. Derived
+ *  rather than listed, so a fifth group appears in both. */
+const HARMONIC_FLUENCY_COVERAGE_GROUPS: ReadonlyArray<HarmonicFluencyCoverageGroup> =
+  HF_COVERAGE_GROUPS.map(group => ({
+    id: group.unit,
+    label: group.title,
+    denominator: HF_COUNTS.byGroup[group.id],
+    accentHex: HF_GROUP_ACCENT[group.unit] ?? DASHBOARD_META.accentHex,
+  }));
 
 const HARMONIC_FLUENCY_TOTAL_ITEMS = HF_COUNTS.total;
 

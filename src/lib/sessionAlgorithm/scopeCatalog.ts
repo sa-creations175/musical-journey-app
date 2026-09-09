@@ -43,28 +43,25 @@ import {
   harmonicFluencyCounts,
   productionCounts,
   shapesCounts,
-  type HarmonicFluencyGroupId,
 } from '../moduleItemCounts';
 import {
   getShapesCoverageGroup, shapesCoverageDenominator,
 } from '../../modules/goals/shapesCoverageGroups';
+import {
+  HF_UNIT_TO_COUNT_GROUP,
+} from '../../modules/harmonic-fluency/coverageGroups';
 import type { OutOfScore } from '../../modules/shapes-and-patterns/cellTargets';
 import { lessonsByPath } from '../../modules/production/content/lessons';
 
 /**
  * Goal `targetUnit` (kebab, as authored by the goal picker and read by
  * `candidateSpecForGoal`) → `moduleItemCounts` group id (camelCase).
- * See the header note. Exported so the drift test can assert both
- * sides still describe the same four groups.
+ *
+ * TWO FIELDS OF ONE ROW NOW, not two tables with a guard between them
+ * — see `harmonic-fluency/coverageGroups.ts`. Re-exported here because
+ * that is where every caller already reaches for it.
  */
-export const HF_UNIT_TO_COUNT_GROUP: Readonly<
-  Record<string, HarmonicFluencyGroupId>
-> = {
-  'foundational':       'foundational',
-  'chord-knowledge':    'chordKnowledge',
-  'functional-applied': 'functionalApplied',
-  'ear-recognition':    'earRecognition',
-};
+export { HF_UNIT_TO_COUNT_GROUP };
 
 /** ET sub-area ids are moduleRefs, and map straight onto the
  *  per-sub-area fields of `earTrainingCounts`. */

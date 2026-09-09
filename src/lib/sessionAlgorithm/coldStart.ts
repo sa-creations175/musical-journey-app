@@ -111,6 +111,10 @@ export const SHAPES_AREA_PREFIX_ORDER: ReadonlyArray<string> = [
  * from the picker skipping touched/acquired items, not from this
  * order alone.
  */
+// DERIVED, not written out again. The four groups and their order
+// live in `harmonic-fluency/coverageGroups.ts`; `coverageGroups.test`
+// asserts this is that order, so a fifth group joins the walk without
+// anyone remembering to add it here.
 export const HF_GROUP_ORDER: ReadonlyArray<string> = [
   'foundational',
   'chord-knowledge',
