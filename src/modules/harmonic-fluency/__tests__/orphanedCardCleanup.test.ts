@@ -85,8 +85,11 @@ describe('the authorised set', () => {
     // Twelve for the 6/♭7 shape (ruling 30), two for the key
     // signatures that named two keys at once, five pentatonic formula
     // cards and twelve "share the same" ones (commit 8), and the
-    // fifteen interval inversion fact cards.
-    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(46);
+    // fifteen interval inversion fact cards, and the four one-key
+    // progression cards.
+    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(50);
+    expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => /^pr-\d+$/.test(id)))
+      .toEqual(['pr-11', 'pr-14', 'pr-15', 'pr-20']);
     expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('iv-inv')))
       .toHaveLength(15);
     expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('sc-6-b7-')))

@@ -70,7 +70,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 193 + 278 = 1563
+// Harmonic Fluency — 949 + 143 + 189 + 278 = 1559
+// (9 Sep 2026, progression follow-ups: 1563 → 1559. Four one-key cards
+//  removed — the descending minor, the Dorian vamp, 4-1-5-6 and
+//  1-♭7-4. A progression is in every key or it is not in the deck.
+//  Progressions 141 → 137, functionalApplied 193 → 189.)
 // (9 Sep 2026, progression follow-ups: 1538 → 1563. The turnaround
 //  1-6-2-5 and the 1-4-5 joined the generated set, thirteen keys each;
 //  `pr-18` folded into the 1-4-5 in A. Progressions 116 → 141,
@@ -150,16 +154,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
-  it('functionalApplied = fh 52 + pr 141 = 193', () => {
-    expect(c.byGroup.functionalApplied).toBe(193);
+  it('functionalApplied = fh 52 + pr 137 = 189', () => {
+    expect(c.byGroup.functionalApplied).toBe(189);
   });
 
   it('earRecognition = mo 107 + iv 156 + et 15 = 278', () => {
     expect(c.byGroup.earRecognition).toBe(278);
   });
 
-  it('total = 1563 across all 13 categories', () => {
-    expect(c.total).toBe(1563);
+  it('total = 1559 across all 13 categories', () => {
+    expect(c.total).toBe(1559);
   });
 
   it('total equals sum of group totals', () => {

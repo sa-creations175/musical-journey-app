@@ -114,6 +114,14 @@ export const REMOVED_WITHOUT_SUCCESSOR: ReadonlyArray<string> = [
   'iv-inv-of-minor-3rd', 'iv-inv-of-major-6th', 'iv-inv-of-major-3rd',
   'iv-inv-of-minor-6th', 'iv-inv-of-perfect-4th', 'iv-inv-of-perfect-5th',
   'iv-inv-of-tritone', 'iv-inv-sum', 'iv-inv-quality-rule',
+  // FOUR ONE-KEY PROGRESSION CARDS (9 Sep 2026). A progression is in
+  // every key or it is not in the deck: the descending minor walk-down
+  // in A minor, the Dorian vamp in D, 4-1-5-6 in D (a rotation of the
+  // 1-5-6-4 that IS in every key) and 1-♭7-4 in C. No generated card
+  // asks what any of them asks, so nothing pairs. See
+  // `REMOVED_PROGRESSION_IDS` for the reasoning card by card; the
+  // plagal vamp names no key and is the exception that stays.
+  'pr-11', 'pr-14', 'pr-15', 'pr-20',
 ];
 
 /** One card whose rows are kept, and what a reader wrote on it. */

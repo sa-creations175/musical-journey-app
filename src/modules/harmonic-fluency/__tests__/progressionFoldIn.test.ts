@@ -120,19 +120,25 @@ describe('the one-offs that stay are untouched', () => {
     }
   });
 
-  it('keeps every progression not yet ruled into the generated set', () => {
-    // WAS FIVE, IS FOUR. `pr-18`'s 1-4-5 is generated in thirteen keys
-    // now and the card folded into the A one. The other four are still
-    // one-key cards; the report says which of them Silas has ruled on.
-    for (const id of ['pr-13', 'pr-14', 'pr-15', 'pr-20']) {
-      expect(ids.has(id), id).toBe(true);
+  it('removes the four one-key cards outright, and keeps the bossa', () => {
+    // A progression is in every key or it is not in the deck. The
+    // descending minor, the Dorian vamp, 4-1-5-6 and 1-♭7-4 are gone
+    // with their history — REMOVALS, not fold-ins, so they are in
+    // `REMOVED_WITHOUT_SUCCESSOR` and not in the retired list here.
+    const retired = new Set(retiredProgressionCards().map(c => c.id));
+    for (const id of ['pr-11', 'pr-14', 'pr-15', 'pr-20']) {
+      expect(ids.has(id), id).toBe(false);
+      expect(retired.has(id), id).toBe(false);
     }
+    // `pr-13`, the bossa I-VI-ii-V in F, is the one one-key progression
+    // card left and Silas has not ruled on it — see the report.
+    expect(ids.has('pr-13')).toBe(true);
   });
 
-  it('keeps the descending minor, which has no thirteen-key vocabulary', () => {
-    // `pr-11` is in A MINOR. The thirteen keys are major keys; read as
-    // minor tonics they would name D♭ minor and G♭ minor.
-    expect(ids.has('pr-11')).toBe(true);
+  it('generates no minor-key progression to replace the one removed', () => {
+    // `pr-11` was in A MINOR and went rather than being generated: the
+    // thirteen keys are major keys, and read as minor tonics they would
+    // name D♭ minor and G♭ minor.
     expect(FLASHCARDS.some(c => c.id.startsWith('pr-prog-descending'))).toBe(false);
   });
 

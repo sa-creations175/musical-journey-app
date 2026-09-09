@@ -64,6 +64,15 @@
  * and `identityIdMigration.ts` carries their rows across. The other
  * fourteen had none.
  * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 — FOUR `pr-` LINES REMOVED, NOTHING TAKING THEIR
+ * PLACE.
+ *
+ * `pr-11`, `pr-14`, `pr-15` and `pr-20` each taught a progression in
+ * one key. A progression is in every key or it is not in the deck, and
+ * none of the four was ruled into the generated set — so they went,
+ * with their history, through `orphanedCardCleanup`. Removals with no
+ * additions repoint nothing.
+ * ---------------------------------------------------------------
  * 9 SEPTEMBER 2026 — TWENTY-SIX `pr-prog-` LINES ADDED, ONE REMOVED.
  *
  * The turnaround 1-6-2-5 and the 1-4-5 joined the generated set at
@@ -1529,15 +1538,11 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   // --- progressions ---
   'pr-8|A plagal vamp is which two chords alternating?',
   'pr-9|The 1-5-6-4 and 6-4-1-5 progressions use the same chords; what changes?',
-  'pr-11|The descending minor progression i-bVII-bVI-V in A minor is _____',
   'pr-12|In the 12-bar blues, bars 5-6 typically go to which chord?',
   'pr-13|The bossa nova standard I-VI-ii-V in F is _____',
-  'pr-14|A Dorian vamp i-IV in D is _____',
-  'pr-15|The 4-1-5-6 in D major is _____',
   'pr-16|A tonic-pedal progression keeps which note in the bass?',
   'pr-17|A dominant pedal progression keeps which note in the bass?',
   'pr-19|The Coltrane changes cycle through how many key centers?',
-  'pr-20|The 1-b7-4 progression in C major is _____',
   'pr-prog-1-5-6-4-C|The 1-5-6-4 progression in C major is _____',
   'pr-prog-2-5-1-C|The 2-5-1 in C major is _____',
   'pr-prog-1-6-4-5-C|The 1-6-4-5 in C major is _____',

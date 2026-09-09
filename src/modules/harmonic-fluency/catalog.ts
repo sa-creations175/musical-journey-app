@@ -1262,6 +1262,30 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
     skillTag: 'chord-construction-diminished' },
 ];
 
+/**
+ * =====================================================================
+ * FOUR CARDS ARE NOT IN THIS ARRAY ANY MORE, AND THAT IS THE POINT.
+ *
+ * A progression is in every key or it is not in the deck. One card in
+ * one key teaches a shape in the one place a reader least needs it and
+ * reads as coverage the family does not have.
+ *
+ * `pr-11` was the descending minor i-♭VII-♭VI-V in A MINOR, and the
+ * thirteen keys are a major-key vocabulary — read as minor tonics they
+ * would name D♭ minor and G♭ minor. `pr-14` was the Dorian vamp, in a
+ * MODE rather than a key, and this family has no modal vocabulary at
+ * all. `pr-15` was 4-1-5-6, a rotation of the 1-5-6-4 that is in every
+ * key. `pr-20` was 1-♭7-4, in C.
+ *
+ * DELETED RATHER THAN FILTERED OUT. Nothing reads their text: no
+ * generated card asks what they asked, so there is nothing for a
+ * fold-in to compare them against, and a retired card kept for a
+ * comparison nobody makes is dead weight. Their ids are in
+ * `REMOVED_WITHOUT_SUCCESSOR`, which is what deletes their history.
+ *
+ * THE PLAGAL VAMP `pr-8` NAMES NO KEY AND IS THE EXCEPTION THAT STAYS.
+ * =====================================================================
+ */
 const PROGRESSION_CARDS_ALL: Flashcard[] = [
   { id: 'pr-1', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'The 1-5-6-4 progression in C major is _____', correctAnswer: 'C - G - Am - F',
@@ -1319,12 +1343,6 @@ const PROGRESSION_CARDS_ALL: Flashcard[] = [
     decoys: ['Cmaj7 - Dm7 - Am7 - Fmaj7', 'Cmaj7 - Em7 - Am7 - Dm7', 'Cmaj7 - Em7 - Am - F'],
     explanation: "Cmaj7 → Em7 → Am7 → Fmaj7 is the neo-soul cycle — lush, cycling, rarely fully resolving. Tom Misch, D'Angelo, Daniel Caesar, and Snoh Aalegra tracks live in this kind of harmonic space where everything stays beautifully suspended.",
     skillTag: 'progression-neo-soul-in-C' },
-  { id: 'pr-11', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The descending minor progression i-bVII-bVI-V in A minor is _____',
-    correctAnswer: 'Am - G - F - E',
-    decoys: ['Am - G - F - E7', 'Am - G - Fm - E', 'Am - Gm - F - E'],
-    explanation: "Am → G → F → E walks down by step from the tonic, then settles on the V for a strong 'about to come back home' feeling. Sometimes called the Andalusian cadence (from flamenco), it shows up in soul, hip-hop, and dramatic minor-key arrangements anytime a writer wants stepwise descent into tension.",
-    skillTag: 'progression-descending-minor-in-A-minor' },
   { id: 'pr-12', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'In the 12-bar blues, bars 5-6 typically go to which chord?',
     correctAnswer: 'IV7',
@@ -1337,18 +1355,6 @@ const PROGRESSION_CARDS_ALL: Flashcard[] = [
     decoys: ['Fmaj7 - Dm7 - Gm7 - C7', 'Fmaj7 - D7 - Am7 - C7', 'Fmaj7 - D7 - Gm7 - Cmaj7'],
     explanation: "Fmaj7 → D7 → Gm7 → C7 — bossa turnaround in F. The D7 is a secondary dominant (V/ii) pointing at Gm7. This shape is the harmonic spine of countless jazz standards, Brazilian tunes, and lounge-soul reharmonizations.",
     skillTag: 'progression-bossa-in-F' },
-  { id: 'pr-14', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'A Dorian vamp i-IV in D is _____',
-    correctAnswer: 'Dm - G',
-    decoys: ['Dm - Gm', 'D - G', 'Dm - Gm7'],
-    explanation: "Dm → G is a Dorian vamp — minor i going to MAJOR IV (not minor iv). That major IV is the Dorian signature; sit on these two chords forever and you're in 'So What' / D'Angelo territory.",
-    skillTag: 'progression-dorian-vamp-in-D' },
-  { id: 'pr-15', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The 4-1-5-6 in D major is _____',
-    correctAnswer: 'G - D - A - Bm',
-    decoys: ['G - D - Am - Bm', 'G - D - A - Em', 'Gm - D - A - Bm'],
-    explanation: "G → D → A → Bm (4-1-5-6 in D) is another rotation of the axis progression — starts on the IV for a soft, lifted opening that doesn't reveal the home chord until beat two. Common shape in worship and pop ballads.",
-    skillTag: 'progression-4-1-5-6-in-D' },
   { id: 'pr-16', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'A tonic-pedal progression keeps which note in the bass?',
     correctAnswer: 'the 1 (tonic)',
@@ -1373,12 +1379,6 @@ const PROGRESSION_CARDS_ALL: Flashcard[] = [
     decoys: ['two (a tritone apart)', 'four (a minor 3rd apart)', 'six (a whole step apart)'],
     explanation: "Coltrane changes cycle through three key centers a major 3rd apart (e.g., B → G → Eb → back to B). The 'Giant Steps' shape — hard to improvise over, but the underlying logic is simple: three tonics dividing the octave equally.",
     skillTag: 'progression-coltrane-cycle' },
-  { id: 'pr-20', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The 1-b7-4 progression in C major is _____',
-    correctAnswer: 'C - Bb - F',
-    decoys: ['C - B - F', 'C - Bb - Fm', 'Cm - Bb - F'],
-    explanation: "C → Bb → F is 1-bVII-IV — a Mixolydian/gospel move. The bVII (Bb) is borrowed from the parallel minor; you hear this three-chord cycle all over rock, gospel, and soul tunes that want a bluesy, open, never-quite-fully-resolved feel.",
-    skillTag: 'progression-1-b7-4-in-C' },
 ];
 
 /**
