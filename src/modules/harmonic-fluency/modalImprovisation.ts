@@ -167,12 +167,26 @@ export interface ModalCardText {
 export function modalCardText(root: string, chord: ModalChord): ModalCardText {
   const key = noteLabel(root);
   const chordRoot = noteLabel(degreeAscii(root, chord.degree));
+  /**
+   * "In the key of C major", never "In C".
+   *
+   * SILAS'S STANDING RULE, 9 Sep 2026: a key is always written "the key
+   * of C major" or "the key of C minor". A bare capital letter
+   * mid-sentence reads as a stray word rather than as a key, which is
+   * the confusion `CLAUDE.md` says has been caused more than once.
+   *
+   * THE QUESTION ONLY, in this family, because that is what was ruled.
+   * The explanations still say "the 2 of C" and "not in C major"; both
+   * are named in the report rather than swept up here.
+   */
+  const inKeyOf = `In the key of ${key} major`;
 
   if (chord.kind === 'in') {
     const chordName = `${chordRoot}${chord.quality ?? ''}`;
     return {
       chordName,
-      question: `In ${key}, the band is on ${chordName} (${chord.num}). Which notes fit?`,
+      question:
+        `${inKeyOf}, the band is on ${chordName} (${chord.num}). Which notes fit?`,
       answer: `Notes of the ${key} major scale`,
       explanation: `${chordName} is the ${chord.num} of ${key}. Every note it `
         + `holds is already in ${key} major, so nothing changes: stay in the key.`,
@@ -186,7 +200,8 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
   const targetChord = `${targetRoot}${minor ? 'm' : ''}`;
   return {
     chordName,
-    question: `In ${key}, the band is on ${chordName} (${chord.num}). Which notes fit?`,
+    question:
+      `${inKeyOf}, the band is on ${chordName} (${chord.num}). Which notes fit?`,
     answer: `Notes of the ${scaleName} scale`,
     explanation: `${chordName} is not in ${key} major; it is the 5 of `
       + `${targetChord}. Play the notes of the key it points to for that bar. `

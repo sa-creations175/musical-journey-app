@@ -100,6 +100,27 @@ would be the row a reader has to know is the same row.
 
 ---
 
+## Key names carry their mode
+
+Approved by Silas, 9 Sep 2026. A standing rule, not a one-family one.
+
+**A key is always written "the key of C major" or "the key of C minor".** Never a
+bare letter, and never "C" alone. A capital letter on its own mid-sentence reads
+as a stray word rather than as a key, which is the confusion `CLAUDE.md` records
+as having been caused more than once.
+
+Applied so far to **Modal Improvisation's question**, which now reads:
+
+```
+In the key of C major, the band is on D7 (5 of 5). Which notes fit?
+```
+
+**Not yet applied elsewhere.** That family's own explanations still say "the 2 of
+C", and the other families still ask "The 2-5-1 in B♭ major is _____". Those are
+a separate pass and are not covered by this entry.
+
+---
+
 ## The Modal Improvisation row
 
 Approved by Silas, 9 Sep 2026. What the family is, on the dashboard and anywhere

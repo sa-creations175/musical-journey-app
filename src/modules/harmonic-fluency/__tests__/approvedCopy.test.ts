@@ -131,6 +131,32 @@ function blockUnder(heading: string): string {
   return out.join(' ');
 }
 
+describe('key names carry their mode', () => {
+  it('shows a real card as its example', () => {
+    // The document's example is not an illustration — it is a card,
+    // and if the sentence ever changes shape this fails rather than
+    // the doc quietly describing a question nobody is asked.
+    const card = FLASHCARDS.find(c => c.id === 'mi-modal-5of5-C')!;
+    expect(card.question).toBe(blockUnder('Key names carry their mode'));
+  });
+
+  it('leaves no bare key in a Modal Improvisation question', () => {
+    for (const c of FLASHCARDS.filter(f => f.category === 'modal-improvisation')) {
+      expect(c.question.startsWith('In the key of '), c.id).toBe(true);
+      expect(c.question, c.id).toMatch(/^In the key of \S+ major, /);
+    }
+  });
+
+  it('says the rule is not applied elsewhere yet', () => {
+    // Named rather than merely untrue. The other families still ask
+    // "The 2-5-1 in B♭ major is _____", and a rule recorded as though
+    // it were deck-wide is a rule the next reader would assume held.
+    expect(COPY).toContain('Not yet applied elsewhere');
+    expect(FLASHCARDS.find(c => c.id === 'pr-prog-2-5-1-Bb')?.question)
+      .toBe('The 2-5-1 in B♭ major is _____');
+  });
+});
+
 describe('the Modal Improvisation row', () => {
   it('says Silas\'s sentence, word for word', () => {
     expect(MODAL_IMPROV_DESCRIPTION).toBe(blockUnder('The Modal Improvisation row'));
