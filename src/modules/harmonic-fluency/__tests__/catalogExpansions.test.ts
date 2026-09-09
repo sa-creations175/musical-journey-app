@@ -136,6 +136,43 @@ describe('the gloss is derived, not typed', () => {
   });
 });
 
+describe("the tritone's other names are in the reveal, not the option", () => {
+  const TRITONES = () => expansionCards().filter(c => /^iv-.+-up-6$/.test(c.id));
+
+  it('answers with the one word the interval-name table uses', () => {
+    // A LONGER ANSWER CANNOT SHIP, and this is not a preference. The
+    // other twelve names are short and plain, so any second name on the
+    // tritone makes it the uniquely longest option — `chooseDecoys`
+    // refuses the set and throws at import, which is the guard doing
+    // its job. See `OTHER_READINGS`.
+    const cards = TRITONES();
+    expect(cards).toHaveLength(13);
+    for (const c of cards) {
+      expect(c.correctAnswer, c.id).toBe('Tritone');
+      for (const option of [c.correctAnswer, ...(c.decoys ?? [])]) {
+        expect(option, `${c.id}: ${option}`).not.toContain('(');
+        expect(option, `${c.id}: ${option}`).not.toContain('/');
+      }
+    }
+  });
+
+  it('names the augmented 4th and the ♭5 in every tritone explanation', () => {
+    for (const c of TRITONES()) {
+      expect(c.explanation ?? '', c.id)
+        .toContain('also called the augmented 4th or ♭5');
+    }
+  });
+
+  it('and says it on no other card', () => {
+    // The clause is keyed to the answer name, so an interval that
+    // acquires a second reading gets it and nothing else does.
+    for (const c of expansionCards()) {
+      if (/^iv-.+-up-6$/.test(c.id)) continue;
+      expect(c.explanation ?? '', c.id).not.toContain('also called the');
+    }
+  });
+});
+
 describe('a double accidental is allowed where it is the only honest spelling', () => {
   const DOUBLE = /𝄪|𝄫|##|bb/;
 

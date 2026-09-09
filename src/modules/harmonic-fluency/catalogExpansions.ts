@@ -1328,6 +1328,28 @@ function intervalName(semitones: number): string {
   return name;
 }
 
+/**
+ * An interval that the deck calls one thing and players call others.
+ *
+ * =====================================================================
+ * ONE ENTRY, AND IT BELONGS IN THE REVEAL RATHER THAN THE OPTION.
+ *
+ * The option stays the single word the one interval-name table uses.
+ * A longer answer was tried and cannot ship: `chooseDecoys` refuses any
+ * set a blind rule can solve, and the other twelve names are short and
+ * plain, so ANY second name on the tritone — bracketed, slashed, or
+ * even the plain "Augmented 4th" — makes the answer the uniquely
+ * longest option and throws at import. That is the guard working; the
+ * fix is to say it where saying it costs nothing.
+ *
+ * A map rather than an `if`, so the next interval with two readings is
+ * a line here and not a branch in the generator.
+ * =====================================================================
+ */
+const OTHER_READINGS: Readonly<Record<string, string>> = {
+  Tritone: ', also called the augmented 4th or ♭5',
+};
+
 /** Every span an interval card asks about, in semitones — a minor 2nd
  *  up to the octave (ruling 43). The unison is not a distance anybody
  *  is asked to name. */
@@ -1458,7 +1480,7 @@ export function generateIntervalGrid(): Flashcard[] {
           // the plural was safe to hardcode until the grid reached a
           // minor 2nd. Agreement, not new wording.
           + `${semitones} semitone${semitones === 1 ? '' : 's'} — `
-          + `${article(correct)} ${correct}.`
+          + `${article(correct)} ${correct}${OTHER_READINGS[correct] ?? ''}.`
           + keyboardNote(toAscii)
           + ` ${INTERVAL_CONTEXT}`,
         skillTag: `interval-${from}-up-${semitones}`,
