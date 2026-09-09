@@ -385,6 +385,17 @@ sit has changed.
 - Copy chord
 - Delete chord
 
+### Deleting a movement — new, 8 Sep 2026
+
+Through `ConfirmDialog`, the app's own confirm for an action that can
+blow away user work. **Cancel** is the dialog's own default and is not
+listed here.
+
+- Delete this movement?
+- "{name}" and everything pressed into it goes.
+- This movement and everything pressed into it goes.
+- Delete movement
+
 ### The octave navigation
 
 - ◀ Lower octave

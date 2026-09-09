@@ -29,14 +29,16 @@
  * movement has no targets to be a fraction of.
  * =====================================================================
  */
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../../../lib/db';
+import ConfirmDialog from '../../../components/ConfirmDialog';
+import { db, type ChordMovement } from '../../../lib/db';
 import { useSpelling } from '../../../lib/spellingPref';
 import { spellKey } from '../../../lib/spelling';
 import { SECTION_TIME_SIGNATURE_PRESETS } from '../../repertoire/barGrid';
 import { movementPath } from '../sectionRoutes';
-import { createMovement } from './movementStore';
+import { createMovement, deleteMovement } from './movementStore';
 
 /** What an unnamed movement is called in a list. Silas names them
  *  himself (ruling 4); this is the list saying so, not a name. */
@@ -45,6 +47,17 @@ const UNNAMED = 'Unnamed movement';
 export default function MovementsList() {
   const navigate = useNavigate();
   const [spelling] = useSpelling();
+  /**
+   * The movement a delete has been asked for, or null.
+   *
+   * THE APP'S OWN CONFIRM, NOT A NEW ONE. `ConfirmDialog` is what a
+   * song section with work in it goes through, and its own header says
+   * when to reach for it: an action where blowing away user work is
+   * possible. A movement is nothing but user work — the notes were
+   * pressed by hand — and there is no undo toast on this page to be
+   * the second net, so it always confirms.
+   */
+  const [confirming, setConfirming] = useState<ChordMovement | null>(null);
   const movements = useLiveQuery(
     async () => (await db.chordMovements.toArray())
       .sort((a, b) => b.updatedAt - a.updatedAt),
@@ -98,10 +111,11 @@ export default function MovementsList() {
         <ul className="space-y-2" data-testid="movements-list">
           {movements.map(m => (
             <li key={m.id}>
+            <div className="relative">
               <Link
                 to={movementPath(m.id)}
                 data-testid={`movement-row-${m.id}`}
-                className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-3 hover:border-fluent"
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-3 pr-10 hover:border-fluent"
               >
                 <span className={m.name ? 'text-base font-semibold' : 'text-base font-semibold text-neutral-400 italic'}>
                   {m.name || UNNAMED}
@@ -118,10 +132,42 @@ export default function MovementsList() {
                   </span>
                 )}
               </Link>
+              {/* OUTSIDE THE LINK, not inside it. A button nested in an
+                  anchor is invalid markup and a delete that also
+                  navigates is the worst possible near-miss. */}
+              <button
+                type="button"
+                data-testid={`delete-movement-${m.id}`}
+                aria-label={`delete ${m.name || UNNAMED}`}
+                onClick={() => setConfirming(m)}
+                className="absolute top-2 right-2 rounded px-2 py-1 text-sm text-neutral-400 hover:text-needswork"
+              >
+                ×
+              </button>
+            </div>
             </li>
           ))}
         </ul>
       )}
+
+      <ConfirmDialog
+        open={confirming !== null}
+        title="Delete this movement?"
+        message={(
+          <p>
+            {confirming?.name
+              ? `"${confirming.name}" and everything pressed into it goes.`
+              : 'This movement and everything pressed into it goes.'}
+          </p>
+        )}
+        confirmLabel="Delete movement"
+        onCancel={() => setConfirming(null)}
+        onConfirm={async () => {
+          const m = confirming;
+          setConfirming(null);
+          if (m) await deleteMovement(m.id);
+        }}
+      />
     </div>
   );
 }

@@ -93,6 +93,64 @@ describe('the list', () => {
   });
 });
 
+describe('removing one', () => {
+  it('asks before it goes, through the app’s own confirm', async () => {
+    // `ConfirmDialog` is what a song section with work in it goes
+    // through. A movement is nothing BUT user work — the notes were
+    // pressed by hand — and this page has no undo toast to be the
+    // second net, so it always asks.
+    await db.chordMovements.add({ ...newMovement('6/8'), id: 'm1', name: 'Walk-up' });
+    await open();
+    await act(async () => {
+      (byTestId('delete-movement-m1') as HTMLElement).click();
+    });
+    await settle();
+    expect(document.body.textContent).toContain('Delete this movement?');
+    expect(document.body.textContent).toContain('Walk-up');
+    // Nothing has gone yet.
+    expect(await db.chordMovements.count()).toBe(1);
+  });
+
+  it('backing out leaves it where it was', async () => {
+    await db.chordMovements.add({ ...newMovement('6/8'), id: 'm1', name: 'Walk-up' });
+    await open();
+    await act(async () => {
+      (byTestId('delete-movement-m1') as HTMLElement).click();
+    });
+    await settle();
+    const cancel = [...document.querySelectorAll('button')]
+      .find(b => b.textContent === 'Cancel')!;
+    await act(async () => { cancel.click(); });
+    await settle();
+    expect(await db.chordMovements.count()).toBe(1);
+    expect(byTestId('movement-row-m1')).not.toBeNull();
+  });
+
+  it('confirming removes it, and the list says it is empty again', async () => {
+    await db.chordMovements.add({ ...newMovement('6/8'), id: 'm1', name: 'Walk-up' });
+    await open();
+    await act(async () => {
+      (byTestId('delete-movement-m1') as HTMLElement).click();
+    });
+    await settle();
+    const confirm = [...document.querySelectorAll('button')]
+      .find(b => b.textContent === 'Delete movement')!;
+    await act(async () => { confirm.click(); });
+    await settle();
+    expect(await db.chordMovements.count()).toBe(0);
+    expect(byTestId('movements-empty')).not.toBeNull();
+  });
+
+  it('the delete is not inside the link, so it cannot navigate by accident', async () => {
+    // A button nested in an anchor is invalid markup and a delete that
+    // also opens the thing it deleted is the worst possible near-miss.
+    await db.chordMovements.add({ ...newMovement('6/8'), id: 'm1' });
+    await open();
+    expect(byTestId('movement-row-m1')!.contains(byTestId('delete-movement-m1')))
+      .toBe(false);
+  });
+});
+
 describe('making one', () => {
   it('asks only for a time signature, from the presets a section uses', async () => {
     // Ruling 6, and the reason there is one list: `barGrid.ts` owns it
