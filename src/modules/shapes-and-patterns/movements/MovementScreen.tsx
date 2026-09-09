@@ -245,6 +245,11 @@ export default function MovementScreen() {
       placements: [placement], key: movement.key, timeSignature: movement.timeSignature,
     });
     if (!one) { setShowNoKey(true); return; }
+    // A CHORD WHOSE DEGREE HAS NO ROOT IS DROPPED BY THE TRANSLATION —
+    // `SEMI_BY_DEGREE` knows `b6` and not `#5`, so a chord typed the
+    // second way resolves to nothing. There is no sound to make for it
+    // and reaching into an empty list would throw on a keystroke.
+    if (one.chords.length === 0) return;
     void (async () => {
       const ctx = await ensureRunning();
       const at = ctx.currentTime + 0.02;
@@ -449,8 +454,25 @@ export default function MovementScreen() {
             section={grid.section}
             activeArrangementId={grid.arrangementId}
             chordsAreSortable
-            onChordAdd={(barIndex, beatPos, chord, offbeat) =>
-              apply(addChord(movement, barIndex, beatPos, chord, offbeat))}
+            onChordAdd={(barIndex, beatPos, chord, offbeat) => {
+              // THE PROTOTYPE'S STEP 1: it lands one position long, it
+              // opens in the editor, and it sounds once. The id is
+              // minted here rather than inside `addChord` so the chord
+              // that was just made is the one that gets selected and
+              // heard — reading it back off the list afterwards would
+              // be finding it by guesswork.
+              const id = crypto.randomUUID();
+              apply(addChord(movement, barIndex, beatPos, chord, offbeat, id));
+              setPickedId(id);
+              previewChord({
+                id, arrangementId: 'movement', barIndex, beatPos, beats: 1, chord,
+                ...(offbeat ? { offbeat: true } : {}),
+              });
+              // A chord is a NUMBER and needs no key to be stored, so
+              // this does not refuse. What it cannot do without one is
+              // be voiced or heard, and that is what the message says.
+              if (!movement.key) setShowNoKey(true);
+            }}
             onChordSelect={setPickedId}
             onAddBar={() => apply(addBar(movement))}
             onDeleteBar={barIndex => apply(deleteBar(movement, barIndex))}

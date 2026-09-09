@@ -35,6 +35,7 @@
  */
 import type { ChordFunction, ChordMovement, ChordPlacement, Song, SongSection } from '../../../lib/db';
 import { MOVEMENT_ARRANGEMENT_ID } from '../../../lib/db';
+import { MIN_MOVEMENT_BARS } from './movementStore';
 import {
   addChordPlacement,
   cascadeChordPlacements,
@@ -94,6 +95,12 @@ export function movementGridView(movement: ChordMovement): MovementGridView {
       lyrics: '',
       timeSignature: movement.timeSignature,
       chordPlacements: movement.placements,
+      // A MOVEMENT ALWAYS HAS AT LEAST ONE BAR. `deriveBarGrid` takes
+      // this as a FLOOR — `max(highest placement's bar + 1, barCount,
+      // barLayout.length)` — so it only ever raises the count, never
+      // caps it. Without it a brand-new movement has nothing to tap:
+      // no placements and no layout means no bars and no slots.
+      barCount: MIN_MOVEMENT_BARS,
       ...(movement.barLayout ? { barLayout: movement.barLayout } : {}),
     } as SongSection,
     arrangementId: MOVEMENT_ARRANGEMENT_ID,

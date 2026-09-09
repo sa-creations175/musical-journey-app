@@ -844,6 +844,7 @@ function AddBarButton({ onAddBar }: { onAddBar: () => void }) {
   return (
     <button
       type="button"
+      data-testid="add-bar"
       onClick={onAddBar}
       className="inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded border border-dashed border-neutral-300 dark:border-neutral-700 text-neutral-500 hover:text-fluent hover:border-fluent"
     >
