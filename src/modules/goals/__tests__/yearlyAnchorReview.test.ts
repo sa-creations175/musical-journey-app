@@ -448,6 +448,6 @@ describe('dimensionRowsFor — Harmonic Fluency', () => {
     const rows = dimensionRowsFor(draftFor('harmonic-fluency', { harmonicFluency: baseHf }));
     expect(rows[0].value).toContain('cards');
     // 648 until 3 Sep 2026 — see `moduleItemCounts.test.ts`.
-    expect(rows[0].value).toContain('1439');
+    expect(rows[0].value).toContain('1466');
   });
 });

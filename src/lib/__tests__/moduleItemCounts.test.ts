@@ -70,7 +70,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 925 + 143 + 78 + 293 = 1439
+// Harmonic Fluency — 952 + 143 + 78 + 293 = 1466
+// (9 Sep 2026, commit 8: 1439 → 1466. Key Signatures regenerated —
+//  the count in thirteen keys, the relative pair both ways in thirteen
+//  keys, and a count-to-key card per mode. Key signatures 56 → 83,
+//  foundational 925 → 952.)
 // (9 Sep 2026, commit 8: 1432 → 1439. Slash Chords regenerated for the
 //  thirteen keys — 84 generated cards became 91. chordKnowledge
 //  136 → 143.)
@@ -121,8 +125,8 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 168 + dgn 625 + ks 56 + pent 41 + enh 35 = 925', () => {
-    expect(c.byGroup.foundational).toBe(925);
+  it('foundational = sdm 168 + dgn 625 + ks 83 + pent 41 + enh 35 = 952', () => {
+    expect(c.byGroup.foundational).toBe(952);
   });
 
   it('chordKnowledge = dq 20 + cc 20 + sc 103 = 143', () => {
@@ -137,8 +141,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(293);
   });
 
-  it('total = 1439 across all 13 categories', () => {
-    expect(c.total).toBe(1439);
+  it('total = 1466 across all 13 categories', () => {
+    expect(c.total).toBe(1466);
   });
 
   it('total equals sum of group totals', () => {

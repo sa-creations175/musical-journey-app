@@ -74,7 +74,11 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // at 4 apiece — both came from the same twelve hand-written
   // "how many sharps" cards, whose decoys were counted by hand. They
   // now derive their decoys the way scale-degree math does.
-  { category: 'key-signatures', rule: 'only-accidental', cards: 2 },
+  // key-signatures / only-accidental stood at 2 and is 1: commit 8
+  // regenerated the count and relative sets, and a generated card
+  // draws its decoys from the thirteen key names rather than from a
+  // hand-picked three.
+  { category: 'key-signatures', rule: 'only-accidental', cards: 1 },
   // One card, hand-written and prose-answered where the rest of the
   // category names intervals: iv-inv-quality-rule answers "flips
   // major↔minor; perfect stays perfect" against three short rules. The
@@ -355,7 +359,7 @@ describe('no decoy pins its answer', () => {
     // tripping two rules is counted twice and a pentatonic card seen
     // under four tokenisers is counted four times. Adding the columns
     // adds up to more than the deck can supply. The real figures are
-    // 25 and 19, overlapping on nothing, for 44 in all — against 124
+    // 24 and 19, overlapping on nothing, for 43 in all — against 124
     // and 36 before the guard existed. It ROSE from 41 to 50 when
     // `longest` was scoped in: nine cards that were always answerable
     // started being counted, which is a guard getting sharper rather
@@ -385,7 +389,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 25, tell: 19, distinct: 44 });
+      .toEqual({ blind: 24, tell: 19, distinct: 43 });
   });
 
   it('keeps the tell allowlist honest', () => {

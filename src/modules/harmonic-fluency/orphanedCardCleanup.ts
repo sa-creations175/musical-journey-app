@@ -61,8 +61,8 @@ import { canonicalSkillId } from '../skills/registry';
 const MODULE_REF = 'harmonic-fluency';
 
 /**
- * The twelve cards removed with the 6/♭7 shape (ruling 30), and the
- * exact set this is authorised to delete rows for.
+ * The cards removed with no successor, and the exact set this is
+ * authorised to delete rows for.
  *
  * WRITTEN OUT RATHER THAN DERIVED. There is nothing left in the repo to
  * derive them from — the shape is gone from `SLASH_SHAPES` and the
@@ -72,10 +72,19 @@ const MODULE_REF = 'harmonic-fluency';
  * unable to widen on its own.
  */
 export const REMOVED_WITHOUT_SUCCESSOR: ReadonlyArray<string> = [
+  // The 6/♭7 shape (ruling 30).
   'sc-11',
   'sc-6-b7-Db', 'sc-6-b7-D', 'sc-6-b7-Eb', 'sc-6-b7-E', 'sc-6-b7-F',
   'sc-6-b7-F#', 'sc-6-b7-G', 'sc-6-b7-Ab', 'sc-6-b7-A', 'sc-6-b7-Bb',
   'sc-6-b7-B',
+  // THE TWO THAT NAMED TWO KEYS AT ONCE (commit 8). "A key with 3
+  // flats is most likely E♭ major or C minor" answers with both and
+  // then tells the reader to look at the final chord to tell which —
+  // two facts and a disambiguation rule in one option string, with
+  // nothing in it to get right or wrong. Two cards replace it, one per
+  // mode, and neither asks that question or gives that answer, so
+  // `keySignatureFoldIn` reports them unpaired rather than guessing.
+  'ks-19', 'ks-20',
 ];
 
 /** One card whose rows are kept, and what a reader wrote on it. */

@@ -66,12 +66,19 @@ describe('the card itself', () => {
     expect(FLASHCARDS.some(c => c.id === RETIRED_CARD_ID)).toBe(false);
   });
 
-  it('and the one it duplicated is still there', () => {
+  it('and the question it duplicated is still asked', () => {
     // Half a deletion — both gone — is the failure worth naming, since
     // the two were identical and either could have been targeted.
-    const kept = FLASHCARDS.find(c => c.id === SURVIVING_CARD_ID);
-    expect(kept?.question).toBe('The relative major of A minor is _____');
-    expect(kept?.correctAnswer).toBe('C major');
+    //
+    // `ks-16` ITSELF RETIRED IN COMMIT 8, into the generated relative
+    // set. The claim survives it: the question is still in the deck,
+    // asked once, which is what the deletion was for.
+    expect(SURVIVING_CARD_ID).toBe('ks-16');
+    const asking = FLASHCARDS.filter(
+      c => c.question === 'The relative major of A minor is _____',
+    );
+    expect(asking).toHaveLength(1);
+    expect(asking[0].correctAnswer).toBe('C major');
   });
 
   it('leaves exactly one card asking that question', () => {
@@ -88,11 +95,14 @@ describe('the card itself', () => {
     // an index, so removing one from the middle cannot repoint the
     // rest. Asserted because the silent version of this bug is what
     // `generatedCardPairing` exists to catch.
-    for (const id of ['ksc-2', 'ksc-4', 'ksc-5']) {
+    // `ksc-4` and `ksc-5` retired in commit 8 with the rest of the
+    // relative-major cards; `ksc-2` and `ksc-15` did not, and they sit
+    // either side of the gap.
+    for (const id of ['ksc-2', 'ksc-15', 'ksc-16']) {
       expect(FLASHCARDS.some(c => c.id === id), id).toBe(true);
     }
-    expect(FLASHCARDS.find(c => c.id === 'ksc-4')?.correctAnswer)
-      .toBe('G major');
+    expect(FLASHCARDS.find(c => c.id === 'ksc-2')?.correctAnswer)
+      .toBe('b3, b6, and b7');
   });
 });
 

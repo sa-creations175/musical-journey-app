@@ -81,7 +81,8 @@ describe('finding the chain for a card', () => {
   it('puts a harmonic fluency card under its own category', () => {
     // Looked up from the catalog, never parsed out of the id — the
     // catalog forbids reading its ids as a schema.
-    expect(chainForCard('harmonic-fluency', 'ks-4').map(n => n.id))
+    // `ks-4` retired in commit 8; `ks-count-A` asks what it asked.
+    expect(chainForCard('harmonic-fluency', 'ks-count-A').map(n => n.id))
       .toEqual(['harmonic-fluency', 'harmonic-fluency.key-signatures']);
   });
 

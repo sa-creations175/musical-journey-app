@@ -67,13 +67,13 @@ describe('catalog sizes — the denominators', () => {
     expect(reachable).toBe(51);
   });
 
-  it('harmonic fluency: 1439 cards', () => {
+  it('harmonic fluency: 1466 cards', () => {
     // 649 until 2 Sep 2026, when the duplicate `ksc-3` was retired.
     // 648 until 3 Sep 2026, when Degrees And Notes was seeded (469) and
     // Named Notes (24) and Tritone Pairs (12) folded into it. 1081 until
     // later the same day, when Reverse Key Pivots (27) became the
     // family's fourth question type (156) and folded in too.
-    expect(catalogItemCount(harmonicFluencyCatalog)).toBe(1439);
+    expect(catalogItemCount(harmonicFluencyCatalog)).toBe(1466);
   });
 
   it('production vocabulary: 199 cards', () => {

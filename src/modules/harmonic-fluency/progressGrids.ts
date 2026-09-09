@@ -248,9 +248,27 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
     rows: axis('shape', 'progression', ['1-5-6-4']),
   },
 
+  /**
+   * THIRTEEN COLUMNS AND SIX ROWS.
+   *
+   * The rows were `relation` — relative or parallel — because those
+   * were the only two generated sets. Commit 8 adds the count, the
+   * relative pair the other way round, and the two count-to-key
+   * questions, so what separates the cards is no longer a RELATION but
+   * WHAT IS ASKED about the key's signature. `relation` stays on the
+   * cards that have one, because the Maj/Min Key Relation filter reads
+   * it and its chips are ruled.
+   *
+   * Every row value is a phrase from the family's own card text —
+   * "the relative major of", "the major key with 3 flats" — rather than
+   * a new name for a row.
+   */
   [CATEGORY_LABELS['key-signatures']]: {
-    columns: keyAxis,
-    rows: axis('relation', 'minor', ['relative', 'parallel']),
+    columns: thirteenKeyAxis,
+    rows: axis('ask', 'question', [
+      'count', 'relative', 'relative major', 'major key', 'minor key',
+      'parallel',
+    ]),
   },
 
   // PENTATONICS SPELLS ITS ROOTS THREE WAYS. Minor roots run sharp

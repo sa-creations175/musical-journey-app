@@ -39,8 +39,16 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   // `degree-notes` on 3 Sep 2026 and its three top-ups went with it;
   // `retiredCategoryMigration` reads the generator now.
   ['progression 1564', /^pr-1564-/,      6, ['key', 'shape']],
-  ['relative minor',   /^ks-relative-/,  9, ['key', 'relation']],
-  ['parallel minor',   /^ks-parallel-/,  8, ['key', 'relation']],
+  // The relative top-ups retired in commit 8 into three generated sets
+  // over thirteen keys. The parallel set is untouched — Silas has not
+  // ruled on it — and gained only an `ask` row so it lands on the
+  // grid's new six rows rather than in the tail.
+  ['key count',        /^ks-count-/,    13, ['ask', 'key']],
+  ['relative minor',   /^ks-relminor-/, 13, ['ask', 'key', 'relation']],
+  ['relative major',   /^ks-relmajor-/, 13, ['ask', 'key']],
+  ['major from count', /^ks-sig-major-/, 13, ['ask', 'key']],
+  ['minor from count', /^ks-sig-minor-/, 13, ['ask', 'key']],
+  ['parallel minor',   /^ks-parallel-/,  8, ['ask', 'key', 'relation']],
   // THE FIVE TOP-UPS RETIRED WITH THE TWENTY (ruling 43). The grid
   // that replaced them is every note by every distance, none missing;
   // `movement` rides along so the Distance chip gathers them beside the
@@ -175,20 +183,21 @@ describe('the grids place what the generators produced', () => {
 });
 
 describe('the axis order is the passed list', () => {
-  it('offers all twelve keys even where a generator skipped some', () => {
-    // Relative-minor top-ups cover nine of twelve; the axis still
-    // offers twelve, because it is a claim about the key set rather
-    // than a picture of which cards exist.
+  it('offers all thirteen keys even where a generator covers fewer', () => {
+    // The axis is a claim about the key set rather than a picture of
+    // which cards exist: the parallel set still covers twelve and the
+    // column for the thirteenth stays, empty and honest.
     const { grid } = place(CATEGORY_LABELS['key-signatures']);
-    // TWELVE, AND IT WAS THIRTEEN. F♯ and G♭ were separate columns
-    // while the two generator families each wrote their own spelling
-    // into a card's coordinates. Both write the identity now, so one
-    // column holds the pitch and the header spells it.
-    expect(grid!.columns).toHaveLength(12);
+    // THIRTEEN, AND IT WAS TWELVE, AND BEFORE THAT THIRTEEN — see the
+    // argument on `thirteenKeyAxis`. It was twelve while every
+    // coordinate was minted from the identity vocabulary; ruling 40
+    // makes F♯ major and G♭ major two keys with two answers, so the
+    // column holding both was answering two questions.
+    expect(grid!.columns).toHaveLength(13);
     expect(grid!.columns).toContain('F#');
-    expect(grid!.columns).not.toContain('Gb');
-    const used = new Set(byPrefix(/^ks-relative-/).map(c => String(c.axis!.key)));
-    expect(used.size).toBe(9);
+    expect(grid!.columns).toContain('Gb');
+    const used = new Set(byPrefix(/^ks-parallel-/).map(c => String(c.axis!.key)));
+    expect(used.size).toBe(8);
   });
 
   it('reads the slash-chord and mode row orders from their generators', () => {

@@ -319,6 +319,24 @@ export function cardSound(card: Flashcard): CardSound | null {
       const relation = str(axis?.relation);
       if (relation === 'relative') return keyed([on('6', MIN)]);
       if (relation === 'parallel') return keyed([on('1', MIN)]);
+      // THE SAME PAIR THE OTHER WAY ROUND. "The relative major of F
+      // minor" starts at home in F minor and lands on A♭ — so the
+      // minor is the orienting chord and the major is the material,
+      // which is ruling 33's sentence read from the card's own side.
+      if (str(axis?.ask) === 'relative major' && key !== undefined) {
+        const minorRoot = 48 + ((keyToRootMidi(key) + 9) % 12);
+        return {
+          rootMidi: minorRoot,
+          orient: MIN,
+          // A minor third up from the minor root is the relative major.
+          steps: [{ semitones: MAJ.map(i => i + 3), beats: CHORD_BEATS }],
+        };
+      }
+      // THE COUNT AND COUNT-TO-KEY CARDS ARE SILENT, and that is a
+      // statement. "G major has one sharp" is a fact about a written
+      // signature; there is no sound that is the answer to it, and
+      // ruling 33 named no material for one. Listed in the report
+      // rather than invented.
       return null;
     }
 

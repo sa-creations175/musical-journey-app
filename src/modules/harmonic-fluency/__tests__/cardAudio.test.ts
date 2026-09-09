@@ -35,7 +35,7 @@ describe('the shape is the same everywhere', () => {
     // Ruling 33's one sentence, asserted across the five families it
     // gave a voice to plus the two that already had one.
     for (const id of ['sc-slash-1-3-G', 'fh-ii-v-i-Eb', 'pr-1564-Eb',
-      'pent-major-Ab', 'ks-relative-Eb', 'dgn-Ab-b6', 'sdm-1-up-P5']) {
+      'pent-major-Ab', 'ks-relminor-Eb', 'dgn-Ab-b6', 'sdm-1-up-P5']) {
       const s = soundOf(id);
       expect(s.orient, id).not.toBeNull();
       expect(s.steps.length, id).toBeGreaterThan(0);
@@ -140,9 +140,27 @@ describe('pentatonics', () => {
 
 describe('the major/minor key relations', () => {
   it('plays home, then the relative minor on the 6', () => {
-    const s = soundOf('ks-relative-Eb');
+    const s = soundOf('ks-relminor-Eb');
     expect(s.orient).toEqual(MAJ);
     expect(steps(s)).toEqual([[9, 12, 16]]);
+  });
+
+  it('plays the minor first when the card asks the other way round', () => {
+    // "The relative major of C minor is _____" starts at home in C
+    // minor and lands on E♭ — the same pair, read from the card's own
+    // side. C is 48, so the minor root is 48.
+    const s = soundOf('ks-relmajor-Eb');
+    expect(s.orient).toEqual(MIN);
+    expect(s.rootMidi).toBe(48);
+    expect(steps(s)).toEqual([[3, 7, 10]]);
+  });
+
+  it('says nothing for a written signature', () => {
+    // "G major has one sharp" is a fact about a page, not a sound, and
+    // ruling 33 named no material for one.
+    expect(cardSound(card('ks-count-G'))).toBeNull();
+    expect(cardSound(card('ks-sig-major-Eb'))).toBeNull();
+    expect(cardSound(card('ks-sig-minor-Eb'))).toBeNull();
   });
 
   it('plays home, then the parallel minor on the same root', () => {

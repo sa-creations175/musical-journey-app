@@ -6,7 +6,7 @@ import {
 } from './intervalInversion';
 import { INTERVAL_QUALITIES, playableName } from './scaleDegreeQuality';
 import type { Flashcard } from './catalog';
-import { chooseDecoys } from './decoyGuard';
+import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
 import { PRACTICAL_NAME as PRACTICAL_SPELLINGS } from '../../lib/theoreticalSpellings';
 import { canonicaliseKey } from '../repertoire/circleOfFourths';
 
@@ -938,6 +938,296 @@ const PARALLEL_CONTEXT =
   + 'major-key song borrows from when it leans dark — iv minor, ♭VII and '
   + '♭VI all come from there.';
 
+/**
+ * How many sharps or flats each of the thirteen keys carries, and
+ * which.
+ *
+ * =====================================================================
+ * THE COUNT IS A FACT ABOUT THE KEY, NOT A DERIVATION WORTH HIDING.
+ *
+ * It is the key's place on the circle of fifths, and it could be
+ * computed — but the ORDER of the accidentals cannot be computed from
+ * the key at all: F♯ C♯ G♯ D♯ A♯ E♯ B♯ and B♭ E♭ A♭ D♭ G♭ C♭ F♭ are two
+ * fixed sequences, and the deck already teaches them on `ks-21` and
+ * `ks-22`. So the sequences are written once and every count reads the
+ * first n of one, which is what makes "G major has 1 sharp: F♯" a
+ * derivation rather than a second table of thirteen answers.
+ *
+ * C IS NEITHER, AND KEEPS THE DECK'S OWN WORDING for that: "C major has
+ * _____ sharps/flats", which is what `ks-1` has always asked.
+ * =====================================================================
+ */
+/**
+ * How many sharps or flats a key carries — 0 through 7.
+ *
+ * Seven is real, not a safety margin: C♯ major has seven sharps and C♭
+ * major seven flats. A decoy may name any count a key signature can
+ * actually have, and none it cannot.
+ */
+export const ACCIDENTAL_COUNTS = [0, 1, 2, 3, 4, 5, 6, 7];
+
+/** Three wrong answers per card, as everywhere else in the deck. */
+const DECOY_COUNT = 3;
+
+/**
+ * Decoys for a "G major has _____ sharps" card.
+ *
+ * =====================================================================
+ * TWELVE HAND-WRITTEN CARDS WITH THE SAME DEFECT AS SCALE-DEGREE MATH.
+ *
+ * Six of the twelve listed the answer flanked — 1 against 2, 0 and 3;
+ * 3 against 2, 4 and 5 — so three options were consecutive and the
+ * answer sat between them. You could score half the family by picking
+ * the middle number.
+ *
+ * The other six were clean by luck, not by rule, so all twelve are
+ * converted rather than the six that happened to fail. A rule applied
+ * only to the cards that tripped it is not a rule.
+ *
+ * The questions, explanations and ids are untouched — this replaces
+ * hand-counted decoys with the derivation scale-degree math already
+ * uses, and nothing else.
+ *
+ * IT MOVED HERE with commit 8, because the generated count cards need
+ * the same derivation and a second copy of "which three counts does
+ * this card show" is how the pinned ranks would drift. The retired
+ * hand-written twelve still call it from `catalog.ts`.
+ * =====================================================================
+ */
+export function accidentalCountDecoys(id: string, count: number): string[] {
+  const highest = ACCIDENTAL_COUNTS[ACCIDENTAL_COUNTS.length - 1];
+  const wanted = rankTarget(
+    id,
+    Math.max(0, DECOY_COUNT - (highest - count)),
+    Math.min(DECOY_COUNT, count),
+  );
+  return chooseDecoys(
+    String(count),
+    ACCIDENTAL_COUNTS
+      .filter(n => n !== count)
+      .sort((a, b) => Math.abs(a - count) - Math.abs(b - count) || a - b)
+      .map(String),
+    {
+      count: DECOY_COUNT,
+      seed: id,
+      label: id,
+      category: 'key-signatures',
+      require: ds => sortedRank(String(count), ds) === wanted,
+    },
+  );
+}
+
+const SHARP_ORDER: ReadonlyArray<string> = ['F#', 'C#', 'G#', 'D#', 'A#', 'E#', 'B#'];
+const FLAT_ORDER: ReadonlyArray<string> = ['Bb', 'Eb', 'Ab', 'Db', 'Gb', 'Cb', 'Fb'];
+
+interface KeySignature {
+  /** The key, as written. */
+  root: string;
+  count: number;
+  /** The word the question uses. C is neither, and says both. */
+  kind: 'sharps' | 'flats' | 'sharps/flats';
+}
+
+export const KEY_SIGNATURES: ReadonlyArray<KeySignature> = [
+  { root: 'C',  count: 0, kind: 'sharps/flats' },
+  { root: 'G',  count: 1, kind: 'sharps' },
+  { root: 'D',  count: 2, kind: 'sharps' },
+  { root: 'A',  count: 3, kind: 'sharps' },
+  { root: 'E',  count: 4, kind: 'sharps' },
+  { root: 'B',  count: 5, kind: 'sharps' },
+  { root: 'F#', count: 6, kind: 'sharps' },
+  { root: 'F',  count: 1, kind: 'flats' },
+  { root: 'Bb', count: 2, kind: 'flats' },
+  { root: 'Eb', count: 3, kind: 'flats' },
+  { root: 'Ab', count: 4, kind: 'flats' },
+  { root: 'Db', count: 5, kind: 'flats' },
+  { root: 'Gb', count: 6, kind: 'flats' },
+];
+
+/** The accidentals a key actually carries, in signature order. */
+function accidentalsOf(sig: KeySignature): string[] {
+  if (sig.kind === 'sharps/flats') return [];
+  const order = sig.kind === 'sharps' ? SHARP_ORDER : FLAT_ORDER;
+  return order.slice(0, sig.count);
+}
+
+/** The relative minor's root, as written — the 6 of the major scale. */
+function relativeMinorAscii(root: string): string {
+  return degreeAscii(root, '6');
+}
+
+/** "A minor", "D♯ minor", "E♭ minor". */
+function minorKeyName(root: string): string {
+  return `${noteLabel(relativeMinorAscii(root))} minor`;
+}
+
+/** "C major", "G♭ major". */
+function majorKeyName(root: string): string {
+  return `${noteLabel(root)} major`;
+}
+
+/**
+ * "G major has _____ sharps" — thirteen keys (rulings 39 and 40).
+ *
+ * F♯ MAJOR AND G♭ MAJOR ARE TWO CARDS with two different answers, six
+ * sharps and six flats, which is the clearest place in the deck that
+ * ruling 40 is a musical claim rather than a spelling preference.
+ */
+export function generateKeyCountCards(): Flashcard[] {
+  return KEY_SIGNATURES.map(sig => {
+    const id = `ks-count-${sig.root}`;
+    const named = accidentalsOf(sig);
+    return {
+      ...base('key-signatures', 'Key Signatures'),
+      id,
+      axis: { key: sig.root, ask: 'count' },
+      question: `${noteLabel(sig.root)} major has _____ ${sig.kind}`,
+      correctAnswer: String(sig.count),
+      // THE SAME DERIVATION THE HAND-WRITTEN TWELVE USE. It targets a
+      // rank so the answer is not always the middle of three
+      // consecutive numbers — the defect that let half the old family
+      // be scored by picking the middle one.
+      decoys: accidentalCountDecoys(id, sig.count),
+      // THE FACT, AND THE ACCIDENTALS IT COUNTS, AND NOTHING ELSE.
+      //
+      // `ks-2` opened "G major has one sharp: F#" and then said what
+      // the key feels like to play in — a sentence per key, written by
+      // hand, which a generator cannot produce and must not imitate.
+      // So the generated explanation is the first half only, derived,
+      // and the colour is Silas's to add back if he wants it.
+      explanation: named.length === 0
+        ? `${majorKeyName(sig.root)} has no sharps and no flats.`
+        : `${majorKeyName(sig.root)} has ${sig.count} `
+          + `${sig.count === 1 ? sig.kind.slice(0, -1) : sig.kind}: `
+          + `${named.map(noteLabel).join(' ')}.`
+          + keyboardNote(...named),
+      skillTag: `key-sig-${sig.root}`,
+    };
+  });
+}
+
+/**
+ * The relative pair, both directions, in every key (ruling: commit 8).
+ *
+ * BOTH DIRECTIONS BECAUSE THEY ARE TWO RETRIEVALS. Naming the relative
+ * minor of A♭ and naming the relative major of F minor are the same
+ * fact and different questions — the deck already had both, unevenly:
+ * fifteen one way and twelve the other, in overlapping key sets.
+ */
+export function generateRelativeCards(): Flashcard[] {
+  const out: Flashcard[] = [];
+  const minorNames = KEY_SIGNATURES.map(k => minorKeyName(k.root));
+  const majorNames = KEY_SIGNATURES.map(k => majorKeyName(k.root));
+  for (const { root } of KEY_SIGNATURES) {
+    const minor = minorKeyName(root);
+    const major = majorKeyName(root);
+    const six = relativeMinorAscii(root);
+
+    const minorId = `ks-relminor-${root}`;
+    out.push({
+      ...base('key-signatures', 'Key Signatures'),
+      id: minorId,
+      axis: { key: root, ask: 'relative', relation: 'relative' },
+      question: `The relative minor of ${noteLabel(root)} major is _____`,
+      correctAnswer: minor,
+      decoys: chooseDecoys(minor, minorNames, {
+        count: 3, seed: minorId, label: minorId, category: 'key-signatures',
+      }),
+      explanation: `${minor} is the relative minor of ${major}.`
+        + keyboardNote(six)
+        + ` ${RELATIVE_CONTEXT}`,
+      skillTag: `relative-minor-${root}`,
+    });
+
+    const majorId = `ks-relmajor-${root}`;
+    out.push({
+      ...base('key-signatures', 'Key Signatures'),
+      id: majorId,
+      axis: { key: root, ask: 'relative major' },
+      question: `The relative major of ${noteLabel(six)} minor is _____`,
+      correctAnswer: major,
+      decoys: chooseDecoys(major, majorNames, {
+        count: 3, seed: majorId, label: majorId, category: 'key-signatures',
+      }),
+      explanation: `${major} is the relative major of ${minor}.`
+        + keyboardNote(six)
+        + ` ${RELATIVE_CONTEXT}`,
+      skillTag: `relative-major-${root}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * A count, and the key it names — one card per MODE (ruling: commit 8).
+ *
+ * =====================================================================
+ * NEVER "E♭ MAJOR OR C MINOR".
+ *
+ * `ks-19` answered a count with both keys at once and then told the
+ * reader to look at the final chord to tell which. That is two facts
+ * and a disambiguation rule in one option string, and it cannot be
+ * drilled: there is nothing to get right or wrong about "or".
+ *
+ * Two cards instead. "The major key with 3 flats is _____" and "The
+ * minor key with 3 flats is _____" are two retrievals a player actually
+ * makes, and each has one answer.
+ *
+ * THIRTEEN COUNTS, WHICH IS EXACTLY THE THIRTEEN KEYS: nothing for
+ * seven sharps or seven flats, because C♯ major and C♭ major are not
+ * keys in this deck.
+ * =====================================================================
+ */
+export function generateKeyFromCountCards(): Flashcard[] {
+  const out: Flashcard[] = [];
+  const minorNames = KEY_SIGNATURES.map(k => minorKeyName(k.root));
+  const majorNames = KEY_SIGNATURES.map(k => majorKeyName(k.root));
+  for (const sig of KEY_SIGNATURES) {
+    const asked = `${sig.count} ${sig.kind}`;
+    const major = majorKeyName(sig.root);
+    const minor = minorKeyName(sig.root);
+
+    const majorId = `ks-sig-major-${sig.root}`;
+    out.push({
+      ...base('key-signatures', 'Key Signatures'),
+      id: majorId,
+      axis: { key: sig.root, ask: 'major key' },
+      question: `The major key with ${asked} is _____`,
+      correctAnswer: major,
+      decoys: chooseDecoys(major, majorNames, {
+        count: 3, seed: majorId, label: majorId, category: 'key-signatures',
+      }),
+      explanation: `${asked} is ${major}.`
+        + ` ${RELATIVE_CONTEXT}`,
+      skillTag: `key-from-signature-major-${sig.root}`,
+    });
+
+    const minorId = `ks-sig-minor-${sig.root}`;
+    out.push({
+      ...base('key-signatures', 'Key Signatures'),
+      id: minorId,
+      axis: { key: sig.root, ask: 'minor key' },
+      question: `The minor key with ${asked} is _____`,
+      correctAnswer: minor,
+      decoys: chooseDecoys(minor, minorNames, {
+        count: 3, seed: minorId, label: minorId, category: 'key-signatures',
+      }),
+      explanation: `${asked} is ${minor}.`
+        + keyboardNote(relativeMinorAscii(sig.root))
+        + ` ${RELATIVE_CONTEXT}`,
+      skillTag: `key-from-signature-minor-${sig.root}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * The relative-minor top-ups as they were — twelve keys, three of them
+ * hand-written elsewhere.
+ *
+ * OUT OF THE DECK AND STILL EXPORTED, so `keySignatureFoldIn` can prove
+ * which generated card each retired one became.
+ */
 export function generateRelativeMinorTopUps(): Flashcard[] {
   const have = new Set(['C', 'G', 'Ab']);
   return FLAT_TWELVE.filter(r => !have.has(r)).map(root => {
@@ -972,7 +1262,12 @@ export function generateParallelMinorTopUps(): Flashcard[] {
   return FLAT_TWELVE.filter(r => !have.has(r)).map(root => ({
     ...base('key-signatures', 'Key Signatures'),
     id: `ks-parallel-${identityRoot(root)}`,
-    axis: { key: identityRoot(root), relation: 'parallel' },
+    // THE KEY AS WRITTEN AND AN `ask` ROW, both coordinate-only. The
+    // card's words, id, answer and decoys are untouched — Silas has not
+    // ruled on the parallel set — but the grid it draws on now holds
+    // thirteen columns and six rows, and a card whose coordinate is not
+    // on the axis lands in the tail with nothing on screen to say so.
+    axis: { key: root, ask: 'parallel', relation: 'parallel' },
     question: `The parallel minor of ${noteLabel(root)} major is _____`,
     correctAnswer: `${noteLabel(root)} minor`,
     decoys: chooseDecoys(
@@ -1257,7 +1552,9 @@ export function expansionCards(): Flashcard[] {
     // `retiredCategoryMigration` reads it to prove which new card each
     // one became; it goes in commit 9 with the migration.
     ...generateProgressionTopUps(),
-    ...generateRelativeMinorTopUps(),
+    ...generateKeyCountCards(),
+    ...generateRelativeCards(),
+    ...generateKeyFromCountCards(),
     ...generateParallelMinorTopUps(),
     ...generateIntervalGrid(),
   ];

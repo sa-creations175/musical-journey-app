@@ -210,7 +210,11 @@ describe('absent means flat list, not broken', () => {
       'scale-degree-math': 168,
       'functional-harmony': 33,
       'intervals': 156,
-      'key-signatures': 17,
+      // 17 before commit 8 — nine relative top-ups and eight parallel.
+      // Three generated sets over thirteen keys now (count, the
+      // relative pair both ways, and a count-to-key card per mode),
+      // plus the eight parallel ones, which are untouched.
+      'key-signatures': 73,
       // 33 before ruling 42 — three modes in eleven keys. Every mode
       // in every key now, and F♯ major and G♭ major are two of them.
       'modes': 91,

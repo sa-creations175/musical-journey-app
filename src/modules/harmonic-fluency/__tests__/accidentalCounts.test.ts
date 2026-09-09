@@ -17,17 +17,24 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import { BLIND_RULES, rankTarget, sortedRank } from '../decoyGuard';
 
-const COUNT_CARDS = FLASHCARDS.filter(
-  c => c.category === 'key-signatures' && /^\d$/.test(c.correctAnswer),
-);
+// GENERATED SINCE COMMIT 8, and the derivation moved with them: the
+// hand-written twelve retired and thirteen took their place, G♭ major
+// included. The claims below are unchanged — they were always about the
+// derivation rather than about which twelve cards used it.
+const COUNT_CARDS = FLASHCARDS.filter(c => c.id.startsWith('ks-count-'));
 const DECOY_COUNT = 3;
 const HIGHEST = 7;
 
 describe('the accidental-count cards', () => {
-  it('covers all twelve', () => {
-    expect(COUNT_CARDS.map(c => c.id)).toEqual([
-      'ks-1', 'ks-2', 'ks-3', 'ks-4', 'ks-5', 'ks-6',
-      'ks-7', 'ks-8', 'ks-9', 'ks-10', 'ks-11', 'ks-12',
+  it('covers all thirteen', () => {
+    // F♯ major and G♭ major are two keys with two answers — six sharps
+    // and six flats — which is the clearest place in the deck that
+    // ruling 40 is a musical claim rather than a spelling preference.
+    expect(COUNT_CARDS).toHaveLength(13);
+    const bySix = COUNT_CARDS.filter(c => c.correctAnswer === '6');
+    expect(bySix.map(c => c.question).sort()).toEqual([
+      'F♯ major has _____ sharps',
+      'G♭ major has _____ flats',
     ]);
   });
 
@@ -68,14 +75,16 @@ describe('the accidental-count cards', () => {
     expect(used.size).toBeGreaterThan(1);
   });
 
-  it('leaves the questions and explanations alone', () => {
-    // The conversion replaced decoys and nothing else. These two are
-    // the copy that would go missing if it ever became a rewrite.
-    const g = COUNT_CARDS.find(c => c.id === 'ks-2')!;
+  it('asks what it always asked, and names the accidentals it counts', () => {
+    // The question wording is the hand-written cards' own, generated.
+    // The explanation now DERIVES which accidentals rather than listing
+    // them per key — the first n of the one order the deck teaches on
+    // `ks-21` and `ks-22`.
+    const g = COUNT_CARDS.find(c => c.id === 'ks-count-G')!;
     expect(g.question).toBe('G major has _____ sharps');
-    expect(g.explanation).toContain('G major has one sharp: F#');
-    const eb = COUNT_CARDS.find(c => c.id === 'ks-10')!;
-    expect(eb.question).toBe('Eb major has _____ flats');
-    expect(eb.explanation).toContain('Bb, Eb, Ab');
+    expect(g.explanation).toContain('G major has 1 sharp: F♯');
+    const eb = COUNT_CARDS.find(c => c.id === 'ks-count-Eb')!;
+    expect(eb.question).toBe('E♭ major has _____ flats');
+    expect(eb.explanation).toContain('B♭ E♭ A♭');
   });
 });

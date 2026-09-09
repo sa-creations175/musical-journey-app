@@ -321,9 +321,13 @@ describe('coverage reaches twelve', () => {
     expect(keysIn('intervals', new RegExp(`interval from (${N}) to`), 'q').size).toBe(13);
   });
 
-  it('relative and parallel minor each reach all twelve', () => {
+  it('relative minor reaches all thirteen; parallel still twelve', () => {
+    // The relative set was regenerated in commit 8 and covers F♯ major
+    // and G♭ major as two keys. The parallel set was NOT — Silas has
+    // not ruled on it — so it still covers twelve, and the asymmetry is
+    // stated here rather than left for someone to find on the grid.
     expect(keysIn('key-signatures', new RegExp(`relative minor of (${N}) major`), 'q').size)
-      .toBe(12);
+      .toBe(13);
     expect(keysIn('key-signatures', new RegExp(`parallel minor of (${N}) major`), 'q').size)
       .toBe(12);
   });

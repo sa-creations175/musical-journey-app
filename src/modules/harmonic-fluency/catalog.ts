@@ -1,5 +1,7 @@
-import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
-import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
+import {
+  accidentalCountDecoys, degreeAscii, expansionCards, practicalName,
+} from './catalogExpansions';
+import { chooseDecoys } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, degreeNoteCards } from './degreeNoteCards';
 import { DEGREE_MATH_CATEGORY_NAME } from './scaleDegreeQualityCards';
@@ -488,57 +490,11 @@ function generateIntervalCards(): Flashcard[] {
   });
 }
 
-/**
- * How many sharps or flats a key carries — 0 through 7.
- *
- * Seven is real, not a safety margin: C♯ major has seven sharps and C♭
- * major seven flats. A decoy may name any count a key signature can
- * actually have, and none it cannot.
- */
-const ACCIDENTAL_COUNTS = [0, 1, 2, 3, 4, 5, 6, 7];
-
-/**
- * Decoys for a "G major has _____ sharps" card.
- *
- * =====================================================================
- * TWELVE HAND-WRITTEN CARDS WITH THE SAME DEFECT AS SCALE-DEGREE MATH.
- *
- * Six of the twelve listed the answer flanked — 1 against 2, 0 and 3;
- * 3 against 2, 4 and 5 — so three options were consecutive and the
- * answer sat between them. You could score half the family by picking
- * the middle number.
- *
- * The other six were clean by luck, not by rule, so all twelve are
- * converted rather than the six that happened to fail. A rule applied
- * only to the cards that tripped it is not a rule.
- *
- * The questions, explanations and ids are untouched — this replaces
- * hand-counted decoys with the derivation scale-degree math already
- * uses, and nothing else.
- * =====================================================================
- */
-function accidentalCountDecoys(id: string, count: number): string[] {
-  const highest = ACCIDENTAL_COUNTS[ACCIDENTAL_COUNTS.length - 1];
-  const wanted = rankTarget(
-    id,
-    Math.max(0, DECOY_COUNT - (highest - count)),
-    Math.min(DECOY_COUNT, count),
-  );
-  return chooseDecoys(
-    String(count),
-    ACCIDENTAL_COUNTS
-      .filter(n => n !== count)
-      .sort((a, b) => Math.abs(a - count) - Math.abs(b - count) || a - b)
-      .map(String),
-    {
-      count: DECOY_COUNT,
-      seed: id,
-      label: id,
-      category: 'key-signatures',
-      require: ds => sortedRank(String(count), ds) === wanted,
-    },
-  );
-}
+// `ACCIDENTAL_COUNTS` AND `accidentalCountDecoys` MOVED to
+// `catalogExpansions`, beside the generator that mints the count cards
+// now. The retired hand-written ones below still call it, which is why
+// it is imported rather than copied: two derivations of "which three
+// counts does this card show" is how the pinned ranks would drift.
 
 // --- Hand-written categories ---------------------------------------
 
@@ -776,7 +732,15 @@ const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
     skillTag: 'mediant-function' },
 ];
 
-const KEY_SIG_CARDS: Flashcard[] = [
+/**
+ * The hand-written key-signature cards, all of them — the ones the
+ * generated sets replaced and the ones they did not.
+ *
+ * SPLIT BY ID BELOW RATHER THAN BY POSITION, because the two kinds are
+ * interleaved here in teaching order and reordering the array to suit a
+ * filter would be reordering a reader's list to suit a machine.
+ */
+const KEY_SIG_CARDS_ALL: Flashcard[] = [
   // Counts
   { id: 'ks-1', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
     question: 'C major has _____ sharps/flats', correctAnswer: '0', decoys: accidentalCountDecoys('ks-1', 0),
@@ -1002,6 +966,46 @@ const KEY_SIG_CARDS: Flashcard[] = [
     explanation: "Bb major's parallel minor is Bb minor — same root, flipped quality (two flats → five flats). Common borrowed chords from this side: Db (bIII), Eb (iv when treated as minor), Gb (bVI) — the gospel/soul flavors that make a Bb major tune feel briefly heavy.",
     skillTag: 'parallel-minor-of-Bb' },
 ];
+
+/**
+ * The ones the generated sets replaced.
+ *
+ * OUT OF THE DECK AND STILL HERE, the arrangement
+ * `retiredIntervalPairCards` uses: `keySignatureFoldIn` reads them to
+ * prove which generated card each one became, and a hand-written table
+ * of twenty-seven questions could only be trusted where this can be
+ * compared.
+ *
+ * `ks-19` AND `ks-20` ARE IN IT AND PAIR WITH NOTHING. "A key with 3
+ * flats is most likely E♭ major or C minor" answers with two keys at
+ * once, which today's ruling replaces with two cards — one for each
+ * mode. No generated card asks that question or gives that answer, so
+ * they are reported unpaired and their rows go the way the 6/♭7 cards'
+ * did.
+ */
+const RETIRED_KEY_SIG_IDS: ReadonlySet<string> = new Set([
+  // Counts — thirteen generated ones replace them, G♭ included.
+  'ks-1', 'ks-2', 'ks-3', 'ks-4', 'ks-5', 'ks-6', 'ks-7',
+  'ks-8', 'ks-9', 'ks-10', 'ks-11', 'ks-12',
+  // Relative minor, and relative major the other way.
+  'ks-13', 'ks-14', 'ks-15', 'ks-16',
+  'ksc-4', 'ksc-5', 'ksc-6', 'ksc-7', 'ksc-8', 'ksc-9', 'ksc-10',
+  'ksc-11', 'ksc-12', 'ksc-13', 'ksc-14',
+  // The two that name two keys at once.
+  'ks-19', 'ks-20',
+]);
+
+export const RETIRED_KEY_SIG_CARDS: Flashcard[] =
+  KEY_SIG_CARDS_ALL.filter(c => RETIRED_KEY_SIG_IDS.has(c.id));
+
+/**
+ * What stays hand-written: the parallel-minor cards, the order of
+ * sharps and flats, the natural-minor formula, the "3 half steps up"
+ * rule and the parallel-vs-relative definition. Silas has not ruled on
+ * these, so they are exactly as they were.
+ */
+const KEY_SIG_CARDS: Flashcard[] =
+  KEY_SIG_CARDS_ALL.filter(c => !RETIRED_KEY_SIG_IDS.has(c.id));
 
 const MODE_CARDS: Flashcard[] = [
   { id: 'mo-1', category: 'modes', categoryName: CATEGORY_LABELS.modes,

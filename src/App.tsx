@@ -30,6 +30,10 @@ import {
   foldInSlashCards,
 } from './modules/harmonic-fluency/slashFoldIn';
 import {
+  describeKeySignatureFoldIn,
+  foldInKeySignatureCards,
+} from './modules/harmonic-fluency/keySignatureFoldIn';
+import {
   cleanUpRetiredCard,
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
@@ -265,6 +269,18 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] slash fold-in failed', err);
+      });
+    // Key Signatures regenerated: the count, the relative pair both
+    // ways, and a count-to-key card per mode, in thirteen keys.
+    // `ks-19` and `ks-20` named two keys at once and pair with
+    // nothing; they are reported rather than guessed at.
+    void foldInKeySignatureCards()
+      .then(r => {
+        const line = describeKeySignatureFoldIn(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] key-signature fold-in failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from
