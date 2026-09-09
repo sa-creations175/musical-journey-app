@@ -310,9 +310,11 @@ describe('coverage reaches twelve', () => {
     expect(answers.size).toBe(12);
   });
 
-  it('progressions reach all twelve', () => {
+  it('progressions reach all thirteen', () => {
+    // TWELVE UNTIL COMMIT 8. Ruling 40 again: the 1-5-6-4 of G♭ ends on
+    // C♭ and the 1-5-6-4 of F♯ ends on B, so both are asked.
     expect(keysIn('progressions', new RegExp(`in (${N})(?: major| minor)?`), 'q').size)
-      .toBe(12);
+      .toBe(13);
   });
 
   it('intervals start on all thirteen', () => {

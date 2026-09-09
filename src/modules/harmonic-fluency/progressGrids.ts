@@ -240,12 +240,26 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
       v => SLASH_SHAPES.find(sh => sh.id === v)?.label ?? String(v)),
   },
 
-  // Six keyed cards and twenty one-offs. The grid shows the six; the
-  // twenty land in the tail, which is the shape 2b already handles and
-  // the reason no coordinates were invented for them.
+  /**
+   * THIRTEEN COLUMNS AND EIGHT ROWS.
+   *
+   * One row and six cards before commit 8. Every progression the family
+   * names AND can be written in a major key is now generated in all
+   * thirteen, so the grid is the eight of them.
+   *
+   * THE ROW ORDER IS THE FAMILY'S OWN. The four numbered shapes first,
+   * in the order the cards teach them, then the four named ones.
+   *
+   * The twelve one-offs still land in the tail: six ask about a
+   * progression in no key, and five name a progression the ruled list
+   * does not. Coordinates were not invented for either.
+   */
   [CATEGORY_LABELS.progressions]: {
-    columns: keyAxis,
-    rows: axis('shape', 'progression', ['1-5-6-4']),
+    columns: thirteenKeyAxis,
+    rows: axis('shape', 'progression', [
+      '1-5-6-4', 'ii-V-I', '1-6-4-5', '6-4-1-5',
+      'gospel walk-up', 'rhythm changes', 'backdoor', 'neo-soul',
+    ]),
   },
 
   /**

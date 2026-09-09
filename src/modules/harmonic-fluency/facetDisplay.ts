@@ -150,6 +150,17 @@ const PROGRESSION_WORDS: Readonly<Record<string, string>> = {
   'V/V': '5 of 5',
   'V/vi': '5 of 6',
   '1-5-6-4': '1 5 6 4',
+  // SIX ADDED IN COMMIT 8, AND NONE OF IT IS NEW COPY. The numbered
+  // three take ruling 26's own rule — dashes become spaces. The named
+  // three are the words the family's own question sentences already
+  // use: "The gospel walk-up I-II-iii-IV in C major", "Rhythm changes A
+  // section", "The neo-soul cycle". `backdoor` needs no entry at all;
+  // it prints as stored.
+  '1-6-4-5': '1 6 4 5',
+  '6-4-1-5': '6 4 1 5',
+  'gospel walk-up': 'gospel walk-up',
+  'rhythm changes': 'rhythm changes',
+  'neo-soul': 'neo-soul',
 };
 
 /** A slash chord, written the way its own cards write it — `1/3`,

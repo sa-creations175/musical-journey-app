@@ -111,7 +111,10 @@ describe('the Progression chips', () => {
 
   it('covers every progression the deck holds', () => {
     const listed = tableUnder('The Progression chips').map(([stored]) => stored);
-    expect(listed.sort()).toEqual(['1-5-6-4', 'V/V', 'V/vi', 'ii-V-I'].sort());
+    expect(listed.sort()).toEqual([
+      '1-5-6-4', '1-6-4-5', '6-4-1-5', 'V/V', 'V/vi', 'backdoor',
+      'gospel walk-up', 'ii-V-I', 'neo-soul', 'rhythm changes',
+    ].sort());
   });
 });
 

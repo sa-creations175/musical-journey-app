@@ -885,7 +885,11 @@ const PROGRESSION_CONTEXT =
   + 'and worship, because it cycles through all four tonal functions and lands '
   + 'home.';
 
-/** 1-5-6-4 in the six keys the category never reached. */
+/**
+ * 1-5-6-4 in the six keys the category never reached — RETIRED in
+ * commit 8, kept because the fold-in compares against the exact text
+ * these shipped with.
+ */
 export function generateProgressionTopUps(): Flashcard[] {
   const missing = ['Db', 'Eb', 'E', 'Gb', 'Ab', 'B'];
   return missing.map(root => {
@@ -1686,6 +1690,284 @@ export function generatePentatonicLickCards(): Flashcard[] {
   });
 }
 
+// =====================================================================
+// Progression vocabulary — every named progression, in every key
+// =====================================================================
+
+/**
+ * The progressions the family already names, each keeping its own
+ * wording.
+ *
+ * =====================================================================
+ * NOTHING HERE IS NEW.
+ *
+ * Every shape, every question sentence and every explanation is lifted
+ * from the hand-written card that taught it in one key. What the
+ * generator adds is the other twelve keys, not a tenth progression.
+ *
+ * THE WORDING IS NOT REGULARISED. One card says "in C major is", one
+ * says "in C is", one says "starts with"; one explanation opens with
+ * the chords and one opens with the name. Those are Silas's sentences.
+ * Smoothing them would be rewriting copy nobody asked to have
+ * rewritten, and the fold-in would then find nothing to pair with.
+ *
+ * =====================================================================
+ * TWO OF THE FAMILY'S TEN ARE NOT HERE, AND BOTH ARE STOPS.
+ *
+ * THE PLAGAL VAMP has no in-key card to take a wording from. `pr-8`
+ * asks "A plagal vamp is which two chords alternating?" and answers
+ * "IV - I" — a question in no key, whose answer is degrees rather than
+ * chords. Generating "The plagal vamp in E♭ is _____" would be
+ * inventing a question shape the family has never asked.
+ *
+ * THE DESCENDING MINOR is in a MINOR key — `pr-11` is i-♭VII-♭VI-V in A
+ * minor — and the thirteen keys are a MAJOR-key vocabulary. Read as
+ * minor tonics they would name D♭ minor and G♭ minor, which are not
+ * keys anyone writes in.
+ *
+ * Both are in the report rather than approximated.
+ * =====================================================================
+ */
+interface ProgressionShape {
+  /** What the card id and the skill tag are built from. */
+  id: string;
+  /**
+   * The value the grid row and the Progression chip carry.
+   *
+   * 2-5-1 REUSES FUNCTIONAL HARMONY'S `ii-V-I` rather than minting a
+   * second name for it. Ruling 26's whole point was that a 5 1 is a
+   * little progression however it is spelled, and two chips both
+   * reading "2 5 1" would be exactly the row a reader has to know is
+   * the same row.
+   */
+  facet: string;
+  /** The card's own question, with the key spelled in. */
+  ask: (key: string) => string;
+  /** Degree and quality, in order. */
+  chords: ReadonlyArray<readonly [string, string]>;
+  /** The card's own explanation, given the chords as written. */
+  explain: (key: string, chords: string[]) => string;
+  /** The one near-miss this progression's hand-written card made that
+   *  a plain degree swap cannot produce. */
+  extra?: (root: string) => string[];
+}
+
+const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
+  {
+    id: '1-5-6-4',
+    facet: '1-5-6-4',
+    ask: k => `The 1-5-6-4 progression in ${k} major is _____`,
+    chords: [['1', ''], ['5', ''], ['6', 'm'], ['4', '']],
+    explain: (k, c) => `1-5-6-4 in ${k} is ${c.join(' → ')} — the `
+      + "'pop progression' (or 'axis' chords). You've heard this in hundreds "
+      + 'of songs across pop, gospel, R&B, and worship; it works because it '
+      + 'cycles through all four tonal functions in a tight loop.',
+  },
+  {
+    id: '2-5-1',
+    facet: 'ii-V-I',
+    ask: k => `The 2-5-1 in ${k} major is _____`,
+    chords: [['2', 'm7'], ['5', '7'], ['1', 'maj7']],
+    // THE B♭-ONLY CLAUSE IS GONE, not rewritten for twelve more keys.
+    // "so many horn charts default here" is true of B♭ and of nowhere
+    // else, and inventing a reason to care about each of the others is
+    // exactly the copy this generator has no business writing.
+    explain: (k, c) => `The 2-5-1 in ${k} is ${c.join(' → ')}. Memorize this `
+      + "in every key and you've got half of jazz standard vocabulary.",
+  },
+  {
+    id: '1-6-4-5',
+    facet: '1-6-4-5',
+    ask: k => `The 1-6-4-5 in ${k} major is _____`,
+    chords: [['1', ''], ['6', 'm'], ['4', ''], ['5', '']],
+    explain: (k, c) => `1-6-4-5 in ${k} is ${c.join(' → ')} — the 50s doo-wop `
+      + 'progression that became the bedrock of countless soul, gospel, and '
+      + 'pop ballads. Same chord set as 1-5-6-4, just rotated.',
+  },
+  {
+    id: '6-4-1-5',
+    facet: '6-4-1-5',
+    ask: k => `The 6-4-1-5 in ${k} major is _____`,
+    chords: [['6', 'm'], ['4', ''], ['1', ''], ['5', '']],
+    explain: (k, c) => `6-4-1-5 in ${k} is ${c.join(' → ')} — same four chords `
+      + 'as 1-5-6-4, just started from the vi. Starting on the minor makes the '
+      + 'song feel darker and more contemplative even though the chords '
+      + 'themselves are identical.',
+  },
+  {
+    id: 'gospel-walk-up',
+    facet: 'gospel walk-up',
+    ask: k => `The gospel walk-up I-II-iii-IV in ${k} major is _____`,
+    chords: [['1', ''], ['2', ''], ['3', 'm'], ['4', '']],
+    explain: (_k, c) => `${c.join(' → ')} is the classic gospel walk-up — note `
+      + `the II is ${c[1]} MAJOR (a secondary dominant pointing at iii), not `
+      + `${c[1]}m. You hear this rising-line move in gospel and soul bridges `
+      + "constantly; it's a signature 'lift' device.",
+    // The II played minor — the mistake the explanation is written to
+    // catch, and the one `pr-5` led with.
+    extra: root => [[
+      degreeLabel(root, '1'), `${degreeLabel(root, '2')}m`,
+      `${degreeLabel(root, '3')}m`, degreeLabel(root, '4'),
+    ].join(' - ')],
+  },
+  {
+    id: 'rhythm-changes',
+    facet: 'rhythm changes',
+    ask: k => `Rhythm changes A section in ${k} major starts with _____`,
+    chords: [['1', 'maj7'], ['6', 'm7'], ['2', 'm7'], ['5', '7']],
+    // BARS, NOT ARROWS. `pr-6` wrote this one with pipes because it is
+    // a form rather than a loop, and that is kept.
+    explain: (k, c) => `Rhythm changes A-section in ${k}: ${c.join(' | ')} `
+      + "(I - vi - ii - V). Based on Gershwin's 'I Got Rhythm,' it's one of "
+      + 'the most-played forms in jazz — hundreds of bebop heads are written '
+      + 'over this 32-bar structure.',
+  },
+  {
+    id: 'backdoor',
+    facet: 'backdoor',
+    ask: k => `The backdoor progression I-IV-bVII-I in ${k} major is _____`,
+    chords: [['1', ''], ['4', ''], ['b7', ''], ['1', '']],
+    explain: (k, c) => `The backdoor progression in ${k} is ${c.join(' → ')} — `
+      + `the bVII (${c[2]}) sneaks in instead of a V. It's a gospel/soul `
+      + 'favorite: less expected than a V-I, more melodic, and gives that '
+      + 'broad, modal landing.',
+    // The natural 7 in place of the ♭7 — `pr-7`'s own first decoy, and
+    // the only wrong answer that tests whether the reader knows which
+    // seventh the progression means.
+    extra: root => [[
+      degreeLabel(root, '1'), degreeLabel(root, '4'),
+      degreeLabel(root, '7'), degreeLabel(root, '1'),
+    ].join(' - ')],
+  },
+  {
+    id: 'neo-soul',
+    facet: 'neo-soul',
+    ask: k => `The neo-soul cycle Imaj7-iii7-vi7-IVmaj7 in ${k} is _____`,
+    chords: [['1', 'maj7'], ['3', 'm7'], ['6', 'm7'], ['4', 'maj7']],
+    explain: (_k, c) => `${c.join(' → ')} is the neo-soul cycle — lush, `
+      + 'cycling, rarely fully resolving. Tom Misch, D’Angelo, Daniel Caesar, '
+      + 'and Snoh Aalegra tracks live in this kind of harmonic space where '
+      + 'everything stays beautifully suspended.',
+  },
+];
+
+/**
+ * The chords one named progression is made of, or null.
+ *
+ * EXPORTED SO `cardAudio` PLAYS WHAT THE CARD SAYS. The degrees and
+ * qualities are written once, here, and both the text and the sound
+ * read them — a second copy in the audio file is a second copy that
+ * would one day disagree with the card it is playing.
+ */
+export function progressionVoicing(
+  facet: string | undefined,
+): ReadonlyArray<readonly [string, string]> | null {
+  return PROGRESSION_SHAPES.find(s => s.facet === facet)?.chords ?? null;
+}
+
+/**
+ * The quality the major scale puts on each degree.
+ *
+ * SIX DEGREES, NOT SEVEN. The 7 is diminished, and no card in this
+ * family has ever put a dim or a m7♭5 chord on screen — offering one as
+ * a wrong answer would mark it out by sight rather than by knowledge,
+ * which is the leak `decoyGuard` exists to refuse. The 7 still appears
+ * where a progression's own near-miss needs it, as a plain triad.
+ */
+const DIATONIC_TRIAD: Readonly<Record<string, string>> = {
+  '1': '', '2': 'm', '3': 'm', '4': '', '5': '', '6': 'm',
+};
+const DIATONIC_SEVENTH: Readonly<Record<string, string>> = {
+  '1': 'maj7', '2': 'm7', '3': 'm7', '4': 'maj7', '5': '7', '6': 'm7',
+};
+
+/**
+ * Wrong answers that differ by ONE chord.
+ *
+ * =====================================================================
+ * REAL CHORDS, CORRECTLY WRITTEN, WRONG FOR THIS QUESTION — the repair
+ * the enharmonic groups needed, applied here.
+ *
+ * Every candidate is the progression with a single chord swapped for
+ * another chord the key actually contains, AT THE SAME WEIGHT: a triad
+ * for a triad, a seventh for a seventh. So the four options are the
+ * same length, in the same key, spelled the same way, and a reader
+ * cannot pick by shape — only by knowing the progression. That is what
+ * the hand-written decoys did card by card; this does it by rule.
+ *
+ * A SWAP THAT REPEATS A CHORD IS REJECTED. "E♭ - B♭ - E♭ - A♭" is a
+ * progression with a chord in it twice while the answer has four
+ * different ones, and a reader who noticed would never need to know
+ * anything else. The exception is a progression that already repeats —
+ * the backdoor returns to its I — where the count has to match rather
+ * than be zero.
+ * =====================================================================
+ */
+function progressionDecoyPool(
+  root: string, shape: ProgressionShape, answer: string,
+): string[] {
+  const degrees = shape.chords.map(([d]) => d);
+  const repeatsAllowed = degrees.length - new Set(degrees).size;
+  const out: string[] = [...(shape.extra?.(root) ?? [])];
+  // EVERY OPTION LANDS WHERE THE PROGRESSION LANDS. Two reasons, and
+  // the second is the one that decided it. A wrong landing is the
+  // weakest decoy on the card: the question names the key, so the 1 of
+  // a 2-5-1 is already on screen and a reader who has read the question
+  // can strike that option without knowing the progression at all.
+  // And swapping it produced a cross-card tell the guard caught — five
+  // of them, "an option ending C♯m means the answer ends E" and its
+  // like — because a rule-written decoy set repeats itself in a way a
+  // hand-written one does not. What differs is what happens on the way.
+  for (let i = 0; i < shape.chords.length - 1; i += 1) {
+    const seventh = shape.chords[i][1].includes('7');
+    for (const degree of ['2', '3', '6', '4', '5', '1']) {
+      if (degree === shape.chords[i][0]) continue;
+      const swapped = degrees.map((d, j) => (j === i ? degree : d));
+      if (swapped.length - new Set(swapped).size !== repeatsAllowed) continue;
+      const text = shape.chords
+        .map(([d, q], j) => (j === i
+          ? `${degreeLabel(root, degree)}${
+            seventh ? DIATONIC_SEVENTH[degree] : DIATONIC_TRIAD[degree]}`
+          : `${degreeLabel(root, d)}${q}`))
+        .join(' - ');
+      if (text !== answer) out.push(text);
+    }
+  }
+  return [...new Set(out)];
+}
+
+/** Every named progression, in every key (rulings 39 and 40). */
+export function generateProgressionCards(): Flashcard[] {
+  const out: Flashcard[] = [];
+  for (const root of THIRTEEN_KEYS) {
+    for (const shape of PROGRESSION_SHAPES) {
+      // A PREFIX THAT HAS NEVER EXISTED. `pr-1564-Db` is a live id
+      // today and will be a retired one tomorrow; minting it again
+      // would break a fold-in that is allowed to run twice.
+      const id = `pr-prog-${shape.id}-${root}`;
+      const written = shape.chords
+        .map(([d, q]) => `${degreeLabel(root, d)}${q}`);
+      const answer = written.join(' - ');
+      out.push({
+        ...base('progressions', 'Progressions'),
+        id,
+        // THE KEY AS WRITTEN (ruling 40). The 1-5-6-4 of G♭ ends on C♭
+        // and the 1-5-6-4 of F♯ ends on B: two keys, two cards.
+        axis: { key: root, shape: shape.facet },
+        question: shape.ask(noteLabel(root)),
+        correctAnswer: answer,
+        decoys: chooseDecoys(answer, progressionDecoyPool(root, shape, answer), {
+          count: 3, seed: id, label: id, category: 'progressions',
+        }),
+        explanation: shape.explain(noteLabel(root), written)
+          + keyboardNote(...shape.chords.map(([d]) => degreeAscii(root, d))),
+        skillTag: `progression-${shape.id}-in-${root}`,
+      });
+    }
+  }
+  return out;
+}
+
 /** Everything this module adds, in one list. */
 export function expansionCards(): Flashcard[] {
   return [
@@ -1699,7 +1981,6 @@ export function expansionCards(): Flashcard[] {
     // twenty-four. The generator stays exported because
     // `retiredCategoryMigration` reads it to prove which new card each
     // one became; it goes in commit 9 with the migration.
-    ...generateProgressionTopUps(),
     ...generateKeyCountCards(),
     ...generateRelativeCards(),
     ...generateKeyFromCountCards(),
@@ -1707,5 +1988,10 @@ export function expansionCards(): Flashcard[] {
     ...generateIntervalGrid(),
     ...generatePentatonicNotesCards(),
     ...generatePentatonicLickCards(),
+    // `generateProgressionTopUps()` WAS HERE. Its six 1-5-6-4 cards are
+    // eight progressions across thirteen keys now, under a prefix that
+    // has never existed; the generator stays exported so
+    // `progressionFoldIn` can prove what each of the six became.
+    ...generateProgressionCards(),
   ];
 }

@@ -38,7 +38,11 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   // `pivot top-ups` WAS HERE. Reverse Key Pivots folded into
   // `degree-notes` on 3 Sep 2026 and its three top-ups went with it;
   // `retiredCategoryMigration` reads the generator now.
-  ['progression 1564', /^pr-1564-/,      6, ['key', 'shape']],
+  // 6 before commit 8 — the 1-5-6-4 in the six keys the family never
+  // reached. Eight named progressions across thirteen keys now, under a
+  // prefix that has never existed: `pr-1564-F#` was the G♭ card, so
+  // minting that id again is exactly what a fold-in cannot survive.
+  ['progression',      /^pr-prog-/,    104, ['key', 'shape']],
   // The relative top-ups retired in commit 8 into three generated sets
   // over thirteen keys. The parallel set is untouched — Silas has not
   // ruled on it — and gained only an `ask` row so it lands on the
@@ -152,15 +156,17 @@ const place = (categoryLabel: string) => {
 };
 
 describe('the grids place what the generators produced', () => {
-  it('puts every keyed progression in the grid and the twenty in the tail', () => {
+  it('puts every keyed progression in the grid and the twelve in the tail', () => {
     // The grid-plus-tail shape, on the category that motivated it.
+    // 26/20/6 before commit 8; the tail is still a tail, and it is
+    // still the answer for a card that names no key.
     const { grid, tail, items } = place(CATEGORY_LABELS.progressions);
-    expect(items).toHaveLength(26);
-    expect(tail).toHaveLength(20);
-    expect(items.filter(i => i.axis !== undefined)).toHaveLength(6);
+    expect(items).toHaveLength(116);
+    expect(tail).toHaveLength(12);
+    expect(items.filter(i => i.axis !== undefined)).toHaveLength(104);
     const placed = [...grid!.cells.values()]
       .flatMap(col => [...col.values()].flat());
-    expect(placed).toHaveLength(6);
+    expect(placed).toHaveLength(104);
   });
 
   it('places every pentatonic card, both spellings of the roots', () => {

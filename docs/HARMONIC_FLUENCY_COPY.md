@@ -67,6 +67,22 @@ Ruling 26. The stored value is unchanged and still what a link carries.
 | V/V | 5 of 5 |
 | V/vi | 5 of 6 |
 | 1-5-6-4 | 1 5 6 4 |
+| 1-6-4-5 | 1 6 4 5 |
+| 6-4-1-5 | 6 4 1 5 |
+| gospel walk-up | gospel walk-up |
+| rhythm changes | rhythm changes |
+| backdoor | backdoor |
+| neo-soul | neo-soul |
+
+**Six chips added in commit 8, none of them newly written.** The three numbered
+ones apply ruling 26's own rule — the dashes become spaces. The three named ones
+are the words the family's own questions already use: *the gospel walk-up*,
+*Rhythm changes A section*, *the neo-soul cycle*. **`backdoor` prints as stored.**
+
+**`ii-V-I` is one chip for both families.** Progression Vocabulary's 2-5-1 cards
+carry the same stored value as Functional Harmony's, because ruling 26 said a 5 1
+is a little progression however it is spelled — two chips both reading "2 5 1"
+would be the row a reader has to know is the same row.
 
 ---
 

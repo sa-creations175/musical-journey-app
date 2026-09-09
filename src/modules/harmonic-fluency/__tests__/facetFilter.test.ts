@@ -170,12 +170,17 @@ describe('what the control offers', () => {
   });
 
   it('offers no facet that cannot change what is on screen', () => {
-    // Every card in Progression Vocabulary that carries a progression
-    // carries the same one, so a progression filter over that category
-    // alone is a label, not a control.
-    const progressions = FLASHCARDS.filter(c => c.category === 'progressions');
-    expect(offerableFacets(progressions)).not.toContain('progression');
-    expect(offerableFacets(progressions)).toContain('key');
+    // A POOL, NOT A CATEGORY, SINCE COMMIT 8. Progression Vocabulary
+    // held one progression in six keys and now holds eight in thirteen,
+    // so no category is single-valued in any facet any more — and the
+    // control is offered against whatever the reader has narrowed to
+    // rather than against a category, which is what this always meant.
+    // Every card here is a 1-5-6-4, so a Progression control over them
+    // is a label; the Key chips still separate them.
+    const oneShape = FLASHCARDS.filter(c => c.facets?.progression === '1-5-6-4');
+    expect(oneShape.length).toBeGreaterThan(1);
+    expect(offerableFacets(oneShape)).not.toContain('progression');
+    expect(offerableFacets(oneShape)).toContain('key');
   });
 
   it('offers more as more categories are lit', () => {

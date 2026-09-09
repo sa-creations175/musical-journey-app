@@ -70,7 +70,12 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 78 + 293 = 1463
+// Harmonic Fluency — 949 + 143 + 168 + 293 = 1553
+// (9 Sep 2026, commit 8: 1463 → 1553. Progression Vocabulary
+//  regenerated — the eight named progressions that can be written in
+//  a major key, in all thirteen. Eight hand-written in-key cards and
+//  the six 1-5-6-4 top-ups folded in; progressions 26 → 116,
+//  functionalApplied 78 → 168.)
 // (9 Sep 2026, commit 8: 1466 → 1463. Pentatonics: the five formula
 //  cards went, major gained F♯, and the twelve "share the same" cards
 //  became thirteen lick cards. Pentatonics 41 → 38, foundational
@@ -137,16 +142,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
-  it('functionalApplied = fh 52 + pr 26 = 78', () => {
-    expect(c.byGroup.functionalApplied).toBe(78);
+  it('functionalApplied = fh 52 + pr 116 = 168', () => {
+    expect(c.byGroup.functionalApplied).toBe(168);
   });
 
   it('earRecognition = mo 107 + iv 171 + et 15 = 293', () => {
     expect(c.byGroup.earRecognition).toBe(293);
   });
 
-  it('total = 1463 across all 13 categories', () => {
-    expect(c.total).toBe(1463);
+  it('total = 1553 across all 13 categories', () => {
+    expect(c.total).toBe(1553);
   });
 
   it('total equals sum of group totals', () => {

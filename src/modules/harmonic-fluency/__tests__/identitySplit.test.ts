@@ -188,11 +188,15 @@ describe('the id moved and the words did not', () => {
     for (const from of Object.keys(IDENTITY_ID_MOVES)) {
       expect(byId.has(from), `${from} should be gone`).toBe(false);
     }
-    expect(byId.has('pr-1564-F#')).toBe(true);
+    expect(byId.has('fh-ii-v-i-F#')).toBe(true);
   });
 
-  it('the progression card is spelled G♭ in its text, under an F♯ id', () => {
-    const card = byId.get('pr-1564-F#')!;
+  it('the cadence card is spelled G♭ in its text, under an F♯ id', () => {
+    // WAS `pr-1564-F#` UNTIL COMMIT 8. Progression Vocabulary was
+    // regenerated for thirteen keys, so it no longer has an identity
+    // id to make this point with; Functional Harmony has not been, and
+    // shows the same thing.
+    const card = byId.get('fh-ii-v-i-F#')!;
     expect(card.question).toContain('G♭');
     expect(card.question).not.toContain('F♯');
     // Its degrees are spelled from the flat root, which is the whole

@@ -65,7 +65,7 @@
 import type { Flashcard } from './catalog';
 import { keyToRootMidi } from '../ear-training/chord-progressions/progressionTheory';
 import { DEGREE_BY_ID } from './chromaticDegrees';
-import { SLASH_SHAPES } from './catalogExpansions';
+import { SLASH_SHAPES, progressionVoicing } from './catalogExpansions';
 import { INTERVAL_QUALITIES, type Direction } from './scaleDegreeQuality';
 
 /**
@@ -129,6 +129,12 @@ const MIN: readonly number[] = [0, 3, 7];
 const MAJ7: readonly number[] = [0, 4, 7, 11];
 const MIN7: readonly number[] = [0, 3, 7, 10];
 const DOM7: readonly number[] = [0, 4, 7, 10];
+
+/** The suffix a generated progression writes, as a chord. The five the
+ *  family uses and no more — see `PROGRESSION_SHAPES`. */
+const CHORD_BY_QUALITY: Readonly<Record<string, readonly number[]>> = {
+  '': MAJ, m: MIN, maj7: MAJ7, m7: MIN7, '7': DOM7,
+};
 
 /** A chord built on a degree of the key, as semitones from the key. */
 function on(degree: string, chord: readonly number[]): SoundStep {
@@ -293,10 +299,18 @@ export function cardSound(card: Flashcard): CardSound | null {
       }
     }
 
-    case 'progressions':
-      return str(axis?.shape) === '1-5-6-4'
-        ? keyed([on('1', MAJ), on('5', MAJ), on('6', MIN), on('4', MAJ)])
-        : null;
+    case 'progressions': {
+      // THE PROGRESSION'S OWN CHORDS, READ OFF THE GENERATOR'S LIST.
+      // Eight named progressions across thirteen keys since commit 8,
+      // and the degrees and qualities are written down once — in
+      // `PROGRESSION_SHAPES`, beside the sentence each card says.
+      // The twelve one-offs carry no shape and stay silent, which is
+      // the allowed-to-differ list's own entry for them.
+      const chords = progressionVoicing(str(axis?.shape));
+      return chords === null
+        ? null
+        : keyed(chords.map(([d, q]) => on(d, CHORD_BY_QUALITY[q])));
+    }
 
     case 'pentatonic-scales': {
       // THE FIVE NOTES ASCENDING, over the root's own chord — minor

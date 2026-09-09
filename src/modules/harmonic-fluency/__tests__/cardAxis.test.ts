@@ -173,11 +173,14 @@ describe('enharmonic equivalents', () => {
 
 describe('absent means flat list, not broken', () => {
   it('leaves the hand-written cards without an axis', () => {
-    // The twenty progression one-offs and every hand-written card carry
-    // none, and that is the answer rather than a gap — inventing
-    // coordinates to force a 1x1 grid would be making structure up.
+    // TWELVE ONE-OFFS SINCE COMMIT 8, down from twenty: eight named a
+    // progression in one key that the generator now writes in
+    // thirteen. Of the twelve left, six ask about a progression in no
+    // key at all and five name a progression the ruled list does not,
+    // and none carries coordinates — inventing them to force a 1x1
+    // grid would be making structure up.
     const pr = inCategory('progressions').filter(c => /^pr-\d+$/.test(c.id));
-    expect(pr.length).toBe(20);
+    expect(pr.length).toBe(12);
     for (const c of pr) expect(Object.hasOwn(c, 'axis'), c.id).toBe(false);
   });
 
@@ -224,7 +227,10 @@ describe('absent means flat list, not broken', () => {
       // 36 before commit 8, when five formula cards carried none.
       // Every pentatonic card has a root now.
       'pentatonic-scales': 38,
-      'progressions': 6,
+      // 6 before commit 8 — one shape in six keys. Eight named
+      // progressions across thirteen keys now, under a prefix that has
+      // never existed.
+      'progressions': 104,
       // 44 before ruling 30: eleven keys x four shapes. Seven shapes
       // across thirteen keys now — ruling 37 took the three
       // hand-written C cards that kept the generator out of that key,
@@ -297,17 +303,18 @@ describe('scale degree math is 7 degrees x 24 movements', () => {
 describe('the grid reads the passed list, not the coordinates present', () => {
   it('offers columns for keys no card in the category uses', async () => {
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
-    // Progression Vocabulary, since Reverse Key Pivots retired: it
-    // reaches six of the twelve keys and the axis still offers all
-    // twelve, which is the asymmetry this needs.
-    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS.progressions];
+    // FUNCTIONAL HARMONY, since Progression Vocabulary was regenerated
+    // in commit 8: it reaches eleven of the twelve keys — C has no
+    // generated cadence card — and the axis still offers all twelve,
+    // which is the asymmetry this needs.
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['functional-harmony']];
     const used = new Set(
-      inCategory('progressions')
+      inCategory('functional-harmony')
         .filter(c => c.axis?.key !== undefined)
         .map(c => String(c.axis!.key)),
     );
     const offered = grid.columns.views[0].values.map(String);
-    // ASYMMETRIC: the progressions use fewer keys than the axis offers,
+    // ASYMMETRIC: the cadences use fewer keys than the axis offers,
     // so a column list collected off the cards would be SHORTER.
     expect(offered.length).toBeGreaterThan(used.size);
     for (const k of HF_MAJOR_KEYS) expect(offered).toContain(k);

@@ -34,7 +34,7 @@ describe('the shape is the same everywhere', () => {
   it('is the key\'s own chord first, then the material', () => {
     // Ruling 33's one sentence, asserted across the five families it
     // gave a voice to plus the two that already had one.
-    for (const id of ['sc-slash-1-3-G', 'fh-ii-v-i-Eb', 'pr-1564-Eb',
+    for (const id of ['sc-slash-1-3-G', 'fh-ii-v-i-Eb', 'pr-prog-1-5-6-4-Eb',
       'pent-notes-major-Ab', 'ks-relminor-Eb', 'dgn-Ab-b6', 'sdm-1-up-P5']) {
       const s = soundOf(id);
       expect(s.orient, id).not.toBeNull();
@@ -45,7 +45,7 @@ describe('the shape is the same everywhere', () => {
   it('sounds a keyed card at its own key', () => {
     // `keyToRootMidi` is 48 + the pitch class, so E♭ is 51.
     expect(soundOf('fh-ii-v-i-Eb').rootMidi).toBe(51);
-    expect(soundOf('pr-1564-Eb').rootMidi).toBe(51);
+    expect(soundOf('pr-prog-1-5-6-4-Eb').rootMidi).toBe(51);
   });
 });
 
@@ -109,9 +109,28 @@ describe('the little progressions', () => {
   });
 
   it('plays 1 5 6 4 in order, with the 6 minor', () => {
-    expect(steps(soundOf('pr-1564-Eb'))).toEqual([
+    expect(steps(soundOf('pr-prog-1-5-6-4-Eb'))).toEqual([
       MAJ, [7, 11, 14], [9, 12, 16], [5, 9, 12],
     ]);
+  });
+
+  it('takes the backdoor out of the key, on the ♭7', () => {
+    // The one generated progression with a chord the major scale does
+    // not contain. If the sound came from the scale rather than from
+    // the card's own degrees it would play a B♭ here and be a
+    // different progression.
+    expect(steps(soundOf('pr-prog-backdoor-F'))).toEqual([
+      MAJ, [5, 9, 12], [10, 14, 17], MAJ,
+    ]);
+  });
+
+  it('leaves none of the generated progressions silent', () => {
+    // Eight shapes across thirteen keys. A shape added to the text
+    // without a voicing would be a card that reads and does not play,
+    // which is the gap ruling 34 closed for every other family.
+    const generated = FLASHCARDS.filter(c => c.id.startsWith('pr-prog-'));
+    expect(generated).toHaveLength(104);
+    for (const c of generated) expect(cardSound(c), c.id).not.toBeNull();
   });
 });
 

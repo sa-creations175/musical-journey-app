@@ -38,6 +38,10 @@ import {
   foldInPentatonicCards,
 } from './modules/harmonic-fluency/pentatonicFoldIn';
 import {
+  describeProgressionFoldIn,
+  foldInProgressionCards,
+} from './modules/harmonic-fluency/progressionFoldIn';
+import {
   cleanUpRetiredCard,
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
@@ -296,6 +300,17 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] pentatonic fold-in failed', err);
+      });
+    // Progressions: eight hand-written in-key cards and the six 1-5-6-4
+    // top-ups land on their own key's generated card. Nothing is
+    // deleted — every retired card here has a successor.
+    void foldInProgressionCards()
+      .then(r => {
+        const line = describeProgressionFoldIn(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] progression fold-in failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from

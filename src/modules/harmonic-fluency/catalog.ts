@@ -1263,7 +1263,7 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
     skillTag: 'chord-construction-diminished' },
 ];
 
-const PROGRESSION_CARDS: Flashcard[] = [
+const PROGRESSION_CARDS_ALL: Flashcard[] = [
   { id: 'pr-1', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'The 1-5-6-4 progression in C major is _____', correctAnswer: 'C - G - Am - F',
     decoys: ['C - Em - Am - F', 'C - G - Dm - F', 'C - G - Am - Dm'],
@@ -1381,6 +1381,45 @@ const PROGRESSION_CARDS: Flashcard[] = [
     explanation: "C → Bb → F is 1-bVII-IV — a Mixolydian/gospel move. The bVII (Bb) is borrowed from the parallel minor; you hear this three-chord cycle all over rock, gospel, and soul tunes that want a bluesy, open, never-quite-fully-resolved feel.",
     skillTag: 'progression-1-b7-4-in-C' },
 ];
+
+/**
+ * The eight that fold into the generator.
+ *
+ * =====================================================================
+ * EIGHT MOVE, TWELVE STAY, AND THE LINE IS THE RULED LIST.
+ *
+ * Silas named ten progressions. Eight of them had a card in one key
+ * that the generator now writes in thirteen, and those eight are here:
+ * question and answer are unchanged, so each pairs with its own key's
+ * generated card and its history goes with it.
+ *
+ * THE OTHER TWELVE ARE NOT ON THE LIST AND ARE NOT TOUCHED. Six ask
+ * about a progression in no key at all — the plagal vamp, the rotation,
+ * the 12-bar structure, the two pedals, the Coltrane cycle — and stay
+ * prose, exactly as ruled. Five name a progression the ruled list does
+ * not: the bossa turnaround, the Dorian vamp, 4-1-5-6, 1-4-5 and
+ * 1-♭7-4. Generating those would be adding progressions to the family,
+ * which is the one thing the brief says not to do. And `pr-11`, the
+ * descending minor, is a MINOR-key card with no thirteen-key
+ * vocabulary to be written in — see `PROGRESSION_SHAPES`.
+ * =====================================================================
+ */
+const RETIRED_PROGRESSION_IDS: ReadonlySet<string> = new Set([
+  'pr-1',  // 1-5-6-4 in C
+  'pr-2',  // 2-5-1 in B♭
+  'pr-3',  // 1-6-4-5 in G
+  'pr-4',  // 6-4-1-5 in D
+  'pr-5',  // the gospel walk-up in C
+  'pr-6',  // rhythm changes in B♭
+  'pr-7',  // the backdoor in F
+  'pr-10', // the neo-soul cycle in C
+]);
+
+export const RETIRED_PROGRESSION_CARDS: Flashcard[] =
+  PROGRESSION_CARDS_ALL.filter(c => RETIRED_PROGRESSION_IDS.has(c.id));
+
+const PROGRESSION_CARDS: Flashcard[] =
+  PROGRESSION_CARDS_ALL.filter(c => !RETIRED_PROGRESSION_IDS.has(c.id));
 
 const SLASH_CHORD_CARDS: Flashcard[] = [
   { id: 'sc-1', category: 'slash-chords', categoryName: CATEGORY_LABELS['slash-chords'],
