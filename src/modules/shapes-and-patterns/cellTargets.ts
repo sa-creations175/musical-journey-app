@@ -53,6 +53,7 @@ import {
   enumerateVoiceLeadingCells,
 } from './catalog';
 import { SCALE_CELLS } from './scaleSkills';
+import { movementCellRefs } from './movements/movementCells';
 import { MENTAL_VIZ_ITEMS } from './mentalVizLibrary';
 import { HAND_ORDER, handsFor } from './acquisition';
 
@@ -186,18 +187,33 @@ export function sectionCells(
  * read over 100%.
  * =====================================================================
  */
+/**
+ * `movementIds` — the movements the caller has in hand, whose cells
+ * belong to `voice-leading` (ruling 20).
+ *
+ * AN ARGUMENT, NOT A READ. Everything in this file is pure and
+ * synchronous — the goals encoder, the coverage denominators and the
+ * grids all call it during a render — and a movement lives in Dexie. So
+ * a caller that has the list passes it and a caller that has not gets
+ * exactly today's answer. Which callers pass it is a fact about them,
+ * and it is stated where they do.
+ */
 export function sectionTargets(
-  section: SectionId, outOfScore: OutOfScore = NOTHING_OUT,
+  section: SectionId,
+  outOfScore: OutOfScore = NOTHING_OUT,
+  movementIds: readonly string[] = [],
 ): CellTarget[] {
-  const flat = allSectionCells(section).flat();
+  const flat = allSectionCells(section, movementIds).flat();
   return outOfScore.size === 0 ? flat : flat.filter(t => inScore(t, outOfScore));
 }
 
 /** How many drillable things a section holds, still in the score. */
 export function sectionTargetCount(
-  section: SectionId, outOfScore: OutOfScore = NOTHING_OUT,
+  section: SectionId,
+  outOfScore: OutOfScore = NOTHING_OUT,
+  movementIds: readonly string[] = [],
 ): number {
-  return sectionTargets(section, outOfScore).length;
+  return sectionTargets(section, outOfScore, movementIds).length;
 }
 
 /**
@@ -267,7 +283,9 @@ export function shapesTargetUniverse(
   ];
 }
 
-function allSectionCells(section: SectionId): CellTarget[][] {
+function allSectionCells(
+  section: SectionId, movementIds: readonly string[] = [],
+): CellTarget[][] {
   switch (section) {
     case 'scales':
       return SCALE_CELLS.map(c => itemCellTargets(c.itemRef));
@@ -279,11 +297,20 @@ function allSectionCells(section: SectionId): CellTarget[][] {
         q => KEYS.map(k => chordCellTargets(q.id, k)),
       );
     case 'voice-leading':
-      return VOICE_LEADING_PATTERNS.flatMap(
-        p => KEYS.flatMap(
-          k => enumerateVoiceLeadingCells(p, k).map(itemCellTargets),
+      return [
+        ...VOICE_LEADING_PATTERNS.flatMap(
+          p => KEYS.flatMap(
+            k => enumerateVoiceLeadingCells(p, k).map(itemCellTargets),
+          ),
         ),
-      );
+        // ONE ROW EACH, TWELVE KEYS (ruling 20). A movement is a
+        // drillable thing on this section exactly as a pattern is, so
+        // it is part of the same denominator — the card's count, the
+        // grid's total and the generator's scope all read this.
+        ...movementIds.flatMap(
+          id => movementCellRefs(id).map(itemCellTargets),
+        ),
+      ];
     case 'mental-viz':
       return MENTAL_VIZ_ITEMS.map(i => itemCellTargets(i.itemRef));
   }

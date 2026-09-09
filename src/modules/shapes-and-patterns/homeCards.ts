@@ -114,6 +114,11 @@ export function shapesCards(
    *  The card reads out of what he is going for, not out of everything
    *  that exists — see `OutOfScore`. */
   outOfScore?: OutOfScore,
+  /** The movements Silas has captured. They are cells on the
+   *  voice-leading section (ruling 20), so the card's count includes
+   *  them — a caller with none passes none and the count is what it
+   *  always was. */
+  movementIds: readonly string[] = [],
 ): CategoryCardModel[] {
   return SHAPES_SECTIONS.map(section => {
     const rows = section.itemRefPrefix === null
@@ -140,7 +145,7 @@ export function shapesCards(
     const byRefHand = rowsByRefHand(
       section.itemRefPrefix === null ? mentalVizRows : shapesRows,
     );
-    const targets = sectionTargets(section.id, outOfScore);
+    const targets = sectionTargets(section.id, outOfScore, movementIds);
     const { total: targetTotal, fluentPlus } =
       countFluentPlusTargets(targets, byRefHand);
     const time = timeBySection.get(section.id);

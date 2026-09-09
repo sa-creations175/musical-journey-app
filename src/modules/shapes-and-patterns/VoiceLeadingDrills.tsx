@@ -31,6 +31,9 @@ import { NOT_STARTED } from '../../lib/spacing/banding';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { SECTION_TIME_SIGNATURE_PRESETS } from '../repertoire/barGrid';
 import { createMovement, deleteMovement } from './movements/movementStore';
+import {
+  movementCellLabel, movementGridRows, movementIdForRef,
+} from './movements/movementCells';
 import { movementPath } from './sectionRoutes';
 import type { ChordMovement } from '../../lib/db';
 
@@ -84,6 +87,24 @@ export default function VoiceLeadingDrills() {
       .sort((a, b) => b.updatedAt - a.updatedAt),
     [],
   ) ?? [];
+  const movementIds = useMemo(
+    () => new Set(movements.map(m => m.id)),
+    [movements],
+  );
+
+  /**
+   * What a cell is called — a movement's or a pattern's.
+   *
+   * ONE FUNCTION FOR BOTH, because Progress Details and the drill panel
+   * both ask, and two ways of naming a cell is how the panel comes to
+   * head itself differently from the band above it.
+   */
+  const cellLabel = (itemRef: string): string => {
+    const movementId = movementIdForRef(itemRef, movementIds);
+    if (movementId === null) return voiceLeadingCellLabel(itemRef, spelling);
+    const movement = movements.find(m => m.id === movementId)!;
+    return movementCellLabel(movement, itemRef.split(':')[2], spelling);
+  };
   const [custom, setCustom] = useState<CustomPattern[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -326,6 +347,17 @@ export default function VoiceLeadingDrills() {
               Remove
             </button>
           </div>
+          {/* ONE COLUMN, TWELVE KEYS (ruling 20). The same grid every
+              pattern draws, handed its rows instead of reading them
+              out of the catalog — a movement is not in the catalog and
+              has no starting positions to fan out into. */}
+          <VoiceLeadingPatternGrid
+            patternId={m.id}
+            rows={movementGridRows(m)}
+            layout={layout}
+            selectedRef={selected}
+            onCellOpen={pickCell}
+          />
         </section>
       ))}
 
@@ -403,7 +435,7 @@ export default function VoiceLeadingDrills() {
           target inside it opens the session. */}
       <CellProgressDetails
         ref={detailRef}
-        cellLabel={selected === null ? null : voiceLeadingCellLabel(selected, spelling)}
+        cellLabel={selected === null ? null : cellLabel(selected)}
         targets={selectedTargets}
         verdict={selectedTargets[0]?.progress.verdict ?? NOT_STARTED}
         /* NO ROLL-UP TO REPORT. One target, so the cell's word is the
@@ -424,8 +456,13 @@ export default function VoiceLeadingDrills() {
         <PracticeTestPanel
           key={drilling}
           surface={voiceLeadingSurface({
-            cellLabel: voiceLeadingCellLabel(drilling, spelling),
-            skillLabel: voiceLeadingSubCellDescription(drilling),
+            cellLabel: cellLabel(drilling),
+            // A MOVEMENT HAS NO SUB-CELL, so there is no second line.
+            // The panel joins the two with a middot and an empty one
+            // simply does not appear.
+            skillLabel: movementIdForRef(drilling, movementIds) === null
+              ? voiceLeadingSubCellDescription(drilling)
+              : '',
             itemRef: drilling,
           })}
           onClose={() => setDrilling(null)}

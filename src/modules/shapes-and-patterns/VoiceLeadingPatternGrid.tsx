@@ -27,6 +27,7 @@ import {
   KEYS_CIRCLE_OF_FOURTHS,
   VOICE_LEADING_PATTERN_BY_ID,
   voiceLeadingGridRows,
+  type VoiceLeadingGridRow,
 } from './catalog';
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
@@ -39,6 +40,17 @@ interface Props {
   /** Pattern id — built-in or custom. Custom ids aren't in the
    *  catalog and render the placeholder shell. */
   patternId: string;
+  /**
+   * Rows supplied by the caller, instead of read from the catalog.
+   *
+   * A MOVEMENT IS NOT IN THE CATALOG. It is made by Silas, lives in
+   * Dexie, and has exactly one row (ruling 20) — but everything below
+   * this line is the same: the same twelve keys, the same targets, the
+   * same verdict, the same cell. So the rows arrive as an argument and
+   * nothing else forks. A second grid component for a one-row pattern
+   * is the drift the one-shell rule exists to prevent.
+   */
+  rows?: VoiceLeadingGridRow[];
   /** Which axis runs down the side. Owned by the page, so every
    *  pattern on it turns together. */
   layout: Layout;
@@ -52,7 +64,7 @@ interface Props {
 }
 
 export default function VoiceLeadingPatternGrid({
-  patternId, layout, onCellOpen, selectedRef = null,
+  patternId, layout, onCellOpen, selectedRef = null, rows: given,
 }: Props) {
   const [spelling] = useSpelling();
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId);
@@ -72,14 +84,15 @@ export default function VoiceLeadingPatternGrid({
   const byRefHand = useMemo(() => rowsByRefHand(spacingRows), [spacingRows]);
 
   const rows = useMemo(
-    () => (pattern ? voiceLeadingGridRows(pattern) : []),
-    [pattern],
+    () => given ?? (pattern ? voiceLeadingGridRows(pattern) : []),
+    [given, pattern],
   );
 
   // Custom (non-catalog) pattern — render a friendly shell with no
   // sub-cell rows. The custom-pattern feature was always display-
-  // only; this preserves that.
-  if (!pattern) {
+  // only; this preserves that. A caller that SUPPLIED rows has said
+  // what to draw, so it never lands here.
+  if (!pattern && !given) {
     return (
       <div className="text-xs text-neutral-500 italic">
         Custom pattern — sub-cell drill flow isn't available for user-added patterns yet.

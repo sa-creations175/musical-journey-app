@@ -65,15 +65,21 @@ export default function ShapesAndPatterns() {
    * store a `DrillSkill` id rather than an itemRef, so the skills
    * table comes along for the join.
    */
+  /** The movements Silas has captured. Their cells belong to the
+   *  voice-leading section (ruling 20), so the card counts them. */
+  const movementIds = useLiveQuery(
+    async () => (await db.chordMovements.toArray()).map(m => m.id),
+    [],
+  ) ?? [];
   const sessions = useLiveQuery(() => db.drillSessions.toArray(), []) ?? [];
   const drillSkills = useLiveQuery(() => db.drillSkills.toArray(), []) ?? [];
   const timeBySection = shapesTimeInvested(sessions, drillSkills);
   const now = Date.now();
   const cards = useMemo(
-    () => shapesCards(shapesRows, mentalVizRows, now, timeBySection),
+    () => shapesCards(shapesRows, mentalVizRows, now, timeBySection, undefined, movementIds),
     // `now` is deliberately not a dep — freshness moves in days.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [shapesRows, mentalVizRows],
+    [shapesRows, mentalVizRows, movementIds],
   );
 
   if (redirectTo !== null) return <Navigate to={redirectTo} replace />;

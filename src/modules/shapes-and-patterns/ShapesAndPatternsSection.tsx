@@ -108,11 +108,19 @@ function SectionPage({ section }: { section: ShapesSectionId }) {
    * store a `DrillSkill` id rather than an itemRef, so the skills
    * table comes along for the join.
    */
+  /** The movements Silas has captured. Their cells belong to the
+   *  voice-leading section (ruling 20), so the card counts them. */
+  const movementIds = useLiveQuery(
+    async () => (await db.chordMovements.toArray()).map(m => m.id),
+    [],
+  ) ?? [];
   const sessions = useLiveQuery(() => db.drillSessions.toArray(), []) ?? [];
   const drillSkills = useLiveQuery(() => db.drillSkills.toArray(), []) ?? [];
   const timeBySection = shapesTimeInvested(sessions, drillSkills);
   const now = Date.now();
-  const cards = shapesCards(shapesRows, mentalVizRows, now, timeBySection)
+  const cards = shapesCards(
+    shapesRows, mentalVizRows, now, timeBySection, undefined, movementIds,
+  )
     .filter(c => c.key === section);
 
   // THE APP'S SCROLL, not `scrollIntoView`. The bare call aligns with

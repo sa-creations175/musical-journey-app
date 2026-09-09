@@ -142,18 +142,18 @@ describe('a movement is not a song', () => {
     .filter(f => !f.includes('__tests__/'))
     .sort();
 
-  it('is named by the schema, the sync config, its own module and its page', () => {
+  it('is named by the schema, the sync config and Shapes & Patterns', () => {
     // DERIVED FROM THE TREE, not from a list kept by hand. A file that
     // learns the word shows up here by name, which is the whole point:
     // the failure names the surface that started counting it.
     //
-    // The page joined the list when ruling 19 made the voice-leading
-    // page the movements page — it draws them, so it reads them.
+    // Shapes & Patterns joined the list when ruling 19 made the
+    // voice-leading page the movements page: the page draws them, and
+    // the module home and its section page count them (ruling 20).
     for (const file of namers) {
       const allowed = file === 'lib/db.ts'
         || file === 'lib/sync/tables.ts'
-        || file === 'modules/shapes-and-patterns/VoiceLeadingDrills.tsx'
-        || file.startsWith('modules/shapes-and-patterns/movements/');
+        || file.startsWith('modules/shapes-and-patterns/');
       expect(allowed, `${file} reads chordMovements`).toBe(true);
     }
     // And the ones that must be there actually are, so this cannot pass
