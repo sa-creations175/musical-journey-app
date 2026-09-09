@@ -2,7 +2,7 @@ import {
   spellInterval, type Accidental, type Letter, type Pitch,
 } from '../reading/pitch';
 import {
-  INTERVAL_NAMES, article, intervalNameAt,
+  INTERVAL_NAMES, article, intervalNameAt, invertedSemitones,
 } from './intervalInversion';
 import { INTERVAL_QUALITIES, playableName } from './scaleDegreeQuality';
 import type { Flashcard } from './catalog';
@@ -1435,9 +1435,11 @@ function intervalDecoyPool(semitones: number): string[] {
  * descending shape only if the family already has one, and it does not
  * — every card in it has said "ascending" since it was written.
  *
- * 150 CARDS, NOT 156. Six spellings need a double accidental and are
- * skipped rather than written wrong; `intervalToAscii` says which and
- * why, and the report lists them.
+ * 156 CARDS. It was 150 for a week: six spellings need a double
+ * accidental — the minor 2nd above D♭ is E𝄫 — and were skipped rather
+ * than written wrong. The follow-up ruling says a card is never skipped
+ * over spelling, so all six are written, glossed; `intervalToAscii`
+ * says how.
  * =====================================================================
  */
 export function generateIntervalGrid(): Flashcard[] {
@@ -1474,13 +1476,20 @@ export function generateIntervalGrid(): Flashcard[] {
         decoys: chooseDecoys(correct, intervalDecoyPool(semitones), {
           count: 3, seed: id, label: id, category: 'intervals',
         }),
-        explanation: `${noteLabel(from)} up to ${noteLabel(toAscii)} spans `
-          // ONE SEMITONE, NOT ONE SEMITONES. The sentence was written
-          // for the five top-up cards, whose spans ran from 4 to 11, so
-          // the plural was safe to hardcode until the grid reached a
-          // minor 2nd. Agreement, not new wording.
-          + `${semitones} semitone${semitones === 1 ? '' : 's'} — `
+        // THE INTERVAL, THEN THE SAME TWO NOTES THE OTHER WAY UP.
+        //
+        // "SPANS N SEMITONES" IS GONE (8 Sep ruling): distance reads in
+        // words, never in half-step counts. It was the only place in
+        // the deck still counting them out loud.
+        //
+        // The flip is what the fifteen inversion fact cards used to
+        // drill. It belongs here — on the two notes the reader is
+        // looking at, in the reveal — rather than as a rule asked in
+        // the abstract, and both names come from the one interval-name
+        // table so the sentence cannot disagree with the card.
+        explanation: `${noteLabel(from)} up to ${noteLabel(toAscii)} is `
           + `${article(correct)} ${correct}${OTHER_READINGS[correct] ?? ''}.`
+          + flipSentence(from, toAscii, semitones)
           + keyboardNote(toAscii)
           + ` ${INTERVAL_CONTEXT}`,
         skillTag: `interval-${from}-up-${semitones}`,
@@ -1488,6 +1497,38 @@ export function generateIntervalGrid(): Flashcard[] {
     }
   }
   return out;
+}
+
+/**
+ * The same two notes the other way up, said in the reveal.
+ *
+ * =====================================================================
+ * THIS IS WHAT THE FIFTEEN FACT CARDS USED TO DRILL.
+ *
+ * A minor 3rd flips to a Major 6th; a Perfect 4th to a Perfect 5th; the
+ * tritone to itself. Silas's ruling: the skill is the relationship
+ * between two notes on the keyboard, both ways, and the grid asks both
+ * directions of every pair. So the rule reads on the two notes in front
+ * of the reader rather than being asked in the abstract, and both names
+ * come from the one interval-name table.
+ *
+ * =====================================================================
+ * THE OCTAVE GETS NO FLIP SENTENCE, AND IT IS THE ONLY ONE.
+ *
+ * Its two notes have the SAME NAME. "D♭ up to D♭ is an Octave. Flipped,
+ * D♭ up to D♭ is a Unison." is true of a different pair of D♭s and
+ * reads as a contradiction — the one card where the sentence's own
+ * premise, the same two notes turned over, cannot be told apart from
+ * the sentence before it. Thirteen cards say nothing rather than say
+ * that; it is in the report.
+ * =====================================================================
+ */
+function flipSentence(from: string, toAscii: string, semitones: number): string {
+  const low = noteLabel(from);
+  const high = noteLabel(toAscii);
+  if (low === high) return '';
+  const flipped = intervalName(invertedSemitones(semitones));
+  return ` Flipped, ${high} up to ${low} is ${article(flipped)} ${flipped}.`;
 }
 
 /**

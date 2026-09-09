@@ -12,6 +12,7 @@ import {
   generatePivotTopUps, keyboardNote, needsPracticalName, noteLabelGlossed,
   SLASH_SHAPES,
 } from '../catalogExpansions';
+import { article, intervalNameAt, invertedSemitones } from '../intervalInversion';
 
 /** The four spellings that are correct and never said out loud. */
 const THEORETICAL = /C♭|F♭|B♯|E♯/;
@@ -133,6 +134,60 @@ describe('the gloss is derived, not typed', () => {
     expect(degreeLabelGlossed('Gb', '4')).toBe('C♭ (B)');
     expect(degreeAscii('Db', 'b7')).toBe('Cb');
     expect(degreeAscii('Gb', 'b7')).toBe('Fb');
+  });
+});
+
+describe('every interval reveal names the flip, and no half steps', () => {
+  const GRID = () => expansionCards().filter(c => /^iv-[^-]+-up-\d+$/.test(c.id));
+
+  it('says the same two notes the other way up, on 143 of the 156', () => {
+    // Derived from the card, not from a table written here: the two
+    // note names come out of the question and the two interval names
+    // out of the answer and its flip. A generator that printed the
+    // right sentence about the wrong pair would pass a spot check.
+    const cards = GRID();
+    expect(cards).toHaveLength(156);
+    let said = 0;
+    for (const c of cards) {
+      const m = c.question.match(/^The interval from (.+) to (.+?)(?: \(.+\))? ascending/)!;
+      const [, low, high] = m;
+      const span = Number(c.id.match(/-up-(\d+)$/)![1]);
+      const flipped = intervalNameAt(invertedSemitones(span))!;
+      if (low === high) continue;
+      said += 1;
+      expect(c.explanation ?? '', c.id)
+        .toContain(`Flipped, ${high} up to ${low} is ${article(flipped)} ${flipped}.`);
+    }
+    expect(said).toBe(143);
+  });
+
+  it('leaves the octave alone, because its two notes have one name', () => {
+    // The only card where "the same two notes turned over" cannot be
+    // told apart from the sentence before it.
+    const octaves = GRID().filter(c => /-up-12$/.test(c.id));
+    expect(octaves).toHaveLength(13);
+    for (const c of octaves) {
+      expect(c.explanation ?? '', c.id).not.toContain('Flipped');
+      expect(c.explanation ?? '', c.id).not.toContain('Unison');
+    }
+  });
+
+  it('counts no half steps anywhere in the family', () => {
+    // The 8 Sep ruling: distance reads in words, never in half-step
+    // counts. This was the last place in the deck saying "spans 6
+    // semitones" out loud.
+    for (const c of GRID()) {
+      expect(c.explanation ?? '', c.id).not.toMatch(/semitones?/);
+    }
+  });
+
+  it('still says what to press for a double-accidental note', () => {
+    const doubles = GRID().filter(c => /𝄫/.test(c.question));
+    expect(doubles).toHaveLength(6);
+    for (const c of doubles) {
+      expect(c.explanation ?? '', c.id)
+        .toMatch(/𝄫 is [A-G][♯♭]? on the keyboard/);
+    }
   });
 });
 
