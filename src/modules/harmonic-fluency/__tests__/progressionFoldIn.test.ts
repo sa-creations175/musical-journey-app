@@ -59,9 +59,10 @@ beforeEach(async () => {
 describe('which generated card each retired one became', () => {
   const { moves, unpaired } = progressionMapping();
 
-  it('pairs all fifteen and leaves none behind', () => {
-    expect(retiredProgressionCards()).toHaveLength(15);
-    expect(moves).toHaveLength(15);
+  it('pairs all twenty-six and leaves none behind', () => {
+    // Fifteen progression cards and the eleven ii-V-I cadences.
+    expect(retiredProgressionCards()).toHaveLength(26);
+    expect(moves).toHaveLength(26);
     expect(unpaired).toEqual([]);
   });
 
@@ -93,6 +94,9 @@ describe('which generated card each retired one became', () => {
     const old = new Map(retiredProgressionCards().map(c => [c.id, c]));
     const ascii = (s: string) => s.replace(/♭/g, 'b').replace(/♯/g, '#');
     for (const { from, to } of moves) {
+      // The eleven cadences are the ruled exception and are proved on
+      // the answer alone, in their own block below.
+      if (from.startsWith('fh-')) continue;
       expect(ascii(live.get(to)!.question), from)
         .toBe(ascii(old.get(from)!.question));
       expect(ascii(live.get(to)!.correctAnswer), from)
@@ -102,6 +106,71 @@ describe('which generated card each retired one became', () => {
 
   it('mints no retired id again', () => {
     expect(reusedIds(retiredProgressionCards())).toEqual([]);
+  });
+});
+
+// =====================================================================
+// The ruled exception: the ii-V-I cadence IS the 2-5-1
+// =====================================================================
+
+describe('the 2-5-1 lives once', () => {
+  const { moves } = progressionMapping();
+  const byFrom = new Map(moves.map(m => [m.from, m.to]));
+
+  it('pins all eleven pairs, key by key', () => {
+    // THE ONLY PAIRING IN THE DECK NOT MADE ON THE QUESTION, so it is
+    // the one written out in full rather than derived. A line that
+    // changed here would be a history attached to the wrong key.
+    expect(new Map([...byFrom].filter(([from]) => from.startsWith('fh-'))))
+      .toEqual(new Map([
+        ['fh-ii-v-i-Db', 'pr-prog-2-5-1-Db'],
+        ['fh-ii-v-i-D', 'pr-prog-2-5-1-D'],
+        ['fh-ii-v-i-Eb', 'pr-prog-2-5-1-Eb'],
+        ['fh-ii-v-i-E', 'pr-prog-2-5-1-E'],
+        ['fh-ii-v-i-F', 'pr-prog-2-5-1-F'],
+        // ITS TEXT SAYS G♭, SO IT GOES TO THE G♭ CARD — not to the F♯
+        // one, which the deck also has and which answers something
+        // else. The pairing is on the answer, so it cannot get this
+        // wrong; the assertion says so out loud.
+        ['fh-ii-v-i-F#', 'pr-prog-2-5-1-Gb'],
+        ['fh-ii-v-i-G', 'pr-prog-2-5-1-G'],
+        ['fh-ii-v-i-Ab', 'pr-prog-2-5-1-Ab'],
+        ['fh-ii-v-i-A', 'pr-prog-2-5-1-A'],
+        ['fh-ii-v-i-Bb', 'pr-prog-2-5-1-Bb'],
+        ['fh-ii-v-i-B', 'pr-prog-2-5-1-B'],
+      ]));
+  });
+
+  it('pairs on the answer, which is identical, not on the question', () => {
+    const live = new Map(FLASHCARDS.map(c => [c.id, c]));
+    const old = new Map(retiredProgressionCards().map(c => [c.id, c]));
+    for (const [from, to] of byFrom) {
+      if (!from.startsWith('fh-')) continue;
+      expect(live.get(to)!.correctAnswer, from)
+        .toBe(old.get(from)!.correctAnswer);
+      // And the questions really are different — otherwise the
+      // exception would be doing nothing and could be deleted.
+      expect(live.get(to)!.question, from)
+        .not.toBe(old.get(from)!.question);
+    }
+  });
+
+  it('leaves the F♯ 2-5-1 alone, with its own answer', () => {
+    expect(FLASHCARDS.find(c => c.id === 'pr-prog-2-5-1-F#')!.correctAnswer)
+      .toBe('G♯m7 - C♯7 - F♯maj7');
+    expect(FLASHCARDS.find(c => c.id === 'pr-prog-2-5-1-Gb')!.correctAnswer)
+      .toBe('A♭m7 - D♭7 - G♭maj7');
+  });
+
+  it('takes nothing else out of Functional Harmony', () => {
+    const fh = FLASHCARDS.filter(c => c.category === 'functional-harmony');
+    expect(fh.filter(c => c.id.startsWith('fh-ii-v-i-'))).toHaveLength(0);
+    expect(fh.filter(c => c.id.startsWith('fh-v-of-v-'))).toHaveLength(11);
+    expect(fh.filter(c => c.id.startsWith('fh-v-of-vi-'))).toHaveLength(11);
+    // `fh-3` asks the cadence in C and is hand-written rather than
+    // generated. It is not on Silas's list of eleven and is not
+    // touched — it is in the report.
+    expect(fh.some(c => c.id === 'fh-3')).toBe(true);
   });
 });
 

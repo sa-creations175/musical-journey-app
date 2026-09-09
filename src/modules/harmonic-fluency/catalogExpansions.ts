@@ -294,6 +294,19 @@ const SECONDARY_DOMINANT_CONTEXT =
 /**
  * ii-V-I in every key but C, which keeps its hand-written card.
  *
+ * =====================================================================
+ * OUT OF THE DECK SINCE 9 SEP 2026 — THE 2-5-1 LIVES ONCE.
+ *
+ * Progression Vocabulary asks the same eleven questions in different
+ * words, and in thirteen keys rather than eleven. Silas ruled that one
+ * of the two families keeps it, and it is the one where a progression
+ * is a progression.
+ *
+ * Still exported, like every retired generator here: `progressionFoldIn`
+ * reads it to prove which card each of the eleven became. The pairing
+ * is `RuledByAnswer` — the sentences differ, the answers do not.
+ * =====================================================================
+ *
  * DECOYS ARE THE ORIGINAL CARD'S THREE FAMILIES, applied per key: the
  * V made a IV7, the ii made a dominant, and the ii replaced by iii7.
  * Each is a different plausible way to be wrong — a wrong dominant, a
@@ -2096,7 +2109,10 @@ export function generateProgressionCards(): Flashcard[] {
 /** Everything this module adds, in one list. */
 export function expansionCards(): Flashcard[] {
   return [
-    ...generateIiViCards(),
+    // `generateIiViCards()` WAS HERE. The 2-5-1 lives once, in
+    // Progression Vocabulary, where it is asked in thirteen keys rather
+    // than eleven; the generator stays exported so `progressionFoldIn`
+    // can prove what each of the eleven became.
     ...generateVofVCards(),
     ...generateVofViCards(),
     ...generateModeOfCards(),

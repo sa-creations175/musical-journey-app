@@ -212,7 +212,9 @@ describe('absent means flat list, not broken', () => {
     expect(Object.fromEntries([...byCategory].sort())).toEqual({
       'enharmonic-equivalents': 35,
       'scale-degree-math': 168,
-      'functional-harmony': 33,
+      // 33 before the 2-5-1 moved to Progression Vocabulary — eleven
+      // cards each for ii-V-I, V/V and V/vi. Two generators now.
+      'functional-harmony': 22,
       'intervals': 156,
       // 17 before commit 8 — nine relative top-ups and eight parallel.
       // Three generated sets over thirteen keys now (count, the

@@ -64,6 +64,19 @@
  * and `identityIdMigration.ts` carries their rows across. The other
  * fourteen had none.
  * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 — ELEVEN `fh-ii-v-i-` LINES REMOVED, AND THE CARDS
+ * THEY NAMED ARE STILL IN THE DECK UNDER OTHER IDS.
+ *
+ * The 2-5-1 lives once. "The ii-V-I cadence in B♭ major is _____" and
+ * "The 2-5-1 in B♭ major is _____" were one card in two sentences, and
+ * Progression Vocabulary keeps it — in thirteen keys rather than
+ * eleven. `progressionFoldIn` moves the history across on the ANSWER,
+ * which is identical, under the one ruled exception to the identity
+ * rule; that file pins all eleven pairs by hand.
+ *
+ * NO `pr-prog-2-5-1-` LINE MOVED. The destinations were already in the
+ * fixture, addressing the same questions they addressed yesterday.
+ * ---------------------------------------------------------------
  * 9 SEPTEMBER 2026 — FOUR `pr-` LINES REMOVED, NOTHING TAKING THEIR
  * PLACE.
  *
@@ -1290,17 +1303,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'fh-17|The circle of fifths describes motion by _____',
   'fh-18|In a 1-5-6-4 progression, swapping the plain V for a fuller version typically means using _____',
   'fh-19|A chord that has both tonic and dominant function qualities is _____',
-  'fh-ii-v-i-Db|The ii-V-I cadence in D♭ major is _____',
-  'fh-ii-v-i-D|The ii-V-I cadence in D major is _____',
-  'fh-ii-v-i-Eb|The ii-V-I cadence in E♭ major is _____',
-  'fh-ii-v-i-E|The ii-V-I cadence in E major is _____',
-  'fh-ii-v-i-F|The ii-V-I cadence in F major is _____',
-  'fh-ii-v-i-F#|The ii-V-I cadence in G♭ major is _____',
-  'fh-ii-v-i-G|The ii-V-I cadence in G major is _____',
-  'fh-ii-v-i-Ab|The ii-V-I cadence in A♭ major is _____',
-  'fh-ii-v-i-A|The ii-V-I cadence in A major is _____',
-  'fh-ii-v-i-Bb|The ii-V-I cadence in B♭ major is _____',
-  'fh-ii-v-i-B|The ii-V-I cadence in B major is _____',
   'fh-v-of-v-Db|A secondary dominant V/V in D♭ major is which chord?',
   'fh-v-of-v-D|A secondary dominant V/V in D major is which chord?',
   'fh-v-of-v-Eb|A secondary dominant V/V in E♭ major is which chord?',

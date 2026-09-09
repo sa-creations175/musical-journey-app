@@ -188,20 +188,20 @@ describe('the id moved and the words did not', () => {
     for (const from of Object.keys(IDENTITY_ID_MOVES)) {
       expect(byId.has(from), `${from} should be gone`).toBe(false);
     }
-    expect(byId.has('fh-ii-v-i-F#')).toBe(true);
+    expect(byId.has('fh-v-of-v-F#')).toBe(true);
   });
 
-  it('the cadence card is spelled G♭ in its text, under an F♯ id', () => {
-    // WAS `pr-1564-F#` UNTIL COMMIT 8. Progression Vocabulary was
-    // regenerated for thirteen keys, so it no longer has an identity
-    // id to make this point with; Functional Harmony has not been, and
-    // shows the same thing.
-    const card = byId.get('fh-ii-v-i-F#')!;
+  it('the secondary-dominant card is spelled G♭ in its text, under an F♯ id', () => {
+    // WAS `pr-1564-F#`, THEN `fh-ii-v-i-F#`. Both families were
+    // regenerated or moved into one that has thirteen keys, so neither
+    // has an identity id left to make this point with. V/V has not
+    // been touched and shows the same thing.
+    const card = byId.get('fh-v-of-v-F#')!;
     expect(card.question).toContain('G♭');
     expect(card.question).not.toContain('F♯');
-    // Its degrees are spelled from the flat root, which is the whole
-    // argument at `catalogExpansions.ts:28` — D♭ and C♭, not C♯ and B.
-    expect(card.correctAnswer).toContain('D♭');
+    // Its degree is spelled from the flat root, which is the whole
+    // argument at `catalogExpansions.ts:28` — A♭, not G♯.
+    expect(card.correctAnswer).toContain('A♭');
   });
 
   it('the minor pentatonic LEADS with G♯ in its text, under an A♭ id', () => {

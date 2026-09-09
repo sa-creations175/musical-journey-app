@@ -21,7 +21,9 @@ const byPrefix = (re: RegExp) => FLASHCARDS.filter(c => re.test(c.id));
  *  must carry. ASYMMETRIC: the counts differ, so one wrong generator
  *  cannot hide behind another. */
 const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
-  ['ii-V-I',           /^fh-ii-v-i-/,   11, ['key', 'shape']],
+  // `ii-V-I` WAS HERE, at eleven cards. The 2-5-1 lives once, in
+  // Progression Vocabulary, and in thirteen keys — see
+  // `progressionFoldIn`.
   ['V/V',              /^fh-v-of-v-/,   11, ['key', 'shape']],
   ['V/vi',             /^fh-v-of-vi-/,  11, ['key', 'shape']],
   // 33 before ruling 42 — three modes in eleven keys. Thirteen keys by
@@ -227,7 +229,10 @@ describe('the axis order is the passed list', () => {
     // teaching choice and every word of every card still comes from it
     // — but a card's COORDINATE is the identity, so the axis and the
     // card cannot disagree about which column a G♭ card belongs in.
-    const keyed = byPrefix(/^fh-ii-v-i-/).map(c => String(c.axis!.key));
+    // WAS `fh-ii-v-i-` UNTIL THE 2-5-1 MOVED TO PROGRESSION VOCABULARY.
+    // V/vi makes the same point: same generator shape, same key list,
+    // and it is not going anywhere.
+    const keyed = byPrefix(/^fh-v-of-vi-/).map(c => String(c.axis!.key));
     const identities = FLAT_TWELVE.map(k => canonicaliseKey(k) ?? k);
     expect(keyed).toEqual(identities.filter(k => keyed.includes(k)));
     expect(keyed).toContain('F#');

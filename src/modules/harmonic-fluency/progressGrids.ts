@@ -218,9 +218,15 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   // is the column.
   // The three functional-harmony generators share a key axis and are
   // told apart by `shape` — which is why each supplies one.
+  // TWO ROWS SINCE THE 2-5-1 MOVED. `ii-V-I` was the first of three and
+  // it is gone rather than left empty: the eleven generated cards fold
+  // into Progression Vocabulary, and a row with nothing in it is a row
+  // that claims coverage the family does not have. `fh-3` still asks
+  // the cadence in C, hand-written and without coordinates, so it lands
+  // in the tail with the other prose cards.
   [CATEGORY_LABELS['functional-harmony']]: {
     columns: keyAxis,
-    rows: axis('shape', 'progression', ['ii-V-I', 'V/V', 'V/vi']),
+    rows: axis('shape', 'progression', ['V/V', 'V/vi']),
   },
 
   [CATEGORY_LABELS.modes]: {

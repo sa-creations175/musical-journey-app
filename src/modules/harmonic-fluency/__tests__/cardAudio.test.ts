@@ -34,7 +34,7 @@ describe('the shape is the same everywhere', () => {
   it('is the key\'s own chord first, then the material', () => {
     // Ruling 33's one sentence, asserted across the five families it
     // gave a voice to plus the two that already had one.
-    for (const id of ['sc-slash-1-3-G', 'fh-ii-v-i-Eb', 'pr-prog-1-5-6-4-Eb',
+    for (const id of ['sc-slash-1-3-G', 'pr-prog-2-5-1-Eb', 'pr-prog-1-5-6-4-Eb',
       'pent-notes-major-Ab', 'ks-relminor-Eb', 'dgn-Ab-b6', 'sdm-1-up-P5']) {
       const s = soundOf(id);
       expect(s.orient, id).not.toBeNull();
@@ -44,7 +44,7 @@ describe('the shape is the same everywhere', () => {
 
   it('sounds a keyed card at its own key', () => {
     // `keyToRootMidi` is 48 + the pitch class, so E♭ is 51.
-    expect(soundOf('fh-ii-v-i-Eb').rootMidi).toBe(51);
+    expect(soundOf('pr-prog-2-5-1-Eb').rootMidi).toBe(51);
     expect(soundOf('pr-prog-1-5-6-4-Eb').rootMidi).toBe(51);
   });
 });
@@ -85,7 +85,9 @@ describe('the little progressions', () => {
   it('plays 2 5 1 with the qualities the card names', () => {
     // m7, dominant 7, maj7 — the answer string says exactly that, and
     // a triad reading would drop the sevenths the card is about.
-    expect(steps(soundOf('fh-ii-v-i-Eb'))).toEqual([
+    // WAS `fh-ii-v-i-Eb`: the 2-5-1 lives once, in Progression
+    // Vocabulary, and the sound follows the card.
+    expect(steps(soundOf('pr-prog-2-5-1-Eb'))).toEqual([
       [2, 5, 9, 12],    // 2m7
       [7, 11, 14, 17],  // 5dom7
       [0, 4, 7, 11],    // 1maj7

@@ -301,9 +301,11 @@ export default function App() {
       .catch(err => {
         console.warn('[hf] pentatonic fold-in failed', err);
       });
-    // Progressions: eight hand-written in-key cards and the six 1-5-6-4
-    // top-ups land on their own key's generated card. Nothing is
-    // deleted — every retired card here has a successor.
+    // Progressions: nine hand-written in-key cards, the six 1-5-6-4
+    // top-ups and Functional Harmony's eleven ii-V-I cadences land on
+    // their own key's generated card. Nothing is deleted here — every
+    // retired card in this pass has a successor; the four one-key
+    // cards that did not are `cleanUpOrphanedCards`' business, above.
     void foldInProgressionCards()
       .then(r => {
         const line = describeProgressionFoldIn(r);

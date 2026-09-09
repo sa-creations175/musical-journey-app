@@ -58,6 +58,45 @@ import {
   moveCardRows, movedTotal, NOTHING_MOVED, type MovedRows,
 } from './cardRowMove';
 
+/**
+ * A retired card whose replacement asks the same thing in DIFFERENT
+ * WORDS, ruled one card at a time.
+ *
+ * =====================================================================
+ * THE IDENTITY RULE IS NOT LOOSENED FOR ANYONE. THIS IS A LIST.
+ *
+ * Functional Harmony asked "The ii-V-I cadence in B♭ major is _____"
+ * and Progression Vocabulary asks "The 2-5-1 in B♭ major is _____".
+ * Two sentences, one card: the 2-5-1 is a little progression however it
+ * is spelled, which is ruling 26's own argument, and Silas ruled that
+ * it should live once. No pairing on question text can see that, and
+ * relaxing the text comparison so it could would put every card in the
+ * deck one wording change away from a wrong mapping.
+ *
+ * =====================================================================
+ * THE DESTINATION IS STILL PROVED, NOT WRITTEN DOWN.
+ *
+ * What is ruled here is only that a card's question MAY differ. The
+ * ANSWER must still match exactly — accidentals folded, as everywhere —
+ * and exactly one live card must give it. So `fh-ii-v-i-F#` — whose own
+ * text says G♭ — lands on `pr-prog-2-5-1-Gb`, because both answer
+ * A♭m7 - D♭7 - G♭maj7 and the deck's separate F♯ card answers
+ * G♯m7 - C♯7 - F♯maj7. That is the hazard `pr-1564-F#` had, closed
+ * without anyone writing "F# → Gb" into a table where a typo would be
+ * silent.
+ *
+ * A hand-written destination list would have been thirteen chances to
+ * attach a history to the wrong key.
+ * =====================================================================
+ */
+export interface RuledByAnswer {
+  /** The retired card's id. */
+  from: string;
+  /** Why this card is allowed to pair on the answer alone. Said out
+   *  loud, per card, so a list cannot grow by accident. */
+  why: string;
+}
+
 /** A card that has left the deck, as it was when it left. */
 export interface RetiredCard {
   id: string;
@@ -85,8 +124,10 @@ function same(a: string, b: string): boolean {
 export function identityMapping(
   retired: ReadonlyArray<RetiredCard>,
   live: ReadonlyArray<Flashcard> = FLASHCARDS,
+  ruled: ReadonlyArray<RuledByAnswer> = [],
 ): { moves: Array<{ from: string; to: string }>; unpaired: Unpaired[] } {
   const liveIds = new Set(live.map(c => c.id));
+  const byAnswer = new Set(ruled.map(r => r.from));
   const moves: Array<{ from: string; to: string }> = [];
   const unpaired: Unpaired[] = [];
   for (const old of retired) {
@@ -95,9 +136,13 @@ export function identityMapping(
     // keeps its own rows instead of donating them to a twin — and it is
     // the second guard against the id-reuse hazard the header names.
     if (liveIds.has(old.id)) continue;
+    // THE ONE EXCEPTION, AND IT IS NARROW: the question may differ, the
+    // answer may not, and one live card must still be the only one
+    // giving it. See `RuledByAnswer`.
+    const onAnswer = byAnswer.has(old.id);
     const matches = live.filter(
-      c => same(c.question, old.question)
-        && same(c.correctAnswer, old.correctAnswer),
+      c => same(c.correctAnswer, old.correctAnswer)
+        && (onAnswer || same(c.question, old.question)),
     );
     if (matches.length === 1) {
       moves.push({ from: old.id, to: matches[0].id });
@@ -106,9 +151,14 @@ export function identityMapping(
     unpaired.push({
       from: old.id,
       reason: matches.length === 0
-        ? `nothing in the deck asks "${old.question}" and answers `
-          + `${old.correctAnswer}`
-        : `${matches.length} cards ask it — ${matches.map(m => m.id).join(', ')}`,
+        ? onAnswer
+          ? `nothing in the deck answers ${old.correctAnswer}`
+          : `nothing in the deck asks "${old.question}" and answers `
+            + `${old.correctAnswer}`
+        : onAnswer
+          ? `${matches.length} cards answer ${old.correctAnswer} — `
+            + `${matches.map(m => m.id).join(', ')}`
+          : `${matches.length} cards ask it — ${matches.map(m => m.id).join(', ')}`,
     });
   }
   return { moves, unpaired };
@@ -131,8 +181,9 @@ export function reusedIds(
 
 export async function foldInByIdentity(
   retired: ReadonlyArray<RetiredCard>,
+  ruled: ReadonlyArray<RuledByAnswer> = [],
 ): Promise<FoldInReport> {
-  const { moves, unpaired } = identityMapping(retired);
+  const { moves, unpaired } = identityMapping(retired, FLASHCARDS, ruled);
   const map = new Map(moves.map(m => [m.from, m.to]));
   if (map.size === 0) return { ...NOTHING_MOVED, unpaired };
   return { ...await moveCardRows(map), unpaired };

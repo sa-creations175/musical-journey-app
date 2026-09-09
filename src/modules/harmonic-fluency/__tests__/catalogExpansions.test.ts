@@ -369,9 +369,13 @@ describe('coverage reaches twelve', () => {
   };
   const N = '[A-G](?:♯|♭|#|b)?';
 
-  it('ii-V-I in all twelve', () => {
-    expect(keysIn('functional-harmony', new RegExp(`ii-V-I cadence in (${N}) major`), 'q').size)
-      .toBe(12);
+  it('the 2-5-1 in all thirteen, in Progression Vocabulary', () => {
+    // WAS `ii-V-I cadence in (key) major`, in functional-harmony, at
+    // twelve. The 2-5-1 lives once now and it lives where a
+    // progression is a progression — which also took it from twelve
+    // keys to thirteen.
+    expect(keysIn('progressions', new RegExp(`The 2-5-1 in (${N}) major`), 'q').size)
+      .toBe(13);
   });
 
   it('mode-of-major in all thirteen', () => {

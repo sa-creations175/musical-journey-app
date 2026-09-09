@@ -70,7 +70,13 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 189 + 278 = 1559
+// Harmonic Fluency — 949 + 143 + 178 + 278 = 1548
+// (9 Sep 2026, progression follow-ups: 1559 → 1548. The 2-5-1 lives
+//  once: Functional Harmony's eleven `fh-ii-v-i-` cards fold into
+//  Progression Vocabulary's thirteen, which already asked the same
+//  question in different words. functional-harmony 52 → 41,
+//  functionalApplied 189 → 178. The group total falls by eleven and
+//  the deck loses eleven duplicates.)
 // (9 Sep 2026, progression follow-ups: 1563 → 1559. Four one-key cards
 //  removed — the descending minor, the Dorian vamp, 4-1-5-6 and
 //  1-♭7-4. A progression is in every key or it is not in the deck.
@@ -154,16 +160,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
-  it('functionalApplied = fh 52 + pr 137 = 189', () => {
-    expect(c.byGroup.functionalApplied).toBe(189);
+  it('functionalApplied = fh 41 + pr 137 = 178', () => {
+    expect(c.byGroup.functionalApplied).toBe(178);
   });
 
   it('earRecognition = mo 107 + iv 156 + et 15 = 278', () => {
     expect(c.byGroup.earRecognition).toBe(278);
   });
 
-  it('total = 1559 across all 13 categories', () => {
-    expect(c.total).toBe(1559);
+  it('total = 1548 across all 13 categories', () => {
+    expect(c.total).toBe(1548);
   });
 
   it('total equals sum of group totals', () => {

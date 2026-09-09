@@ -287,9 +287,10 @@ export function cardSound(card: Flashcard): CardSound | null {
       // 5 of 5 and 5 of 6 are each a two-chord move — the secondary
       // dominant and what it points at — and playing the dominant
       // alone would leave out the half that makes it secondary.
+      // `case 'ii-V-I'` WAS HERE. The 2-5-1 lives once, in Progression
+      // Vocabulary, and `progressionVoicing` plays it from the same
+      // shape list the card's own text is written from.
       switch (str(axis?.shape)) {
-        case 'ii-V-I':
-          return keyed([on('2', MIN7), on('5', DOM7), on('1', MAJ7)]);
         case 'V/V':
           return keyed([on('2', DOM7), on('5', DOM7)]);
         case 'V/vi':
