@@ -411,7 +411,7 @@ export function deepFocusModuleOptions(args: {
     },
     {
       key: 'shapes-and-patterns:vl',
-      label: 'Voice Leading',
+      label: 'Chord Movements & Passes',
       accentHex: spAccent,
       band: spBandBySubmodule.get('shapes-and-patterns:vl') ?? null,
     },

@@ -15,21 +15,20 @@ import type { ShapesSectionId } from './homeCards';
 /**
  * Chord Movements & Passes, and one movement inside it.
  *
- * NOT A `ShapesSectionId`. The four sections are what `shapesCards`
- * computes coverage over and what `sectionTargets` reads; a movement
- * has no targets to be a fraction of, so it is a page under the module
- * rather than a fifth entry in that list. Same URL shape, different
- * kind of thing — which is why these helpers sit together.
+ * IT IS THE `voice-leading` SECTION'S ADDRESS (ruling 19) — the same
+ * page, the same card, the same stored rows, under the word Silas
+ * actually uses for it. One movement gets its own page beneath.
  */
 export const MOVEMENTS_PATH = '/shapes-and-patterns/movements';
 
 export function shapesSectionPath(section: ShapesSectionId): string {
-  // VOICE LEADING LIVES UNDER CHORD MOVEMENTS & PASSES (ruling 3), and
-  // the exception belongs HERE because this file is the one place that
-  // knows the shape of the URL. A caller that special-cased it would be
+  // THE VOICE-LEADING SECTION **IS** CHORD MOVEMENTS & PASSES (ruling
+  // 19), so its address is the movements one — not a page under it.
+  // The exception belongs HERE because this file is the one place that
+  // knows the shape of the URL; a caller that special-cased it would be
   // the second place, and the old address would go on being written
   // somewhere.
-  if (section === 'voice-leading') return `${MOVEMENTS_PATH}/voice-leading`;
+  if (section === 'voice-leading') return MOVEMENTS_PATH;
   return `/shapes-and-patterns/${section}`;
 }
 

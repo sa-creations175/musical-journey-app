@@ -149,7 +149,7 @@ export function moduleRefForSubmodule(key: string): string {
 export function submoduleLabel(key: string): string {
   if (key === `${SP_PREFIX}:chord-shape`) return 'Chord Shapes';
   if (key === `${SP_PREFIX}:scale`) return 'Scales (S&P)';
-  if (key === `${SP_PREFIX}:vl`) return 'Voice Leading';
+  if (key === `${SP_PREFIX}:vl`) return 'Chord Movements & Passes';
   const meta = moduleMetaById(moduleRefForSubmodule(key));
   return meta?.label ?? key;
 }

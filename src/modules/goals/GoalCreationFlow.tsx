@@ -2418,7 +2418,7 @@ interface ShapesActivityAreaDef {
 const SHAPES_ACTIVITY_AREAS: ReadonlyArray<ShapesActivityAreaDef> = [
   { id: 'scale_drills',       label: 'Scale Drills' },
   { id: 'chord_shape_drills', label: 'Chord Shape Drills' },
-  { id: 'voice_leading',      label: 'Voice-Leading' },
+  { id: 'voice_leading',      label: 'Chord Movements & Passes' },
 ];
 
 function activityAreaLabel(area: ShapesActivityArea): string {

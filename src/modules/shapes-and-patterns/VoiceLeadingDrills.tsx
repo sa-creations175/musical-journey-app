@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import {
   db, type DrillSession, type DrillSkill, type SpacingState,
@@ -27,6 +28,11 @@ import { itemCellTargets, targetKey } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
 import { sessionsByTarget } from './timeInvested';
 import { NOT_STARTED } from '../../lib/spacing/banding';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import { SECTION_TIME_SIGNATURE_PRESETS } from '../repertoire/barGrid';
+import { createMovement, deleteMovement } from './movements/movementStore';
+import { movementPath } from './sectionRoutes';
+import type { ChordMovement } from '../../lib/db';
 
 /** Nothing is ever out of the score here — see `selectedTargets`. */
 const NOTHING_OUT: ReadonlySet<string> = new Set();
@@ -38,10 +44,22 @@ const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
 // what that returns.
 
 /**
- * Voice-leading drills: one grid per pattern, spread across 12 keys,
- * with the standing Progress Details section under all of them. Users
- * can add custom patterns alongside the shipped defaults; pattern
- * labels are editable inline.
+ * Chord Movements & Passes: one grid per movement, spread across 12
+ * keys, with the standing Progress Details section under all of them.
+ *
+ * =====================================================================
+ * RULING 19: THIS PAGE IS THE MOVEMENTS PAGE. Silas: "It's literally
+ * just like everything else. I'm just building it as I go, building up
+ * the library of them as I go. Just like the Ear Training chord
+ * progressions now."
+ *
+ * The named patterns that shipped — the diatonic cycle, 5→1, the
+ * 2-5-1s — ARE movements. Nothing about them changed. What changed is
+ * that the page also holds the ones Silas captures himself, and that
+ * the words "voice leading" have gone from everything a reader sees.
+ * The internal names stay: `voice-leading` keys every stored row, every
+ * itemRef prefix and every pref, and renaming those would be renaming
+ * data to change a label.
  *
  * =====================================================================
  * THE SIMPLEST OF THE THREE GRIDS, AND THE LAST TO GET THE FACE.
@@ -57,7 +75,15 @@ const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
  * =====================================================================
  */
 export default function VoiceLeadingDrills() {
+  const navigate = useNavigate();
   const [spelling] = useSpelling();
+  const [addingMovement, setAddingMovement] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState<ChordMovement | null>(null);
+  const movements = useLiveQuery<ChordMovement[]>(
+    async () => (await db.chordMovements.toArray())
+      .sort((a, b) => b.updatedAt - a.updatedAt),
+    [],
+  ) ?? [];
   const [custom, setCustom] = useState<CustomPattern[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -207,6 +233,48 @@ export default function VoiceLeadingDrills() {
     toast({ message: `Renamed to "${trimmed}".`, variant: 'success' });
   };
 
+  const addMovement = (
+    <div className="flex justify-center" data-testid="add-movement">
+      {addingMovement ? (
+        <div className="rounded-2xl border border-fluent/40 bg-fluent/5 p-3 space-y-2 w-full">
+          <p className="text-xs uppercase tracking-wide text-neutral-500">
+            New movement
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {SECTION_TIME_SIGNATURE_PRESETS.map(preset => (
+              <button
+                key={preset}
+                type="button"
+                data-testid={`new-movement-${preset}`}
+                onClick={() => void (async () => {
+                  const made = await createMovement(preset);
+                  navigate(movementPath(made.id));
+                })()}
+                className="rounded-lg border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-sm font-mono tabular-nums hover:border-fluent hover:text-fluent"
+              >
+                {preset}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setAddingMovement(false)}
+              className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setAddingMovement(true)}
+          className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
+        >
+          + Add movement
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
       {/* THE CONTROL SITS ABOVE EVERY PATTERN, because it turns all of
@@ -215,6 +283,51 @@ export default function VoiceLeadingDrills() {
       <div className="flex items-center gap-2 flex-wrap text-[11px]">
         <LayoutToggle layout={layout} onChange={setLayout} />
       </div>
+
+      {/* AT THE TOP AS WELL AS THE BOTTOM (ruling 21). The library
+          grows, and a control only at the end of a growing list is a
+          control that gets further away every time it is used. */}
+      {addMovement}
+
+      {/* WHAT SILAS HAS CAPTURED, above the ones that shipped. Its grid
+          arrives in the next commit; the header and the remove are here
+          because the list page they used to live on is gone. */}
+      {movements.map(m => (
+        <section
+          key={m.id}
+          data-testid={`movement-section-${m.id}`}
+          className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-3"
+        >
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div className="min-w-0">
+              <button
+                onClick={() => navigate(movementPath(m.id))}
+                data-testid={`open-movement-${m.id}`}
+                className={m.name
+                  ? 'text-sm font-medium hover:text-fluent'
+                  : 'text-sm font-medium italic text-neutral-400 hover:text-fluent'}
+              >
+                {m.name || UNNAMED_MOVEMENT}
+              </button>
+              {m.description && (
+                <p className="text-xs text-neutral-500 mt-0.5">{m.description}</p>
+              )}
+            </div>
+            {/* WHERE THE PAGE ALREADY REMOVES A ROW — the same place a
+                custom pattern's Remove sits. It CONFIRMS, unlike that
+                one's native prompt, because a movement is nothing but
+                work pressed in by hand and there is no undo toast here
+                to be the second net. */}
+            <button
+              onClick={() => setConfirmingRemove(m)}
+              data-testid={`remove-movement-${m.id}`}
+              className="text-neutral-400 hover:text-needswork text-[11px]"
+            >
+              Remove
+            </button>
+          </div>
+        </section>
+      ))}
 
       {allPatterns.map(pattern => {
         // `pattern` is already the merged result — the override has
@@ -359,19 +472,33 @@ export default function VoiceLeadingDrills() {
             </button>
           </div>
         </section>
-      ) : (
-        <div className="flex justify-center">
-          <button
-            onClick={() => setAdding(true)}
-            className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
-          >
-            + Add Voice-Leading Pattern
-          </button>
-        </div>
-      )}
+      ) : addMovement}
+
+      <ConfirmDialog
+        open={confirmingRemove !== null}
+        title="Remove this movement?"
+        message={(
+          <p>
+            {confirmingRemove?.name
+              ? `"${confirmingRemove.name}" and everything pressed into it goes.`
+              : 'This movement and everything pressed into it goes.'}
+          </p>
+        )}
+        confirmLabel="Remove movement"
+        onCancel={() => setConfirmingRemove(null)}
+        onConfirm={async () => {
+          const m = confirmingRemove;
+          setConfirmingRemove(null);
+          if (m) await deleteMovement(m.id);
+        }}
+      />
     </div>
   );
 }
+
+/** What an unnamed movement is called in a list. Silas names them
+ *  himself (ruling 4); this is the page saying so, not a name. */
+const UNNAMED_MOVEMENT = 'Unnamed movement';
 
 
 // ---------------------------------------------------------------------

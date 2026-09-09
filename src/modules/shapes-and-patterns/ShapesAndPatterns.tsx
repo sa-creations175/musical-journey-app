@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import TodayAndAttention from './TodayAndAttention';
 import {
   cleanupGhostKeyboardIfNeeded,
@@ -16,7 +16,7 @@ import {
   isShapesSectionId,
   shapesCards,
 } from './homeCards';
-import { MOVEMENTS_PATH, SCROLL_TO_DETAIL_STATE, shapesSectionPath } from './sectionRoutes';
+import { SCROLL_TO_DETAIL_STATE, shapesSectionPath } from './sectionRoutes';
 import { shapesTimeInvested } from './timeInvested';
 
 export default function ShapesAndPatterns() {
@@ -85,7 +85,7 @@ export default function ShapesAndPatterns() {
         moduleId={SHAPES_MODULE_ID}
         calendarTo="/shapes-and-patterns/calendar"
         intro={{
-          description: "Master scales, chord shapes, and voice-leading so that they're under your hands and in your mind's eye.",
+          description: "Master scales, chord shapes, and the movements between them so that they're under your hands and in your mind's eye.",
         }}
       />
 
@@ -121,18 +121,10 @@ export default function ShapesAndPatterns() {
         now={now}
       />
 
-      {/* CHORD MOVEMENTS & PASSES IS NOT ONE OF THE CARDS, and that is
-          the point of it being a link. A card carries coverage — a
-          fraction of a target — and a movement has no target to be a
-          fraction of. It is a place things are kept, so it reads as a
-          way in rather than as progress. */}
-      <Link
-        to={MOVEMENTS_PATH}
-        data-testid="movements-entry"
-        className="block rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-4 py-3 hover:border-fluent"
-      >
-        <span className="text-base font-semibold">Chord Movements &amp; Passes</span>
-      </Link>
+      {/* THE LINK BAR WAS HERE AND IS GONE (ruling 21). Chord Movements
+          & Passes IS one of the cards now — the renamed voice-leading
+          one — so a second way in beside it was a second thing to keep
+          in step, saying less than the card already says. */}
     </div>
   );
 }

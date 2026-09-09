@@ -53,7 +53,6 @@ import ShapesAndPatterns from './modules/shapes-and-patterns/ShapesAndPatterns';
 import ShapesAndPatternsSection from './modules/shapes-and-patterns/ShapesAndPatternsSection';
 import ShapesAndPatternsCalendar from './modules/shapes-and-patterns/ShapesAndPatternsCalendar';
 import MovementScreen from './modules/shapes-and-patterns/movements/MovementScreen';
-import MovementsList from './modules/shapes-and-patterns/movements/MovementsList';
 import Production from './modules/production/Production';
 import SessionLog from './modules/session-log/SessionLog';
 import SkillsCatalogue from './modules/skills/SkillsCatalogue';
@@ -300,29 +299,35 @@ export default function App() {
                 first. */}
             <Route path="repertoire/calendar" element={<SongPracticeCalendar />} />
             <Route path="shapes-and-patterns" element={<ShapesAndPatterns />} />
-            {/* ONE MOVEMENT'S OWN PAGE. Declared above the `:section`
-                route for the same reason `calendar` is: a static
-                segment must not be readable as a section slug. */}
-            <Route path="shapes-and-patterns/movements" element={<MovementsList />} />
-            {/* VOICE LEADING MOVED UNDER CHORD MOVEMENTS (ruling 3).
-                The PAGE is unchanged — same component, same section,
-                same counting — only its address and its place in the
-                nav moved. Declared above `:movementId` so a static
-                segment cannot be read as a movement id. */}
+            {/* Declared above the `:section` route for the same reason
+                `calendar` is: a static segment must not be readable as
+                a section slug.
+
+                THE VOICE-LEADING PAGE **IS** THE MOVEMENTS PAGE
+                (ruling 19). One address, one page, one card. The
+                section id stays `voice-leading` because it keys every
+                stored row; only the address and the words moved. */}
             <Route
-              path="shapes-and-patterns/movements/voice-leading"
+              path="shapes-and-patterns/movements"
               element={<ShapesAndPatternsSection section="voice-leading" />}
             />
             <Route
               path="shapes-and-patterns/movements/:movementId"
               element={<MovementScreen />}
             />
-            {/* THE OLD ADDRESS STILL LANDS. It is in the sidebar's
-                history and may be bookmarked; a 404 for a page that
-                moved is the app losing something the reader kept. */}
+            {/* BOTH OLD ADDRESSES STILL LAND — the original
+                `/voice-leading` and the one it wore for a few hours
+                under `/movements/`. A 404 for a page that moved is the
+                app losing something the reader kept. Declared above
+                `:movementId` so a static segment cannot be read as a
+                movement id. */}
+            <Route
+              path="shapes-and-patterns/movements/voice-leading"
+              element={<Navigate to="/shapes-and-patterns/movements" replace />}
+            />
             <Route
               path="shapes-and-patterns/voice-leading"
-              element={<Navigate to="/shapes-and-patterns/movements/voice-leading" replace />}
+              element={<Navigate to="/shapes-and-patterns/movements" replace />}
             />
             {/* The dynamic segment is ranked below `calendar` by
                 react-router, so a static sibling cannot be read as a

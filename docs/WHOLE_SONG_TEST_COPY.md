@@ -385,16 +385,37 @@ sit has changed.
 - Copy chord
 - Delete chord
 
-### Deleting a movement — new, 8 Sep 2026
+### The page itself — renamed, 8 Sep 2026 (ruling 19)
+
+The words "voice leading" and "voice-leading pattern" are gone from
+every user-facing string. The internal ids are unchanged.
+
+- Chord Movements & Passes  *(the card, the nav, the breadcrumb, the
+  dashboard's path, the goal dimension, the skills-catalogue category,
+  the session proposal's label)*
+- chord movements & passes  *(the module home's card, in its siblings'
+  lower case)*
+- + Add movement  *(was "+ Add Voice-Leading Pattern")*
+- New movement
+- Unnamed movement
+- Remove
+- Master scales, chord shapes, and the movements between them so that
+  they're under your hands and in your mind's eye.
+- The foundational ii → V → I movement. Guide tones and extended
+  voicings across two starting positions; seventh chords across three.
+- The iiø → V → i movement. Guide tones and extended voicings across two
+  starting positions; seventh chords across three.
+
+### Removing a movement — new, 8 Sep 2026
 
 Through `ConfirmDialog`, the app's own confirm for an action that can
 blow away user work. **Cancel** is the dialog's own default and is not
 listed here.
 
-- Delete this movement?
+- Remove this movement?
 - "{name}" and everything pressed into it goes.
 - This movement and everything pressed into it goes.
-- Delete movement
+- Remove movement
 
 ### The octave navigation
 

@@ -211,11 +211,12 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
   [`${SP}/Scales`]:
     'Scales and pentatonics across all twelve keys, rated by how the rep '
     + 'went rather than by how long it took.',
-  [`${SP}/Voice-Leading`]:
+  [`${SP}/Chord Movements & Passes`]:
     'Moving between chords with the smallest hand movement that works. '
-    + 'The patterns are the named ones: the diatonic cycle, 5→1, the '
-    + '2-5-1s. Each carries its own row types, since a pattern started '
-    + 'from a different position is a different thing under the hands.',
+    + 'The named ones are here — the diatonic cycle, 5→1, the 2-5-1s — '
+    + 'each carrying its own row types, since one started from a '
+    + 'different position is a different thing under the hands. Anything '
+    + 'you capture yourself lives here too.',
   [`${SP}/Mental Visualisation`]:
     'Picturing a shape without touching the keys. It sits inside Shapes & '
     + 'Patterns because it is the same material, and keeps its own '

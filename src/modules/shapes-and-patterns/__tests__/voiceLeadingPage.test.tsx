@@ -20,6 +20,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { createRoot, type Root } from 'react-dom/client';
 import VoiceLeadingDrills from '../VoiceLeadingDrills';
 import { db, type SpacingState } from '../../../lib/db';
@@ -77,7 +78,12 @@ async function render() {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
-  await act(async () => { root!.render(<VoiceLeadingDrills />); });
+  // THE PAGE ROUTES NOW — its add button opens a movement's own page —
+  // so it needs a router around it. Rendering it bare threw where the
+  // subject is the grid, which is not what these are about.
+  await act(async () => {
+    root!.render(<MemoryRouter><VoiceLeadingDrills /></MemoryRouter>);
+  });
   for (let i = 0; i < 10; i += 1) {
     await act(async () => { await new Promise(r => setTimeout(r, 5)); });
   }

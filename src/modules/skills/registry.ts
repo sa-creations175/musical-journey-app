@@ -777,7 +777,7 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
           moduleJumpQuery: 'tab=voice-leading',
           itemId: `${pattern.id}:${k}`,
           name: ann?.customName ?? `${pattern.label} in ${k}`,
-          category: 'Voice-Leading Drills',
+          category: 'Chord Movements & Passes',
           skillType: 'physical-voice-leading',
           currentTier: null,
           freshness: freshnessFrom(last),

@@ -607,7 +607,7 @@ export const shapesCatalog: ModuleCatalog = {
     if (ref.startsWith('scale:')) {
       return one(ref, ref.slice('scale:'.length), ['shapes & patterns', 'Scales']);
     }
-    return one(ref, ref.slice('vl:'.length), ['shapes & patterns', 'Voice-Leading']);
+    return one(ref, ref.slice('vl:'.length), ['shapes & patterns', 'Chord Movements & Passes']);
   }),
 };
 

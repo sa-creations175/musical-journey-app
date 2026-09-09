@@ -107,6 +107,49 @@ Everything else the prototype says is provisional and is listed in
 `docs/WHOLE_SONG_TEST_COPY.md` under "Chord Movements & Passes", pending
 Silas's naming pass.
 
+19. **The Voice Leading page IS the Chord Movements & Passes page.** Silas:
+    *"It's literally just like everything else. I'm just building it as I go,
+    building up the library of them as I go. Just like the Ear Training chord
+    progressions now."*
+
+    The page, the card on the Shapes & Patterns home, the nav entry and the
+    route are all renamed; the old routes redirect. The words "voice leading"
+    and "voice-leading pattern" are gone from every user-facing string.
+    INTERNAL NAMES MAY STAY — `voice-leading` keys every stored row, every
+    itemRef prefix and every pref, and renaming those would be renaming data
+    to change a label. The patterns already on the page — the 1 4 7 3 6 2 5 1
+    diatonic cycle and the rest — ARE movements.
+
+20. **A movement is rated per key**, twelve keys, the same four ratings, the
+    same spacing engine, the same Progress Details, the same place in the
+    practice schedule as everything else on Shapes & Patterns. Nothing
+    special. A movement Silas enters has one column in the grid; the seeded
+    patterns keep their Position columns.
+
+    Ruled out: a movement with no rating.
+
+21. **The add button is the way to make a movement**, at the top of the page
+    as well as the bottom. It asks the six time-signature presets and opens
+    the movement's own screen. The separate movements list page is gone, and
+    so is the bare link bar on the Shapes & Patterns home — the card IS the
+    way in, renamed, with its counts including movements.
+
+    Ruled out: a separate movements list.
+
+22. **Typed sharp degrees fold to their flat twins on entry** — `#5` stores as
+    `b6`, `#1` as `b2`, `#2` as `b3`, `#6` as `b7` — on the lead sheet and on
+    a movement alike, because the reader's spelling setting decides how it
+    shows anyway. This closes the `#5dim` hole: a degree with no entry in
+    `SEMI_BY_DEGREE` parsed, stored, and then could not be voiced or played.
+
+23. **A movement has its own optional sharp/flat spelling override**, exactly
+    as a song does, resolved through the same `resolveSpelling`. AND the
+    shared bar grid honours the per-item override for both hosts — which
+    closes the 6 Sep finding that the lead sheet ignored a song's override.
+    One change in the grid, landing for songs and movements together.
+
+    Ruled out: building the grid's override handling twice.
+
 ---
 
 ## Parked

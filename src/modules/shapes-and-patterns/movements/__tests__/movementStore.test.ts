@@ -137,15 +137,22 @@ describe('a movement is not a song', () => {
   const namers = Object.entries(SOURCES)
     .filter(([, text]) => text.includes('chordMovements'))
     .map(([path]) => relative(path))
+    // A TEST IS NOT A SURFACE. The claim is about what the app can
+    // reach; a test naming the table is a test of the table.
+    .filter(f => !f.includes('__tests__/'))
     .sort();
 
-  it('is named by the schema, the sync config and its own module — and nothing else', () => {
+  it('is named by the schema, the sync config, its own module and its page', () => {
     // DERIVED FROM THE TREE, not from a list kept by hand. A file that
     // learns the word shows up here by name, which is the whole point:
     // the failure names the surface that started counting it.
+    //
+    // The page joined the list when ruling 19 made the voice-leading
+    // page the movements page — it draws them, so it reads them.
     for (const file of namers) {
       const allowed = file === 'lib/db.ts'
         || file === 'lib/sync/tables.ts'
+        || file === 'modules/shapes-and-patterns/VoiceLeadingDrills.tsx'
         || file.startsWith('modules/shapes-and-patterns/movements/');
       expect(allowed, `${file} reads chordMovements`).toBe(true);
     }
@@ -153,6 +160,26 @@ describe('a movement is not a song', () => {
     // by finding nothing.
     expect(namers).toContain('lib/db.ts');
     expect(namers).toContain('lib/sync/tables.ts');
+  });
+
+  it('is invisible to every module that counts songs', () => {
+    // THE CLAIM RULING 1 ACTUALLY MAKES, stated as its own assertion
+    // rather than left as a consequence of the allowlist above. These
+    // four are where a song is counted: the repertoire list, the
+    // dashboard's squares, session generation, and goals.
+    //
+    // A movement DOES enter the practice schedule (ruling 20) — through
+    // its spacing rows, under the `vl:` refs every other Shapes item
+    // uses. Nothing has to know the word `chordMovements` to schedule
+    // one, and nothing here does.
+    for (const file of namers) {
+      for (const counter of [
+        'modules/repertoire/', 'modules/dashboard/',
+        'modules/practice/', 'modules/goals/', 'lib/sessionAlgorithm/',
+      ]) {
+        expect(file.startsWith(counter), `${file} reads chordMovements`).toBe(false);
+      }
+    }
   });
 
   it('is invisible to every reader of db.songs', async () => {

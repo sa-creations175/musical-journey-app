@@ -85,7 +85,11 @@ export interface ShapesSection {
 export const SHAPES_SECTIONS: ReadonlyArray<ShapesSection> = [
   { id: 'scales',        label: 'scales',               itemRefPrefix: 'scale:' },
   { id: 'chord-shapes',  label: 'chord shapes',         itemRefPrefix: 'chord-shape:' },
-  { id: 'voice-leading', label: 'voice-leading',        itemRefPrefix: 'vl:' },
+  // RULING 19: the voice-leading page IS the movements page. The id
+  // stays `voice-leading` because it keys every stored row, every
+  // pref and every itemRef prefix — internal names may stay. Only
+  // the word a reader sees moved.
+  { id: 'voice-leading', label: 'chord movements & passes', itemRefPrefix: 'vl:' },
   { id: 'mental-viz',    label: 'mental visualisation', itemRefPrefix: null },
 ];
 

@@ -512,7 +512,7 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     id: 'major-251',
     kind: 'type-position',
     label: 'Major 2-5-1',
-    description: 'Foundational ii → V → I voice leading. Guide tones and extended voicings across two starting positions; seventh chords across three.',
+    description: 'The foundational ii → V → I movement. Guide tones and extended voicings across two starting positions; seventh chords across three.',
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -523,7 +523,7 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     id: 'minor-251',
     kind: 'type-position',
     label: 'Minor 2-5-1',
-    description: 'iiø → V → i voice leading. Guide tones and extended voicings across two starting positions; seventh chords across three.',
+    description: 'The iiø → V → i movement. Guide tones and extended voicings across two starting positions; seventh chords across three.',
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },

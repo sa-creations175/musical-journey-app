@@ -1,17 +1,19 @@
 // @vitest-environment jsdom
 /**
- * Voice Leading's page moved, and nothing about it changed.
+ * The voice-leading page IS the movements page, and nothing about it
+ * changed.
  *
  * =====================================================================
- * A PAGE THAT MOVES IS A PAGE SOMEBODY HAS BOOKMARKED. Ruling 3 puts
- * the 1 4 7 3 6 2 5 1 grid under Chord Movements & Passes; the
+ * A PAGE THAT MOVES IS A PAGE SOMEBODY HAS BOOKMARKED. Ruling 19 makes
+ * the 1 4 7 3 6 2 5 1 grid one of Chord Movements & Passes; the
  * requirement attached to it is "no behaviour change", and the risk in
  * a move like this is entirely in what is left behind — an address in
  * someone's history, a link written somewhere that was not updated.
  *
- * So: the old address still lands on the page, the new one renders the
- * same section, and `shapesSectionPath` is still the only thing that
- * knows which address that is.
+ * There are TWO old addresses now: the original `/voice-leading`, and
+ * the one it wore for a few hours under `/movements/voice-leading`.
+ * Both still land, and `shapesSectionPath` is still the only thing that
+ * knows which address is current.
  * =====================================================================
  */
 import 'fake-indexeddb/auto';
@@ -49,8 +51,12 @@ async function renderAt(path: string) {
         <Probe />
         <Routes>
           <Route
-            path="/shapes-and-patterns/movements/voice-leading"
+            path="/shapes-and-patterns/movements"
             element={<ShapesAndPatternsSection section="voice-leading" />}
+          />
+          <Route
+            path="/shapes-and-patterns/movements/voice-leading"
+            element={<Navigate to="/shapes-and-patterns/movements" replace />}
           />
           <Route
             path="/shapes-and-patterns/movements/:movementId"
@@ -58,7 +64,7 @@ async function renderAt(path: string) {
           />
           <Route
             path="/shapes-and-patterns/voice-leading"
-            element={<Navigate to="/shapes-and-patterns/movements/voice-leading" replace />}
+            element={<Navigate to="/shapes-and-patterns/movements" replace />}
           />
           <Route path="/shapes-and-patterns" element={<span data-testid="module-home" />} />
         </Routes>
@@ -76,15 +82,14 @@ const at = () =>
 
 describe('where voice leading lives now', () => {
   it('is one address, and only `shapesSectionPath` knows it', () => {
-    expect(shapesSectionPath('voice-leading'))
-      .toBe(`${MOVEMENTS_PATH}/voice-leading`);
+    expect(shapesSectionPath('voice-leading')).toBe(MOVEMENTS_PATH);
     // The other three did not move.
     expect(shapesSectionPath('scales')).toBe('/shapes-and-patterns/scales');
     expect(shapesSectionPath('mental-viz')).toBe('/shapes-and-patterns/mental-viz');
   });
 
   it('renders the same section page it always did', async () => {
-    const el = await renderAt(`${MOVEMENTS_PATH}/voice-leading`);
+    const el = await renderAt(MOVEMENTS_PATH);
     expect(el.querySelector('[data-testid="shapes-section-page"]')!
       .getAttribute('data-section')).toBe('voice-leading');
   });
@@ -96,10 +101,18 @@ describe('where voice leading lives now', () => {
     expect(el.querySelector('[data-testid="a-movement"]')).toBeNull();
   });
 
-  it('still lands from the address it used to have', async () => {
-    const el = await renderAt('/shapes-and-patterns/voice-leading');
-    expect(at()).toBe(`${MOVEMENTS_PATH}/voice-leading`);
-    expect(el.querySelector('[data-testid="shapes-section-page"]')!
-      .getAttribute('data-section')).toBe('voice-leading');
+  it('still lands from both addresses it used to have', async () => {
+    for (const old of [
+      '/shapes-and-patterns/voice-leading',
+      `${MOVEMENTS_PATH}/voice-leading`,
+    ]) {
+      const el = await renderAt(old);
+      expect(at(), old).toBe(MOVEMENTS_PATH);
+      expect(el.querySelector('[data-testid="shapes-section-page"]')!
+        .getAttribute('data-section')).toBe('voice-leading');
+      await act(async () => root!.unmount());
+      container!.remove();
+      root = null; container = null;
+    }
   });
 });

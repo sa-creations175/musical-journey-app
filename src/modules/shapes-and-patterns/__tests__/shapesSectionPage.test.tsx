@@ -55,12 +55,12 @@ async function renderAt(path: string) {
         <Probe />
         <Routes>
           <Route path="/shapes-and-patterns" element={<ShapesAndPatterns />} />
-          {/* VOICE LEADING'S PAGE MOVED UNDER CHORD MOVEMENTS
-              (ruling 3) — same component, same section, a different
+          {/* THE VOICE-LEADING SECTION IS CHORD MOVEMENTS & PASSES
+              (ruling 19) — same component, same section, its own
               address. Declared here the way `App.tsx` declares it, so
               this harness routes what the app routes. */}
           <Route
-            path="/shapes-and-patterns/movements/voice-leading"
+            path="/shapes-and-patterns/movements"
             element={<ShapesAndPatternsSection section="voice-leading" />}
           />
           <Route path="/shapes-and-patterns/:section" element={<ShapesAndPatternsSection />} />
@@ -110,10 +110,10 @@ describe('the module home', () => {
     const el = await renderAt('/shapes-and-patterns');
     await click(card('voice-leading')!.querySelector('[data-testid="category-card-toggle"]'));
     await click(card('voice-leading')!.querySelector('[data-testid="category-card-progress-detail"]'));
-    // Under Chord Movements & Passes since 8 Sep 2026. `shapesSectionPath`
-    // owns which address that is, and the card reads it — so the card
-    // never learned the new one.
-    expect(at()).toBe('/shapes-and-patterns/movements/voice-leading');
+    // Its own address since 8 Sep 2026. `shapesSectionPath` owns which
+    // address that is, and the card reads it — so the card never
+    // learned the new one.
+    expect(at()).toBe('/shapes-and-patterns/movements');
     // And the detail it asked about is on the page it landed on.
     expect(el.querySelector('[data-testid="shapes-section-detail"]')).not.toBeNull();
   });
@@ -201,12 +201,12 @@ async function renderAtWithDetailRequest(path: string) {
         <Probe />
         <Routes>
           <Route path="/shapes-and-patterns" element={<ShapesAndPatterns />} />
-          {/* VOICE LEADING'S PAGE MOVED UNDER CHORD MOVEMENTS
-              (ruling 3) — same component, same section, a different
+          {/* THE VOICE-LEADING SECTION IS CHORD MOVEMENTS & PASSES
+              (ruling 19) — same component, same section, its own
               address. Declared here the way `App.tsx` declares it, so
               this harness routes what the app routes. */}
           <Route
-            path="/shapes-and-patterns/movements/voice-leading"
+            path="/shapes-and-patterns/movements"
             element={<ShapesAndPatternsSection section="voice-leading" />}
           />
           <Route path="/shapes-and-patterns/:section" element={<ShapesAndPatternsSection />} />
