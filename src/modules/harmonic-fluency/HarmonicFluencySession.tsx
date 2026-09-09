@@ -24,7 +24,7 @@ import { recordEngagement } from '../../lib/spacingState';
 import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import LydianChordRows from './LydianChordRows';
 import DegreeGroundedRows from './DegreeGroundedRows';
-import DegreePlayback from './DegreePlayback';
+import CardPlayback from './CardPlayback';
 import DegreeNoteReveal from './DegreeNoteReveal';
 import DegreeKeyboardAnswer from './DegreeKeyboardAnswer';
 import { degreeNoteOptionLabel, isPressedCard, parsePressedId } from './degreeNoteCards';
@@ -361,11 +361,7 @@ function CardReference({ card, answered }: { card: Flashcard; answered: boolean 
           quality={degree.quality}
           direction={degree.direction}
         />
-        <DegreePlayback
-          startDegree={degree.startDegree}
-          quality={degree.quality}
-          direction={degree.direction}
-        />
+        <CardPlayback card={card} />
       </>
     );
   }
@@ -379,7 +375,19 @@ function CardReference({ card, answered }: { card: Flashcard; answered: boolean 
    */
   const pair = isPressedCard(card.id) ? null : parsePressedId(card.id);
   if (pair !== null) {
-    return <DegreeNoteReveal root={pair.root} degreeId={pair.degreeId} />;
+    return (
+      <DegreeNoteReveal root={pair.root} degreeId={pair.degreeId} card={card} />
+    );
   }
-  return null;
+  /**
+   * EVERY OTHER FAMILY THAT HAS A SOUND (ruling 33).
+   *
+   * Slash chords, the little progressions, the pentatonics, the
+   * major/minor key relations and the enharmonic pairs all reach here,
+   * and the control decides for itself whether there is anything to
+   * play — a card that has not said what it is about renders nothing.
+   * So this is one line rather than a second switch on category beside
+   * the one in `cardAudio`.
+   */
+  return <CardPlayback card={card} />;
 }

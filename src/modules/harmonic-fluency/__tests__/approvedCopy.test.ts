@@ -28,6 +28,7 @@ import {
   FACET_ROW, MOVEMENT_LABELS, facetValueLabel,
 } from '../facetDisplay';
 import { CLEAR_FILTERS_LABEL, FILTERS_LABEL } from '../FacetFilterRow';
+import { HEAR_IT_LABEL } from '../CardPlayback';
 import { DEGREE_MATH_CATEGORY_NAME } from '../scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, placeItCards } from '../degreeNoteCards';
 
@@ -238,7 +239,7 @@ describe('what is still unwritten', () => {
     expect(start).toBeGreaterThan(-1);
     const unruled = COPY.slice(start);
     for (const item of ['Tile labels', 'Presets', 'Sort controls', 'Layout',
-      'Apply to every key']) {
+      'Apply to every key', HEAR_IT_LABEL]) {
       expect(unruled, item).toContain(item);
     }
   });

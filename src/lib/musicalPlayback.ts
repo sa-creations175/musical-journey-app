@@ -139,6 +139,60 @@ export async function playNoteSequence(
 }
 
 /**
+ * Schedule a SEQUENCE of blocked chords — one after another, in the
+ * same beats/bpm domain as the two above.
+ *
+ * =====================================================================
+ * THE ONE PRIMITIVE THE CARD SOUNDS NEEDED, AND IT IS NOT A SECOND
+ * SYNTH.
+ *
+ * `playNoteSequence` sequences and is single-voice; `playBlocked` is
+ * polyphonic and plays one chord now. A slash chord is one chord, a
+ * ii-V-I is three, a pentatonic is five single notes and a key
+ * relation is two chords — all of them are "these note-sets, in this
+ * order", which is the shape neither of the two above has. So it is
+ * this file's third scheduling shape rather than a caller's own
+ * `setTimeout` chain: the same `playNote`, the same cursor arithmetic,
+ * one `stop` that silences everything already scheduled.
+ *
+ * A one-note step is a legal chord, so a melodic line needs no special
+ * case — which is what lets one card-sound description cover a
+ * progression and a scale without forking.
+ * =====================================================================
+ */
+export async function playBlockedSequence(
+  steps: ReadonlyArray<{ semitones: readonly number[]; beats: number }>,
+  rootMidi: number,
+  bpm: number,
+  opts: { speedMultiplier?: number; gapBeats?: number } = {},
+): Promise<PlaybackHandle> {
+  const ctx = await ensureRunning();
+  const m = clampSpeed(opts.speedMultiplier ?? 1.0);
+  const secPerBeat = 60 / (bpm * m);
+  const gap = (opts.gapBeats ?? 0) * secPerBeat;
+  const voices: Array<{ stop: (time: number) => void }> = [];
+
+  let cursor = ctx.currentTime + 0.05;
+  for (const step of steps) {
+    const dur = step.beats * secPerBeat;
+    // The same √-polyphony scaling `playBlocked` uses, so a five-note
+    // step and a one-note step sit at the same apparent loudness.
+    const vol = Math.max(0.12, 0.28 / Math.sqrt(Math.max(1, step.semitones.length)));
+    for (const semi of step.semitones) {
+      voices.push(playNote(midiToFreq(rootMidi + semi), cursor, dur, ctx, vol));
+    }
+    cursor += dur + gap;
+  }
+
+  return {
+    stop: () => {
+      const fadeAt = ctx.currentTime + 0.05;
+      for (const v of voices) v.stop(fadeAt);
+    },
+  };
+}
+
+/**
  * Play a chord with all intervals struck simultaneously and held for a
  * given number of beats. Mirrors playChordBlocked's behaviour but in
  * the beats/bpm convention so it composes with playNoteSequence in the

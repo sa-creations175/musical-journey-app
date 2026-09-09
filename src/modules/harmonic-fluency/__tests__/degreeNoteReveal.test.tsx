@@ -68,7 +68,7 @@ async function renderCard(card = NAMED) {
         onCardAnswered={() => {}}
         renderFooter={(c, { answered }) => (
           answered
-            ? <DegreeNoteReveal root="C" degreeId={c.correctAnswer === 'b6' ? 'b6' : 'b6'} />
+            ? <DegreeNoteReveal root="C" degreeId="b6" card={c} />
             : null
         )}
       />,
@@ -135,10 +135,14 @@ describe('the reveal', () => {
   });
 
   it('offers a way to hear it, and only after the answer', async () => {
+    // `card-play` RATHER THAN A TEST ID OF THIS CARD'S OWN. Ruling 33
+    // made the button one component for every family, so the id it
+    // carries is the shared one — and this card's control being the
+    // same control is the claim worth pinning.
     await renderCard();
-    expect(container!.querySelector('[data-testid="degree-note-play"]')).toBeNull();
+    expect(container!.querySelector('[data-testid="card-play"]')).toBeNull();
     await answerWith('Ab');
-    expect(container!.querySelector('[data-testid="degree-note-play"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="card-play"]')).not.toBeNull();
   });
 
   it('is offered on the note→degree direction too', async () => {

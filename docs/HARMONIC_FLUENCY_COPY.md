@@ -171,6 +171,11 @@ Ruling 29. The `placeItCards` question asks for a **number**.
 Still placeholder. Nothing below was written by Silas, and nothing below should
 be treated as approved.
 
+- **"Hear it"** — the label on the play control, on every family. Not newly
+  written: it is the string the degree-and-note card already carried, kept
+  when ruling 33 made one control out of two. The degree-math card's old
+  label — "hear it — home, then {n}, then the answer" — is gone, because one
+  control cannot say a different sentence per family.
 - **Filter chips with no ruled wording** — the Pentatonic row (`major`, `minor`,
   `relative`), the Maj/Min Key Relation row (`relative`, `parallel`) and the
   Enharmonic row (`note`, `interval`) print their stored value as-is.

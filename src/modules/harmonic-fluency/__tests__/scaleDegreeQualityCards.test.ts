@@ -18,9 +18,10 @@ import { scaleDegreeQualityCards } from '../scaleDegreeQualityCards';
 import { LEGACY_TO_QUALITY } from '../scaleDegreeQualityCards';
 import {
   INTERVAL_QUALITIES, degreeAnswer, degreeMathExplanation, degreeResult,
-  groundedLine, parseNote, type Direction,
+  groundedLine, parseNote,
 } from '../scaleDegreeQuality';
-import { degreeSemitones, landingDegree } from '../degreeAudio';
+import { cardSound } from '../cardAudio';
+import { withFacets } from '../facets';
 
 const CARDS = scaleDegreeQualityCards();
 const TWELVE = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -286,35 +287,56 @@ describe('the explanation', () => {
   });
 });
 
+/**
+ * ASKED OF THE CARD ITSELF, not of a helper it happens to share
+ * arguments with.
+ *
+ * These three used to call `degreeSemitones` and `landingDegree` —
+ * functions that took a degree, a quality and a direction and returned
+ * what the audio would do with them. Ruling 33 made the sound a
+ * property OF A CARD, read off its own coordinates, so the question is
+ * now askable directly: hand `cardSound` the card and it says what a
+ * reader hears. That closes the gap those helpers left open — they
+ * could be right about arguments the card never passed them.
+ */
+const SOUNDED = withFacets(CARDS);
+const soundOf = (id: string) => cardSound(SOUNDED.find(c => c.id === id)!)!;
+const MAJOR_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+
 describe('the audio', () => {
-  it('plays the tonic first, then the start degree, then the landing', () => {
+  it('plays the tonic chord first, then the start degree, then the landing', () => {
     // Two notes alone teach an INTERVAL — D then F♯ is a major third
-    // in any key. The tonic in front is what makes them a POSITION,
-    // which is the only reason these cards exist.
-    const m6 = INTERVAL_QUALITIES.find(q => q.id === 'm6')!;
-    const heard = degreeSemitones(2, m6, 'down');
-    expect(heard.tonic).toBe(0);
-    expect(heard.start).toBe(2);      // the 2 of a major scale
-    expect(heard.land).toBe(2 - 8);   // a minor 6th below it
+    // in any key. Home in front is what makes them a POSITION, which is
+    // the only reason these cards exist. Ruling 33 makes that home a
+    // CHORD rather than the single note it used to be, on every family.
+    const heard = soundOf('sdm-2-down-m6');
+    expect(heard.orient).toEqual([0, 4, 7]);
+    expect(heard.steps.map(s => s.semitones)).toEqual([
+      [2],       // the 2 of a major scale
+      [2 - 8],   // a minor 6th below it
+    ]);
+  });
+
+  it('has no key, so it sounds at middle C', () => {
+    // "In ANY major key" — there is no key to take a root from, and
+    // the family keeps the home it has always sounded in.
+    expect(soundOf('sdm-1-up-P5').rootMidi).toBe(60);
   });
 
   it('lands where the answer says it lands, on every card', () => {
     for (const c of CARDS) {
-      const quality = INTERVAL_QUALITIES.find(
-        q => q.intervalId === c.facts.intervalId && q.qualityId === c.facts.qualityId,
-      )!;
-      expect(
-        landingDegree(c.facts.startDegree, quality, c.facts.direction),
-        c.id,
-      ).toBe(c.facts.resultDegree);
+      const steps = soundOf(c.id).steps;
+      const land = steps[steps.length - 1].semitones[0];
+      const expected =
+        MAJOR_SEMITONES[c.facts.resultDegree - 1] + c.facts.alteration;
+      expect(((land % 12) + 12) % 12, c.id).toBe(((expected % 12) + 12) % 12);
     }
   });
 
   it('descends when the card descends', () => {
-    const p5 = INTERVAL_QUALITIES.find(q => q.id === 'P5')!;
-    const up = degreeSemitones(1, p5, 'up' as Direction);
-    const down = degreeSemitones(1, p5, 'down' as Direction);
-    expect(up.land).toBeGreaterThan(up.start);
-    expect(down.land).toBeLessThan(down.start);
+    const up = soundOf('sdm-1-up-P5').steps.map(s => s.semitones[0]);
+    const down = soundOf('sdm-1-down-P5').steps.map(s => s.semitones[0]);
+    expect(up[1]).toBeGreaterThan(up[0]);
+    expect(down[1]).toBeLessThan(down[0]);
   });
 });

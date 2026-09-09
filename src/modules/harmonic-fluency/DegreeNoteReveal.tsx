@@ -24,43 +24,19 @@
  * a second, unscored assessment nobody asked for.
  * =====================================================================
  */
-import { useEffect, useRef, useState } from 'react';
 import AnswerKeyboard from '../../components/AnswerKeyboard';
-import SpeedControl from '../../components/SpeedControl';
-import { getPref } from '../../lib/userPrefs';
-import type { PlaybackHandle, TonicContext } from '../../lib/musicalPlayback';
 import { degreePitchClass } from './chromaticDegrees';
-import { DEGREE_NOTE_AUDIO_MODULE, playDegreeNote } from './degreeNoteAudio';
-
-/**
- * The pref chord progressions writes, read here for the same reason
- * `DegreePlayback` reads it: a reader who has turned priming off has
- * said something about how they want to practise, not something about
- * one module.
- */
-const PREF_TONIC = 'chordProgressionsTonicContext';
+import CardPlayback from './CardPlayback';
+import type { Flashcard } from './catalog';
 
 export default function DegreeNoteReveal({
-  root, degreeId,
+  root, degreeId, card,
 }: {
   root: string;
   degreeId: string;
+  /** The card, for the shared play control — see `CardPlayback`. */
+  card: Flashcard;
 }) {
-  const [context, setContext] = useState<TonicContext>('singleNote');
-  const playing = useRef<PlaybackHandle | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    let live = true;
-    void getPref<TonicContext>(PREF_TONIC, 'singleNote')
-      .then(v => { if (live) setContext(v); });
-    return () => { live = false; };
-  }, []);
-
-  // A note left ringing after the card changes is a note answering the
-  // wrong question.
-  useEffect(() => () => { playing.current?.stop(); }, []);
-
   const rootPc = degreePitchClass(root, '1');
   const notePc = degreePitchClass(root, degreeId);
   if (rootPc === null || notePc === null) return null;
@@ -78,26 +54,10 @@ export default function DegreeNoteReveal({
         revealed
         onPress={() => {}}
       />
-      <div className="flex items-center justify-center gap-3">
-        <button
-          type="button"
-          data-testid="degree-note-play"
-          disabled={busy}
-          onClick={async () => {
-            playing.current?.stop();
-            setBusy(true);
-            try {
-              playing.current = await playDegreeNote(root, degreeId, context);
-            } finally {
-              setBusy(false);
-            }
-          }}
-          className="text-xs rounded border border-neutral-300 dark:border-neutral-700 px-2 py-1 text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent disabled:opacity-40"
-        >
-          Hear it
-        </button>
-        <SpeedControl moduleId={DEGREE_NOTE_AUDIO_MODULE} />
-      </div>
+      {/* THE SHARED CONTROL, CENTRED UNDER THE BOARD (ruling 33). The
+          only thing this card is allowed to differ on — see the
+          allowed-to-differ list in `cardAudio`. */}
+      <CardPlayback card={card} align="center" />
     </div>
   );
 }
