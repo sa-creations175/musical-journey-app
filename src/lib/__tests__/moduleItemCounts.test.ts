@@ -70,7 +70,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 124 + 265 = 1481
+// Harmonic Fluency — 949 + 143 + 250 + 265 = 1607
+// (9 Sep 2026: 1481 → 1607. Modal Improvisation, a new family: which
+//  notes fit over the chord the band is on, ten chords in thirteen
+//  keys less the four the decoy guard refuses. functionalApplied
+//  124 → 250.)
 // (9 Sep 2026: 1494 → 1481. The thirteen octave interval cards went —
 //  "the interval from D♭ to D♭ ascending" answers itself. Intervals
 //  156 → 143, earRecognition 278 → 265.)
@@ -174,16 +178,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(143);
   });
 
-  it('functionalApplied = fh 40 + pr 84 = 124', () => {
-    expect(c.byGroup.functionalApplied).toBe(124);
+  it('functionalApplied = fh 40 + pr 84 + mi 126 = 250', () => {
+    expect(c.byGroup.functionalApplied).toBe(250);
   });
 
   it('earRecognition = mo 107 + iv 143 + et 15 = 265', () => {
     expect(c.byGroup.earRecognition).toBe(265);
   });
 
-  it('total = 1481 across all 13 categories', () => {
-    expect(c.total).toBe(1481);
+  it('total = 1607 across all 14 categories', () => {
+    expect(c.total).toBe(1607);
   });
 
   it('total equals sum of group totals', () => {
@@ -195,7 +199,7 @@ describe('harmonicFluencyCounts', () => {
     expect(groupSum).toBe(c.total);
   });
 
-  it('byCategory covers all 13 canonical categories', () => {
+  it('byCategory covers all 14 canonical categories', () => {
     // `named-notes`, `tritone-pairs` and `reverse-key-pivots` are absent
     // because their cards are: all three folded into `degree-notes` on
     // 3 Sep 2026.
@@ -208,6 +212,7 @@ describe('harmonicFluencyCounts', () => {
       'functional-harmony',
       'intervals',
       'key-signatures',
+      'modal-improvisation',
       'modes',
       'pentatonic-scales',
       'progressions',

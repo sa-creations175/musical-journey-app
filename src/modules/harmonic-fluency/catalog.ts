@@ -7,6 +7,9 @@ import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, degreeNoteCards } from './degreeNoteCards';
 import { DEGREE_MATH_CATEGORY_NAME } from './scaleDegreeQualityCards';
 import { withFacets } from './facets';
+import {
+  MODAL_IMPROV_CATEGORY_NAME, modalImprovisationCards,
+} from './modalImprovisation';
 import { INTERVAL_NAMES } from './intervalInversion';
 import {
   MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
@@ -35,7 +38,8 @@ export type FlashcardCategory =
   | 'ear-theory'
   | 'tritone-pairs'
   | 'enharmonic-equivalents'
-  | 'degree-notes';
+  | 'degree-notes'
+  | 'modal-improvisation';
 
 export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   'scale-degree-math': DEGREE_MATH_CATEGORY_NAME,
@@ -56,6 +60,7 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   // PLACEHOLDER NAME. The most literal description of what the family
   // relates, standing in until Silas rules — see `degreeNoteCards`.
   'degree-notes': DEGREE_NOTE_CATEGORY_NAME,
+  'modal-improvisation': MODAL_IMPROV_CATEGORY_NAME,
 };
 
 /**
@@ -80,7 +85,8 @@ export const CATEGORY_ORDER: FlashcardCategory[] = [
   'scale-degree-math', 'degree-notes', 'enharmonic-equivalents',
   'diatonic-qualities', 'functional-harmony',
   'key-signatures', 'modes', 'pentatonic-scales', 'intervals',
-  'chord-construction', 'progressions', 'slash-chords', 'ear-theory',
+  'chord-construction', 'progressions', 'modal-improvisation',
+  'slash-chords', 'ear-theory',
 ];
 
 export interface VisualHint {
@@ -2025,6 +2031,10 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   // Twelve keys x thirteen degrees x three questions. Silas saw the
   // number — 468, and the deck it makes — and ruled it in.
   ...degreeNoteCards(),
+  // Ten chords the band can be sitting on, in thirteen keys. Appended
+  // for the reason every generated family is: its ids carry the key
+  // and the chord, so nothing above can be renumbered by it.
+  ...modalImprovisationCards(),
   ...F_SHARP_SURVIVOR,
 ]);
 

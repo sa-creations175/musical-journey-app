@@ -197,7 +197,7 @@ describe('absent means flat list, not broken', () => {
     // A count over the whole deck, so a generator that quietly stopped
     // supplying them shows up here even if its own test was deleted.
     //
-    // TWELVE OF FIFTEEN CATEGORIES. Scale degree math joined them: it
+    // THIRTEEN OF SIXTEEN CATEGORIES. Scale degree math joined them: it
     // is generated from a triple loop and always held its coordinates
     // in `facts`, so the axis was one line rather than new structure.
     // The three with none — diatonic qualities, chord construction,
@@ -242,6 +242,10 @@ describe('absent means flat list, not broken', () => {
       // hand-written C cards that kept the generator out of that key,
       // and ruling 40 made F♯ major and G♭ major two of the thirteen.
       'slash-chords': 91,
+      // Thirteen keys by ten chords, less the four cards whose own
+      // key cannot give them a fair set of wrong answers — see
+      // `MODAL_IMPROV_STOPS`.
+      'modal-improvisation': 126,
     });
   });
 });

@@ -35,6 +35,7 @@ const GENERATED_CATEGORIES = [
   'slash-chords',
   'progressions',
   'key-signatures',
+  'modal-improvisation',
 ] as const;
 
 /** Today's pairing, in the same `id|question` shape as the fixture. */

@@ -1,0 +1,146 @@
+<title>Modal Improvisation</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --paper:#F3F5F7; --ink:#1A1D21; --muted:#5E6B72; --line:#D5DBDF; --panel:#FFFFFF;
+  --home:#0F6E56; --home-soft:#DDEFE8; --borrow:#F0722B; --borrow-soft:#FCE6D8;
+  --target:#378ADD; --target-soft:#DCE9F8; --chip:#E7EBEE; --chip-on:#1A1D21;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#15181B; --ink:#EEF1F3; --muted:#9AA6AD; --line:#2C3338; --panel:#1E2226;
+  --home-soft:#123B31; --borrow-soft:#4A2A17; --target-soft:#16304D; --chip:#262C31; --chip-on:#EEF1F3;
+}}
+:root[data-theme="dark"]{
+  --paper:#15181B; --ink:#EEF1F3; --muted:#9AA6AD; --line:#2C3338; --panel:#1E2226;
+  --home-soft:#123B31; --borrow-soft:#4A2A17; --target-soft:#16304D; --chip:#262C31; --chip-on:#EEF1F3;
+}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;margin:0}
+main{max-width:640px;margin:0 auto;padding:28px 20px 60px}
+h1{font-size:22px;font-weight:600;margin:0 0 4px;text-wrap:balance}
+.sub{color:var(--muted);margin:0 0 22px;max-width:60ch}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:6px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--chip-on);color:var(--paper);border-color:var(--chip-on)}
+.chip.borrow[aria-pressed="true"]{background:var(--borrow);border-color:var(--borrow);color:#fff}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;margin-top:22px}
+.q{font-size:18px;font-weight:500;margin:0 0 6px;text-wrap:balance}
+.a{margin:0 0 4px}
+.a b{font-weight:600}
+.notes{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:14px;color:var(--muted);margin:0 0 16px}
+.notes .alt{color:var(--borrow);font-weight:500}
+.why{color:var(--muted);font-size:14px;margin:0 0 18px;max-width:62ch}
+.controls{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.play{background:var(--ink);color:var(--paper);border:0;border-radius:8px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+.play:focus-visible,.chip:focus-visible{outline:2px solid var(--target);outline-offset:2px}
+.bpm{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+.bpm input[type=range]{width:120px}
+.bpm output{font-family:"IBM Plex Mono",monospace;color:var(--ink);min-width:3ch;font-variant-numeric:tabular-nums}
+.timeline{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:18px}
+.step{border-radius:6px;padding:8px 6px;text-align:center;font-size:12px;line-height:1.25;background:var(--chip);color:var(--muted);border:2px solid transparent}
+.step small{display:block;font-family:"IBM Plex Mono",monospace;font-size:11px;margin-top:3px}
+.step small.run{font-size:10px;opacity:.85;margin-top:6px;line-height:1.4}
+.step.home{background:var(--home-soft)} .step.borrow{background:var(--borrow-soft)} .step.target{background:var(--target-soft)}
+.step.now{border-color:var(--ink);color:var(--ink)}
+.foot{color:var(--muted);font-size:13px;margin-top:26px;max-width:62ch}
+@media (prefers-reduced-motion:reduce){.step{transition:none}}
+</style>
+<main>
+<h1>Modal Improvisation</h1>
+<p class="sub">Pick a key and a chord the band is sitting on. The card asks which notes fit over it; press Hear It to hear the answer as a small phrase: home with a run, the chord with a run from the answer scale, where it lands with its own scale, and home again with its scale.</p>
+
+<div class="label">Key</div>
+<div class="chips" id="keys"></div>
+<div class="label">The band is on</div>
+<div class="chips" id="chords"></div>
+
+<section class="card">
+  <p class="q" id="q"></p>
+  <p class="a">Answer: <b id="ans"></b></p>
+  <p class="notes" id="notes"></p>
+  <p class="why" id="why"></p>
+  <div class="controls">
+    <button class="play" id="play">♪ Hear It</button>
+    <label class="bpm">BPM <input type="range" id="bpm" min="48" max="120" value="72"> <output id="bpmOut">72</output></label>
+  </div>
+  <div class="timeline" id="tl"></div>
+</section>
+<p class="foot">Runs are the answer scale played up from the chord's root, one octave. In-key chords have no borrowed pool, so their phrase is shorter: home with a run, the chord with a run, home with a run.</p>
+</main>
+<script>
+const LETTERS=['C','D','E','F','G','A','B'], NAT=[0,2,4,5,7,9,11];
+const MAJOR=[0,2,4,5,7,9,11], MEL_MINOR=[0,2,3,5,7,9,11];
+const KEYS=['C','Db','D','Eb','E','F','F#','Gb','G','Ab','A','Bb','B'];
+const ACC={ '-2':'𝄫','-1':'♭','0':'','1':'♯','2':'𝄪' };
+function parse(n){const li=LETTERS.indexOf(n[0]);const acc=(n.slice(1).match(/#/g)||[]).length-(n.slice(1).match(/b/g)||[]).length;return{li,acc,pc:((NAT[li]+acc)%12+12)%12};}
+function spell(root,steps){const r=parse(root);return steps.map((s,i)=>{const li=(r.li+i)%7;const pc=(r.pc+s)%12;let d=((pc-NAT[li])%12+12)%12;if(d>6)d-=12;return LETTERS[li]+ACC[d];});}
+function nameOf(root,semis,degreeLetterOffset){const r=parse(root);const li=(r.li+degreeLetterOffset)%7;const pc=(r.pc+semis)%12;let d=((pc-NAT[li])%12+12)%12;if(d>6)d-=12;return LETTERS[li]+ACC[d];}
+const pretty=n=>n.replace('#','♯').replace('b','♭');
+// chords: in-key and borrowed (secondary dominants)
+const CHORDS=[
+ {id:'2m',num:'2',deg:1,q:'m',kind:'in'},{id:'3m',num:'3',deg:2,q:'m',kind:'in'},{id:'4',num:'4',deg:3,q:'',kind:'in'},{id:'5',num:'5',deg:4,q:'7',kind:'in'},{id:'6m',num:'6',deg:5,q:'m',kind:'in'},
+ {id:'V/2',num:'5 of 2',target:1,kind:'borrow'},{id:'V/3',num:'5 of 3',target:2,kind:'borrow'},{id:'V/4',num:'5 of 4',target:3,kind:'borrow'},{id:'V/5',num:'5 of 5',target:4,kind:'borrow'},{id:'V/6',num:'5 of 6',target:5,kind:'borrow'},
+];
+let key='C', chord=CHORDS[8];
+const MINOR_DEGS=[1,2,5];
+function build(){
+  const scale=spell(key,MAJOR); const keyPc=parse(key).pc;
+  if(chord.kind==='in'){
+    const rootName=scale[chord.deg]; const rootPc=(keyPc+MAJOR[chord.deg])%12;
+    const chordName=pretty(rootName)+chord.q;
+    const run=spell(rootName, rotate(MAJOR,chord.deg));
+    return {chordName,num:chord.num,rootPc,q:chord.q,answer:`Notes of the ${pretty(key)} major scale`,scaleNotes:scale,run,alt:null,
+      why:`${chordName} is the ${chord.num} of ${pretty(key)}. Every note it holds is already in ${pretty(key)} major, so nothing changes: stay in the key.`,
+      steps:[{k:'home',t:'Home',n:pretty(key),r:scale},{k:'borrow',t:'The chord',n:chordName,r:run},{k:'home',t:'Home',n:pretty(key),r:scale}],
+      seq:[['run',keyPc,scaleRunPcs(keyPc,MAJOR),keyPc,''],['run',rootPc,scaleRunPcs(rootPc,rotate(MAJOR,chord.deg)),rootPc,chord.q],['run',keyPc,scaleRunPcs(keyPc,MAJOR),keyPc,'']]};
+  }
+  const tDeg=chord.target; const tRoot=scale[tDeg]; const tPc=(keyPc+MAJOR[tDeg])%12; const tMinor=MINOR_DEGS.includes(tDeg);
+  const dRoot=nameOf(tRoot,7,4); const dPc=(tPc+7)%12; const chordName=pretty(dRoot)+'7';
+  const tScale=tMinor?MEL_MINOR:MAJOR; const tName=pretty(tRoot)+(tMinor?' melodic minor':' major');
+  const answerScale=spell(tRoot,tScale); const run=spell(dRoot,rotate(tScale,4));
+  const inKey=new Set(scale.map(n=>parse(n.replace('♭','b').replace('♯','#')).pc));
+  const targetChord=pretty(tRoot)+(tMinor?'m':'');
+  return {chordName,num:chord.num,answer:`Notes of the ${tName} scale`,scaleNotes:answerScale,run,alt:inKey,
+    why:`${chordName} is not in ${pretty(key)} major; it is the 5 of ${targetChord}. Play the notes of the key it points to for that bar. The highlighted notes are the ones ${pretty(key)} major does not have.`+(tMinor?` For a minor target that is just ${pretty(key)} major with one note raised: the ${chordName} chord's third.`:''),
+    steps:[{k:'home',t:'Home',n:pretty(key),r:scale},{k:'borrow',t:'Borrowed chord',n:chordName,r:run},{k:'target',t:'Where it lands',n:targetChord,r:spell(tRoot,tMinor?rotate(MAJOR,tDeg):tScale)},{k:'home',t:'Home',n:pretty(key),r:scale}],
+    seq:[['run',keyPc,scaleRunPcs(keyPc,MAJOR),keyPc,''],['run',dPc,scaleRunPcs(dPc,rotate(tScale,4)),dPc,'7'],['run',tPc,scaleRunPcs(tPc,tMinor?rotate(MAJOR,tDeg):tScale),tPc,tMinor?'m':''],['run',keyPc,scaleRunPcs(keyPc,MAJOR),keyPc,'']]};
+}
+function rotate(s,d){return s.slice(d).map(x=>x-s[d]).concat(s.slice(0,d).map(x=>x+12-s[d]));}
+function scaleRunPcs(rootPc,steps){return steps.concat([12]).map(s=>rootPc+s);}
+// UI
+const keysEl=document.getElementById('keys'), chordsEl=document.getElementById('chords');
+KEYS.forEach(k=>{const b=document.createElement('button');b.className='chip';b.textContent=pretty(k);b.onclick=()=>{key=k;render();};keysEl.appendChild(b);b.dataset.k=k;});
+CHORDS.forEach(c=>{const b=document.createElement('button');b.className='chip'+(c.kind==='borrow'?' borrow':'');b.onclick=()=>{chord=c;render();};chordsEl.appendChild(b);b.dataset.id=c.id;});
+let model, steps=[];
+function render(){
+  [...keysEl.children].forEach(b=>b.setAttribute('aria-pressed',b.dataset.k===key));
+  const scale=spell(key,MAJOR);
+  [...chordsEl.children].forEach((b,i)=>{const c=CHORDS[i];const name=c.kind==='in'?pretty(scale[c.deg])+c.q:pretty(nameOf(scale[c.target],7,4))+'7';b.textContent=`${name} (${c.num})`;b.setAttribute('aria-pressed',c===chord);});
+  model=build();
+  document.getElementById('q').textContent=`In ${pretty(key)}, the band is on ${model.chordName} (${model.num}). Which notes fit?`;
+  document.getElementById('ans').textContent=model.answer;
+  const n=document.getElementById('notes'); n.innerHTML='';
+  model.scaleNotes.forEach((x,i)=>{const s=document.createElement('span');s.textContent=x+(i<6?'  ':'');const pc=parse(x.replace('♭','b').replace('♯','#').replace('𝄫','bb').replace('𝄪','##')).pc;if(model.alt&&!model.alt.has(pc))s.className='alt';n.appendChild(s);});
+  document.getElementById('why').textContent=model.why;
+  const tl=document.getElementById('tl'); tl.innerHTML=''; tl.style.gridTemplateColumns=`repeat(${model.steps.length},1fr)`;
+  steps=model.steps.map(s=>{const d=document.createElement('div');d.className='step '+s.k;d.innerHTML=`${s.t}<small>${s.n}</small><small class="run">${s.r.concat([s.r[0]]).join(' ')}</small>`;tl.appendChild(d);return d;});
+}
+// audio
+let ctx; function ac(){if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();return ctx;}
+function tone(midi,t,dur,gain){const c=ac();const o=c.createOscillator(),o2=c.createOscillator(),g=c.createGain();o.type='triangle';o2.type='sine';o.frequency.value=o2.frequency.value=440*Math.pow(2,(midi-69)/12);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain,t+0.02);g.gain.exponentialRampToValueAtTime(0.001,t+dur);o.connect(g);o2.connect(g);g.connect(c.destination);o.start(t);o2.start(t);o.stop(t+dur+0.05);o2.stop(t+dur+0.05);}
+function chordMidis(pc,q){const r=48+pc;const third=q==='m'?3:4;const m=[r,r+12,r+12+third,r+19];if(q==='7')m.push(r+22);return m;}
+function playChord(pc,q,t,beats,bpm){const d=60/bpm*beats;chordMidis(pc,q).forEach(m=>tone(m,t,d,0.16));}
+let timers=[];
+document.getElementById('bpm').oninput=e=>document.getElementById('bpmOut').value=e.target.value;
+document.getElementById('play').onclick=()=>{
+  const bpm=+document.getElementById('bpm').value, beat=60/bpm; const c=ac(); if(c.state==='suspended')c.resume();
+  timers.forEach(clearTimeout); timers=[]; let t=c.currentTime+0.1; const t0=t;
+  model.seq.forEach((s,i)=>{
+    const at=(t-t0)*1000; timers.push(setTimeout(()=>{steps.forEach(d=>d.classList.remove('now'));steps[i].classList.add('now');},at));
+    if(s[0]==='chord'){playChord(s[1],s[2],t,2,bpm);t+=beat*2.2;}
+    else{const pcs=s[2];playChord(s[3],s[4],t,pcs.length/2,bpm);const base=s[3]>6?60:72;pcs.forEach((pc,j)=>tone(base+pc,t+j*beat/2,beat*0.55,0.22));t+=beat*(pcs.length/2)+beat*0.3;}
+  });
+  timers.push(setTimeout(()=>steps.forEach(d=>d.classList.remove('now')),(t-t0)*1000));
+};
+render();
+</script>

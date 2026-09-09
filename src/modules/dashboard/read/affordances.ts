@@ -39,6 +39,9 @@
  * Pure. Nodes and counts in, strings out.
  */
 import { FLUENCY_POOL_RULE } from '../../../lib/fluencyPool';
+import {
+  MODAL_IMPROV_CATEGORY_NAME, MODAL_IMPROV_DESCRIPTION,
+} from '../../harmonic-fluency/modalImprovisation';
 import { moduleLabelFor } from './catalogs';
 import type { TreeNode } from './tree';
 import { COVERAGE_MIN_ENGAGEMENTS, ACCURACY_WINDOW } from './itemStats';
@@ -124,6 +127,10 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
   [`${HF}/Progression Vocabulary`]:
     'Naming and recalling common progressions by their numerals. The '
     + 'shorthand that lets a whole song be described in four symbols.',
+  // THE PROTOTYPE'S OWN `<p class="sub">`, UNCHANGED — see
+  // `MODAL_IMPROV_DESCRIPTION`, which is where the string lives so the
+  // family says one thing in one place.
+  [`${HF}/${MODAL_IMPROV_CATEGORY_NAME}`]: MODAL_IMPROV_DESCRIPTION,
   [`${HF}/Slash Chords & Inversions`]:
     'What a chord over a bass note is, and which inversion it makes. C/E '
     + 'is a C major triad with its third at the bottom — reading that '

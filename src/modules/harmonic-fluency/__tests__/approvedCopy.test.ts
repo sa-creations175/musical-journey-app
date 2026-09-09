@@ -112,9 +112,22 @@ describe('the Progression chips', () => {
   it('covers every progression the deck holds', () => {
     const listed = tableUnder('The Progression chips').map(([stored]) => stored);
     expect(listed.sort()).toEqual([
-      '1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5', 'V/V', 'V/vi',
+      '1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5',
+      'V/ii', 'V/iii', 'V/IV', 'V/V', 'V/vi',
       'backdoor', 'ii-V-I',
     ].sort());
+  });
+
+  it('and the deck holds every progression it covers', () => {
+    // THE TEST ABOVE PINS A LIST; THIS ONE READS THE DECK. Two
+    // families carry this facet now, and a hand-written list is
+    // exactly the thing that stays green while a chip goes stale —
+    // which is what the row's own note says a chip must never do.
+    const listed = new Set(
+      tableUnder('The Progression chips').map(([stored]) => stored));
+    const live = new Set(
+      FLASHCARDS.map(c => c.facets?.progression).filter(v => v !== undefined));
+    expect([...live].sort()).toEqual([...listed].sort());
   });
 });
 

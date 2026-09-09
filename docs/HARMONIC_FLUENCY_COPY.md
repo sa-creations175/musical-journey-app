@@ -64,6 +64,9 @@ Ruling 26. The stored value is unchanged and still what a link carries.
 | stored | chip |
 |---|---|
 | ii-V-I | 2 5 1 |
+| V/ii | 5 of 2 |
+| V/iii | 5 of 3 |
+| V/IV | 5 of 4 |
 | V/V | 5 of 5 |
 | V/vi | 5 of 6 |
 | 1-5-6-4 | 1 5 6 4 |
@@ -73,10 +76,17 @@ Ruling 26. The stored value is unchanged and still what a link carries.
 | backdoor | 1 4 ♭7 1 (backdoor) |
 
 **One chip per generated progression, and the row shrinks when the deck does.**
-It was four, then twelve, and is eight: `6-4-1-5`, *gospel walk-up*, *rhythm
-changes* and *neo-soul* left with their cards, because a chip for a progression
-the deck no longer generates is a filter that finds nothing. The numbered ones
-apply ruling 26's own rule — the dashes become spaces.
+It was four, then twelve, then eight, and is eleven: `6-4-1-5`, *gospel walk-up*,
+*rhythm changes* and *neo-soul* left with their cards, because a chip for a
+progression the deck no longer generates is a filter that finds nothing. The
+numbered ones apply ruling 26's own rule — the dashes become spaces.
+
+**The three that arrived, 9 Sep 2026, are Modal Improvisation's.** That family
+asks about the 5 of the 2, the 3 and the 4 as well as the 5 and the 6, and
+`V/V` and `V/vi` were already this row's words for the last two — so the other
+three are spelled the same way rather than starting a vocabulary of their own,
+and one chip gathers both families. The chip words are the prototype's own
+`num` values; none of it is new copy.
 
 **Numbers lead, names follow.** A progression with a name reads as the numbers
 first and the name in brackets, on the chip and in the card's own question:

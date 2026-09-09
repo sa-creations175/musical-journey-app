@@ -147,6 +147,13 @@ export const MOVEMENT_LABELS: ReadonlyMap<string, string> = MOVEMENT_WORDS;
  */
 const PROGRESSION_WORDS: Readonly<Record<string, string>> = {
   'ii-V-I': '2 5 1',
+  // THE PROTOTYPE'S OWN WORDS FOR THE OTHER THREE SECONDARY DOMINANTS.
+  // "5 of 5" and "5 of 6" were already here; Modal Improvisation's chip
+  // row writes "5 of 2", "5 of 3" and "5 of 4" the same way, so this is
+  // the existing rule applied rather than new copy.
+  'V/ii': '5 of 2',
+  'V/iii': '5 of 3',
+  'V/IV': '5 of 4',
   'V/V': '5 of 5',
   'V/vi': '5 of 6',
   '1-5-6-4': '1 5 6 4',

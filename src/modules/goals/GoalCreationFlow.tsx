@@ -2110,7 +2110,7 @@ const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> = [
     id: 'functional-applied',
     title: 'Functional / Applied',
     accentHex: PRACTICE_SESSIONS_META.accentHex,                        // teal
-    categories: ['functional-harmony', 'reverse-key-pivots', 'progressions'],
+    categories: ['functional-harmony', 'reverse-key-pivots', 'progressions', 'modal-improvisation'],
   },
   {
     id: 'ear-recognition',

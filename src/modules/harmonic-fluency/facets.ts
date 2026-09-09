@@ -64,6 +64,7 @@ import { LETTERS } from '../reading/pitch';
 import { qualityByShape } from './scaleDegreeQuality';
 import { movementId } from './scaleDegreeQualityCards';
 import { SLASH_SHAPES } from './catalogExpansions';
+import { MODAL_CHORDS } from './modalImprovisation';
 
 /**
  * The facets a card may carry. Every one is optional, and every one
@@ -205,9 +206,15 @@ export const FACET_VALUES: Readonly<Record<FacetName, readonly (string | number)
   // `ii-V-I` covers both families: Functional Harmony's 2-5-1 cadence
   // and Progression Vocabulary's 2-5-1 are the same little progression,
   // which is ruling 26's own argument.
+  // THREE MORE SECONDARY DOMINANTS, SPELLED THE WAY THE TWO ALREADY
+  // HERE ARE. Modal Improvisation asks about the 5 of the 2, the 3 and
+  // the 4 as well as the 5 and the 6; `V/V` and `V/vi` were already
+  // this row's words for the last two, so the other three join them
+  // rather than starting a vocabulary of their own. One chip gathers
+  // both families, which is ruling 26's whole argument.
   progression: [
-    'ii-V-I', 'V/V', 'V/vi', '1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5',
-    'backdoor',
+    'ii-V-I', 'V/ii', 'V/iii', 'V/IV', 'V/V', 'V/vi',
+    '1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5', 'backdoor',
   ],
   // DERIVED FROM THE GENERATOR'S OWN LIST. Ruling 30 changed the
   // shapes, and a vocabulary written out again here is a vocabulary
@@ -386,6 +393,24 @@ export function facetsFor(card: Flashcard): CardFacets | undefined {
       f.key = str(axis?.key);
       f.progression = str(axis?.shape);
       break;
+
+    case 'modal-improvisation': {
+      // THE CHORD'S NUMBER, UNDER WHICHEVER FACET ALREADY HOLDS THAT
+      // KIND OF NUMBER — no new chip family for a family of ten
+      // chords.
+      //
+      // An IN-KEY chord's number is a degree of the key: the 2 of C is
+      // the D the card is asking over, which is exactly what `degree`
+      // means everywhere else. A BORROWED chord's number is "5 of 2",
+      // which is not a degree at all — it is the little progression
+      // `progression` has held as `V/V` and `V/vi` since that facet was
+      // written, and the other three are spelled to match.
+      f.key = str(axis?.key);
+      const chord = MODAL_CHORDS.find(c => c.id === str(axis?.chord));
+      if (chord?.kind === 'in') f.degree = chord.degree;
+      else if (chord !== undefined) f.progression = chord.facet;
+      break;
+    }
 
     case 'slash-chords':
       f.key = str(axis?.key);

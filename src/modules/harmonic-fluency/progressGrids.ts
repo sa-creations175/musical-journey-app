@@ -25,6 +25,7 @@ import {
   FLAT_TWELVE, MODE_BY_DEGREE, SLASH_SHAPES, THIRTEEN_KEYS,
 } from './catalogExpansions';
 import { withAccidentalGlyphs } from '../reading/pitch';
+import { MODAL_CHORDS } from './modalImprovisation';
 import { DEGREE_MOVEMENTS } from './scaleDegreeQualityCards';
 import { canonicaliseKey, sortByCircleOfFourths } from '../repertoire/circleOfFourths';
 import { spellKey } from '../../lib/spelling';
@@ -322,6 +323,29 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
       views: [{ id: 'default', label: 'root', values: THIRTEEN_KEYS }],
     },
     rows: axis('shape', 'shape', ['minor', 'major', 'lick']),
+  },
+
+  /**
+   * THIRTEEN COLUMNS AND TEN ROWS, with four cells empty.
+   *
+   * The five in-key chords first, in the order the family teaches
+   * them, then the five that point out of the key — the prototype's own
+   * chip row read top to bottom.
+   *
+   * THE ROW IS LABELLED BY THE CHORD'S NUMBER, not by its name. "D7"
+   * is the 5 of 5 in G and the 4 in A; the number is the one word that
+   * means the same thing down a column of thirteen keys.
+   *
+   * FOUR CELLS ARE EMPTY AND EACH ONE IS A STOP. The decoy guard
+   * refuses `5 of 3` in D♭ and D and `5 of 4` in F and F♯ — see
+   * `MODAL_IMPROV_STOPS`, which names them and says why. The same
+   * shape as G♭ minor pentatonic's missing cell above: a rule said
+   * stop, and the stop is on screen rather than papered over.
+   */
+  [CATEGORY_LABELS['modal-improvisation']]: {
+    columns: thirteenKeyAxis,
+    rows: axis('chord', 'the band is on', MODAL_CHORDS.map(c => c.id),
+      v => MODAL_CHORDS.find(c => c.id === v)?.num ?? String(v)),
   },
 
   [CATEGORY_LABELS['enharmonic-equivalents']]: {

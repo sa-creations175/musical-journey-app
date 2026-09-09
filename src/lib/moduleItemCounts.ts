@@ -129,7 +129,7 @@ export function earTrainingCounts(): EarTrainingCounts {
 const HF_GROUP_CATEGORIES: Record<HarmonicFluencyGroupId, ReadonlyArray<FlashcardCategory>> = {
   foundational:        ['scale-degree-math', 'degree-notes', 'key-signatures', 'pentatonic-scales', 'enharmonic-equivalents'],
   chordKnowledge:      ['diatonic-qualities', 'chord-construction', 'slash-chords'],
-  functionalApplied:   ['functional-harmony', 'progressions'],
+  functionalApplied:   ['functional-harmony', 'progressions', 'modal-improvisation'],
   earRecognition:      ['modes', 'intervals', 'ear-theory'],
 };
 
