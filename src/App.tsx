@@ -10,6 +10,10 @@ import {
   migrateIdentityCardIds,
 } from './modules/harmonic-fluency/identityIdMigration';
 import {
+  cleanUpOrphanedCards,
+  describeOrphanCleanup,
+} from './modules/harmonic-fluency/orphanedCardCleanup';
+import {
   cleanUpRetiredCard,
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
@@ -180,6 +184,24 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] retired-card cleanup failed', err);
+      });
+    // 6/♭7 left the slash deck with ruling 30, and nothing in the deck
+    // asks what it asked — so its rows go rather than move. IDEMPOTENT
+    // BY DATA, not by a pref, for the reason the retired-category
+    // migration below states at length: a phone that is days behind can
+    // push a row back by sync, and a flag-guarded pass would refuse to
+    // touch the one row this exists to remove.
+    //
+    // It refuses outright if any of the twelve is in the deck again,
+    // and it leaves anything a reader wrote by hand where it is —
+    // saying so on every boot until somebody decides.
+    void cleanUpOrphanedCards()
+      .then(r => {
+        const line = describeOrphanCleanup(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] orphaned-card cleanup failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from
