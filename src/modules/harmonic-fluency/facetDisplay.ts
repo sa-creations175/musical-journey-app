@@ -47,37 +47,139 @@
 import { withAccidentalGlyphs } from '../reading/pitch';
 import { degreeLabel } from './degreeNoteCards';
 import type { FacetName } from './facets';
+import { INTERVAL_QUALITIES } from './scaleDegreeQuality';
+import { SLASH_SHAPES } from './catalogExpansions';
 
 type Label = (value: string) => string;
 
 /**
- * A value that is SEVERAL degrees under one separator — `6-b7` on a
- * slash chord, `#4/b5/#11` in an enharmonic set.
+ * The row, in order, with the word above each line (ruling 24).
  *
- * Each part is a degree and goes through the degree renderer; the
- * separator is left exactly as stored, so the shape of the value on
- * screen is the shape of the value in the URL.
+ * =====================================================================
+ * THIS LIST IS ALSO WHAT THE ROW OFFERS, AND THAT IS ON PURPOSE.
+ *
+ * `semitones` and `enharmonicGroup` are not here (ruling 25). Silas
+ * does not think in half steps — the Number chips already isolate a
+ * fifth or a tritone — and Distance covers what the enharmonic sets
+ * were for. Both are still COMPUTED: a link that names one still
+ * narrows, and the tritone gather still works. Nothing shows them.
+ *
+ * So there is one list rather than a list and a separate blocklist,
+ * because a facet added to the model and forgotten here is a facet
+ * nobody was asked to name.
+ * =====================================================================
  */
-function degreesJoinedBy(separator: string): Label {
-  return value => value.split(separator).map(degreeLabel).join(separator);
+export const FACET_ROW: ReadonlyArray<{ name: FacetName; label: string }> = [
+  { name: 'key', label: 'Key' },
+  { name: 'note', label: 'Note' },
+  { name: 'degree', label: 'Number' },
+  { name: 'fromDegree', label: 'Starting Number' },
+  { name: 'movement', label: 'Distance' },
+  { name: 'progression', label: 'Progression' },
+  { name: 'pentatonic', label: 'Pentatonic' },
+  { name: 'slashDegrees', label: 'Slash Chord' },
+  { name: 'keyRelation', label: 'Maj/Min Key Relation' },
+  { name: 'enharmonicKind', label: 'Enharmonic' },
+];
+
+/** The facets the row is allowed to offer, in its order. */
+export const OFFERED_FACETS: ReadonlyArray<FacetName> =
+  FACET_ROW.map(f => f.name);
+
+const ROW_LABEL = new Map(FACET_ROW.map(f => [f.name, f.label] as const));
+
+/** What a facet's line is called. */
+export function facetRowLabel(name: FacetName): string {
+  return ROW_LABEL.get(name) ?? name;
 }
+
+/**
+ * A distance in interval words (ruling 27) — "up a minor third",
+ * "down a fifth".
+ *
+ * =====================================================================
+ * NOT `up:M3`, AND NOT A NUMBER.
+ *
+ * The id is a coordinate and reads like one. The chip is a phrase a
+ * player would say out loud, which is the same phrase the question
+ * itself uses.
+ *
+ * A PERFECT INTERVAL DROPS ITS QUALITY, because nobody says "down a
+ * perfect fifth" at a piano; every other quality keeps it, because
+ * "up a third" would be two different distances. That asymmetry is
+ * ruling 27's two examples read literally, and it is the only decision
+ * in this function.
+ *
+ * DERIVED FROM `INTERVAL_QUALITIES`, never a second table. The twelve
+ * qualities and their ordinals live there and the words are built off
+ * them, so a quality added there gets a chip without being written
+ * down twice.
+ * =====================================================================
+ */
+const ORDINAL_WORD: Readonly<Record<number, string>> = {
+  1: 'unison', 2: 'second', 3: 'third', 4: 'fourth',
+  5: 'fifth', 6: 'sixth', 7: 'seventh', 8: 'octave',
+};
+
+const QUALITY_WORD: Readonly<Record<string, string>> = {
+  perfect: '', major: 'major ', minor: 'minor ',
+  augmented: 'augmented ', diminished: 'diminished ',
+};
+
+const MOVEMENT_WORDS = new Map<string, string>();
+for (const quality of INTERVAL_QUALITIES) {
+  const words = `${QUALITY_WORD[quality.qualityId] ?? ''}${ORDINAL_WORD[quality.intervalId] ?? quality.intervalId}`;
+  const article = /^[aeiou]/.test(words) ? 'an' : 'a';
+  for (const direction of ['up', 'down'] as const) {
+    MOVEMENT_WORDS.set(`${direction}:${quality.id}`, `${direction} ${article} ${words}`);
+  }
+}
+
+/** Exported so the copy file's test can read the whole set. */
+export const MOVEMENT_LABELS: ReadonlyMap<string, string> = MOVEMENT_WORDS;
+
+/**
+ * A little progression, said the way the module says it (ruling 26).
+ *
+ * The stored values are the notations the generators already wrote —
+ * `ii-V-I` and `V/V` — and they stay stored, so every link that named
+ * one still resolves. Only the chip changes.
+ */
+const PROGRESSION_WORDS: Readonly<Record<string, string>> = {
+  'ii-V-I': '2 5 1',
+  'V/V': '5 of 5',
+  'V/vi': '5 of 6',
+  '1-5-6-4': '1 5 6 4',
+};
+
+/** A slash chord, written the way its own cards write it — `1/3`,
+ *  not the hyphen the id is built from. Read off the deck's own shape
+ *  list rather than re-spelled here. */
+const SLASH_LABEL = new Map(SLASH_SHAPES.map(s => [s.id, s.label] as const));
 
 /**
  * Which facets carry a musical spelling, and which kind.
  *
- * ABSENT MEANS PRINTED AS STORED, deliberately. `cadence`,
- * `pentatonic`, `keyRelation`, `enharmonicKind`, `progression`,
- * `movement`, `semitones` and `fromDegree` hold no accidental, so
- * there is nothing here to fix — what they need is wording, which is
- * Silas's to write and is listed in the report.
+ * ABSENT MEANS PRINTED AS STORED, deliberately. `pentatonic`,
+ * `keyRelation` and `enharmonicKind` hold no accidental and no ruled
+ * wording, so they print their stored value and are listed under
+ * "Unruled" in `docs/HARMONIC_FLUENCY_COPY.md`.
  */
 const FACET_LABEL: Readonly<Partial<Record<FacetName, Label>>> = {
   key: withAccidentalGlyphs,
   note: withAccidentalGlyphs,
   degree: degreeLabel,
-  slashDegrees: degreesJoinedBy('-'),
-  enharmonicGroup: degreesJoinedBy('/'),
+  slashDegrees: value => degreeLabelsIn(SLASH_LABEL.get(value) ?? value),
+  // NO `enharmonicGroup` HERE ANY MORE. Ruling 25 took it off the row,
+  // and a label nothing renders is a label nobody maintains.
+  movement: value => MOVEMENT_WORDS.get(value) ?? value,
+  progression: value => PROGRESSION_WORDS[value] ?? value,
 };
+
+/** `1/3` with its accidentals as glyphs — `6/b7` reads 6/♭7. */
+function degreeLabelsIn(label: string): string {
+  return label.split('/').map(degreeLabel).join('/');
+}
 
 /** A facet value, written for the eye. Never for a comparison. */
 export function facetValueLabel(name: FacetName, value: string): string {

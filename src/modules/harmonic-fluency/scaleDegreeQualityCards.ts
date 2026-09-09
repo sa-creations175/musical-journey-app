@@ -195,6 +195,17 @@ function evenlySplit(answer: string, decoys: readonly string[]): boolean {
  * stay legible, and direction first so a column header sorts by nothing
  * accidental — the ORDER is this list, never the string.
  */
+/**
+ * What the category is CALLED (ruling 29).
+ *
+ * "Number", never "Degree" — it is the number system Silas thinks in,
+ * and the word "degree" made a reader look for a temperature. Held
+ * here rather than in `CATEGORY_LABELS` because `catalog.ts` imports
+ * this file and the reverse would be a cycle; `CATEGORY_LABELS` reads
+ * it, so there is still one spelling.
+ */
+export const DEGREE_MATH_CATEGORY_NAME = 'Number System Math';
+
 export function movementId(quality: IntervalQuality, direction: Direction): string {
   return `${direction}:${quality.id}`;
 }
@@ -239,7 +250,7 @@ function buildCard(
   return {
     id,
     category: CATEGORY,
-    categoryName: 'Scale Degree Math',
+    categoryName: DEGREE_MATH_CATEGORY_NAME,
     question:
       `In any major key, ${startDegree} ${direction} `
       + `${article(quality.label)} ${quality.label} = ?`,

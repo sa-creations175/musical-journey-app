@@ -70,7 +70,7 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     'Theory recall away from the keyboard. A question, an answer you say '
     + 'in your head, and a right-or-wrong mark. No instrument involved, '
     + 'which is what makes it the module you can practice on a train.',
-  [`${HF}/Scale Degree Math`]:
+  [`${HF}/Number System Math`]:
     'Arithmetic on scale degrees, with no key named. "Three, up a minor '
     + 'third" — the answer is 5, and it is 5 in every key, because the '
     + 'question never says which key you are in. This is the layer under '

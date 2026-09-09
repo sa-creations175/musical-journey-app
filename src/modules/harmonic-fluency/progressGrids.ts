@@ -121,7 +121,10 @@ const keyAxis: AxisSpec = {
   ],
 };
 
-const degreeAxis = axis('degree', 'degree', SCALE_DEGREES);
+// THE FIELD IS STILL `degree` AND THE WORD IS `number` (ruling 29).
+// The first is a coordinate the cards are built from; the second is
+// what a reader reads above the rows.
+const degreeAxis = axis('degree', 'number', SCALE_DEGREES);
 
 /**
  * Scale degree math — 7 start degrees down, 24 movements across.
@@ -227,7 +230,7 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   [CATEGORY_LABELS['enharmonic-equivalents']]: {
     columns: axis('spelling', 'spelling', ENHARMONIC_SPELLINGS),
     rows: axis('kind', 'kind', ['note', 'interval'], v =>
-      v === 'note' ? 'notes' : 'degrees'),
+      v === 'note' ? 'notes' : 'numbers'),
   },
 };
 

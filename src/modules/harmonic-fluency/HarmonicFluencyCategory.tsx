@@ -39,7 +39,7 @@ import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import { HARMONIC_FLUENCY_GRIDS } from './progressGrids';
 import { useLitPool } from '../../lib/useLitPool';
 import FacetFilterRow from './FacetFilterRow';
-import { readFacetFilter, withFacetValues } from './facetFilter';
+import { readFacetFilter, withFacetValues, withoutFacets } from './facetFilter';
 import type { FacetName } from './facets';
 import { FLASHCARDS } from './catalog';
 import { useDetailLanding } from '../../lib/detailLanding';
@@ -93,6 +93,10 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
     // with every intermediate state — the same call the dashboard's
     // controls make.
     setParams(prev => withFacetValues(prev, name, values), { replace: true });
+  }, [setParams]);
+  /** ONE PRESS FOR THE WHOLE ROW (ruling 28). */
+  const clearFacets = useCallback(() => {
+    setParams(prev => withoutFacets(prev), { replace: true });
   }, [setParams]);
 
   /** The cards the chips have put in play, which is what the filter row
@@ -250,6 +254,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
             cards={poolCards}
             filter={facetFilter}
             onChange={setFacet}
+            onClearAll={clearFacets}
           />
 
           <button

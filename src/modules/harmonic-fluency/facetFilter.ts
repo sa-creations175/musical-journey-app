@@ -38,6 +38,7 @@
  */
 import type { Flashcard } from './catalog';
 import { FACET_VALUES, type FacetName } from './facets';
+import { OFFERED_FACETS } from './facetDisplay';
 
 /** A facet, and the values a card may have for it to pass. */
 export type FacetFilter = Readonly<Partial<Record<FacetName, readonly string[]>>>;
@@ -95,6 +96,23 @@ export function withFacetValues(
   const key = `${FACET_PARAM_PREFIX}${name}`;
   if (values.length === 0) next.delete(key);
   else next.set(key, values.join(','));
+  return next;
+}
+
+/**
+ * Every facet parameter dropped, leaving every other parameter alone
+ * (ruling 28's Clear Filters).
+ *
+ * IT WALKS THE PREFIX rather than the facet list, so a stale link
+ * carrying a facet this build no longer offers is cleared by the same
+ * press that clears the rest. A control called Clear Filters that left
+ * one behind would be the worst kind of wrong.
+ */
+export function withoutFacets(params: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(params);
+  for (const key of [...next.keys()]) {
+    if (key.startsWith(FACET_PARAM_PREFIX)) next.delete(key);
+  }
   return next;
 }
 
@@ -159,14 +177,21 @@ export function availableValues(
 }
 
 /**
- * Which facets are worth offering over a set of cards.
+ * Which facets are worth offering over a set of cards, in the row's
+ * own order.
  *
  * A facet only one card carries, or one where every card gives the same
  * answer, is a control that cannot change what is on screen. The chip
  * row is already filtered this way — `AxisViewToggle` renders nothing
  * for an axis with one ordering — and this is the same call.
+ *
+ * THE CANDIDATES ARE `OFFERED_FACETS`, NOT EVERY FACET THE MODEL HAS
+ * (rulings 24 and 25). Two facets are computed and never shown, and the
+ * order of the rest is ruled; both live in `facetDisplay` beside the
+ * words, because "which rows exist and what they are called" is one
+ * decision and was made once.
  */
 export function offerableFacets(cards: readonly Flashcard[]): FacetName[] {
-  return (Object.keys(FACET_VALUES) as FacetName[])
+  return OFFERED_FACETS
     .filter(name => availableValues(cards, name).length > 1);
 }

@@ -480,7 +480,8 @@ export function placeItCards(): Flashcard[] {
       category: DEGREE_NOTE_CATEGORY,
       categoryName: DEGREE_NOTE_CATEGORY_NAME,
       axis: { key: identityRoot(root), degree: degreeId },
-      question: `In the key of ${root}, ${noteDisplay(root, degreeId)} is which degree?`,
+      // "which number", never "which degree" (ruling 29).
+      question: `In the key of ${root}, ${noteDisplay(root, degreeId)} is which number?`,
       correctAnswer: degreeId,
       decoys: chooseDecoys(degreeId, degreeDecoyPool(degreeId), {
         count: DECOY_COUNT, seed: id, label: id, category: DEGREE_NOTE_CATEGORY,
@@ -642,13 +643,11 @@ export function findKeyCards(): Flashcard[] {
 }
 
 /**
- * PLACEHOLDER, NOT A PROPOSAL. The category has to be called something
- * for the nav, the chip row and the card header to render at all. This
- * is the most literal description of what the family relates, and it is
- * flagged at the top of the report for Silas to replace. Nothing about
- * it was chosen for how it reads.
+ * RULED, NO LONGER A PLACEHOLDER (ruling 29). The family is the notes
+ * of the number system — a key, a number and a note, with a different
+ * one of the three unknown on each of the four question types.
  */
-export const DEGREE_NOTE_CATEGORY_NAME = 'Degrees And Notes';
+export const DEGREE_NOTE_CATEGORY_NAME = 'Notes of the Number System';
 
 export function degreeNoteCards(): Flashcard[] {
   return [

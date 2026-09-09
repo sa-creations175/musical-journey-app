@@ -45,9 +45,21 @@ function renderRow(onChange = vi.fn()) {
   root = createRoot(container);
   act(() => {
     root!.render(
-      <FacetFilterRow cards={FLASHCARDS} filter={{}} onChange={onChange} />,
+      <FacetFilterRow
+        cards={FLASHCARDS}
+        filter={{}}
+        onChange={onChange}
+        onClearAll={vi.fn()}
+      />,
     );
   });
+  // FOLDED BY DEFAULT (ruling 28), so every case here opens it first.
+  // Pressed through the toggle rather than by rendering an internal
+  // `open` prop, because the fold is what a reader meets.
+  const toggle = [...container.querySelectorAll<HTMLButtonElement>('button')]
+    .find(b => b.getAttribute('data-testid') === 'facet-filter-toggle');
+  expect(toggle, 'the row has a Filters toggle').not.toBeUndefined();
+  act(() => { toggle!.click(); });
   return { onChange };
 }
 
@@ -71,8 +83,16 @@ describe('a facet value renders with the glyph and stays what it is', () => {
     ['key', 'F#', 'F♯'],
     ['note', 'Bb', 'B♭'],
     ['note', 'Db', 'D♭'],
-    ['slashDegrees', '6-b7', '6-♭7'],
-    ['enharmonicGroup', '#4/b5/#11', '♯4/♭5/♯11'],
+    // `1-3` is the stored id and `1/3` is what every slash-chord card
+    // in the deck writes; the chip reads the deck's own notation and
+    // the id is untouched. Ruling 30 took `6-b7` out of the deck, so
+    // the case that used to stand here is `4-5`.
+    ['slashDegrees', '4-5', '4/5'],
+    // `enharmonicGroup` USED TO STAND HERE and ruling 25 took the
+    // facet off the row, so there is no button to press. Distance
+    // covers what it was for; it is still computed and a link naming
+    // it still narrows.
+    ['degree', 'b6', '♭6'],
   ];
 
   for (const [name, stored, shown] of CASES) {
@@ -101,18 +121,28 @@ describe('a facet value renders with the glyph and stays what it is', () => {
     // Nothing invents a glyph where the stored value has none — and
     // the facets whose wording is still Silas's to write print exactly
     // as stored.
-    expect(facetValueLabel('cadence', 'ii-V-I')).toBe('ii-V-I');
     expect(facetValueLabel('keyRelation', 'relative')).toBe('relative');
-    expect(facetValueLabel('movement', 'up:M3')).toBe('up:M3');
+    expect(facetValueLabel('pentatonic', 'major')).toBe('major');
     expect(facetValueLabel('key', 'C')).toBe('C');
   });
 
   it('every offered value renders without losing a character', () => {
-    // A blanket guard: whatever the deck grows, a label may swap an
-    // accidental for its glyph and may not shorten, empty or reorder
-    // a value. `Bb` becoming `♭♭` is the failure this catches.
+    // A blanket guard over the facets whose label is a RESPELLING of
+    // the stored value: whatever the deck grows, such a label may swap
+    // an accidental for its glyph and may not shorten, empty or
+    // reorder a value. `Bb` becoming `♭♭` is the failure this catches.
+    //
+    // `movement` and `progression` are not here, and could not be:
+    // ruling 26 and ruling 27 replace their values with words rather
+    // than respelling them, and the copy file's own test is what holds
+    // those. `slashDegrees` is not here either — `1-3` reads `1/3`,
+    // the deck's own notation for it.
+    //
+    // Kept as an explicit list rather than "every facet" so a facet
+    // that gains a WORDING is a decision someone made here, not a
+    // silent exemption.
     const names = Object.keys(
-      { key: 0, note: 0, degree: 0, slashDegrees: 0, enharmonicGroup: 0 },
+      { key: 0, note: 0, degree: 0 },
     ) as FacetName[];
     for (const name of names) {
       for (const value of availableValues(FLASHCARDS, name)) {

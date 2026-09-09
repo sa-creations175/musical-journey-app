@@ -118,7 +118,10 @@ describe('the two collisions this ends', () => {
       const card = FLASHCARDS.find(c => c.category === cat && c.facets)!;
       return Object.keys(card.facets!).filter(k => k !== 'key' && k !== 'note');
     };
-    expect(facetOf('functional-harmony')).toEqual(['cadence']);
+    // ONE FACET, NOT TWO (ruling 26). Functional Harmony's three and
+    // Progression Vocabulary's one are the same claim — a little
+    // progression — and they share a name so they can share a row.
+    expect(facetOf('functional-harmony')).toEqual(['progression']);
     expect(facetOf('pentatonic-scales')).toEqual(['pentatonic']);
     expect(facetOf('progressions')).toEqual(['progression']);
     expect(facetOf('slash-chords')).toEqual(['slashDegrees']);

@@ -80,6 +80,34 @@ export const INTERVAL_QUALITIES: ReadonlyArray<IntervalQuality> = [
 
 export const DIRECTIONS: ReadonlyArray<Direction> = ['up', 'down'];
 
+/**
+ * The quality a written distance IS — from its letter count and its
+ * semitone count, in that order of authority.
+ *
+ * =====================================================================
+ * IT IS THE PAIR THAT NAMES IT, NEVER THE SEMITONES ALONE.
+ *
+ * F up to B and F up to C♭ are the same six semitones and two different
+ * intervals: three letter-steps make the first an augmented 4th, four
+ * make the second a diminished 5th. The header above `INTERVAL_QUALITIES`
+ * argues that at length for the cards; this is the lookup that lets a
+ * family which stores two NOTE NAMES arrive at the same answer the
+ * movement cards arrive at from a quality they already hold.
+ *
+ * `undefined` for a pair no name in the table covers — a doubly
+ * augmented anything — so a caller can decline to claim a distance
+ * rather than claim the wrong one.
+ * =====================================================================
+ */
+export function qualityByShape(
+  letterSteps: number,
+  semitones: number,
+): IntervalQuality | undefined {
+  return INTERVAL_QUALITIES.find(
+    q => q.letterSteps === letterSteps && q.semitones === semitones,
+  );
+}
+
 /** Wrap a degree into 1..7. */
 export function wrapDegree(n: number): number {
   return ((n - 1) % DEGREE_COUNT + DEGREE_COUNT) % DEGREE_COUNT + 1;

@@ -2,6 +2,7 @@ import { degreeAscii, expansionCards, practicalName } from './catalogExpansions'
 import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, degreeNoteCards } from './degreeNoteCards';
+import { DEGREE_MATH_CATEGORY_NAME } from './scaleDegreeQualityCards';
 import { withFacets } from './facets';
 import { INTERVAL_NAMES } from './intervalInversion';
 import { intervalInversionCards } from './intervalInversionCards';
@@ -35,7 +36,7 @@ export type FlashcardCategory =
   | 'degree-notes';
 
 export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
-  'scale-degree-math': 'Scale Degree Math',
+  'scale-degree-math': DEGREE_MATH_CATEGORY_NAME,
   'named-notes': 'Named Notes Across Keys',
   'diatonic-qualities': 'Diatonic Chord Qualities',
   'functional-harmony': 'Functional Harmony',
