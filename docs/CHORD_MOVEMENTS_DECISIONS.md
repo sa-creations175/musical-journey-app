@@ -73,6 +73,26 @@ is still open, and anything that contradicts it stops and asks.**
 17. **Each key clicked in the editor sounds as it is pressed.** Releasing is
     silent.
 
+18. **The movement screen renders the lead sheet's own bar grid** — the same
+    component the song lead sheet renders, not a movement-shaped copy of it.
+    Silas, on the entry prototype: *"I don't know why you would make this that
+    different from the lead sheet itself. It can honestly be quite similar.
+    Take those features and make sure they're able to be done in this part,
+    because it's essentially very similar."*
+
+    So every gesture the lead sheet grid has arrives with it: tap-to-add on an
+    empty slot with the numbers parser and its preview, Paste chord in the add
+    box, Copy chord and Delete chord in the chord popover, the Length stepper
+    with its typeable number in note values, drag a chord to another slot, drag
+    bars to reorder, "+ bar", delete bar.
+
+    Ruled out: adding those gestures to the movement screen one at a time by
+    hand. That is exactly the drift the one-shell rule exists to prevent.
+
+    What is allowed to differ between a song section's grid and a movement's is
+    written into the movement screen's own doc comment, one item per line with
+    its reason, under the rule that anything not on that list may not differ.
+
 ---
 
 ## Two words that are settled, and override the prototype's labels
@@ -86,6 +106,15 @@ The prototype was drawn before these were named. Where it says otherwise:
 Everything else the prototype says is provisional and is listed in
 `docs/WHOLE_SONG_TEST_COPY.md` under "Chord Movements & Passes", pending
 Silas's naming pass.
+
+---
+
+## Parked
+
+- **Dragging a chord's edge to stretch it.** Silas asked for it. It would be a
+  new gesture for BOTH surfaces — the lead sheet does not have it either — so
+  it is not part of this build. Length is changed with the stepper, which both
+  surfaces already share.
 
 ---
 
