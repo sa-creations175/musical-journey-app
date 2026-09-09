@@ -121,6 +121,37 @@ a separate pass and are not covered by this entry.
 
 ---
 
+## The minor-target sentence
+
+Approved by Silas, 9 Sep 2026. Modal Improvisation's `5 of 2`, `5 of 3` and
+`5 of 6` cards, generated per card so the chords, the numbers and the key are
+the card's own. This is the `5 of 6` in the key of C major:
+
+```
+When a secondary dominant takes you to a minor chord, improvise over that
+dominant with the melodic minor of the chord you're landing on, which is just
+that chord's major scale with a ♭3. Here E7 (the 3 as a dominant, the 5 of 6)
+lands on Am (the 6m), so while you're on the E7 play A melodic minor: A major
+with a C (♭3) instead of a C♯ (3). Once you land, you're back in the key. The
+marked notes are the ones the key of C major does not have.
+```
+
+The number in the first bracket is **the dominant's own degree in the key** —
+`5 of 2` is the 6, `5 of 3` is the 7, `5 of 6` is the 3. The second is the
+target's degree with "m". The two notes in the last clause are the target's 3
+and ♭3, spelled in the target's key.
+
+**It replaced "For a minor target that is just C major with one note raised: the
+E7 chord's third"**, which was true on a `5 of 2` and on nothing else. It also
+takes the "highlighted notes" sentence with it — its own last clause says the
+same thing — so a minor-target card carries one such clause and not two.
+
+**"an F", not "a F".** Silas's example is "a C (♭3) instead of a C♯ (3)", which
+is right for C and wrong for A, E and F. The letter decides the article and the
+accidental never does — the same rule the Distance chips already take.
+
+---
+
 ## The Modal Improvisation row
 
 Approved by Silas, 9 Sep 2026. What the family is, on the dashboard and anywhere

@@ -77,9 +77,28 @@
  * opening, and the app is the source of that clause the way it is
  * already the source of the chord names.
  *
- * THE REST OF EACH QUESTION IS UNTOUCHED, and so is every explanation —
- * which still says "the 2 of C" and "not in C major", because the
- * ruling covered the question text only.
+ * THE REST OF EACH QUESTION IS UNTOUCHED.
+ *
+ * =====================================================================
+ * THE `explanation` COLUMN IS NO LONGER THE PROTOTYPE'S, AND SAYING SO
+ * IS THE POINT.
+ *
+ * Enough of it has been ruled since — the minor-target sentence
+ * rewritten in Silas's words, the dominant's own number named on every
+ * borrowed card, and "the key of C major" written out wherever a
+ * sentence is about a key — that holding the prototype's version here
+ * would be pinning text no card says.
+ *
+ * So this column is a PINNED COPY OF THE APP'S OWN SENTENCES, and it is
+ * weaker than the three beside it: it cannot catch the app drifting on
+ * its own, only a change made without meaning to. What it still does is
+ * put all 130 sentences in one file, so a wording change lands as a
+ * reviewable diff in the commit that makes it rather than disappearing
+ * into a template.
+ *
+ * `key`, `chord`, `question`, `answer` and `scale` ARE STILL THE
+ * PROTOTYPE'S, with the departures named above, and those are the
+ * columns that still prove something.
  * =====================================================================
  */
 export interface PrototypeScaleNote {
@@ -198,7 +217,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of C major, the band is on A7 (5 of 2). Which notes fit?',
     answer: 'Notes of the D melodic minor scale',
     explanation:
-      'A7 is not in C major; it is the 5 of Dm. Play the notes of the key it points to for that bar. The highlighted notes are the ones C major does not have. For a minor target that is just C major with one note raised: the A7 chord\'s third.',
+      'A7 is not in C major; it is the 5 of Dm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here A7 (the 6 as a dominant, the 5 of 2) lands on Dm (the 2m), so while you\'re on the A7 play D melodic minor: D major with an F (♭3) instead of an F♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of C major does not have.',
     scale: [
       { note: 'D', outside: false },
       { note: 'E', outside: false },
@@ -215,7 +234,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of C major, the band is on B7 (5 of 3). Which notes fit?',
     answer: 'Notes of the E melodic minor scale',
     explanation:
-      'B7 is not in C major; it is the 5 of Em. Play the notes of the key it points to for that bar. The highlighted notes are the ones C major does not have. For a minor target that is just C major with one note raised: the B7 chord\'s third.',
+      'B7 is not in C major; it is the 5 of Em. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here B7 (the 7 as a dominant, the 5 of 3) lands on Em (the 3m), so while you\'re on the B7 play E melodic minor: E major with a G (♭3) instead of a G♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of C major does not have.',
     scale: [
       { note: 'E', outside: false },
       { note: 'F♯', outside: true },
@@ -266,7 +285,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of C major, the band is on E7 (5 of 6). Which notes fit?',
     answer: 'Notes of the A melodic minor scale',
     explanation:
-      'E7 is not in C major; it is the 5 of Am. Play the notes of the key it points to for that bar. The highlighted notes are the ones C major does not have. For a minor target that is just C major with one note raised: the E7 chord\'s third.',
+      'E7 is not in C major; it is the 5 of Am. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here E7 (the 3 as a dominant, the 5 of 6) lands on Am (the 6m), so while you\'re on the E7 play A melodic minor: A major with a C (♭3) instead of a C♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of C major does not have.',
     scale: [
       { note: 'A', outside: false },
       { note: 'B', outside: false },
@@ -368,7 +387,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D♭ major, the band is on B♭7 (5 of 2). Which notes fit?',
     answer: 'Notes of the E♭ melodic minor scale',
     explanation:
-      'B♭7 is not in D♭ major; it is the 5 of E♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones D♭ major does not have. For a minor target that is just D♭ major with one note raised: the B♭7 chord\'s third.',
+      'B♭7 is not in D♭ major; it is the 5 of E♭m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here B♭7 (the 6 as a dominant, the 5 of 2) lands on E♭m (the 2m), so while you\'re on the B♭7 play E♭ melodic minor: E♭ major with a G♭ (♭3) instead of a G (3). Once you land, you\'re back in the key. The marked notes are the ones the key of D♭ major does not have.',
     scale: [
       { note: 'E♭', outside: false },
       { note: 'F', outside: false },
@@ -385,7 +404,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D♭ major, the band is on C7 (5 of 3). Which notes fit?',
     answer: 'Notes of the F melodic minor scale',
     explanation:
-      'C7 is not in D♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. The highlighted notes are the ones D♭ major does not have. For a minor target that is just D♭ major with one note raised: the C7 chord\'s third.',
+      'C7 is not in D♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here C7 (the 7 as a dominant, the 5 of 3) lands on Fm (the 3m), so while you\'re on the C7 play F melodic minor: F major with an A♭ (♭3) instead of an A (3). Once you land, you\'re back in the key. The marked notes are the ones the key of D♭ major does not have.',
     scale: [
       { note: 'F', outside: false },
       { note: 'G', outside: true },
@@ -436,7 +455,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D♭ major, the band is on F7 (5 of 6). Which notes fit?',
     answer: 'Notes of the B♭ melodic minor scale',
     explanation:
-      'F7 is not in D♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones D♭ major does not have. For a minor target that is just D♭ major with one note raised: the F7 chord\'s third.',
+      'F7 is not in D♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here F7 (the 3 as a dominant, the 5 of 6) lands on B♭m (the 6m), so while you\'re on the F7 play B♭ melodic minor: B♭ major with a D♭ (♭3) instead of a D (3). Once you land, you\'re back in the key. The marked notes are the ones the key of D♭ major does not have.',
     scale: [
       { note: 'B♭', outside: false },
       { note: 'C', outside: false },
@@ -538,7 +557,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D major, the band is on B7 (5 of 2). Which notes fit?',
     answer: 'Notes of the E melodic minor scale',
     explanation:
-      'B7 is not in D major; it is the 5 of Em. Play the notes of the key it points to for that bar. The highlighted notes are the ones D major does not have. For a minor target that is just D major with one note raised: the B7 chord\'s third.',
+      'B7 is not in D major; it is the 5 of Em. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here B7 (the 6 as a dominant, the 5 of 2) lands on Em (the 2m), so while you\'re on the B7 play E melodic minor: E major with a G (♭3) instead of a G♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of D major does not have.',
     scale: [
       { note: 'E', outside: false },
       { note: 'F♯', outside: false },
@@ -555,7 +574,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D major, the band is on C♯7 (5 of 3). Which notes fit?',
     answer: 'Notes of the F♯ melodic minor scale',
     explanation:
-      'C♯7 is not in D major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones D major does not have. For a minor target that is just D major with one note raised: the C♯7 chord\'s third.',
+      'C♯7 is not in D major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here C♯7 (the 7 as a dominant, the 5 of 3) lands on F♯m (the 3m), so while you\'re on the C♯7 play F♯ melodic minor: F♯ major with an A (♭3) instead of an A♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of D major does not have.',
     scale: [
       { note: 'F♯', outside: false },
       { note: 'G♯', outside: true },
@@ -606,7 +625,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D major, the band is on F♯7 (5 of 6). Which notes fit?',
     answer: 'Notes of the B melodic minor scale',
     explanation:
-      'F♯7 is not in D major; it is the 5 of Bm. Play the notes of the key it points to for that bar. The highlighted notes are the ones D major does not have. For a minor target that is just D major with one note raised: the F♯7 chord\'s third.',
+      'F♯7 is not in D major; it is the 5 of Bm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here F♯7 (the 3 as a dominant, the 5 of 6) lands on Bm (the 6m), so while you\'re on the F♯7 play B melodic minor: B major with a D (♭3) instead of a D♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of D major does not have.',
     scale: [
       { note: 'B', outside: false },
       { note: 'C♯', outside: false },
@@ -708,7 +727,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E♭ major, the band is on C7 (5 of 2). Which notes fit?',
     answer: 'Notes of the F melodic minor scale',
     explanation:
-      'C7 is not in E♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. The highlighted notes are the ones E♭ major does not have. For a minor target that is just E♭ major with one note raised: the C7 chord\'s third.',
+      'C7 is not in E♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here C7 (the 6 as a dominant, the 5 of 2) lands on Fm (the 2m), so while you\'re on the C7 play F melodic minor: F major with an A♭ (♭3) instead of an A (3). Once you land, you\'re back in the key. The marked notes are the ones the key of E♭ major does not have.',
     scale: [
       { note: 'F', outside: false },
       { note: 'G', outside: false },
@@ -725,7 +744,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E♭ major, the band is on D7 (5 of 3). Which notes fit?',
     answer: 'Notes of the G melodic minor scale',
     explanation:
-      'D7 is not in E♭ major; it is the 5 of Gm. Play the notes of the key it points to for that bar. The highlighted notes are the ones E♭ major does not have. For a minor target that is just E♭ major with one note raised: the D7 chord\'s third.',
+      'D7 is not in E♭ major; it is the 5 of Gm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here D7 (the 7 as a dominant, the 5 of 3) lands on Gm (the 3m), so while you\'re on the D7 play G melodic minor: G major with a B♭ (♭3) instead of a B (3). Once you land, you\'re back in the key. The marked notes are the ones the key of E♭ major does not have.',
     scale: [
       { note: 'G', outside: false },
       { note: 'A', outside: true },
@@ -776,7 +795,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E♭ major, the band is on G7 (5 of 6). Which notes fit?',
     answer: 'Notes of the C melodic minor scale',
     explanation:
-      'G7 is not in E♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. The highlighted notes are the ones E♭ major does not have. For a minor target that is just E♭ major with one note raised: the G7 chord\'s third.',
+      'G7 is not in E♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here G7 (the 3 as a dominant, the 5 of 6) lands on Cm (the 6m), so while you\'re on the G7 play C melodic minor: C major with an E♭ (♭3) instead of an E (3). Once you land, you\'re back in the key. The marked notes are the ones the key of E♭ major does not have.',
     scale: [
       { note: 'C', outside: false },
       { note: 'D', outside: false },
@@ -878,7 +897,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E major, the band is on C♯7 (5 of 2). Which notes fit?',
     answer: 'Notes of the F♯ melodic minor scale',
     explanation:
-      'C♯7 is not in E major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones E major does not have. For a minor target that is just E major with one note raised: the C♯7 chord\'s third.',
+      'C♯7 is not in E major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here C♯7 (the 6 as a dominant, the 5 of 2) lands on F♯m (the 2m), so while you\'re on the C♯7 play F♯ melodic minor: F♯ major with an A (♭3) instead of an A♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of E major does not have.',
     scale: [
       { note: 'F♯', outside: false },
       { note: 'G♯', outside: false },
@@ -895,7 +914,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E major, the band is on D♯7 (5 of 3). Which notes fit?',
     answer: 'Notes of the G♯ melodic minor scale',
     explanation:
-      'D♯7 is not in E major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones E major does not have. For a minor target that is just E major with one note raised: the D♯7 chord\'s third.',
+      'D♯7 is not in E major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here D♯7 (the 7 as a dominant, the 5 of 3) lands on G♯m (the 3m), so while you\'re on the D♯7 play G♯ melodic minor: G♯ major with a B (♭3) instead of a B♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of E major does not have.',
     scale: [
       { note: 'G♯', outside: false },
       { note: 'A♯', outside: true },
@@ -946,7 +965,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E major, the band is on G♯7 (5 of 6). Which notes fit?',
     answer: 'Notes of the C♯ melodic minor scale',
     explanation:
-      'G♯7 is not in E major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones E major does not have. For a minor target that is just E major with one note raised: the G♯7 chord\'s third.',
+      'G♯7 is not in E major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here G♯7 (the 3 as a dominant, the 5 of 6) lands on C♯m (the 6m), so while you\'re on the G♯7 play C♯ melodic minor: C♯ major with an E (♭3) instead of an E♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of E major does not have.',
     scale: [
       { note: 'C♯', outside: false },
       { note: 'D♯', outside: false },
@@ -1048,7 +1067,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F major, the band is on D7 (5 of 2). Which notes fit?',
     answer: 'Notes of the G melodic minor scale',
     explanation:
-      'D7 is not in F major; it is the 5 of Gm. Play the notes of the key it points to for that bar. The highlighted notes are the ones F major does not have. For a minor target that is just F major with one note raised: the D7 chord\'s third.',
+      'D7 is not in F major; it is the 5 of Gm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here D7 (the 6 as a dominant, the 5 of 2) lands on Gm (the 2m), so while you\'re on the D7 play G melodic minor: G major with a B♭ (♭3) instead of a B (3). Once you land, you\'re back in the key. The marked notes are the ones the key of F major does not have.',
     scale: [
       { note: 'G', outside: false },
       { note: 'A', outside: false },
@@ -1065,7 +1084,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F major, the band is on E7 (5 of 3). Which notes fit?',
     answer: 'Notes of the A melodic minor scale',
     explanation:
-      'E7 is not in F major; it is the 5 of Am. Play the notes of the key it points to for that bar. The highlighted notes are the ones F major does not have. For a minor target that is just F major with one note raised: the E7 chord\'s third.',
+      'E7 is not in F major; it is the 5 of Am. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here E7 (the 7 as a dominant, the 5 of 3) lands on Am (the 3m), so while you\'re on the E7 play A melodic minor: A major with a C (♭3) instead of a C♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of F major does not have.',
     scale: [
       { note: 'A', outside: false },
       { note: 'B', outside: true },
@@ -1116,7 +1135,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F major, the band is on A7 (5 of 6). Which notes fit?',
     answer: 'Notes of the D melodic minor scale',
     explanation:
-      'A7 is not in F major; it is the 5 of Dm. Play the notes of the key it points to for that bar. The highlighted notes are the ones F major does not have. For a minor target that is just F major with one note raised: the A7 chord\'s third.',
+      'A7 is not in F major; it is the 5 of Dm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here A7 (the 3 as a dominant, the 5 of 6) lands on Dm (the 6m), so while you\'re on the A7 play D melodic minor: D major with an F (♭3) instead of an F♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of F major does not have.',
     scale: [
       { note: 'D', outside: false },
       { note: 'E', outside: false },
@@ -1218,7 +1237,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F♯ major, the band is on D♯7 (5 of 2). Which notes fit?',
     answer: 'Notes of the G♯ melodic minor scale',
     explanation:
-      'D♯7 is not in F♯ major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones F♯ major does not have. For a minor target that is just F♯ major with one note raised: the D♯7 chord\'s third.',
+      'D♯7 is not in F♯ major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here D♯7 (the 6 as a dominant, the 5 of 2) lands on G♯m (the 2m), so while you\'re on the D♯7 play G♯ melodic minor: G♯ major with a B (♭3) instead of a B♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of F♯ major does not have.',
     scale: [
       { note: 'G♯', outside: false },
       { note: 'A♯', outside: false },
@@ -1235,7 +1254,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F♯ major, the band is on E♯7 (5 of 3). Which notes fit?',
     answer: 'Notes of the A♯ melodic minor scale',
     explanation:
-      'E♯7 is not in F♯ major; it is the 5 of A♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones F♯ major does not have. For a minor target that is just F♯ major with one note raised: the E♯7 chord\'s third.',
+      'E♯7 is not in F♯ major; it is the 5 of A♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here E♯7 (the 7 as a dominant, the 5 of 3) lands on A♯m (the 3m), so while you\'re on the E♯7 play A♯ melodic minor: A♯ major with a C♯ (♭3) instead of a C𝄪 (3). Once you land, you\'re back in the key. The marked notes are the ones the key of F♯ major does not have.',
     scale: [
       { note: 'A♯', outside: false },
       { note: 'B♯', outside: true },
@@ -1286,7 +1305,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F♯ major, the band is on A♯7 (5 of 6). Which notes fit?',
     answer: 'Notes of the D♯ melodic minor scale',
     explanation:
-      'A♯7 is not in F♯ major; it is the 5 of D♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones F♯ major does not have. For a minor target that is just F♯ major with one note raised: the A♯7 chord\'s third.',
+      'A♯7 is not in F♯ major; it is the 5 of D♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here A♯7 (the 3 as a dominant, the 5 of 6) lands on D♯m (the 6m), so while you\'re on the A♯7 play D♯ melodic minor: D♯ major with an F♯ (♭3) instead of an F𝄪 (3). Once you land, you\'re back in the key. The marked notes are the ones the key of F♯ major does not have.',
     scale: [
       { note: 'D♯', outside: false },
       { note: 'E♯', outside: false },
@@ -1388,7 +1407,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G♭ major, the band is on E♭7 (5 of 2). Which notes fit?',
     answer: 'Notes of the A♭ melodic minor scale',
     explanation:
-      'E♭7 is not in G♭ major; it is the 5 of A♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones G♭ major does not have. For a minor target that is just G♭ major with one note raised: the E♭7 chord\'s third.',
+      'E♭7 is not in G♭ major; it is the 5 of A♭m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here E♭7 (the 6 as a dominant, the 5 of 2) lands on A♭m (the 2m), so while you\'re on the E♭7 play A♭ melodic minor: A♭ major with a C♭ (♭3) instead of a C (3). Once you land, you\'re back in the key. The marked notes are the ones the key of G♭ major does not have.',
     scale: [
       { note: 'A♭', outside: false },
       { note: 'B♭', outside: false },
@@ -1405,7 +1424,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G♭ major, the band is on F7 (5 of 3). Which notes fit?',
     answer: 'Notes of the B♭ melodic minor scale',
     explanation:
-      'F7 is not in G♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones G♭ major does not have. For a minor target that is just G♭ major with one note raised: the F7 chord\'s third.',
+      'F7 is not in G♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here F7 (the 7 as a dominant, the 5 of 3) lands on B♭m (the 3m), so while you\'re on the F7 play B♭ melodic minor: B♭ major with a D♭ (♭3) instead of a D (3). Once you land, you\'re back in the key. The marked notes are the ones the key of G♭ major does not have.',
     scale: [
       { note: 'B♭', outside: false },
       { note: 'C', outside: true },
@@ -1456,7 +1475,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G♭ major, the band is on B♭7 (5 of 6). Which notes fit?',
     answer: 'Notes of the E♭ melodic minor scale',
     explanation:
-      'B♭7 is not in G♭ major; it is the 5 of E♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones G♭ major does not have. For a minor target that is just G♭ major with one note raised: the B♭7 chord\'s third.',
+      'B♭7 is not in G♭ major; it is the 5 of E♭m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here B♭7 (the 3 as a dominant, the 5 of 6) lands on E♭m (the 6m), so while you\'re on the B♭7 play E♭ melodic minor: E♭ major with a G♭ (♭3) instead of a G (3). Once you land, you\'re back in the key. The marked notes are the ones the key of G♭ major does not have.',
     scale: [
       { note: 'E♭', outside: false },
       { note: 'F', outside: false },
@@ -1558,7 +1577,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G major, the band is on E7 (5 of 2). Which notes fit?',
     answer: 'Notes of the A melodic minor scale',
     explanation:
-      'E7 is not in G major; it is the 5 of Am. Play the notes of the key it points to for that bar. The highlighted notes are the ones G major does not have. For a minor target that is just G major with one note raised: the E7 chord\'s third.',
+      'E7 is not in G major; it is the 5 of Am. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here E7 (the 6 as a dominant, the 5 of 2) lands on Am (the 2m), so while you\'re on the E7 play A melodic minor: A major with a C (♭3) instead of a C♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of G major does not have.',
     scale: [
       { note: 'A', outside: false },
       { note: 'B', outside: false },
@@ -1575,7 +1594,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G major, the band is on F♯7 (5 of 3). Which notes fit?',
     answer: 'Notes of the B melodic minor scale',
     explanation:
-      'F♯7 is not in G major; it is the 5 of Bm. Play the notes of the key it points to for that bar. The highlighted notes are the ones G major does not have. For a minor target that is just G major with one note raised: the F♯7 chord\'s third.',
+      'F♯7 is not in G major; it is the 5 of Bm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here F♯7 (the 7 as a dominant, the 5 of 3) lands on Bm (the 3m), so while you\'re on the F♯7 play B melodic minor: B major with a D (♭3) instead of a D♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of G major does not have.',
     scale: [
       { note: 'B', outside: false },
       { note: 'C♯', outside: true },
@@ -1626,7 +1645,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G major, the band is on B7 (5 of 6). Which notes fit?',
     answer: 'Notes of the E melodic minor scale',
     explanation:
-      'B7 is not in G major; it is the 5 of Em. Play the notes of the key it points to for that bar. The highlighted notes are the ones G major does not have. For a minor target that is just G major with one note raised: the B7 chord\'s third.',
+      'B7 is not in G major; it is the 5 of Em. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here B7 (the 3 as a dominant, the 5 of 6) lands on Em (the 6m), so while you\'re on the B7 play E melodic minor: E major with a G (♭3) instead of a G♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of G major does not have.',
     scale: [
       { note: 'E', outside: false },
       { note: 'F♯', outside: false },
@@ -1728,7 +1747,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A♭ major, the band is on F7 (5 of 2). Which notes fit?',
     answer: 'Notes of the B♭ melodic minor scale',
     explanation:
-      'F7 is not in A♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. The highlighted notes are the ones A♭ major does not have. For a minor target that is just A♭ major with one note raised: the F7 chord\'s third.',
+      'F7 is not in A♭ major; it is the 5 of B♭m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here F7 (the 6 as a dominant, the 5 of 2) lands on B♭m (the 2m), so while you\'re on the F7 play B♭ melodic minor: B♭ major with a D♭ (♭3) instead of a D (3). Once you land, you\'re back in the key. The marked notes are the ones the key of A♭ major does not have.',
     scale: [
       { note: 'B♭', outside: false },
       { note: 'C', outside: false },
@@ -1745,7 +1764,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A♭ major, the band is on G7 (5 of 3). Which notes fit?',
     answer: 'Notes of the C melodic minor scale',
     explanation:
-      'G7 is not in A♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. The highlighted notes are the ones A♭ major does not have. For a minor target that is just A♭ major with one note raised: the G7 chord\'s third.',
+      'G7 is not in A♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here G7 (the 7 as a dominant, the 5 of 3) lands on Cm (the 3m), so while you\'re on the G7 play C melodic minor: C major with an E♭ (♭3) instead of an E (3). Once you land, you\'re back in the key. The marked notes are the ones the key of A♭ major does not have.',
     scale: [
       { note: 'C', outside: false },
       { note: 'D', outside: true },
@@ -1796,7 +1815,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A♭ major, the band is on C7 (5 of 6). Which notes fit?',
     answer: 'Notes of the F melodic minor scale',
     explanation:
-      'C7 is not in A♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. The highlighted notes are the ones A♭ major does not have. For a minor target that is just A♭ major with one note raised: the C7 chord\'s third.',
+      'C7 is not in A♭ major; it is the 5 of Fm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here C7 (the 3 as a dominant, the 5 of 6) lands on Fm (the 6m), so while you\'re on the C7 play F melodic minor: F major with an A♭ (♭3) instead of an A (3). Once you land, you\'re back in the key. The marked notes are the ones the key of A♭ major does not have.',
     scale: [
       { note: 'F', outside: false },
       { note: 'G', outside: false },
@@ -1898,7 +1917,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A major, the band is on F♯7 (5 of 2). Which notes fit?',
     answer: 'Notes of the B melodic minor scale',
     explanation:
-      'F♯7 is not in A major; it is the 5 of Bm. Play the notes of the key it points to for that bar. The highlighted notes are the ones A major does not have. For a minor target that is just A major with one note raised: the F♯7 chord\'s third.',
+      'F♯7 is not in A major; it is the 5 of Bm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here F♯7 (the 6 as a dominant, the 5 of 2) lands on Bm (the 2m), so while you\'re on the F♯7 play B melodic minor: B major with a D (♭3) instead of a D♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of A major does not have.',
     scale: [
       { note: 'B', outside: false },
       { note: 'C♯', outside: false },
@@ -1915,7 +1934,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A major, the band is on G♯7 (5 of 3). Which notes fit?',
     answer: 'Notes of the C♯ melodic minor scale',
     explanation:
-      'G♯7 is not in A major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones A major does not have. For a minor target that is just A major with one note raised: the G♯7 chord\'s third.',
+      'G♯7 is not in A major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here G♯7 (the 7 as a dominant, the 5 of 3) lands on C♯m (the 3m), so while you\'re on the G♯7 play C♯ melodic minor: C♯ major with an E (♭3) instead of an E♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of A major does not have.',
     scale: [
       { note: 'C♯', outside: false },
       { note: 'D♯', outside: true },
@@ -1966,7 +1985,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A major, the band is on C♯7 (5 of 6). Which notes fit?',
     answer: 'Notes of the F♯ melodic minor scale',
     explanation:
-      'C♯7 is not in A major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones A major does not have. For a minor target that is just A major with one note raised: the C♯7 chord\'s third.',
+      'C♯7 is not in A major; it is the 5 of F♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here C♯7 (the 3 as a dominant, the 5 of 6) lands on F♯m (the 6m), so while you\'re on the C♯7 play F♯ melodic minor: F♯ major with an A (♭3) instead of an A♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of A major does not have.',
     scale: [
       { note: 'F♯', outside: false },
       { note: 'G♯', outside: false },
@@ -2068,7 +2087,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B♭ major, the band is on G7 (5 of 2). Which notes fit?',
     answer: 'Notes of the C melodic minor scale',
     explanation:
-      'G7 is not in B♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. The highlighted notes are the ones B♭ major does not have. For a minor target that is just B♭ major with one note raised: the G7 chord\'s third.',
+      'G7 is not in B♭ major; it is the 5 of Cm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here G7 (the 6 as a dominant, the 5 of 2) lands on Cm (the 2m), so while you\'re on the G7 play C melodic minor: C major with an E♭ (♭3) instead of an E (3). Once you land, you\'re back in the key. The marked notes are the ones the key of B♭ major does not have.',
     scale: [
       { note: 'C', outside: false },
       { note: 'D', outside: false },
@@ -2085,7 +2104,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B♭ major, the band is on A7 (5 of 3). Which notes fit?',
     answer: 'Notes of the D melodic minor scale',
     explanation:
-      'A7 is not in B♭ major; it is the 5 of Dm. Play the notes of the key it points to for that bar. The highlighted notes are the ones B♭ major does not have. For a minor target that is just B♭ major with one note raised: the A7 chord\'s third.',
+      'A7 is not in B♭ major; it is the 5 of Dm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here A7 (the 7 as a dominant, the 5 of 3) lands on Dm (the 3m), so while you\'re on the A7 play D melodic minor: D major with an F (♭3) instead of an F♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of B♭ major does not have.',
     scale: [
       { note: 'D', outside: false },
       { note: 'E', outside: true },
@@ -2136,7 +2155,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B♭ major, the band is on D7 (5 of 6). Which notes fit?',
     answer: 'Notes of the G melodic minor scale',
     explanation:
-      'D7 is not in B♭ major; it is the 5 of Gm. Play the notes of the key it points to for that bar. The highlighted notes are the ones B♭ major does not have. For a minor target that is just B♭ major with one note raised: the D7 chord\'s third.',
+      'D7 is not in B♭ major; it is the 5 of Gm. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here D7 (the 3 as a dominant, the 5 of 6) lands on Gm (the 6m), so while you\'re on the D7 play G melodic minor: G major with a B♭ (♭3) instead of a B (3). Once you land, you\'re back in the key. The marked notes are the ones the key of B♭ major does not have.',
     scale: [
       { note: 'G', outside: false },
       { note: 'A', outside: false },
@@ -2238,7 +2257,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B major, the band is on G♯7 (5 of 2). Which notes fit?',
     answer: 'Notes of the C♯ melodic minor scale',
     explanation:
-      'G♯7 is not in B major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones B major does not have. For a minor target that is just B major with one note raised: the G♯7 chord\'s third.',
+      'G♯7 is not in B major; it is the 5 of C♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here G♯7 (the 6 as a dominant, the 5 of 2) lands on C♯m (the 2m), so while you\'re on the G♯7 play C♯ melodic minor: C♯ major with an E (♭3) instead of an E♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of B major does not have.',
     scale: [
       { note: 'C♯', outside: false },
       { note: 'D♯', outside: false },
@@ -2255,7 +2274,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B major, the band is on A♯7 (5 of 3). Which notes fit?',
     answer: 'Notes of the D♯ melodic minor scale',
     explanation:
-      'A♯7 is not in B major; it is the 5 of D♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones B major does not have. For a minor target that is just B major with one note raised: the A♯7 chord\'s third.',
+      'A♯7 is not in B major; it is the 5 of D♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here A♯7 (the 7 as a dominant, the 5 of 3) lands on D♯m (the 3m), so while you\'re on the A♯7 play D♯ melodic minor: D♯ major with an F♯ (♭3) instead of an F𝄪 (3). Once you land, you\'re back in the key. The marked notes are the ones the key of B major does not have.',
     scale: [
       { note: 'D♯', outside: false },
       { note: 'E♯', outside: true },
@@ -2306,7 +2325,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B major, the band is on D♯7 (5 of 6). Which notes fit?',
     answer: 'Notes of the G♯ melodic minor scale',
     explanation:
-      'D♯7 is not in B major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. The highlighted notes are the ones B major does not have. For a minor target that is just B major with one note raised: the D♯7 chord\'s third.',
+      'D♯7 is not in B major; it is the 5 of G♯m. Play the notes of the key it points to for that bar. When a secondary dominant takes you to a minor chord, improvise over that dominant with the melodic minor of the chord you\'re landing on, which is just that chord\'s major scale with a ♭3. Here D♯7 (the 3 as a dominant, the 5 of 6) lands on G♯m (the 6m), so while you\'re on the D♯7 play G♯ melodic minor: G♯ major with a B (♭3) instead of a B♯ (3). Once you land, you\'re back in the key. The marked notes are the ones the key of B major does not have.',
     scale: [
       { note: 'G♯', outside: false },
       { note: 'A♯', outside: false },

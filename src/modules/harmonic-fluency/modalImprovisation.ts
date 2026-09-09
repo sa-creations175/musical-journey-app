@@ -205,12 +205,74 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
     answer: `Notes of the ${scaleName} scale`,
     explanation: `${chordName} is not in ${key} major; it is the 5 of `
       + `${targetChord}. Play the notes of the key it points to for that bar. `
-      + `The highlighted notes are the ones ${key} major does not have.`
       + (minor
-        ? ` For a minor target that is just ${key} major with one note raised: `
-          + `the ${chordName} chord's third.`
-        : ''),
+        ? minorTargetSentence(root, chord, chordName, targetRoot, targetChord)
+        : `The highlighted notes are the ones ${key} major does not have.`),
   };
+}
+
+/**
+ * What to play over a secondary dominant of a MINOR chord.
+ *
+ * =====================================================================
+ * SILAS'S WORDS, 9 SEP 2026, GENERATED PER CARD.
+ *
+ * It replaces "For a minor target that is just C major with one note
+ * raised: the E7 chord's third", which was true on a 5 of 2 and on
+ * nothing else. "The key with the chord's third raised" is the target's
+ * HARMONIC minor on a 5 of 3 and a 5 of 6, and harmonic minor was tried
+ * and rejected; the answer is the target's MELODIC minor, which sits
+ * three notes and two notes from the key on those two.
+ *
+ * Nobody could see that until the reveal started drawing the scale —
+ * the card said "one note raised" over a row with two marks.
+ *
+ * IT TAKES THE HIGHLIGHTED-NOTES SENTENCE WITH IT. Silas's text ends
+ * "The marked notes are the ones the key of C major does not have",
+ * which is the same clause said better, so the card carries one and not
+ * two. The major-target cards keep the old wording, which is what the
+ * brief ruled — and it is in the report as the difference it is.
+ * =====================================================================
+ */
+function minorTargetSentence(
+  root: string,
+  chord: ModalChord,
+  chordName: string,
+  targetRoot: string,
+  targetChord: string,
+): string {
+  const key = noteLabel(root);
+  // The target's own 3 and ♭3, spelled in the target's key — the one
+  // note that separates the two scales, named both ways round.
+  const third = noteLabel(degreeAscii(degreeAscii(root, chord.target!), '3'));
+  const flatThird = noteLabel(degreeAscii(degreeAscii(root, chord.target!), 'b3'));
+  return 'When a secondary dominant takes you to a minor chord, improvise '
+    + "over that dominant with the melodic minor of the chord you're landing "
+    + "on, which is just that chord's major scale with a ♭3. "
+    // THE DOMINANT'S OWN NUMBER IN THE KEY, which is the coordinate the
+    // generator already holds: the 5 of 6 is built on the 3.
+    + `Here ${chordName} (the ${chord.degree} as a dominant, the ${chord.num}) `
+    + `lands on ${targetChord} (the ${chord.target}m), so while you're on the `
+    + `${chordName} play ${targetRoot} melodic minor: ${targetRoot} major with `
+    + `${an(flatThird)} (♭3) instead of ${an(third)} (3). Once you land, `
+    + `you're back in the key. The marked notes are the ones the key of `
+    + `${key} major does not have.`;
+}
+
+/**
+ * "a C", but "an F".
+ *
+ * NOT IN SILAS'S SENTENCE, and not new copy either — his example is "a
+ * C (♭3) instead of a C♯ (3)", which is right for C and wrong for the
+ * three letters that are said with a vowel. A, E and F are "an A", "an
+ * E" and "an F" however they are spelled after the letter, so the
+ * LETTER decides and the accidental never does.
+ *
+ * The same rule `facetDisplay` already applies to the Distance chips —
+ * "up an augmented fourth", "up a minor third".
+ */
+function an(note: string): string {
+  return /^[AEF]/.test(note) ? `an ${note}` : `a ${note}`;
 }
 
 /**
