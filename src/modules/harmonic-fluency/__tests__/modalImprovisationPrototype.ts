@@ -25,6 +25,11 @@
  * 5 of F♯m, C♯7 is. Thirty of the sixty-five borrowed cards name a
  * chord that cannot resolve to the chord the same card names.
  *
+ * RULED 9 SEP 2026: THE REPAIR STAYS, so for the chord NAMES the app is
+ * the source and this file records what the prototype would have said
+ * had it spelled them right. Every other word here is still the
+ * prototype's, and still what the app is held to.
+ *
  * The rows below are the prototype's output with that one bug repaired,
  * which is what the app builds. NOTHING ELSE MOVED: the answer is
  * identical on all 130, and so is every `seq` — the sound is computed

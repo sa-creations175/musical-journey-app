@@ -39,8 +39,15 @@
  * target, taken from `degreeAscii`, which is the same thing the
  * prototype meant and gets right in the thirty-five cases where the
  * target root is natural. See `modalImprovisationPrototype.ts` for the
- * thirty rows it changes, and the report for the full list. Nothing
- * else moved — the answers and the sound never went through `parse`.
+ * thirty rows it changes. Nothing else moved — the answers and the
+ * sound never went through `parse`.
+ *
+ * SILAS RULED ON THIS, 9 SEP 2026: THE REPAIR STAYS. In the key of D
+ * major the 5 of 3 is C♯7. So the prototype is no longer the source
+ * of the chord NAMES — this file is, and the fixture holds the
+ * prototype's output with the repair already applied. Everything else
+ * about the words is still the prototype's and still checked against
+ * it. Do not "restore" the thirty.
  *
  * =====================================================================
  * TEN CHORDS, AND WHY THOSE TEN.
