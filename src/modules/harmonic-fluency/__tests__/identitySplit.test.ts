@@ -93,8 +93,14 @@ describe('the mode axis is thirteen, and that is a ruling', () => {
 });
 
 describe('the pentatonic axis collapsed with it', () => {
-  it('is twelve columns, not the fifteen the two root lists made', () => {
-    expect(pentGrid.columns.views[0].values).toHaveLength(12);
+  it('is thirteen columns, not the fifteen the two root lists made', () => {
+    // Twelve until commit 8, and thirteen for ruling 40's reason: F♯
+    // major pentatonic and G♭ major pentatonic are two different sets
+    // of notes. It is not the old fifteen, which came from two
+    // generators disagreeing about how to spell one root.
+    expect(pentGrid.columns.views[0].values).toHaveLength(13);
+    expect(pentGrid.columns.views[0].values).toContain('F#');
+    expect(pentGrid.columns.views[0].values).toContain('Gb');
   });
 
   it('the minor pentatonic identity is Ab, and renders A♭', () => {
@@ -174,11 +180,15 @@ describe('the id moved and the words did not', () => {
    */
   const byId = new Map(FLASHCARDS.map(c => [c.id, c]));
 
-  it('the four migrated ids exist at their identity, and not at the old spelling', () => {
-    for (const [from, to] of Object.entries(IDENTITY_ID_MOVES)) {
-      expect(byId.has(to), `${to} should exist`).toBe(true);
+  it('none of the four old spellings is back in the deck', () => {
+    // THE HALF THAT SURVIVES COMMIT 8. Three of the four destinations
+    // were pentatonic ids and the family took the `pent-notes-` prefix,
+    // so `pent-major-F#` is gone too — but the claim that mattered was
+    // always that the DISPLAY spelling never returns as an id.
+    for (const from of Object.keys(IDENTITY_ID_MOVES)) {
       expect(byId.has(from), `${from} should be gone`).toBe(false);
     }
+    expect(byId.has('pr-1564-F#')).toBe(true);
   });
 
   it('the progression card is spelled G♭ in its text, under an F♯ id', () => {
@@ -195,15 +205,20 @@ describe('the id moved and the words did not', () => {
     // `SCALE_ALT_NAME` gives the scale its second name. What matters
     // is which one LEADS: the corpus spells minor scales sharp, and
     // that did not follow the id onto the flat side.
-    const card = byId.get('pent-minor-Ab')!;
+    const card = byId.get('pent-notes-minor-G#')!;
     expect(card.question.startsWith('In G♯')).toBe(true);
+    expect(card.axis!.root).toBe('Ab');
   });
 
   it('the major pentatonic leads with G♭, under an F♯ id', () => {
     // The mirror of the above, and the reason one axis column now
     // serves both: same pitch, same identity, two spellings, each
     // still reading the way its scale is written.
-    const card = byId.get('pent-major-F#')!;
+    // COMMIT 8 SPLIT THIS ONE. The G♭ card keeps its own words under
+    // its own id, and F♯ major pentatonic is now a card of its own —
+    // which is why the id can no longer be the identity.
+    const card = byId.get('pent-notes-major-Gb')!;
     expect(card.question.startsWith('In G♭')).toBe(true);
+    expect(byId.get('pent-notes-major-F#')!.question.startsWith('In F♯')).toBe(true);
   });
 });

@@ -192,7 +192,10 @@ export const FACET_VALUES: Readonly<Record<FacetName, readonly (string | number)
   fromDegree: [1, 2, 3, 4, 5, 6, 7],
   // Every movement the degree-math generator walks, as it names them.
   movement: [],
-  pentatonic: ['major', 'minor', 'relative'],
+  // `relative` became `lick` in commit 8: the card asks which minor
+  // pentatonic to play over a major key rather than what two scales
+  // share.
+  pentatonic: ['major', 'minor', 'lick'],
   // ONE ROW, FOUR CHIPS (ruling 26). The three that were `cadence`
   // first, in the order the module teaches them, then the one that was
   // already here.

@@ -70,7 +70,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 952 + 143 + 78 + 293 = 1466
+// Harmonic Fluency — 949 + 143 + 78 + 293 = 1463
+// (9 Sep 2026, commit 8: 1466 → 1463. Pentatonics: the five formula
+//  cards went, major gained F♯, and the twelve "share the same" cards
+//  became thirteen lick cards. Pentatonics 41 → 38, foundational
+//  952 → 949.)
 // (9 Sep 2026, commit 8: 1439 → 1466. Key Signatures regenerated —
 //  the count in thirteen keys, the relative pair both ways in thirteen
 //  keys, and a count-to-key card per mode. Key signatures 56 → 83,
@@ -125,8 +129,8 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 168 + dgn 625 + ks 83 + pent 41 + enh 35 = 952', () => {
-    expect(c.byGroup.foundational).toBe(952);
+  it('foundational = sdm 168 + dgn 625 + ks 83 + pent 38 + enh 35 = 949', () => {
+    expect(c.byGroup.foundational).toBe(949);
   });
 
   it('chordKnowledge = dq 20 + cc 20 + sc 103 = 143', () => {
@@ -141,8 +145,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(293);
   });
 
-  it('total = 1466 across all 13 categories', () => {
-    expect(c.total).toBe(1466);
+  it('total = 1463 across all 13 categories', () => {
+    expect(c.total).toBe(1463);
   });
 
   it('total equals sum of group totals', () => {

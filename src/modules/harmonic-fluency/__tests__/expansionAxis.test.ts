@@ -74,11 +74,16 @@ describe('every keyed generator supplies coordinates', () => {
   it('pentatonics carries root and shape across all three shapes', () => {
     const cards = FLASHCARDS.filter(c => c.category === 'pentatonic-scales'
       && Object.hasOwn(c, 'axis'));
-    // Eleven roots per shape plus the relative set — 36, not 41: the
-    // five formula cards carry no root.
-    expect(cards).toHaveLength(36);
+    // Commit 8: the five formula cards went, the twelve "share the
+    // same" ones became thirteen lick cards, and major gained F♯.
+    // Twelve minor + thirteen major + thirteen lick = 38, and every
+    // card in the category now carries a root.
+    expect(cards).toHaveLength(38);
+    expect(cards).toHaveLength(
+      FLASHCARDS.filter(c => c.category === 'pentatonic-scales').length,
+    );
     const shapes = new Set(cards.map(c => c.axis!.shape));
-    expect([...shapes].sort()).toEqual(['major', 'minor', 'relative']);
+    expect([...shapes].sort()).toEqual(['lick', 'major', 'minor']);
   });
 
   it('keeps the three functional-harmony shapes apart', () => {
@@ -162,9 +167,9 @@ describe('the grids place what the generators produced', () => {
     // The failure this guards: one root axis would drop C#/F#/G# or
     // Db/Gb/Ab into the tail depending on which list was chosen.
     const { tail } = place(CATEGORY_LABELS['pentatonic-scales']);
-    // Only the five formula cards, which carry no coordinates.
-    expect(tail).toHaveLength(5);
-    for (const t of tail) expect(t.axis).toBeUndefined();
+    // Nothing in the tail at all since commit 8: the five formula
+    // cards were the only ones without coordinates and they are gone.
+    expect(tail).toHaveLength(0);
   });
 
   it('places every mode, slash and functional-harmony card it should', () => {

@@ -281,14 +281,28 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   // F♯ and G♯ as extra columns beside D♭, G♭ and A♭. The card's ROOT
   // coordinate is the identity now, so one column holds both shapes
   // and the header is labelled rather than inherited.
+  /**
+   * THIRTEEN ROOTS, AND ONE ROW IS SHORTER THAN THE OTHERS.
+   *
+   * The major and lick cards carry the root as written, because F♯
+   * major pentatonic and G♭ major pentatonic are two different sets of
+   * notes. The minor cards carry the identity root, because C♯ minor
+   * and D♭ minor are one root spelled to suit the shape — which the
+   * card's own "C♯ (D♭)" name already says.
+   *
+   * So the minor row has twelve of thirteen. G♭ minor pentatonic is
+   * G♭ B𝄫 C♭ D♭ F♭, and the follow-up ruling that let double
+   * accidentals into the deck said not to widen it beyond intervals.
+   * The empty cell is that stop, on screen.
+   */
   [CATEGORY_LABELS['pentatonic-scales']]: {
     columns: {
       field: 'root',
       label: 'root',
-      labelFor: spellKeyColumn,
-      views: [{ id: 'default', label: 'root', values: HF_KEY_COLUMNS }],
+      labelFor: v => withAccidentalGlyphs(String(v)),
+      views: [{ id: 'default', label: 'root', values: THIRTEEN_KEYS }],
     },
-    rows: axis('shape', 'shape', ['minor', 'major', 'relative']),
+    rows: axis('shape', 'shape', ['minor', 'major', 'lick']),
   },
 
   [CATEGORY_LABELS['enharmonic-equivalents']]: {

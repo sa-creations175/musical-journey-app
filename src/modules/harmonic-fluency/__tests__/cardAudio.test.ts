@@ -35,7 +35,7 @@ describe('the shape is the same everywhere', () => {
     // Ruling 33's one sentence, asserted across the five families it
     // gave a voice to plus the two that already had one.
     for (const id of ['sc-slash-1-3-G', 'fh-ii-v-i-Eb', 'pr-1564-Eb',
-      'pent-major-Ab', 'ks-relminor-Eb', 'dgn-Ab-b6', 'sdm-1-up-P5']) {
+      'pent-notes-major-Ab', 'ks-relminor-Eb', 'dgn-Ab-b6', 'sdm-1-up-P5']) {
       const s = soundOf(id);
       expect(s.orient, id).not.toBeNull();
       expect(s.steps.length, id).toBeGreaterThan(0);
@@ -117,7 +117,7 @@ describe('the little progressions', () => {
 
 describe('pentatonics', () => {
   it('is five notes ascending', () => {
-    for (const id of ['pent-minor-A', 'pent-major-Ab']) {
+    for (const id of ['pent-notes-minor-A', 'pent-notes-major-Ab']) {
       const s = soundOf(id);
       expect(s.steps, id).toHaveLength(5);
       const notes = s.steps.map(st => st.semitones[0]);
@@ -126,15 +126,15 @@ describe('pentatonics', () => {
   });
 
   it('is the minor shape on a minor card and the major on a major one', () => {
-    expect(steps(soundOf('pent-minor-A'))).toEqual([[0], [3], [5], [7], [10]]);
-    expect(steps(soundOf('pent-major-Ab'))).toEqual([[0], [2], [4], [7], [9]]);
+    expect(steps(soundOf('pent-notes-minor-A'))).toEqual([[0], [3], [5], [7], [10]]);
+    expect(steps(soundOf('pent-notes-major-Ab'))).toEqual([[0], [2], [4], [7], [9]]);
   });
 
   it('orients with the chord the root actually carries', () => {
     // A minor pentatonic's tonic chord is minor. Priming it with a
     // major triad would put a third in the ear the scale does not have.
-    expect(soundOf('pent-minor-A').orient).toEqual(MIN);
-    expect(soundOf('pent-major-Ab').orient).toEqual(MAJ);
+    expect(soundOf('pent-notes-minor-A').orient).toEqual(MIN);
+    expect(soundOf('pent-notes-major-Ab').orient).toEqual(MAJ);
   });
 });
 

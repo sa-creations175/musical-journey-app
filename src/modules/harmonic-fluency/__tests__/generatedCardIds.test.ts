@@ -90,17 +90,27 @@ describe('what kind of change happened', () => {
 });
 
 describe('the ids the SM-2 history is keyed on', () => {
-  it('keeps the C minor pentatonic card at pent-8', () => {
-    // Hand-written today, and about to be generated. The generator
-    // must fit the existing id rather than the id fitting the
-    // generator — the alternative is migrating drilled history to
-    // match a new scheme.
-    const card = FLASHCARDS.find(c => c.id === 'pent-8');
-    expect(card?.question).toContain('C minor pentatonic');
+  it('asks about C minor pentatonic exactly once', () => {
+    // `pent-8` HELD IT UNTIL COMMIT 8, when the family took the
+    // `pent-notes-` prefix so a thirteenth major root could arrive
+    // without minting a retired id. The claim survives the rename: the
+    // question is still asked, once, and `pentatonicFoldIn` moved the
+    // history rather than the id fitting the generator.
+    const asking = FLASHCARDS.filter(
+      c => c.question === 'In C minor pentatonic, the notes are _____',
+    );
+    expect(asking).toHaveLength(1);
+    expect(asking[0].id).toBe('pent-notes-minor-C');
   });
 
-  it('keeps the shared-notes card at pent-10', () => {
-    const card = FLASHCARDS.find(c => c.id === 'pent-10');
-    expect(card?.question).toContain('C major pentatonic');
+  it('and the shared-notes card is gone rather than renamed', () => {
+    // `pent-10` asked what C major and A minor pentatonic SHARE, and
+    // answered "5 notes (identical pitch set)". Commit 8 replaced the
+    // question rather than the id: `pent-lick-C` asks which minor
+    // pentatonic to play in C, which is a different question with a
+    // different answer, so no row moves onto it.
+    expect(FLASHCARDS.some(c => c.id === 'pent-10')).toBe(false);
+    expect(FLASHCARDS.some(c => c.correctAnswer.includes('identical pitch set')))
+      .toBe(false);
   });
 });

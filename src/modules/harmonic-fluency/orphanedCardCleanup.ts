@@ -85,6 +85,21 @@ export const REMOVED_WITHOUT_SUCCESSOR: ReadonlyArray<string> = [
   // mode, and neither asks that question or gives that answer, so
   // `keySignatureFoldIn` reports them unpaired rather than guessing.
   'ks-19', 'ks-20',
+  // THE FIVE PENTATONIC FORMULA CARDS (commit 8). "What 5 notes make
+  // up the major pentatonic scale?" answers a shape a reader can
+  // recite without playing it in a single key; the per-key notes cards
+  // ask the same thing where it counts.
+  'pent-1', 'pent-2', 'pent-5', 'pent-6', 'pent-9',
+  // AND THE TWELVE "SHARE THE SAME _____" CARDS. They answered "5
+  // notes (identical pitch set)" — a fact about a definition. The card
+  // that replaces them asks which minor pentatonic to play over a
+  // major key, which is a different question with a different answer,
+  // so `pentatonicFoldIn` refuses to move a row rather than guessing.
+  'pent-10',
+  'pent-relative-Db', 'pent-relative-D', 'pent-relative-Eb',
+  'pent-relative-E', 'pent-relative-F', 'pent-relative-F#',
+  'pent-relative-G', 'pent-relative-Ab', 'pent-relative-A',
+  'pent-relative-Bb', 'pent-relative-B',
 ];
 
 /** One card whose rows are kept, and what a reader wrote on it. */

@@ -221,7 +221,9 @@ describe('absent means flat list, not broken', () => {
       // Ruling 43: every note by every distance, less the six
       // combinations that would need a double accidental.
       'degree-notes': 625,
-      'pentatonic-scales': 36,
+      // 36 before commit 8, when five formula cards carried none.
+      // Every pentatonic card has a root now.
+      'pentatonic-scales': 38,
       'progressions': 6,
       // 44 before ruling 30: eleven keys x four shapes. Seven shapes
       // across thirteen keys now — ruling 37 took the three

@@ -34,6 +34,10 @@ import {
   foldInKeySignatureCards,
 } from './modules/harmonic-fluency/keySignatureFoldIn';
 import {
+  describePentatonicFoldIn,
+  foldInPentatonicCards,
+} from './modules/harmonic-fluency/pentatonicFoldIn';
+import {
   cleanUpRetiredCard,
   describeRetiredCardCleanup,
 } from './modules/harmonic-fluency/retiredCardCleanup';
@@ -281,6 +285,17 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] key-signature fold-in failed', err);
+      });
+    // Pentatonics: the notes cards move, the five formula cards and the
+    // twelve "share the same" ones do not — nothing in the deck asks
+    // what they asked any more.
+    void foldInPentatonicCards()
+      .then(r => {
+        const line = describePentatonicFoldIn(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[hf] pentatonic fold-in failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from

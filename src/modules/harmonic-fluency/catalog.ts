@@ -1,5 +1,6 @@
 import {
   accidentalCountDecoys, degreeAscii, expansionCards, practicalName,
+  MAJOR_PENT_CONTEXT, MINOR_PENT_CONTEXT, RELATIVE_PENT_CONTEXT,
 } from './catalogExpansions';
 import { chooseDecoys } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
@@ -1109,7 +1110,20 @@ const MODE_CARDS: Flashcard[] = [
 // original spec) were dropped — they're performance heuristics, not
 // theory facts. ID numbering keeps the original gaps (1, 2, 5, 6,
 // 8, 9, 10) for traceability against the spec.
-const PENTATONIC_CARDS: Flashcard[] = [
+/**
+ * THE FIVE FORMULA CARDS, RETIRED (commit 8).
+ *
+ * Silas's ruling, in his words: pick the notes, per key, no formulas.
+ * "What 5 notes make up the major pentatonic scale?" answers 1, 2, 3,
+ * 5, 6 — a shape you can recite without being able to play it in a
+ * single key, which is the opposite of what this category is for. The
+ * per-key notes cards ask the same thing where it counts.
+ *
+ * Nothing replaces them, so nothing pairs with them: their rows go the
+ * way the 6/♭7 cards' did. Kept here because the array is the record
+ * of what they said.
+ */
+export const RETIRED_PENTATONIC_FORMULA_CARDS: Flashcard[] = [
   { id: 'pent-1', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
     question: 'What 5 notes make up the major pentatonic scale?',
     correctAnswer: '1, 2, 3, 5, 6',
@@ -1778,27 +1792,28 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
 // all twelve, because D'Angelo and Aretha are attached to minor
 // pentatonic, not to C.
 
-const MINOR_PENT_CONTEXT =
-  "The bluesy-soul backbone — every B.B. King line, every gospel and R&B "
-  + "vocal lick, the whole rock-guitar vocabulary lives in this five-note "
-  + "shape. Sit on these over any minor groove in the key and you can't "
-  + "really miss. Add the ♭5 between the 4 and the 5 and you have the blues scale.";
-
-const MAJOR_PENT_CONTEXT =
-  "The safest melodic set inside a major key — no 4, no 7, so none of the "
-  + "half-step tensions that fight the major triad. It is the bedrock of "
-  + "gospel licks, country bends and the Stevie Wonder vocal-line vocabulary.";
-
-const RELATIVE_PENT_CONTEXT =
-  "Same five pitches, different home base — the relative-major / "
-  + "relative-minor relationship applied to the pentatonic subset. Which one "
-  + "you are playing is decided by the chord underneath, not by the notes.";
+// The three pentatonic context sentences MOVED to `catalogExpansions`,
+// beside the generator that writes them now. `retiredPentatonicKeyCards`
+// imports them back, so the retired cards still read exactly as they
+// did — which is what the fold-in compares against.
 
 /** The identity name for a root. Ids, axis coordinates and skill tags
  *  take this; every displayed string keeps the root as written. See
  *  `pentatonicCardId`. */
 function identityRoot(root: string): string {
   return canonicaliseKey(root) ?? root;
+}
+
+/**
+ * The pentatonic cards as they were before commit 8 — twelve roots per
+ * shape, ids minted from the identity vocabulary, and a "share the
+ * same _____" card that today's ruling replaces.
+ *
+ * OUT OF THE DECK AND STILL EXPORTED, so `pentatonicFoldIn` can prove
+ * which generated card each retired one became.
+ */
+export function retiredPentatonicKeyCards(): Flashcard[] {
+  return generatePentatonicKeyCards();
 }
 
 function generatePentatonicKeyCards(): Flashcard[] {
@@ -1925,8 +1940,11 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   ...FUNCTIONAL_HARMONY_CARDS,
   ...KEY_SIG_CARDS,
   ...MODE_CARDS,
-  ...PENTATONIC_CARDS,
-  ...generatePentatonicKeyCards(),
+  // `PENTATONIC_CARDS` WAS SPREAD HERE — the five formula cards.
+  // Retired in commit 8; see the note on the array.
+  // `generatePentatonicKeyCards()` WAS HERE. Commit 8 regenerated the
+  // notes cards over the thirteen keys and replaced the relative ones
+  // with the lick question; see `pentatonicFoldIn.ts`.
   // `generateIntervalCards()` WAS HERE. Ruling 43 replaced its twenty
   // hand-picked pairs with the full grid in `catalogExpansions`, and
   // their practice moved onto it — see `intervalFoldIn.ts`.

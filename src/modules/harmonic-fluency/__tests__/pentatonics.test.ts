@@ -161,7 +161,10 @@ describe('the relative pairs', () => {
 });
 
 describe('the drilled ids survive', () => {
-  it('keeps C minor at pent-8 and the C relative pair at pent-10', () => {
+  it('kept C minor at pent-8 and the C relative pair at pent-10', () => {
+    // The legacy-id map, which is what the RETIRED generator still
+    // mints. Commit 8 moved the family to `pent-notes-`; this is the
+    // record the fold-in compares against.
     expect(pentatonicCardId('minor', 'C')).toBe('pent-8');
     expect(pentatonicCardId('relative', 'C')).toBe('pent-10');
   });
@@ -178,19 +181,31 @@ describe('the drilled ids survive', () => {
 describe('the category as it now ships', () => {
   const cards = () => FLASHCARDS.filter(c => c.category === 'pentatonic-scales');
 
-  it('holds the five formula cards plus thirty-six keyed ones', () => {
-    expect(cards()).toHaveLength(41);
+  it('is the notes in every key, plus the lick scale', () => {
+    // Twelve minor, thirteen major, thirteen lick. It was 41 — five
+    // formula cards and thirty-six keyed ones.
+    expect(cards()).toHaveLength(38);
   });
 
-  it('keeps the five formula cards untouched', () => {
+  it('has no formula cards left', () => {
+    // Commit 8's ruling, in Silas's words: pick the notes, per key, no
+    // formulas. "What 5 notes make up the major pentatonic scale?" is a
+    // shape a reader can recite without playing it in a single key.
     const ids = new Set(cards().map(c => c.id));
     for (const id of ['pent-1', 'pent-2', 'pent-5', 'pent-6', 'pent-9']) {
-      expect(ids.has(id)).toBe(true);
+      expect(ids.has(id), id).toBe(false);
     }
   });
 
+  it('asks which minor pentatonic to play, not what two scales share', () => {
+    const lick = cards().find(c => c.id === 'pent-lick-Ab')!;
+    expect(lick.question)
+      .toBe("You're in the key of A♭. Which minor pentatonic fits for riffs and licks?");
+    expect(lick.correctAnswer).toBe('F minor pentatonic');
+  });
+
   it('can finally ask about A♭ — the key that had no door', () => {
-    const ab = cards().find(c => c.id === 'pent-major-Ab');
+    const ab = cards().find(c => c.id === 'pent-notes-major-Ab');
     expect(ab?.question).toBe('In A♭ major pentatonic, the notes are _____');
     expect(ab?.correctAnswer).toBe('A♭, B♭, C, E♭, F');
   });
@@ -198,8 +213,8 @@ describe('the category as it now ships', () => {
   it('shares the context sentence across all twelve of a shape', () => {
     // The formula half varies; the sound half does not. Regenerating
     // "Stevie Wonder" per key would make twelve copies of one claim.
-    const majors = cards().filter(c => c.id.startsWith('pent-major-'));
-    expect(majors).toHaveLength(12);
+    const majors = cards().filter(c => c.id.startsWith('pent-notes-major-'));
+    expect(majors).toHaveLength(13);
     for (const c of majors) {
       expect(c.explanation).toContain('Stevie Wonder vocal-line vocabulary');
     }

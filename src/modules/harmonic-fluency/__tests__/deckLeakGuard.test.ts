@@ -307,10 +307,12 @@ const TELL_ALLOWLIST: ReadonlyArray<{ category: string; tokeniser: string; cards
   { category: 'diatonic-qualities', tokeniser: 'whole', cards: 2 },
   { category: 'diatonic-qualities', tokeniser: 'without-key', cards: 2 },
   { category: 'functional-harmony', tokeniser: 'last-word', cards: 2 },
-  { category: 'pentatonic-scales', tokeniser: 'whole', cards: 12 },
-  { category: 'pentatonic-scales', tokeniser: 'without-key', cards: 12 },
-  { category: 'pentatonic-scales', tokeniser: 'last-word', cards: 12 },
-  { category: 'pentatonic-scales', tokeniser: 'first-word', cards: 12 },
+  // pentatonic-scales stood at 12 on all four readings and is now 0.
+  // Those twelve were the "share the same _____" cards: every one
+  // answered "5 notes (identical pitch set)" against the same three
+  // hand-written decoys, so any decoy on screen named the answer.
+  // Commit 8 replaced the question, and the card that replaced it
+  // draws its options from the thirteen minor-pentatonic names.
   // slash-chords stood at 2 / 2 / 5 / 2. Three of the four entries are
   // gone and the fourth is down to three: 6/♭7 left the deck with
   // ruling 30, and the generated family no longer repeats a wrong
@@ -359,7 +361,7 @@ describe('no decoy pins its answer', () => {
     // tripping two rules is counted twice and a pentatonic card seen
     // under four tokenisers is counted four times. Adding the columns
     // adds up to more than the deck can supply. The real figures are
-    // 24 and 19, overlapping on nothing, for 43 in all — against 124
+    // 24 and 7, overlapping on nothing, for 31 in all — against 124
     // and 36 before the guard existed. It ROSE from 41 to 50 when
     // `longest` was scoped in: nine cards that were always answerable
     // started being counted, which is a guard getting sharper rather
@@ -389,7 +391,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 24, tell: 19, distinct: 43 });
+      .toEqual({ blind: 24, tell: 7, distinct: 31 });
   });
 
   it('keeps the tell allowlist honest', () => {

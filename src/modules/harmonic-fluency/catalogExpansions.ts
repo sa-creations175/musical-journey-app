@@ -9,6 +9,11 @@ import type { Flashcard } from './catalog';
 import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
 import { PRACTICAL_NAME as PRACTICAL_SPELLINGS } from '../../lib/theoreticalSpellings';
 import { canonicaliseKey } from '../repertoire/circleOfFourths';
+import {
+  MINOR_ROOTS, majorPentatonic, minorPentatonic,
+  noteLabel as pentNoteLabel, noteList, pentatonicDecoys,
+  relativeMinorRoot, scaleName,
+} from './pentatonics';
 
 /**
  * The twelve keys, generated rather than hand-written.
@@ -1538,6 +1543,149 @@ export function generateIntervalTopUps(): Flashcard[] {
   });
 }
 
+// =====================================================================
+// Pentatonic scales — the notes, per key, and the lick scale
+// =====================================================================
+
+export const MINOR_PENT_CONTEXT =
+  "The bluesy-soul backbone — every B.B. King line, every gospel and R&B "
+  + "vocal lick, the whole rock-guitar vocabulary lives in this five-note "
+  + "shape. Sit on these over any minor groove in the key and you can't "
+  + "really miss. Add the ♭5 between the 4 and the 5 and you have the blues scale.";
+
+export const MAJOR_PENT_CONTEXT =
+  "The safest melodic set inside a major key — no 4, no 7, so none of the "
+  + "half-step tensions that fight the major triad. It is the bedrock of "
+  + "gospel licks, country bends and the Stevie Wonder vocal-line vocabulary.";
+
+export const RELATIVE_PENT_CONTEXT =
+  "Same five pitches, different home base — the relative-major / "
+  + "relative-minor relationship applied to the pentatonic subset. Which one "
+  + "you are playing is decided by the chord underneath, not by the notes.";
+
+// =====================================================================
+
+/**
+ * The pentatonic roots, per shape.
+ *
+ * =====================================================================
+ * TWO LISTS, AND THE HEADER ON `pentatonics.ts` ARGUES WHY AT LENGTH.
+ *
+ * Minor spells badly on the flat side and major on the sharp side, so
+ * the twelve keys that spell cleanly for one are not the twelve for the
+ * other. Ruling 39 asks for every actual key, and for MAJOR that is now
+ * thirteen: F♯ major pentatonic is F♯ G♯ A♯ C♯ D♯, clean, and it was
+ * missing only because the list stopped at twelve.
+ *
+ * FOR MINOR IT IS STILL TWELVE, AND THAT IS A STOP RATHER THAN A
+ * CHOICE. G♭ minor pentatonic is G♭ B𝄫 C♭ D♭ F♭ — a double flat and two
+ * theoretical spellings in five notes. The follow-up ruling that let
+ * doubles into the deck said in terms not to widen it beyond intervals,
+ * so the thirteenth minor root is reported rather than written.
+ * =====================================================================
+ */
+const MAJOR_PENT_ROOTS: ReadonlyArray<string> = THIRTEEN_KEYS;
+
+/** "In E♭ major pentatonic, the notes are _____" — the notes, per key
+ *  (commit 8's ruling: pick the notes, per key, no formulas). */
+export function generatePentatonicNotesCards(): Flashcard[] {
+  const out: Flashcard[] = [];
+  for (const root of MINOR_ROOTS) {
+    const notes = minorPentatonic(root);
+    if (notes === null) continue;
+    out.push({
+      ...base('pentatonic-scales', 'Pentatonic Scales'),
+      id: `pent-notes-minor-${root}`,
+      // THE IDENTITY ROOT FOR MINOR, THE ROOT AS WRITTEN FOR MAJOR,
+      // and the asymmetry is the honest one. C♯ minor pentatonic and
+      // D♭ major pentatonic are one pitch spelled to suit each shape —
+      // the same root, two conventions — so they belong in one column,
+      // which is what the card's own "C♯ (D♭)" name already says. F♯
+      // major and G♭ major pentatonic are two different sets of notes
+      // and two different cards, so they need two.
+      axis: { root: identityRoot(root), shape: 'minor' },
+      question: `In ${scaleName(root, 'minor')} minor pentatonic, the notes are _____`,
+      correctAnswer: noteList(notes),
+      decoys: pentatonicDecoys(root, 'minor'),
+      explanation: `${scaleName(root, 'minor')} minor pentatonic: ${noteList(notes)} — `
+        + `the intervals 1, ♭3, 4, 5, ♭7 applied to ${pentNoteLabel(root)} as root. `
+        + MINOR_PENT_CONTEXT,
+      skillTag: `pent-minor-${root}`,
+    });
+  }
+  for (const root of MAJOR_PENT_ROOTS) {
+    const notes = majorPentatonic(root);
+    if (notes === null) continue;
+    out.push({
+      ...base('pentatonic-scales', 'Pentatonic Scales'),
+      id: `pent-notes-major-${root}`,
+      axis: { root, shape: 'major' },
+      question: `In ${scaleName(root, 'major')} major pentatonic, the notes are _____`,
+      correctAnswer: noteList(notes),
+      decoys: pentatonicDecoys(root, 'major'),
+      explanation: `${scaleName(root, 'major')} major pentatonic: ${noteList(notes)} — `
+        + `the intervals 1, 2, 3, 5, 6 applied to ${pentNoteLabel(root)} as root. `
+        + MAJOR_PENT_CONTEXT,
+      skillTag: `pent-major-${root}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * "You're in the key of A♭. Which minor pentatonic fits for riffs and
+ * licks?" — one direction only, per major key (commit 8's ruling).
+ *
+ * =====================================================================
+ * IT REPLACES A CARD THAT ASKED WHAT TWO SCALES SHARE.
+ *
+ * "A♭ major pentatonic and F minor pentatonic share the same _____"
+ * answered "5 notes (identical pitch set)", which is a fact about a
+ * definition rather than a thing a player reaches for. The question a
+ * player actually asks is which minor pentatonic to play over a major
+ * key, and this is that question with that answer.
+ *
+ * NO REVERSE CARD, and that is the ruling rather than an omission: in a
+ * minor key the lick scale is that key's own minor pentatonic, so the
+ * question would answer itself.
+ * =====================================================================
+ */
+export function generatePentatonicLickCards(): Flashcard[] {
+  // THE PLAIN NAME, NOT THE GLOSSED ONE, and that is the deck's rule
+  // rather than a preference. `scaleName` writes "G♯ (A♭) minor
+  // pentatonic" because the scale is genuinely double-named — good in
+  // a question, and a tell in an option: three of the twelve would
+  // carry a bracket and nine would not. The gloss never reaches an
+  // answer option, and a test says so across the whole catalog.
+  const answers = MAJOR_PENT_ROOTS
+    .map(r => relativeMinorRoot(r))
+    .filter((r): r is string => r !== null)
+    .map(r => `${pentNoteLabel(r)} minor pentatonic`);
+  return MAJOR_PENT_ROOTS.flatMap(root => {
+    const rel = relativeMinorRoot(root);
+    const majorNotes = majorPentatonic(root);
+    if (rel === null || majorNotes === null) return [];
+    const id = `pent-lick-${root}`;
+    const answer = `${pentNoteLabel(rel)} minor pentatonic`;
+    return [{
+      ...base('pentatonic-scales', 'Pentatonic Scales'),
+      id,
+      axis: { root, shape: 'lick' },
+      question: `You're in the key of ${scaleName(root, 'major')}. `
+        + 'Which minor pentatonic fits for riffs and licks?',
+      correctAnswer: answer,
+      decoys: chooseDecoys(answer, answers, {
+        count: 3, seed: id, label: id, category: 'pentatonic-scales',
+      }),
+      explanation: `${scaleName(root, 'major')} major pentatonic is `
+        + `${noteList(majorNotes)}. Start on the 6th and you are in `
+        + `${scaleName(rel, 'minor')} minor pentatonic — the same five notes. `
+        + RELATIVE_PENT_CONTEXT,
+      skillTag: `pent-lick-${root}`,
+    }];
+  });
+}
+
 /** Everything this module adds, in one list. */
 export function expansionCards(): Flashcard[] {
   return [
@@ -1557,5 +1705,7 @@ export function expansionCards(): Flashcard[] {
     ...generateKeyFromCountCards(),
     ...generateParallelMinorTopUps(),
     ...generateIntervalGrid(),
+    ...generatePentatonicNotesCards(),
+    ...generatePentatonicLickCards(),
   ];
 }
