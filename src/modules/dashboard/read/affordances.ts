@@ -91,8 +91,8 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     + 'are written differently for a reason; naming the alternative on '
     + 'demand is what reading in an unfamiliar key asks for constantly.',
   [`${HF}/Diatonic Chord Qualities`]:
-    'Which quality sits on each degree of the major scale — major, minor, '
-    + 'minor, major, dominant, minor, diminished. Held by DEGREE rather '
+    'Which quality sits on each number of the major scale — major, minor, '
+    + 'minor, major, dominant, minor, diminished. Held by NUMBER rather '
     + 'than by key, which is what lets you harmonise a melody without '
     + 'working it out from scratch each time.',
   [`${HF}/Functional Harmony`]:

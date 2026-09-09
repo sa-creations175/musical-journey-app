@@ -372,7 +372,11 @@ export function degreeMathExplanation(
   const lines: string[] = [
     `${startDegree} ${direction} ${articleFor(quality.label)} ${quality.label} = ${answer}`,
     '',
-    'THE NUMBER GIVES THE DEGREE',
+    // RULING 35. The two headings name the two STEPS — find which
+    // number you land on, then find which version of it — because a
+    // reader following a worked method wants to know what they are
+    // doing, not what the arithmetic is called.
+    'FIND THE ENDING SCALE DEGREE',
     `a ${quality.intervalId}${ordinalSuffix(quality.intervalId)} = ${steps} ${stepWord} (${quality.intervalId} − 1)`,
     direction === 'up'
       ? `${startDegree} + ${steps} = ${num(raw)}`
@@ -384,7 +388,10 @@ export function degreeMathExplanation(
   const diatonic = diatonicBetween(
     startDegree, result.resultDegree, steps, direction,
   );
-  lines.push('', `THE QUALITY SAYS WHICH ${result.resultDegree}`);
+  // FIXED TEXT, where it used to interpolate the landing number
+  // ("THE QUALITY SAYS WHICH 2"). A heading that changes per card is a
+  // heading a reader has to read again every time.
+  lines.push('', 'FIND ITS QUALITY');
   lines.push(
     `in the key, ${startDegree} ${direction} to ${result.resultDegree} is `
     + `${diatonic.semitones} semitones${

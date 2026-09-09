@@ -152,7 +152,7 @@ export default function HarmonicFluency() {
         calendarTo="/harmonic-fluency/calendar"
         showIntro={running === null}
         intro={{
-          description: "Know your way around every key — degrees up, down and around, diatonic and chromatic, chord building, tritones and modes.",
+          description: "Know your way around every key — numbers up, down and around, diatonic and chromatic, chord building, tritones and modes.",
         }}
       />
 

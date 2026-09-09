@@ -256,8 +256,10 @@ describe('the explanation', () => {
       const text = degreeMathExplanation(
         c.facts.startDegree, quality, c.facts.direction,
       );
-      expect(text, c.id).toContain('THE NUMBER GIVES THE DEGREE');
-      expect(text, c.id).toContain(`THE QUALITY SAYS WHICH ${c.facts.resultDegree}`);
+      // Ruling 35's two headings, word for word and the same on every
+      // card. The second used to carry the landing number.
+      expect(text, c.id).toContain('FIND THE ENDING SCALE DEGREE');
+      expect(text, c.id).toContain('FIND ITS QUALITY');
       if (c.facts.alteration === 0) {
         expect(text, c.id).toContain('the one the key already contains');
       } else {

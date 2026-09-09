@@ -353,7 +353,7 @@ export function generateNamedNoteCards(): Flashcard[] {
         count: DECOY_COUNT, seed: `nn-${i + 1}`, label: `nn-${i + 1}`,
         category: 'named-notes',
       }),
-      explanation: `${p.key} major is ${fullScale} — degree ${p.degree} is ${correct}. Knowing every scale in every key cold is the unglamorous skill that lets you sit in at any session: when the MD calls "key of ${p.key}, hit the ${p.degree}", you're already there.`,
+      explanation: `${p.key} major is ${fullScale} — number ${p.degree} is ${correct}. Knowing every scale in every key cold is the unglamorous skill that lets you sit in at any session: when the MD calls "key of ${p.key}, hit the ${p.degree}", you're already there.`,
       skillTag: `named-note-key-${p.key}-degree-${p.degree}`,
       visualHint: {
         key: `${p.key} major`,
@@ -755,7 +755,7 @@ const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
     question: 'A chord that has both tonic and dominant function qualities is _____',
     correctAnswer: 'iii',
     decoys: ['IV', 'ii', 'vi'],
-    explanation: "The iii — the chord built on the 3rd degree — is a kind of harmonic chameleon — it shares two notes with I (tonic function) and two with V (dominant function). That's why iii can substitute for either in the right context, and why it shows up in slick reharm moves.",
+    explanation: "The iii — the chord built on the 3rd number — is a kind of harmonic chameleon — it shares two notes with I (tonic function) and two with V (dominant function). That's why iii can substitute for either in the right context, and why it shows up in slick reharm moves.",
     skillTag: 'mediant-function' },
 ];
 
@@ -990,7 +990,7 @@ const MODE_CARDS: Flashcard[] = [
   { id: 'mo-1', category: 'modes', categoryName: CATEGORY_LABELS.modes,
     question: 'Dorian mode starts on which scale degree of the major scale?',
     correctAnswer: '2', decoys: ['3', '4', '6'],
-    explanation: "Dorian is what you get by playing a major scale starting on the 2nd degree. In C major, that's D Dorian: D-E-F-G-A-B-C — the sound of cool, hopeful-minor vamps (think Miles Davis's 'So What' or any D'Angelo groove that sits on a minor chord without ever resolving).",
+    explanation: "Dorian is what you get by playing a major scale starting on the 2nd number. In C major, that's D Dorian: D-E-F-G-A-B-C — the sound of cool, hopeful-minor vamps (think Miles Davis's 'So What' or any D'Angelo groove that sits on a minor chord without ever resolving).",
     skillTag: 'mode-dorian-degree' },
   { id: 'mo-2', category: 'modes', categoryName: CATEGORY_LABELS.modes,
     question: 'Phrygian mode starts on which scale degree?',
@@ -1015,7 +1015,7 @@ const MODE_CARDS: Flashcard[] = [
   { id: 'mo-6', category: 'modes', categoryName: CATEGORY_LABELS.modes,
     question: 'Locrian mode starts on which scale degree?',
     correctAnswer: '7', decoys: ['6', '5', '1'],
-    explanation: "Locrian starts on the 7th degree — unstable and almost never used as a home mode. Jazz players improvise Locrian over m7b5 chords, but you won't find a straight-ahead Locrian song.",
+    explanation: "Locrian starts on the 7th number — unstable and almost never used as a home mode. Jazz players improvise Locrian over m7b5 chords, but you won't find a straight-ahead Locrian song.",
     skillTag: 'mode-locrian-degree' },
   { id: 'mo-7', category: 'modes', categoryName: CATEGORY_LABELS.modes,
     question: "Mixolydian mode's signature altered note is _____",
@@ -1638,10 +1638,10 @@ export const ENHARMONIC_NOTE_PAIRS: ReadonlyArray<[string, string, string]> = [
     ['Db', 'C#', 'Db in flat keys (Ab/Db/Gb); C# in sharp keys (D/A/E major).'],
     ['Eb', 'D#', 'Eb in flat keys; D# in sharp keys (E / B major).'],
     ['Gb', 'F#', 'Gb in flat keys (Db/Gb); F# in sharp keys (G/D/A major).'],
-    ['B#', 'C', 'B# is C re-spelled — the leading tone of C# major / raised degrees.'],
+    ['B#', 'C', 'B# is C re-spelled — the leading tone of C# major / raised numbers.'],
     ['Cb', 'B', 'Cb is B re-spelled — the 4th of Gb major and other flat-key contexts.'],
-    ['E#', 'F', 'E# is F re-spelled — the 3rd of C# major / raised degrees.'],
-    ['Fb', 'E', 'Fb is E re-spelled — appears in heavily-flat keys and lowered degrees.'],
+    ['E#', 'F', 'E# is F re-spelled — the 3rd of C# major / raised numbers.'],
+    ['Fb', 'E', 'Fb is E re-spelled — appears in heavily-flat keys and lowered numbers.'],
 ];
 
 /** The enharmonic degree groups, at module scope for the same

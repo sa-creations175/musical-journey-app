@@ -222,6 +222,52 @@ describe('the four question types', () => {
   });
 });
 
+describe("the worked method's two headings", () => {
+  const rows = tableUnder("The worked method's two headings");
+
+  it('heads both steps, word for word, on every card', () => {
+    const cards = FLASHCARDS.filter(c => c.category === 'scale-degree-math');
+    expect(cards.length).toBeGreaterThan(0);
+    expect(rows).toHaveLength(2);
+    for (const c of cards) {
+      for (const [, heading] of rows) {
+        expect(c.explanation ?? '', c.id).toContain(heading);
+      }
+    }
+  });
+
+  it('says the same thing on every card — no number baked into a heading', () => {
+    // The second heading used to read "THE QUALITY SAYS WHICH 2", which
+    // is a heading a reader has to read again on every card.
+    for (const [, heading] of rows) expect(heading).not.toMatch(/\d/);
+  });
+});
+
+describe('the explanation sweep', () => {
+  it('changed every string the file lists, and says so in full', () => {
+    for (const [id, text] of tableUnder('The explanation sweep')) {
+      const found = FLASHCARDS.find(c => c.id === id);
+      // The second table under this heading is not cards; skip a row
+      // whose left cell is not one.
+      if (found === undefined) continue;
+      expect(`${found.question} ${found.explanation ?? ''}`, id).toContain(text);
+    }
+  });
+
+  it('leaves no bare "degree" anywhere in the deck', () => {
+    // The ruling in one assertion. "scale degree" may stay; a bare
+    // "degree" meaning the number may not. This is what makes the sweep
+    // finished rather than mostly done.
+    for (const c of FLASHCARDS) {
+      const text = `${c.question} ${c.explanation ?? ''}`;
+      for (const match of text.matchAll(/\b\w+\s+degrees?\b/gi)) {
+        expect(match[0].toLowerCase(), `${c.id}: ${match[0]}`)
+          .toMatch(/^scale degrees?$/);
+      }
+    }
+  });
+});
+
 describe('card text', () => {
   it('asks which NUMBER, in every card of the type', () => {
     const cards = placeItCards();

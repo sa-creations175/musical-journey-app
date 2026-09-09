@@ -158,6 +158,51 @@ no code was changed to introduce them.
 
 ---
 
+## The worked method's two headings
+
+Ruling 35. Number System Math's reveal is a worked method, one operation per
+line, in two steps. These are the two step headings, the same on every card —
+the second used to carry the landing number and no longer does.
+
+| step | heading |
+|---|---|
+| 1 | FIND THE ENDING SCALE DEGREE |
+| 2 | FIND ITS QUALITY |
+
+---
+
+## The explanation sweep
+
+Ruling 35. The full phrase "scale degree" stays where it reads naturally — the
+slash-chord explanations, the mode questions, the leading-tone card. A **bare**
+"degree" meaning the number does not. Every string changed, in full:
+
+| card | now reads |
+|---|---|
+| fh-19 | The iii — the chord built on the 3rd number — is |
+| mo-1 | starting on the 2nd number. |
+| mo-6 | Locrian starts on the 7th number — unstable |
+| enh-n-11 | the leading tone of C# major / raised numbers. |
+| enh-n-15 | the 3rd of C# major / raised numbers. |
+| enh-n-17 | heavily-flat keys and lowered numbers. |
+| nn-12 | number 4 is B. |
+| iv-inv-sum | both ends count the number they sit on |
+
+One word for one word, and the ordinal stays. "The chord built on the 3rd
+degree" becomes "the chord built on the 3rd number", not "the chord built on the
+3" — dropping the ordinal would take the teaching with it, and
+`strippedParentheticals.test.ts` says so about this exact card.
+
+Outside the cards, two panels and one page:
+
+| where | now reads |
+|---|---|
+| Diatonic Chord Qualities panel | Which quality sits on each number of the major scale |
+| Diatonic Chord Qualities panel | Held by NUMBER rather than by key |
+| Harmonic Fluency intro | numbers up, down and around |
+
+---
+
 ## Card text
 
 Ruling 29. The `placeItCards` question asks for a **number**.

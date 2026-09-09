@@ -159,7 +159,7 @@ export function intervalInversionCards(): Flashcard[] {
       '12',
     ],
     explanation: `2↔7, 3↔6, 4↔5 — every pair sums to ${INTERVAL_PAIR_SUM}, not `
-      + `${INTERVAL_PAIR_SUM - 1}, because both ends count the degree they sit `
+      + `${INTERVAL_PAIR_SUM - 1}, because both ends count the number they sit `
       + `on. It is the same off-by-one that makes an interval move n − 1 steps. `
       + `Counted in semitones the pairs sum to 12 instead; same relationship, `
       + `different unit.`,
