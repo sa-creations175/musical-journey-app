@@ -13,7 +13,7 @@
  * =====================================================================
  */
 import 'fake-indexeddb/auto';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import FlashcardSession from '../../../lib/flashcards/FlashcardSession';
@@ -41,11 +41,6 @@ const WIDE_PX = 900;
 let realRect: typeof Element.prototype.getBoundingClientRect;
 
 beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  });
   // The component reads the host's width directly as well as observing
   // it, and jsdom reports zero for everything — so the width has to
   // come from the rect, not from the observer.

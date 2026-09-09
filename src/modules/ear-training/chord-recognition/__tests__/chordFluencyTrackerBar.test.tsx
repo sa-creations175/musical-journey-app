@@ -7,7 +7,7 @@
  * `untouched` grey. And the label beside it said "no data yet" while
  * holding those four.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import type { AttemptRecord, ChordData } from '../../../../lib/db';
@@ -81,12 +81,6 @@ function mount(attempts: AttemptRecord[]) {
     unmount: () => { act(() => { root.unmount(); }); container.remove(); },
   };
 }
-
-beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', class {
-    observe() {} unobserve() {} disconnect() {}
-  });
-});
 
 describe('the bar is the shared one', () => {
   it('draws three segments, not one width-and-a-tier', () => {

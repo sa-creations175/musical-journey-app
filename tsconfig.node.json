@@ -2,7 +2,10 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
     "target": "es2023",
-    "lib": ["ES2023"],
+    /* DOM is here for `vitest.setup.ts`, which fills in the browser
+       APIs jsdom is missing and therefore has to name them. Nothing in
+       `vite.config.ts` reaches for a DOM type. */
+    "lib": ["ES2023", "DOM"],
     "module": "esnext",
     "types": ["node"],
     "skipLibCheck": true,
@@ -20,5 +23,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "vitest.setup.ts"]
 }

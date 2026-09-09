@@ -17,7 +17,7 @@
  * component, the emission would stop being sufficient to reproduce it.
  * ---------------------------------------------------------------
  */
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import AnswerKeyboard from '../AnswerKeyboard';
@@ -91,10 +91,6 @@ function mount(opts: {
     unmount: () => { act(() => { root.unmount(); }); container.remove(); },
   };
 }
-
-beforeEach(() => { vi.stubGlobal('ResizeObserver', class {
-  observe() {} unobserve() {} disconnect() {}
-}); });
 
 describe('a tritone card: either octave accepted', () => {
   // "Tritone of C" — the subject is C in the lower octave, and F♯ is

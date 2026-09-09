@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -52,4 +52,20 @@ export default defineConfig({
       },
     }),
   ],
+  /**
+   * ONE SETUP FILE, CARRYING ONE THING (ruling 47).
+   *
+   * `vitest.setup.ts` fills in the browser APIs jsdom is missing —
+   * today that is `ResizeObserver` and nothing else. It replaced
+   * eleven per-file copies of the same four-line class, two of which
+   * had been added only after a pair of tests turned out to fail about
+   * one run in three depending on which card the scheduler served.
+   *
+   * `defineConfig` comes from `vitest/config` rather than `vite` so
+   * this block type-checks. It is a superset; the build reads the same
+   * object it always did.
+   */
+  test: {
+    setupFiles: ['./vitest.setup.ts'],
+  },
 });

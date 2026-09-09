@@ -17,7 +17,7 @@
  * =====================================================================
  */
 import 'fake-indexeddb/auto';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import FlashcardSession from '../../../lib/flashcards/FlashcardSession';
@@ -32,9 +32,6 @@ import { db } from '../../../lib/db';
 let realRect: typeof Element.prototype.getBoundingClientRect;
 
 beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', class {
-    observe() {} unobserve() {} disconnect() {}
-  });
   realRect = Element.prototype.getBoundingClientRect;
   Element.prototype.getBoundingClientRect = function stub(this: Element) {
     return { left: 0, top: 0, width: 900, height: WH } as DOMRect;

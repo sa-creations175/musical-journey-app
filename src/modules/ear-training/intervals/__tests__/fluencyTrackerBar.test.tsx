@@ -7,7 +7,7 @@
  * its own strip with its own ages. A test on one direction passes on a
  * component that renders the same strip twice.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import type { AttemptRecord, IntervalData } from '../../../../lib/db';
@@ -74,12 +74,6 @@ function mount(attempts: AttemptRecord[]) {
     unmount: () => { act(() => { root.unmount(); }); container.remove(); },
   };
 }
-
-beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', class {
-    observe() {} unobserve() {} disconnect() {}
-  });
-});
 
 const ASC = 'Perfect 5th ascending';
 const DESC = 'Perfect 5th descending';

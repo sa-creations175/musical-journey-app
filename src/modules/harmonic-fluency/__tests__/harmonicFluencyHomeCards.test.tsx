@@ -21,7 +21,7 @@
  * behaviour 2a added.
  * ---------------------------------------------------------------
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import type { AttemptRecord } from '../../../lib/db';
@@ -104,12 +104,6 @@ function hexChannels(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1, 7), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
-
-beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', class {
-    observe() {} unobserve() {} disconnect() {}
-  });
-});
 
 describe('per-tick intervals — the reason for the field', () => {
   it('fades two SAME-AGED reps differently when their items differ', () => {

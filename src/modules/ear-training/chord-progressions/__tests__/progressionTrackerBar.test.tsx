@@ -6,7 +6,7 @@
  * a context with NO DEFAULT — a missed provider throws rather than
  * rendering solid ticks that look entirely correct.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import type { AttemptRecord } from '../../../../lib/db';
@@ -64,12 +64,6 @@ function mount(attempts: AttemptRecord[]) {
     unmount: () => { act(() => { root.unmount(); }); container.remove(); },
   };
 }
-
-beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', class {
-    observe() {} unobserve() {} disconnect() {}
-  });
-});
 
 const chordBar = `${PROG.name} chord accuracy`;
 const patternBar = `${PROG.name} pattern recognition`;

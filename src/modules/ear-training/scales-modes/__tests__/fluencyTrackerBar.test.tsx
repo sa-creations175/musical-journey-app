@@ -6,7 +6,7 @@
  * sub-skills of one mode, so each fades on its OWN interval — a single
  * interval for the row would age the rarer one at the commoner's rate.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createRoot } from 'react-dom/client';
 import { act } from 'react';
 import type { AttemptRecord } from '../../../../lib/db';
@@ -69,12 +69,6 @@ function mount(attempts: AttemptRecord[]) {
     unmount: () => { act(() => { root.unmount(); }); container.remove(); },
   };
 }
-
-beforeEach(() => {
-  vi.stubGlobal('ResizeObserver', class {
-    observe() {} unobserve() {} disconnect() {}
-  });
-});
 
 describe('the shared bar, per sub-skill', () => {
   it('draws three segments for scale recognition', () => {
