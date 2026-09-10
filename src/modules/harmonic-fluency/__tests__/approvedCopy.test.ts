@@ -179,22 +179,36 @@ describe('key names carry their mode', () => {
       .toBe('The interval from C to D ascending = ?');
   });
 
-  it('names the four questions held back, and why', () => {
-    // A HISTORY DECISION, NOT A COPY ONE. Retired hand-written cards
-    // pair onto these by asking the identical sentence, and their
-    // answers are each given by more than one live card — so the ruled
-    // answer-only route cannot prove the pairing.
-    expect(COPY).toContain('Three question shapes are held back');
+  it('holds nothing back any more, and the four say so', () => {
+    // A HISTORY DECISION THAT EXPIRED. Retired hand-written cards used
+    // to pair onto these four by asking the identical sentence, and
+    // their answers ("1", "A minor", "C/E") are each given by more than
+    // one live card — so the ruled answer-only route could not prove
+    // the pairing and the questions could not move. Those records went
+    // with the migration passes on 10 Sep 2026, and nothing pairs on
+    // text now.
     const asks = (id: string) => FLASHCARDS.find(c => c.id === id)?.question;
-    expect(asks('ks-count-G')).toBe('G major has _____ sharps');
-    expect(asks('ks-relminor-C')).toBe('The relative minor of C major is _____');
-    expect(asks('ks-relmajor-C')).toBe('The relative major of A minor is _____');
-    expect(asks('sc-slash-1-3-C')).toBe('What is 1/3 in C major?');
-    // Their EXPLANATIONS take it, because nothing pairs on one.
-    expect(FLASHCARDS.find(c => c.id === 'ks-count-G')?.explanation)
-      .toContain('The key of G major has');
-    expect(FLASHCARDS.find(c => c.id === 'sc-slash-1-3-C')?.explanation)
-      .toContain('in the key of C major');
+    expect(asks('ks-count-G')).toBe('The key of G major has _____ sharps');
+    expect(asks('ks-relminor-Ab'))
+      .toBe('The relative minor of the key of A♭ major is _____');
+    expect(asks('ks-relmajor-Ab'))
+      .toBe('The relative major of the key of F minor is _____');
+    expect(asks('sc-slash-1-3-C')).toBe('What is 1/3 in the key of C major?');
+    expect(COPY).toContain('No question is held back any more');
+  });
+
+  it('leaves no bare key in ANY question in the deck', () => {
+    // The whole rule now, with no exemption list — which is what the
+    // four coming back means. Same shape as the explanation sweep
+    // below: wherever a card's own key is followed by its mode, "the
+    // key of" is in front of it.
+    for (const c of FLASHCARDS) {
+      const key = c.facets?.key;
+      if (key === undefined) continue;
+      const name = withAccidentalGlyphs(key).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const bare = new RegExp(`(?<!key of )\\b${name} (major|minor)\\b`);
+      expect(c.question, `${c.id}: ${c.question}`).not.toMatch(bare);
+    }
   });
 
   it('never names a key without "the key of", anywhere in the deck', () => {

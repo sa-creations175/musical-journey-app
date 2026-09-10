@@ -380,7 +380,7 @@ describe('coverage reaches twelve', () => {
     // remembered here. Ruling 30 dropped 6/♭7 and added four.
     for (const shape of SLASH_SHAPES.map(sh => sh.label)) {
       const s = keysIn('slash-chords',
-        new RegExp(`${shape.replace('/', '\\/')} in (${N}) major`), 'q');
+        new RegExp(`${shape.replace('/', '\\/')} in the key of (${N}) major`), 'q');
       expect(s.size, shape).toBe(13);
     }
   });
@@ -403,11 +403,8 @@ describe('coverage reaches twelve', () => {
     // and G♭ major as two keys. The parallel set was NOT — Silas has
     // not ruled on it — so it still covers twelve, and the asymmetry is
     // stated here rather than left for someone to find on the grid.
-    expect(keysIn('key-signatures', new RegExp(`relative minor of (${N}) major`), 'q').size)
-      .toBe(13);
-    // The parallel question takes the "key of" clause; the relative
-    // and count questions are held back so their retired cards can
-    // still pair on text — see `generateRelativeCards`.
+    expect(keysIn('key-signatures',
+      new RegExp(`relative minor of the key of (${N}) major`), 'q').size).toBe(13);
     expect(keysIn('key-signatures',
       new RegExp(`parallel minor of the key of (${N}) major`), 'q').size)
       .toBe(12);

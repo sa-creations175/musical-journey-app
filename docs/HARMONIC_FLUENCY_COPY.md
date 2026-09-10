@@ -131,16 +131,23 @@ key is named, and the hand-written prose cards with it:
 a chord, "E♭ major pentatonic", "D melodic minor" and "A Aeolian" all stay as
 they are. Interval cards name two notes and no key, so none of them changed.
 
-**Three question shapes are held back, and it is a history decision, not a copy
-one.** `X major has _____ sharps`, `The relative minor of X major is _____` and
-`The relative major of X minor is _____` in Key Signatures, and
-`What is 1/3 in X major?` in Slash Chords, are the questions that retired
-hand-written cards pair onto by asking the identical sentence. Their answers —
-"1", "A minor", "C/E" — are each given by more than one live card, so the ruled
-answer-only route cannot prove the pairing and rewording them would orphan a
-reader's practice rather than move it. **Their explanations take the phrase**,
-because nothing pairs on an explanation. The generators say so where they are
-written.
+**No question is held back any more.** Four were, for one afternoon:
+`X major has _____ sharps`, `The relative minor of X major is _____`,
+`The relative major of X minor is _____` and `What is 1/3 in X major?`. Retired
+hand-written cards paired onto those four by asking the identical sentence, and
+their answers — "1", "A minor", "C/E" — are each given by more than one live
+card, so rewording them would have orphaned a reader's practice rather than
+moved it.
+
+Those retired records went with the migration passes on 10 Sep 2026 (restructure
+commit 9). Nothing pairs on text now, so the four took the rule:
+
+```
+The key of G major has _____ sharps
+The relative minor of the key of A♭ major is _____
+The relative major of the key of F minor is _____
+What is 1/3 in the key of C major?
+```
 
 ---
 

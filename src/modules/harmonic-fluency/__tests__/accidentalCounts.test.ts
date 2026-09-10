@@ -1,5 +1,6 @@
 /**
- * "G major has _____ sharps" — twelve hand-written cards, hand-counted
+ * "The key of G major has _____ sharps" — twelve hand-written cards,
+ * hand-counted
  * decoys, and the same defect scale-degree math had.
  *
  * ---------------------------------------------------------------
@@ -33,8 +34,8 @@ describe('the accidental-count cards', () => {
     expect(COUNT_CARDS).toHaveLength(13);
     const bySix = COUNT_CARDS.filter(c => c.correctAnswer === '6');
     expect(bySix.map(c => c.question).sort()).toEqual([
-      'F♯ major has _____ sharps',
-      'G♭ major has _____ flats',
+      'The key of F♯ major has _____ sharps',
+      'The key of G♭ major has _____ flats',
     ]);
   });
 
@@ -75,16 +76,23 @@ describe('the accidental-count cards', () => {
     expect(used.size).toBeGreaterThan(1);
   });
 
-  it('asks what it always asked, and names the accidentals it counts', () => {
-    // The question wording is the hand-written cards' own, generated.
-    // The explanation now DERIVES which accidentals rather than listing
+  it('names the key as a key, and the accidentals it counts', () => {
+    // The wording was the hand-written cards' own — "G major has _____
+    // sharps" — until 10 Sep 2026. It was the last question held back
+    // from the "the key of" rule, because retired cards paired onto it
+    // by asking the identical sentence and its answer ("1") is a bare
+    // count that four live cards give. Those records went with the
+    // migration passes, so nothing pairs on text any more and the
+    // question takes the rule.
+    //
+    // The explanation DERIVES which accidentals rather than listing
     // them per key — the first n of the one order the deck teaches on
     // `ks-21` and `ks-22`.
     const g = COUNT_CARDS.find(c => c.id === 'ks-count-G')!;
-    expect(g.question).toBe('G major has _____ sharps');
-    expect(g.explanation).toContain('G major has 1 sharp: F♯');
+    expect(g.question).toBe('The key of G major has _____ sharps');
+    expect(g.explanation).toContain('The key of G major has 1 sharp: F♯');
     const eb = COUNT_CARDS.find(c => c.id === 'ks-count-Eb')!;
-    expect(eb.question).toBe('E♭ major has _____ flats');
+    expect(eb.question).toBe('The key of E♭ major has _____ flats');
     expect(eb.explanation).toContain('B♭ E♭ A♭');
   });
 });

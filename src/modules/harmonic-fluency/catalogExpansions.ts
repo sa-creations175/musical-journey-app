@@ -735,16 +735,7 @@ function buildSlashCards(
         // G♭ would gather fourteen cards under one chip and answer two
         // different questions with one.
         axis: { key: axisKey(root), shape: shape.id },
-        // HELD BACK FROM THE "key of" RULE, and the reason is `C/E`.
-        // `sc-8` … `sc-10` are frozen records that pair onto these by
-        // asking the identical question, and a slash chord is not
-        // unique to one key: `C/E` is 1/3 in the key of C major AND
-        // 5/7 in the key of F major, so the ruled answer-only route
-        // finds two live cards and refuses. Rewording this would
-        // orphan two readers' histories rather than move them. The
-        // EXPLANATION takes the phrase, which nothing pairs on.
-        // See the report of 9 Sep 2026.
-        question: `What is ${shape.label} in ${noteLabel(root)} major?`,
+        question: `What is ${shape.label} in the key of ${noteLabel(root)} major?`,
         correctAnswer: answer,
         decoys,
         // ONE LINE FOR THE CHORD-TONE READING, at the end, on its own
@@ -944,15 +935,8 @@ export function generateKeyCountCards(): Flashcard[] {
       ...base('key-signatures', 'Key Signatures'),
       id,
       axis: { key: sig.root, ask: 'count' },
-      // HELD BACK FROM THE "key of" RULE, and this is the only reason.
-      // `ks-1` … `ks-12` are hand-written retired cards that pair onto
-      // these by asking the identical question, and their answers are
-      // bare counts — "1", "2" — which four live cards each give. So
-      // the ruled answer-only route cannot prove the pairing, and
-      // rewording this question would orphan twelve readers' histories
-      // rather than move them. The EXPLANATION takes the phrase, which
-      // nothing pairs on. See the report of 9 Sep 2026.
-      question: `${noteLabel(sig.root)} major has _____ ${sig.kind}`,
+      question:
+        `The key of ${noteLabel(sig.root)} major has _____ ${sig.kind}`,
       correctAnswer: String(sig.count),
       // THE SAME DERIVATION THE HAND-WRITTEN TWELVE USE. It targets a
       // rank so the answer is not always the middle of three
@@ -999,12 +983,8 @@ export function generateRelativeCards(): Flashcard[] {
       ...base('key-signatures', 'Key Signatures'),
       id: minorId,
       axis: { key: root, ask: 'relative', relation: 'relative' },
-      // HELD BACK — see the note on the count question above. `ks-13`,
-      // `ks-14`, `ks-15` and the nine `ks-relative-` top-ups pair onto
-      // these by question text, and "A minor" is also what the parallel
-      // card for the key of A major answers, so the answer-only route
-      // is ambiguous.
-      question: `The relative minor of ${noteLabel(root)} major is _____`,
+      question: 'The relative minor of the key of '
+        + `${noteLabel(root)} major is _____`,
       correctAnswer: minor,
       decoys: chooseDecoys(minor, minorNames, {
         count: 3, seed: minorId, label: minorId, category: 'key-signatures',
@@ -1021,9 +1001,8 @@ export function generateRelativeCards(): Flashcard[] {
       ...base('key-signatures', 'Key Signatures'),
       id: majorId,
       axis: { key: root, ask: 'relative major' },
-      // HELD BACK — `ks-16` and `ksc-4` … `ksc-14` pair onto these, and
-      // "C major" is what a count-to-key card answers too.
-      question: `The relative major of ${noteLabel(six)} minor is _____`,
+      question: 'The relative major of the key of '
+        + `${noteLabel(six)} minor is _____`,
       correctAnswer: major,
       decoys: chooseDecoys(major, majorNames, {
         count: 3, seed: majorId, label: majorId, category: 'key-signatures',
