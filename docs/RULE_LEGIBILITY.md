@@ -48,24 +48,31 @@ Each rule carries one tag. They're plain text so they're greppable —
 | `[DEFECT]` | Not a legibility problem — a bug that surfaced during the audit |
 | `[CLOSED]` | The rule was removed rather than explained. Nothing left to surface |
 
-**Counts, read off this file rather than estimated** — 20 August 2026, after
-the dashboard's legibility step:
+**Counts, read off this file rather than estimated.** Recounted from the
+entries **whenever an entry changes** — the date beside each count says when it
+was last read, and a count with an old date is a count to re-read before
+trusting.
 
-| Tag | Entries | `grep -c` returns |
-|---|---|---|
-| Invisible | 24 | 25 |
-| Half | 21 | 22 |
-| Surfaced | 6 | 7 |
-| Defect | 3 | 4 |
-| Closed | 1 | 2 |
+| Tag | Entries | `grep -c` returns | Counted |
+|---|---|---|---|
+| Invisible | 20 | 21 | 10 Sep 2026 |
+| Half | 20 | 21 | 10 Sep 2026 |
+| Surfaced | 6 | 7 | 10 Sep 2026 |
+| Fixed | 4 | 5 | 10 Sep 2026 |
+| Defect | 3 | 4 | 10 Sep 2026 |
+| Closed | 2 | 3 | 10 Sep 2026 |
+| **All entries** | **55** | | 10 Sep 2026 |
 
 The grep is always **one higher**, because each tag also appears in its own row
 of the marker table above. Nothing else in this file writes a tag in prose —
-that is deliberate, so the greps stay countable.
+that is deliberate, so the greps stay countable. **55 is the total the 20 Aug
+count also came to** (24 + 21 + 6 + 3 + 1): entries have moved between tags,
+none has been added or lost.
 
-The scoreboard at the foot of this document says "6 fully explained" and names
-six; that list is prose and includes Dev Mode, which is not a tagged entry.
-The table above is what the greps return.
+The four *fixed* entries are the Tier 4 unlock rows. They were written with a
+VISIBLE tag on 10 Sep, which this table never defined; the *fixed* tag is the
+one it has for exactly that, so they were renamed and their commits noted.
+(Written here without brackets, so the greps above stay true.)
 
 *The original audit line read "6 surfaced · ~15 half · ~50 invisible · 2
 defects". The tildes were estimates and two of the three were wrong.*
@@ -311,7 +318,7 @@ letters.
 - **Rule:** `acquiring → acquired` when either **(declarative)** ≥5 attempts in the last 10 *and* ≥80% correct, or **(procedural / integration)** the **last 3 ratings are all flying or cruising** — a single "crawling" blocks it. Never demotes.
 - **Where:** `src/lib/spacingState.ts:40, 43, 48, 52` · `COVERED_STAGES` at `goals/progress.ts:58`.
 - **UI:** invisible.
-- **The single most load-bearing invisible rule in the app.** It decides every coverage numerator and every maintenance qualification. Nothing anywhere says what "covered" means. *(It also decided the S&P tier unlock until 10 Sep 2026, when that gate moved to the Fluent rating the grid shows — see §4's row.)*
+- **The single most load-bearing invisible rule in the app.** It decides every coverage numerator and every maintenance qualification. Nothing anywhere says what "covered" means. *(It also decided the S&P tier unlock until 10 Sep 2026, when that gate moved to the Fluent rating the grid shows — see its row in Tier 4.)*
 - **NOT surfaced by the dashboard, and it is worth saying why.** *Checked 20 Aug 2026.* The dashboard now explains its own coverage rule at length — but that is **a different rule**. `dashboard/read/itemStats.ts` covers an item at `engagementCount >= COVERAGE_MIN_ENGAGEMENTS` (3 attempts); this entry is about `acquisitionStage` reaching `acquired`, which is what `COVERED_STAGES` gates in `sessionAlgorithm/` and `goals/progress.ts`. Two rules, both called coverage, in the same app.
 - **That collision is now itself a legibility problem**, and a sharper one than either rule alone: two surfaces can show different "covered" counts for the same item and both be correct. It has the same shape as §1.12's three tier computations. Deciding whether they should reconcile is a design call, not a wiring job.
 
@@ -382,12 +389,12 @@ and don't know why.
 
 | Rule | Where | Status | UI |
 |---|---|---|---|
-| CR tier N+1: 80% of tier-N items need ≥10 attempts **and** ≥80% passed (read live from `ratingRules`) | `chord-recognition/tierUnlock.ts` | `[VISIBLE]` | Settings §3 states the rule and the two numbers are editable there; the unlock toast names the material and links to it (`useTierUnlockNotice.ts`) |
+| CR tier N+1: 80% of tier-N items need ≥10 attempts **and** ≥80% passed (read live from `ratingRules`) | `chord-recognition/tierUnlock.ts` | `[FIXED]` | Settings §3 states the rule and the two numbers are editable there (`68ac832`); the unlock toast names the material and links to it (`useTierUnlockNotice.ts`, `db79ecb`) |
 | Only 3 new items introduced per tier per session | `chord-recognition/tierUnlock.ts:24` | `[INVISIBLE]` | — |
 | ~~Progressions stage unlock~~ — **rule deleted 10 Sep 2026**; the Full Progression card has no Tiers and a session draws the whole shared list narrowed by the card's filter | `fullProgressionPool.ts` | `[CLOSED]` | Settings §3 names Progressions among the modules with no Tiers |
-| Scales-modes tier unlock — same rule as chord recognition | `scaleModeTierUnlock.ts` | `[VISIBLE]` | Settings §3 states it; the unlock toast names the modes and links to it |
-| Cross-submodule ET gate — Scales & Modes opens once CR Tier 1 clears (the progressions half was deleted 10 Sep 2026) | `etStageGate.ts` | `[VISIBLE]` | Settings §3 says it in a sentence |
-| S&P tier N+1 at 50% of tier-N cells reading **Fluent** or better | `spTiers.ts` (`computeSPUnlockedTier`, `spTierUnlockThreshold`) | `[VISIBLE]` | Settings §3 has its own block, and the 50 is editable there. Counted the acquisition stage (`acquired`+) until 10 Sep 2026, while the page said **Fluent**; it now reads the rating, per drill, the way the grid's progress line does |
+| Scales-modes tier unlock — same rule as chord recognition | `scaleModeTierUnlock.ts` | `[FIXED]` | Settings §3 states it (`68ac832`); the unlock toast names the modes and links to it (`db79ecb`) |
+| Cross-submodule ET gate — Scales & Modes opens once CR Tier 1 clears (the progressions half was deleted 10 Sep 2026) | `etStageGate.ts` | `[FIXED]` | Settings §3 says it in a sentence (`68ac832`) |
+| S&P tier N+1 at 50% of tier-N cells reading **Fluent** or better | `spTiers.ts` (`computeSPUnlockedTier`, `spTierUnlockThreshold`) | `[FIXED]` | Settings §3 has its own block, and the 50 is editable there (`be25c41`). Counted the acquisition stage (`acquired`+) until 10 Sep 2026, while the page said **Fluent**; it now reads the rating, per drill, the way the grid's progress line does (`1066a47`) |
 | Earlier-tier items you never touched stay hidden after unlock | `chord-recognition/tierUnlock.ts:135-143` | `[INVISIBLE]` | — |
 | Weak spots: <60% accuracy with ≥4 attempts, padded to 8 with untouched items | `ChordMotionTab.tsx` (`suggestWeakMotions`) | `[INVISIBLE]` | Untouched items presented as "weak spots" |
 | Prep breakdown hidden above 12 items | `prepItemBreakdown.ts:39` | `[INVISIBLE]` | Silently shows total only |
@@ -445,36 +452,43 @@ cut-off the code does not use is worse than no legend.
 
 ## Scoreboard
 
-*Updated 20 August 2026 after the dashboard's legibility step. Counts are the
-greps from **Status markers** above, not estimates.*
+*Every count here is the tag count from **Status markers** above, recounted
+from the entries whenever one changes, with the date it was last read.*
 
-**Fully explained — 6:**
-min rep seconds (2.3) · tempo floor + 3-consecutive gate (3.8, now surfaced at
-the number as well as at the drill) · day-class calendar legend (3.5) ·
-quick-exploration threshold (Tier 4) · Dev Mode toggle + badge · tier legend
-(intervals only, 1.11). **Plus the dashboard's own sixteen**, listed above.
+**Fully explained — 10** *(counted 10 Sep 2026; 6 surfaced + 4 fixed)*:
+min rep seconds (2.3) · opt-in non-logging (2.6) · day-class calendar legend
+(3.5) · tempo floor + 3-consecutive gate (3.8, now surfaced at the number as
+well as at the drill) · quick-exploration threshold (Tier 4) · the dashboard's
+own sixteen rules, listed above — and, fixed on 10 Sep, the chord recognition
+and scales & modes Tier rules, the cross-submodule gate, and the Shapes &
+Patterns gate (all four in Tier 4). *Also explained, but not entries of their
+own: the Dev Mode toggle and badge (see 2.4, which is a defect), and the tier
+legend on intervals (1.11, which stays half — it renders on one surface of
+eight). The 20 Aug version of this list counted those two and not 2.6, which
+is how it said 6 while the greps said something else.*
 
-**Half-surfaced — 21:** the effect is named, the rule isn't — or it's stated in
-one module and silent in the others that use it. Two moved here from invisible
-on 20 Aug (§1.5, §1.6), each because the dashboard now states it and the older
-surface still does not. §1.7 also moved here and then straight out again —
-see below.
+**Half-surfaced — 20** *(counted 10 Sep 2026)*: the effect is named, the rule
+isn't — or it's stated in one module and silent in the others that use it. Two
+moved here from invisible on 20 Aug (§1.5, §1.6), each because the dashboard
+now states it and the older surface still does not. §1.7 also moved here and
+then straight out again — see below. One left on 10 Sep: the chord recognition
+Tier rule, now fixed.
 
-**Closed by removing the rule — 1:** §1.7, the supplementary-row exclusion.
-Writing the legend for it is what showed the rule was wrong. That is the
-strongest case this document has made for itself: an invisible rule survives
-because nobody has to defend it in plain words, and the moment one did, it
-did not survive.
+**Closed by removing the rule — 2** *(counted 10 Sep 2026)*: §1.7, the
+supplementary-row exclusion, and the progressions stage unlock (Tier 4),
+deleted 10 Sep 2026 because it gated a catalog no card drew from. Writing the
+legend for §1.7 is what showed the rule was wrong. That is the strongest case
+this document has made for itself: an invisible rule survives because nobody
+has to defend it in plain words, and the moment one did, it did not survive.
 
-**Completely invisible — 24:** including acquisition stage, all four tier/stage
-unlock systems, both SR schedulers, the maintenance bar, and the fact that
-drill days don't count as practice days. *Superseded 10 Sep 2026 for the
-unlock systems — see the changelog entry for that date; the count above is
-left as it was written.*
+**Completely invisible — 20** *(counted 10 Sep 2026)*: including acquisition
+stage, both SR schedulers, the maintenance bar, and the fact that drill days
+don't count as practice days. The four tier/stage unlock systems were here
+until 10 Sep 2026: three are fixed and one was closed.
 
-**Defects (not legibility) — 3:** §1.8b a catalog id rendered as a label (468
-rows still open) · §1.12 three disagreeing tier computations · §2.4 first
-engagement bypassing Dev Mode.
+**Defects (not legibility) — 3** *(counted 10 Sep 2026)*: §1.8b a catalog id
+rendered as a label (468 rows still open) · §1.12 three disagreeing tier
+computations · §2.4 first engagement bypassing Dev Mode.
 
 **Found while fixing, not yet tagged:** §3.1's note — *two different rules are
 both called coverage*, the acquisition stage and the dashboard's 3-attempt
@@ -490,3 +504,4 @@ threshold. Same shape as §1.12, and a design call rather than a wiring job.
 | 2026-08-20 | Dashboard legibility step. §1.5, §1.6, §1.7 invisible → half; §1.3 and §3.8 gained their dashboard surfaces; §1.8b's predicted recurrence found and sized at 468 rows. §3.1 checked and deliberately **not** flipped — the dashboard's coverage is a different rule from the acquisition stage. Counts re-read rather than estimated. Commits `1ff0d48`, `a400f87`, `690f55e`. |
 | 2026-08-20 | §1.7 **closed by reversing the rule**, hours after being half-surfaced. Supplementary rows now gate acquisition; `gatesAcquisition()` deleted; chord shapes 648 → 720. New *closed* marker added for a rule removed rather than explained. |
 | 2026-09-10 | **The four tier/stage unlock systems stopped being invisible.** Settings gained *Unlocking Tiers of Difficulty*, which states the rule, names what is in each Tier, and makes the attempts-to-clear, the Tier share and the Shapes & Patterns cell share editable — read live from `ratingRules`, so a change re-grades on the next read. The unlock message on both Ear Training ladders now names the material it opened and links back to that section. The **progressions ladder was deleted rather than explained**, the second use of the *closed* marker: it gated the old eight-entry catalog and no card drew from it. The acquisition stage's own 0.8 now reads the Fluent floor, so the app has one 80. |
+| 2026-09-10 | **Counts made live.** Every summary count is now recounted from the entries whenever an entry changes, with the date it was read beside it: 20 invisible · 20 half · 6 surfaced · 4 fixed · 3 defects · 2 closed, 55 entries (the 20 Aug total too). The four Tier 4 unlock rows were renamed from an undefined VISIBLE tag to the *fixed* marker this file defines for that, with their commits. The S&P gate's row and §3.1 now say it reads the **Fluent** rating rather than the acquisition stage (`1066a47`). The scoreboard's "fully explained" list is rebuilt from the tags: it had counted Dev Mode and the intervals tier legend, which are not surfaced entries, and missed §2.6. |
