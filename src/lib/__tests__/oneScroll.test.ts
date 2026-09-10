@@ -39,6 +39,12 @@ const CALL = /\.scrollIntoView\s*(\?\.)?\s*\(/;
  * this list.
  */
 const ALLOWED: Readonly<Record<string, string>> = {
+  'components/settings/SettingsSection.tsx':
+    'Inside the Settings MODAL, not the page, and the thing it brings '
+    + 'into view is the section a chip just opened — eight down the list, '
+    + 'a tap that opened something off-screen looks like a tap that did '
+    + 'nothing. The modal body is its own scrollport with its own header, '
+    + 'which the app-level helper knows nothing about.',
   'modules/goals/yearlyAnchorDimensions.tsx':
     'Inside a MODAL, not the page. It scrolls within the modal body and '
     + 'clears the modal\'s own header with `scroll-mt-20` — a different '

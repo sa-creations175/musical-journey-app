@@ -33,6 +33,13 @@ import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
 import PracticeWindowSettingsSection from '../modules/repertoire/PracticeWindowSettingsSection';
 import FreshnessSettingsSection from '../modules/dashboard/mobile/FreshnessSettingsSection';
 import SeededKeyRowsPanel from '../modules/repertoire/SeededKeyRowsPanel';
+import SettingsSection from './settings/SettingsSection';
+import {
+  SETTINGS_SECTIONS, readOpenSection, sectionNumber, sectionTitle,
+  writeOpenSection, type SettingsSectionId,
+} from './settings/settingsSections';
+import RatingsSection from './settings/RatingsSection';
+import UnlockingSection from './settings/UnlockingSection';
 import {
   PREF_LAST_EXPORTED_AT,
   exportBackup,
@@ -516,175 +523,234 @@ export default function SettingsPanel({ open, onClose }: Props) {
       })
     : '';
 
+  /**
+   * Which section is open, remembered per device.
+   *
+   * ONE AT A TIME, and `null` is a legitimate state — every section
+   * closed is what the page opens as on a device that has never been
+   * here. Toggling the open one closes it rather than opening another.
+   */
+  const [openSection, setOpen] = useState<SettingsSectionId | null>(readOpenSection);
+  const setOpenSection = (id: SettingsSectionId | null) => {
+    setOpen(id);
+    writeOpenSection(id);
+  };
+
+  /**
+   * The props every section shares.
+   *
+   * A HELPER RETURNING PROPS, not a component defined in render. The
+   * first draft was `const Section = ({id, children}) => …`, which
+   * React treats as a NEW component type on every render — so every
+   * open section unmounted and remounted whenever anything on the page
+   * changed, and the name field lost the caret as you typed in it.
+   */
+  const sectionProps = (id: SettingsSectionId) => ({
+    id,
+    number: sectionNumber(id),
+    title: sectionTitle(id),
+    open: openSection === id,
+    onToggle: () => setOpenSection(openSection === id ? null : id),
+  });
+
   return (
     <>
       <Modal open={open} onClose={onClose} title="Settings">
-        <div className="space-y-6">
-          <section>
-            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-              your name
-            </h4>
-            <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-              used in the dashboard greeting. leave blank to reset to the default.
-            </p>
-            <div className="flex items-center gap-2">
-              <input
-                value={nameDraft}
-                onChange={e => setNameDraft(e.target.value)}
-                onBlur={commitName}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                }}
-                placeholder="Your Name"
-                className="flex-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
-              />
-              <button
-                onClick={commitName}
-                className="px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent"
-              >
-                Save
-              </button>
-            </div>
-          </section>
+        {/* =========================================================
+            EIGHT SECTIONS, ALL CLOSED, IN A RULED ORDER.
 
-          <SeededKeyRowsPanel />
+            Silas's walked prototype of 10 Sep 2026. The page was one
+            scroll of fourteen unlabelled lowercase blocks in the order
+            they happened to be built; finding the export button meant
+            reading everything above it.
 
-          {/* THE NUMBERS MOVED. Four controls used to sit here — first
-              interval, longest interval, due-soon and grace — editing
-              song-key timing in a second place. They are now the Songs
-              row of the spacing tree, which is the one place any
-              timing number is set for anything. */}
-          <section>
-            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-              spacing &amp; scheduling
-            </h4>
-            <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-              every number that decides when something comes back to you — for songs and
-              for every other module — now lives on one page.
-            </p>
-            <Link
-              to="/settings/spacing"
-              onClick={onClose}
-              className="inline-block px-4 min-h-[40px] leading-[40px] rounded-lg border
-                border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent
-                hover:text-fluent"
+            The chip row jumps to a section AND opens it, which is the
+            whole of the navigation — see `SettingsSection`.
+            ========================================================= */}
+        <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
+          Every section starts closed. Tap a title to open it, or a chip to
+          jump to it.
+        </p>
+        <nav className="flex flex-wrap gap-1.5 mb-4" aria-label="Settings sections">
+          {SETTINGS_SECTIONS.map(s => (
+            <button
+              key={s.id}
+              type="button"
+              data-testid={`settings-chip-${s.id}`}
+              onClick={() => setOpenSection(s.id)}
+              aria-current={openSection === s.id}
+              className={`rounded-full px-3 py-1 text-xs transition-colors ${
+                openSection === s.id
+                  ? 'bg-fluent text-white font-semibold'
+                  : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700'}`}
             >
-              Open Spacing &amp; Scheduling
-            </Link>
-          </section>
+              {s.title}
+            </button>
+          ))}
+        </nav>
 
-          <section>
-            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-              data backup &amp; restore
-            </h4>
-            <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-              your practice data is stored in this browser. export regularly to back it up,
-              or to move data between devices.
-            </p>
-            <div className="flex flex-wrap gap-2 mb-3">
-              <button
-                onClick={handleExport}
-                className="px-4 min-h-[40px] rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
-              >
-                Export My Data
-              </button>
-              <button
-                onClick={handlePickFile}
-                className="px-4 min-h-[40px] rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent"
-              >
-                Import Backup File
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/json,.json"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-            </div>
-            <p className="text-xs text-neutral-500">
-              last exported: {lastExportedAt > 0 ? formatDate(lastExportedAt) : 'never exported'}
-            </p>
-
-            {status.kind === 'exported' && (
-              <div className="mt-3 rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
-                backup downloaded. save it somewhere safe (google drive, icloud, your documents folder).
-              </div>
-            )}
-            {status.kind === 'restoring' && (
-              <div className="mt-3 rounded-lg border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs text-neutral-500">
-                restoring…
-              </div>
-            )}
-            {status.kind === 'restored' && (
-              <div className="mt-3 rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
-                backup restored successfully. refreshing the page…
-              </div>
-            )}
-            {status.kind === 'error' && (
-              <div className="mt-3 rounded-lg border border-needswork/40 bg-needswork/10 px-3 py-2 text-xs text-needswork flex items-start justify-between gap-2">
-                <span>{status.message}</span>
+        <div className="space-y-3">
+          <SettingsSection {...sectionProps('you')}>
+            <section>
+              <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+                your name
+              </h4>
+              <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
+                used in the dashboard greeting. leave blank to reset to the default.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  value={nameDraft}
+                  onChange={e => setNameDraft(e.target.value)}
+                  onBlur={commitName}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                  }}
+                  placeholder="Your Name"
+                  className="flex-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2 text-sm"
+                />
                 <button
-                  onClick={() => setStatus({ kind: 'idle' })}
-                  aria-label="dismiss"
-                  className="shrink-0 hover:opacity-80"
+                  onClick={commitName}
+                  className="px-3 py-2 rounded-md border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent"
                 >
-                  ×
+                  Save
                 </button>
               </div>
-            )}
-          </section>
+            </section>
 
-          {/* Sits directly under data backup & restore: same concern —
-              getting practice data safely off and onto this device —
-              and the merge procedure needs both together. */}
-          <SpellingSection />
-          <ProgressionSpellingSection />
+            <AccountSection />
 
-          <SyncDiagnosticsSection />
+            <section>
+              <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+                harmonic diary
+              </h4>
+              <p className="text-sm text-neutral-500">
+                the diary currently uses a single earthy botanical palette. dynamic
+                emotion-based theming is planned for a future update.
+              </p>
+            </section>
+          </SettingsSection>
 
-          <RepertoireKeyDiagnostics />
+          <SettingsSection {...sectionProps('ratings')}>
+            <RatingsSection />
+          </SettingsSection>
 
-          <section>
-            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-              harmonic diary
-            </h4>
-            <p className="text-sm text-neutral-500">
-              the diary currently uses a single earthy botanical palette. dynamic
-              emotion-based theming is planned for a future update.
-            </p>
-          </section>
+          <SettingsSection {...sectionProps('unlocking')}>
+            <UnlockingSection />
+          </SettingsSection>
 
-          <AccountSection />
+          <SettingsSection {...sectionProps('spelling')}>
+            <SpellingSection />
+            <ProgressionSpellingSection />
+          </SettingsSection>
 
-          {/* The "coming soon" note promised daily goals per module;
-              this is them. The rest of what it promised is still to
-              come, so the note keeps the rest. */}
-          <DailyGoalsSection />
+          <SettingsSection {...sectionProps('effort')}>
+            <DailyGoalsSection />
+            {/* BESIDE THE DAILY GOALS, because it is the same kind of
+                setting: how much practice the reader asks of
+                themselves. Not beside the spacing numbers, which decide
+                when a CLAIM has to be re-proven. */}
+            <PracticeWindowSettingsSection />
+            {/* Beside the other two "how long before this counts as
+                neglected" numbers. */}
+            <FreshnessSettingsSection />
+          </SettingsSection>
 
-          {/* BESIDE THE DAILY GOALS, because it is the same kind of
-              setting: how much practice the reader asks of themselves.
-              Not beside the spacing numbers, which decide when a CLAIM
-              has to be re-proven — a different question with a
-              different answer. */}
-          <PracticeWindowSettingsSection />
+          <SettingsSection {...sectionProps('spacing')}>
+            {/* THE NUMBERS MOVED. Four controls used to sit here — first
+                interval, longest interval, due-soon and grace — editing
+                song-key timing in a second place. They are now the Songs
+                row of the spacing tree, which is the one place any
+                timing number is set for anything. */}
+            <section>
+              <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
+                Every number that decides <em>when</em> something comes back to
+                you, for songs and every other module, on one page. Ratings above
+                decide what a card is; spacing decides when you see it again.
+              </p>
+              <Link
+                to="/settings/spacing"
+                onClick={onClose}
+                className="inline-block px-4 min-h-[40px] leading-[40px] rounded-lg border
+                  border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent
+                  hover:text-fluent"
+              >
+                Open Spacing &amp; Scheduling
+              </Link>
+            </section>
+          </SettingsSection>
 
-          {/* Beside the other two "how long before this counts as
-              neglected" numbers, which is the question it answers for
-              the dashboard rather than for a song. */}
-          <FreshnessSettingsSection />
+          <SettingsSection {...sectionProps('data')}>
+            <section>
+              <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+                data backup &amp; restore
+              </h4>
+              <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
+                your practice data is stored in this browser. export regularly to back it up,
+                or to move data between devices.
+              </p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button
+                  onClick={handleExport}
+                  className="px-4 min-h-[40px] rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
+                >
+                  Export My Data
+                </button>
+                <button
+                  onClick={handlePickFile}
+                  className="px-4 min-h-[40px] rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent"
+                >
+                  Import Backup File
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </div>
+              <p className="text-xs text-neutral-500">
+                last exported: {lastExportedAt > 0 ? formatDate(lastExportedAt) : 'never exported'}
+              </p>
 
-          <section>
-            <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-              more settings
-            </h4>
-            <p className="text-sm text-neutral-500">
-              more settings coming soon — notification preferences,
-              theme options, and more.
-            </p>
-          </section>
+              {status.kind === 'exported' && (
+                <div className="mt-3 rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
+                  backup downloaded. save it somewhere safe (google drive, icloud, your documents folder).
+                </div>
+              )}
+              {status.kind === 'restoring' && (
+                <div className="mt-3 rounded-lg border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs text-neutral-500">
+                  restoring…
+                </div>
+              )}
+              {status.kind === 'restored' && (
+                <div className="mt-3 rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
+                  backup restored successfully. refreshing the page…
+                </div>
+              )}
+              {status.kind === 'error' && (
+                <div className="mt-3 rounded-lg border border-needswork/40 bg-needswork/10 px-3 py-2 text-xs text-needswork flex items-start justify-between gap-2">
+                  <span>{status.message}</span>
+                  <button
+                    onClick={() => setStatus({ kind: 'idle' })}
+                    aria-label="dismiss"
+                    className="shrink-0 hover:opacity-80"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+            </section>
 
-          <DeveloperSection />
+            <SyncDiagnosticsSection />
+            <RepertoireKeyDiagnostics />
+            <SeededKeyRowsPanel />
+          </SettingsSection>
+
+          <SettingsSection {...sectionProps('dev')}>
+            <DeveloperSection />
+          </SettingsSection>
         </div>
       </Modal>
 
