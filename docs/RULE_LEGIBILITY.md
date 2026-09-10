@@ -311,7 +311,7 @@ letters.
 - **Rule:** `acquiring → acquired` when either **(declarative)** ≥5 attempts in the last 10 *and* ≥80% correct, or **(procedural / integration)** the **last 3 ratings are all flying or cruising** — a single "crawling" blocks it. Never demotes.
 - **Where:** `src/lib/spacingState.ts:40, 43, 48, 52` · `COVERED_STAGES` at `goals/progress.ts:58`.
 - **UI:** invisible.
-- **The single most load-bearing invisible rule in the app.** It decides every coverage numerator, every maintenance qualification, and every S&P tier unlock. Nothing anywhere says what "covered" means.
+- **The single most load-bearing invisible rule in the app.** It decides every coverage numerator and every maintenance qualification. Nothing anywhere says what "covered" means. *(It also decided the S&P tier unlock until 10 Sep 2026, when that gate moved to the Fluent rating the grid shows — see §4's row.)*
 - **NOT surfaced by the dashboard, and it is worth saying why.** *Checked 20 Aug 2026.* The dashboard now explains its own coverage rule at length — but that is **a different rule**. `dashboard/read/itemStats.ts` covers an item at `engagementCount >= COVERAGE_MIN_ENGAGEMENTS` (3 attempts); this entry is about `acquisitionStage` reaching `acquired`, which is what `COVERED_STAGES` gates in `sessionAlgorithm/` and `goals/progress.ts`. Two rules, both called coverage, in the same app.
 - **That collision is now itself a legibility problem**, and a sharper one than either rule alone: two surfaces can show different "covered" counts for the same item and both be correct. It has the same shape as §1.12's three tier computations. Deciding whether they should reconcile is a design call, not a wiring job.
 
@@ -387,7 +387,7 @@ and don't know why.
 | ~~Progressions stage unlock~~ — **rule deleted 10 Sep 2026**; the Full Progression card has no Tiers and a session draws the whole shared list narrowed by the card's filter | `fullProgressionPool.ts` | `[CLOSED]` | Settings §3 names Progressions among the modules with no Tiers |
 | Scales-modes tier unlock — same rule as chord recognition | `scaleModeTierUnlock.ts` | `[VISIBLE]` | Settings §3 states it; the unlock toast names the modes and links to it |
 | Cross-submodule ET gate — Scales & Modes opens once CR Tier 1 clears (the progressions half was deleted 10 Sep 2026) | `etStageGate.ts` | `[VISIBLE]` | Settings §3 says it in a sentence |
-| S&P tier N+1 at 50% of tier-N cells acquired+ | `spTiers.ts` (`spTierUnlockThreshold`) | `[VISIBLE]` | Settings §3 has its own block, and the 50 is editable there |
+| S&P tier N+1 at 50% of tier-N cells reading **Fluent** or better | `spTiers.ts` (`computeSPUnlockedTier`, `spTierUnlockThreshold`) | `[VISIBLE]` | Settings §3 has its own block, and the 50 is editable there. Counted the acquisition stage (`acquired`+) until 10 Sep 2026, while the page said **Fluent**; it now reads the rating, per drill, the way the grid's progress line does |
 | Earlier-tier items you never touched stay hidden after unlock | `chord-recognition/tierUnlock.ts:135-143` | `[INVISIBLE]` | — |
 | Weak spots: <60% accuracy with ≥4 attempts, padded to 8 with untouched items | `ChordMotionTab.tsx` (`suggestWeakMotions`) | `[INVISIBLE]` | Untouched items presented as "weak spots" |
 | Prep breakdown hidden above 12 items | `prepItemBreakdown.ts:39` | `[INVISIBLE]` | Silently shows total only |

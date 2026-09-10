@@ -26,20 +26,16 @@
  *
  * Unlock model: tier N+1 unlocks when at least
  * `spTierUnlockThreshold()` (50% by default, editable in Settings) of
- * the tier-N possible-cell
- * count is at acquisitionStage `comfortable` or `internalized`.
- * Possible cells = catalog inversion-state count × 12 keys per
- * quality. Every inversion state counts, supplementary included.
+ * tier N's drills — every (item, hand) the grid scores — read Fluent
+ * or Mastered: the rating the grid shows, not the spacing stage. See
+ * `computeSPUnlockedTier`.
  */
 
-import {
-  db,
-  type AcquisitionStage,
-  type SpacingState,
-} from '../../lib/db';
-import { parseShapesItemRef } from './drillModel';
+import { db, type SpacingState } from '../../lib/db';
 import { ratingRules } from '../../lib/ratingRules';
-import { sectionTargets } from './cellTargets';
+import {
+  countFluentPlusTargets, rowsByRefHand, sectionTargets, type CellTarget,
+} from './cellTargets';
 
 export type SPTier = 1 | 2;
 
@@ -61,8 +57,8 @@ export function clampStoredTier(value: unknown): SPTier {
 }
 
 /**
- * Fraction of a tier's possible cells that must be at comfortable+ for
- * the next tier to unlock.
+ * Fraction of a tier's possible cells that must read Fluent or better
+ * for the next tier to unlock.
  *
  * =====================================================================
  * EDITABLE, AND READ AT CALL TIME.
@@ -153,56 +149,53 @@ export function shapesForTier(tier: SPTier): readonly string[] {
  * =====================================================================
  */
 export function tierTotalCells(tier: SPTier): number {
-  const inTier = new Set(SP_TIERS[tier]);
-  return sectionTargets('chord-shapes')
-    .filter(t => inTier.has(t.itemRef.split(':')[1]))
-    .length;
+  return tierTargets(tier).length;
 }
 
-/**
- * acquisitionStage values that count toward the tier-unlock check.
- *
- * Vocabulary translation: the design doc uses "comfortable /
- * internalized" but the actual SpacingState schema uses the
- * `acquiring → acquired → consolidated → mastered` ladder
- * (see db.ts:971). Mapping:
- *
- *   "needs work / developing" (doc) → 'acquiring'
- *   "comfortable" (doc)             → 'acquired' or higher
- *   "internalized" (doc)            → 'consolidated' / 'mastered'
- *
- * Counting `acquired+` is the only working choice today —
- * `consolidated` and `mastered` are declared but Phase 3 hasn't
- * implemented the promotion from `acquired` yet, so a strict
- * `consolidated+` would never unlock anything. Easy to tighten
- * to `consolidated+` once that promotion ships.
- */
-const COMFORTABLE_STAGES: ReadonlySet<AcquisitionStage> = new Set<AcquisitionStage>([
-  'acquired',
-  'consolidated',
-  'mastered',
-]);
+/** Every drill the grid scores in a tier, from the catalog. */
+function tierTargets(tier: SPTier): CellTarget[] {
+  const inTier = new Set(SP_TIERS[tier]);
+  return sectionTargets('chord-shapes')
+    .filter(t => inTier.has(t.itemRef.split(':')[1]));
+}
 
 /**
  * Pure unlock walk. Public so tests can pass fixture rows without
  * touching Dexie. Walks tiers in order; advances when ≥
- * `spTierUnlockThreshold()` of the tier's possible cells are at
- * a comfortable+ stage. Returns 1 when the user has zero qualifying
- * cells.
+ * `spTierUnlockThreshold()` of the tier's drills read Fluent or
+ * Mastered. Returns 1 when nothing does.
+ *
+ * =====================================================================
+ * IT READS THE RATING THE GRID SHOWS. Silas's ruling of 10 Sep 2026.
+ *
+ * It counted rows whose `acquisitionStage` was `acquired` or beyond —
+ * a spacing-system stage — while the Settings page promised "Tier 2
+ * opens when 50% of Tier 1's cells read Fluent or better", in the
+ * four-word vocabulary the page defines just above. The two part
+ * company: a drill can read Fluent on the grid and still be
+ * `acquiring`, and one that reached `acquired` can have slipped back
+ * to Developing. The sentence was the one a reader could check, so the
+ * gate now reads what the sentence says.
+ *
+ * ONE RATING, ONE PLACE. `countFluentPlusTargets` is what the grid's
+ * own progress line counts with — each drill's rating from its row,
+ * `bandVerdictForRow` — so the gate and the grid cannot disagree about
+ * which drills are Fluent. And the numerator counts the same catalog
+ * targets the denominator does: a row the catalog no longer holds
+ * cannot tip a tier open.
+ * =====================================================================
  */
 export function computeSPUnlockedTier(
-  rowsByTier: ReadonlyMap<SPTier, ReadonlyArray<SpacingState>>,
+  rows: ReadonlyArray<SpacingState>,
 ): SPTier {
+  const byRefHand = rowsByRefHand(rows);
   let unlocked: SPTier = 1;
   for (let t = 1; t < SP_MAX_TIER; t++) {
-    const tier = t as SPTier;
-    const total = tierTotalCells(tier);
+    const { total, fluentPlus } = countFluentPlusTargets(
+      tierTargets(t as SPTier), byRefHand,
+    );
     if (total === 0) break;
-    const tierRows = rowsByTier.get(tier) ?? [];
-    const comfortable = tierRows.filter(
-      r => COMFORTABLE_STAGES.has(r.acquisitionStage),
-    ).length;
-    if (comfortable / total >= spTierUnlockThreshold()) {
+    if (fluentPlus / total >= spTierUnlockThreshold()) {
       unlocked = (t + 1) as SPTier;
     } else {
       break;
@@ -213,28 +206,18 @@ export function computeSPUnlockedTier(
 
 /**
  * Highest S&P tier the user has unlocked. Tier 1 is always
- * unlocked. Reads chord-shape rows from `db.spacingState` for the
- * shapes-and-patterns module, groups by tier (skipping non-chord-
- * shape kinds + qualities outside the registry), and runs
- * `computeSPUnlockedTier`.
+ * unlocked. Reads the module's rows from `db.spacingState` and runs
+ * `computeSPUnlockedTier`, which looks up only the catalog's own
+ * chord-shape drills among them.
  *
- * `userId` is reserved for future multi-user contexts; Dexie is
- * per-installation today and the read filters by moduleRef alone.
+ * Dexie is per-installation, so the read filters by moduleRef alone.
+ * (It took an unused `userId` "for future multi-user contexts"; no
+ * caller ever passed one.)
  */
-export async function getSPUnlockedTier(_userId?: string): Promise<SPTier> {
+export async function getSPUnlockedTier(): Promise<SPTier> {
   const rows = await db.spacingState
     .where('moduleRef').equals('shapes-and-patterns').toArray();
-  const rowsByTier = new Map<SPTier, SpacingState[]>();
-  for (const row of rows) {
-    const desc = parseShapesItemRef(row.itemRef);
-    if (!desc || desc.kind !== 'chord-shape') continue;
-    if (!isTrackedShape(desc.quality)) continue;
-    const tier = getTierForShape(desc.quality);
-    const arr = rowsByTier.get(tier) ?? [];
-    arr.push(row);
-    rowsByTier.set(tier, arr);
-  }
-  return computeSPUnlockedTier(rowsByTier);
+  return computeSPUnlockedTier(rows);
 }
 
 // ===================================================================

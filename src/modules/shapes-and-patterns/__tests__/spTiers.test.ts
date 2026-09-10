@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 /**
  * Pins the S&P tier registry, the catalog-anchored possible-cell
- * math, the ≥50% comfortable+ unlock walk, the circle-of-fourths
+ * math, the ≥50%-read-Fluent unlock walk, the circle-of-fourths
  * key ordering re-export, and the relative-major calculator that
  * Part 3 (scale mini-track) leans on.
  */
 import { describe, expect, it } from 'vitest';
 import type { SpacingState } from '../../../lib/db';
 import { CHORD_QUALITIES } from '../catalog';
-import { sectionTargetCount } from '../cellTargets';
+import { sectionTargetCount, sectionTargets, type CellTarget } from '../cellTargets';
 import {
   CIRCLE_OF_FOURTHS,
   SP_MAX_TIER,
@@ -165,90 +165,101 @@ describe('tierTotalCells', () => {
 // computeSPUnlockedTier
 // -----------------------------------------------------------------
 
-function fixtureRow(itemRef: string, stage: SpacingState['acquisitionStage']): SpacingState {
+/**
+ * A row for one of the catalog's own drills, rated through three test
+ * reps at `feel` — the self-rated route S&P cells take. Feel 3 reads
+ * Fluent, 4 Mastered, 2 Developing (see `BAND_FOR_LOWEST`).
+ *
+ * THE STAGE IS SET SEPARATELY, ON PURPOSE. The gate used to read it;
+ * the fixtures below set it against the rating to prove it no longer
+ * does.
+ */
+function ratedRow(
+  target: CellTarget,
+  feel: 2 | 3 | 4,
+  stage: SpacingState['acquisitionStage'] = 'acquiring',
+): SpacingState {
   return {
-    id: `${itemRef}\x00shapes-and-patterns`,
-    itemRef,
+    id: `${target.itemRef}\x00shapes-and-patterns\x00${target.hand}`,
+    itemRef: target.itemRef,
     moduleRef: 'shapes-and-patterns',
     memoryType: 'procedural',
-    hand: 'both',
+    hand: target.hand,
     acquisitionStage: stage,
     currentIntervalDays: 0,
     lastEngagedAt: null,
     nextDueAt: null,
-    performanceHistory: [],
-  };
+    performanceHistory: [1, 2, 3].map(() => ({
+      kind: 'rating', rating: feel >= 4 ? 'flying' : 'cruising', feel,
+      fromTest: true, sessionId: 'ss-1', at: 0,
+    })),
+  } as unknown as SpacingState;
 }
 
-/** Build a comfortable-stage map for `count` synthetic cells in the
- *  given tier. The itemRefs are synthetic ids that don't need to
- *  match the catalog — the unlock walk only counts the
- *  acquisitionStage on the rows it receives. */
-function comfortableRowsForTier(tier: SPTier, count: number): SpacingState[] {
-  const out: SpacingState[] = [];
-  for (let i = 0; i < count; i++) {
-    out.push(fixtureRow(`fixture:${tier}:${i}`, 'acquired'));
-  }
-  return out;
+/** The first `count` drills of a tier, from the catalog. */
+function tierDrills(tier: SPTier, count: number): CellTarget[] {
+  const inTier = new Set(SP_TIERS[tier]);
+  const all = sectionTargets('chord-shapes').filter(t => inTier.has(t.itemRef.split(':')[1]));
+  expect(all.length).toBeGreaterThanOrEqual(count);
+  return all.slice(0, count);
 }
+
+const rated = (tier: SPTier, count: number, feel: 2 | 3 | 4,
+  stage?: SpacingState['acquisitionStage']) =>
+  tierDrills(tier, count).map(t => ratedRow(t, feel, stage));
 
 describe('computeSPUnlockedTier', () => {
   it('returns 1 when the user has no rows at all', () => {
-    expect(computeSPUnlockedTier(new Map())).toBe(1);
+    expect(computeSPUnlockedTier([])).toBe(1);
   });
 
   it('returns 1 when tier 1 is below the 50% threshold', () => {
-    // Tier 1 has 864 possible drills; 50% = 432. 100 comfortable
-    // rows isn't enough.
-    const rows = new Map([[1 as SPTier, comfortableRowsForTier(1, 100)]]);
-    expect(computeSPUnlockedTier(rows)).toBe(1);
-  });
-
-  it('returns 1 when tier 1 rows are still in acquiring (below the acquired floor)', () => {
-    // 200 `acquiring` rows wouldn't qualify — the comfortable+
-    // window starts at `acquired` (see COMFORTABLE_STAGES comment
-    // in spTiers.ts for the design-doc → schema vocabulary map).
-    const acquiring = Array.from({ length: 200 }, (_, i) =>
-      fixtureRow(`fixture:1:${i}`, 'acquiring'),
-    );
-    const rows = new Map([[1 as SPTier, acquiring]]);
-    expect(computeSPUnlockedTier(rows)).toBe(1);
+    // Tier 1 has 864 drills; 50% = 432. 100 Fluent isn't enough.
+    expect(computeSPUnlockedTier(rated(1, 100, 3))).toBe(1);
   });
 
   it('returns 2 when tier 1 crosses the threshold', () => {
     // 432 / 864 = exactly 0.5 ≥ threshold (inclusive).
-    const rows = new Map([[1 as SPTier, comfortableRowsForTier(1, 432)]]);
+    expect(computeSPUnlockedTier(rated(1, 432, 3))).toBe(2);
+  });
+
+  it('counts Mastered alongside Fluent', () => {
+    const rows = [...rated(1, 432, 4)];
     expect(computeSPUnlockedTier(rows)).toBe(2);
   });
 
-  it('stops at the first tier under threshold', () => {
-    // T1 cleared; T2 only at 30% (324 / 1080). The walk halts at T2.
-    const rows = new Map<SPTier, SpacingState[]>([
-      [1, comfortableRowsForTier(1, 432)],
-      [2, comfortableRowsForTier(2, 324)],
-    ]);
-    expect(computeSPUnlockedTier(rows)).toBe(2);
+  it('does not count Developing, however many', () => {
+    expect(computeSPUnlockedTier(rated(1, 864, 2))).toBe(1);
   });
 
   it('returns MAX_TIER (2) when every tier is fully cleared', () => {
-    const rows = new Map<SPTier, SpacingState[]>([
-      [1, comfortableRowsForTier(1, 864)],
-      [2, comfortableRowsForTier(2, 1080)],
-    ]);
-    expect(computeSPUnlockedTier(rows)).toBe(SP_MAX_TIER);
+    expect(computeSPUnlockedTier([...rated(1, 864, 3), ...rated(2, 1080, 3)]))
+      .toBe(SP_MAX_TIER);
   });
 
-  it('counts consolidated + mastered alongside acquired for the unlock check', () => {
-    // Mix of 150 acquired + 150 consolidated + 132 mastered = 432 →
-    // crosses 50% of T1. All three stages count as comfortable+
-    // per the design-doc → schema vocabulary map.
-    const mix: SpacingState[] = [
-      ...Array.from({ length: 150 }, (_, i) => fixtureRow(`fixture:1:a${i}`, 'acquired')),
-      ...Array.from({ length: 150 }, (_, i) => fixtureRow(`fixture:1:c${i}`, 'consolidated')),
-      ...Array.from({ length: 132 }, (_, i) => fixtureRow(`fixture:1:m${i}`, 'mastered')),
-    ];
-    const rows = new Map([[1 as SPTier, mix]]);
-    expect(computeSPUnlockedTier(rows)).toBe(2);
+  /**
+   * =====================================================================
+   * THE RATING, NOT THE STAGE — both directions.
+   *
+   * The spacing stage and the four-word rating are different measures,
+   * and the Settings sentence names the rating. So a drill that READS
+   * Fluent opens the tier whatever its stage says, and one whose stage
+   * has reached `mastered` but reads Developing does not.
+   * =====================================================================
+   */
+  it('opens on drills that read Fluent while their stage is still acquiring', () => {
+    expect(computeSPUnlockedTier(rated(1, 432, 3, 'acquiring'))).toBe(2);
+  });
+
+  it('stays shut on drills whose stage is mastered but read Developing', () => {
+    expect(computeSPUnlockedTier(rated(1, 864, 2, 'mastered'))).toBe(1);
+  });
+
+  it('ignores rows the catalog does not hold', () => {
+    // 432 Fluent rows, none of them a real drill: nothing to count.
+    const stray = Array.from({ length: 432 }, (_, i) =>
+      ratedRow({ itemRef: `fixture:1:${i}`, hand: 'both' } as CellTarget, 3));
+    expect(computeSPUnlockedTier(stray)).toBe(1);
   });
 
   it('threshold constant matches the design doc', () => {
