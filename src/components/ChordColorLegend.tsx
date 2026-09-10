@@ -161,7 +161,10 @@ export default function ChordColorLegend({
             const isBass = hand === 'L' && settings.hands === 'both';
             return (
               <Chip key={midi} colour={intervalColor(iv)}>
-                {spellNote(midi, spelling)}{' '}
+                {chord !== null && chord.rootLetter !== undefined
+                  && (((midi - chord.rootPc) % 12) + 12) % 12 === 0
+                  ? chord.rootLetter
+                  : spellNote(midi, spelling)}{' '}
                 <span className="text-neutral-500">
                   {INTERVAL_NAME[iv]}{isBass ? ' · bass' : ''}
                 </span>

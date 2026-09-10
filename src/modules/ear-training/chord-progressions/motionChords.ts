@@ -129,7 +129,17 @@ export function motionChords(
     // case, and it keeps a bad id from silently voicing as a C major.
     const semi = entry?.semi ?? 0;
     const quality = entry?.quality ?? 'major';
-    return { rootPc: (((keyPc + semi) % 12) + 12) % 12, quality };
+    // =====================================================================
+    // THE LETTER FOLLOWS THE DEGREE'S ACCIDENTAL. Silas's ruling of 10
+    // Sep 2026: the question says ♯4, so the chord is F♯m7♭5 in the key
+    // of C, never G♭; ♭2 is D♭, ♭3 E♭, ♭6 A♭, ♭7 B♭ — whatever the
+    // note-name setting says. A diatonic degree has no accidental of its
+    // own and keeps following the setting, as it always has.
+    // =====================================================================
+    const degree = entry?.degree ?? label;
+    const letters: Spelling = degree.startsWith('b') ? 'flat'
+      : degree.startsWith('#') ? 'sharp' : spelling;
+    return { rootPc: (((keyPc + semi) % 12) + 12) % 12, quality, letters };
   });
 
   const rootPcs = steps.map(s => s.rootPc);
@@ -190,7 +200,8 @@ export function motionChords(
       bass: line[i] ?? null,
       ...(roots === null ? {} : { oneHandRoot: roots[i] }),
       rootPc: step.rootPc,
-      name: chordName(step.rootPc, step.quality, spelling),
+      name: chordName(step.rootPc, step.quality, step.letters),
+      rootLetter: spellNote(step.rootPc, step.letters),
     });
   });
 

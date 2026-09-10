@@ -47,6 +47,18 @@ export interface PlayerChord extends VoicedChord {
    * into the shared player's allowed differences.
    */
   oneHandRoot?: number;
+  /**
+   * How the chord's own name spells its root, where that is not the
+   * note-name setting's spelling.
+   *
+   * ABSENT EVERYWHERE BUT CHORD MOTION, where a chord on a raised or
+   * lowered degree takes the degree's accidental — the ♯4 in the key of
+   * C is F♯m7♭5, never G♭ — whatever the setting says. The legend names
+   * the root note with it, so the chip and the chord name agree. Only
+   * the root: F♯dim7 is F♯ A C E♭, and spelling every tone sharp would
+   * make the E♭ a D♯.
+   */
+  rootLetter?: string;
 }
 
 /**
