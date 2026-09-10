@@ -293,3 +293,28 @@ describe('Visual timing, in the panel’s Settings', () => {
     expect(byTestId('visual-timing-value')!.textContent).toBe('-250');
   });
 });
+
+describe('Visual timing says which way to slide', () => {
+  it('carries Silas’s sentence under the dial', () => {
+    mount();
+    expect(byTestId('visual-timing-help')!.textContent).toBe(
+      'If the keys light up before you hear the chord, slide left until they match. '
+      + 'If they light up after, slide right.',
+    );
+  });
+
+  it('keeps the sentence true: left is negative, and negative delays the repaint', async () => {
+    mount();
+    const dial = byTestId('visual-timing') as HTMLInputElement;
+    // A range input's left end is its min.
+    expect(Number(dial.min)).toBeLessThan(0);
+    expect(Number(dial.max)).toBeGreaterThan(0);
+    // And negative holds the paint back: the paint loop's own hold is
+    // the reported latency MINUS the dial, so −250 adds 250 ms. The
+    // timing itself is proved against a fake clock in visualTiming.test.
+    const { visualTimingSeconds, writeVisualTiming } = await import('../../lib/player/visualTiming');
+    writeVisualTiming(-250);
+    expect(0 - visualTimingSeconds()).toBeCloseTo(0.25);
+    writeVisualTiming(0);
+  });
+});

@@ -648,6 +648,12 @@ export default function SharedPlayer({
                 ms
               </label>
             </Row>
+            {/* SILAS'S WORDS, 10 Sep 2026. Left is negative, and negative
+                holds the repaint back — `visualTiming` — so the sentence
+                is true of the dial above it. */}
+            <p className="-mt-1.5 text-[11px] text-neutral-500 dark:text-neutral-400" data-testid="visual-timing-help">
+              If the keys light up before you hear the chord, slide left until they match. If they light up after, slide right.
+            </p>
 
             {attack !== undefined && (
               <Row label="Chord sounds">
