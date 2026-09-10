@@ -25,6 +25,9 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../lib/instrumentContext';
 import ChordShapeDrills from '../ChordShapeDrills';
 import ScaleDrills from '../ScaleDrills';
 import { db, type SpacingState } from '../../../lib/db';
@@ -112,7 +115,9 @@ async function renderChords() {
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root!.render(<ChordShapeDrills scope="all" onScopeChange={() => {}} />);
+    root!.render(
+      <InstrumentProvider><ChordShapeDrills scope="all" onScopeChange={() => {}} /></InstrumentProvider>,
+    );
   });
   await settle();
 }
@@ -121,7 +126,9 @@ async function renderScales() {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
-  await act(async () => { root!.render(<ScaleDrills />); });
+  await act(async () => { root!.render(
+      <InstrumentProvider><ScaleDrills /></InstrumentProvider>,
+    ); });
   await settle();
 }
 

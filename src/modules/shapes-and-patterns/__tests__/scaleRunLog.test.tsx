@@ -16,6 +16,9 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../lib/instrumentContext';
 import ScaleDrills from '../ScaleDrills';
 import { db, type DrillSession } from '../../../lib/db';
 
@@ -52,7 +55,9 @@ async function render() {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
-  await act(async () => { root!.render(<ScaleDrills />); });
+  await act(async () => { root!.render(
+      <InstrumentProvider><ScaleDrills /></InstrumentProvider>,
+    ); });
   for (let i = 0; i < 8; i += 1) {
     await act(async () => { await new Promise(r => setTimeout(r, 5)); });
   }
@@ -107,7 +112,11 @@ describe('a run shows what it recorded', () => {
     // The run is there and says the three things it can: rating,
     // length, when. Nothing stands in for the two it cannot.
     expect(text()).toContain('Working on it2m \u00b7 today');
-    expect(text()).not.toContain('bpm');
+    // NOT ON THE RUN, and the page is not the place to look for that:
+    // the reference player's Tempo row says "bpm" too, and it is not
+    // this row. So the claim is made about the run's own line.
+    expect(text()).not.toContain('Working on it2m \u00b7 today \u00b7 96 bpm');
+    expect(text()).not.toMatch(/Working on it2m[^#]*?bpm/);
   });
 
   it('and an unrated run keeps its place in the log', async () => {

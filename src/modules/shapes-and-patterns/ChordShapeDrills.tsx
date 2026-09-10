@@ -54,6 +54,7 @@ import {
 } from './cellTargets';
 import { cellProgress, sessionSecondsById } from './handProgress';
 import { sessionsByTarget } from './timeInvested';
+import ChordCellPlayer from './ChordCellPlayer';
 import CellProgressDetails, {
   HAND_ROW_LABEL, type DetailTarget,
 } from './CellProgressDetails';
@@ -302,6 +303,17 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
           );
         }}
       />
+
+      {/* HEAR IT BEFORE YOU DRILL IT — one chord, as the catalog
+          spells it, with the inversions one tap away. A reference:
+          nothing here is rated. */}
+      {selected !== null && (
+        <ChordCellPlayer
+          key={`${selected.quality}:${selected.keyName}`}
+          quality={selected.quality}
+          keyName={selected.keyName}
+        />
+      )}
 
       <CellProgressDetails
         ref={detailRef}

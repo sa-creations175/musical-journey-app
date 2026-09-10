@@ -36,6 +36,7 @@ import { useSpelling } from '../../lib/spellingPref';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { scaleSurface } from './practiceTest/makeSurfaces';
 import { bandCellClasses } from './BandCell';
+import ScaleCellPlayer from './ScaleCellPlayer';
 import KeyedGrid, {
   DEFAULT_LAYOUT, LayoutToggle, type Layout,
 } from './KeyedGrid';
@@ -375,6 +376,14 @@ export default function ScaleDrills() {
           );
         })}
       </div>
+
+      {/* HEAR IT BEFORE YOU DRILL IT — the scale player, root drone, up
+          and back, from this cell's own starting point. A reference:
+          nothing here is rated. Keyed on the itemRef so a new cell gets
+          a fresh panel. */}
+      {selected !== null && (
+        <ScaleCellPlayer key={selected.itemRef} cell={selected} />
+      )}
 
       <CellProgressDetails
         ref={detailRef}

@@ -14,6 +14,9 @@ import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../lib/instrumentContext';
 import ScaleDrills from '../ScaleDrills';
 
 let root: Root | null = null;
@@ -29,7 +32,9 @@ async function render() {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
-  await act(async () => { root!.render(<ScaleDrills />); });
+  await act(async () => { root!.render(
+      <InstrumentProvider><ScaleDrills /></InstrumentProvider>,
+    ); });
   for (let i = 0; i < 8; i += 1) {
     await act(async () => { await new Promise(r => setTimeout(r, 5)); });
   }
