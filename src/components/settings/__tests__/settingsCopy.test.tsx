@@ -154,3 +154,31 @@ describe('the page is one screen', () => {
     for (const s of SETTINGS_SECTIONS) expect(text, s.id).toContain(s.title);
   });
 });
+
+describe('one voice', () => {
+  /**
+   * =====================================================================
+   * THE PAGE WAS WRITTEN BY TWO PEOPLE AND READ LIKE IT.
+   *
+   * "Used in the dashboard greeting. leave blank to reset to the
+   * default." sat two cards below "Every section starts closed. Tap a
+   * title to open it." Nine sentences opened in lower case, all of them
+   * from before the page was rewritten, and the mix is what a reader
+   * notices rather than either style on its own. Swept 10 Sep 2026.
+   * =====================================================================
+   */
+  it('opens every sentence with a capital', async () => {
+    const text = await everySectionText();
+    // A sentence end, then a space, then a lower-case letter. The
+    // exceptions are real: an abbreviation, a decimal, a version.
+    const offenders = [...text.matchAll(/[.!?]\s+([a-z][a-z']{2,}\s[a-z])/g)]
+      .map(m => m[1]);
+    expect(offenders).toEqual([]);
+  });
+
+  it('names Production Vocabulary in Title Case, like every other module', async () => {
+    const text = await everySectionText();
+    expect(text).toContain('Production Vocabulary');
+    expect(text).not.toContain('Production vocabulary');
+  });
+});

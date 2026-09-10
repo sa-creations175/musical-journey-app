@@ -70,7 +70,7 @@ export default function RatingsSection() {
         <PartHeading letter="A">Measured on accuracy</PartHeading>
         <p className="text-sm text-neutral-500">
           Includes these modules:{' '}
-          <b>Harmonic Fluency · Ear Training · Reading · Production vocabulary</b>.
+          <b>Harmonic Fluency · Ear Training · Reading · Production Vocabulary</b>.
           Other modules (Shapes &amp; Patterns, Mental Visualisation, Songs) are
           graded from how you rate each exercise yourself (B, below).
         </p>

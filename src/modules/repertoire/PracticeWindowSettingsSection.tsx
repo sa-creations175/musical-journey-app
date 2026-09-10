@@ -46,8 +46,8 @@ export default function PracticeWindowSettingsSection() {
         how long before a song goes cold
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-        past this, the song's card says when you last played it in amber. this is
-        about neglect, not about the rung: a song can sit untouched for weeks
+        Past this, the song&apos;s card says when you last played it in amber. This
+        is about neglect, not about the rung: a song can sit untouched for weeks
         with every key still safely inside its interval.
       </p>
 

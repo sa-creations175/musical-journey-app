@@ -77,12 +77,12 @@ function AccountSection() {
         Account & Sync
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-        signed in as <span className="font-medium">{user.email}</span>
+        Signed in as <span className="font-medium">{user.email}</span>
       </p>
       <p className="text-xs text-neutral-500 mb-3">
-        practice data syncs automatically across devices.
+        Practice data syncs automatically across devices.
         {pending > 0 && ` ${pending} change${pending === 1 ? '' : 's'} pending upload.`}
-        {offline && ' currently offline.'}
+        {offline && ' Currently offline.'}
       </p>
       <div className="flex flex-wrap gap-2">
         <button
@@ -100,7 +100,7 @@ function AccountSection() {
         </button>
       </div>
       <p className="text-[11px] text-neutral-500 mt-2">
-        signing out clears this device's local cache. your cloud data is untouched. sign back in to restore.
+        Signing out clears this device&apos;s local cache. Your cloud data is untouched. Sign back in to restore.
       </p>
     </section>
   );
@@ -132,7 +132,7 @@ function DeveloperSection() {
             Dev Mode: Suppress Practice Data Writes
           </span>
           <span className="block text-[11px] text-neutral-500 mt-0.5">
-            skips attempts, spacing, and drill-session writes. resets to off
+            Skips attempts, spacing, and drill-session writes. Resets to off
             on refresh.
           </span>
         </span>
@@ -412,7 +412,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 Your Name
               </h4>
               <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
-                used in the dashboard greeting. leave blank to reset to the default.
+                Used in the dashboard greeting. Leave blank to reset to the default.
               </p>
               <div className="flex items-center gap-2">
                 <input
@@ -441,7 +441,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 Harmonic Diary
               </h4>
               <p className="text-sm text-neutral-500">
-                the diary currently uses a single earthy botanical palette. dynamic
+                The diary currently uses a single earthy botanical palette. Dynamic
                 emotion-based theming is planned for a future update.
               </p>
             </section>
@@ -501,7 +501,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 Data Backup &amp; Restore
               </h4>
               <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-                your practice data is stored in this browser. export regularly to back it up,
+                Your practice data is stored in this browser. Export regularly to back it up,
                 or to move data between devices.
               </p>
               <div className="flex flex-wrap gap-2 mb-3">
@@ -526,22 +526,22 @@ export default function SettingsPanel({ open, onClose }: Props) {
                 />
               </div>
               <p className="text-xs text-neutral-500">
-                last exported: {lastExportedAt > 0 ? formatDate(lastExportedAt) : 'never exported'}
+                Last exported: {lastExportedAt > 0 ? formatDate(lastExportedAt) : 'never exported'}
               </p>
 
               {status.kind === 'exported' && (
                 <div className="mt-3 rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
-                  backup downloaded. save it somewhere safe (google drive, icloud, your documents folder).
+                  Backup downloaded. Save it somewhere safe (google drive, icloud, your documents folder).
                 </div>
               )}
               {status.kind === 'restoring' && (
                 <div className="mt-3 rounded-lg border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-xs text-neutral-500">
-                  restoring…
+                  Restoring…
                 </div>
               )}
               {status.kind === 'restored' && (
                 <div className="mt-3 rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
-                  backup restored successfully. refreshing the page…
+                  Backup restored successfully. Refreshing the page…
                 </div>
               )}
               {status.kind === 'error' && (
@@ -593,9 +593,9 @@ export default function SettingsPanel({ open, onClose }: Props) {
           }
         >
           <p className="text-sm text-neutral-700 dark:text-neutral-200">
-            this will replace <span className="font-medium">All</span> your current practice data
+            This will replace <span className="font-medium">All</span> your current practice data
             with the backup from <span className="font-medium">{pendingBackupDate}</span>.
-            your current data will be lost. this cannot be undone.
+            Your current data will be lost. This cannot be undone.
           </p>
         </Modal>
       )}

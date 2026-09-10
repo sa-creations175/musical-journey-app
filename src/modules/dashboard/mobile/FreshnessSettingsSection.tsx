@@ -39,8 +39,8 @@ export default function FreshnessSettingsSection() {
         how long before a skill looks stale
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-        the dashboard's freshness bar moves down a rung each step. this is how
-        long a step is; the four rungs are one, two, three and four of them.
+        The dashboard&apos;s freshness bar moves down a rung each step. This is
+        how long a step is; the four rungs are one, two, three and four of them.
       </p>
 
       <label className="flex items-center gap-2 text-sm mb-3">

@@ -66,8 +66,8 @@ export default function SeededKeyRowsPanel() {
       {findings.length === 0 ? (
         <p className="text-sm text-neutral-600 dark:text-neutral-300">
           {cleared > 0
-            ? `cleared ${cleared} row${cleared === 1 ? '' : 's'}. nothing else to clean.`
-            : 'none found. no key row is claiming progress it has no evidence for.'}
+            ? `Cleared ${cleared} row${cleared === 1 ? '' : 's'}. Nothing else to clean.`
+            : 'None found. No key row is claiming progress it has no evidence for.'}
         </p>
       ) : (
         <>

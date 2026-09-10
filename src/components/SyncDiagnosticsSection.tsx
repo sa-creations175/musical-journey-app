@@ -100,9 +100,9 @@ export default function SyncDiagnosticsSection() {
         sync diagnostics
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-        push anything this device hasn&rsquo;t uploaded, check what&rsquo;s here
+        Push anything this device hasn&rsquo;t uploaded, check what&rsquo;s here
         against what&rsquo;s in the cloud, and rebuild the practice calendar.
-        nothing here deletes anything.
+        Nothing here deletes anything.
       </p>
 
       <div className="flex flex-wrap gap-2 mb-3">
