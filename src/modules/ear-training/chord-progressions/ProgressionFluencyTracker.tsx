@@ -15,6 +15,7 @@ import {
   type Tier,
 } from '../../../lib/tier';
 import { PROGRESSIONS, TIER_NAMES, type Progression } from './catalog';
+import { feelOfAttempt } from '../../../lib/earTraining/heardFeel';
 import { KEYS, containsSlashChords } from './progressionTheory';
 import EtItemCurationButton from '../EtItemCurationButton';
 import EtItemStatus from '../EtItemStatus';
@@ -30,6 +31,29 @@ import ProgressTrackerBand from '../../../components/moduleHome/ProgressTrackerB
 import { PROGRESS_TRACKER_LABEL } from '../../../components/moduleHome/cardShell';
 
 const MODULE_ID = 'chord-progressions';
+
+/**
+ * The shared-list entry an ear-training progression is, where the two
+ * lists spell it differently.
+ *
+ * SEVEN OF THE EIGHT SHARE AN ID. The 2 5 1 does not: the catalog calls
+ * it `2-5-1` and the Chord Movements & Passes grid — which is what the
+ * shared list IS — calls it `major-251`, because that grid also has a
+ * minor one. One line rather than a rename, because both ids are in
+ * stored history.
+ */
+const SHARED_LIST_ID: Readonly<Record<string, string>> = { '2-5-1': 'major-251' };
+
+/** Where the Full Progression card files its attempts for a
+ *  progression — one per position, so a row reads the prefix. */
+/** The progression was named right, whatever the position. Struggled is
+ *  the only step that means it was not. */
+const NAMED_IT = (a: { correct: boolean; feelRating?: 1 | 2 | 3 | 4 }) =>
+  feelOfAttempt(a) > 1;
+
+function fullProgressionRef(progressionId: string): string {
+  return `full-progression:${SHARED_LIST_ID[progressionId] ?? progressionId}:`;
+}
 type ViewMode = 'full-progression' | 'key-detection' | 'chord-motion' | 'must-knows';
 
 interface RollingStats {
@@ -46,12 +70,36 @@ interface RollingStats {
   tier: Tier;
 }
 
-function rollingFor(attempts: AttemptRecord[], itemId: string): RollingStats {
+function rollingFor(
+  attempts: AttemptRecord[],
+  itemId: string,
+  opts: {
+    /** Read every item whose ref STARTS with `itemId`, not the one that
+     *  equals it. The Full Progression card files an attempt per
+     *  position, and a row is about the progression. */
+    prefix?: boolean;
+    /** What counts as a pass. Defaults to the attempt's own verdict. */
+    passed?: (a: AttemptRecord) => boolean;
+  } = {},
+): RollingStats {
+  const matches = opts.prefix === true
+    ? (a: AttemptRecord) => a.itemId.startsWith(itemId)
+    : (a: AttemptRecord) => a.itemId === itemId;
   const filtered = attempts
-    .filter(a => a.moduleId === MODULE_ID && a.itemId === itemId)
+    .filter(a => a.moduleId === MODULE_ID && matches(a))
     .sort((a, b) => b.timestamp - a.timestamp);
   const recent = filtered.slice(0, ROLLING_WINDOW_SIZE);
-  const correct = recent.filter(a => a.correct).length;
+  const passed = opts.passed ?? ((a: AttemptRecord) => a.correct);
+  const correct = recent.filter(passed).length;
+  // A PREFIX IS NOT AN itemRef, AND THE STRIP FADES ON A REAL ONE. The
+  // interval is looked up by exact id; handing the prefix over would
+  // miss every time and fall back to the default fade with nothing on
+  // screen to say so. So a prefix row reports the ref of the most
+  // recent attempt it drew, which is the item whose schedule the bar is
+  // actually showing.
+  const reportedId = opts.prefix === true && filtered[0] !== undefined
+    ? filtered[0].itemId
+    : itemId;
   const total = recent.length;
   const today = localDayKey();
   const latestTs = filtered[0]?.timestamp;
@@ -62,7 +110,7 @@ function rollingFor(attempts: AttemptRecord[], itemId: string): RollingStats {
     daysSinceLastAttempt: daysSince,
   });
   return {
-    itemId,
+    itemId: reportedId,
     window: recent,
     correct,
     total,
@@ -109,9 +157,29 @@ interface ProgRowProps {
 }
 
 function ProgRow({ progression, attempts, curation, selection }: ProgRowProps) {
-  const chord = rollingFor(attempts, progression.id);
-  const pattern = rollingFor(attempts, `${progression.id}-pattern`);
-  const inversion = rollingFor(attempts, `${progression.id}-inversion`);
+  // =====================================================================
+  // THE ROW READS THE FULL PROGRESSION CARD AND NOTHING ELSE.
+  //
+  // It used to read three itemRefs the old quiz wrote — the bare
+  // progression id for "which chord", `<id>-pattern` for the bonus
+  // round and `<id>-inversion` for the slash question. That quiz asked
+  // three questions; the card that replaced it asks one, in two parts,
+  // and files an attempt per POSITION. So the row sums the positions
+  // and splits the two parts:
+  //
+  //   the progression — was it named right, whatever the position
+  //   the position    — were both halves right
+  //
+  // Both come off the four-step rating: Struggled is the progression
+  // missed, and anything above it is the progression got.
+  //
+  // The old rows stay on disk and stop drawing. Nothing reads them.
+  // =====================================================================
+  const ref = fullProgressionRef(progression.id);
+  const named = rollingFor(attempts, ref, {
+    prefix: true, passed: a => feelOfAttempt(a) > 1,
+  });
+  const chord = rollingFor(attempts, ref, { prefix: true });
   const hasSlash = containsSlashChords(progression.numerals);
   const dim = curation?.hidden ? 'opacity-60' : '';
 
@@ -153,19 +221,26 @@ function ProgRow({ progression, attempts, curation, selection }: ProgRowProps) {
         </div>
       </div>
       <div className="min-w-0 space-y-2">
-        <StatRow label="chord accuracy" barLabel={`${progression.name} chord accuracy`} stats={chord} />
-        {hasSlash && <StatRow label="inversion accuracy" barLabel={`${progression.name} inversion accuracy`} stats={inversion} />}
-        <StatRow label="pattern recognition" barLabel={`${progression.name} pattern recognition`} stats={pattern} />
+        <StatRow
+          label="progression recognition"
+          barLabel={`${progression.name} progression recognition`}
+          stats={named}
+          passed={NAMED_IT}
+        />
+        <StatRow label="position accuracy" barLabel={`${progression.name} position accuracy`} stats={chord} />
       </div>
     </div>
   );
 }
 
 function StatRow({
-  label, stats, barLabel,
+  label, stats, barLabel, passed,
 }: {
   label: string;
   stats: RollingStats;
+  /** What counts as right on THIS bar. Two bars can read one window
+   *  two ways — see `ProgRow`. */
+  passed?: (attempt: { correct: boolean }) => boolean;
   /** Announced to a screen reader. Every row has a "chord accuracy"
    *  bar, so the sub-skill alone would give identically-named bars
    *  with no way to tell which progression each belongs to. */
@@ -198,6 +273,7 @@ function StatRow({
         intervalDays={spacingIntervalFor(intervals, stats.itemId)}
         now={now}
         label={barLabel}
+        {...(passed === undefined ? {} : { passed })}
       />
     </div>
   );

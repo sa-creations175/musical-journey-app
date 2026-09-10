@@ -39,6 +39,13 @@ interface Props {
   /** Names the item for a screen reader — "Perfect 5th ascending". */
   label: string;
   /**
+   * What counts as a right attempt, where the caller has an opinion.
+   *
+   * Defaults to the attempt's own verdict, which is right wherever a
+   * question has one answer. See the note in the component.
+   */
+  passed?: (attempt: TickAttempt) => boolean;
+  /**
    * Whether to draw the strip of reps under the bar. Default true.
    *
    * ---------------------------------------------------------------
@@ -58,12 +65,26 @@ interface Props {
 }
 
 export default function ProgressBar({
-  attempts, intervalDays, now, label, showStrip = true,
+  attempts, intervalDays, now, label, showStrip = true, passed,
 }: Props) {
   const [infoOpen, setInfoOpen] = useState(false);
-  const correct = attempts.filter(a => a.correct).length;
-  const seg = barSegments({ correct, wrong: attempts.length - correct });
-  const ticks = tickStrip(attempts, now, intervalDays);
+  // =====================================================================
+  // WHAT COUNTS AS RIGHT IS THE CALLER'S, WHERE IT HAS AN OPINION.
+  //
+  // A bar used to read `a.correct` and nothing else, which is right
+  // wherever a question has one answer. The Full Progression card asks
+  // two things at once — which progression, and from which position —
+  // and files ONE attempt for both, so its two bars are two readings of
+  // the same rows: naming the progression and placing it. `correct` is
+  // the second of those, and the first needs the four-step rating.
+  //
+  // DEFAULTS TO `a.correct`, so every other caller is unchanged.
+  // =====================================================================
+  const counts = passed ?? ((a: TickAttempt) => a.correct);
+  const scored = attempts.map(a => ({ ...a, correct: counts(a) }));
+  const correct = scored.filter(a => a.correct).length;
+  const seg = barSegments({ correct, wrong: scored.length - correct });
+  const ticks = tickStrip(scored, now, intervalDays);
   const stripText = tickStripLabel(ticks);
 
   return (
@@ -76,7 +97,7 @@ export default function ProgressBar({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-label={
-            `${label}: ${correct} right, ${attempts.length - correct} wrong`
+            `${label}: ${correct} right, ${scored.length - correct} wrong`
             + (seg.rated
               ? ''
               : `, ${seg.denominator - seg.attempted} more to be rated`)

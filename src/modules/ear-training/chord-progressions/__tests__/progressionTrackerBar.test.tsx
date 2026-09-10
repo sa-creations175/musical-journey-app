@@ -20,11 +20,19 @@ import { PROGRESSIONS } from '../catalog';
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.now();
 const PROG = PROGRESSIONS[0];
+const OTHER = PROGRESSIONS[1];
 
-/** Two sub-skills of ONE progression, separately scheduled. */
+/** Where the Full Progression card files an attempt: one per position.
+ *  The tracker reads these and nothing else since 10 Sep 2026. */
+const ref = (id: string, position = 1) => `full-progression:${id}:pos${position}`;
+
+/** Two PROGRESSIONS, separately scheduled. The two sub-skills of one
+ *  row share an itemRef now — they are two readings of one attempt —
+ *  so the rule that a window is paired with its own item is proved on
+ *  a pair that really differs. */
 const INTERVALS = new Map<string, number>([
-  [PROG.id, 30],
-  [`${PROG.id}-pattern`, 2],
+  [ref(PROG.id), 30],
+  [ref(OTHER.id), 2],
 ]);
 
 vi.mock('../../../../lib/useSpacingIntervals', async (orig) => {
@@ -39,8 +47,11 @@ vi.mock('../../useEtSelection', () => ({
   }),
 }));
 
-const att = (itemId: string, correct: boolean, daysAgo: number): AttemptRecord => ({
+const att = (
+  itemId: string, correct: boolean, daysAgo: number, feelRating?: 1 | 2 | 3 | 4,
+): AttemptRecord => ({
   moduleId: 'chord-progressions', itemId, correct, timestamp: NOW - daysAgo * DAY,
+  ...(feelRating === undefined ? {} : { feelRating }),
 });
 
 function mount(attempts: AttemptRecord[]) {
@@ -65,20 +76,21 @@ function mount(attempts: AttemptRecord[]) {
   };
 }
 
-const chordBar = `${PROG.name} chord accuracy`;
-const patternBar = `${PROG.name} pattern recognition`;
+const chordBar = `${PROG.name} position accuracy`;
+const namedBar = `${PROG.name} progression recognition`;
+const otherBar = `${OTHER.name} position accuracy`;
 
 describe('the shared bar', () => {
   it('draws three segments, with grey as unmade attempts', () => {
-    const h = mount(Array.from({ length: 4 }, () => att(PROG.id, true, 0)));
+    const h = mount(Array.from({ length: 4 }, () => att(ref(PROG.id), true, 0)));
     expect(h.widthsFor(chordBar)).toEqual(['80%', '0%', '20%']);
     h.unmount();
   });
 
   it('renders a miss as amber, never as the grey remainder', () => {
     const h = mount([
-      ...Array.from({ length: 4 }, () => att(PROG.id, true, 0)),
-      att(PROG.id, false, 0),
+      ...Array.from({ length: 4 }, () => att(ref(PROG.id), true, 0)),
+      att(ref(PROG.id), false, 0),
     ]);
     expect(h.widthsFor(chordBar)).toEqual(['80%', '20%', '0%']);
     h.unmount();
@@ -87,7 +99,7 @@ describe('the shared bar', () => {
 
 describe('the label reads the bar’s source', () => {
   it('counts attempts rather than denying them', () => {
-    const h = mount([att(PROG.id, true, 0), att(PROG.id, true, 0)]);
+    const h = mount([att(ref(PROG.id), true, 0), att(ref(PROG.id), true, 0)]);
     expect(h.text()).toContain('2 of 5 attempts — 3 more to rate');
     expect(h.text()).not.toContain('no data yet — needs');
     h.unmount();
@@ -95,16 +107,16 @@ describe('the label reads the bar’s source', () => {
 });
 
 describe('each sub-skill fades on its own interval', () => {
-  it('gives the same-aged rep different opacities per sub-skill', () => {
+  it('gives the same-aged rep different opacities per progression', () => {
     const h = mount([
-      att(PROG.id, true, 4),
-      att(`${PROG.id}-pattern`, true, 4),
+      att(ref(PROG.id), true, 4),
+      att(ref(OTHER.id), true, 4),
     ]);
-    const chord = Number(h.ticksFor(chordBar)[0].style.opacity);
-    const pattern = Number(h.ticksFor(patternBar)[0].style.opacity);
-    expect(chord).toBeGreaterThan(pattern);
-    expect(chord).toBeCloseTo(tickOpacity(NOW - 4 * DAY, NOW, 30), 2);
-    expect(pattern).toBeCloseTo(tickOpacity(NOW - 4 * DAY, NOW, 2), 2);
+    const mine = Number(h.ticksFor(chordBar)[0].style.opacity);
+    const theirs = Number(h.ticksFor(otherBar)[0].style.opacity);
+    expect(mine).toBeGreaterThan(theirs);
+    expect(mine).toBeCloseTo(tickOpacity(NOW - 4 * DAY, NOW, 30), 2);
+    expect(theirs).toBeCloseTo(tickOpacity(NOW - 4 * DAY, NOW, 2), 2);
     h.unmount();
   });
 
@@ -112,18 +124,45 @@ describe('each sub-skill fades on its own interval', () => {
     // itemId travels with the stats precisely so six call sites cannot
     // pair one item's numbers with another's interval.
     const h = mount([
-      att(PROG.id, true, 0), att(PROG.id, true, 0),
-      att(`${PROG.id}-pattern`, false, 0),
+      att(ref(PROG.id), true, 0), att(ref(PROG.id), true, 0),
+      att(ref(OTHER.id), false, 0),
     ]);
     expect(h.widthsFor(chordBar)).toEqual(['40%', '0%', '60%']);
-    expect(h.widthsFor(patternBar)).toEqual(['0%', '20%', '80%']);
+    expect(h.widthsFor(otherBar)).toEqual(['0%', '20%', '80%']);
+    h.unmount();
+  });
+
+  it('reads the position from the whole progression, one row per entry', () => {
+    // THE CARD FILES ONE ATTEMPT PER POSITION and the row is about the
+    // progression, so the row sums them.
+    const h = mount([
+      att(ref(PROG.id, 1), true, 0),
+      att(ref(PROG.id, 2), true, 0),
+      att(ref(PROG.id, 3), true, 0),
+    ]);
+    expect(h.widthsFor(chordBar)).toEqual(['60%', '0%', '40%']);
+    h.unmount();
+  });
+
+  it('splits the progression from the position on the four-step rating', () => {
+    // Working on it is the right progression from the wrong position:
+    // it counts for what the reader named and not for where they placed
+    // it. Struggled is the progression missed and counts for neither.
+    const h = mount([
+      att(ref(PROG.id), true, 0, 4),
+      att(ref(PROG.id), false, 0, 2),
+      att(ref(PROG.id), false, 0, 1),
+    ]);
+    expect(h.widthsFor(namedBar)).toEqual(['40%', '20%', '40%']);
+    expect(h.widthsFor(chordBar)).toEqual(['20%', '40%', '40%']);
     h.unmount();
   });
 
   it('orders ticks oldest first', () => {
     // ASYMMETRIC — a palindrome reads the same reversed.
     const h = mount([
-      att(PROG.id, true, 0), att(PROG.id, false, 1), att(PROG.id, false, 2),
+      att(ref(PROG.id), true, 0), att(ref(PROG.id), false, 1),
+      att(ref(PROG.id), false, 2),
     ]);
     expect(h.ticksFor(chordBar).slice(0, 3).map(t => t.dataset.outcome))
       .toEqual(['wrong', 'wrong', 'right']);
