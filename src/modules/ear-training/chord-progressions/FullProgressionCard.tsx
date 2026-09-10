@@ -53,6 +53,7 @@ import {
   type ListRung, type SharedProgression,
 } from './sharedList';
 import { voiceEntry } from './passVoicing';
+import { heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
 
 const MODULE_ID = 'chord-progressions';
 const PREF_FILTER = 'fullProgressionInPlay';
@@ -236,18 +237,31 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
     setSolved(true);
     setShowPosition(card.position);
     const itemId = fullProgressionItemId(card.entry.id, card.position);
+    // WHERE THE ANSWER LANDS ON THE FOUR-STEP SCALE. Right on the first
+    // listen with no aid is In flow; right after replays is Clean; the
+    // right progression from the wrong position, or a right answer that
+    // needed the bass on its own, is Working on it; the wrong
+    // progression is Struggled. The rule is `heardFeel` and nothing
+    // decides it here.
+    const aided = isAided(settingsRef.current);
+    const feel = heardFeel({
+      firstRight: rightEntry, secondRight: rightPosition, replays, aided,
+    });
     await addAttempt({
       moduleId: MODULE_ID,
       itemId,
       correct: rightEntry && rightPosition,
       timestamp: Date.now(),
       chosenItemId: fullProgressionItemId(answerEntry, answerPosition),
+      feelRating: feel,
+      replays,
+      ...(aided ? { aided: true } : {}),
       ...answerTimingFields(asked.current, Date.now()),
     });
     await recordEngagement({
       itemRef: itemId,
       moduleRef: MODULE_ID,
-      signal: { kind: 'attempt', correct: rightEntry && rightPosition },
+      signal: { kind: 'attempt', correct: rightEntry && rightPosition, feel },
     });
     await updateDailySummary(MODULE_ID);
   };

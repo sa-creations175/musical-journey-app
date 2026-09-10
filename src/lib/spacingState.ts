@@ -1,7 +1,7 @@
 import { db, type SpacingState, type AcquisitionStage, type MemoryType, type DrillHand } from './db';
 import { putSpacingState } from './practiceWrites';
 import { getMemoryType } from './memoryType';
-import type { Feel } from './fluencyScale';
+import { isCleanFeel, type Feel } from './fluencyScale';
 import { answer as engineAnswer, newCardState } from './spacing/engine';
 import { bandForRow, cardStateFromRow, rowFieldsFromCardState } from './spacing/row';
 import { loadSettingsForCard } from './spacing/store';
@@ -59,7 +59,26 @@ export const RATING_ACQUIRED_MIN_RATINGS = 3;
 /** A single entry in `performanceHistory`. Discriminated by `kind` so the
  *  same column can carry signals across all four memory types. */
 export type PerformanceEntry =
-  | { t: number; kind: 'attempt'; correct: boolean }
+  | {
+      t: number;
+      kind: 'attempt';
+      correct: boolean;
+      /**
+       * Where a heard answer landed on the four-step scale, where the
+       * caller has one.
+       *
+       * THE STAGE RULE STILL READS `correct` AND NOTHING ELSE. A
+       * declarative item advances on accuracy over a window, which is
+       * the right rule for "do you know this" and is not what a feel
+       * measures. What the feel moves is the INTERVAL: a card named
+       * with the bass soloed comes back sooner than one named on the
+       * first listen, and both of them are `correct: true`.
+       *
+       * Absent on rows written before 10 Sep 2026, and on every module
+       * that has no such measurement.
+       */
+      feel?: Feel;
+    }
   | {
       t: number;
       kind: 'rating';
@@ -135,7 +154,7 @@ export type PerformanceEntry =
 /** Public input shape for `recordEngagement`. The `kind` must match the
  *  module's memory type (validated at runtime). */
 export type EngagementSignal =
-  | { kind: 'attempt'; correct: boolean }
+  | { kind: 'attempt'; correct: boolean; feel?: Feel }
   | {
       kind: 'rating';
       rating: 'flying' | 'cruising' | 'crawling';
@@ -324,7 +343,12 @@ export function computeIntervalDays(input: {
 
   let next: number;
   if (signal.kind === 'attempt') {
-    next = signal.correct
+    // A FEEL, WHERE THE CALLER HAS ONE, DECIDES INSTEAD OF `correct`.
+    // Clean or better grows the interval; Working on it and Struggled
+    // shrink it — so a right answer that needed the bass soloed comes
+    // back sooner than one named on the first listen, which is the
+    // whole reason the scale was put on these answers.
+    next = (signal.feel === undefined ? signal.correct : isCleanFeel(signal.feel))
       ? base * INTERVAL_GROWTH_FACTOR
       : base * INTERVAL_REGRESSION_FACTOR;
   } else if (signal.kind === 'rating') {
@@ -386,7 +410,13 @@ function signalIsPositive(signal: EngagementSignal): boolean {
 
 function entryFromSignal(signal: EngagementSignal, t: number): PerformanceEntry {
   switch (signal.kind) {
-    case 'attempt': return { t, kind: 'attempt', correct: signal.correct };
+    // WRITTEN ONLY WHEN THE CALLER HAS ONE. An absent feel is a module
+    // that does not measure how the answer was reached, not a neutral
+    // value — the same rule every optional field on this entry follows.
+    case 'attempt': return {
+      t, kind: 'attempt', correct: signal.correct,
+      ...(signal.feel !== undefined ? { feel: signal.feel } : {}),
+    };
     case 'rating':  return {
       t, kind: 'rating', rating: signal.rating,
       ...(signal.feel !== undefined ? { feel: signal.feel } : {}),

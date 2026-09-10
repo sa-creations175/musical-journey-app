@@ -1714,6 +1714,30 @@ export interface AttemptRecord {
    *  multiplier. A row carries one or the other. */
   playbackBpm?: number;
   /**
+   * Where a heard answer landed on the four-step scale.
+   *
+   * =====================================================================
+   * RIGHT OR WRONG WAS NOT ENOUGH. See `lib/earTraining/heardFeel.ts`
+   * for the rule and the argument; in short, a card named on the first
+   * listen and a card named after four replays with the bass soloed are
+   * not the same event, and `correct` cannot tell them apart.
+   *
+   * ABSENT ON EVERY ROW WRITTEN BEFORE 10 SEP 2026, and absent is not a
+   * neutral value: `feelOfAttempt` reads a row without it as the two
+   * ENDS of the scale, In flow for a right answer and Struggled for a
+   * wrong one, which is what the row actually holds. Nothing was
+   * migrated and nothing on disk was rewritten.
+   * =====================================================================
+   */
+  feelRating?: 1 | 2 | 3 | 4;
+  /** How many times the question was replayed before it was answered.
+   *  Zero is a first-listen answer; absent means the row predates the
+   *  count. */
+  replays?: number;
+  /** True when an aid was in force — the bass alone, or a broken chord.
+   *  Tempo and octave are free and never set this. */
+  aided?: boolean;
+  /**
    * Chord recognition only. Whether the chord sounded as a block or
    * one note at a time.
    *

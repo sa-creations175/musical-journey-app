@@ -35,6 +35,7 @@ import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
 import type { ChordAttack } from '../../../lib/player/settings';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 import { crChords, crQuizChord } from './crPlayer';
+import { heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
 import AnswerVerdict from '../../../components/AnswerVerdict';
 import FilterStrip from '../../../components/FilterStrip';
 import { moduleMetaById } from '../../../lib/moduleMeta';
@@ -199,6 +200,15 @@ export default function ChordRecognitionQuiz({
   /** The rung the reveal's ladder is on. Thinner or thicker, never a
    *  different inversion — see `crPlayer`. */
   const [rung, setRung] = useState<Thickness>('seventh');
+  /**
+   * How many times Play again was pressed before the answer.
+   *
+   * A REPLAY IS NOT A FAILURE AND IT IS NOT NOTHING. It is the
+   * difference between In flow and Clean on the four-step scale, and
+   * `heardFeel` is where that is decided. Reset on every new card, and
+   * a ref because the write path reads it from a click.
+   */
+  const replays = useRef(0);
   const [current, setCurrent] = useState<{
     chord: ChordData;
     rootMidi: number;
@@ -582,6 +592,7 @@ export default function ChordRecognitionQuiz({
     setCurrent({ chord: picked.chord, rootMidi, inversion: picked.inversion });
     // THE REVEAL OPENS ON THE ONE THAT WAS ASKED, on every card.
     setShowInversion(picked.inversion);
+    replays.current = 0;
     setRung(picked.chord.intervals.length >= 4 ? 'seventh' : 'triads');
     setSelectedId(null);
     setSelectedInversion(null);
@@ -601,6 +612,7 @@ export default function ChordRecognitionQuiz({
 
   const replay = async () => {
     if (!current) return;
+    replays.current += 1;
     await playChord(current.chord, current.rootMidi, current.inversion);
   };
 
@@ -633,11 +645,24 @@ export default function ChordRecognitionQuiz({
     // the quality verdict.
     const timestamp = Date.now();
     const itemId = attemptItemId(current.chord.id, current.inversion);
+    // NO SECOND QUESTION WAS ASKED ON THIS PATH, so the quality answer
+    // is the whole of it: right on the first listen with no aid is In
+    // flow, right after replays is Clean, wrong is Struggled.
+    const aidedQuality = isAided(settingsRef.current);
+    const feelQuality = heardFeel({
+      firstRight: isCorrect,
+      secondRight: isCorrect,
+      replays: replays.current,
+      aided: aidedQuality,
+    });
     await addAttempt({
       moduleId: MODULE_ID,
       itemId,
       correct: isCorrect,
       timestamp,
+      feelRating: feelQuality,
+      replays: replays.current,
+      ...(aidedQuality ? { aided: true } : {}),
       ...(focusProtected ? { excludeFromFluency: true } : {}),
       ...answerTimingFields(asked.current, timestamp),
       // ONE STAGE: the reader answered once and the card resolved,
@@ -650,7 +675,7 @@ export default function ChordRecognitionQuiz({
     await recordEngagement({
       itemRef: itemId,
       moduleRef: MODULE_ID,
-      signal: { kind: 'attempt', correct: isCorrect },
+      signal: { kind: 'attempt', correct: isCorrect, feel: feelQuality },
       timestamp,
     });
     await updateDailySummary(MODULE_ID);
@@ -667,11 +692,24 @@ export default function ChordRecognitionQuiz({
     const isCorrect = chosen === current.inversion;
     const timestamp = Date.now();
     const itemId = attemptItemId(current.chord.id, current.inversion);
+    // THE QUALITY WAS RIGHT ON THIS PATH — that is what made step two
+    // fire — so a wrong inversion is half right, which is Working on
+    // it and not Struggled. You heard the chord and not the voicing.
+    const aidedInv = isAided(settingsRef.current);
+    const feelInv = heardFeel({
+      firstRight: true,
+      secondRight: isCorrect,
+      replays: replays.current,
+      aided: aidedInv,
+    });
     await addAttempt({
       moduleId: MODULE_ID,
       itemId,
       correct: isCorrect,
       timestamp,
+      feelRating: feelInv,
+      replays: replays.current,
+      ...(aidedInv ? { aided: true } : {}),
       ...(focusProtected ? { excludeFromFluency: true } : {}),
       ...answerTimingFields(asked.current, timestamp),
       // TWO STAGES: quality was right and the reader then placed the
@@ -681,7 +719,7 @@ export default function ChordRecognitionQuiz({
     await recordEngagement({
       itemRef: itemId,
       moduleRef: MODULE_ID,
-      signal: { kind: 'attempt', correct: isCorrect },
+      signal: { kind: 'attempt', correct: isCorrect, feel: feelInv },
       timestamp,
     });
     await updateDailySummary(MODULE_ID);
