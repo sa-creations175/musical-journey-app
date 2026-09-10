@@ -44,7 +44,7 @@ import {
 } from '../../../lib/builtAnswers/rootPick';
 import { degreeLabel } from '../degreeNoteCards';
 import {
-  NINTH_OF, QUALITIES, TRIAD_OF, VOICINGS,
+  NINTH_OF, TRIAD_OF, VOICINGS, qualityTilesFor,
   type QualityId, type Thickness, type Voicing,
   hasBass, handTones, inversionCount, hasSeventh,
 } from '../../../lib/builtAnswers/chordShapes';
@@ -79,6 +79,8 @@ export default function ProgressionAnswer({
   answer: (choice: string) => void;
 }) {
   const count = target.chords.length;
+  /** The quality tiles this card offers. */
+  const tiles = qualityTilesFor(target.chords.map(c => c.quality));
   const [slots, setSlots] = useState<Slot[]>(() => target.chords.map(() => EMPTY));
   const [cur, setCur] = useState(0);
   const [inversion, setInversion] = useState(0);
@@ -289,7 +291,11 @@ export default function ProgressionAnswer({
           },
           quality: {
             label: 'Quality',
-            options: QUALITIES,
+            // THE TILE ROW IS THE CARD'S, not the deck's. It is the
+            // eight everywhere it always was, and gains the two
+            // altered-dominant tiles only where this card's own
+            // answer holds one — see `qualityTilesFor`.
+            options: tiles,
             value: quality,
             onChange: (q: QualityId | null) => setSlot({ quality: q }),
           },

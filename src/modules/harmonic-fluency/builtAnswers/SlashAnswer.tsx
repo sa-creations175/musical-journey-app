@@ -30,7 +30,7 @@ import {
   INVERSIONS, type RootPick, pickFromPitchClass, rootLabel, rootPitchClass,
 } from '../../../lib/builtAnswers/rootPick';
 import {
-  QUALITIES, SLASH_QUALITY_IDS, type QualityId,
+  QUALITIES, SLASH_QUALITY_IDS, qualityTilesFor, type QualityId,
   handTones, inversionCount,
 } from '../../../lib/builtAnswers/chordShapes';
 import { voiceAround, voicingsOf } from '../../../lib/builtAnswers/voiceLeading';
@@ -190,7 +190,7 @@ export default function SlashAnswer({
           },
           quality: {
             label: 'Quality (major unless you change it)',
-            options: SLASH_QUALITIES,
+            options: qualityTilesFor([target.quality], SLASH_QUALITIES),
             value: quality,
             onChange: (q: QualityId | null) => { setQuality(q); setMessage(null); },
           },

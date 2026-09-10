@@ -28,10 +28,26 @@
 
 import { stageForProgression, type ProgressionStage } from './progressionStages';
 
+/**
+ * The chord qualities a progression's chords can be.
+ *
+ * THE TWO ALTERED DOMINANTS ARE SPELLED THE WAY CHORD RECOGNITION
+ * SPELLS THEM — `dom7b9` and `dom7#9#5` are ids in `CHORD_SEEDS`, and
+ * an ear-training module naming the same chord two ways is how the
+ * same sound comes to be drilled as two skills. Their intervals are
+ * read off that library rather than retyped here; see
+ * `progressionTheory`.
+ *
+ * Nothing in the catalog uses them yet. They arrive ahead of the cards
+ * and entries that will (Silas's alignment decisions, 9 Sep 2026), so
+ * the surfaces that voice and name a chord already know how.
+ */
 export type ChordQuality =
   | 'major'
   | 'minor'
   | 'dominant'
+  | 'dom7b9'
+  | 'dom7#9#5'
   | 'diminished'
   | 'half-dim'
   | 'augmented';

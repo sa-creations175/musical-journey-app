@@ -30,7 +30,21 @@ import {
   gradeProgression, gradeRoot, gradeScale, gradeSignature, gradeSlash,
   type BuiltChord,
 } from '../grade';
-import { QUALITIES } from '../../../../lib/builtAnswers/chordShapes';
+import {
+  CHORD_INTERVALS, type QualityId,
+} from '../../../../lib/builtAnswers/chordShapes';
+
+/**
+ * EVERY QUALITY THE FILE KNOWS, not the tile row.
+ *
+ * This used to walk `QUALITIES`, which is what a reader can TAP on a
+ * default card. The two are no longer the same list: the altered
+ * dominants and the two diminished qualities are gradeable and are
+ * offered only where a card asks for them, so a wrong build made of
+ * one would have gone unwalked. What is being guarded is the grade,
+ * and the grade accepts any of these.
+ */
+const ALL_QUALITIES = Object.keys(CHORD_INTERVALS) as QualityId[];
 
 /** Every wrong build worth trying against one card. */
 function wrongGrades(target: BuiltTarget): Array<{ built: string; correct: boolean }> {
@@ -48,8 +62,8 @@ function wrongGrades(target: BuiltTarget): Array<{ built: string; correct: boole
             ? { ...c, rootPc: ((c.rootPc ?? 0) + shift) % 12 } : c));
           out.push(gradeProgression(target, bad));
         }
-        for (const q of QUALITIES) {
-          const bad = right.map((c, j) => (j === i ? { ...c, quality: q.id } : c));
+        for (const q of ALL_QUALITIES) {
+          const bad = right.map((c, j) => (j === i ? { ...c, quality: q } : c));
           out.push(gradeProgression(target, bad));
         }
       }
@@ -68,9 +82,9 @@ function wrongGrades(target: BuiltTarget): Array<{ built: string; correct: boole
           }));
         }
       }
-      for (const q of QUALITIES) {
+      for (const q of ALL_QUALITIES) {
         out.push(gradeSlash(target, {
-          chord: { rootPc: target.chordRootPc, quality: q.id },
+          chord: { rootPc: target.chordRootPc, quality: q },
           bassPc: target.bassPc,
         }));
       }

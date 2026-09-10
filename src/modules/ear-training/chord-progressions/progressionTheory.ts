@@ -1,4 +1,5 @@
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
+import { CHORD_SEEDS } from '../chord-recognition/seed';
 import type { ChordQuality } from './catalog';
 import { DEFAULT_SPELLING, pitchClassOf, spellNote, type Spelling } from '../../../lib/spelling';
 
@@ -42,32 +43,86 @@ export type Complexity = 'triad' | 'seventh' | 'jazz';
 // whose theory depends on a dom7 set `requiresDominant: true` in the
 // catalog; we use that to bump the effective complexity up one tier
 // just for the dominant chord.
+/**
+ * The intervals of one chord-recognition quality, by its id.
+ *
+ * =====================================================================
+ * DEFINED ONCE, IN THE LIBRARY THAT ALREADY HELD THEM.
+ *
+ * `CHORD_SEEDS` is where this app says what a Dom7b9 is made of, and
+ * a second copy here would be a second answer to the same question —
+ * the kind that agrees for a year and then does not. So the altered
+ * dominants read their top rung off that library.
+ *
+ * It THROWS on an unknown id rather than falling back. A silent
+ * fallback would voice the wrong chord, and a progression sounding a
+ * plain dominant where the catalog said 7♯9♯5 is a mistake the ear
+ * would have to catch.
+ * =====================================================================
+ */
+function seedIntervals(id: string): number[] {
+  const seed = CHORD_SEEDS.find(s => s.id === id);
+  if (!seed) throw new Error(`no chord-recognition seed for "${id}"`);
+  return [...seed.intervals];
+}
+
 const VOICINGS: Record<ChordQuality, Record<Complexity, number[]>> = {
   major:      { triad: [0, 4, 7],     seventh: [0, 4, 7, 11],  jazz: [0, 4, 7, 11, 14] },
   minor:      { triad: [0, 3, 7],     seventh: [0, 3, 7, 10],  jazz: [0, 3, 7, 10, 14] },
   dominant:   { triad: [0, 4, 7],     seventh: [0, 4, 7, 10],  jazz: [0, 4, 7, 10, 14] },
+  // THE ALTERED TONES LIVE ON THE TOP RUNG ONLY, which is Silas's
+  // ruling of 9 Sep 2026 and is also what the ladder already means
+  // everywhere else: "triads" is the plain major triad the hand would
+  // play under any dominant, "7ths" is the dominant seventh, and the
+  // ♭9 or the ♯9♯5 arrives with "full voicing". A reader on the
+  // triads rung is not being told the chord is a plain major; they are
+  // being played the rung they asked for.
+  dom7b9:     { triad: [0, 4, 7],     seventh: [0, 4, 7, 10],  jazz: seedIntervals('dom7b9') },
+  'dom7#9#5': { triad: [0, 4, 7],     seventh: [0, 4, 7, 10],  jazz: seedIntervals('dom7#9#5') },
   diminished: { triad: [0, 3, 6],     seventh: [0, 3, 6, 9],   jazz: [0, 3, 6, 9] },
   'half-dim': { triad: [0, 3, 6, 10], seventh: [0, 3, 6, 10],  jazz: [0, 3, 6, 10, 13] },
   augmented:  { triad: [0, 4, 8],     seventh: [0, 4, 8, 10],  jazz: [0, 4, 8, 10, 14] },
 };
+
+/**
+ * Every quality that behaves as a dominant.
+ *
+ * `requiresDominant` bumps a triad-rung dominant up to a seventh so the
+ * tritone survives on progressions whose theory needs it. That check
+ * used to read `quality === 'dominant'`, which would have quietly left
+ * the two altered dominants as plain major triads on exactly the
+ * progressions that most need not to be.
+ */
+const DOMINANT_QUALITIES: ReadonlySet<ChordQuality> =
+  new Set<ChordQuality>(['dominant', 'dom7b9', 'dom7#9#5']);
 
 function effectiveComplexity(
   quality: ChordQuality,
   complexity: Complexity,
   requiresDominant: boolean,
 ): Complexity {
-  if (requiresDominant && quality === 'dominant' && complexity === 'triad') {
+  if (requiresDominant && DOMINANT_QUALITIES.has(quality) && complexity === 'triad') {
     return 'seventh';
   }
   return complexity;
 }
 
+/**
+ * The intervals to sound for a quality at a rung.
+ *
+ * A COPY, BECAUSE THE TABLE IS SHARED AND MUTABLE. `VOICINGS` holds one
+ * array per quality × rung and this used to hand the caller that very
+ * array; a caller that pushed onto it — adding an octave, say — would
+ * have changed what every later playback of that chord sounds like, for
+ * the life of the tab. Noticed while wiring the altered dominants,
+ * whose top rung is read out of the chord-recognition library.
+ */
 export function voicingFor(
   quality: ChordQuality,
   complexity: Complexity,
   requiresDominant = false,
 ): number[] {
-  return VOICINGS[quality][effectiveComplexity(quality, complexity, requiresDominant)];
+  return [...VOICINGS[quality][effectiveComplexity(quality, complexity, requiresDominant)]];
 }
 
 // Human-friendly chord name used on the final reveal ("In C: C → G → Am → F").
@@ -84,6 +139,10 @@ const QUALITY_SUFFIX: Record<ChordQuality, { triad: string; seventh: string; jaz
   major:      { triad: '',    seventh: 'maj7',  jazz: 'maj9' },
   minor:      { triad: 'm',   seventh: 'm7',    jazz: 'm9' },
   dominant:   { triad: '',    seventh: '7',     jazz: '9' },
+  // The name follows the sound up the ladder, as every other row's
+  // does: no reader is shown "G7♭9" over a plain major triad.
+  dom7b9:     { triad: '',    seventh: '7',     jazz: '7b9' },
+  'dom7#9#5': { triad: '',    seventh: '7',     jazz: '7#9#5' },
   diminished: { triad: '°',   seventh: '°7',    jazz: '°7' },
   'half-dim': { triad: 'ø7',  seventh: 'ø7',    jazz: 'ø7' },
   augmented:  { triad: '+',   seventh: '+7',    jazz: '+9' },
