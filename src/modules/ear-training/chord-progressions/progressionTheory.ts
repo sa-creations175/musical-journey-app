@@ -256,8 +256,6 @@ export function splitAnswer(numeral: string): { chord: string; slash: string } {
 
 // --- Playback --------------------------------------------------------
 
-export type ListeningMode = 'bass' | 'chords' | 'bass-chords';
-
 /**
  * The tonic-priming settings now live in `lib/musicalPlayback.ts`,
  * beside `playNoteSequence`, and are re-exported here so this module's
@@ -277,124 +275,16 @@ import {
 
 export { TONIC_DURATION, TONIC_GAP, tonicLeadInSeconds, type TonicContext };
 
-export interface ProgressionStep {
-  /** Absolute MIDI of the chord root (tonic + numeralOffset). */
-  rootMidi: number;
-  /** Absolute MIDI of the low-octave bass. Defaults to rootMidi - 12 when
-      there's no slash. For slash chords, callers set this to
-      (tonicMidi + bassOffset) - 12. */
-  bassMidi: number;
-  /** True when the numeral includes explicit slash notation. Drives
-      chords-only inversion voicing. */
-  isSlash: boolean;
-  quality: ChordQuality;
-  beats: number;
-}
-
+/**
+ * A stop handle for anything this module schedules.
+ *
+ * THE SEQUENCER IT BELONGED TO IS GONE — `playProgression` was this
+ * module's own three-mode sequencer and every surface that called it now
+ * calls the shared player. The handle stays because `playTonicDrone`
+ * below still returns one.
+ */
 export interface PlaybackHandle {
   stop: () => void;
-}
-
-// Render a progression as a sequence of scheduled notes. Supports three
-// listening modes: bass alone, chord voicing alone, or both layered.
-// Loop count replays the whole sequence N times in one scheduling pass,
-// so seek-ahead is predictable — Stop cancels all scheduled voices.
-export async function playProgression(
-  steps: ProgressionStep[],
-  bpm: number,
-  complexity: Complexity,
-  mode: ListeningMode,
-  speedMultiplier: number,
-  loopCount: number,
-  tonicContext: TonicContext,
-  tonicMidi: number,
-  requiresDominant: boolean,
-  onStep?: (index: number, iteration: number) => void,
-): Promise<PlaybackHandle> {
-  const context = await ensureRunning();
-  const m = Math.max(0.1, speedMultiplier);
-  const effBpm = bpm * m;
-  const secPerBeat = 60 / effBpm;
-  const now = context.currentTime + 0.05;
-
-  const voices: Array<{ stop: (time: number) => void }> = [];
-  const timers: number[] = [];
-
-  // Optional tonic prime at a comfortable middle-octave pitch. Fixed
-  // duration — we don't want the reference note stretched by the speed
-  // multiplier. Uses the currently-selected instrument via playNote.
-  let cursor = now;
-  if (tonicContext === 'singleNote') {
-    voices.push(playNote(midiToFreq(tonicMidi), cursor, TONIC_DURATION, context, 0.32));
-    cursor += TONIC_DURATION + TONIC_GAP;
-  }
-
-  const iterations = Math.max(1, loopCount);
-
-  for (let iter = 0; iter < iterations; iter++) {
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      const dur = secPerBeat * step.beats;
-      const hold = dur * 0.95;
-      const chordIntervals = voicingFor(step.quality, complexity, requiresDominant);
-
-      // Mode-dependent note list:
-      //   bass         → bass note only
-      //   chords       → chord voicing; slash chords are voiced in
-      //                  inversion (bass tone is the lowest chord note)
-      //   bass-chords  → bass at low octave + chord at normal octave
-      const notes: number[] = [];
-      const bassIsSeparate = mode === 'bass' || mode === 'bass-chords';
-      if (bassIsSeparate) notes.push(step.bassMidi);
-      if (mode === 'chords' || mode === 'bass-chords') {
-        if (step.isSlash && mode === 'chords') {
-          // Inversion voicing: bring the bass note up a whole octave so
-          // it sits at the bottom of the chord (not below it), then
-          // raise any chord tones that would fall below the bass.
-          const bassUp = step.bassMidi + 12;
-          notes.push(bassUp);
-          for (const iv of chordIntervals) {
-            let n = step.rootMidi + iv;
-            while (n < bassUp) n += 12;
-            notes.push(n);
-          }
-        } else {
-          for (const iv of chordIntervals) notes.push(step.rootMidi + iv);
-        }
-      }
-
-      const polyphony = Math.max(1, notes.length);
-      const vol = Math.max(0.12, 0.28 / Math.sqrt(polyphony));
-      // Bass gets a slight boost so it stays audible in bass-chords mode.
-      for (let n = 0; n < notes.length; n++) {
-        const isBassVoice = bassIsSeparate && n === 0;
-        voices.push(
-          playNote(midiToFreq(notes[n]), cursor, hold, context, vol * (isBassVoice ? 1.3 : 1)),
-        );
-      }
-
-      if (onStep) {
-        const fireAt = cursor - now;
-        const iterationIndex = iter;
-        const stepIndex = i;
-        const timerId = window.setTimeout(
-          () => onStep(stepIndex, iterationIndex),
-          Math.max(0, fireAt * 1000),
-        );
-        timers.push(timerId);
-      }
-      cursor += dur;
-    }
-  }
-
-  return {
-    stop: () => {
-      const ctxNow = context.currentTime;
-      const fadeAt = ctxNow + 0.05;
-      for (const v of voices) v.stop(fadeAt);
-      for (const id of timers) window.clearTimeout(id);
-    },
-  };
 }
 
 // --- Diatonic chord map ----------------------------------------------
@@ -434,69 +324,6 @@ export function chordAtDegree(key: string, degree: number): DegreeChord {
     quality: DIATONIC_MAJOR[d - 1] ?? 'major',
     degree: d,
   };
-}
-
-/**
- * Build the MIDI pitch for a scale degree in a key — the root of the
- * diatonic chord at that degree, kept inside the tonic's octave. Handy
- * for the Chord Motion tab where we often need just the pitch, not a
- * full chord voicing.
- */
-export function degreePitchMidi(key: string, degree: number): number {
-  return chordAtDegree(key, degree).rootMidi;
-}
-
-// --- Cadence helper --------------------------------------------------
-
-// A short I-IV-V-I cadence used by Chord Motion (Full / Partial
-// scaffolding) to prime the tonal centre before each drill. Kept brief
-// — four half-note chords at 100bpm total ~4.8 seconds. Uses
-// `bass-chords` listening mode so the tonic sits unambiguously in the
-// bass. Seventh complexity by default so V reads as V7 (stronger pull).
-export async function playCadence(
-  key: string,
-  opts: { bpm?: number; complexity?: Complexity; speedMultiplier?: number } = {},
-): Promise<PlaybackHandle> {
-  const bpm = opts.bpm ?? 100;
-  const complexity = opts.complexity ?? 'seventh';
-  const speedMultiplier = opts.speedMultiplier ?? 1;
-  const tonic = keyToRootMidi(key);
-
-  const mk = (degree: number): ProgressionStep => {
-    const chord = chordAtDegree(key, degree);
-    return {
-      rootMidi: chord.rootMidi,
-      bassMidi: chord.rootMidi - 12,
-      isSlash: false,
-      quality: chord.quality,
-      beats: 2,
-    };
-  };
-
-  const steps: ProgressionStep[] = [mk(1), mk(4), mk(5), mk(1)];
-  return playProgression(
-    steps,
-    bpm,
-    complexity,
-    'bass-chords',
-    speedMultiplier,
-    1,
-    'none',
-    tonic,
-    true,
-  );
-}
-
-/**
- * Total duration of a cadence played by `playCadence` with the given
- * tempo/speed. Four half-note chords at `bpm` scaled by the speed
- * multiplier. Matches the internal beats-per-step used above.
- */
-export function cadenceDurationSeconds(bpm = 100, speedMultiplier = 1): number {
-  const m = Math.max(0.1, speedMultiplier);
-  const effBpm = bpm * m;
-  const secPerBeat = 60 / effBpm;
-  return secPerBeat * 2 * 4; // 4 chords × 2 beats each
 }
 
 // --- Drone overlay ---------------------------------------------------

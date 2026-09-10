@@ -25,7 +25,7 @@ import EtSelectToggle from '../EtSelectToggle';
 import { useEtCurationsLive } from '../useEtCurations';
 import { useEtSelection, type EtSelectionState } from '../useEtSelection';
 import type { EtItemCuration } from '../../../lib/db';
-import { ALL_MOTIONS, INTERVAL_NAME, parseMotionId } from './ChordMotionTab';
+import { ALL_MOTIONS, INTERVAL_NAME, parseMotionId } from './chordMotionPool';
 import AssociationsEditor from './AssociationsEditor';
 import ProgressTrackerBand from '../../../components/moduleHome/ProgressTrackerBand';
 import { PROGRESS_TRACKER_LABEL } from '../../../components/moduleHome/cardShell';

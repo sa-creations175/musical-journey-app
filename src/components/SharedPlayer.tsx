@@ -19,6 +19,14 @@
  *     rated
  *   · the melody ring appears only where a surface has a melody line
  *   · "aids before you answer" exist only on quiz surfaces
+ *   · chord motion always names the key on the card, because its
+ *     question is which degree and not which letter
+ *   · chord motion is answered with degree chips or with the piano,
+ *     never with chips of chord names
+ *   · chord motion's board is visible before the answer only in Piano
+ *     keys mode, and unlit until the reader taps
+ *   · chord motion adds "Starting note", the one aid no other surface
+ *     has, and shows no Compare row
  *
  * Anything else that differs is a bug. A surface chooses which ROWS it
  * shows and never what a row means — the tempo, the lift, the hands and
@@ -190,6 +198,15 @@ interface SharedPlayerProps {
   controls?: boolean;
   /** Fires as each chord starts, so a caller can follow along. */
   onStep?: (index: number) => void;
+  /**
+   * Which chord the board shows before anything has played.
+   *
+   * THE FIRST ONE, UNLESS THE CARD'S ANSWER IS A LATER ONE. Chord
+   * Motion's reveal is about where the move LANDED, so its board opens
+   * on the second chord; a passage's opens on its first. Once playback
+   * starts this is replaced by whatever is sounding.
+   */
+  startLit?: number;
   /** Beats per chord, where a surface wants something other than two. */
   beats?: number;
   /**
@@ -216,6 +233,30 @@ interface SharedPlayerProps {
   totalBeats?: number;
 }
 
+/**
+ * The chord's root, ringed in its degree-of-the-key colour.
+ *
+ * ON EVERY OCTAVE OF THE ROOT THAT IS LIT, because the root is the
+ * root wherever it sounds — a ring on the bass and not on the hand's
+ * own root would read as two different notes.
+ */
+function ringed(
+  marks: Map<number, KeyMark>,
+  chord: PlayerChord | null,
+  ring: InKeyRing | null | undefined,
+): ReadonlyMap<number, KeyMark> {
+  // NO RING ON THE 1 — `inKeyRing` returns a null colour for it and the
+  // legend says why in words. Nothing to draw, so nothing is drawn.
+  if (ring == null || ring.colour === null || chord === null) return marks;
+  const out = new Map(marks);
+  for (const [midi, mark] of marks) {
+    if ((((midi - chord.rootPc) % 12) + 12) % 12 === 0) {
+      out.set(midi, { ...mark, ring: ring.colour });
+    }
+  }
+  return out;
+}
+
 /** Where the transport is, so Pause knows what to do. */
 type Transport = 'stopped' | 'playing' | 'paused';
 
@@ -223,7 +264,7 @@ export default function SharedPlayer({
   chords, orientPc, settings, onSettings, thickness,
   bassDirection, handDirection, showHands, showListen, attack,
   board, boardLabel = 'What is sounding', caption, compare, children,
-  controls = true, onStep, beats, play, totalBeats, ring,
+  controls = true, onStep, beats, play, totalBeats, ring, startLit = 0,
 }: SharedPlayerProps) {
   const { currentInstrument, setCurrentInstrument } = useInstrument();
   const [spelling] = useSpelling();
@@ -306,10 +347,9 @@ export default function SharedPlayer({
   // drops an octave, and the board follows it down — Silas's law of
   // 10 Sep 2026, for every surface.
   const drop = bassDrop(chords, settings);
-  const marks: ReadonlyMap<number, KeyMark> = playerMarks(
-    lit === null ? (chords[0] ?? null) : (chords[lit] ?? null),
-    settings,
-    drop,
+  const sounding = chords[lit ?? startLit] ?? chords[0] ?? null;
+  const marks: ReadonlyMap<number, KeyMark> = ringed(
+    playerMarks(sounding, settings, drop), sounding, ring,
   );
 
   const directionRow = (
@@ -370,7 +410,7 @@ export default function SharedPlayer({
           {chords.map((c, i) => (
             <Chip
               key={`${c.name}-${i}`}
-              on={lit === i}
+              on={(lit ?? startLit) === i}
               testId={`hear-one-${i}`}
               onClick={() => hearOne(i)}
             >

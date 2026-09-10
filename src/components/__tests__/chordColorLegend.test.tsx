@@ -140,15 +140,52 @@ describe('one chip per sounding note, named and coloured', () => {
   });
 });
 
-describe('the two written lines', () => {
-  it('always says what the green band is', () => {
+describe('the written lines', () => {
+  it('leaves the green band unglossed when the chips already name it', () => {
+    // The bass here IS the chord's root, so the chip row says
+    // "D root · bass" and a line about the band would gloss a mark the
+    // reader has already been told about.
     render();
+    open();
+    expect(chips()).toContain('D root · bass');
+    expect(document.querySelector('[data-testid="legend-bass-line"]')).toBeNull();
+  });
+
+  it('says what the green band is when the band is the only mark', () => {
+    // Dm7/G: the bass is not the chord's root, so its key carries the
+    // band and nothing else, and no chip calls it a root.
+    render({ chord: { ...DM7, bass: 43 } });
     open();
     const line = document.querySelector('[data-testid="legend-bass-line"]')!;
     expect(line.textContent).toContain('green band under a key = the bass note');
     // THE SAME GREEN AS THE ROOT FILL, because it is one.
     expect((line.querySelector('[data-testid="legend-swatch"]') as HTMLElement).style.background)
       .toBe(rgbOf(intervalColor(0)));
+  });
+
+  it('says the 1 gets no ring, in words, instead of drawing one', () => {
+    // A C chord in the key of C. Its root is the key's home and the
+    // interval palette already fills it green; a green ring would read
+    // as a second fill.
+    const ring = inKeyRing(0, 0)!;
+    expect(ring.colour).toBeNull();
+    render({ chord: { ...DM7, rootPc: 0 }, ring });
+    open();
+    expect(document.querySelector('[data-testid="legend-home-line"]')!.textContent)
+      .toContain('This chord is the 1 of the key');
+    expect(document.querySelector(
+      '[data-testid="legend-ring-line"] [data-testid="legend-swatch"]')).toBeNull();
+  });
+
+  it('names a degree and never a chord quality', () => {
+    // "the 2 of the key", not "the 2m of the key" — the ring answers
+    // where in the key the chord sits, and the chip row above carries
+    // its quality.
+    render({ ring: inKeyRing(2, 0)! });
+    open();
+    const text = document.querySelector('[data-testid="legend-ring-line"]')!.textContent!;
+    expect(text).toContain('this chord is the 2 of the key');
+    expect(text).not.toContain('2m');
   });
 
   it('writes the ring line only where a surface draws a ring', () => {
@@ -196,5 +233,14 @@ describe('the ring reads the lead sheet\'s own palette', () => {
 
   it('names a chromatic root by the degree it borrows', () => {
     expect(inKeyRing(10, 0)!.degree).toBe('♭7');
+    // The sharpened fourth is the prototype's own name for it — a
+    // tritone above the tonic reads up from the 4, not down from the 5.
+    expect(inKeyRing(6, 0)!.degree).toBe('♯4');
+  });
+
+  it('gives a flattened degree its family\'s word', () => {
+    // ♭3 and 3 are two shades of one teal, and a reader calls both teal.
+    expect(inKeyRing(3, 0)!.colourWord).toBe('teal');
+    expect(inKeyRing(4, 0)!.colourWord).toBe('teal');
   });
 });

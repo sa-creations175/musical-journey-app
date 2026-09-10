@@ -27,8 +27,26 @@
  * does; anything else would be a legend for a chord that is not
  * sounding.
  *
- * THE RING LINE ONLY APPEARS WHERE A SURFACE DRAWS THE RING. A legend
- * naming a mark that is not on the screen is worse than no legend.
+ * =====================================================================
+ * ONE LINE PER CHORD, AND IT NAMES A DEGREE RATHER THAN A CHORD.
+ *
+ * "this chord is the 4 of the key" — never "the 4m", because the ring
+ * answers where in the key the chord sits and its quality is a separate
+ * fact the chip row above already carries.
+ *
+ * WHEN THE CHORD IS THE 1 THERE IS NO RING and the line says so: its
+ * root is the key's home, so a ring would be saying what the fill
+ * already says. See `inKeyRing` for why a green ring beside the
+ * interval palette's green root was the wrong mark.
+ *
+ * THE GREEN BAND LINE IS WRITTEN ONLY WHEN THE BAND IS THE ONLY THING
+ * MARKING ITS KEY. Where the bass is the chord's own root the chip row
+ * already says "D root · bass" and the band needs no gloss; where the
+ * bass is some other note — a slash chord — the band is the only mark
+ * that key carries and the line earns its place.
+ *
+ * A legend naming a mark that is not on the screen is worse than no
+ * legend, so neither line is written unless the mark is drawn.
  * =====================================================================
  */
 import { useState, type ReactNode } from 'react';
@@ -107,6 +125,15 @@ export default function ChordColorLegend({
       return true;
     });
 
+  // THE BAND IS THE ONLY MARK ON ITS KEY when the bass is not the
+  // chord's own root — a slash bass. Where it IS the root the chips
+  // already name it "root · bass" and a second line would gloss a mark
+  // the reader has already been told about.
+  const bandOnlyMark = chord !== null
+    && chord.bass !== null
+    && settings.hands === 'both'
+    && (((chord.bass - chord.rootPc) % 12) + 12) % 12 !== 0;
+
   return (
     <details
       open={open}
@@ -146,20 +173,31 @@ export default function ChordColorLegend({
         <div className="space-y-1 text-xs text-neutral-500 dark:text-neutral-400">
           {ring != null && (
             <div className="flex items-center gap-1.5" data-testid="legend-ring-line">
-              <Chip colour={ring.colour} outline>
-                {ring.colourWord} ring on the root = this chord is the{' '}
-                {ring.degree} of the key
+              {ring.colour === null
+                ? (
+                  <span data-testid="legend-home-line">
+                    This chord is the {ring.degree} of the key: its root is
+                    the key&rsquo;s home, so it gets no ring.
+                  </span>
+                )
+                : (
+                  <Chip colour={ring.colour} outline>
+                    {ring.colourWord} ring on the root = this chord is the{' '}
+                    {ring.degree} of the key
+                  </Chip>
+                )}
+            </div>
+          )}
+          {bandOnlyMark && (
+            <div className="flex items-center gap-1.5" data-testid="legend-bass-line">
+              {/* THE SAME GREEN AS THE ROOT FILL, BECAUSE IT IS ONE. The
+                  band is `intervalColor(0)`; naming a second green here
+                  would invent a distinction the board does not draw. */}
+              <Chip colour={intervalColor(0)}>
+                green band under a key = the bass note
               </Chip>
             </div>
           )}
-          <div className="flex items-center gap-1.5" data-testid="legend-bass-line">
-            {/* THE SAME GREEN AS THE ROOT FILL, BECAUSE IT IS ONE. The
-                band is `intervalColor(0)`; naming a second green here
-                would invent a distinction the board does not draw. */}
-            <Chip colour={intervalColor(0)}>
-              green band under a key = the bass note
-            </Chip>
-          </div>
         </div>
       </div>
     </details>

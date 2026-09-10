@@ -61,12 +61,21 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export default function AidsFold({
-  settings, onSettings, attack, showListen = true,
+  settings, onSettings, attack, showListen = true, extra,
 }: {
   settings: PlayerSettings;
   onSettings: (next: PlayerSettings) => void;
   /** Chord recognition's own row. Omit where the surface has none. */
   attack?: boolean;
+  /**
+   * A row this surface adds of its own.
+   *
+   * ONE SURFACE HAS ONE, and it is Chord Motion's Starting note — an
+   * aid nothing else offers because nothing else asks where a move
+   * began. It goes at the foot of the fold, after the shared rows, so
+   * the rows every surface has stay in the same order everywhere.
+   */
+  extra?: ReactNode;
   /** Bass only. Every quiz surface has it today; the flag is here for
    *  the one that will not. */
   showListen?: boolean;
@@ -157,6 +166,8 @@ export default function AidsFold({
             ))}
           </Row>
         )}
+
+        {extra}
       </div>
     </details>
   );

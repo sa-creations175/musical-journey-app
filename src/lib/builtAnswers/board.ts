@@ -43,6 +43,23 @@ export interface KeyMark {
   pressed?: boolean;
   /** A band along the foot of the key: this is the bass note. */
   bassBand?: boolean;
+  /**
+   * An outline around the key, as a CSS colour.
+   *
+   * =====================================================================
+   * A SECOND FACT ABOUT ONE KEY, WHICH IS WHY IT IS NOT A FILL.
+   *
+   * The fill says what INTERVAL of the chord a note is; the ring says
+   * what DEGREE OF THE KEY the chord itself is. Both are true of the
+   * chord's root at once, and a reader needs both — "this is the root,
+   * and this chord is the 4". Drawing the ring as a fill would make the
+   * two palettes fight for the same pixel and the reader would have to
+   * guess which question was being answered.
+   *
+   * Named in the Chord Color Legend, and only where a surface draws it.
+   * =====================================================================
+   */
+  ring?: string;
 }
 
 export interface BoardKey {

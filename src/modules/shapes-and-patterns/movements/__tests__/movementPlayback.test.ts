@@ -179,7 +179,7 @@ describe('the hands travel', () => {
  * is ignored — which is exactly what happened, silently, until the
  * gains came back empty.
  */
-function fakeAudio() {
+function fakeAudio(latency: { output?: number; base?: number } = {}) {
   const stopped: number[] = [];
   /** Every volume a voice was ramped to, in the order notes were
    *  scheduled. `playPiano` ramps its master gain to the note's volume
@@ -202,8 +202,17 @@ function fakeAudio() {
     start() {},
     stop(t: number) { stopped.push(t); },
   });
+  // THE CLOCK ADVANCES, BECAUSE A REAL ONE DOES. The board repaints when
+  // the audio clock reaches a step's scheduled time, so a fake context
+  // frozen at zero would never light anything. Tied to `Date.now`, it
+  // moves exactly as far as `advanceTimersByTime` says.
+  const base = Date.now();
   const context = {
-    currentTime: 0,
+    get currentTime() { return (Date.now() - base) / 1000; },
+    // WHAT THE DEVICE ADDS AFTER THE GRAPH. Zero unless a test says
+    // otherwise, which is what a wired output reports.
+    outputLatency: latency.output ?? 0,
+    baseLatency: latency.base ?? 0,
     state: 'running',
     destination: {},
     resume: () => Promise.resolve(),
@@ -217,9 +226,9 @@ function fakeAudio() {
 }
 
 /** A fresh module registry, so the stubbed context is the one used. */
-async function loadPlayer() {
+async function loadPlayer(latency: { output?: number; base?: number } = {}) {
   vi.resetModules();
-  const audio = fakeAudio();
+  const audio = fakeAudio(latency);
   const mod = await import('../../../../lib/audio');
   return { ...audio, play: mod.playSeqChords };
 }
@@ -248,6 +257,37 @@ describe('playing a sequence', () => {
     expect(audio.oscillators()).toBe(before);
     // And the voices already scheduled were told to stop.
     expect(audio.stopped.length).toBeGreaterThan(0);
+  });
+
+  it('holds the paint by what the device says the sound is behind', async () => {
+    // =====================================================================
+    // ON BLUETOOTH THE KEYS MUST CHANGE WHEN THE SOUND ARRIVES.
+    //
+    // A note handed to the graph at time T leaves the headphones a fifth
+    // of a second later. Lighting the key at T is not "a bit early" — it
+    // is the wrong key lit while the previous chord is still playing.
+    // The browser reports the delay in two halves and the player holds
+    // the repaint by their sum.
+    // =====================================================================
+    const audio = await loadPlayer({ output: 0.18, base: 0.02 });
+    const onStep = vi.fn();
+    await audio.play([{ intervals: [0, 4, 7], beats: 1 }], 60, 60, { onStep });
+
+    // The step is scheduled 50ms out. Without the hold it would light
+    // here; with it, a fifth of a second of silence is still to come.
+    await vi.advanceTimersByTimeAsync(120);
+    expect(onStep).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(200);
+    expect(onStep).toHaveBeenCalledWith(0);
+  });
+
+  it('lights straight away when the device reports no delay', async () => {
+    const audio = await loadPlayer();
+    const onStep = vi.fn();
+    await audio.play([{ intervals: [0, 4, 7], beats: 1 }], 60, 60, { onStep });
+    await vi.advanceTimersByTimeAsync(120);
+    expect(onStep).toHaveBeenCalledWith(0);
   });
 
   it('runs a finite loop the number of times it was asked to', async () => {

@@ -574,6 +574,106 @@ export interface SeqChordsOptions {
 }
 
 /**
+ * Half a frame, so a paint lands on the frame nearest its moment.
+ *
+ * Without it a step whose time falls a millisecond after the frame that
+ * checks waits a whole frame more, which puts every light consistently
+ * late rather than evenly either side. The prototype uses the same 5ms.
+ */
+const PAINT_SLACK = 0.005;
+
+/**
+ * How far behind the clock the sound actually is.
+ *
+ * `baseLatency` is what the graph adds between a scheduled time and the
+ * system's audio buffer; `outputLatency` is what the device adds after
+ * that, and on Bluetooth it is the larger of the two by an order of
+ * magnitude. Neither is available everywhere, so both fall back to
+ * zero — the behaviour this had before it read them at all.
+ */
+function outputLatency(context: AudioContext): number {
+  const extended = context as AudioContext & { outputLatency?: number };
+  return (extended.outputLatency ?? 0) + (context.baseLatency ?? 0);
+}
+
+/** One note of a scheduled step: what sounds, when, for how long. */
+export interface ScheduledNote {
+  midi: number;
+  /** Audio-clock time this note starts. */
+  at: number;
+  duration: number;
+  hand: 'L' | 'R';
+}
+
+/** One step of a scheduled pass. */
+export interface ScheduledStep {
+  /** Index into the chords passed in — what `onStep` reports. */
+  index: number;
+  /**
+   * The audio-clock time this step begins.
+   *
+   * IT IS THE FIRST NOTE'S START AND THE BOARD'S REPAINT, one number
+   * serving both. A rolled chord's later notes come after it; the step
+   * still begins when its first note strikes.
+   */
+  at: number;
+  notes: ScheduledNote[];
+}
+
+/**
+ * When every note of a pass sounds.
+ *
+ * =====================================================================
+ * THE SCHEDULE IS COMPUTED ONCE AND READ TWICE.
+ *
+ * The notes are scheduled from it and the board is repainted from it, so
+ * "the lit keys are the sounding keys" is not two calculations that
+ * happen to agree today. Pulling it out of the scheduler also makes it
+ * testable without an audio context, which is what pins the law down.
+ *
+ * `skipBeats` drops the steps whose turn has already gone by and shifts
+ * the rest back — how Resume picks up mid-sequence. It applies to the
+ * pass it is given; the passes after it take zero.
+ * =====================================================================
+ */
+export function seqSchedule(
+  chords: ReadonlyArray<SeqChord>,
+  rootMidi: number,
+  secPerBeat: number,
+  startAt: number,
+  skipBeats = 0,
+): { steps: ScheduledStep[]; endsAt: number } {
+  const steps: ScheduledStep[] = [];
+  let cursor = startAt;
+  let beatCursor = 0;
+  chords.forEach((chord, index) => {
+    const beats = chord.beats ?? 2;
+    const duration = secPerBeat * beats;
+    const skipped = beatCursor < skipBeats;
+    beatCursor += beats;
+    if (skipped) return;
+    // A ROLL IS THE SAME NOTES, LATER. Nothing else about the step
+    // changes: same volume, same hands, same length of ring, same moment
+    // for the board — a rolled chord lights when its first note strikes,
+    // which is when it starts.
+    const roll = (chord.roll ?? 0) * secPerBeat;
+    const at = cursor;
+    steps.push({
+      index,
+      at,
+      notes: chord.intervals.map((iv, note) => ({
+        midi: rootMidi + iv,
+        at: at + note * roll,
+        duration: duration * 0.95,
+        hand: chord.hands?.[note] ?? 'R',
+      })),
+    });
+    cursor += duration;
+  });
+  return { steps, endsAt: cursor };
+}
+
+/**
  * Play a sequence of exact voicings against a root.
  *
  * =====================================================================
@@ -608,7 +708,42 @@ export async function playSeqChords(
 
   const voices: Voice[] = [];
   const timers: number[] = [];
+  const paints: Array<{ at: number; index: number }> = [];
   let stopped = false;
+  let frame: number | null = null;
+  let painted = 0;
+
+  /**
+   * THE BOARD REPAINTS ON THE AUDIO CLOCK, NOT ON A SCREEN TIMER.
+   *
+   * A `setTimeout` computed from the same moment looks equivalent and is
+   * not: the timer queue is starved by a busy main thread and throttled
+   * outright in a background tab, while the audio graph plays on. The
+   * lights drift away from the notes and never come back, because
+   * nothing rechecks. So each step carries the audio time it sounds at
+   * and a frame loop fires the ones the audio clock has reached — a late
+   * frame catches up instead of accumulating a lag. It is what the
+   * prototype does, and it is a law of the shared player.
+   *
+   * `paints` is in time order and `painted` is how far down it we have
+   * got, so a pass armed mid-flight (`'untilStopped'`) simply extends
+   * the queue.
+   */
+  const pump = () => {
+    if (stopped) return;
+    // WHEN THE SOUND ARRIVES, NOT WHEN IT WAS SCHEDULED. A note handed
+    // to the graph at time T leaves the speakers a little after T, and
+    // over Bluetooth "a little" is a fifth of a second — long enough
+    // that keys lighting at T look wrong. The browser reports the two
+    // halves of that delay and this holds the paint by their sum.
+    const latency = outputLatency(context);
+    while (painted < paints.length
+      && paints[painted].at + latency <= context.currentTime + PAINT_SLACK) {
+      opts.onStep?.(paints[painted].index);
+      painted += 1;
+    }
+    frame = requestAnimationFrame(pump);
+  };
 
   /**
    * One pass through the sequence, starting at an absolute time.
@@ -619,35 +754,23 @@ export async function playSeqChords(
    * passes after it.
    */
   const schedulePass = (startAt: number, skipBeats = 0) => {
-    let cursor = startAt;
-    let beatCursor = 0;
-    chords.forEach((chord, idx) => {
-      const beats = chord.beats ?? 2;
-      const duration = secPerBeat * beats;
-      const skipped = beatCursor < skipBeats;
-      beatCursor += beats;
-      if (skipped) return;
-      const vol = chordVolume(chord.intervals.length);
-      // A ROLL IS THE SAME NOTES, LATER. Nothing else about the step
-      // changes: same volume, same hands, same length of ring, same
-      // onStep at the chord's own moment — a rolled chord lights the
-      // board when its first note strikes, which is when it starts.
-      const roll = (chord.roll ?? 0) * secPerBeat;
-      chord.intervals.forEach((iv, note) => {
-        const hand = chord.hands?.[note] ?? 'R';
+    const { steps, endsAt } = seqSchedule(
+      chords, rootMidi, secPerBeat, startAt, skipBeats,
+    );
+    for (const step of steps) {
+      const vol = chordVolume(step.notes.length);
+      for (const note of step.notes) {
         voices.push(playNote(
-          midiToFreq(rootMidi + iv), cursor + note * roll, duration * 0.95,
-          context, vol * gains[hand],
+          midiToFreq(note.midi), note.at, note.duration, context,
+          vol * gains[note.hand],
         ));
-      });
-      if (opts.onStep) {
-        const fireAt = (cursor - context.currentTime) * 1000;
-        const cb = opts.onStep;
-        timers.push(window.setTimeout(() => cb(idx), Math.max(0, fireAt)));
       }
-      cursor += duration;
-    });
-    return cursor;
+      // ONE TIMESTAMP, TWO JOBS. `step.at` is the moment the step's
+      // first note strikes and the moment the board is told to repaint —
+      // one number read twice, rather than two numbers computed alike.
+      if (opts.onStep) paints.push({ at: step.at, index: step.index });
+    }
+    return endsAt;
   };
 
   const now = context.currentTime + 0.05;
@@ -679,12 +802,15 @@ export async function playSeqChords(
     }
   }
 
+  if (opts.onStep) pump();
+
   return {
     stop: () => {
       stopped = true;
       const fadeAt = context.currentTime + 0.05;
       for (const v of voices) v.stop(fadeAt);
       for (const id of timers) window.clearTimeout(id);
+      if (frame !== null) cancelAnimationFrame(frame);
     },
   };
 }

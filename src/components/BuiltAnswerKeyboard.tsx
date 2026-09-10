@@ -41,6 +41,10 @@ import {
 
 const PLAIN_FILL = '#C9E3F7';
 const PLAIN_EDGE = '#5E93C4';
+/** The dark line between a ring and the fill it surrounds. The board's
+ *  own ground colour, so the gap reads as a gap. */
+const RING_GAP = '#15181B';
+
 const PRESSED_FILL = '#378ADD';
 /** The root's own green, and so the bass band's. */
 const BASS_GREEN = '#0F6E56';
@@ -106,6 +110,42 @@ export default function BuiltAnswerKeyboard({
             data-testid={`bass-band-${k.midi}`}
             pointerEvents="none"
           />
+        )}
+        {/* THE RING, drawn inside the key's own edge so it reads as a
+            band around the note rather than as a gap between keys. It
+            says what degree of the KEY this chord is, where the fill
+            says what interval of the CHORD this note is.
+
+            A THIN DARK GAP SEPARATES IT FROM THE FILL. Ring and fill
+            are two palettes answering two questions, and touching each
+            other they read as one two-tone fill; the prototype puts a
+            dark inset between them and so does this. */}
+        {mark?.ring !== undefined && (
+          <>
+            <rect
+              x={k.x + 5}
+              y={5}
+              width={k.width - 10}
+              height={k.height - 10}
+              rx={2}
+              fill="none"
+              stroke={RING_GAP}
+              strokeWidth={2}
+              pointerEvents="none"
+            />
+            <rect
+              x={k.x + 2}
+              y={2}
+              width={k.width - 4}
+              height={k.height - 4}
+              rx={2}
+              fill="none"
+              stroke={mark.ring}
+              strokeWidth={4}
+              data-testid={`key-ring-${k.midi}`}
+              pointerEvents="none"
+            />
+          </>
         )}
         {/* THE Cs CARRY THEIR NUMBER, so middle C is findable without
             counting from the edge. Drawn above the bass band's line and

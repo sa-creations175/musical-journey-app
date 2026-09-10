@@ -149,3 +149,14 @@ function buildAllMotions(): Motion[] {
 }
 
 export const ALL_MOTIONS: ReadonlyArray<Motion> = buildAllMotions();
+
+/**
+ * What a distance is called in prose.
+ *
+ * IT LIVED ON THE SCREEN and the fluency tracker imported the screen to
+ * get it. A name for a distance is a fact about the pool, so it sits
+ * beside the pool.
+ */
+export const INTERVAL_NAME: Record<2 | 3 | 4 | 5 | 6 | 7, string> = {
+  2: '2nd', 3: '3rd', 4: '4th', 5: '5th', 6: '6th', 7: '7th',
+};

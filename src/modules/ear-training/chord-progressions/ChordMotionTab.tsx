@@ -1,19 +1,48 @@
+/**
+ * Chord Motion, on the shared player.
+ *
+ * =====================================================================
+ * IT HAD A PLAYER OF ITS OWN, AND EVERY PART OF IT WAS A SECOND ANSWER.
+ *
+ * A cadence lead-in nothing else played, three listening modes where
+ * the rest of the app has two, a speed MULTIPLIER where the rest has a
+ * tempo, chords placed in root position from their own degree, and a
+ * "no octave crossing" rule invented to stop that placement sounding
+ * wrong. A reader met a different instrument here from the one every
+ * other ear card uses.
+ *
+ * Silas's walked prototype of 10 Sep 2026 moves it onto the shared
+ * player: the card names two chords, `motionChords` voices them by the
+ * app's own bass rule and nearest voicing, and whichever inversion
+ * falls out of that is the inversion. The lead-in is the single low
+ * tonic every other surface plays.
+ *
+ * =====================================================================
+ * THE ANSWER IS A DEGREE FIRST AND A KEY SECOND.
+ *
+ * The board asked the reader to translate a degree they heard into a
+ * letter, in a key the card named, before they could say what they
+ * heard. Degrees are the default now and the piano is still there for
+ * anyone who would rather point at it.
+ *
+ * WHAT MAY DIFFER ON THIS SURFACE is written into the shared player's
+ * own list; the four differences are the key always being named, the
+ * two answer modes, the Starting note aid and the absent Compare row.
+ * =====================================================================
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
-import { bulkAddAttempts } from '../../../lib/practiceWrites';
+import { addAttempt } from '../../../lib/practiceWrites';
 import { recordEngagement } from '../../../lib/spacingState';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
-import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { getPref, setPref } from '../../../lib/userPrefs';
-import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
 import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
-import SpeedControl from '../../../components/SpeedControl';
-import KeyboardVisual, { type HighlightedNote } from '../../../components/KeyboardVisual';
 import ItemSelectionPanel, { type SelectionSection } from '../../../components/ItemSelectionPanel';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
-import AnswerVerdict from '../../../components/AnswerVerdict';
+import SharedPlayer from '../../../components/SharedPlayer';
+import AidsFold from '../../../components/AidsFold';
+import BuiltAnswerKeyboard from '../../../components/BuiltAnswerKeyboard';
 import AssociationsEditor from './AssociationsEditor';
 import IntervalDescriptionEditor from './IntervalDescriptionEditor';
 import {
@@ -21,28 +50,30 @@ import {
   intervalDescriptionKey,
   intervalFromSemitones,
 } from './intervalQuality';
-import {
-  KEYS,
-  cadenceDurationSeconds,
-  chordDisplay,
-  keyToRootMidi,
-  playCadence,
-  voicingFor,
-  type Complexity,
-  type ListeningMode,
-  type PlaybackHandle,
-} from './progressionTheory';
-import type { ChordQuality } from './catalog';
+import { KEYS, keyToRootMidi } from './progressionTheory';
 // THE POOL LIVES IN ITS OWN FILE. Two things outside this drill need
 // to know which motions exist — the dashboard read layer and the
 // ear-training orphan sweep — and neither should import a screen to
 // find out. Re-exported below, unchanged, so no caller moved.
 import {
-  ALL_MOTIONS, degreeEntry, motionId, parseMotionId,
+  ALL_MOTIONS, INTERVAL_NAME, motionId,
   type DegreeLabel, type Direction, type Motion,
 } from './chordMotionPool';
-import { pitchClassOf, spellKey, spellNote, type Spelling } from '../../../lib/spelling';
+import { motionChords } from './motionChords';
+import { degreeChips, degreePc } from './motionDegrees';
+import { spellKey } from '../../../lib/spelling';
 import { useSpelling } from '../../../lib/spellingPref';
+import { useProgressionSpelling } from '../../../lib/progressionSpelling';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
+import { playPanel } from '../../../lib/builtAnswers/play';
+import type { PlayerChord } from '../../../lib/player/voices';
+import type { PlaybackHandle } from '../../../lib/musicalPlayback';
+import { inKeyFill, inKeyRing } from '../../../lib/player/inKeyColour';
+import { heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
+import { FEEL_OPTIONS } from '../../../lib/fluencyScale';
+import { statusColour, STATUS_FOR_FEEL } from '../../../lib/spacing/statusColour';
+import type { KeyMark } from '../../../lib/builtAnswers/board';
+import type { ListRung } from './sharedList';
 
 const MODULE_ID = 'chord-progressions';
 
@@ -51,23 +82,10 @@ const MODULE_ID = 'chord-progressions';
 type DistanceFilter = 'all' | 2 | 3 | 4 | 5 | 6 | 7;
 type DirectionFilter = 'both' | Direction;
 type NoteContext = 'diatonic' | 'chromatic';
-type Scaffolding = 'full' | 'partial' | 'minimal';
-
-const INTERVAL_NAME: Record<2 | 3 | 4 | 5 | 6 | 7, string> = {
-  2: '2nd', 3: '3rd', 4: '4th', 5: '5th', 6: '6th', 7: '7th',
-};
-
-const SCAFFOLD_LABEL: Record<Scaffolding, string> = {
-  full: 'full',
-  partial: 'partial',
-  minimal: 'minimal',
-};
-
-// Module-level complexity for Chord Motion playback. Default is seventh
-// (richer sound; matches what the audio engine actually renders).
-// Kept as a const for v1 — exposing a user-facing complexity toggle
-// lives in the Chord Motion roadmap.
-const MOTION_COMPLEXITY: Complexity = 'seventh';
+/** How the reader answers. Degrees is the question the card asks. */
+type AnswerWith = 'degrees' | 'piano';
+/** The one aid this surface has of its own. */
+type StartingNote = 'find' | 'given';
 
 // --- Pre-populated "starter" associations ----------------------------
 
@@ -123,64 +141,9 @@ function starterAssociation(m: Motion): string {
 const PREF_DISTANCE = 'chordProgressionsMotionDistance';
 const PREF_DIRECTION = 'chordProgressionsMotionDirection';
 const PREF_NOTE_CONTEXT = 'chordProgressionsMotionNoteContext';
-const PREF_LISTENING = 'chordProgressionsMotionListening';
-const PREF_SCAFFOLD = 'chordProgressionsMotionScaffolding';
 const PREF_FOCUS = 'chordProgressionsMotionFocus';
-
-// --- Audio helpers ---------------------------------------------------
-
-function chordVoice(key: string, label: DegreeLabel) {
-  const entry = degreeEntry(label);
-  if (!entry) {
-    // Should never happen — DegreeLabel is a closed union — but guard so
-    // an invalid id can't blow up audio generation.
-    return { root: keyToRootMidi(key), intervals: [0], quality: 'major' as ChordQuality };
-  }
-  const root = keyToRootMidi(key) + entry.semi;
-  const intervals = voicingFor(entry.quality, MOTION_COMPLEXITY, false);
-  return { root, intervals, quality: entry.quality };
-}
-
-// Midi pitch of a degree label in a given key (one-octave basis, tonic
-// sits at keyToRootMidi(key)). Used everywhere the motion needs a
-// concrete pitch — for the keyboard highlight math, for grading, and
-// for scheduling the chord voicing.
-function degreeMidi(key: string, label: DegreeLabel): number {
-  const entry = degreeEntry(label);
-  return keyToRootMidi(key) + (entry?.semi ?? 0);
-}
-
-// Play one step of the motion as a blocked voicing. Texture depends on
-// the listening mode:
-//   · 'bass'        → just the root note one octave below chord register
-//   · 'chords'      → full chord voicing, no separate bass
-//   · 'bass-chords' → chord voicing at normal register plus the bass
-//                     note at the low octave (boosted slightly so it
-//                     stays audible under the chord)
-// Same internal shape used by playProgression in progressionTheory.ts
-// — kept local here so volume tuning can diverge from the progression
-// playback without affecting the main quiz.
-async function playStep(
-  rootMidi: number,
-  intervals: number[],
-  listening: ListeningMode,
-  durationSecs = 1.4,
-) {
-  const context = await ensureRunning();
-  const start = context.currentTime + 0.04;
-  const notes: number[] = [];
-  const bassSeparate = listening === 'bass' || listening === 'bass-chords';
-  if (bassSeparate) notes.push(rootMidi - 12);
-  if (listening === 'chords' || listening === 'bass-chords') {
-    for (const iv of intervals) notes.push(rootMidi + iv);
-  }
-  const polyphony = Math.max(1, notes.length);
-  const vol = Math.max(0.15, 0.3 / Math.sqrt(polyphony));
-  notes.forEach((midi, i) => {
-    const isBassVoice = bassSeparate && i === 0;
-    playNote(midiToFreq(midi), start, durationSecs, context, vol * (isBassVoice ? 1.3 : 1));
-  });
-}
+const PREF_ANSWER_WITH = 'chordProgressionsMotionAnswerWith';
+const PREF_STARTING_NOTE = 'chordProgressionsMotionStartingNote';
 
 // --- Selection + randomization ---------------------------------------
 
@@ -193,12 +156,6 @@ async function playStep(
  * are HIDDEN while focus is active, so there was no way to see the
  * cause or fix it from the screen - a drill that looks broken rather
  * than one that looks filtered.
- *
- * Matches what the other three modules already do: `IntervalsQuiz`
- * branches the same way, and `ScalesModes` says it outright. Widening
- * only, for the in-app "practice this motion specifically" button:
- * that motion came out of the current pool, so it satisfied the
- * filters anyway.
  */
 function filterMotions(
   distance: DistanceFilter,
@@ -219,6 +176,50 @@ function randomKey(): string {
   return KEYS[Math.floor(Math.random() * KEYS.length)];
 }
 
+/** The rung the reveal's ladder opens on. Seventh chords, like the
+ *  Full Progression card — a motion is heard as two seventh chords. */
+const DEFAULT_RUNG: ListRung = 'seventh';
+
+// --- Small pieces ----------------------------------------------------
+
+const CHIP = 'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors';
+const CHIP_OFF = 'border-black/10 dark:border-white/20 bg-black/[0.03] '
+  + 'dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/10';
+const CHIP_ON = 'border-neutral-900 dark:border-neutral-100 bg-neutral-900 '
+  + 'text-white dark:bg-neutral-100 dark:text-neutral-900';
+
+function Chip({ on, onClick, children, testId, disabled }: {
+  on: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  testId?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      data-testid={testId}
+      disabled={disabled === true}
+      onClick={onClick}
+      className={`${CHIP} ${on ? CHIP_ON : CHIP_OFF} disabled:opacity-40 disabled:cursor-default`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+        {label}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+    </div>
+  );
+}
+
 // --- Component -------------------------------------------------------
 
 interface Props {
@@ -229,73 +230,28 @@ interface Props {
   attempts: AttemptRecord[];
 }
 
-type RunState = 'idle' | 'cadence' | 'motion' | 'answering' | 'reveal';
+type Phase = 'idle' | 'answering' | 'reveal';
 
 interface Round {
   motion: Motion;
   key: string;
-  startMidi: number;
-  destMidi: number;
-  /** Scaffold mode captured at round start. Locked for the lifetime of
-   *  the round so toggling the scaffolding pill mid-play or mid-feedback
-   *  can't retroactively rewrite the current question's interaction
-   *  rules — changes apply forward via nextRound().
-   *
-   *  NOTE: scaffold is a structural / interaction setting (it changes
-   *  which clicks are required and what highlights show), so it stays
-   *  locked. Audio-only settings (listening mode, speed, instrument)
-   *  are NOT captured on the round — they're read live on every
-   *  playback/replay so the user can switch textures and immediately
-   *  hear the change on the next replay click. */
-  scaffold: Scaffolding;
-  /** True when this round is a "challenge-yourself" re-attempt at a
-   *  harder scaffolding tier after a correct answer. Practice reps do
-   *  not write to the attempts table, don't update daily summary, and
-   *  don't affect streaks or rolling-window fluency. */
-  isPracticeRep: boolean;
-}
-
-interface Verdict {
-  firstCorrect: boolean; // only meaningful in Minimal mode
-  destCorrect: boolean;
-  fullCredit: boolean;
-}
-
-
-function midiToNote(midi: number, spelling: Spelling): string {
-  return spellNote(((midi % 12) + 12) % 12, spelling);
-}
-
-/**
- * The keyboard hands back the note NAME it was rendered with, so this
- * has to read whatever `midiToNote` just wrote — including the ♭ and ♯
- * signs. `pitchClassOf` accepts both alphabets, which is what keeps the
- * click round-trip working now that the labels carry signs; the local
- * ASCII-only SEMITONE table it replaces would have returned undefined
- * for every black key and put the click an octave off zero.
- */
-function clickedToMidi(note: string, octave: number): number {
-  return (octave + 1) * 12 + (pitchClassOf(note) ?? 0);
+  keyPc: number;
+  chords: PlayerChord[];
+  rootPcs: number[];
+  startPc: number;
+  destPc: number;
 }
 
 export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   const [spelling] = useSpelling();
+  const [rowSpelling] = useProgressionSpelling();
+  const [settings, setSettings] = usePlayerSettings();
+
   const [distance, setDistance] = useState<DistanceFilter>('all');
   const [direction, setDirection] = useState<DirectionFilter>('both');
-  // Diatonic-only is the default starting point — chromatic motion
-  // without a key anchor essentially collapses to random guessing for
-  // the Minimal scaffold. Users opt into chromatic explicitly.
   const [noteContext, setNoteContext] = useState<NoteContext>('diatonic');
-  // Listening texture — bass only / chords only / both layered. Default
-  // "both" so motions feel like actual music; bass-only is the ear-
-  // training-purist setting.
-  const [listening, setListening] = useState<ListeningMode>('bass-chords');
-  const [scaffold, setScaffold] = useState<Scaffolding>('full');
-  /**
-   * FOCUS PROTECTION STILL APPLIES to a pool the dashboard sent. The
-   * rule is about how few items you were choosing between, not about
-   * who chose them.
-   */
+  const [answerWith, setAnswerWith] = useState<AnswerWith>('degrees');
+  const [startingNote, setStartingNote] = useState<StartingNote>('find');
   const [focusKeys, setFocusKeys] = useState<string[]>(
     initialFocusKeys ? [...initialFocusKeys] : [],
   );
@@ -305,745 +261,560 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   const [showFocusPanel, setShowFocusPanel] = useState(false);
   const [prefsLoaded, setPrefsLoaded] = useState(false);
 
-  const [runState, setRunState] = useState<RunState>('idle');
-  /**
-   * What was in force when this round became answerable.
-   *
-   * Set where the tab ITSELF decides the question is answerable —
-   * inside the timeout that flips runState to 'answering' — rather
-   * than from a computed duration. The two chords are separated by a
-   * fixed gap and may be preceded by a cadence, so the component's own
-   * definition is the only one that stays right when either changes.
-   */
-  const asked = useRef<AskedContext | null>(null);
+  const [phase, setPhase] = useState<Phase>('idle');
   const [round, setRound] = useState<Round | null>(null);
-  const [clickedStart, setClickedStart] = useState<number | null>(null);
-  const [clickedDest, setClickedDest] = useState<number | null>(null);
-  const [verdict, setVerdict] = useState<Verdict | null>(null);
-  const [showChallengeOptions, setShowChallengeOptions] = useState(false);
+  const [rung, setRung] = useState<ListRung>(DEFAULT_RUNG);
+  const [pickedStart, setPickedStart] = useState<DegreeLabel | null>(null);
+  const [pickedDest, setPickedDest] = useState<DegreeLabel | null>(null);
+  const [tappedStart, setTappedStart] = useState<number | null>(null);
+  const [feel, setFeel] = useState<1 | 2 | 3 | 4 | null>(null);
+  const [lit, setLit] = useState<number | null>(null);
 
-  const playbackRef = useRef<PlaybackHandle | null>(null);
-  const timerRef = useRef<number | null>(null);
+  const replays = useRef(0);
+  const asked = useRef<AskedContext | null>(null);
+  const handle = useRef<PlaybackHandle | null>(null);
 
-  // --- Prefs hydration / persistence ---------------------------------
+  // --- Prefs ---------------------------------------------------------
   useEffect(() => {
     (async () => {
-      const d = await getPref<DistanceFilter>(PREF_DISTANCE, 'all');
-      const dir = await getPref<DirectionFilter>(PREF_DIRECTION, 'both');
+      setDistance(await getPref<DistanceFilter>(PREF_DISTANCE, 'all'));
+      setDirection(await getPref<DirectionFilter>(PREF_DIRECTION, 'both'));
       const nc = await getPref<NoteContext>(PREF_NOTE_CONTEXT, 'diatonic');
-      const ls = await getPref<ListeningMode>(PREF_LISTENING, 'bass-chords');
-      const sc = await getPref<Scaffolding>(PREF_SCAFFOLD, 'full');
-      const focus = await getPref<string[]>(PREF_FOCUS, []);
-      setDistance(d);
-      setDirection(dir);
       setNoteContext(nc === 'chromatic' ? 'chromatic' : 'diatonic');
-      setListening(ls === 'bass' || ls === 'chords' ? ls : 'bass-chords');
-      setScaffold(sc);
-      // NOT when the dashboard sent a pool. This effect runs after the
-      // first render, so hydrating the persisted selection over it
-      // would replace what was just asked for with whatever was last
-      // hand-picked - a tap that lands on the wrong motions, one tick
-      // after landing on the right ones.
+      const aw = await getPref<AnswerWith>(PREF_ANSWER_WITH, 'degrees');
+      setAnswerWith(aw === 'piano' ? 'piano' : 'degrees');
+      const sn = await getPref<StartingNote>(PREF_STARTING_NOTE, 'find');
+      setStartingNote(sn === 'given' ? 'given' : 'find');
+      const focus = await getPref<string[]>(PREF_FOCUS, []);
+      // NOT when the dashboard sent a pool — hydrating over it would
+      // replace what was just asked for, one tick after landing on it.
       if ((initialFocusKeys?.length ?? 0) === 0) setFocusKeys(focus);
       setPrefsLoaded(true);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { if (prefsLoaded) setPref(PREF_DISTANCE, distance); }, [distance, prefsLoaded]);
-  useEffect(() => { if (prefsLoaded) setPref(PREF_DIRECTION, direction); }, [direction, prefsLoaded]);
-  useEffect(() => { if (prefsLoaded) setPref(PREF_NOTE_CONTEXT, noteContext); }, [noteContext, prefsLoaded]);
-  useEffect(() => { if (prefsLoaded) setPref(PREF_LISTENING, listening); }, [listening, prefsLoaded]);
-  useEffect(() => { if (prefsLoaded) setPref(PREF_SCAFFOLD, scaffold); }, [scaffold, prefsLoaded]);
+  useEffect(() => { if (prefsLoaded) void setPref(PREF_DISTANCE, distance); }, [distance, prefsLoaded]);
+  useEffect(() => { if (prefsLoaded) void setPref(PREF_DIRECTION, direction); }, [direction, prefsLoaded]);
+  useEffect(() => { if (prefsLoaded) void setPref(PREF_NOTE_CONTEXT, noteContext); }, [noteContext, prefsLoaded]);
+  useEffect(() => { if (prefsLoaded) void setPref(PREF_ANSWER_WITH, answerWith); }, [answerWith, prefsLoaded]);
+  useEffect(() => { if (prefsLoaded) void setPref(PREF_STARTING_NOTE, startingNote); }, [startingNote, prefsLoaded]);
 
-  const speedFallback = defaultSpeed(MODULE_ID);
-  const speed = useLiveQuery(
-    async () => getPref<number>(speedPrefKey(MODULE_ID), speedFallback),
-    [],
-  ) ?? speedFallback;
-  const speedRef = useRef(speed); speedRef.current = speed;
-  // Listening mode tracked via a ref so every audio generation reads
-  // its CURRENT value at the moment of the click, not whatever was
-  // captured when the round started. This is what makes "flip the
-  // dropdown, press replay" work between replays.
-  const listeningRef = useRef(listening); listeningRef.current = listening;
+  // Leaving the tab mid-playback leaves nothing ringing.
+  useEffect(() => () => { handle.current?.stop(); }, []);
 
   const activePool = useMemo(
-    () => filterMotions(distance, direction, noteContext, focusActive ? new Set(focusKeys) : null),
+    () => filterMotions(distance, direction, noteContext,
+      focusActive && focusKeys.length > 0 ? new Set(focusKeys) : null),
     [distance, direction, noteContext, focusActive, focusKeys],
   );
 
   // Counted over DISTINCT keys, because that is what the pool is built
-  // from. Sizing it off an array that can hold the same motion twice
-  // would report a pool of four while drilling one.
+  // from — see `drillFilter`'s own note on why a raw length lies.
   const focusPoolSize = new Set(focusKeys).size;
   const focusProtected = focusActive && focusPoolSize < FLUENCY_POOL_MINIMUM;
 
-  // --- Playback control ----------------------------------------------
-  const stopAll = () => {
-    playbackRef.current?.stop();
-    playbackRef.current = null;
-    if (timerRef.current !== null) { window.clearTimeout(timerRef.current); timerRef.current = null; }
+  // --- Playback ------------------------------------------------------
+
+  /** Sound the round: the key's low tonic, then the two chords. */
+  const play = async (r: Round, revealed: boolean) => {
+    handle.current?.stop();
+    setLit(null);
+    const h = await playPanel(r.chords, settings, {
+      orientPc: r.keyPc,
+      loop: 1,
+      // THE LEAD-IN LIGHTS ITS OWN KEY and then each chord lights as it
+      // strikes — `onStep` fires at the moment a step sounds, and -1 is
+      // the orienting tonic.
+      onStep: (i: number) => setLit(i < 0 ? null : i),
+    });
+    handle.current = h;
+    if (!revealed) {
+      asked.current = {
+        playbackEndsAt: Date.now(),
+        playbackBpm: settings.bpm,
+      };
+    }
   };
 
-  useEffect(() => () => stopAll(), []);
-
-  const nextRound = async () => {
-    stopAll();
-    if (activePool.length === 0) return;
-    const motion = activePool[Math.floor(Math.random() * activePool.length)];
+  const deal = async () => {
+    const pool = activePool;
+    if (pool.length === 0) return;
+    const motion = pool[Math.floor(Math.random() * pool.length)];
     const key = randomKey();
-    const startMidi = degreeMidi(key, motion.startLabel);
-    const destMidi = degreeMidi(key, motion.destLabel);
-    const r: Round = {
+    const keyPc = ((keyToRootMidi(key) % 12) + 12) % 12;
+    const { chords, rootPcs } = motionChords(
+      keyPc, motion.startLabel, motion.destLabel, DEFAULT_RUNG, spelling,
+    );
+    const next: Round = {
       motion,
       key,
-      startMidi,
-      destMidi,
-      scaffold,
-      isPracticeRep: false,
+      keyPc,
+      chords,
+      rootPcs,
+      startPc: degreePc(keyPc, motion.startLabel),
+      destPc: degreePc(keyPc, motion.destLabel),
     };
-    await launchRound(r);
+    replays.current = 0;
+    setRound(next);
+    setPhase('answering');
+    setPickedStart(null);
+    setPickedDest(null);
+    setTappedStart(null);
+    setFeel(null);
+    setRung(DEFAULT_RUNG);
+    await play(next, false);
   };
 
-  // Shared launch sequence used by both fresh rounds and practice reps.
-  // Clears pre-round UI state, then runs the cadence-or-straight-to-motion
-  // flow based on the round's captured scaffold.
-  const launchRound = async (r: Round) => {
-    setRound(r);
-    // Cleared per round, so the ??= above captures the first playback
-    // of THIS round rather than keeping the previous round's clock.
-    asked.current = null;
-    setClickedStart(null);
-    setClickedDest(null);
-    setVerdict(null);
-    setShowChallengeOptions(false);
-
-    if (r.scaffold === 'minimal') {
-      // Motion plays cold; no cadence, no key name, no pre-highlight.
-      setRunState('motion');
-      await playMotion(r);
-    } else {
-      setRunState('cadence');
-      const handle = await playCadence(r.key, { speedMultiplier: speedRef.current });
-      playbackRef.current = handle;
-      const dur = cadenceDurationSeconds(100, speedRef.current) * 1000 + 350;
-      timerRef.current = window.setTimeout(async () => {
-        playbackRef.current = null;
-        timerRef.current = null;
-        setRunState('motion');
-        await playMotion(r);
-      }, dur);
-    }
+  const replay = async () => {
+    if (round === null || phase !== 'answering') return;
+    replays.current += 1;
+    await play(round, false);
   };
 
-  // "Challenge yourself" entry: same motion/key as the round the user
-  // just answered, but at a harder scaffold tier. Marked as a practice
-  // rep so grade() skips the DB write path. Listening mode is read
-  // live at playback time (via listeningRef), so whatever the user has
-  // selected when they click "try again" is what they'll hear.
-  const startPracticeRep = async (targetScaffold: Scaffolding) => {
-    if (!round) return;
-    stopAll();
-    const rep: Round = {
-      motion: round.motion,
-      key: round.key,
-      startMidi: round.startMidi,
-      destMidi: round.destMidi,
-      scaffold: targetScaffold,
-      isPracticeRep: true,
-    };
-    await launchRound(rep);
+  /** Re-voice at a new thickness. Silently — the panel's Hear it plays. */
+  const setThickness = (next: ListRung) => {
+    setRung(next);
+    if (round === null) return;
+    const { chords, rootPcs } = motionChords(
+      round.keyPc, round.motion.startLabel, round.motion.destLabel, next, spelling,
+    );
+    setRound({ ...round, chords, rootPcs });
   };
 
-  const playMotion = async (r: Round) => {
-    const startChord = chordVoice(r.key, r.motion.startLabel);
-    const destChord = chordVoice(r.key, r.motion.destLabel);
-    const gapMs = 1400;
-    // Read listening live so each replay reflects the most recent
-    // dropdown setting — even if the user toggles mid-gap between the
-    // two chords. Question identity (key, motion) stays locked in the
-    // round; texture is live. Speed + instrument are already live
-    // via speedRef / the audio lib's global instrument.
-    await playStep(startChord.root, startChord.intervals, listeningRef.current);
-    timerRef.current = window.setTimeout(async () => {
-      await playStep(destChord.root, destChord.intervals, listeningRef.current);
-      timerRef.current = window.setTimeout(() => {
-        // A REPLAY DOES NOT RESTART THE CLOCK. The question became
-        // answerable the first time it sounded; a reader who needs
-        // three replays took that long to answer, and restarting here
-        // would report only the time after the last one.
-        asked.current ??= {
-          playbackEndsAt: Date.now(),
-          playbackSpeed: speedRef.current,
-          drillTab: 'chord-motion',
-        };
-        setRunState('answering');
-      }, gapMs);
-    }, gapMs);
-  };
+  // --- Answering -----------------------------------------------------
 
-  const replayMotion = async () => {
-    if (!round) return;
-    stopAll();
-    await playMotion(round);
-  };
+  const aided = isAided(settings) || startingNote === 'given';
 
-  const playCadenceAlone = async () => {
-    if (!round) return;
-    stopAll();
-    playbackRef.current = await playCadence(round.key, { speedMultiplier: speedRef.current });
-  };
-
-  const playTonic = async () => {
-    if (!round) return;
-    const tonicMidi = keyToRootMidi(round.key);
-    const context = await ensureRunning();
-    const now = context.currentTime + 0.03;
-    playNote(midiToFreq(tonicMidi), now, 1.4, context, 0.3);
-  };
-
-  // --- Keyboard click handling ---------------------------------------
-  const onKeyClick = (note: string, octave: number) => {
-    if (!round || runState !== 'answering') return;
-    const midi = clickedToMidi(note, octave);
-    if (round.scaffold === 'minimal') {
-      if (clickedStart === null) {
-        setClickedStart(midi);
-        return;
-      }
-      setClickedDest(midi);
-      grade({ first: clickedStart, dest: midi });
-      return;
-    }
-    setClickedDest(midi);
-    grade({ first: round.startMidi, dest: midi });
-  };
-
-  const grade = async ({ first, dest }: { first: number; dest: number }) => {
-    if (!round) return;
-    const firstCorrect = first === round.startMidi;
-    const destCorrect = dest === round.destMidi;
-    const fullCredit = firstCorrect && destCorrect;
-
-    setVerdict({ firstCorrect, destCorrect, fullCredit });
-    setRunState('reveal');
-
-    // Practice reps are reinforcement only — they never touch the DB,
-    // don't update the daily summary, and don't feed streaks or rolling
-    // fluency. Grading here just drives the on-screen feedback.
-    if (round.isPracticeRep) return;
+  const submit = async (startPc: number | null, destPc: number) => {
+    const r = round;
+    if (r === null) return;
+    handle.current?.stop();
+    // THE STARTING NOTE IS GIVEN OR IT IS ANSWERED. With the aid on the
+    // reader was told it, so it cannot be wrong; the rating already
+    // carries the cost of having been told.
+    const startOk = startingNote === 'given' || startPc === r.startPc;
+    const destOk = destPc === r.destPc;
+    const f = heardFeel({
+      // AT LEAST ONE RIGHT is the first question here: neither right is
+      // Struggled, one right is Working on it, both right is graded on
+      // the aid and the replays. Silas's ruling of 10 Sep 2026.
+      firstRight: startOk || destOk,
+      secondRight: startOk && destOk,
+      replays: replays.current,
+      aided,
+    });
+    setFeel(f);
+    setPhase('reveal');
+    // NOTHING PLAYS ON THE REVEAL. The shared panel owns the transport
+    // from here — its Hear it, its Pause, its Resume — and a second
+    // player starting underneath it would be the thing that component
+    // exists to prevent. The board paints the chord the move landed on
+    // and waits, which is the prototype's own reveal.
+    setLit(1);
 
     const now = Date.now();
-    const mId = motionId(round.motion);
-    const excludeFlag = focusProtected ? { excludeFromFluency: true } : {};
-
-    // Primary record — destination correctness drives fluency per
-    // motion type. Mirrors this module's own convention (main record
-    // per item + sub-records for sub-skills). Scaffold is
-    // read from the round snapshot so toggling the pill after playback
-    // can't swap which mode gets credited.
-    const records: AttemptRecord[] = [
-      {
-        moduleId: MODULE_ID,
-        itemId: mId,
-        correct: destCorrect,
-        timestamp: now,
-        ...excludeFlag,
-      },
-      {
-        moduleId: MODULE_ID,
-        itemId: `motion-mode:${round.scaffold}`,
-        correct: fullCredit,
-        timestamp: now + 1,
-        ...excludeFlag,
-      },
-    ];
-    // Minimal mode grades the starting-note guess too; separate item id
-    // so the fluency tracker can show "am I good at identifying where
-    // the first chord is?" distinct from "…where the second is?".
-    if (round.scaffold === 'minimal') {
-      records.push({
-        moduleId: MODULE_ID,
-        itemId: `motion-first:${mId.slice('motion:'.length)}`,
-        correct: firstCorrect,
-        timestamp: now + 2,
-        ...excludeFlag,
-      });
-    }
-    // ONE MEASUREMENT ACROSS THE SUBMISSION, stamped on every row.
-    // A minimal-scaffold round grades the start, the destination and
-    // the mode from a single act of answering — there is no per-row
-    // time to record, and dividing one measurement into three would
-    // report three where one was taken.
-    const submissionTiming = answerTimingFields(asked.current, now);
-    await bulkAddAttempts(records.map(r => ({ ...r, ...submissionTiming })));
-    // ON THE SCHEDULE AT LAST — this tab wrote attempts and nothing
-    // else, so tracing a chord's motion never came back to you.
-    //
-    // THE MOTION ITSELF IS THE ITEM. The mode and starting-note rows
-    // are sub-skills of one act of answering, and giving each its own
-    // spacing row would schedule three cards where the reader
-    // experiences one. Serial, because recordEngagement reads then
-    // writes — the sibling tab says the same at its own call site.
-    await recordEngagement({
-      itemRef: mId,
-      moduleRef: MODULE_ID,
-      signal: { kind: 'attempt', correct: fullCredit },
+    await addAttempt({
+      moduleId: MODULE_ID,
+      itemId: motionId(r.motion),
+      correct: startOk && destOk,
       timestamp: now,
+      feelRating: f,
+      replays: replays.current,
+      ...(aided ? { aided: true } : {}),
+      ...(focusProtected ? { excludeFromFluency: true } : {}),
+      ...answerTimingFields(asked.current, now),
+    });
+    await recordEngagement({
+      itemRef: motionId(r.motion),
+      moduleRef: MODULE_ID,
+      signal: { kind: 'attempt', correct: startOk && destOk, feel: f },
     });
     await updateDailySummary(MODULE_ID);
   };
 
-  // --- Focus panel plumbing ------------------------------------------
-  // Focus panel is scoped by the current noteContext: when the user is
-  // in diatonic-only mode we hide chromatic motions from the picker so
-  // they don't accidentally pin a pool that their active scope will
-  // never surface.
-  const focusSections: SelectionSection[] = useMemo(() => {
-    const pool = noteContext === 'diatonic'
-      ? ALL_MOTIONS.filter(m => m.isDiatonic)
-      : ALL_MOTIONS;
-    const asc = pool.filter(m => m.direction === 'asc');
-    const desc = pool.filter(m => m.direction === 'desc');
-    const item = (m: Motion) => ({
-      key: motionId(m),
-      label: `${m.startLabel} → ${m.destLabel} (${INTERVAL_NAME[m.distance]})`,
-    });
-    return [
-      { title: 'Ascending motions', items: asc.map(item) },
-      { title: 'Descending motions', items: desc.map(item) },
-    ];
-  }, [noteContext]);
-
-  const onStartFocus = async (keys: string[]) => {
-    await setPref(PREF_FOCUS, keys);
-    setFocusKeys(keys);
-    setFocusActive(true);
-    setShowFocusPanel(false);
+  const onTapKey = (midi: number) => {
+    if (phase !== 'answering' || round === null) return;
+    const pc = ((midi % 12) + 12) % 12;
+    if (startingNote === 'find' && tappedStart === null) {
+      setTappedStart(pc);
+      return;
+    }
+    void submit(startingNote === 'given' ? null : tappedStart, pc);
   };
 
-  // --- Rendering -----------------------------------------------------
+  const canSubmit = pickedDest !== null
+    && (startingNote === 'given' || pickedStart !== null);
 
-  const tonicMidi = round ? keyToRootMidi(round.key) : 48;
-  const startOctave = Math.floor(tonicMidi / 12) - 1; // C3 is midi 48 → octave 3
+  // --- The reveal's ring and marks ------------------------------------
 
-  const highlights: HighlightedNote[] = useMemo(() => {
-    if (!round) return [];
-    const out: HighlightedNote[] = [];
-    // First-note highlight (blue) shown in Full/Partial before click,
-    // and always shown on reveal so the user sees their anchor. Uses
-    // the round's snapshot scaffold so toggling the live pill after
-    // playback can't flip highlights on the current question.
-    const showFirst = round.scaffold !== 'minimal' || runState === 'reveal' || clickedStart !== null;
-    if (showFirst) {
-      const note = midiToNote(round.startMidi, spelling);
-      const oct = Math.floor(round.startMidi / 12) - 1;
-      out.push({ note, octave: oct, color: 'blue' });
-    }
-    if (runState === 'reveal' && verdict) {
-      // Destination: green if correct, red overlaid + green reveal if wrong.
-      const destNote = midiToNote(round.destMidi, spelling);
-      const destOct = Math.floor(round.destMidi / 12) - 1;
-      out.push({ note: destNote, octave: destOct, color: 'green' });
-      if (!verdict.destCorrect && clickedDest !== null) {
-        out.push({
-          note: midiToNote(clickedDest, spelling),
-          octave: Math.floor(clickedDest / 12) - 1,
-          color: 'red',
-        });
+  // THE BOARD OPENS ON WHERE THE MOVE LANDED, which is the answer the
+  // card was asking for; once something plays it follows the sound.
+  const sounding = round === null
+    ? null
+    : round.chords[lit ?? 1] ?? round.chords[0];
+  const ring = round === null || sounding == null
+    ? null
+    : inKeyRing(sounding.rootPc, round.keyPc);
+
+  /**
+   * The unlit board, for Piano keys before the answer.
+   *
+   * TAPS ONLY, NO FILLS. The question is which degree the move landed
+   * on; a board that lit anything would answer it.
+   */
+  const answerMarks: ReadonlyMap<number, KeyMark> = useMemo(() => {
+    const marks = new Map<number, KeyMark>();
+    if (round === null) return marks;
+    if (startingNote === 'given') {
+      // GIVEN LIGHTS THE FIRST CHORD'S ROOT IN ITS IN-THE-KEY COLOUR,
+      // from the lead sheet's degree palette rather than a bespoke blue.
+      // A FILL AND NOT A RING, which is the prototype's own move: before
+      // the answer the board carries no interval fills, so there is
+      // nothing for the colour to be mistaken for, and a fill is what
+      // reads as "here is the note" rather than as an annotation.
+      const given = inKeyFill(round.startPc, round.keyPc);
+      if (given !== null) {
+        for (let midi = 36; midi <= 84; midi += 1) {
+          if (((midi % 12) + 12) % 12 === round.startPc) {
+            marks.set(midi, { fill: given });
+          }
+        }
       }
-      if (round.scaffold === 'minimal' && !verdict.firstCorrect && clickedStart !== null) {
-        out.push({
-          note: midiToNote(clickedStart, spelling),
-          octave: Math.floor(clickedStart / 12) - 1,
-          color: 'red',
-        });
+    }
+    if (tappedStart !== null) {
+      for (let midi = 36; midi <= 84; midi += 1) {
+        if (((midi % 12) + 12) % 12 === tappedStart) {
+          marks.set(midi, { ...marks.get(midi), pressed: true });
+        }
       }
     }
-    return out;
-  }, [round, runState, verdict, spelling, clickedStart, clickedDest]);
+    return marks;
+  }, [round, startingNote, tappedStart]);
 
+  // --- Focus ---------------------------------------------------------
+
+  const focusSections: SelectionSection[] = useMemo(() => ([
+    {
+      title: 'Ascending',
+      items: ALL_MOTIONS.filter(m => m.direction === 'asc')
+        .map(m => ({ key: motionId(m), label: `${m.startLabel} → ${m.destLabel}` })),
+    },
+    {
+      title: 'Descending',
+      items: ALL_MOTIONS.filter(m => m.direction === 'desc')
+        .map(m => ({ key: motionId(m), label: `${m.startLabel} → ${m.destLabel}` })),
+    },
+  ]), []);
+
+  const onStartFocus = async (keys: string[]) => {
+    setFocusKeys(keys);
+    setFocusActive(keys.length > 0);
+    setShowFocusPanel(false);
+    await setPref(PREF_FOCUS, keys);
+  };
+
+  // --- Render --------------------------------------------------------
+
+  const chips = degreeChips(noteContext === 'chromatic', rowSpelling);
+  const feelWord = feel === null
+    ? null
+    : FEEL_OPTIONS.find(o => o.feel === feel)?.label ?? '';
+  const feelClass = feel === null
+    ? '' : statusColour(STATUS_FOR_FEEL[feel]).text;
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-base sm:text-lg font-medium tracking-tight">Chord Motion</h2>
-          <p className="text-xs text-neutral-500 mt-0.5">
-            hear a two-chord motion, pick the destination on the keyboard. works in all 12 keys.
-          </p>
-        </div>
+      <div>
+        <h2 className="text-base sm:text-lg font-medium tracking-tight">Chord Motion</h2>
+        <p className="text-xs text-neutral-500 mt-0.5">
+          hear two chords move, and say where the move landed. works in all 12 keys.
+        </p>
       </div>
 
-      {/* Primary CTA — kept directly under the title (order: title →
-          CTA → keyboard + feedback → settings) so "play motion" and the
-          answer surface are reachable without scrolling past every
-          setting. Becomes replay / cadence helpers once a round is
-          running. */}
       {focusProtected && <FluencyProtectionNotice />}
 
-      {/* Key label (Full mode only) — reads the round's snapshot
-          scaffold so the label can't flicker away if the user toggles
-          the pill mid-question. */}
-      {round && round.scaffold === 'full' && runState !== 'idle' && (
-        <p className="text-center text-sm">
-          in <span className="font-medium">{spellKey(round.key, spelling)} major</span>:
-        </p>
-      )}
-
-      {/* Play / replay / cadence-or-tonic helpers */}
-      <div className="flex flex-wrap items-start justify-center gap-3">
-        {runState === 'idle' && (
-          <button
-            onClick={nextRound}
-            data-testid="play-motion"
-            disabled={activePool.length === 0}
-            className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90 disabled:opacity-50"
-          >
-            play motion
-          </button>
-        )}
-        {(runState === 'answering' || runState === 'reveal') && (
-          <>
-            <button
-              onClick={replayMotion}
-              className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
-            >
-              Replay Motion
-            </button>
-            {round && round.scaffold !== 'minimal' ? (
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  onClick={playCadenceAlone}
-                  className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent"
+      {/* WHAT IS IN PLAY — the three scope filters, which were three
+          dropdowns above the drill. A fold, because they are settings
+          rather than part of the question. */}
+      <details
+        data-testid="motion-filters"
+        className="rounded-lg border border-dashed border-black/10 dark:border-white/15 px-3 py-2"
+      >
+        <summary className="cursor-pointer text-xs text-neutral-500 dark:text-neutral-400">
+          What is in play
+        </summary>
+        <div className="space-y-3 pt-2">
+          <Row label="Distance">
+            {(['all', 2, 3, 4, 5, 6, 7] as const).map(d => (
+              <Chip
+                key={String(d)}
+                on={distance === d}
+                testId={`motion-dist-${d}`}
+                onClick={() => setDistance(d)}
+              >
+                {d === 'all' ? 'All' : `${INTERVAL_NAME[d]}s`}
+              </Chip>
+            ))}
+          </Row>
+          <Row label="Direction">
+            {([['both', 'Both'], ['asc', 'Up'], ['desc', 'Down']] as const).map(([d, t]) => (
+              <Chip
+                key={d}
+                on={direction === d}
+                testId={`motion-dir-${d}`}
+                onClick={() => setDirection(d)}
+              >
+                {t}
+              </Chip>
+            ))}
+          </Row>
+          <Row label="Note context">
+            {([['diatonic', 'Diatonic only'], ['chromatic', 'Chromatic too']] as const)
+              .map(([c, t]) => (
+                <Chip
+                  key={c}
+                  on={noteContext === c}
+                  testId={`motion-ctx-${c}`}
+                  onClick={() => setNoteContext(c)}
                 >
-                  play cadence
-                </button>
-                <span className="text-[0.85rem] italic text-neutral-500">
-                  re-establishes the key
-                </span>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-1">
-                <button
-                  onClick={playTonic}
-                  className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent"
-                >
-                  play tonic
-                </button>
-                <span className="text-[0.85rem] italic text-neutral-500">
-                  Your Reference Note
-                </span>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {runState === 'cadence' && (
-        <p className="text-xs text-neutral-500 text-center italic">
-          {round?.scaffold === 'full' ? 'establishing ' + round?.key + ' major…' : 'listen for the tonal centre…'}
-        </p>
-      )}
-
-      {/* Keyboard input surface */}
-      {round && (runState === 'answering' || runState === 'reveal' || runState === 'motion') && (
-        <div className="flex flex-col items-center gap-2">
-          <KeyboardVisual
-            keySignature={`${spellKey(round.key, spelling)} major`}
-            keyLabel={round.scaffold === 'full' ? `Key of ${spellKey(round.key, spelling)} major` : undefined}
-            octaves={2}
-            startOctave={startOctave}
-            width={Math.min(560, typeof window !== 'undefined' ? window.innerWidth - 48 : 520)}
-            highlightedNotes={highlights}
-            onKeyClick={runState === 'answering' ? onKeyClick : undefined}
-          />
-          {runState === 'answering' && round.scaffold === 'minimal' && (
-            <p className="text-[11px] text-neutral-500 text-center">
-              click the starting note first, then the destination
-              {clickedStart !== null && (
-                <> — starting note captured, now pick the destination</>
-              )}
-            </p>
-          )}
-          {runState === 'answering' && round.scaffold !== 'minimal' && (
-            <p className="text-[11px] text-neutral-500 text-center">
-              the blue key is the starting note — click where the motion goes
-            </p>
-          )}
+                  {t}
+                </Chip>
+              ))}
+          </Row>
+          <p className="text-[11px] text-neutral-500">
+            Everything is on by default. Narrow it here; nothing is ever locked
+            when you open the drill yourself. Tiers only steer what a practice
+            session hands you.
+          </p>
         </div>
+      </details>
+
+      {phase === 'idle' && (
+        <button
+          onClick={() => { void deal(); }}
+          data-testid="play-motion"
+          disabled={activePool.length === 0}
+          className="w-full py-3.5 rounded-xl bg-fluent text-white text-base font-semibold shadow-sm hover:opacity-90 disabled:opacity-50"
+        >
+          play motion
+        </button>
       )}
 
-      {/* Feedback + association */}
-      {runState === 'reveal' && round && verdict && (() => {
-        // Interval quality is derived from the actual MIDI semitone
-        // delta (B → D in D major = 9 st = major 6th), NOT the
-        // scale-degree distance. That distinction is the whole point of
-        // showing major / minor / perfect / tritone labels here.
-        const semitones = Math.abs(round.destMidi - round.startMidi);
-        const quality = intervalFromSemitones(semitones);
-        const directionWord = round.motion.direction === 'asc' ? 'up' : 'down';
-        const arrow = round.motion.direction === 'asc' ? '→' : '←';
-        const directionLong = round.motion.direction === 'asc' ? 'ascending' : 'descending';
-        const descriptionKey = intervalDescriptionKey(quality.id, directionLong);
-        const defaultDescription = defaultIntervalDescription(quality.id, directionLong);
-        // Degree labels + chord names mirror the physical keyboard:
-        // ascending reads left→right (origin → destination), descending
-        // reads right→left (destination ← origin). Arrow always points
-        // from origin toward destination, matching the hand motion.
-        const leftLabel = round.motion.direction === 'asc' ? round.motion.startLabel : round.motion.destLabel;
-        const rightLabel = round.motion.direction === 'asc' ? round.motion.destLabel : round.motion.startLabel;
-        const startVoice = chordVoice(round.key, round.motion.startLabel);
-        const destVoice = chordVoice(round.key, round.motion.destLabel);
-        const startName = chordDisplay(startVoice.root, startVoice.quality, MOTION_COMPLEXITY, { requiresDominant: false }, spelling);
-        const destName = chordDisplay(destVoice.root, destVoice.quality, MOTION_COMPLEXITY, { requiresDominant: false }, spelling);
-        const leftName = round.motion.direction === 'asc' ? startName : destName;
-        const rightName = round.motion.direction === 'asc' ? destName : startName;
-        // Harder scaffolds available for "challenge yourself" re-reps.
-        // Offered after every answer — even on a wrong one — because the
-        // correct destination is visible on the keyboard by then, so a
-        // replay reinforces the *right* motion while it's fresh rather
-        // than entrenching the wrong guess.
-        const harderScaffolds: Scaffolding[] =
-          round.scaffold === 'full' ? ['partial', 'minimal']
-          : round.scaffold === 'partial' ? ['minimal']
-          : [];
-        const offerChallenge = harderScaffolds.length > 0;
-        return (
-          <>
-            {/* Primary action row — sits directly under the keyboard so
-                the user can always see "what's next" without scrolling.
-                Feedback text lives below; readers can pause there or
-                press ahead. */}
-            <div className="flex flex-wrap gap-3 items-start justify-center">
-              <button
-                onClick={nextRound}
-                className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
-              >
-                Next Motion →
-              </button>
-              {offerChallenge && (
-                <div className="flex flex-col items-start gap-1">
-                  <button
-                    onClick={() => setShowChallengeOptions(v => !v)}
-                    aria-expanded={showChallengeOptions}
-                    className="px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs text-neutral-600 dark:text-neutral-300 hover:border-fluent hover:text-fluent"
-                  >
-                    try again with less scaffolding {showChallengeOptions ? '▴' : '▼'}
-                  </button>
-                  {showChallengeOptions && (
-                    <div className="flex flex-col gap-1 rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 p-1 shadow-sm">
-                      {harderScaffolds.map(m => (
-                        <button
-                          key={m}
-                          onClick={() => startPracticeRep(m)}
-                          className="text-xs px-3 py-1.5 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left"
-                          title={scaffoldTitle(m)}
-                        >
-                          {SCAFFOLD_LABEL[m]} mode
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Feedback text block — everything the user might want to
-                read *after* they've seen the action row above. */}
-            <div className="rounded-lg border border-black/[0.07] p-4 space-y-3 text-sm">
-              {round.isPracticeRep && (
-                <div className="text-[11px] italic text-neutral-500">
-                  Practice Rep — Not Tracked
-                </div>
-              )}
-              <AnswerVerdict
-                state={
-                  verdict.fullCredit
-                    ? 'correct'
-                    : verdict.firstCorrect || verdict.destCorrect
-                      ? 'partial'
-                      : 'incorrect'
-                }
-              />
-              <div className="space-y-1">
-                <div className="text-base">
-                  You went{' '}
-                  <span className="font-medium font-mono">{leftLabel}</span>
-                  <span aria-hidden className="text-neutral-400 mx-2">{arrow}</span>
-                  <span className="font-medium font-mono">{rightLabel}</span>
-                </div>
-                <div className="text-sm font-mono">
-                  <span className="font-medium">{leftName}</span>
-                  <span aria-hidden className="text-neutral-400 mx-2">{arrow}</span>
-                  <span className="font-medium">{rightName}</span>
-                </div>
-                <div className="text-sm">
-                  a <span className="font-medium">{quality.name} {directionWord}</span>
-                </div>
-                <p className="text-[0.85rem] italic text-neutral-500 leading-snug">
-                  {directionLong} {quality.name.toLowerCase()} often feels like {defaultDescription}
-                </p>
-              </div>
-              {round.scaffold === 'minimal' && verdict && (
-                <div className="text-xs text-neutral-500 space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    starting note:
-                    <AnswerVerdict
-                      state={verdict.firstCorrect ? 'correct' : 'incorrect'}
-                      size="sm"
-                      label=""
-                    />
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    destination:
-                    <AnswerVerdict
-                      state={verdict.destCorrect ? 'correct' : 'incorrect'}
-                      size="sm"
-                      label=""
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="rounded-md bg-neutral-100/70 dark:bg-neutral-800/60 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
-                <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1.5">
-                  starter association
-                </span>
-                {starterAssociation(round.motion)}
-              </div>
-              <IntervalDescriptionEditor
-                intervalKey={descriptionKey}
-                defaultText={defaultDescription}
-              />
-              <AssociationsEditor
-                progressionId={motionId(round.motion)}
-                alwaysEditing
-              />
-              <button
-                onClick={async () => {
-                  await setPref(PREF_FOCUS, [motionId(round.motion)]);
-                  setFocusKeys([motionId(round.motion)]);
-                  setFocusActive(true);
-                }}
-                className="text-xs text-fluent hover:underline self-start"
-              >
-                Practice This Motion Specifically → Focus Mode
-              </button>
-            </div>
-          </>
-        );
-      })()}
-
-      {/* Settings — pushed below the keyboard + feedback so the answer
-          surface sits directly under the CTA. Two groups: "what you'll
-          hear" (audio-shaping scopes) vs "how it's presented"
-          (interaction-shaping). Hidden while focus mode is active so the
-          focus summary stands on its own; scope-editing happens in the
-          focus panel. */}
-      {!focusActive && (
+      {round !== null && phase !== 'idle' && (
         <>
-          <section className="space-y-2">
-            <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium text-center">
-              what you'll hear
-            </div>
-            <div className="mx-auto max-w-md grid grid-cols-[auto,1fr] gap-x-3 gap-y-2 items-center text-sm">
-              <label htmlFor="motion-distance" className="text-neutral-500 justify-self-end">
-                Distance:
-              </label>
-              <select
-                id="motion-distance"
-                value={String(distance)}
-                onChange={e => {
-                  const v = e.target.value;
-                  setDistance(v === 'all' ? 'all' : Number(v) as DistanceFilter);
+          <div className="flex flex-wrap items-center gap-2">
+            {/* PLAY AGAIN BELONGS TO THE QUESTION, NOT TO THE ANSWER. On
+                the reveal the shared panel's Hear it is the transport,
+                and a second button driving a second handle would leave
+                its Pause with nothing to pause. */}
+            {phase === 'answering' && (
+              <button
+                onClick={() => { void replay(); }}
+                data-testid="motion-replay"
+                className={`${CHIP} ${CHIP_ON}`}
+              >
+                Play again
+              </button>
+            )}
+            <button
+              onClick={() => { void deal(); }}
+              data-testid="motion-next"
+              className={`${CHIP} ${CHIP_OFF}`}
+            >
+              Next card
+            </button>
+          </div>
+
+          {/* THE KEY IS ALWAYS NAMED. The question is which degree, not
+              which letter — one of this surface's allowed differences. */}
+          <p className="text-sm font-medium" data-testid="motion-key-name">
+            Key of {spellKey(round.key, spelling)} major
+          </p>
+
+          {phase === 'answering' && (
+            <AidsFold
+              settings={settings}
+              onSettings={setSettings}
+              extra={(
+                <Row label="Starting note">
+                  <Chip
+                    on={startingNote === 'find'}
+                    testId="motion-start-find"
+                    onClick={() => setStartingNote('find')}
+                  >
+                    You find it
+                  </Chip>
+                  <Chip
+                    on={startingNote === 'given'}
+                    testId="motion-start-given"
+                    onClick={() => setStartingNote('given')}
+                  >
+                    Given (lower rating)
+                  </Chip>
+                </Row>
+              )}
+            />
+          )}
+
+          <Row label="Answer with">
+            <Chip
+              on={answerWith === 'degrees'}
+              testId="motion-answer-degrees"
+              onClick={() => setAnswerWith('degrees')}
+            >
+              Degrees
+            </Chip>
+            <Chip
+              on={answerWith === 'piano'}
+              testId="motion-answer-piano"
+              onClick={() => setAnswerWith('piano')}
+            >
+              Piano keys
+            </Chip>
+          </Row>
+
+          {phase === 'answering' && answerWith === 'degrees' && (
+            <div className="space-y-3" data-testid="motion-degrees">
+              {startingNote === 'find' && (
+                <Row label="Started on">
+                  {chips.map(c => (
+                    <Chip
+                      key={c.label}
+                      on={pickedStart === c.label}
+                      testId={`motion-start-${c.label}`}
+                      onClick={() => setPickedStart(c.label)}
+                    >
+                      {c.text}
+                    </Chip>
+                  ))}
+                </Row>
+              )}
+              <Row label="Landed on">
+                {chips.map(c => (
+                  <Chip
+                    key={c.label}
+                    on={pickedDest === c.label}
+                    testId={`motion-dest-${c.label}`}
+                    onClick={() => setPickedDest(c.label)}
+                  >
+                    {c.text}
+                  </Chip>
+                ))}
+              </Row>
+              <button
+                type="button"
+                data-testid="motion-submit"
+                disabled={!canSubmit}
+                onClick={() => {
+                  if (round === null || pickedDest === null) return;
+                  void submit(
+                    pickedStart === null ? null : degreePc(round.keyPc, pickedStart),
+                    degreePc(round.keyPc, pickedDest),
+                  );
                 }}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+                className={`${CHIP} ${CHIP_ON} disabled:opacity-40 disabled:cursor-default`}
               >
-                <option value="all">All Distances</option>
-                {([2, 3, 4, 5, 6, 7] as const).map(d => (
-                  <option key={d} value={d}>{INTERVAL_NAME[d]}s only</option>
-                ))}
-              </select>
-
-              <label htmlFor="motion-direction" className="text-neutral-500 justify-self-end">
-                Direction:
-              </label>
-              <select
-                id="motion-direction"
-                value={direction}
-                onChange={e => setDirection(e.target.value as DirectionFilter)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-              >
-                <option value="both">Both Directions</option>
-                <option value="asc">Ascending Only</option>
-                <option value="desc">Descending Only</option>
-              </select>
-
-              <label htmlFor="motion-notes" className="text-neutral-500 justify-self-end">
-                Notes:
-              </label>
-              <select
-                id="motion-notes"
-                value={noteContext}
-                onChange={e => setNoteContext(e.target.value as NoteContext)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-                title={noteContext === 'diatonic'
-                  ? 'only motions between scale degrees 1–7 of the major scale'
-                  : 'allow any of the 12 chromatic positions (b2, b3, #4, b6, b7 included)'}
-              >
-                <option value="diatonic">Diatonic Only</option>
-                <option value="chromatic">all motions (incl. chromatic)</option>
-              </select>
-
-              <label htmlFor="motion-listening" className="text-neutral-500 justify-self-end">
-                Listening:
-              </label>
-              <select
-                id="motion-listening"
-                value={listening}
-                onChange={e => setListening(e.target.value as ListeningMode)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-                title="which layers to sound: just the bass roots, full chord voicings, or both layered"
-              >
-                <option value="bass">Bass Only</option>
-                <option value="chords">Chords Only</option>
-                <option value="bass-chords">Bass + Chords</option>
-              </select>
+                Submit
+              </button>
             </div>
-          </section>
+          )}
 
-          <hr className="border-neutral-200 dark:border-neutral-800" />
-
-          <section className="space-y-2">
-            <div className="text-[10px] uppercase tracking-wide text-neutral-500 font-medium text-center">
-              how it's presented
+          {phase === 'answering' && answerWith === 'piano' && (
+            <div className="space-y-1.5" data-testid="motion-piano">
+              <BuiltAnswerKeyboard
+                marks={answerMarks}
+                onTap={onTapKey}
+                label="Where the move landed"
+              />
+              <p className="text-[11px] text-neutral-500">
+                {startingNote === 'given'
+                  ? 'The ringed key is where it started. Tap where the move landed.'
+                  : tappedStart === null
+                    ? 'Tap the note it started on, then the note it landed on.'
+                    : 'Now tap the note it landed on.'}
+              </p>
             </div>
-            <div className="mx-auto max-w-md grid grid-cols-[auto,1fr] gap-x-3 gap-y-2 items-center text-sm">
-              <label htmlFor="motion-scaffold" className="text-neutral-500 justify-self-end">
-                Scaffolding:
-              </label>
-              <select
-                id="motion-scaffold"
-                value={scaffold}
-                onChange={e => setScaffold(e.target.value as Scaffolding)}
-                className="rounded-md border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
-                title={scaffoldTitle(scaffold)}
-              >
-                {(['full', 'partial', 'minimal'] as const).map(opt => (
-                  <option key={opt} value={opt}>{SCAFFOLD_LABEL[opt]}</option>
-                ))}
-              </select>
-            </div>
-            <p className="text-[11px] text-neutral-500 text-center">{scaffoldTitle(scaffold)}</p>
-          </section>
+          )}
 
-          <hr className="border-neutral-200 dark:border-neutral-800" />
+          {phase === 'reveal' && (
+            <div className="space-y-3">
+              {/* THE VERDICT, with the rating word in its own status
+                  colour — the same colour that word wears on every grid
+                  in the app. */}
+              <p className="text-sm" data-testid="motion-verdict">
+                <span className="font-mono">
+                  {round.motion.startLabel} → {round.motion.destLabel}
+                </span>
+                <span className="text-neutral-400"> · </span>
+                {round.motion.direction === 'asc' ? 'up' : 'down'} a{' '}
+                {INTERVAL_NAME[round.motion.distance]}
+                <span className="text-neutral-400"> · </span>
+                <span className="font-mono">
+                  {round.chords[0].name} → {round.chords[1].name}
+                </span>
+                {feelWord !== null && (
+                  <span className={`ml-2 font-semibold ${feelClass}`} data-testid="motion-feel">
+                    {feelWord}
+                  </span>
+                )}
+              </p>
+
+              <SharedPlayer
+                chords={round.chords}
+                orientPc={round.keyPc}
+                settings={settings}
+                onSettings={setSettings}
+                showListen
+                startLit={1}
+                ring={ring}
+                thickness={{
+                  value: rung,
+                  onChange: r => { setThickness(r as ListRung); },
+                  rungs: ['guide', 'seventh', 'full'],
+                }}
+                onStep={i => setLit(i < 0 ? null : i)}
+              />
+
+              <div className="space-y-3 rounded-lg border border-black/[0.07] p-3 text-sm">
+                <div className="rounded-md bg-neutral-100/70 dark:bg-neutral-800/60 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
+                  <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1.5">
+                    starter association
+                  </span>
+                  {starterAssociation(round.motion)}
+                </div>
+                <AssociationsEditor progressionId={motionId(round.motion)} alwaysEditing />
+                {(() => {
+                  const semitones = Math.abs(
+                    ((round.destPc - round.startPc) + 12) % 12,
+                  );
+                  const quality = intervalFromSemitones(semitones);
+                  const long = round.motion.direction === 'asc'
+                    ? 'ascending' : 'descending';
+                  return (
+                    <IntervalDescriptionEditor
+                      intervalKey={intervalDescriptionKey(quality.id, long)}
+                      defaultText={defaultIntervalDescription(quality.id, long)}
+                    />
+                  );
+                })()}
+                <button
+                  onClick={async () => {
+                    await setPref(PREF_FOCUS, [motionId(round.motion)]);
+                    setFocusKeys([motionId(round.motion)]);
+                    setFocusActive(true);
+                  }}
+                  className="text-xs text-fluent hover:underline self-start"
+                >
+                  Practice This Motion Specifically → Focus Mode
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* Focus mode entry + current-scope summary. Lives below both
-          groups because focus is a cross-cutting tool that operates
-          across the entire scope. Also the only control still visible
-          while focus mode is active. */}
+      {/* Focus mode entry + current-scope summary. Unchanged: the
+          separate panel and its scope line are exactly as they were. */}
       <div className="flex flex-col items-center gap-2">
         <button
           onClick={() => setShowFocusPanel(true)}
@@ -1056,7 +827,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
           <span>
             {focusActive
               ? `focused practice — ${focusPoolSize} motion${focusPoolSize === 1 ? '' : 's'} selected`
-              : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction === 'both' ? 'both directions' : direction === 'asc' ? 'ascending' : 'descending'} · ${distance === 'all' ? 'all distances' : INTERVAL_NAME[distance] + 's'} · ${listening === 'bass' ? 'bass only' : listening === 'chords' ? 'chords only' : 'bass + chords'} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
+              : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction === 'both' ? 'both directions' : direction === 'asc' ? 'ascending' : 'descending'} · ${distance === 'all' ? 'all distances' : INTERVAL_NAME[distance] + 's'} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
           </span>
           {focusActive && (
             <button
@@ -1067,12 +838,6 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
             </button>
           )}
         </p>
-      </div>
-
-      {/* Playback speed — kept outside the focus-gated block so users
-          can still adjust tempo while drilling a focused set. */}
-      <div className="flex justify-center">
-        <SpeedControl moduleId={MODULE_ID} />
       </div>
 
       {showFocusPanel && (
@@ -1094,7 +859,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
           ) : undefined}
           sections={focusSections}
           initialSelection={focusKeys}
-          onStart={onStartFocus}
+          onStart={keys => { void onStartFocus(keys); }}
           onCancel={() => setShowFocusPanel(false)}
           startLabel={focusActive ? 'update focus session' : 'start focus session'}
           suggestWeakSpots={() => suggestWeakMotions(attempts)}
@@ -1111,14 +876,13 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 // this is a lightweight version that avoids pulling the full tier math
 // into the focus panel.
 function suggestWeakMotions(attempts: AttemptRecord[]): string[] {
-  const byId = new Map<string, { correct: number; total: number; latest: number }>();
+  const byId = new Map<string, { correct: number; total: number }>();
   for (const a of attempts) {
     if (!a.itemId.startsWith('motion:')) continue;
     if (a.excludeFromFluency) continue;
-    const rec = byId.get(a.itemId) ?? { correct: 0, total: 0, latest: 0 };
+    const rec = byId.get(a.itemId) ?? { correct: 0, total: 0 };
     rec.total += 1;
     if (a.correct) rec.correct += 1;
-    rec.latest = Math.max(rec.latest, a.timestamp);
     byId.set(a.itemId, rec);
   }
   const weak: string[] = [];
@@ -1138,16 +902,3 @@ function suggestWeakMotions(attempts: AttemptRecord[]): string[] {
   }
   return weak;
 }
-
-function scaffoldTitle(mode: Scaffolding): string {
-  switch (mode) {
-    case 'full': return 'full: key name shown, cadence primes the ear, starting note highlighted';
-    case 'partial': return 'partial: cadence primes the ear, starting note highlighted, key hidden';
-    case 'minimal': return 'minimal: no key, no cadence — click both the starting note AND the destination';
-  }
-}
-
-// Kept exported for the fluency tracker to parse motion ids back into
-// distance/direction when grouping stats by sub-dimension.
-export { parseMotionId, ALL_MOTIONS, INTERVAL_NAME };
-export type { DegreeLabel };
