@@ -386,8 +386,8 @@ export function defaultDrillTypesForScale(): DefaultDrill[] {
  *  STORAGE TAG, NOT A DISPLAY STRING. These letters are segments of a
  *  spacingState itemRef — `vl:five-one:guide-tones:A:C` — so they are
  *  frozen by the data, and `C` is simply the next free one. What the
- *  reader sees is decided by `positionLabel`: the numbered types read
- *  "Position 1/2/3", Extended Voicings reads "Pos A/B". */
+ *  reader sees is decided by `positionLabel`, and since 9 Sep 2026
+ *  that is "Position 1/2/3" on every row of the page. */
 export type VLABPosition = 'A' | 'B' | 'C';
 
 /** Display number for a storage tag. A is the lowest starting note. */
@@ -541,14 +541,14 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     id: 'dom7b9',
     kind: 'inversion-4',
     label: 'dom7b9 → minor',
-    description: 'Right-hand dim7 voicing over dominant bass, resolving to minor. Four starting positions — root plus three inversions of the dominant.',
+    description: 'Right-hand dim7 voicing over dominant bass, resolving to minor. Four starting positions for the right hand.',
     positions: ['pos1', 'pos2', 'pos3', 'pos4'],
   },
   {
     id: 'dim7',
     kind: 'inversion-4',
     label: 'dim7 → minor',
-    description: 'Diminished passing chord resolving to minor. Four starting positions — root plus three inversions of the dim7.',
+    description: 'Diminished passing chord resolving to minor. Four starting positions for the right hand.',
     positions: ['pos1', 'pos2', 'pos3', 'pos4'],
   },
 ];
@@ -789,61 +789,57 @@ export type VLPositionSlot =
   | { kind: 'inversion-4';    position: InversionPosition };
 
 /**
- * THE ONE PLACE A POSITION IS NAMED, for all seven patterns.
+ * THE ONE PLACE A POSITION IS NAMED, and every row now says the same
+ * word.
  *
- * Five of the six row families count the same thing — which note the
- * right hand starts on — so they share one format, "Position <token>",
- * and differ only in whether the token is a number or a letter:
+ * =====================================================================
+ * EVERY ROW ON THIS PAGE IS TWO-HANDED, SO EVERY ROW COUNTS THE SAME
+ * THING.
  *
- *   · Guide Tones, Seventh Chords, Diatonic Cycle — numbers. The
- *     position is just where the hand starts: 1 on the 3rd, 2 on the
- *     5th, 3 on the 7th. The Diatonic Cycle used to say "Starting
- *     position 1" for this, which was a second name for one idea and
- *     the only label on the page that was not Title Case.
- *   · Extended Voicings and Minor ABA — letters, because A and B are
- *     a real convention there rather than an ordinal: the A voicing
- *     starts the ii from its 3rd, the B voicing from its 7th. They
- *     used to disagree about the format anyway ("Pos A" against
- *     "Position A") while meaning the same thing.
+ * Bass in the left hand, rootless shape in the right. What changes
+ * between one start and the next is the right-hand shape — which note
+ * of it is on the bottom — and that is true of the guide tones, the
+ * seventh chords, the extended voicings, the Minor ABA, the Diatonic
+ * Cycle and the two altered-dominant passes alike. So they are all
+ * "Position n", numbered from the lowest start.
  *
- * dom7b9 AND dim7 ARE THE EXCEPTION, AND THEY STAY DIFFERENT ON
- * PURPOSE. Those rows count inversions of the dominant (or of the
- * dim7), not where the right hand starts, so "Position 2" there meant
- * something else entirely from "Position 2" on the Seventh Chords row
- * directly above. A shared format is the goal; a shared lie is not.
- * They now name the inversion — and the first of them is root
- * position, which is not an inversion at all, which is exactly the
- * fact the old numbering hid.
+ * The page used to say three different things for that one idea:
+ *
+ *   · "Position 1/2/3" on Guide Tones, Seventh Chords and the
+ *     Diatonic Cycle.
+ *   · "Pos A/B" on Extended Voicings and "Position A/B" on Minor ABA,
+ *     because A and B were a convention in the source material.
+ *   · "Root Position / 1st Inversion / 2nd Inversion / 3rd Inversion"
+ *     on dom7b9 → minor and dim7 → minor.
+ *
+ * THE LAST OF THOSE WAS THE ONE THAT MATTERED. Naming an inversion
+ * says the row is about which note of the CHORD is in the bass — and
+ * on a two-handed voicing the bass note is the left hand's, which does
+ * not move. What actually changes is the right hand's starting shape,
+ * exactly as on every row above it. Silas's ruling of 9 Sep 2026.
+ *
+ * =====================================================================
+ * THE STORAGE TAGS DID NOT MOVE, AND THAT IS DELIBERATE.
+ *
+ * `A`/`B`/`C`, `pos-A`/`pos-B` and `pos1`–`pos4` are segments of
+ * spacingState itemRefs. Renaming them would orphan every rep already
+ * logged. This function is display, and display is the whole of the
+ * change: `VLAB_POSITION_NUMBER` and `positionNumber` turn a tag into
+ * the number the reader sees.
+ * =====================================================================
  */
 function positionLabel(slot: VLPositionSlot): string {
   switch (slot.kind) {
     case 'type-position':
-      switch (slot.type) {
-        case 'full-voicing':
-        case 'aba-structure':
-          return `Position ${slot.position}`;
-        case 'guide-tones':
-        case 'seventh-chords':
-          return `Position ${VLAB_POSITION_NUMBER[slot.position]}`;
-      }
-      break;
+      return `Position ${VLAB_POSITION_NUMBER[slot.position]}`;
     case 'diatonic-cycle':
       return `Position ${positionNumber(slot.position)}`;
     case 'minor-aba':
-      return `Position ${minorAbaLetter(slot.position)}`;
+      return `Position ${minorAbaNumber(slot.position)}`;
     case 'inversion-4':
-      return INVERSION_LABEL[slot.position];
+      return `Position ${positionNumber(slot.position)}`;
   }
 }
-
-/** What the dom7b9 / dim7 rows actually count. `pos1` is the chord in
- *  root position — the reason these cannot borrow "Position N". */
-const INVERSION_LABEL: Readonly<Record<InversionPosition, string>> = {
-  pos1: 'Root Position',
-  pos2: '1st Inversion',
-  pos3: '2nd Inversion',
-  pos4: '3rd Inversion',
-};
 
 /** What "extended" means here, for the two ids that share the name.
  *  Shown beside the row label — the name says which row, the hint
@@ -870,19 +866,21 @@ function positionNumber(p: DiatonicCyclePosition | InversionPosition): number {
   }
 }
 
-/** Strip the `pos-` prefix from minor-aba positions. */
-function minorAbaLetter(p: MinorAbaPosition): 'A' | 'B' {
-  return p === 'pos-A' ? 'A' : 'B';
+/** The number a minor-aba storage tag reads as. `pos-A` is the lower
+ *  start, so it is Position 1 — the tag keeps its letter because it is
+ *  in itemRefs already written. */
+function minorAbaNumber(p: MinorAbaPosition): 1 | 2 {
+  return p === 'pos-A' ? 1 : 2;
 }
 
 /** Human-friendly sub-cell label, suitable for display alongside the
  *  pattern label. Examples:
  *    "Guide Tones · Position 1"
  *    "Seventh Chords · Position 3"
- *    "Extended Voicings · Position B"
+ *    "Extended Voicings · Position 2"
  *    "Position 2"        (diatonic-cycle)
- *    "Position A"        (minor-aba)
- *    "2nd Inversion"     (dom7b9 / dim7 — they count inversions)
+ *    "Position 1"        (minor-aba)
+ *    "Position 3"        (dom7b9 / dim7)
  */
 export function voiceLeadingSubCellLabel(
   desc: VoiceLeadingItemRefDescriptor,

@@ -288,13 +288,13 @@ describe('parseVoiceLeadingItemRef', () => {
 // ---------------------------------------------------------------------
 
 describe('voiceLeadingSubCellLabel', () => {
-  it('every starting position shares one format, number or letter', () => {
+  it('says Position n on every row of the page', () => {
     const major = parseVoiceLeadingItemRef('vl:major-251:aba-structure:B:C')!;
-    expect(voiceLeadingSubCellLabel(major)).toBe('Extended Voicings · Position B');
+    expect(voiceLeadingSubCellLabel(major)).toBe('Extended Voicings · Position 2');
     const five = parseVoiceLeadingItemRef('vl:five-one:guide-tones:A:F')!;
     expect(voiceLeadingSubCellLabel(five)).toBe('Guide Tones · Position 1');
     const minor = parseVoiceLeadingItemRef('vl:minor-251:full-voicing:B:G')!;
-    expect(voiceLeadingSubCellLabel(minor)).toBe('Extended Voicings · Position B');
+    expect(voiceLeadingSubCellLabel(minor)).toBe('Extended Voicings · Position 2');
     const third = parseVoiceLeadingItemRef('vl:minor-251:seventh-chords:C:G')!;
     expect(voiceLeadingSubCellLabel(third)).toBe('Seventh Chords · Position 3');
   });
@@ -306,28 +306,68 @@ describe('voiceLeadingSubCellLabel', () => {
     expect(parseVoiceLeadingItemRef('vl:five-one:seventh-chords:C:C')).not.toBeNull();
   });
 
-  it('diatonic-cycle joins the shared format — it counts the same thing', () => {
+  it('diatonic-cycle joins the shared format', () => {
     const desc = parseVoiceLeadingItemRef('vl:diatonic-cycle:pos3:F')!;
     expect(voiceLeadingSubCellLabel(desc)).toBe('Position 3');
   });
 
-  it('minor-aba strips the pos- prefix', () => {
+  it('minor-aba numbers its A and B tags', () => {
     const a = parseVoiceLeadingItemRef('vl:minor-aba:pos-A:C')!;
     const b = parseVoiceLeadingItemRef('vl:minor-aba:pos-B:Eb')!;
-    expect(voiceLeadingSubCellLabel(a)).toBe('Position A');
-    expect(voiceLeadingSubCellLabel(b)).toBe('Position B');
+    expect(voiceLeadingSubCellLabel(a)).toBe('Position 1');
+    expect(voiceLeadingSubCellLabel(b)).toBe('Position 2');
   });
 
-  it('inversion-4 names the inversion, because it counts a different thing', () => {
-    // These rows count inversions of the dominant, not where the right
-    // hand starts, so they must NOT read "Position N" like the rows
-    // above them. pos1 is root position — not an inversion at all.
+  it('the two altered-dominant passes say Position n as well', () => {
+    // They used to name an inversion of the dominant. On a two-handed
+    // voicing the bass note is the left hand's and does not move, so
+    // what the row actually counts is the right hand's starting shape
+    // — the same thing every row above it counts. Silas's ruling of
+    // 9 Sep 2026.
     const root = parseVoiceLeadingItemRef('vl:dom7b9:pos1:G')!;
-    expect(voiceLeadingSubCellLabel(root)).toBe('Root Position');
+    expect(voiceLeadingSubCellLabel(root)).toBe('Position 1');
     const desc = parseVoiceLeadingItemRef('vl:dom7b9:pos4:G')!;
-    expect(voiceLeadingSubCellLabel(desc)).toBe('3rd Inversion');
+    expect(voiceLeadingSubCellLabel(desc)).toBe('Position 4');
     const dim = parseVoiceLeadingItemRef('vl:dim7:pos3:A')!;
-    expect(voiceLeadingSubCellLabel(dim)).toBe('2nd Inversion');
+    expect(voiceLeadingSubCellLabel(dim)).toBe('Position 3');
+  });
+
+  it('says nothing on the page about an inversion or a Pos A', () => {
+    /**
+     * THE SWEEP, not four examples.
+     *
+     * Every label the page can draw — the row gutters of every
+     * pattern, and the sub-cell label of every itemRef the catalog
+     * enumerates — is checked for the two words the ruling removed.
+     * A pattern added later with a label of its own has to pass this
+     * without anybody remembering to come back here.
+     */
+    const labels: string[] = [];
+    for (const pattern of VOICE_LEADING_PATTERNS) {
+      for (const row of voiceLeadingGridRows(pattern)) labels.push(row.label);
+      for (const key of KEYS) {
+        for (const ref of enumerateVoiceLeadingCells(pattern, key)) {
+          labels.push(voiceLeadingSubCellLabel(parseVoiceLeadingItemRef(ref)!));
+        }
+      }
+    }
+    expect(labels.length).toBeGreaterThan(400);
+    for (const label of labels) {
+      expect(label, label).not.toMatch(/inversion/i);
+      expect(label, label).not.toMatch(/\bPos\b/);
+      // And every position it does name is a number.
+      expect(label, label).not.toMatch(/Position [A-Z]/);
+    }
+  });
+
+  it('numbers the positions from the lowest start, in tag order', () => {
+    // The display number is derived from the storage tag, so a row
+    // cannot be renumbered by accident: A is 1, B is 2, C is 3.
+    for (const [tag, n] of [['A', 1], ['B', 2], ['C', 3]] as const) {
+      const ref = `vl:five-one:seventh-chords:${tag}:C`;
+      expect(voiceLeadingSubCellLabel(parseVoiceLeadingItemRef(ref)!))
+        .toBe(`Seventh Chords · Position ${n}`);
+    }
   });
 });
 
@@ -440,19 +480,19 @@ describe('voiceLeadingGridRows', () => {
   it('row labels are human-friendly for the gutter', () => {
     const major = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!);
     expect(major[0].label).toBe('Guide Tones · Position 1');
-    expect(major[6].label).toBe('Extended Voicings · Position B');
+    expect(major[6].label).toBe('Extended Voicings · Position 2');
 
     const cycle = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!);
     expect(cycle[0].label).toBe('Position 1');
     expect(cycle[2].label).toBe('Position 3');
 
     const aba = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!);
-    expect(aba[0].label).toBe('Position A');
-    expect(aba[1].label).toBe('Position B');
+    expect(aba[0].label).toBe('Position 1');
+    expect(aba[1].label).toBe('Position 2');
 
     const dom = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('dom7b9')!);
-    expect(dom[0].label).toBe('Root Position');
-    expect(dom[3].label).toBe('3rd Inversion');
+    expect(dom[0].label).toBe('Position 1');
+    expect(dom[3].label).toBe('Position 4');
   });
 
   it('itemRefForKey produces the canonical sub-cell itemRef', () => {
