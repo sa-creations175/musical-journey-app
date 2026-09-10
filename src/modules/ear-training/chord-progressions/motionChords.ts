@@ -27,7 +27,8 @@
  * =====================================================================
  */
 import { bassLine, nearest, allVoicings } from '../../../lib/builtAnswers/voiceLeading';
-import { bassDrop, playerMarks } from '../../../lib/player/voices';
+import { bassDrop, chordStep, playerMarks } from '../../../lib/player/voices';
+import { intervalFromSemitones } from './intervalQuality';
 import type { PlayerSettings } from '../../../lib/player/settings';
 import type { KeyMark } from '../../../lib/builtAnswers/board';
 import { handTones, type QualityId } from '../../../lib/builtAnswers/chordShapes';
@@ -128,4 +129,56 @@ export function motionMarks(
   settings: PlayerSettings,
 ): ReadonlyMap<number, KeyMark> {
   return playerMarks(chords[index] ?? null, settings, bassDrop(chords, settings));
+}
+
+/** What the bass did between the two chords, as it was heard. */
+export interface BassMove {
+  /** The two bass notes that sounded, as MIDI. */
+  from: number;
+  to: number;
+  direction: 'up' | 'down';
+  /** "minor 3rd", "tritone" — the interval's quality and size. */
+  interval: string;
+  /** The verdict's middle part: "down a minor 3rd". */
+  words: string;
+}
+
+/**
+ * The bass move, read off the schedule.
+ *
+ * =====================================================================
+ * THE VERDICT SAYS WHAT THE BASS DID. Silas's ruling of 10 Sep 2026.
+ *
+ * It said "up a 6th" for 1 → 6m because the pool files a motion by
+ * scale position — the 6 is above the 1 in the octave — while the bass
+ * rule, choosing the smaller move, took the bass DOWN a minor 3rd. The
+ * reader heard one thing and read another. So the words come from the
+ * two bass notes that actually sounded, with the interval's quality:
+ * Cmaj7 → Am7 is "down a minor 3rd" when the bass falls C to A, and
+ * "up a major 6th" when it climbs.
+ *
+ * FROM THE STEP THE PLAYER SCHEDULES, not from the chords. `chordStep`
+ * is what the sequencer is handed, so the Forward bass (dropped an
+ * octave with the whole line) and the Blended one are both read as
+ * they sound. The first note of a step is its bass in every mode —
+ * the left hand's root, the root placed in the chord for one hand,
+ * the bass alone for Bass only.
+ *
+ * THE FILTERS DO NOT MOVE. Distance and Direction still describe the
+ * pool, which is what they narrow; this describes one voicing of it.
+ * An octave never happens: a motion never keeps its root.
+ * =====================================================================
+ */
+export function bassMove(
+  chords: ReadonlyArray<PlayerChord>,
+  settings: PlayerSettings,
+): BassMove | null {
+  if (chords.length < 2) return null;
+  const drop = bassDrop(chords, settings);
+  const [from, to] = [chords[0], chords[1]]
+    .map(c => chordStep(c, settings, 2, drop).intervals[0]);
+  if (from === undefined || to === undefined || from === to) return null;
+  const direction = to > from ? 'up' : 'down';
+  const interval = intervalFromSemitones(to - from).name.toLowerCase();
+  return { from, to, direction, interval, words: `${direction} a ${interval}` };
 }

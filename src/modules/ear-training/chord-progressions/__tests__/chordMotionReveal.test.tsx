@@ -273,8 +273,9 @@ describe('the verdict line wears the in-the-key colours', () => {
     expect(coloured.map(b => b.tagName)).toEqual(['B', 'B', 'B', 'B']);
     expect(coloured.map(b => b.textContent)).toEqual(['1', '4', 'Cmaj7', 'Fmaj7']);
     // The arrows, the distance and the dots are in none of them.
-    for (const b of coloured) expect(b.textContent).not.toMatch(/→|·|up|down/);
-    expect(verdict.textContent).toContain('up a 4th');
+    for (const b of coloured) expect(b.textContent).not.toMatch(/→|·|up|down|perfect/);
+    // The bass climbs C to F: the interval with its quality.
+    expect(verdict.textContent).toContain('up a perfect 4th');
   });
 
   it('gives a flattened degree the darker twin, as the lead sheet does', async () => {
@@ -386,5 +387,18 @@ describe('the ring follows a chord chip', () => {
     // "the 4 of the key" left over from the chord before.
     expect(el.querySelectorAll('[data-testid^="key-ring-"]')).toHaveLength(0);
     expect(el.querySelector('[data-testid="legend-home-line"]')).not.toBeNull();
+  });
+});
+
+describe('the verdict names what the bass did', () => {
+  it('1 → 6m in the key of C: down a minor 3rd, not the pool’s up a 6th', async () => {
+    const el = await deal('motion:1-6-asc');
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-6');
+    await click(el, 'motion-submit');
+    const verdict = token(el, 'motion-verdict').textContent ?? '';
+    expect(token(el, 'verdict-bass-move').textContent).toBe('down a minor 3rd');
+    expect(verdict).toContain('1 → 6m · down a minor 3rd · Cmaj7 → Am7');
+    expect(verdict).not.toContain('up a 6th');
   });
 });

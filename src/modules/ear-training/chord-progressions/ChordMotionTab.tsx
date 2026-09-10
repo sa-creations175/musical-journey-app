@@ -59,7 +59,7 @@ import {
   ALL_MOTIONS, INTERVAL_NAME, motionId,
   type DegreeLabel, type Direction, type Motion,
 } from './chordMotionPool';
-import { motionChords } from './motionChords';
+import { bassMove, motionChords } from './motionChords';
 import { chipText, degreeChips, degreeOfPc, degreePc } from './motionDegrees';
 import { motionResult, type MotionResultTone } from './motionResult';
 import { spellKey } from '../../../lib/spelling';
@@ -867,8 +867,11 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                   </InKeyToken>
                 </span>
                 <span className="text-neutral-400"> · </span>
-                {round.motion.direction === 'asc' ? 'up' : 'down'} a{' '}
-                {INTERVAL_NAME[round.motion.distance]}
+                {/* WHAT THE BASS DID, as it sounded — see `bassMove`.
+                    Not the pool's scale-position direction. */}
+                <span data-testid="verdict-bass-move">
+                  {bassMove(round.chords, settings)?.words ?? ''}
+                </span>
                 <span className="text-neutral-400"> · </span>
                 <span className="font-mono">
                   <InKeyToken pc={round.startPc} keyPc={round.keyPc} testId="verdict-start-chord">
