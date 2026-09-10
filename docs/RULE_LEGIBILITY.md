@@ -4,7 +4,7 @@
 **Against:** commit `af9fccf` (all line references spot-checked at that commit)
 **Status:** living document — update the markers as rules get surfaced
 
-> **Line numbers drift.** Every `file.ts:NN` below was accurate on the date above.
+> **Line numbers drift.** Every `<file>:NN` below was accurate on the date above.
 > As the codebase moves, treat them as a starting point for a search, not a
 > guarantee. The symbol names and constant names are the durable part — grep
 > those first if a line lands somewhere unexpected.
@@ -56,11 +56,11 @@ trusting.
 | Tag | Entries | `grep -c` returns | Counted |
 |---|---|---|---|
 | Invisible | 20 | 21 | 10 Sep 2026 |
-| Half | 20 | 21 | 10 Sep 2026 |
+| Half | 19 | 20 | 10 Sep 2026 |
 | Surfaced | 6 | 7 | 10 Sep 2026 |
 | Fixed | 4 | 5 | 10 Sep 2026 |
 | Defect | 3 | 4 | 10 Sep 2026 |
-| Closed | 2 | 3 | 10 Sep 2026 |
+| Closed | 3 | 4 | 10 Sep 2026 |
 | **All entries** | **55** | | 10 Sep 2026 |
 
 The grep is always **one higher**, because each tag also appears in its own row
@@ -146,15 +146,15 @@ been quietly filtered, rescoped, or fabricated. **Highest priority.**
 
 - **Rule:** the flag drops the attempt from *every* downstream tally, not just the tier badge.
 - **Decides:** tier badges, tier unlocking, goal accuracy percentages, dashboard counts, Skills-catalogue badges, weak-spot suggestions.
-- **Where set:** `ChordRecognitionQuiz.tsx:530` · `IntervalsQuiz.tsx:214` · `ChordProgressionsQuiz.tsx:225` · `ChordMotionTab.tsx:440` · `HearScaleTab.tsx:59` · `SitInsideTab.tsx:63` · `HarmonicFluency.tsx:215` · `VocabularySession.tsx:46` (`FOCUS_PROTECTION_THRESHOLD = 4`).
-- **Where consumed:** `chord-recognition/tierUnlock.ts:41` · `chord-progressions/progressionTierUnlock.ts:50` · `scales-modes/scaleModeTierUnlock.ts:63` · `dashboard/aggregation.ts:44` · `goals/progress.ts:327` · `skills/registry.ts:152` · `ChordMotionTab.tsx:1146`.
+- **Where set:** `ChordRecognitionQuiz.tsx:530` · `IntervalsQuiz.tsx:214` · `ChordMotionTab.tsx:440` · `HearScaleTab.tsx:59` · `SitInsideTab.tsx:63` · `HarmonicFluency.tsx:215` · `VocabularySession.tsx:46` (`FOCUS_PROTECTION_THRESHOLD = 4`); the shared rule is `FLUENCY_POOL_MINIMUM` in `src/lib/fluencyPool.ts`. *The Full Progression card (`FullProgressionCard.tsx`), which replaced the old progressions quiz on 10 Sep 2026, sets no flag at all.*
+- **Where consumed:** `chord-recognition/tierUnlock.ts:41` · `scales-modes/scaleModeTierUnlock.ts:63` · `dashboard/read/itemStats.ts` (`engagementFromAttempt`, `itemStatsFromEngagements`) · `goals/progress.ts:327` · `skills/registry.ts:152` · `ChordMotionTab.tsx:1146`. *(The progressions ladder that also read it was deleted 10 Sep 2026; the old dashboard's aggregation module was replaced by the read layer on 27 Aug.)*
 - **UI:** notice says "fluency tiers." Silent on the other five. A focused session can leave you permanently short of a tier unlock with no indication.
 - **Also:** the threshold is `< 4` everywhere but measured differently — items *selected* in ET (`focusKeys.length`), cards *in queue* in HF/Production (`cards.length`). Same notice, two different rules. → **Pattern 2**
 - **Dashboard surfaces closed, 20 Aug 2026** (`a400f87`, `690f55e`). The score column's `?` states the split — out of accuracy, in for coverage and recency — with its reason, and a row whose own attempts were focus-protected says how many and which way each one counted. **Stays half-surfaced:** the in-quiz notice is unchanged, and tier unlocking, goal accuracy and the Skills catalogue still say nothing. One of six consumers now explains itself.
 
-### 1.4 "42 motions" — the scope count is the filter's pool `[HALF]`
+### 1.4 Chord Motion's scope count is the filter's pool, not the catalog `[HALF]`
 
-- **Rule:** the current-scope line shows `activePool.length` after diatonic/direction/distance/listening filters, not the catalog size.
+- **Rule:** the current-scope line shows `activePool.length` after the note-context, direction and distance filters, not the catalog size. *(This entry named the number on screen until 10 Sep 2026; the pool has grown three times since, so it now names what the number is rather than what it was.)*
 - **Decides:** the motion count you read as "how many motions exist."
 - **Where:** `src/modules/ear-training/chord-progressions/ChordMotionTab.tsx:1088`.
 - **UI:** the filters are listed in the same sentence, so a careful reader can infer it — but the number is presented as a count of motions, not a count of *these* motions. `ProgressionFluencyTracker.tsx:265` renders `"${motions.length} motions"` per distance group with no filter context at all.
@@ -236,11 +236,12 @@ have read as a rendering quirk. Same family as this entry — a string whose
 *form* carries meaning, passed through a transform that only understood its
 letters.
 
-### 1.9 The Musician Balance radar's 0–100 scores are invented targets `[HALF]`
+### 1.9 The Musician Balance radar's 0–100 scores are invented targets `[CLOSED]`
 
-- **Rule:** each axis divides weighted activity by a hardcoded target and clamps to 100. Last-7-days activity is weighted 2×.
+- **Closed 27 Aug 2026, by removal:** the radar was deleted with the old dashboard (`1ca4b31`), and nothing in `src` carries its targets now. The entry is kept as it was found:
+- **Rule:** each axis divided weighted activity by a hardcoded target and clamped to 100. Last-7-days activity was weighted 2×.
 - **Decides:** all five radar axes.
-- **Where:** `src/modules/dashboard/aggregation.ts:475-478` — 400 ear attempts / 10,800 drill seconds / 300 song minutes / 7,200 creative seconds / 14 unique days.
+- **Where:** the old dashboard's aggregation module — 400 ear attempts / 10,800 drill seconds / 300 song minutes / 7,200 creative seconds / 14 unique days.
 - **UI:** `drivers` strings show the raw weighted inputs ("312 weighted ear-training reps…") but never the denominator or the 2× recency weight. "Physical: 58" reads like a measurement; it's a ratio against a guess.
 
 ### 1.10 "untouched" doesn't mean untouched `[HALF]`
@@ -255,12 +256,12 @@ letters.
 - **Rule:** mastered = 20/20 over last 20 · fluent = 80–99% · developing = 50–79% · needsWork = <50% · stale = was fluent/mastered + 30 days idle.
 - **Decides:** every tier badge in the app.
 - **Where:** `src/lib/tier.ts:49-51`, `TIER_DESCRIPTION` at `:96`.
-- **UI:** `TIER_DESCRIPTION` is consumed **only** at `src/modules/ear-training/intervals/FluencyTracker.tsx:257`, behind a "?" popover. `TIER_LABEL` alone renders at: `ChordFluencyTracker.tsx:216` · `scales-modes/FluencyTracker.tsx:138` · `ProgressionFluencyTracker.tsx:100` · `HarmonicFluencyTracker.tsx:99` · `SkillsGrid.tsx:332` · `SkillsCatalogue.tsx:311` · `ModuleGroupedView.tsx:337` · `SkillDetailPanel.tsx:213`. **Seven surfaces show the verdict without the rule.**
+- **UI:** `TIER_DESCRIPTION` is consumed **only** at `src/modules/ear-training/intervals/FluencyTracker.tsx:257`, behind a "?" popover. `TIER_LABEL` alone renders at: `ChordFluencyTracker.tsx:216` · `scales-modes/FluencyTracker.tsx:138` · `ProgressionFluencyTracker.tsx:100` · `moduleHome/CategoryCard.tsx` (the harmonic fluency tier badge, since the category cards replaced its tracker) · `SkillsGrid.tsx:332` · `SkillsCatalogue.tsx:311` · `ModuleGroupedView.tsx:337` · `SkillDetailPanel.tsx:213`. **Seven surfaces show the verdict without the rule.**
 - **Compounding:** `src/lib/tier.ts:1-45` documents that this is the *legacy* vocabulary, superseded by a garden vocabulary (planting / sprouting / branching / rooted / seasoned) with **different band breakpoints**. Both ship. Only `GoalFormModal.tsx::LevelSelect` shows the new one. → **Pattern 1**
 
 ### 1.12 Three tier computations that can disagree `[DEFECT]`
 
-- `dashboard/aggregation.ts:44-52` — excludes, then slices top 20.
+- `dashboard/read/itemStats.ts` (`itemStatsFromEngagements`) — drops focus-pool attempts, then takes the 20-answer window; recency deliberately counts them. *(Replaced the old dashboard's aggregation module, 27 Aug 2026.)*
 - `skills/registry.ts:152` — filters then slices 20, but computes `daysSince` from `sorted[0]`, which **includes** excluded attempts.
 - `ChordRecognitionQuiz.tsx:203` — additionally normalizes legacy itemIds (`maj` → `maj:0`) before bucketing.
 - **Consequence:** the Dashboard, the Skills catalogue, and the in-quiz tracker can show **different tiers for the same item**.
@@ -286,10 +287,10 @@ letters.
 
 ### 2.3 Drill reps under 30 seconds log nothing `[SURFACED]`
 
-- **Rule:** `MIN_REP_SECONDS = 30`; below it, save is refused.
-- **Where:** `src/modules/shapes-and-patterns/drillModel.ts:26`; enforced at `DrillSessionModal.tsx:360`.
-- **UI:** the only rule in the app explained at all three moments — pre-emptively (`DrillSessionModal.tsx:614`, `ScalesDrillModal.tsx:545`, `VoiceLeadingDrillModal.tsx:507`), on the rating screen (`DrillAssessment.tsx:126`), and on refused save (toast at `:362`).
-- **This is the model for everything else in this document.**
+- **Rule:** `DRILL_FLOOR_SECONDS = 30` (`src/lib/spacing/drillSettings.ts`, re-exported as `MIN_REP_SECONDS` from `drillModel.ts`); a run under it is not saved.
+- **Where:** enforced in `shapes-and-patterns/practiceTest/PracticeTestPanel.tsx` — `completed()` marks the run too short, and `finishPracticeDrill` / `finishTestDrill` write nothing for it. Every drill surface goes through that panel since the in-session pop-ups retired (31 Aug 2026).
+- **UI:** explained where the run lands — the rating box ("That run was {n}s. A run has to reach 30 seconds to have been real…") and the run list ("Under 30 seconds, so this run was too short to count and nothing was saved for it."). *It used to be explained at three moments, before the run and on a refused save as well; the pop-ups that did that are gone, and the panel says it only afterwards.*
+- **Still the model for everything else in this document** — the rule is stated, with its number, where the reader meets it.
 
 ### 2.4 First engagement bypasses Dev Mode `[DEFECT]`
 
@@ -307,7 +308,7 @@ letters.
 
 ### 2.6 Explicitly opt-in non-logging `[SURFACED]`
 
-"cancel — don't log" at `DrillSessionModal.tsx:462` · `ScalesDrillModal.tsx:393` · `VoiceLeadingDrillModal.tsx:340` · `CreativeTimeModal.tsx:319`/`:339` · `InSessionDrillRunner.tsx:163`. Fine as-is — you chose them.
+`CreativeTimeModal.tsx:319`/`:339` · `InSessionDrillRunner.tsx:163` · and on the drill panel (`practiceTest/PracticeTestPanel.tsx`) "Cancel Session", which asks first and writes nothing further (runs already rated stay saved), and, in a test only, "I didn't finish it — discard this run". Fine as-is — you chose them. *(The drill pop-ups' "cancel — don't log" retired with them, 31 Aug 2026.)*
 
 ---
 
@@ -332,13 +333,13 @@ letters.
 
 Two SR systems run in parallel and neither shows anything.
 
-- **Flashcards (SM-2):** ease starts 2.5, ±0.2 / +0.1, clamped 1.3–2.8; intervals 1 → 6 → `interval × ease`, capped 180 days. `src/lib/flashcards/spacedRepetition.ts:19-23, 69-72`.
+- **Flashcards:** *no longer SM-2.* The SM-2 scheduler was retired (`e6e80a9`); flashcards now read the shared spacing engine through `src/lib/flashcards/cardSpacing.ts` — `src/lib/spacing/engine.ts` (`answer`), its numbers in `DEFAULT_SPACING_SETTINGS` (`src/lib/spacing/settings.ts`).
 - **spacingState curve:** ×2 on success, ×0.5 on failure, floor 1 day, ceiling by memory type (declarative 60 / procedural 30 / integration 30 / expression 14). `src/lib/spacingState.ts:164-183`.
 - **UI:** no due date, no interval, no ease is shown anywhere. Cards appear and disappear from queues with no account.
 
 ### 3.4 Decay bands
 
-- **Song keys** `[HALF]` — solid <14d, fading 14–29d, lapsed 30+d; **lapsed is sticky — only a passed retest clears it, engagement alone never does.** `src/modules/repertoire/matrix/solidDecay.ts:36-37, 55`. The KeyStrip badge shows "Fading 18d"; the stickiness rule (the surprising half) is not stated.
+- **Song keys** `[HALF]` — four states on a spacing curve, `held` / `due-soon` / `due` / `overdue`, and only `overdue` loses the rung. `src/modules/repertoire/matrix/keySpacing.ts` (`keyDueState`, `stateHoldsRung`); badge words in `songRetestState.ts`. *Replaced the 14/30-day decay bands (21 Aug 2026). The old "lapsed is sticky until a passed retest" rule did not survive: any rated run moves the due date.*
 - **Algorithm's lived-with bands** `[INVISIBLE]` — identical 14/30 thresholds, `src/lib/sessionAlgorithm/livedWith.ts:28-30`.
 - **S&P heat-grid dimming** `[HALF]` — fresh ≤3d, recent ≤10d, aging ≤20d, stale beyond. `src/modules/shapes-and-patterns/drillModel.ts:790`. `ChordShapeDrills.tsx:53` says *"cells darken with time invested and fade as they go stale"*; the day counts aren't given. `TodayAndAttention.tsx:15` additionally gates "going stale" on ≥5 min invested — invisible.
 - **Tier staleness** `[HALF]` — fluent/mastered + 30 idle days → `stale`. `src/lib/tier.ts:51`. Invisible outside the intervals popover.
@@ -360,8 +361,8 @@ Two SR systems run in parallel and neither shows anything.
 
 ### 3.8 Cell / key gates `[SURFACED]`
 
-- **Rule:** 3 consecutive clean run-throughs at ≥ (performance tempo − 10) BPM. `cellRollup.ts:74, 90, 183`.
-- **UI:** stated on the button tooltip (`CellInteractionModal.tsx:200`), the progress dots' aria-label (`:320`), the per-attempt "below tempo" tag with explanatory title (`:408`), a banner when changing tempo (`:658`), and the whole-song modal (`WholeSongTestModal.tsx:236, 254`).
+- **Rule:** 3 consecutive clean run-throughs at ≥ (performance tempo − 10) BPM. `cellRollup.ts:74, 90, 183` · `src/lib/spacing/testStreak.ts` (`TEST_REPS`) · `src/modules/repertoire/tempoGate.ts` (`testFloorBpm`).
+- **UI:** `TEST_RULE_SENTENCE` in `testRule.ts`, on the key row's test button tooltip (`KeyRow.tsx`) and the due and whole-song banners; the floor in `tempoGate.ts`, shown by `SongMetronomeBox.tsx`; "Below ♩ …, the floor for this song" in `SingleRunModal.tsx`; the ladder dots' aria-label in `practiceTest/TestLadderBand.tsx`; the BELOW tag on a run in `PracticeTestPanel.tsx`. *Repointed 10 Sep 2026: the cell modal and the whole-song modal it cited retired on 23 and 30 Aug, and the rule moved onto the shared panel. The banner on changing tempo has no successor.*
 - **The best-surfaced rule in the app.** This is the standard everything else should meet.
 - **The sixth place, added 20 Aug 2026** (`690f55e`). All five above are *at the drill*; the one place the rule was not stated was where the number gets read. A repertoire section row on the dashboard now gives the gate as what would advance it, and distinguishes it from coverage in the same breath — coverage counts logged practice, the score counts clean run-throughs, and rolling them together would let an hour of noodling read as a pass.
 
@@ -467,16 +468,18 @@ legend on intervals (1.11, which stays half — it renders on one surface of
 eight). The 20 Aug version of this list counted those two and not 2.6, which
 is how it said 6 while the greps said something else.*
 
-**Half-surfaced — 20** *(counted 10 Sep 2026)*: the effect is named, the rule
+**Half-surfaced — 19** *(counted 10 Sep 2026)*: the effect is named, the rule
 isn't — or it's stated in one module and silent in the others that use it. Two
 moved here from invisible on 20 Aug (§1.5, §1.6), each because the dashboard
 now states it and the older surface still does not. §1.7 also moved here and
-then straight out again — see below. One left on 10 Sep: the chord recognition
-Tier rule, now fixed.
+then straight out again — see below. Two left on 10 Sep: the chord recognition
+Tier rule, now fixed, and §1.9, closed.
 
-**Closed by removing the rule — 2** *(counted 10 Sep 2026)*: §1.7, the
-supplementary-row exclusion, and the progressions stage unlock (Tier 4),
-deleted 10 Sep 2026 because it gated a catalog no card drew from. Writing the
+**Closed by removing the rule — 3** *(counted 10 Sep 2026)*: §1.7, the
+supplementary-row exclusion; the progressions stage unlock (Tier 4), deleted
+10 Sep 2026 because it gated a catalog no card drew from; and §1.9, the
+Musician Balance radar's invented targets, deleted with the old dashboard on
+27 Aug and only noticed here on 10 Sep. Writing the
 legend for §1.7 is what showed the rule was wrong. That is the strongest case
 this document has made for itself: an invisible rule survives because nobody
 has to defend it in plain words, and the moment one did, it did not survive.
@@ -505,3 +508,4 @@ threshold. Same shape as §1.12, and a design call rather than a wiring job.
 | 2026-08-20 | §1.7 **closed by reversing the rule**, hours after being half-surfaced. Supplementary rows now gate acquisition; `gatesAcquisition()` deleted; chord shapes 648 → 720. New *closed* marker added for a rule removed rather than explained. |
 | 2026-09-10 | **The four tier/stage unlock systems stopped being invisible.** Settings gained *Unlocking Tiers of Difficulty*, which states the rule, names what is in each Tier, and makes the attempts-to-clear, the Tier share and the Shapes & Patterns cell share editable — read live from `ratingRules`, so a change re-grades on the next read. The unlock message on both Ear Training ladders now names the material it opened and links back to that section. The **progressions ladder was deleted rather than explained**, the second use of the *closed* marker: it gated the old eight-entry catalog and no card drew from it. The acquisition stage's own 0.8 now reads the Fluent floor, so the app has one 80. |
 | 2026-09-10 | **Counts made live.** Every summary count is now recounted from the entries whenever an entry changes, with the date it was read beside it: 20 invisible · 20 half · 6 surfaced · 4 fixed · 3 defects · 2 closed, 55 entries (the 20 Aug total too). The four Tier 4 unlock rows were renamed from an undefined VISIBLE tag to the *fixed* marker this file defines for that, with their commits. The S&P gate's row and §3.1 now say it reads the **Fluent** rating rather than the acquisition stage (`1066a47`). The scoreboard's "fully explained" list is rebuilt from the tags: it had counted Dev Mode and the intervals tier legend, which are not surfaced entries, and missed §2.6. |
+| 2026-09-10 | **No entry cites a deleted file.** Twelve citations pointed at files that no longer exist; each was repointed at what replaced it or, where nothing did, said so: §1.3 (the old progressions quiz and ladder, the old dashboard), §1.9 (**closed** — the radar went with the old dashboard), §1.11 (the harmonic fluency tracker, now the category card), §1.12 (the read layer), §2.3 and §2.6 (the drill pop-ups, now the shared drill panel — §2.3 is explained after a run only now, not before it), §3.3 (the SM-2 flashcard scheduler, retired for the shared spacing engine), §3.4 (the decay bands, now four due states; the "sticky" rule did not survive), §3.8 (the cell and whole-song modals, now the shared panel). §1.4 no longer names a number. `src/lib/__tests__/ruleLegibilityPaths.test.ts` fails on any cited path the source tree does not have. Counts: 20 invisible · 19 half · 6 surfaced · 4 fixed · 3 defects · 3 closed, still 55. |
