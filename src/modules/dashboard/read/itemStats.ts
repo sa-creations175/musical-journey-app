@@ -42,9 +42,12 @@
  */
 import type { AttemptRecord } from '../../../lib/db';
 import { fluencyValue, normaliseFeel } from '../../../lib/fluencyScale';
+import { ratingFloor } from '../../../lib/ratingRules';
 import { itemRefForAttempt } from './canonicalItemId';
 
-/** Engagements the accuracy mean is taken over. */
+/** Engagements the accuracy mean is taken over. A SELF-RATED cell
+ *  uses its own, shorter span — `ratingFloor('self-rated')` — because
+ *  its score is the lowest of the last few rather than a mean. */
 export const ACCURACY_WINDOW = 20;
 
 /** Default coverage bar: an item is covered at this many engagements. */
@@ -154,9 +157,15 @@ export interface ItemStats {
    *  items it is the count of `in flow` reps, which is not what the
    *  column shows — read `score` instead. */
   windowCorrect: number;
-  /** Mean window score, 0–100, or `null` when the window is empty.
-   *  Null is not zero: it means no eligible signal, and the caller
-   *  renders a dash. */
+  /**
+   * The window's score, 0–100, or `null` when the window is empty.
+   * Null is not zero: it means no eligible signal, and the caller
+   * renders a dash.
+   *
+   * THE MEAN on a measured item, where the number is a percentage. THE
+   * LOWEST on a self-rated one, where it is a rung of a four-step
+   * scale — see the note in `itemStatsFromEngagements`.
+   */
   score: number | null;
   /** Most recent engagement over ALL engagements. Null when none. */
   lastAt: number | null;
@@ -224,14 +233,31 @@ export function itemStatsFromEngagements(
   // the specific way this screen exists to avoid: it renders as a
   // value when there is none. An adapter should never emit one - this
   // is the backstop for when one does.
+  // =====================================================================
+  // A SELF-RATED CELL IS ITS LOWEST RECENT REP, NOT ITS AVERAGE.
+  //
+  // Silas's walked Settings page of 10 Sep 2026 says it in terms: "your
+  // rating is the LOWEST of your last three rated reps". Averaging let
+  // one Struggled hide behind two In flows — 25, 100, 100 means 75, and
+  // the cell read Fluent on a shape that fell apart one time in three.
+  // The floor is also the window here: three reps in, three reps out.
+  //
+  // A MEASURED CARD IS STILL ITS MEAN over the last twenty, because
+  // there the number IS a percentage: right and wrong average to
+  // "how often you get it".
+  // =====================================================================
+  const selfRated = accuracyKind === 'self-rated';
+  const span = selfRated ? ratingFloor('self-rated') : ACCURACY_WINDOW;
   const window = sorted
     .filter(e => !e.notCounted && Number.isFinite(e.score))
-    .slice(0, ACCURACY_WINDOW);
+    .slice(0, span);
   const windowTotal = window.length;
   const windowCorrect = window.filter(e => e.score === 100).length;
   const score = windowTotal === 0
     ? null
-    : window.reduce((sum, e) => sum + e.score, 0) / windowTotal;
+    : selfRated
+      ? Math.min(...window.map(e => e.score))
+      : window.reduce((sum, e) => sum + e.score, 0) / windowTotal;
 
   return {
     itemRef,

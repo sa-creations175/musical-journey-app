@@ -48,9 +48,7 @@
 
 import { statusColour, type StatusColour, type StatusKey } from './spacing/statusColour';
 import {
-  MEASURED_RATING_FLOOR, RATING_WINDOW, bandOf, bandPercent, ratingFloor,
-  DEVELOPING_FLOOR, FLUENT_FLOOR, MASTERED_FLOOR,
-  SELF_RATED_RATING_FLOOR, type RatingKind,
+  bandOf, bandPercent, ratingFloor, ratingRules, type RatingKind,
 } from './ratingRules';
 
 export type Tier =
@@ -93,8 +91,11 @@ export type Tier =
  * floor this constant does not carry and `computeTier` reads directly.
  * =====================================================================
  */
-export const MIN_ATTEMPTS_FOR_TIER = MEASURED_RATING_FLOOR;
-export const MASTERY_WINDOW = RATING_WINDOW;
+// EDITABLE SINCE 10 SEP 2026, so these are functions of the rules in
+// force rather than constants. The names stay because a dozen files
+// import them; each now reports what is currently set.
+export const MIN_ATTEMPTS_FOR_TIER = ratingRules().measuredFloor;
+export const MASTERY_WINDOW = ratingRules().window;
 export const STALE_DAYS = 30;
 
 export interface TierInput {
@@ -197,16 +198,25 @@ export const TIER_LABEL: Record<Tier, string> = {
  * word the reader can see — and this file carried "50–79%" for a
  * fortnight after the ruling said 60.
  */
-export const TIER_DESCRIPTION: Record<Tier, string> = {
-  mastered: `${bandPercent(MASTERED_FLOOR)}% and up over the last ${MASTERY_WINDOW} attempts`,
-  fluent: `${bandPercent(FLUENT_FLOOR)}–${bandPercent(MASTERED_FLOOR) - 1}% over the last ${MASTERY_WINDOW} attempts`,
-  developing: `${bandPercent(DEVELOPING_FLOOR)}–${bandPercent(FLUENT_FLOOR) - 1}% over the last ${MASTERY_WINDOW} attempts`,
-  needsWork: `below ${bandPercent(DEVELOPING_FLOOR)}% over the last ${MASTERY_WINDOW} attempts`,
-  stale: `was fluent or mastered, no attempts in ${STALE_DAYS}+ days`,
-  started: `fewer than ${MIN_ATTEMPTS_FOR_TIER} attempts`
-    + ` (${SELF_RATED_RATING_FLOOR} on a self-rated drill)`,
-  untouched: 'no attempts yet',
-};
+export function tierDescriptions(rules = ratingRules()): Record<Tier, string> {
+  const pc = bandPercent;
+  const w = rules.window;
+  return {
+    mastered: `${pc(rules.masteredFloor)}% and up over the last ${w} attempts`,
+    fluent: `${pc(rules.fluentFloor)}–${pc(rules.masteredFloor) - 1}% over the last ${w} attempts`,
+    developing: `${pc(rules.developingFloor)}–${pc(rules.fluentFloor) - 1}% over the last ${w} attempts`,
+    needsWork: `below ${pc(rules.developingFloor)}% over the last ${w} attempts`,
+    stale: `was fluent or mastered, no attempts in ${STALE_DAYS}+ days`,
+    started: `fewer than ${rules.measuredFloor} attempts`
+      + ` (${rules.selfRatedFloor} on a self-rated drill)`,
+    untouched: 'no attempts yet',
+  };
+}
+
+/** The descriptions under the rules in force at import time. Kept for
+ *  the surfaces that render a static legend; anything that must follow
+ *  an edit calls `tierDescriptions()` at render. */
+export const TIER_DESCRIPTION: Record<Tier, string> = tierDescriptions();
 
 /**
  * =====================================================================

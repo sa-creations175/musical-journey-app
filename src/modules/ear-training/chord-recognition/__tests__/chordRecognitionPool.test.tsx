@@ -25,7 +25,7 @@ import ChordRecognitionQuiz from '../ChordRecognitionQuiz';
 import { CHORD_SEEDS } from '../seed';
 import { DEFAULT_INVERSION_SETTINGS } from '../inversionUtils';
 import { servedRefsFor } from '../facets';
-import { UNLOCK_MIN_ATTEMPTS } from '../tierUnlock';
+import { clearBar } from '../tierUnlock';
 import type { AttemptRecord, ChordData } from '../../../../lib/db';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -318,7 +318,7 @@ describe('a dashboard pool is served, not just accepted', () => {
 
 /** Enough logged attempts to clear `chordId` on the real threshold. */
 function clearing(chordId: string, at = 0): AttemptRecord[] {
-  return Array.from({ length: UNLOCK_MIN_ATTEMPTS }, (_, n) => ({
+  return Array.from({ length: clearBar().attempts }, (_, n) => ({
     id: `att-${chordId}-${n}`,
     moduleId: 'chord-recognition',
     itemId: `${chordId}:0`,

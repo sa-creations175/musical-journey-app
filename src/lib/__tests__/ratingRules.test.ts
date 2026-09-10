@@ -18,28 +18,32 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  DEVELOPING_FLOOR, FLUENT_FLOOR, ITEM_CLEAR_MIN_ACCURACY,
-  ITEM_CLEAR_MIN_ATTEMPTS, MASTERED_FLOOR, MEASURED_RATING_FLOOR,
-  NEEDS_WORK_FLOOR, RATING_BANDS, RATING_WINDOW, SELF_RATED_RATING_FLOOR,
-  TIER_OPEN_SHARE, bandOf, bandPercent, itemsToClear, ratingFloor,
+  DEFAULT_RATING_RULES, NEEDS_WORK_FLOOR, bandOf, bandPercent,
+  itemsToClear, ratingBands, ratingFloor, ratingRules, type BandKey,
 } from '../ratingRules';
 import { computeTier } from '../tier';
 import { bandFor } from '../../modules/dashboard/bands';
 
 describe('the bands are the 25 August ruling', () => {
   it('is under 60, 60–79, 80–94, 95 and up', () => {
+    const r = DEFAULT_RATING_RULES;
     expect(bandPercent(NEEDS_WORK_FLOOR)).toBe(0);
-    expect(bandPercent(DEVELOPING_FLOOR)).toBe(60);
-    expect(bandPercent(FLUENT_FLOOR)).toBe(80);
-    expect(bandPercent(MASTERED_FLOOR)).toBe(95);
+    expect(bandPercent(r.developingFloor)).toBe(60);
+    expect(bandPercent(r.fluentFloor)).toBe(80);
+    expect(bandPercent(r.masteredFloor)).toBe(95);
   });
 
   it('is twenty answers, floor five — three when self-rated', () => {
-    expect(RATING_WINDOW).toBe(20);
-    expect(MEASURED_RATING_FLOOR).toBe(5);
-    expect(SELF_RATED_RATING_FLOOR).toBe(3);
+    const r = DEFAULT_RATING_RULES;
+    expect(r.window).toBe(20);
+    expect(r.measuredFloor).toBe(5);
+    expect(r.selfRatedFloor).toBe(3);
     expect(ratingFloor('measured')).toBe(5);
     expect(ratingFloor('self-rated')).toBe(3);
+  });
+
+  it('opens on the defaults, so an untouched install grades as ruled', () => {
+    expect(ratingRules()).toEqual(DEFAULT_RATING_RULES);
   });
 
   it('puts every boundary on the right side, at both edges', () => {
@@ -61,10 +65,10 @@ describe('every reader lands on the same band', () => {
    * percentage point — not at four sampled thresholds, which is what a
    * per-file test would check and what let the two drift.
    */
-  const COLOUR_OF = {
+  const COLOUR_OF: Readonly<Record<BandKey, string>> = {
     mastered: 'green', fluent: 'yellow-green',
     developing: 'amber', needsWork: 'red',
-  } as const;
+  };
 
   it('agrees between the tier grader and the dashboard column', () => {
     for (let pct = 0; pct <= 100; pct += 1) {
@@ -72,12 +76,15 @@ describe('every reader lands on the same band', () => {
       // The tier grader, over a full window so the floor is not in play.
       expect(
         computeTier({
-          windowCorrect: Math.round((pct / 100) * RATING_WINDOW),
-          windowTotal: RATING_WINDOW,
+          windowCorrect: Math.round((pct / 100) * DEFAULT_RATING_RULES.window),
+          windowTotal: DEFAULT_RATING_RULES.window,
           daysSinceLastAttempt: 0,
         }),
         `tier at ${pct}%`,
-      ).toBe(bandOf(Math.round((pct / 100) * RATING_WINDOW) / RATING_WINDOW));
+      ).toBe(bandOf(
+        Math.round((pct / 100) * DEFAULT_RATING_RULES.window)
+          / DEFAULT_RATING_RULES.window,
+      ));
       // And the dashboard's colour column.
       expect(bandFor(pct, 'measured'), `band at ${pct}%`)
         .toBe(COLOUR_OF[expected]);
@@ -85,24 +92,24 @@ describe('every reader lands on the same band', () => {
   });
 
   it('walks the bands best first, so a legend cannot invert', () => {
-    const floors = RATING_BANDS.map(b => b.floor);
+    const floors = ratingBands().map(b => b.floor);
     expect([...floors].sort((a, b) => b - a)).toEqual(floors);
-    expect(RATING_BANDS.map(b => b.key))
+    expect(ratingBands().map(b => b.key))
       .toEqual(['mastered', 'fluent', 'developing', 'needsWork']);
   });
 });
 
 describe('what it takes to open a tier', () => {
   it('is ten attempts at eighty per cent passed, per item', () => {
-    expect(ITEM_CLEAR_MIN_ATTEMPTS).toBe(10);
-    expect(ITEM_CLEAR_MIN_ACCURACY).toBe(0.80);
-    // THE SAME NUMBER THE FLUENT RATING IS DRAWN AT, deliberately: one
-    // number for "good enough", across the app.
-    expect(ITEM_CLEAR_MIN_ACCURACY).toBe(FLUENT_FLOOR);
+    expect(DEFAULT_RATING_RULES.itemClearAttempts).toBe(10);
+    // THE CLEAR BAR IS `fluentFloor` ITSELF, not a copy of it:
+    // one number for "good enough", across the app, and moving Fluent
+    // moves the Tier bar with it.
+    expect(DEFAULT_RATING_RULES.fluentFloor).toBe(0.80);
   });
 
   it('opens a tier at eighty per cent of its items, rounded up', () => {
-    expect(TIER_OPEN_SHARE).toBe(0.80);
+    expect(DEFAULT_RATING_RULES.tierOpenShare).toBe(0.80);
     // Silas's own six worked examples, 10 Sep 2026.
     for (const [items, needed] of [
       [6, 5], [15, 12], [12, 10], [4, 4], [5, 4], [2, 2],
@@ -116,7 +123,8 @@ describe('what it takes to open a tier', () => {
     // it on 66%. Every count from one to forty is checked because the
     // fractional ones are the only place this can go wrong.
     for (let n = 1; n <= 40; n += 1) {
-      expect(itemsToClear(n) / n, `${n}`).toBeGreaterThanOrEqual(TIER_OPEN_SHARE);
+      expect(itemsToClear(n) / n, `${n}`)
+        .toBeGreaterThanOrEqual(DEFAULT_RATING_RULES.tierOpenShare);
       expect(itemsToClear(n), `${n}`).toBeLessThanOrEqual(n);
     }
   });

@@ -38,30 +38,132 @@
  *     practice. Ninety-five per cent of the window is the claim the
  *     ruling makes instead.
  * =====================================================================
+ * THEY ARE EDITABLE NOW, AND THAT IS WHY THEY ARE READ THROUGH A
+ * FUNCTION.
+ *
+ * Silas's Settings page of 10 Sep 2026 lets him move the three band
+ * thresholds, both floors, the window and the Tier rule. A `const`
+ * cannot be moved, so the values live in one mutable record and every
+ * reader calls `ratingRules()` for them.
+ *
+ * MODULE STATE RATHER THAN A THREADED ARGUMENT, deliberately.
+ * `computeTier` is pure, synchronous, and called from a dozen places
+ * that have no settings object to hand — a dashboard row, a fluency
+ * tracker, a quiz's adaptive weighting. Threading a record through all
+ * of them to serve one screen would be a large change to a lot of code
+ * whose behaviour does not depend on it.
+ *
+ * SO EVERY PURE FUNCTION HERE STILL TAKES AN EXPLICIT RULES ARGUMENT,
+ * defaulting to the live one. Tests pin behaviour by passing their own,
+ * and nothing is at the mercy of what a previous test wrote.
+ *
+ * A CHANGE RE-GRADES ON THE NEXT READ. Nothing stored moves: an
+ * attempt row is what happened, and a band is a reading of it.
+ * =====================================================================
  */
+import { useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { getPref, setPref } from './userPrefs';
 
 /**
- * The lower bound of each band, as a fraction of the window.
+ * Every number a rating depends on.
  *
- * FRACTIONS, NOT PERCENTAGES, because that is what the graders hold —
- * `windowCorrect / windowTotal`. The percentage is a rendering of it,
- * and `bandPercent` below is the one place that conversion happens.
+ * FRACTIONS, NOT PERCENTAGES, for the three band floors, because that
+ * is what the graders hold — `windowCorrect / windowTotal`. The
+ * percentage is a rendering of it, and `bandPercent` is the one place
+ * that conversion happens.
  */
+export interface RatingRules {
+  developingFloor: number;
+  fluentFloor: number;
+  masteredFloor: number;
+  /** How many of the most recent answers a rating is taken over. */
+  window: number;
+  /** Answers before a measured card is graded at all. */
+  measuredFloor: number;
+  /** Rated reps before a self-rated cell is graded. It is ALSO that
+   *  cell's window — see `lowestOf` in `tier.ts`. */
+  selfRatedFloor: number;
+  /** Attempts before an ear-training item can clear. */
+  itemClearAttempts: number;
+  /** Share of a Tier's items that must clear before it opens. */
+  tierOpenShare: number;
+}
+
+export const DEFAULT_RATING_RULES: RatingRules = {
+  developingFloor: 0.60,
+  fluentFloor: 0.80,
+  masteredFloor: 0.95,
+  window: 20,
+  measuredFloor: 5,
+  selfRatedFloor: 3,
+  itemClearAttempts: 10,
+  tierOpenShare: 0.80,
+};
+
+/** Needs Work has no floor of its own; it is what is left. */
 export const NEEDS_WORK_FLOOR = 0;
-export const DEVELOPING_FLOOR = 0.60;
-export const FLUENT_FLOOR = 0.80;
-export const MASTERED_FLOOR = 0.95;
+
+let live: RatingRules = DEFAULT_RATING_RULES;
+
+/** The numbers in force. Every grader reads this. */
+export function ratingRules(): RatingRules {
+  return live;
+}
+
+export const RATING_RULES_PREF_KEY = 'ratingRules';
+
+/** A stored record read back field by field, so a row written by an
+ *  older build still yields usable rules. */
+export function coerceRules(value: unknown): RatingRules {
+  const v = (typeof value === 'object' && value !== null)
+    ? value as Partial<Record<keyof RatingRules, unknown>>
+    : {};
+  const num = (raw: unknown, fallback: number, lo: number, hi: number) =>
+    typeof raw === 'number' && Number.isFinite(raw) && raw >= lo && raw <= hi
+      ? raw : fallback;
+  const d = DEFAULT_RATING_RULES;
+  return {
+    developingFloor: num(v.developingFloor, d.developingFloor, 0.01, 0.99),
+    fluentFloor: num(v.fluentFloor, d.fluentFloor, 0.01, 0.99),
+    masteredFloor: num(v.masteredFloor, d.masteredFloor, 0.01, 1),
+    window: num(v.window, d.window, 10, 50),
+    measuredFloor: num(v.measuredFloor, d.measuredFloor, 3, 20),
+    selfRatedFloor: num(v.selfRatedFloor, d.selfRatedFloor, 2, 5),
+    itemClearAttempts: num(v.itemClearAttempts, d.itemClearAttempts, 5, 30),
+    tierOpenShare: num(v.tierOpenShare, d.tierOpenShare, 0.5, 1),
+  };
+}
 
 /**
- * How many of the most recent answers a rating is taken over.
- *
- * Twenty. Anything older has already dropped out, which is what makes
- * the number read as recent form rather than as a lifetime average.
+ * Put a set of rules in force. Exported for the Settings page and for
+ * tests; production writes go through `saveRatingRules`.
  */
-export const RATING_WINDOW = 20;
+export function setRatingRules(next: RatingRules): void {
+  live = next;
+}
+
+/** Read the stored rules and put them in force. Called once at start. */
+export async function hydrateRatingRules(): Promise<RatingRules> {
+  live = coerceRules(await getPref<unknown>(RATING_RULES_PREF_KEY, DEFAULT_RATING_RULES));
+  return live;
+}
+
+/** Store a set of rules and put them in force. */
+export async function saveRatingRules(next: RatingRules): Promise<void> {
+  live = next;
+  await setPref(RATING_RULES_PREF_KEY, next);
+}
+
+// `RATING_WINDOW`, `DEVELOPING_FLOOR`, `FLUENT_FLOOR`,
+// `MASTERED_FLOOR`, `MEASURED_RATING_FLOOR`,
+// `SELF_RATED_RATING_FLOOR`, `ITEM_CLEAR_MIN_ATTEMPTS`,
+// `ITEM_CLEAR_MIN_ACCURACY` and `TIER_OPEN_SHARE` WERE CONSTANTS HERE.
+// They are fields of `RatingRules` now, because the Settings page
+// edits them — read them with `ratingRules()`.
 
 /**
- * How many answers it takes to be graded at all.
+ * How a score was arrived at, which is what picks the floor.
  *
  * =====================================================================
  * FIVE MEASURED, THREE SELF-RATED, AND THE GAP IS THE POINT.
@@ -72,23 +174,18 @@ export const RATING_WINDOW = 20;
  *
  * A self-rated rep is not a guess. The player played the thing and said
  * how it went, and three of those is already a judgement about a shape
- * rather than a sample of a distribution. Holding both to five would
- * leave two honest ratings on the floor for no reason.
+ * rather than a sample of a distribution.
  *
  * Below the floor an item is `started` rather than ungraded-and-blank —
  * see `MIN_ATTEMPTS_FOR_TIER`'s note in `tier.ts` for why that band
  * exists at all.
  * =====================================================================
  */
-export const MEASURED_RATING_FLOOR = 5;
-export const SELF_RATED_RATING_FLOOR = 3;
-
-/** How a score was arrived at, which is what picks the floor. */
 export type RatingKind = 'measured' | 'self-rated';
 
 /** The floor for this kind of score. */
-export function ratingFloor(kind: RatingKind): number {
-  return kind === 'self-rated' ? SELF_RATED_RATING_FLOOR : MEASURED_RATING_FLOOR;
+export function ratingFloor(kind: RatingKind, rules = live): number {
+  return kind === 'self-rated' ? rules.selfRatedFloor : rules.measuredFloor;
 }
 
 /** A band's floor as a whole percentage, for copy and for legends. */
@@ -102,19 +199,22 @@ export function bandPercent(floor: number): number {
  * A legend, a colour map and a grader that each wrote their own copy of
  * these four is exactly how the app came to have two ladders. Walk this.
  */
-export const RATING_BANDS: ReadonlyArray<{
-  key: 'mastered' | 'fluent' | 'developing' | 'needsWork';
-  floor: number;
-}> = [
-  { key: 'mastered', floor: MASTERED_FLOOR },
-  { key: 'fluent', floor: FLUENT_FLOOR },
-  { key: 'developing', floor: DEVELOPING_FLOOR },
-  { key: 'needsWork', floor: NEEDS_WORK_FLOOR },
-];
+export type BandKey = 'mastered' | 'fluent' | 'developing' | 'needsWork';
+
+export function ratingBands(
+  rules = live,
+): ReadonlyArray<{ key: BandKey; floor: number }> {
+  return [
+    { key: 'mastered', floor: rules.masteredFloor },
+    { key: 'fluent', floor: rules.fluentFloor },
+    { key: 'developing', floor: rules.developingFloor },
+    { key: 'needsWork', floor: NEEDS_WORK_FLOOR },
+  ];
+}
 
 /** Which band a fraction of a window falls in. */
-export function bandOf(fraction: number): typeof RATING_BANDS[number]['key'] {
-  for (const { key, floor } of RATING_BANDS) {
+export function bandOf(fraction: number, rules = live): BandKey {
+  for (const { key, floor } of ratingBands(rules)) {
     if (fraction >= floor) return key;
   }
   return 'needsWork';
@@ -136,8 +236,8 @@ export function bandOf(fraction: number): typeof RATING_BANDS[number]['key'] {
  * Eighty is the same bar the Fluent rating is drawn at, deliberately:
  * one number for "good enough", across the app.
  */
-export const ITEM_CLEAR_MIN_ATTEMPTS = 10;
-export const ITEM_CLEAR_MIN_ACCURACY = FLUENT_FLOOR;
+// The bar is `fluentFloor` itself, not a copy of it — one number for
+// "good enough", across the app, and moving Fluent moves this with it.
 
 /**
  * A Tier opens when this share of its items have cleared.
@@ -155,9 +255,48 @@ export const ITEM_CLEAR_MIN_ACCURACY = FLUENT_FLOOR;
  * it names: 6 items → 5, 15 → 12, 12 → 10, 4 → 4, 5 → 4, 2 → 2.
  * =====================================================================
  */
-export const TIER_OPEN_SHARE = 0.80;
-
 /** How many of `count` items must clear before the next tier opens. */
-export function itemsToClear(count: number): number {
-  return Math.ceil(count * TIER_OPEN_SHARE);
+export function itemsToClear(count: number, rules = live): number {
+  return Math.ceil(count * rules.tierOpenShare);
+}
+
+/**
+ * The rules in force, reactively, plus a setter that stores them.
+ *
+ * =====================================================================
+ * TWO THINGS AT ONCE, AND BOTH ARE NEEDED.
+ *
+ * `useLiveQuery` keeps the SETTINGS PAGE showing what is stored, so an
+ * edit made on another device arrives here. `setRatingRules` keeps the
+ * MODULE-LEVEL value in step, so the pure graders — which have no hook
+ * and no settings object — read the same numbers the page shows.
+ *
+ * Hydration also happens here rather than at the app's entry point: the
+ * first read on a cold start is the defaults, and the moment the stored
+ * row arrives every consumer of `useLiveQuery` re-renders with it. A
+ * grade computed in that first instant is re-computed on the next read,
+ * which is exactly what the page promises.
+ * =====================================================================
+ */
+export function useRatingRules(): [RatingRules, (next: RatingRules) => Promise<void>] {
+  const stored = useLiveQuery(
+    async () => getPref<unknown>(RATING_RULES_PREF_KEY, DEFAULT_RATING_RULES),
+    [],
+  );
+  const rules = coerceRules(stored);
+  const key = JSON.stringify(rules);
+  const [seen, setSeen] = useState(key);
+  const [local, setLocal] = useState<RatingRules>(rules);
+  if (key !== seen) {
+    setSeen(key);
+    setLocal(rules);
+    setRatingRules(rules);
+  }
+
+  const set = async (next: RatingRules) => {
+    setLocal(next);
+    await saveRatingRules(next);
+  };
+
+  return [local, set];
 }

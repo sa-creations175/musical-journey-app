@@ -8,9 +8,7 @@ import {
 } from './chordRecognitionTiers';
 import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
 import { feelOfAttempt } from '../../../lib/earTraining/heardFeel';
-import {
-  ITEM_CLEAR_MIN_ACCURACY, ITEM_CLEAR_MIN_ATTEMPTS, itemsToClear,
-} from '../../../lib/ratingRules';
+import { itemsToClear, ratingRules } from '../../../lib/ratingRules';
 import { CLEAN_FEEL } from '../../../lib/fluencyScale';
 
 /** Module ref string for chord-recognition spacingState rows. */
@@ -20,7 +18,7 @@ const MODULE_REF = 'chord-recognition';
  *  even considers it. Below this floor an item can't gate a tier.
  *  Exported so the surface that SAYS "cleared" can state the number
  *  rather than leaving it as a threshold nobody can infer. */
-export const UNLOCK_MIN_ATTEMPTS = ITEM_CLEAR_MIN_ATTEMPTS;
+
 
 /**
  * The bar a tier opens at, and what counts as clearing it.
@@ -44,7 +42,19 @@ export const UNLOCK_MIN_ATTEMPTS = ITEM_CLEAR_MIN_ATTEMPTS;
  * threshold moved. Silas accepted that ladders may drop.
  * =====================================================================
  */
-export const UNLOCK_MIN_ACCURACY = ITEM_CLEAR_MIN_ACCURACY;
+/**
+ * The two numbers a clear is measured by, READ AT CALL TIME.
+ *
+ * Editable on the Settings page since 10 Sep 2026, so a module-level
+ * `const` would freeze whatever was in force when the file was first
+ * imported and the page's own promise — "a change re-grades on next
+ * read" — would be false for every ladder.
+ */
+export function clearBar() {
+  const r = ratingRules();
+  return { attempts: r.itemClearAttempts, accuracy: r.fluentFloor };
+}
+
 
 /** Cap on new items introduced per tier per practice session.
  *  Items beyond this stay locked until the user has at least
@@ -96,8 +106,8 @@ async function loadLifetimeStats(): Promise<Map<string, ItemStats>> {
  */
 function isCleared(s: ItemStats | undefined): boolean {
   if (!s) return false;
-  if (s.total < UNLOCK_MIN_ATTEMPTS) return false;
-  return s.passes / s.total >= UNLOCK_MIN_ACCURACY;
+  if (s.total < clearBar().attempts) return false;
+  return s.passes / s.total >= clearBar().accuracy;
 }
 
 /**

@@ -18,9 +18,7 @@ import {
   computeTier,
   type Tier,
 } from '../tier';
-import {
-  MEASURED_RATING_FLOOR, RATING_BANDS, RATING_WINDOW,
-} from '../ratingRules';
+import { DEFAULT_RATING_RULES, ratingBands } from '../ratingRules';
 
 const tier = (windowCorrect: number, windowTotal: number, days: number | null = 0): Tier =>
   computeTier({ windowCorrect, windowTotal, daysSinceLastAttempt: days });
@@ -98,11 +96,11 @@ describe('the four bands are the ruling', () => {
   it('takes its numbers from the shared rules rather than its own', () => {
     // Guard the guard: the cases above would still pass on a second
     // copy of the thresholds typed into `tier.ts`.
-    for (const { key, floor } of RATING_BANDS) {
+    for (const { key, floor } of ratingBands()) {
       expect(tier(Math.round(floor * 20), 20), key).toBe(key);
     }
-    expect(MASTERY_WINDOW).toBe(RATING_WINDOW);
-    expect(MIN_ATTEMPTS_FOR_TIER).toBe(MEASURED_RATING_FLOOR);
+    expect(MASTERY_WINDOW).toBe(DEFAULT_RATING_RULES.window);
+    expect(MIN_ATTEMPTS_FOR_TIER).toBe(DEFAULT_RATING_RULES.measuredFloor);
   });
 
   it('no longer demands perfection for the top band', () => {

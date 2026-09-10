@@ -39,7 +39,7 @@
  * same principle as the screen opening nearly empty.
  */
 import { FEEL_OPTIONS } from '../../lib/fluencyScale';
-import { RATING_BANDS, bandPercent } from '../../lib/ratingRules';
+import { bandPercent, ratingBands, type BandKey } from '../../lib/ratingRules';
 import { FLUENCY_POOL_RULE } from '../../lib/fluencyPool';
 import type { AccuracyKind } from './read/itemStats';
 
@@ -53,20 +53,19 @@ export type Band = 'red' | 'amber' | 'yellow-green' | 'green';
  * this column, `computeTier`, both legends and every band word in one
  * edit — which is the whole reason the two ladders could drift.
  */
-const BAND_FOR_RATING: Readonly<Record<
-  typeof RATING_BANDS[number]['key'], Band
->> = {
+const BAND_FOR_RATING: Readonly<Record<BandKey, Band>> = {
   mastered: 'green',
   fluent: 'yellow-green',
   developing: 'amber',
   needsWork: 'red',
 };
 
-const ACCURACY_BANDS: ReadonlyArray<{ min: number; band: Band }> =
-  RATING_BANDS.map(({ key, floor }) => ({
+function accuracyBands(): ReadonlyArray<{ min: number; band: Band }> {
+  return ratingBands().map(({ key, floor }) => ({
     min: bandPercent(floor),
     band: BAND_FOR_RATING[key],
   }));
+}
 
 /** One band per fluency value, in scale order. */
 const FLUENCY_BANDS: ReadonlyArray<{ value: number; band: Band }> = [
@@ -109,7 +108,7 @@ export function bandFor(score: number | null, kind: AccuracyKind): Band | null {
     }
     return earned.band;
   }
-  for (const { min, band } of ACCURACY_BANDS) {
+  for (const { min, band } of accuracyBands()) {
     if (score >= min) return band;
   }
   return 'red';
@@ -152,14 +151,18 @@ export interface LegendEntry {
  * the reader can see. Deriving means moving a threshold moves the
  * legend with it, in the same edit.
  */
-export const ACCURACY_LEGEND: ReadonlyArray<LegendEntry> =
-  [...ACCURACY_BANDS].reverse().map(({ min, band }, i, ascending) => {
+export function accuracyLegend(): ReadonlyArray<LegendEntry> {
+  return [...accuracyBands()].reverse().map(({ min, band }, i, ascending) => {
     const next = ascending[i + 1];
     const label = next === undefined
       ? `${min}%+`
       : min === 0 ? `below ${next.min}%` : `${min}–${next.min - 1}%`;
     return { band, label, value: min };
   });
+}
+
+/** The legend under the rules in force at import time. */
+export const ACCURACY_LEGEND: ReadonlyArray<LegendEntry> = accuracyLegend();
 
 export const FLUENCY_LEGEND: ReadonlyArray<LegendEntry> = FLUENCY_BANDS.map(
   ({ value, band }) => ({
@@ -172,7 +175,7 @@ export const FLUENCY_LEGEND: ReadonlyArray<LegendEntry> = FLUENCY_BANDS.map(
 );
 
 export function legendFor(kind: AccuracyKind): ReadonlyArray<LegendEntry> {
-  return kind === 'self-rated' ? FLUENCY_LEGEND : ACCURACY_LEGEND;
+  return kind === 'self-rated' ? FLUENCY_LEGEND : accuracyLegend();
 }
 
 /** Column header. The same position carries two different questions,

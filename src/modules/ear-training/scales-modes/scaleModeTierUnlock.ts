@@ -43,13 +43,11 @@ import {
 } from '../etStageGate';
 import { feelOfAttempt } from '../../../lib/earTraining/heardFeel';
 import { CLEAN_FEEL } from '../../../lib/fluencyScale';
-import {
-  ITEM_CLEAR_MIN_ACCURACY, ITEM_CLEAR_MIN_ATTEMPTS, itemsToClear,
-} from '../../../lib/ratingRules';
+import { itemsToClear, ratingRules } from '../../../lib/ratingRules';
 
 const MODULE_REF = 'scales-modes';
 
-const UNLOCK_MIN_ATTEMPTS = ITEM_CLEAR_MIN_ATTEMPTS;
+
 /**
  * The bar a tier opens at, and what counts as clearing it.
  *
@@ -72,7 +70,19 @@ const UNLOCK_MIN_ATTEMPTS = ITEM_CLEAR_MIN_ATTEMPTS;
  * threshold moved. Silas accepted that ladders may drop.
  * =====================================================================
  */
-const UNLOCK_MIN_ACCURACY = ITEM_CLEAR_MIN_ACCURACY;
+/**
+ * The two numbers a clear is measured by, READ AT CALL TIME.
+ *
+ * Editable on the Settings page since 10 Sep 2026, so a module-level
+ * `const` would freeze whatever was in force when the file was first
+ * imported and the page's own promise — "a change re-grades on next
+ * read" — would be false for every ladder.
+ */
+function clearBar() {
+  const r = ratingRules();
+  return { attempts: r.itemClearAttempts, accuracy: r.fluentFloor };
+}
+
 const STAGED_INTRODUCTION_BATCH_SIZE = 3;
 
 export interface ItemStats {
@@ -137,8 +147,8 @@ export function computeUnlockedScaleModesStage(
     const cleared = items.filter(id => {
       const s = statsByModeId.get(id);
       if (!s) return false;
-      if (s.total < UNLOCK_MIN_ATTEMPTS) return false;
-      return s.passes / s.total >= UNLOCK_MIN_ACCURACY;
+      if (s.total < clearBar().attempts) return false;
+      return s.passes / s.total >= clearBar().accuracy;
     }).length;
     if (cleared < itemsToClear(items.length)) break;
     unlocked = (stage + 1) as ScaleModeStage;
@@ -220,7 +230,6 @@ export async function loadScaleModesEligibleSet(
 
 export { MODULE_REF as SCALES_MODES_MODULE_REF };
 export {
-  UNLOCK_MIN_ATTEMPTS,
-  UNLOCK_MIN_ACCURACY,
+  clearBar,
   STAGED_INTRODUCTION_BATCH_SIZE,
 };

@@ -52,8 +52,7 @@
  * design question rather than plumbing, and it is in the build queue.
  */
 import {
-  UNLOCK_MIN_ACCURACY,
-  UNLOCK_MIN_ATTEMPTS,
+  clearBar,
   tierProgress,
   type ItemStats,
 } from './tierUnlock';
@@ -202,8 +201,8 @@ export function progressionSuggestionFor(
       // moving them moves this sentence in the same edit.
       // ===============================================================
       progress: `You've cleared ${cleared} of ${total}; a chord clears at `
-        + `${UNLOCK_MIN_ATTEMPTS} attempts with `
-        + `${Math.round(UNLOCK_MIN_ACCURACY * 100)}% passed. `
+        + `${clearBar().attempts} attempts with `
+        + `${Math.round(clearBar().accuracy * 100)}% passed. `
         + 'A pass is a right answer with no listening aid used.',
       why: step.why,
       disclaimer: 'Nothing is locked — every tab plays whatever you pick.',

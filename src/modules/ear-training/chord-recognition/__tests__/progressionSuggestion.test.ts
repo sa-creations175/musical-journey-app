@@ -13,8 +13,7 @@ import {
   progressionSuggestionFor,
 } from '../progressionSuggestion';
 import {
-  UNLOCK_MIN_ACCURACY,
-  UNLOCK_MIN_ATTEMPTS,
+  clearBar,
   tierProgress,
 } from '../tierUnlock';
 import { CHORD_RECOGNITION_TIERS } from '../chordRecognitionTiers';
@@ -28,8 +27,8 @@ function cleared(...items: string[]): Stats {
   const m: Stats = new Map();
   for (const i of items) {
     m.set(i.includes(':') ? i : `${i}:0`, {
-      passes: UNLOCK_MIN_ATTEMPTS,
-      total: UNLOCK_MIN_ATTEMPTS,
+      passes: clearBar().attempts,
+      total: clearBar().attempts,
     });
   }
   return m;
@@ -175,8 +174,8 @@ describe('what it says', () => {
     // gate reads, so the sentence cannot describe a rule the code no
     // longer follows.
     const s = progressionSuggestionFor('seventh', partial)!;
-    expect(s.progress).toContain(`${UNLOCK_MIN_ATTEMPTS} attempts`);
-    expect(s.progress).toContain(`${Math.round(UNLOCK_MIN_ACCURACY * 100)}% passed`);
+    expect(s.progress).toContain(`${clearBar().attempts} attempts`);
+    expect(s.progress).toContain(`${Math.round(clearBar().accuracy * 100)}% passed`);
   });
 
   it('DEFINES passed too, because the app has just invented the word', () => {

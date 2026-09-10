@@ -26,7 +26,9 @@ import {
   type ColumnTopic,
 } from '../bands';
 import { FEEL_OPTIONS, fluencyValue } from '../../../lib/fluencyScale';
-import { RATING_BANDS, bandPercent } from '../../../lib/ratingRules';
+import {
+  bandPercent, ratingBands, type BandKey,
+} from '../../../lib/ratingRules';
 
 describe('accuracy bands', () => {
   it('places each cut-off on the right side', () => {
@@ -61,12 +63,12 @@ describe('accuracy bands', () => {
   it('takes its numbers from the shared rules rather than its own', () => {
     // Guard the guard: the cases above would still pass on a second
     // copy of the numbers typed into this file.
-    for (const { key, floor } of RATING_BANDS) {
-      const at = bandPercent(floor);
-      expect(bandFor(at, 'measured'), key).toBe(
-        { mastered: 'green', fluent: 'yellow-green',
-          developing: 'amber', needsWork: 'red' }[key],
-      );
+    const colour: Readonly<Record<BandKey, string>> = {
+      mastered: 'green', fluent: 'yellow-green',
+      developing: 'amber', needsWork: 'red',
+    };
+    for (const { key, floor } of ratingBands()) {
+      expect(bandFor(bandPercent(floor), 'measured'), key).toBe(colour[key]);
     }
   });
 });
@@ -148,7 +150,10 @@ describe('an ungraded row gets no band at all', () => {
 
 describe('legends', () => {
   it('are two, not one combined', () => {
-    expect(legendFor('measured')).toBe(ACCURACY_LEGEND);
+    // `toEqual` rather than `toBe`: the accuracy legend is DERIVED
+    // from the rules in force since they became editable on 10 Sep
+    // 2026, so it is a fresh array each call and not one shared object.
+    expect(legendFor('measured')).toEqual(ACCURACY_LEGEND);
     expect(legendFor('self-rated')).toBe(FLUENCY_LEGEND);
     expect(ACCURACY_LEGEND).not.toEqual(FLUENCY_LEGEND);
   });
