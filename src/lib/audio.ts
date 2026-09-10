@@ -343,14 +343,28 @@ export async function playInterval(
   playNote(midiToFreq(second), now + dur * 0.95, dur, context, 0.25);
 }
 
+/**
+ * How long one chord of a quiz rings, in beats.
+ *
+ * THE PROTOTYPE'S OWN NUMBERS. `shared-player-prototype_1.html` holds a
+ * blocked chord for three beats and starts a broken chord's notes three
+ * quarters of a beat apart. They are stated as BEATS because the panel's
+ * one tempo control is beats per minute — the speed multipliers retire,
+ * and a chord that rang for "3.2 seconds at 0.5×" was a length nobody
+ * could see on the screen that set it.
+ */
+export const CHORD_RING_BEATS = 3;
+export const BROKEN_STEP_BEATS = 0.75;
+const BROKEN_NOTE_BEATS = 2;
+
 export async function playChordBlocked(
   rootMidi: number,
   intervals: number[],
-  speedMultiplier = 1.0,
-  duration = 3.2,
+  bpm: number,
+  beats = CHORD_RING_BEATS,
 ) {
   const context = await ensureRunning();
-  const dur = duration / clampSpeed(speedMultiplier);
+  const dur = beats * (60 / bpm);
   const now = context.currentTime + 0.05;
   const vol = chordVolume(intervals.length);
   intervals.forEach(iv => {
@@ -422,27 +436,26 @@ export function chordBlockedAnswerableMs(): number {
  */
 export function chordBrokenAnswerableMs(
   noteCount: number,
-  speedMultiplier = 1.0,
+  bpm: number,
   direction: BrokenChordDirection = 'asc',
-  stepTime = 0.4,
+  stepBeats = BROKEN_STEP_BEATS,
 ): number {
-  const m = clampSpeed(speedMultiplier);
   const steps = direction === 'both' ? noteCount * 2 - 1 : noteCount;
-  return (0.05 + (steps - 1) * (stepTime / m)) * 1000;
+  return (0.05 + (steps - 1) * stepBeats * (60 / bpm)) * 1000;
 }
 
 export async function playChordBroken(
   rootMidi: number,
   intervals: number[],
-  speedMultiplier = 1.0,
+  bpm: number,
   direction: BrokenChordDirection = 'asc',
-  stepTime = 0.4,
-  noteDuration = 2.0,
+  stepBeats = BROKEN_STEP_BEATS,
+  noteBeats = BROKEN_NOTE_BEATS,
 ) {
   const context = await ensureRunning();
-  const m = clampSpeed(speedMultiplier);
-  const step = stepTime / m;
-  const dur = noteDuration / m;
+  const secPerBeat = 60 / bpm;
+  const step = stepBeats * secPerBeat;
+  const dur = noteBeats * secPerBeat;
   const now = context.currentTime + 0.05;
   const vol = chordVolume(intervals.length);
   const sortedAsc = [...intervals].sort((a, b) => a - b);

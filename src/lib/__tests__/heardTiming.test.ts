@@ -56,18 +56,26 @@ describe('playback durations are derived from the players', () => {
   });
 
   it('a broken chord becomes answerable much later than a blocked one', () => {
-    // The reason playStyle goes on the row at all.
-    expect(chordBrokenAnswerableMs(4, 1.0, 'asc'))
+    // The reason playStyle goes on the row at all. TEMPO, NOT A
+    // MULTIPLIER, since 10 Sep 2026: the second argument is beats per
+    // minute, which is what the one tempo control on the screen says.
+    expect(chordBrokenAnswerableMs(4, 50, 'asc'))
       .toBeGreaterThan(chordBlockedAnswerableMs());
-    expect(chordBrokenAnswerableMs(4, 1.0, 'both'))
-      .toBeGreaterThan(chordBrokenAnswerableMs(4, 1.0, 'asc'));
+    expect(chordBrokenAnswerableMs(4, 50, 'both'))
+      .toBeGreaterThan(chordBrokenAnswerableMs(4, 50, 'asc'));
+  });
+
+  it('is slower at a slower tempo, which is the point of the number', () => {
+    expect(chordBrokenAnswerableMs(4, 30, 'asc'))
+      .toBeGreaterThan(chordBrokenAnswerableMs(4, 100, 'asc'));
   });
 
   it('counts the apex once when a broken chord goes up and back', () => {
-    // 4 notes up and down without restriking the top is 7 strikes.
-    const asc = chordBrokenAnswerableMs(4, 1.0, 'asc');
-    const both = chordBrokenAnswerableMs(4, 1.0, 'both');
-    expect(both - asc).toBeCloseTo(3 * 0.4 * 1000, 5);
+    // 4 notes up and down without restriking the top is 7 strikes —
+    // three more than going up alone, at three quarters of a beat each.
+    const asc = chordBrokenAnswerableMs(4, 50, 'asc');
+    const both = chordBrokenAnswerableMs(4, 50, 'both');
+    expect(both - asc).toBeCloseTo(3 * 0.75 * (60 / 50) * 1000, 5);
   });
 });
 
@@ -99,9 +107,10 @@ describe('a sustained chord is answerable at its onset', () => {
   });
 
   it('a broken chord still waits for its last note, but not for its ring', () => {
-    // Four strikes at 0.5x: lead-in plus three 0.8s steps = 2.45s. The
-    // last note then rings for 4s, and none of that is waiting.
-    expect(chordBrokenAnswerableMs(4, 0.5, 'asc')).toBeCloseTo(2_450, 5);
+    // Four strikes at 50 bpm: the lead-in plus three steps of three
+    // quarters of a beat — 0.9s each — is 2.75s. The last note then
+    // rings on, and none of that is waiting.
+    expect(chordBrokenAnswerableMs(4, 50, 'asc')).toBeCloseTo(2_750, 5);
   });
 });
 

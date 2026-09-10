@@ -21,16 +21,20 @@ import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import { TIER_WEIGHT, computeTier, type Tier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { recordEngagement } from '../../../lib/spacingState';
-import { defaultSpeed, focusSelectionKey, speedPrefKey } from '../../../lib/goalConfig';
+import { focusSelectionKey } from '../../../lib/goalConfig';
 import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
 import ItemSelectionPanel, {
   type FilterConfig,
   type FilterOption,
   type SelectionSection,
 } from '../../../components/ItemSelectionPanel';
-import SpeedControl from '../../../components/SpeedControl';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
-import PianoKeyboard from '../../../components/PianoKeyboard';
+import AidsFold from '../../../components/AidsFold';
+import SharedPlayer from '../../../components/SharedPlayer';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
+import type { ChordAttack } from '../../../lib/player/settings';
+import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
+import { crChords, crQuizChord } from './crPlayer';
 import AnswerVerdict from '../../../components/AnswerVerdict';
 import FilterStrip from '../../../components/FilterStrip';
 import { moduleMetaById } from '../../../lib/moduleMeta';
@@ -50,7 +54,6 @@ import {
   inversionsForIntervalCount,
   positionsForTier,
   reachableInversions,
-  rotateForInversion,
   sanitizeInversionSettings,
   sanitizePositions,
   rotateFormula,
@@ -82,6 +85,24 @@ const MODULE_ID = 'chord-recognition';
 const ACCENT = moduleMetaById(MODULE_ID)?.accentHex ?? '#5a8752';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
 const PREF_BROKEN_DIRECTION = 'chordRecognitionBrokenDirection';
+/**
+ * Blocked, broken up, broken down — one setting where there were two.
+ *
+ * =====================================================================
+ * A NEW KEY, AND THE OLD ONE IS READ ONCE AS A FALLBACK.
+ *
+ * The surface had a blocked/broken toggle that was never stored and a
+ * direction (`asc` / `desc` / `both`) that was. The shared player's
+ * "Chord sounds" row is one control with three settings, so the two
+ * become one — and "both" (up then back down without re-striking the
+ * apex) has no place on that row and retires with it.
+ *
+ * The old key is READ so a reader who chose descending still gets
+ * descending, and is never WRITTEN again: nothing migrates, and the old
+ * value stays where it is in case this is ever reversed.
+ * =====================================================================
+ */
+const PREF_CHORD_SOUNDS = 'chordRecognitionChordSounds';
 const PREF_INVERSION_POSITIONS = 'chordRecognitionInversionPositions';
 
 
@@ -102,7 +123,6 @@ type QuizPhase =
   | 'quality-wrong-revealed'
   | 'fully-revealed';
 
-type PlaybackStyle = 'blocked' | 'broken';
 
 const TIER_ORDER: ChordData['tier'][] = ['foundational', 'seventh', 'dominant', 'extensions'];
 
@@ -161,8 +181,24 @@ export default function ChordRecognitionQuiz({
    * is one chip kept.
    */
   const [selection, setSelection] = useState<FacetSelection>(NO_SELECTION);
-  const [playStyle, setPlayStyle] = useState<PlaybackStyle>('blocked');
-  const [brokenDir, setBrokenDir] = useState<BrokenChordDirection>('asc');
+  /**
+   * The shared player's settings — tempo, the lift, Listen to, and this
+   * surface's own Chord sounds. One object where there were a speed
+   * preference, a blocked/broken toggle and a direction.
+   */
+  const [settings, setSettings] = usePlayerSettings();
+  /**
+   * Which inversion the reveal is SHOWING, which is not always the one
+   * the card asked.
+   *
+   * The Compare row lets a reader hear the other three, so the panel
+   * needs its own idea of what is on the board. It resets to the asked
+   * one on every new card, which is what `startNew` does below.
+   */
+  const [showInversion, setShowInversion] = useState<Inversion>(0);
+  /** The rung the reveal's ladder is on. Thinner or thicker, never a
+   *  different inversion — see `crPlayer`. */
+  const [rung, setRung] = useState<Thickness>('seventh');
   const [current, setCurrent] = useState<{
     chord: ChordData;
     rootMidi: number;
@@ -204,8 +240,7 @@ export default function ChordRecognitionQuiz({
   );
 
 
-  const playStyleRef = useRef(playStyle); playStyleRef.current = playStyle;
-  const brokenDirRef = useRef(brokenDir); brokenDirRef.current = brokenDir;
+  const settingsRef = useRef(settings); settingsRef.current = settings;
   const focusActiveRef = useRef(focusActive); focusActiveRef.current = focusActive;
   const focusKeysRef = useRef(focusKeys); focusKeysRef.current = focusKeys;
   const chordsRef = useRef(chords); chordsRef.current = chords;
@@ -220,8 +255,16 @@ export default function ChordRecognitionQuiz({
   // Hydrate broken-chord direction + inversion positions from userPrefs.
   useEffect(() => {
     (async () => {
-      const stored = await getPref<BrokenChordDirection>(PREF_BROKEN_DIRECTION, 'asc');
-      setBrokenDir(stored === 'desc' || stored === 'both' ? stored : 'asc');
+      // THE NEW KEY FIRST, THEN THE OLD DIRECTION AS A FALLBACK, so a
+      // reader who chose descending still hears descending. "Both"
+      // retired with the row it lived on and reads as broken, up.
+      const sounds = await getPref<ChordAttack | null>(PREF_CHORD_SOUNDS, null);
+      if (sounds === 'blocked' || sounds === 'up' || sounds === 'down') {
+        setSettings({ ...settingsRef.current, attack: sounds });
+      } else {
+        const old = await getPref<BrokenChordDirection>(PREF_BROKEN_DIRECTION, 'asc');
+        if (old === 'desc') setSettings({ ...settingsRef.current, attack: 'down' });
+      }
 
       // ACCEPTS THE OLD SHAPE. The preference used to be one list for
       // every tier; a reader upgrading has that stored, and
@@ -233,6 +276,10 @@ export default function ChordRecognitionQuiz({
       );
       setInversionSettings(sanitizeInversionSettings(storedInversions));
     })();
+    // ONCE, ON ARRIVAL. `setSettings` is a state setter and stable;
+    // listing it would re-run the hydration on every render and undo
+    // whatever the reader had just changed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveInversionPositionsForTier = async (tier: string, next: Inversion[]) => {
@@ -241,18 +288,20 @@ export default function ChordRecognitionQuiz({
     await setPref(PREF_INVERSION_POSITIONS, merged);
   };
 
-  const saveBrokenDir = async (d: BrokenChordDirection) => {
-    setBrokenDir(d);
-    await setPref(PREF_BROKEN_DIRECTION, d);
+  /**
+   * The panel's settings, and the one of them this surface remembers.
+   *
+   * CHORD SOUNDS IS STORED; the tempo, the lift and Listen to are not.
+   * That matches what the surface stored before — a direction, and
+   * nothing else — and the shared player's own rule that a setting
+   * starts where it starts unless Silas has asked for it to persist.
+   */
+  const applySettings = (next: typeof settings) => {
+    setSettings(next);
+    if (next.attack !== settingsRef.current.attack) {
+      void setPref(PREF_CHORD_SOUNDS, next.attack);
+    }
   };
-
-  const speedFallback = defaultSpeed(MODULE_ID);
-  const speed = useLiveQuery(
-    async () => getPref<number>(speedPrefKey(MODULE_ID), speedFallback),
-    [],
-  ) ?? speedFallback;
-  const speedRef = useRef(speed);
-  speedRef.current = speed;
 
   // Only fluency-tracked attempts feed the rolling window. Small-pool
   // focus sessions log with excludeFromFluency=true so they don't
@@ -474,14 +523,15 @@ export default function ChordRecognitionQuiz({
    * has sounded. Both numbers come from the players' own constants, so
    * the measurement and the sound cannot drift apart.
    */
-  const answerableInMs = (chord: ChordData, inversion: Inversion): number =>
-    playStyleRef.current === 'broken'
-      ? chordBrokenAnswerableMs(
-          rotateForInversion(chord.intervals, inversion).length,
-          speedRef.current,
-          brokenDirRef.current,
-        )
-      : chordBlockedAnswerableMs();
+  const answerableInMs = (chord: ChordData, inversion: Inversion): number => {
+    const { attack, bpm } = settingsRef.current;
+    if (attack === 'blocked') return chordBlockedAnswerableMs();
+    return chordBrokenAnswerableMs(
+      crQuizChord(chord, 0, inversion, settingsRef.current).length,
+      bpm,
+      attack === 'down' ? 'desc' : 'asc',
+    );
+  };
 
   /**
    * PLAYS. It does not touch the clock, and that is the point.
@@ -500,13 +550,20 @@ export default function ChordRecognitionQuiz({
     rootMidi: number,
     inversion: Inversion,
   ) => {
-    const intervals = rotateForInversion(chord.intervals, inversion);
-    const style = playStyleRef.current;
-    const speed = speedRef.current;
-    if (style === 'broken') {
-      await playChordBroken(rootMidi, intervals, speed, brokenDirRef.current);
+    const live = settingsRef.current;
+    // EXACTLY AS STORED, IN EXACTLY THE ASKED INVERSION. Nothing is
+    // voice-led and nothing is moved into the middle of the keyboard,
+    // because the inversion IS the question. The lift moves the whole
+    // chord and Bass only takes its bottom note; neither re-orders it.
+    // ABSOLUTE MIDI, so the lift can tell whether the chord still fits
+    // on the board. The players add a root and this passes zero.
+    const notes = crQuizChord(chord, rootMidi, inversion, live);
+    if (live.attack === 'blocked') {
+      await playChordBlocked(0, notes, live.bpm);
     } else {
-      await playChordBlocked(rootMidi, intervals, speed);
+      await playChordBroken(
+        0, notes, live.bpm, live.attack === 'down' ? 'desc' : 'asc',
+      );
     }
   };
 
@@ -523,6 +580,9 @@ export default function ChordRecognitionQuiz({
     const picked = pickAdaptive(candidates);
     const rootMidi = pickRootMidi();
     setCurrent({ chord: picked.chord, rootMidi, inversion: picked.inversion });
+    // THE REVEAL OPENS ON THE ONE THAT WAS ASKED, on every card.
+    setShowInversion(picked.inversion);
+    setRung(picked.chord.intervals.length >= 4 ? 'seventh' : 'triads');
     setSelectedId(null);
     setSelectedInversion(null);
     setPhase('awaiting-quality');
@@ -533,8 +593,8 @@ export default function ChordRecognitionQuiz({
     // the reader can move while thinking.
     asked.current = {
       playbackEndsAt: Date.now() + answerableInMs(picked.chord, picked.inversion),
-      playbackSpeed: speedRef.current,
-      playStyle: playStyleRef.current,
+      playbackBpm: settingsRef.current.bpm,
+      playStyle: settingsRef.current.attack === 'blocked' ? 'blocked' : 'broken',
     };
     await playChord(picked.chord, rootMidi, picked.inversion);
   };
@@ -1010,57 +1070,15 @@ export default function ChordRecognitionQuiz({
 
       {/* Playback style + root + play/next */}
       <div className="flex flex-col items-center gap-3">
-        <div className="inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs">
-          {([
-            { id: 'blocked', label: 'Blocked' },
-            { id: 'broken', label: 'Broken' },
-          ] as const).map(opt => (
-            <button
-              key={opt.id}
-              onClick={() => setPlayStyle(opt.id)}
-              className={`px-3 py-1.5 rounded-md transition ${
-                playStyle === opt.id
-                  ? 'bg-fluent text-white'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        {/* THE BLOCKED/BROKEN TOGGLE AND THE DIRECTION ROW WERE HERE,
+            with the speed control under them. All three are the shared
+            player's now: Chord sounds is one row with three settings,
+            and the tempo is beats per minute. Before the answer they
+            live in the aids fold, because the panel itself would BE the
+            answer — its board lights the notes. */}
+        <div className="w-full max-w-sm">
+          <AidsFold settings={settings} onSettings={applySettings} attack />
         </div>
-
-        {/* Arpeggio direction — only meaningful for broken playback. Kept
-            visible and disabled when blocked is selected so the control
-            stays discoverable. "Both" plays ascending then descending
-            without re-striking the apex. */}
-        <div
-          className={`inline-flex rounded-lg border border-neutral-200 dark:border-neutral-700 p-0.5 text-xs transition-opacity ${
-            playStyle === 'broken' ? '' : 'opacity-40'
-          }`}
-          aria-disabled={playStyle !== 'broken'}
-        >
-          {([
-            { id: 'asc', label: 'Ascending' },
-            { id: 'desc', label: 'Descending' },
-            { id: 'both', label: 'Both' },
-          ] as const).map(opt => (
-            <button
-              key={opt.id}
-              onClick={() => { if (playStyle === 'broken') saveBrokenDir(opt.id); }}
-              disabled={playStyle !== 'broken'}
-              className={`px-3 py-1.5 rounded-md transition ${
-                brokenDir === opt.id
-                  ? 'bg-fluent text-white'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100'
-              } disabled:cursor-not-allowed disabled:hover:text-neutral-500`}
-              title={playStyle === 'broken' ? opt.label : 'switch to broken playback to change direction'}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        <SpeedControl moduleId={MODULE_ID} />
 
         <div className="text-center">
           <div className="text-[10px] uppercase tracking-wide text-neutral-500">root note</div>
@@ -1083,19 +1101,25 @@ export default function ChordRecognitionQuiz({
               play chord
             </button>
           ) : (
+            /* PLAY AGAIN, ALWAYS AVAILABLE, AND IT DOES NOT TOUCH THE
+               CLOCK. The question became answerable the first time it
+               sounded; a reader who needs three replays took that long
+               to answer, and `playChord` is the only thing this calls. */
             <button
               onClick={replay}
+              data-testid="play-again"
               className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
             >
-              replay {playStyle}
+              Play again
             </button>
           )}
           {cardIsTerminal && (
             <button
               onClick={startNew}
+              data-testid="next-card"
               className="px-4 py-2 rounded-lg bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-sm font-medium hover:opacity-90"
             >
-              Next Chord →
+              Next card →
             </button>
           )}
         </div>
@@ -1112,17 +1136,66 @@ export default function ChordRecognitionQuiz({
                 <span className="text-neutral-400 ml-1.5 font-mono text-xs">{displayedFormula}</span>
               </span>
             </div>
-            {/* The exact chord that was played — root + quality + inversion,
-                colored by interval. Terminal phases only, so it never spoils
-                the inversion question on quality-correct-awaiting-inversion. */}
+            {/* THE FULL PANEL, after the answer and never before.
+                Terminal phases only, so it never spoils the inversion
+                question on quality-correct-awaiting-inversion.
+
+                THE BOARD IS THE PANEL'S NOW. `PianoKeyboard` drew the
+                rotated voicing here; the shared board draws the same
+                notes in the same interval colours, on the same four
+                octaves every other surface uses. */}
             {cardIsTerminal && (
               <div className="pt-1">
-                <PianoKeyboard
-                  rootPc={((current.rootMidi % 12) + 12) % 12}
-                  voicing={rotateForInversion(current.chord.intervals, current.inversion)}
-                  absoluteOffsets
-                  octaves={4}
-                  preferFlats={false}
+                <SharedPlayer
+                  chords={crChords(
+                    current.chord,
+                    current.rootMidi,
+                    showInversion,
+                    settings,
+                    `${identityText} · ${INVERSION_LABEL[showInversion]}`,
+                    rung,
+                  )}
+                  settings={settings}
+                  onSettings={applySettings}
+                  showHands={false}
+                  showListen
+                  attack={{
+                    value: settings.attack,
+                    onChange: a => applySettings({ ...settings, attack: a }),
+                  }}
+                  thickness={{
+                    value: rung,
+                    onChange: setRung,
+                    rungs: current.chord.intervals.length >= 4
+                      ? ['triads', 'guide', 'seventh']
+                      : ['triads'],
+                  }}
+                  compare={(
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+                        Compare
+                      </div>
+                      <div className="flex flex-wrap gap-1.5" data-testid="compare-inversions">
+                        {inversionsForIntervalCount(current.chord.intervals.length)
+                          .map(inv => (
+                            <button
+                              key={inv}
+                              type="button"
+                              aria-pressed={inv === showInversion}
+                              data-testid={`compare-inversion-${inv}`}
+                              onClick={() => setShowInversion(inv)}
+                              className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${
+                                inv === showInversion
+                                  ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                                  : 'border-black/10 dark:border-white/20'}`}
+                            >
+                              {INVERSION_LABEL[inv]}
+                              {inv === current.inversion ? ' (asked)' : ''}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 />
               </div>
             )}

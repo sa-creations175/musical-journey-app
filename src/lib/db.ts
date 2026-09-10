@@ -1709,6 +1709,10 @@ export interface AttemptRecord {
    * to protect a statistic, which is the wrong way round.
    * ===================================================================== */
   playbackSpeed?: number;
+  /** The tempo it sounded at, in bpm. Written by the surfaces on the
+   *  shared player; `playbackSpeed` by the ones still on a
+   *  multiplier. A row carries one or the other. */
+  playbackBpm?: number;
   /**
    * Chord recognition only. Whether the chord sounded as a block or
    * one note at a time.

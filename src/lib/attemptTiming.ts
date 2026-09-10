@@ -115,11 +115,13 @@ export function heardElapsedFields(
 /** The context fields four settings contribute, spread onto a record. */
 export function contextFields(context: {
   playbackSpeed?: number;
+  playbackBpm?: number;
   playStyle?: 'blocked' | 'broken';
   drillTab?: string;
 }): Record<string, unknown> {
   return {
     ...(context.playbackSpeed !== undefined ? { playbackSpeed: context.playbackSpeed } : {}),
+    ...(context.playbackBpm !== undefined ? { playbackBpm: context.playbackBpm } : {}),
     ...(context.playStyle !== undefined ? { playStyle: context.playStyle } : {}),
     ...(context.drillTab !== undefined ? { drillTab: context.drillTab } : {}),
   };
@@ -161,6 +163,23 @@ export interface AskedContext {
    */
   playbackEndsAt: number;
   playbackSpeed?: number;
+  /**
+   * The tempo the question sounded at, in beats per minute.
+   *
+   * =====================================================================
+   * A SECOND FIELD RATHER THAN A NEW MEANING FOR THE OLD ONE.
+   *
+   * `playbackSpeed` is a MULTIPLIER — 0.5× of a number nobody was ever
+   * shown — and rows carrying it go back months. The shared player says
+   * beats per minute on every surface, so the surfaces moving onto it
+   * write this instead. Reusing `playbackSpeed` for a bpm would make
+   * "0.5" and "50" the same column and every old row unreadable.
+   *
+   * A row has one or the other, never both: which one says which player
+   * asked the question.
+   * =====================================================================
+   */
+  playbackBpm?: number;
   playStyle?: 'blocked' | 'broken';
   drillTab?: string;
 }
