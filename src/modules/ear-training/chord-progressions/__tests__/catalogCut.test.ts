@@ -60,8 +60,21 @@ describe('the eight survivors', () => {
       expect(p.chordQualities.length, p.id).toBe(p.numerals.length);
       expect(p.durationPattern.length, p.id).toBe(p.numerals.length);
       expect(p.tierName, p.id).toBe(TIER_NAMES[p.tier]);
-      expect(p.songExamples.length, p.id).toBeGreaterThan(0);
+      // SONG EXAMPLES ARE NOT PART OF BEING FULLY FORMED — every other
+      // field here is a fact about the progression and this one is a
+      // claim about music. The backdoor has none since 10 Sep 2026: the
+      // two it carried were chosen for the I-IV-♭VII-I it used to be,
+      // and a song that demonstrates one does not demonstrate 4 minor →
+      // ♭7(7) → 1. Silas adds one when he has one he vouches for.
+      expect(Array.isArray(p.songExamples), p.id).toBe(true);
     }
+  });
+
+  it('has a song for every progression but the backdoor', () => {
+    // Stated rather than left as an absence, so a second empty list
+    // arriving is a decision somebody made rather than a gap.
+    const empty = PROGRESSIONS.filter(p => p.songExamples.length === 0);
+    expect(empty.map(p => p.id)).toEqual(['backdoor']);
   });
 
   it('still has must-knows, so the must-knows view is not blank', () => {

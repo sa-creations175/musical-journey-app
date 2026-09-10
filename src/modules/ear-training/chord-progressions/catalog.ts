@@ -201,11 +201,22 @@ export const PROGRESSIONS: Progression[] = [
     numerals: ['iv', 'bVII', 'I'], scaleDegrees: [3, 6, 0],
     chordQualities: ['minor', 'dominant', 'major'],
     tier: 2, isMustKnow: false, loopDefault: false,
-    theoryNote: 'b7(7) — typically wants to resolve to the 1. Also can be a part of a larger backdoor 251 (4minor → b7(7) → 1). 4m and b7(7) are both part of the parallel minor chords.',
-    songExamples: [
-      { title: 'I Wish', artist: 'Stevie Wonder', year: 1976 },
-      { title: "Isn't She Lovely (bridge)", artist: 'Stevie Wonder', year: 1976 },
-    ],
+    // THE GLYPHS ARE THE APP'S, THE WORDS ARE SILAS'S. His notes type
+    // the flat as a plain letter b; every other flat on screen is ♭, and
+    // "b7(7)" beside "♭7" elsewhere reads as two different chords. Not
+    // one word changed.
+    theoryNote: '♭7(7) — typically wants to resolve to the 1. Also can be a part of a larger backdoor 251 (4minor → ♭7(7) → 1). 4m and ♭7(7) are both part of the parallel minor chords.',
+    // =================================================================
+    // NO SONG EXAMPLES, AND EMPTY IS THE HONEST STATE.
+    //
+    // "I Wish" and "Isn't She Lovely (bridge)" were here. They were
+    // chosen for the I-IV-♭VII-I this entry used to be; the backdoor is
+    // 4 minor → ♭7(7) → 1 since 9 Sep 2026, and a song that demonstrates
+    // one does not demonstrate the other. Silas will add one when he has
+    // one he vouches for — picking a replacement is a claim about music
+    // and not this file's to make.
+    // =================================================================
+    songExamples: [],
   }),
 
   // ============================================================
