@@ -36,8 +36,26 @@ export type Hands = 'both' | 'one';
  *  sounding chord's root. */
 export type Colours = 'plain' | 'interval';
 
-/** Chord recognition's own row: struck together, or rolled. */
-export type ChordAttack = 'blocked' | 'up' | 'down';
+/**
+ * Struck together, or rolled.
+ *
+ * =====================================================================
+ * ONE BROKEN MODE, NOT THREE. Silas's ruling of 10 Sep 2026.
+ *
+ * This was `'blocked' | 'up' | 'down'` and the harmonic diary had its
+ * own ascending / descending pair beside it. Rolling a chord downwards
+ * is a different sound, not a different skill, and a reader choosing
+ * between three of them on a quiz was choosing how hard to make the
+ * question rather than what to hear. Broken rolls UP, at the panel's
+ * tempo, three quarters of a beat between onsets.
+ *
+ * A reader who had chosen "Broken, down" now hears "Broken" — the
+ * hydration in `ChordRecognitionQuiz` reads both old values as broken
+ * rather than dropping them to blocked, because what they had asked
+ * for was to hear the notes in turn.
+ * =====================================================================
+ */
+export type ChordAttack = 'blocked' | 'broken';
 
 /** How many times through. */
 export type LoopCount = 1 | 2 | 4 | 'untilStopped';

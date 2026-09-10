@@ -12,7 +12,9 @@
 import { describe, expect, it } from 'vitest';
 import { bassLine, nearest, voiceAll } from '../../builtAnswers/voiceLeading';
 import { handTones } from '../../builtAnswers/chordShapes';
-import { liftHand, playerMarks, soundingNotes } from '../voices';
+import { chordStep, liftHand, playerMarks, soundingNotes, stepBeats } from '../voices';
+import { panelBeats } from '../../builtAnswers/play';
+import { BROKEN_STEP_BEATS } from '../../audio';
 import { DEFAULT_PLAYER_SETTINGS, LADDER_RUNGS } from '../settings';
 
 describe('the bass walks by the rule', () => {
@@ -195,5 +197,70 @@ describe('the ladder', () => {
   it('has no bass rung — that question is Listen to now', () => {
     expect(LADDER_RUNGS).toEqual(['triads', 'guide', 'seventh', 'full']);
     expect(LADDER_RUNGS).not.toContain('bass');
+  });
+});
+
+/**
+ * The app's one broken mode.
+ *
+ * =====================================================================
+ * BROKEN IS A SCHEDULE, NOT A DIFFERENT CHORD.
+ *
+ * Silas's ruling of 10 Sep 2026 collapsed three broken modes into one —
+ * chord recognition's up and down, and the harmonic diary's ascending
+ * and descending arpeggio. What is left rolls UP, three quarters of a
+ * beat between onsets, and that is the whole of the difference: the
+ * same notes, in the same order, at the same volumes, through the same
+ * sequencer.
+ *
+ * The thing worth pinning is that the roll does not RE-ORDER anything,
+ * because the surface that most needs broken is the one where the
+ * bottom note is the answer.
+ * =====================================================================
+ */
+describe('broken rolls the chord and changes nothing else', () => {
+  const chord = {
+    name: 'Cmaj7', rootPc: 0, bass: 36, hand: [60, 64, 67, 71],
+  };
+  const blocked = DEFAULT_PLAYER_SETTINGS;
+  const broken = { ...DEFAULT_PLAYER_SETTINGS, attack: 'broken' as const };
+
+  it('carries a roll only when broken is chosen', () => {
+    expect(chordStep(chord, blocked, 2).roll).toBeUndefined();
+    expect(chordStep(chord, broken, 2).roll).toBe(BROKEN_STEP_BEATS);
+  });
+
+  it('plays the same notes in the same order either way', () => {
+    // THE POINT, for chord recognition: the inversion is the question,
+    // so a roll that sorted or reversed would be re-voicing it.
+    expect(chordStep(chord, broken, 2).intervals)
+      .toEqual(chordStep(chord, blocked, 2).intervals);
+    expect(chordStep(chord, broken, 2).hands)
+      .toEqual(chordStep(chord, blocked, 2).hands);
+  });
+
+  it('gives the roll room to finish, and leaves a blocked chord alone', () => {
+    // Five sounding notes — the bass and four in the hand — is 3.75
+    // beats of rolling, which will not fit in the two a panel chord
+    // gets. A blocked chord keeps its two.
+    expect(stepBeats(chord, blocked, 2)).toBe(2);
+    expect(stepBeats(chord, broken, 2)).toBeCloseTo(5 * BROKEN_STEP_BEATS, 10);
+  });
+
+  it('never shortens a chord that was already long enough', () => {
+    // A two-note shape rolls in 1.5 beats and still gets its two.
+    const two = { name: 'C5', rootPc: 0, bass: null, hand: [60, 67] };
+    expect(stepBeats(two, broken, 2)).toBe(2);
+  });
+
+  it('lets Pause measure the sequence it actually plays', () => {
+    // THE BUG THIS PREVENTS: `panelBeats` counted two beats a chord
+    // while the player gave a rolled one nearly four, so Resume would
+    // pick up from a point the sequence had not reached.
+    const chords = [chord, chord];
+    const summed = chords
+      .reduce((n, c) => n + stepBeats(c, broken, 2), 0);
+    expect(panelBeats(chords, { settings: broken })).toBe(summed);
+    expect(panelBeats(chords, { settings: blocked })).toBe(4);
   });
 });

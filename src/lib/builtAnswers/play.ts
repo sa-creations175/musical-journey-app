@@ -22,14 +22,16 @@
  * one thing about this file that must not be relaxed for convenience.
  * =====================================================================
  */
-import { playSeqChords, type SeqChord } from '../audio';
+import {
+  BROKEN_STEP_BEATS, CHORD_RING_BEATS, playSeqChords, type SeqChord,
+} from '../audio';
 import { playBlocked, type PlaybackHandle } from '../musicalPlayback';
 import type { VoicedChord } from './voiceLeading';
 import { raise } from './marks';
 import {
   DEFAULT_BPM as PANEL_BPM, type PlayerSettings,
 } from '../player/settings';
-import { chordStep, type PlayerChord } from '../player/voices';
+import { chordStep, stepBeats, type PlayerChord } from '../player/voices';
 
 /**
  * The tempo the panel opens at.
@@ -142,17 +144,68 @@ export async function playPanel(
   });
 }
 
+/**
+ * One shape, rolled — the app's only broken chord.
+ *
+ * =====================================================================
+ * ONE FUNCTION, BECAUSE THERE USED TO BE TWO AND THEY DISAGREED.
+ *
+ * Chord recognition rolled a chord through `playChordBroken`: notes
+ * three quarters of a beat apart, each ringing two beats, up or down.
+ * The harmonic diary spread a chord's tones across its beat budget
+ * through `playNoteSequence`: single voices, no bass, spacing derived
+ * from the chord's length rather than from the tempo. Same words on two
+ * screens, two different sounds.
+ *
+ * Silas's ruling of 10 Sep 2026 leaves one: rolled UP, at the panel's
+ * tempo, three quarters of a beat between onsets. Both callers come
+ * here, and the roll itself is `SeqChord.roll` — so it is the same
+ * sequencer, the same volumes and the same stop handle as everything
+ * else this file plays.
+ *
+ * THE NOTES ARE PLAYED IN THE ORDER GIVEN. Chord recognition's card is
+ * about an inversion, so a roll that sorted its notes would be
+ * re-voicing the question; it does not sort.
+ *
+ * THE SLOT GROWS TO FIT THE ROLL, never shrinks below it — a four-note
+ * chord takes two and a quarter beats to state, so it is given three.
+ * =====================================================================
+ */
+export async function playRolled(
+  notes: ReadonlyArray<number>,
+  opts: { bpm: number; beats?: number; rootMidi?: number },
+): Promise<PlaybackHandle> {
+  const ring = opts.beats ?? CHORD_RING_BEATS;
+  return playSeqChords(
+    [{
+      intervals: [...notes],
+      beats: Math.max(ring, notes.length * BROKEN_STEP_BEATS),
+      roll: BROKEN_STEP_BEATS,
+    }],
+    opts.rootMidi ?? 0,
+    opts.bpm,
+  );
+}
+
 /** How many beats a scale runs for — the home chord, then half a beat
  *  a note. What Pause measures a scale card against. */
 export function scaleBeats(noteCount: number): number {
   return CHORD_BEATS + noteCount * 0.5;
 }
 
-/** How many beats a panel sequence runs for, so Pause can say where it
- *  got to and Resume can be told. */
+/**
+ * How many beats a panel sequence runs for, so Pause can say where it
+ * got to and Resume can be told.
+ *
+ * PASS THE CHORDS AND THE SETTINGS WHERE BROKEN IS POSSIBLE. A rolled
+ * chord's slot grows to fit its roll (`stepBeats`), so a count alone
+ * cannot answer this once "Chord sounds" is on the surface — it does
+ * not know how many notes each chord has. A bare count is still right
+ * for every surface with no broken row, which is most of them.
+ */
 export function panelBeats(
   chords: number | ReadonlyArray<PlayerChord>,
-  opts: { orientPc?: number; beats?: number } = {},
+  opts: { orientPc?: number; beats?: number; settings?: PlayerSettings } = {},
 ): number {
   const each = opts.beats ?? CHORD_BEATS;
   const lead = opts.orientPc === undefined ? 0 : each;
@@ -160,7 +213,11 @@ export function panelBeats(
   // what a pass needs, where every chord is the same length, and the
   // first is what a recorded movement needs, where they are not.
   if (typeof chords === 'number') return lead + chords * each;
-  return lead + chords.reduce((n, c) => n + (c.beats ?? each), 0);
+  const settings = opts.settings;
+  if (settings === undefined) {
+    return lead + chords.reduce((n, c) => n + (c.beats ?? each), 0);
+  }
+  return lead + chords.reduce((n, c) => n + stepBeats(c, settings, each), 0);
 }
 
 /** A progression, or a slash chord in its context. */

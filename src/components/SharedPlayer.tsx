@@ -225,7 +225,11 @@ export default function SharedPlayer({
   // Leaving the card mid-playback leaves nothing ringing.
   useEffect(() => () => { handle?.stop(); }, [handle]);
 
-  const total = totalBeats ?? panelBeats(chords.length, {
+  // THE CHORDS, NOT THEIR COUNT. A broken chord's slot grows to fit its
+  // roll, so Pause has to measure against the chords themselves — a
+  // count cannot say how many notes each one has.
+  const total = totalBeats ?? panelBeats(chords, {
+    settings,
     ...(orientPc === undefined ? {} : { orientPc }),
     ...(beats === undefined ? {} : { beats }),
   });
@@ -516,11 +520,8 @@ export default function SharedPlayer({
                 <Chip on={attack.value === 'blocked'} testId="attack-blocked" onClick={() => attack.onChange('blocked')}>
                   Blocked
                 </Chip>
-                <Chip on={attack.value === 'up'} testId="attack-up" onClick={() => attack.onChange('up')}>
-                  Broken, up
-                </Chip>
-                <Chip on={attack.value === 'down'} testId="attack-down" onClick={() => attack.onChange('down')}>
-                  Broken, down
+                <Chip on={attack.value === 'broken'} testId="attack-broken" onClick={() => attack.onChange('broken')}>
+                  Broken
                 </Chip>
               </Row>
             )}

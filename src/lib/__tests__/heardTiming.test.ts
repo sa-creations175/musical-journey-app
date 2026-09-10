@@ -59,23 +59,23 @@ describe('playback durations are derived from the players', () => {
     // The reason playStyle goes on the row at all. TEMPO, NOT A
     // MULTIPLIER, since 10 Sep 2026: the second argument is beats per
     // minute, which is what the one tempo control on the screen says.
-    expect(chordBrokenAnswerableMs(4, 50, 'asc'))
+    expect(chordBrokenAnswerableMs(4, 50))
       .toBeGreaterThan(chordBlockedAnswerableMs());
-    expect(chordBrokenAnswerableMs(4, 50, 'both'))
-      .toBeGreaterThan(chordBrokenAnswerableMs(4, 50, 'asc'));
   });
 
   it('is slower at a slower tempo, which is the point of the number', () => {
-    expect(chordBrokenAnswerableMs(4, 30, 'asc'))
-      .toBeGreaterThan(chordBrokenAnswerableMs(4, 100, 'asc'));
+    expect(chordBrokenAnswerableMs(4, 30))
+      .toBeGreaterThan(chordBrokenAnswerableMs(4, 100));
   });
 
-  it('counts the apex once when a broken chord goes up and back', () => {
-    // 4 notes up and down without restriking the top is 7 strikes —
-    // three more than going up alone, at three quarters of a beat each.
-    const asc = chordBrokenAnswerableMs(4, 50, 'asc');
-    const both = chordBrokenAnswerableMs(4, 50, 'both');
-    expect(both - asc).toBeCloseTo(3 * 0.75 * (60 / 50) * 1000, 5);
+  it('waits for one more note on a thicker chord', () => {
+    // THE DIRECTION ARGUMENT IS GONE, and this is what is left of the
+    // question it answered: how many strikes there are. Broken rolls
+    // up and only up since Silas's ruling of 10 Sep 2026, so the count
+    // is the note count and a fifth note costs three quarters of a beat.
+    const four = chordBrokenAnswerableMs(4, 50);
+    const five = chordBrokenAnswerableMs(5, 50);
+    expect(five - four).toBeCloseTo(0.75 * (60 / 50) * 1000, 5);
   });
 });
 
@@ -110,7 +110,7 @@ describe('a sustained chord is answerable at its onset', () => {
     // Four strikes at 50 bpm: the lead-in plus three steps of three
     // quarters of a beat — 0.9s each — is 2.75s. The last note then
     // rings on, and none of that is waiting.
-    expect(chordBrokenAnswerableMs(4, 50, 'asc')).toBeCloseTo(2_750, 5);
+    expect(chordBrokenAnswerableMs(4, 50)).toBeCloseTo(2_750, 5);
   });
 });
 

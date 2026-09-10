@@ -26,9 +26,14 @@ import { db, type AttemptRecord, type ChordData } from '../../../../lib/db';
  */
 vi.mock('../../../../lib/audio', () => ({
   playChordBlocked: async () => {},
-  playChordBroken: async () => {},
+  playSeqChords: async () => ({ stop: () => {} }),
   chordBlockedAnswerableMs: () => 0,
   chordBrokenAnswerableMs: () => 0,
+  // THE SPACING IS A CONSTANT AND THE PANEL READS IT AT REST, not only
+  // while broken is chosen — `stepBeats` would produce NaN from an
+  // undefined export the moment a test pressed Broken.
+  BROKEN_STEP_BEATS: 0.75,
+  CHORD_RING_BEATS: 3,
 }));
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })

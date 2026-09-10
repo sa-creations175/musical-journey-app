@@ -4,9 +4,8 @@ import {
   chordBlockedAnswerableMs,
   chordBrokenAnswerableMs,
   playChordBlocked,
-  playChordBroken,
-  type BrokenChordDirection,
 } from '../../../lib/audio';
+import { playRolled } from '../../../lib/builtAnswers/play';
 import { db, type AttemptRecord, type ChordData } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
@@ -32,7 +31,6 @@ import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice
 import AidsFold from '../../../components/AidsFold';
 import SharedPlayer from '../../../components/SharedPlayer';
 import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
-import type { ChordAttack } from '../../../lib/player/settings';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 import { crChords, crQuizChord } from './crPlayer';
 import { feelOfAttempt, heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
@@ -267,15 +265,23 @@ export default function ChordRecognitionQuiz({
   // Hydrate broken-chord direction + inversion positions from userPrefs.
   useEffect(() => {
     (async () => {
-      // THE NEW KEY FIRST, THEN THE OLD DIRECTION AS A FALLBACK, so a
-      // reader who chose descending still hears descending. "Both"
-      // retired with the row it lived on and reads as broken, up.
-      const sounds = await getPref<ChordAttack | null>(PREF_CHORD_SOUNDS, null);
-      if (sounds === 'blocked' || sounds === 'up' || sounds === 'down') {
-        setSettings({ ...settingsRef.current, attack: sounds });
+      // THE NEW KEY FIRST, THEN THE OLD DIRECTION AS A FALLBACK.
+      //
+      // THREE STORED VALUES, TWO LIVE ONES. Since Silas's ruling of
+      // 10 Sep 2026 there is one broken mode, so a reader who had
+      // chosen "Broken, up" or "Broken, down" reads as Broken — what
+      // they asked for was to hear the notes in turn, and that is still
+      // on offer. Only "Blocked" means blocked. The older direction key
+      // says the same thing a step further back: a stored direction at
+      // all meant broken.
+      const sounds = await getPref<string | null>(PREF_CHORD_SOUNDS, null);
+      if (sounds === 'blocked') {
+        setSettings({ ...settingsRef.current, attack: 'blocked' });
+      } else if (sounds === 'broken' || sounds === 'up' || sounds === 'down') {
+        setSettings({ ...settingsRef.current, attack: 'broken' });
       } else {
-        const old = await getPref<BrokenChordDirection>(PREF_BROKEN_DIRECTION, 'asc');
-        if (old === 'desc') setSettings({ ...settingsRef.current, attack: 'down' });
+        const old = await getPref<string>(PREF_BROKEN_DIRECTION, 'asc');
+        if (old === 'desc') setSettings({ ...settingsRef.current, attack: 'broken' });
       }
 
       // ACCEPTS THE OLD SHAPE. The preference used to be one list for
@@ -542,10 +548,13 @@ export default function ChordRecognitionQuiz({
   const answerableInMs = (chord: ChordData, inversion: Inversion): number => {
     const { attack, bpm } = settingsRef.current;
     if (attack === 'blocked') return chordBlockedAnswerableMs();
+    // UNCHANGED BY THE COLLAPSE TO ONE BROKEN MODE. The formula was
+    // always the ascending one — the direction only ever mattered for
+    // "both", which never reached this quiz — so a reader's stored
+    // times stay comparable across the change.
     return chordBrokenAnswerableMs(
       crQuizChord(chord, 0, inversion, settingsRef.current).length,
       bpm,
-      attack === 'down' ? 'desc' : 'asc',
     );
   };
 
@@ -576,11 +585,13 @@ export default function ChordRecognitionQuiz({
     const notes = crQuizChord(chord, rootMidi, inversion, live);
     if (live.attack === 'blocked') {
       await playChordBlocked(0, notes, live.bpm);
-    } else {
-      await playChordBroken(
-        0, notes, live.bpm, live.attack === 'down' ? 'desc' : 'asc',
-      );
+      return;
     }
+    // THE PLAYER'S OWN BROKEN MODE, not a second one. `playChordBroken`
+    // is gone; this passes the SAME notes in the SAME order the blocked
+    // branch does — the roll is a schedule, not a re-voicing, so the
+    // inversion the card asks about survives it untouched.
+    await playRolled(notes, { bpm: live.bpm });
   };
 
   const startNew = async () => {

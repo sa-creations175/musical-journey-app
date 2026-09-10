@@ -41,7 +41,12 @@ import type { AttemptRecord, ChordData } from '../../../../lib/db';
 const played = vi.hoisted(() => ({ calls: 0 }));
 vi.mock('../../../../lib/audio', () => ({
   playChordBlocked: async () => { played.calls += 1; },
-  playChordBroken: async () => { played.calls += 1; },
+  // BROKEN GOES THROUGH THE SEQUENCER NOW, so the stub that counts a
+  // sound has to count this one too — otherwise a future test pressing
+  // Broken would read as "the tab plays nothing".
+  playSeqChords: async () => { played.calls += 1; return { stop: () => {} }; },
+  BROKEN_STEP_BEATS: 0.75,
+  CHORD_RING_BEATS: 3,
   // The quiz asks when the question becomes answerable so it can start
   // its measurement clock there. Stubbed rather than omitted: an
   // undefined export here throws inside the play handler, and the

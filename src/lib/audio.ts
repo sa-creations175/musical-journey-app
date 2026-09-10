@@ -348,14 +348,14 @@ export async function playInterval(
  *
  * THE PROTOTYPE'S OWN NUMBERS. `shared-player-prototype_1.html` holds a
  * blocked chord for three beats and starts a broken chord's notes three
- * quarters of a beat apart. They are stated as BEATS because the panel's
+ * quarters of a beat apart — the one spacing every broken chord in the
+ * app now uses. They are stated as BEATS because the panel's
  * one tempo control is beats per minute — the speed multipliers retire,
  * and a chord that rang for "3.2 seconds at 0.5×" was a length nobody
  * could see on the screen that set it.
  */
 export const CHORD_RING_BEATS = 3;
 export const BROKEN_STEP_BEATS = 0.75;
-const BROKEN_NOTE_BEATS = 2;
 
 export async function playChordBlocked(
   rootMidi: number,
@@ -372,18 +372,6 @@ export async function playChordBlocked(
   });
 }
 
-export type BrokenChordDirection = 'asc' | 'desc' | 'both';
-
-// Arpeggiated playback. A new note starts every `stepTime` seconds and
-// each note sustains for `noteDuration` seconds; with the default values
-// notes overlap and blend (noteDuration > stepTime). The speed multiplier
-// scales both in lockstep so the blend ratio is preserved.
-//
-// Direction:
-//   · 'asc'  → low → high
-//   · 'desc' → high → low
-//   · 'both' → ascending then descending, without re-striking the apex
-//              (e.g. C-E-G-C then G-E-C for a C major triad)
 /**
  * When a blocked chord becomes ANSWERABLE, in ms after the play call.
  *
@@ -437,41 +425,17 @@ export function chordBlockedAnswerableMs(): number {
 export function chordBrokenAnswerableMs(
   noteCount: number,
   bpm: number,
-  direction: BrokenChordDirection = 'asc',
   stepBeats = BROKEN_STEP_BEATS,
 ): number {
-  const steps = direction === 'both' ? noteCount * 2 - 1 : noteCount;
-  return (0.05 + (steps - 1) * stepBeats * (60 / bpm)) * 1000;
+  return (0.05 + (noteCount - 1) * stepBeats * (60 / bpm)) * 1000;
 }
 
-export async function playChordBroken(
-  rootMidi: number,
-  intervals: number[],
-  bpm: number,
-  direction: BrokenChordDirection = 'asc',
-  stepBeats = BROKEN_STEP_BEATS,
-  noteBeats = BROKEN_NOTE_BEATS,
-) {
-  const context = await ensureRunning();
-  const secPerBeat = 60 / bpm;
-  const step = stepBeats * secPerBeat;
-  const dur = noteBeats * secPerBeat;
-  const now = context.currentTime + 0.05;
-  const vol = chordVolume(intervals.length);
-  const sortedAsc = [...intervals].sort((a, b) => a - b);
-  let sequence: number[];
-  if (direction === 'desc') {
-    sequence = [...sortedAsc].reverse();
-  } else if (direction === 'both') {
-    // Play up then back down without double-striking the apex.
-    sequence = [...sortedAsc, ...[...sortedAsc].reverse().slice(1)];
-  } else {
-    sequence = sortedAsc;
-  }
-  sequence.forEach((iv, idx) => {
-    playNote(midiToFreq(rootMidi + iv), now + idx * step, dur, context, vol);
-  });
-}
+// `playChordBroken` WAS HERE, and it is gone. A broken chord is now a
+// step with a `roll` on it — see `SeqChord.roll` above and `stepBeats`
+// in `lib/player/voices.ts`. Silas's ruling of 10 Sep 2026 left one
+// broken mode in the app and it goes through the one sequencer, so
+// Pause, Resume and Loop work on a rolled chord for free. Its
+// DIRECTION went with it: broken rolls up, and only up.
 
 // playBassNote is scheduled by the caller at an explicit absolute time,
 // so it doesn't own a tempo itself. Sequencers that emit bass lines apply
@@ -492,6 +456,34 @@ export type SeqChord = {
   intervals: number[];
   beats?: number;
   hands?: Array<'L' | 'R'>;
+  /**
+   * Strike the notes in turn, this many beats apart, instead of
+   * together.
+   *
+   * =====================================================================
+   * THE APP'S ONE BROKEN MODE, AND IT LIVES ON THE STEP.
+   *
+   * There used to be three of them: chord recognition rolled a chord up
+   * or down through `playChordBroken`, and the harmonic diary spread a
+   * chord's tones across its beats through `playNoteSequence`. Three
+   * pieces of code for one musical idea, and a reader who learned
+   * "broken" on the quiz met a different sound in the diary.
+   *
+   * Silas's ruling of 10 Sep 2026 collapses them to one: rolled UP, at
+   * the panel's tempo, three quarters of a beat between onsets. Putting
+   * it on the step rather than in a player of its own means the roll
+   * goes through the same sequencer as everything else — so Pause,
+   * Resume, Loop and the moving highlight all work on a rolled chord
+   * without any of them being told about rolling.
+   *
+   * EACH NOTE RINGS ITS FULL LENGTH FROM ITS OWN ONSET, which is what
+   * the old broken player did and what a hand does on a keyboard. The
+   * chord's tail therefore runs slightly past its slot; the slot is
+   * grown to fit the roll by `stepBeats` in `player/voices.ts`, so the
+   * overlap is a tail rather than a collision.
+   * =====================================================================
+   */
+  roll?: number;
 };
 
 /** Which hand is louder, if either. */
@@ -617,10 +609,16 @@ export async function playSeqChords(
       beatCursor += beats;
       if (skipped) return;
       const vol = chordVolume(chord.intervals.length);
+      // A ROLL IS THE SAME NOTES, LATER. Nothing else about the step
+      // changes: same volume, same hands, same length of ring, same
+      // onStep at the chord's own moment — a rolled chord lights the
+      // board when its first note strikes, which is when it starts.
+      const roll = (chord.roll ?? 0) * secPerBeat;
       chord.intervals.forEach((iv, note) => {
         const hand = chord.hands?.[note] ?? 'R';
         voices.push(playNote(
-          midiToFreq(rootMidi + iv), cursor, duration * 0.95, context, vol * gains[hand],
+          midiToFreq(rootMidi + iv), cursor + note * roll, duration * 0.95,
+          context, vol * gains[hand],
         ));
       });
       if (opts.onStep) {

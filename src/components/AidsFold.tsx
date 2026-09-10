@@ -135,8 +135,7 @@ export default function AidsFold({
           <Row label="Chord sounds">
             {([
               ['blocked', 'Blocked'],
-              ['up', 'Broken, up (lower rating)'],
-              ['down', 'Broken, down (lower rating)'],
+              ['broken', 'Broken (lower rating)'],
             ] as ReadonlyArray<[ChordAttack, string]>).map(([id, label]) => (
               <Chip
                 key={id}

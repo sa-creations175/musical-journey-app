@@ -1,4 +1,5 @@
 import { playNoteSequence, playBlocked, type NoteEvent } from '../../lib/musicalPlayback';
+import { playRolled } from '../../lib/builtAnswers/play';
 import { parseSkillId, type SkillRecord } from '../skills/registry';
 import { QUALITY_INTERVALS } from '../shapes-and-patterns/catalog';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
@@ -22,29 +23,34 @@ import {
 
 // ── Diary playback aesthetic constants ──────────────────────────────
 //
-// One BPM applies to all diary previews so chord arpeggios, interval
-// melodic playback, and progression arpeggios share the same "feel."
+// One BPM applies to all diary previews so chords, interval melodic
+// playback and progressions share the same "feel."
 // 50 BPM matches the user's tuned-by-ear pace from the source ear-
 // training modules — each beat is 1.2 seconds, giving notes room to
 // register. The diary's "feeling-first" purpose calls for this slower
 // rate than typical drill tempos. 0.25 overlap gives notes a gentle
 // piano-like ring (each note's release extends 25% past the next
 // note's onset), away from the metronome-perfect drill aesthetic.
+//
+// THE OVERLAP IS THE INTERVALS' NOW, AND ONLY THEIRS. It used to shape
+// the diary's chord and progression arpeggios too; those retired on
+// 10 Sep 2026 into the shared player's one broken mode, which rings
+// each note its full length from its own onset.
 
 const DIARY_BPM = 50;
 const DIARY_OVERLAP = 0.25;
 
 // Single-chord previews (chord-recognition + shapes-and-patterns
-// chord-shape) span 2 beats = 2.4 seconds at DIARY_BPM. With a 4-note
-// 7th chord that's ~0.6s per note in arpeggio mode — right in the
-// 0.5-0.7s sweet spot where individual notes register cleanly.
+// chord-shape) span 2 beats = 2.4 seconds at DIARY_BPM when blocked.
+// Broken rolls at a fixed three quarters of a beat instead, so a
+// 4-note chord takes 3 beats to state and this figure is its floor
+// rather than its budget.
 const SINGLE_CHORD_BEATS = 2;
 
-// Modes have 7+ notes so they need a bigger beat budget than chords
-// to give each note comparable room. 4 beats × 1.2 s/beat = 4.8 s for
-// a 7-note scale ≈ 0.69s per note in asc/desc — same registration
-// pace as a 4-note chord arpeggio. Blocked modes also use this
-// budget so they sit longer / feel more contemplative.
+// Modes have 7+ notes so a blocked one sits longer and feels more
+// contemplative: 4 beats × 1.2 s/beat = 4.8 s. A broken mode rolls at
+// the fixed spacing like everything else, so an 8-tone scale runs 6
+// beats and this figure is again its floor.
 const MODE_BEATS = 4;
 
 // Register anchoring keeps chord previews in the "warm middle
@@ -109,8 +115,8 @@ export async function playSkillAudio(
     if (!parsed) return;
 
     // Chord-quality flashcards / chord-recognition items → play the
-    // chord with the diary's register anchor + tempo. Three modes:
-    // blocked, asc (low→high arpeggio), desc (high→low arpeggio).
+    // chord with the diary's register anchor + tempo. Two modes:
+    // blocked, and the app's one broken — rolled up.
     if (parsed.moduleId === 'chord-recognition') {
       const intervals = QUALITY_INTERVALS[parsed.itemId] ?? QUALITY_INTERVALS.maj;
       const rootMidi = diaryRegisterRoot(intervals, 0); // C-rooted by convention
@@ -161,9 +167,9 @@ export async function playSkillAudio(
     // Modes — use the mode's actual scaleIntervals (which include
     // the octave on top, per the catalog) so each mode sounds
     // distinct, and the natural-position root from the C-major
-    // parent scale so the mode rings in its own key. Asc plays
-    // 0→12 (octave on top); desc plays 12→0 (starts from the
-    // octave). Blocked stacks all 8 tones simultaneously.
+    // parent scale so the mode rings in its own key. Broken rolls
+    // 0→12, the octave on top; blocked stacks all 8 tones
+    // simultaneously.
     if (parsed.moduleId === 'scales-modes') {
       const modeData = modeById(parsed.itemId);
       if (!modeData) return;
@@ -175,9 +181,8 @@ export async function playSkillAudio(
     }
 
     // Chord progressions — full progression (`:item:`) or two-chord
-    // motion (`:motion:`). Mode is forwarded so the helper picks
-    // between blocked playback (multi-layer playProgression) and
-    // arpeggio playback (single-voice playNoteSequence).
+    // motion (`:motion:`). The mode is forwarded and becomes the
+    // shared player's attack; both values go down one path.
     if (parsed.moduleId === 'chord-progressions') {
       if (parsed.subtype === 'item') {
         await playProgressionById(parsed.itemId, { mode });
@@ -233,10 +238,20 @@ function diaryRegisterRoot(
 }
 
 /**
- * Render a chord, scale stack, or any interval set in one of three
- * modes, keeping total preview time consistent across modes so cards
- * feel uniformly weighted. `beats` controls the time budget — pass
+ * Render a chord, scale stack, or any interval set — struck together or
+ * rolled. `beats` controls the blocked time budget — pass
  * SINGLE_CHORD_BEATS for chords, MODE_BEATS for scale stacks.
+ *
+ * =====================================================================
+ * THE DIARY NO LONGER HAS AN ARPEGGIO OF ITS OWN.
+ *
+ * It used to spread a chord's tones evenly across the beat budget, so
+ * "ascending" on a three-note chord and on an eight-note scale were
+ * different speeds — the budget was fixed and the note count was not.
+ * The app's one broken mode rolls at a fixed spacing instead, so a
+ * thicker chord takes longer to state, which is what it does under a
+ * hand. Silas's ruling of 10 Sep 2026.
+ * =====================================================================
  */
 async function playChord(
   rootMidi: number,
@@ -248,13 +263,7 @@ async function playChord(
     await playBlocked(rootMidi, intervals, beats, DIARY_BPM);
     return;
   }
-  // Arpeggio: spread the same beat budget across the tones.
-  // intervals are conventionally in ascending order, so 'asc' uses
-  // them as-is and 'desc' reverses.
-  const ordered = mode === 'desc' ? [...intervals].reverse() : intervals;
-  const beatsPerNote = beats / Math.max(1, ordered.length);
-  const notes: NoteEvent[] = ordered.map(iv => ({ semitones: iv, beats: beatsPerNote }));
-  await playNoteSequence(rootMidi, notes, DIARY_BPM, { overlap: DIARY_OVERLAP });
+  await playRolled(intervals, { bpm: DIARY_BPM, beats, rootMidi });
 }
 
 function qualityIdFromLabel(label: string): string {

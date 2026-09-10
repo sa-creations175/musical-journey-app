@@ -16,7 +16,7 @@
  * the wrong thing quietly.
  * =====================================================================
  */
-import type { SeqChord } from '../audio';
+import { BROKEN_STEP_BEATS, type SeqChord } from '../audio';
 import { onBoard } from '../builtAnswers/board';
 import type { KeyMark } from '../builtAnswers/board';
 import type { VoicedChord } from '../builtAnswers/voiceLeading';
@@ -100,6 +100,40 @@ export function soundingNotes(
   };
 }
 
+/**
+ * How long a chord's slot is, once the roll is allowed for.
+ *
+ * =====================================================================
+ * A ROLLED CHORD NEEDS ROOM TO FINISH ROLLING.
+ *
+ * Broken strikes the notes three quarters of a beat apart, so a
+ * four-note chord takes two and a quarter beats to state — more than
+ * the two a panel chord gets. Left at two, the next chord would start
+ * before this one had finished arriving, and a progression would smear
+ * into itself.
+ *
+ * So a broken chord's slot grows to fit its own roll and no further:
+ * `noteCount × 0.75`, which leaves three quarters of a beat of the last
+ * note ringing alone before the next chord. A blocked chord, and a
+ * chord short enough to roll inside its slot, keep the length they had.
+ *
+ * `panelBeats` and `chordStep` both read this, which is what keeps
+ * Pause honest — the panel measures against the same number it plays.
+ * =====================================================================
+ */
+export function stepBeats(
+  chord: PlayerChord,
+  settings: PlayerSettings,
+  beats: number,
+): number {
+  // THE CHORD'S OWN LENGTH WINS. A movement's rhythm is part of what
+  // was played and the sequence's default would flatten it.
+  const own = chord.beats ?? beats;
+  if (settings.attack !== 'broken') return own;
+  const { notes } = soundingNotes(chord, settings);
+  return Math.max(own, notes.length * BROKEN_STEP_BEATS);
+}
+
 /** One chord as a step of the sequence. */
 export function chordStep(
   chord: PlayerChord,
@@ -107,9 +141,15 @@ export function chordStep(
   beats: number,
 ): SeqChord {
   const { notes, hands } = soundingNotes(chord, settings);
-  // THE CHORD'S OWN LENGTH WINS. A movement's rhythm is part of what
-  // was played and the sequence's default would flatten it.
-  return { intervals: notes, beats: chord.beats ?? beats, hands };
+  return {
+    intervals: notes,
+    beats: stepBeats(chord, settings, beats),
+    hands,
+    // BROKEN IS A ROLL ON THE STEP, and the sequencer does the rest —
+    // one broken mode, through the one player, so Pause and Resume land
+    // on a rolled chord exactly as they do on a struck one.
+    ...(settings.attack === 'broken' ? { roll: BROKEN_STEP_BEATS } : {}),
+  };
 }
 
 /**

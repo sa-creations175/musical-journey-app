@@ -1,13 +1,9 @@
 import { progressionById, type ChordQuality } from './catalog';
-import {
-  keyToRootMidi,
-  numeralOffset,
-  parseSlashChord,
-  voicingFor,
-} from './progressionTheory';
-import { playNoteSequence, type NoteEvent } from '../../../lib/musicalPlayback';
+import { keyToRootMidi, numeralOffset } from './progressionTheory';
 import { playPanel } from '../../../lib/builtAnswers/play';
-import { DEFAULT_PLAYER_SETTINGS } from '../../../lib/player/settings';
+import {
+  DEFAULT_PLAYER_SETTINGS, type ChordAttack,
+} from '../../../lib/player/settings';
 import { progressionChords } from './progressionChords';
 
 // Shared defaults for diary-triggered playback. Single-shot (no loop),
@@ -30,22 +26,39 @@ const DEFAULT_COMPLEXITY = 'seventh' as const;
 // default — bass and chords is its Listen to, and one low note is what
 // `orientPc` plays — so the two constants had nothing left to say.
 
-/** Same legato amount as the rest of the diary's arpeggio playback so
- *  chord-internal arpeggios feel consistent across single-chord and
- *  progression entries. Notes ring 25% past the next note's onset. */
-const DIARY_ARPEGGIO_OVERLAP = 0.25;
-
-export type DiaryPlaybackMode = 'blocked' | 'asc' | 'desc';
+/**
+ * Struck together, or rolled.
+ *
+ * =====================================================================
+ * THE DIARY'S OWN ARPEGGIO IS GONE, AND THIS IS THE PLAYER'S BROKEN.
+ *
+ * It used to be `'blocked' | 'asc' | 'desc'`, and the two arpeggio
+ * values ran a sequencer of their own — `buildArpeggioSequence` fed
+ * `playNoteSequence`, spreading each chord's tones across its allotted
+ * beats as single voices, with no bass, no hand balance and no relation
+ * to the tempo the rest of the app plays at. That is a second broken
+ * mode, and Silas's ruling of 10 Sep 2026 leaves the app one.
+ *
+ * So a mode is now which ATTACK the shared player is handed. Both
+ * values go down the same path, so a progression sounds here exactly as
+ * it does everywhere else and only its chords' onsets differ.
+ * =====================================================================
+ */
+export type DiaryPlaybackMode = ChordAttack;
 
 export interface DiaryPlaybackOpts {
   key?: string;
   bpm?: number;
-  /** Per-chord rendering. 'blocked' plays each chord as a simultaneous
-   *  block (the default — preserves the original diary behaviour and
-   *  uses playProgression with bass-chords). 'asc' / 'desc' arpeggiates
-   *  each chord WITHIN its allotted beats so the total duration of the
-   *  progression / motion stays consistent across modes. */
+  /** Per-chord rendering: struck together, or rolled up three quarters
+   *  of a beat at a time. Defaults to blocked. */
   mode?: DiaryPlaybackMode;
+}
+
+/** The player's settings for a diary preview, at the diary's tempo and
+ *  with the chosen attack. Everything else is the panel's default,
+ *  which is the point of there being a panel. */
+function diarySettings(bpm: number, mode: DiaryPlaybackMode) {
+  return { ...DEFAULT_PLAYER_SETTINGS, bpm, attack: mode };
 }
 
 /**
@@ -72,83 +85,33 @@ export async function playProgressionById(
   const mode = opts.mode ?? 'blocked';
   const rootMidi = keyToRootMidi(key);
 
-  if (mode === 'blocked') {
-    // ONE TAP, ONE SOUND, THROUGH THE SHARED PLAYER. The diary is a
-    // thin adapter over other people's players — the playback audit's
-    // own words — and this is the half of it that is a progression.
-    // `progressionChords` is the same builder Key Detection uses, so
-    // an entry sounds here exactly as it does there.
-    await playPanel(
-      progressionChords(
-        prog.numerals.map((numeral, i) => ({
-          numeral,
-          quality: prog.chordQualities[i] ?? 'major',
-          beats: prog.durationPattern[i] ?? 1,
-        })),
-        rootMidi,
-        {
-          complexity: DEFAULT_COMPLEXITY,
-          requiresDominant: prog.requiresDominant ?? false,
-        },
-      ),
-      { ...DEFAULT_PLAYER_SETTINGS, bpm },
-      // A SINGLE LOW TONIC IN FRONT, which is what `singleNote` meant
-      // here and what the panel plays everywhere else.
-      { orientPc: ((rootMidi % 12) + 12) % 12, loop: 1 },
-    );
-    return;
-  }
-
-  // Arpeggio path: walk every chord, build a NoteEvent[] that fills
-  // each chord's beat allotment with its voicing tones (low-to-high
-  // for asc, reversed for desc). The cumulative `beats` across notes
-  // matches the original durationPattern total so total time is
-  // preserved across modes.
-  const notes = buildArpeggioSequence({
-    chordRootSemis: prog.numerals.map(n => numeralOffset(parseSlashChord(n).chord)),
-    qualities: prog.chordQualities,
-    perStepBeats: prog.numerals.map((_, i) => prog.durationPattern[i] ?? 1),
-    requiresDominant: prog.requiresDominant ?? false,
-    direction: mode,
-  });
-  await playNoteSequence(rootMidi, notes, bpm, { overlap: DIARY_ARPEGGIO_OVERLAP });
-}
-
-/**
- * Helper: convert a list of chord steps + qualities + per-step beat
- * counts into a flat NoteEvent[] that arpeggiates each chord (low→high
- * for 'asc', high→low for 'desc') over its allotted span. Each chord
- * occupies exactly `perStepBeats[i]` beats regardless of how many
- * notes it has — note durations adjust to fill the time evenly.
- */
-function buildArpeggioSequence(args: {
-  chordRootSemis: number[];
-  qualities: ChordQuality[];
-  perStepBeats: number[];
-  requiresDominant: boolean;
-  direction: 'asc' | 'desc';
-}): NoteEvent[] {
-  const out: NoteEvent[] = [];
-  for (let i = 0; i < args.chordRootSemis.length; i++) {
-    const intervals = voicingFor(
-      args.qualities[i] ?? 'major',
-      DEFAULT_COMPLEXITY,
-      args.requiresDominant,
-    );
-    // voicingFor returns intervals in ascending order from the chord
-    // root, so absolute semitones above the key tonic are already
-    // ascending. Reverse for descending.
-    const orderedIntervals = args.direction === 'desc' ? [...intervals].reverse() : intervals;
-    const chordBeats = args.perStepBeats[i];
-    const beatsPerNote = chordBeats / orderedIntervals.length;
-    for (const iv of orderedIntervals) {
-      out.push({
-        semitones: args.chordRootSemis[i] + iv,
-        beats: beatsPerNote,
-      });
-    }
-  }
-  return out;
+  // ONE TAP, ONE SOUND, THROUGH THE SHARED PLAYER. The diary is a
+  // thin adapter over other people's players — the playback audit's
+  // own words — and this is the half of it that is a progression.
+  // `progressionChords` is the same builder Key Detection uses, so
+  // an entry sounds here exactly as it does there.
+  //
+  // BOTH MODES COME DOWN THIS PATH. Blocked and broken differ by the
+  // attack in the settings and by nothing else, so the diary cannot
+  // drift from the quiz on what a rolled chord sounds like.
+  await playPanel(
+    progressionChords(
+      prog.numerals.map((numeral, i) => ({
+        numeral,
+        quality: prog.chordQualities[i] ?? 'major',
+        beats: prog.durationPattern[i] ?? 1,
+      })),
+      rootMidi,
+      {
+        complexity: DEFAULT_COMPLEXITY,
+        requiresDominant: prog.requiresDominant ?? false,
+      },
+    ),
+    diarySettings(bpm, mode),
+    // A SINGLE LOW TONIC IN FRONT, which is what `singleNote` meant
+    // here and what the panel plays everywhere else.
+    { orientPc: ((rootMidi % 12) + 12) % 12, loop: 1 },
+  );
 }
 
 // --- Chord motion starters -----------------------------------------
@@ -221,7 +184,7 @@ export async function playMotionById(
 
   const requiresDominant = def.qualities.includes('dominant');
 
-  if (mode === 'blocked') {
+  {
     // THE SAME BUILDER AS EVERY OTHER PASSAGE. A motion is two chords,
     // and its own octave nudge has already been applied above — which
     // is why the numerals are handed over already shifted rather than
@@ -246,18 +209,8 @@ export async function playMotionById(
         bass: chords[1].bass === null ? null : chords[1].bass + shift,
       },
     ];
-    await playPanel(shifted, { ...DEFAULT_PLAYER_SETTINGS, bpm }, {
+    await playPanel(shifted, diarySettings(bpm, mode), {
       orientPc: ((rootMidi % 12) + 12) % 12, loop: 1,
     });
-    return;
   }
-
-  const notes = buildArpeggioSequence({
-    chordRootSemis: [chord1RootSemis, chord2RootSemis],
-    qualities: def.qualities,
-    perStepBeats: [2, 2],
-    requiresDominant,
-    direction: mode,
-  });
-  await playNoteSequence(rootMidi, notes, bpm, { overlap: DIARY_ARPEGGIO_OVERLAP });
 }

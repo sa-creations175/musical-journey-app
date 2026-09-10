@@ -100,7 +100,7 @@ export function feelOfAttempt(
  * sounds row simply has no `attack`, which is not an aid.
  */
 export function isAided(
-  settings: { listen: 'both' | 'bass'; attack?: 'blocked' | 'up' | 'down' },
+  settings: { listen: 'both' | 'bass'; attack?: 'blocked' | 'broken' },
 ): boolean {
   return settings.listen === 'bass' || (settings.attack ?? 'blocked') !== 'blocked';
 }

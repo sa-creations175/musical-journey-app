@@ -49,6 +49,11 @@ describe('the chord sounds exactly as stored', () => {
         { ...S, octaveUp: true },
         { ...S, hands: 'one' as const },
         { ...S, colours: 'plain' as const },
+        // BROKEN IS ON THE LIST since 10 Sep 2026. It is a schedule and
+        // not a voicing — the notes go out in the order given, three
+        // quarters of a beat apart — so the chord it hands over is the
+        // asked inversion, unsorted and unrotated, exactly as blocked.
+        { ...S, attack: 'broken' as const },
       ]) {
         const played = crQuizChord(MAJ7, ROOT, inversion, settings);
         expect(played[0] % 12, `inversion ${inversion}`).toBe(bottomPc);

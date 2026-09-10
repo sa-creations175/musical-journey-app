@@ -216,6 +216,17 @@ describe('the rows a surface may drop', () => {
     expect(byTestId('attack-blocked')).not.toBeNull();
   });
 
+  it('offers one broken mode, not three', () => {
+    // SILAS'S RULING OF 10 SEP 2026. The row was Blocked / Broken, up /
+    // Broken, down, and the harmonic diary had its own ascending and
+    // descending pair beside it. Rolling downwards is a different sound
+    // rather than a different skill.
+    mount({ attack: { value: 'blocked', onChange: () => {} } });
+    expect(byTestId('attack-broken')).not.toBeNull();
+    expect(byTestId('attack-up')).toBeNull();
+    expect(byTestId('attack-down')).toBeNull();
+  });
+
   it('locks the ladder to one rung beside a drill', () => {
     mount({
       thickness: { value: 'seventh', onChange: () => {}, locked: true },

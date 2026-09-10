@@ -52,8 +52,10 @@ describe('where an answer lands', () => {
 describe('which controls count as an aid', () => {
   it('counts the bass on its own, and a broken chord', () => {
     expect(isAided({ ...DEFAULT_PLAYER_SETTINGS, listen: 'bass' })).toBe(true);
-    expect(isAided({ ...DEFAULT_PLAYER_SETTINGS, attack: 'up' })).toBe(true);
-    expect(isAided({ ...DEFAULT_PLAYER_SETTINGS, attack: 'down' })).toBe(true);
+    // ONE BROKEN MODE since 10 Sep 2026, and it is still an aid: the
+    // notes arriving one at a time is a different question from the
+    // chord arriving at once.
+    expect(isAided({ ...DEFAULT_PLAYER_SETTINGS, attack: 'broken' })).toBe(true);
   });
 
   it('leaves tempo and octave free', () => {

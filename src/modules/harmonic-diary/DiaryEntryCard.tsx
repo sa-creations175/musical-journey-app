@@ -8,8 +8,9 @@ interface Props {
   skill?: SkillRecord;
   onEdit: () => void;
   /** Called when the user taps a play affordance. `mode` is supplied
-   *  for chord and progression entries (the three-button variant);
-   *  intervals and modes call without an argument. */
+   *  for chord and progression entries, which choose between blocked
+   *  and broken; intervals call without an argument, because their
+   *  direction is part of the skill rather than a way of listening. */
   onPlay?: (mode?: DiaryPlayMode) => void;
   /** Moodboard card sits on the atmospheric gradient; list variant
    *  sits on the flat `.diary-list` surface with tighter spacing. */
@@ -33,13 +34,15 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
   const hasUserText = entry.userText.trim() !== '';
   const showStarter = !hasUserText && Boolean(entry.claudeStarterText);
 
-  // Three-mode play affordance applies to entries whose musical
-  // content is a chord, a sequence of chords, or a scale stack —
-  // anywhere that "all-at-once vs ascending arpeggio vs descending
-  // arpeggio" maps to a meaningful pedagogical distinction. Intervals
-  // already carry their direction in the skillId (asc / desc /
-  // harmonic), so they keep the single-button form.
-  const showThreeButtons = isThreeModeSkill(entry.skillId);
+  // The blocked/broken pair applies to entries whose musical content
+  // is a chord, a sequence of chords, or a scale stack — anywhere that
+  // "all at once" and "one note at a time" are a real distinction.
+  // Intervals already carry their direction in the skillId (asc / desc
+  // / harmonic), so they keep the single-button form.
+  //
+  // IT WAS THREE BUTTONS — ascending, blocked, descending — until
+  // Silas's ruling of 10 Sep 2026 left the app one broken mode.
+  const showAttackButtons = isAttackChoiceSkill(entry.skillId);
 
   return (
     <article className={`diary-card ${variant === 'moodboard' ? 'p-5' : 'p-4'}`}>
@@ -74,7 +77,7 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
           </p>
         </div>
         {onPlay && (
-          showThreeButtons
+          showAttackButtons
             ? <PlayButtonGroup onPlay={onPlay} />
             : <PlayButtonSingle onPlay={() => onPlay()} />
         )}
@@ -159,22 +162,20 @@ function PlayButtonSingle({ onPlay }: { onPlay: () => void }) {
   );
 }
 
-/** Three buttons for chord, progression, and mode entries: ascending,
- *  blocked, descending. Order matches the keyboard's left-to-right
- *  pitch axis (low → high) and Western reading direction — ascending
- *  on the left because lower notes sit physically on the left of a
- *  piano. Sizing is responsive: 36px / gap-0.5 on phones (mobile
- *  cards are ~232px wide internally so 44px buttons leave almost no
- *  room for the title), 44px / gap-1 on tablet+ where space is
- *  ample. The mobile size is below Apple HIG's 44px minimum but
+/** Two buttons for chord, progression, and mode entries: blocked and
+ *  broken. Blocked leads because it is the default and the plainer
+ *  sound; broken carries an upward arrow because the app's one broken
+ *  mode rolls upward. Sizing is responsive: 36px / gap-0.5 on phones
+ *  (mobile cards are ~232px wide internally so 44px buttons leave
+ *  almost no room for the title), 44px / gap-1 on tablet+ where space
+ *  is ample. The mobile size is below Apple HIG's 44px minimum but
  *  still finger-friendly; we accept the trade for keeping titles
  *  legible on phone-width cards. */
 function PlayButtonGroup({ onPlay }: { onPlay: (mode: DiaryPlayMode) => void }) {
   return (
     <div className="shrink-0 flex items-center gap-0.5 sm:gap-1">
-      <ModeButton onClick={() => onPlay('asc')} label="Play Ascending" glyph="↑" />
       <ModeButton onClick={() => onPlay('blocked')} label="Play Blocked" glyph="▤" />
-      <ModeButton onClick={() => onPlay('desc')} label="Play Descending" glyph="↓" />
+      <ModeButton onClick={() => onPlay('broken')} label="Play Broken" glyph="↑" />
     </div>
   );
 }
@@ -200,7 +201,7 @@ function ModeButton({ onClick, label, glyph }: { onClick: () => void; label: str
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-function isThreeModeSkill(skillId: string): boolean {
+function isAttackChoiceSkill(skillId: string): boolean {
   const parsed = parseSkillId(skillId);
   if (!parsed) return false;
   if (parsed.moduleId === 'chord-recognition') return true;
