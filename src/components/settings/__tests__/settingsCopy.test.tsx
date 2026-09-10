@@ -21,9 +21,17 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import SettingsPanel from '../../SettingsPanel';
 import { SETTINGS_SECTIONS, titleCaseModule } from '../settingsSections';
+import RepertoireKeyDiagnostics from '../../RepertoireKeyDiagnostics';
 
 vi.mock('../../../lib/auth/useAuth', () => ({
   useAuth: () => ({ user: { email: 'x@y.z' }, signOut: async () => {} }),
+}));
+// The Song Keys panel reads the songs through this; the one-voice test
+// below drives it to each of its three states. Everything else real.
+const collect = vi.fn();
+vi.mock('../../../modules/repertoire/keyDiagnostics', async orig => ({
+  ...(await orig<typeof import('../../../modules/repertoire/keyDiagnostics')>()),
+  collectSongKeyDiagnostics: (...args: unknown[]) => collect(...args),
 }));
 vi.mock('../../../lib/sync/useSyncStatus', () => ({
   useSyncStatus: () => ({ offline: false, pending: 0, refresh: async () => {} }),
@@ -246,6 +254,53 @@ describe('one voice', () => {
   it('opens every heading with a capital, of either kind', async () => {
     const offenders = (await everyHeading()).filter(h => /^[a-z]/.test(h));
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * THE SONG KEYS PANEL'S OWN WORDS, which only appear once it is run:
+   * the table headers after a check, "Checking…" during one, "Check
+   * failed:" when one throws. So the panel is driven to each state
+   * rather than read off the closed page. Swept 10 Sep 2026.
+   */
+  it('writes the Song Keys panel’s headers in Title Case and its status lines with a capital', async () => {
+    const MINOR = new Set(['a', 'an', 'the', 'and', 'or', 'of', 'to', 'in', 'on', 'at', 'by', 'for']);
+    // A PARENTHESIS IS A GLOSS, not part of the title — "Matrix Rows
+    // (original first)" is the ruled header — so it is read without one.
+    const titleCase = (t: string) => t.replace(/\s*\(.*\)/, '').split(/\s+/).every((w, i) =>
+      !/^[a-z]/.test(w) || (i > 0 && MINOR.has(w)));
+    const panel = async () => {
+      host = document.createElement('div');
+      document.body.appendChild(host);
+      root = createRoot(host);
+      await act(async () => { root!.render(<RepertoireKeyDiagnostics />); });
+      const run = [...host.querySelectorAll('button')].find(b => /Song Keys/.test(b.textContent ?? ''))!;
+      await act(async () => { run.click(); });
+      await settle();
+      return host;
+    };
+    const unmount = async () => { await act(async () => root!.unmount()); host!.remove(); root = null; host = null; };
+
+    // Checked: the table and its headers.
+    collect.mockResolvedValueOnce([]);
+    let el = await panel();
+    const headers = [...el.querySelectorAll('th')].map(h => (h.textContent ?? '').trim());
+    expect(headers).toEqual(['Song', 'Song Key', 'Matrix Rows (original first)']);
+    for (const h of headers) expect(titleCase(h), h).toBe(true);
+    await unmount();
+
+    // Checking: the button's own status.
+    collect.mockReturnValueOnce(new Promise(() => {}));
+    el = await panel();
+    expect(el.textContent).toContain('Checking…');
+    expect(el.textContent).not.toMatch(/checking…/);
+    await unmount();
+
+    // Failed.
+    collect.mockRejectedValueOnce(new Error('boom'));
+    el = await panel();
+    expect(el.textContent).toContain('Check failed: boom');
+    expect(el.textContent).not.toMatch(/check failed/);
+    await unmount();
   });
 
   it('names Production Vocabulary in Title Case, like every other module', async () => {

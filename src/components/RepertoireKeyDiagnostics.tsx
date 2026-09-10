@@ -134,10 +134,10 @@ export default function RepertoireKeyDiagnostics() {
         disabled={busy}
         className="px-4 min-h-[40px] rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm hover:border-fluent hover:text-fluent disabled:opacity-50 mb-3"
       >
-        {busy ? 'checking…' : 'Check Song Keys'}
+        {busy ? 'Checking…' : 'Check Song Keys'}
       </button>
 
-      {error && <p className="text-sm text-needswork mb-3">check failed: {error}</p>}
+      {error && <p className="text-sm text-needswork mb-3">Check failed: {error}</p>}
       {note && (
         <p className={`text-xs mb-3 ${note.ok ? 'text-fluent' : 'text-needswork'}`}>
           {note.text}
@@ -165,9 +165,9 @@ export default function RepertoireKeyDiagnostics() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-neutral-200 dark:border-neutral-700">
-                  <th className="px-2 py-1 text-left text-[10px] uppercase tracking-wide text-neutral-500">song</th>
-                  <th className="px-2 py-1 text-left text-[10px] uppercase tracking-wide text-neutral-500">song.key</th>
-                  <th className="px-2 py-1 text-left text-[10px] uppercase tracking-wide text-neutral-500">matrix rows (orig first)</th>
+                  <th className="px-2 py-1 text-left text-[10px] uppercase tracking-wide text-neutral-500">Song</th>
+                  <th className="px-2 py-1 text-left text-[10px] uppercase tracking-wide text-neutral-500">Song Key</th>
+                  <th className="px-2 py-1 text-left text-[10px] uppercase tracking-wide text-neutral-500">Matrix Rows (original first)</th>
                 </tr>
               </thead>
               <tbody>
