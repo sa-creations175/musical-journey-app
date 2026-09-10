@@ -38,10 +38,12 @@ import {
   KEYS,
   VOICE_LEADING_PATTERNS,
   VOICE_LEADING_PATTERN_BY_ID,
+  patternRowLabel,
   type VLChord,
   type VoiceLeadingPattern,
 } from '../../shapes-and-patterns/catalog';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
+import type { RowOptions } from '../../../lib/progressionRow';
 
 /** How thick the card plays, in the ladder's own words. */
 export type ListRung = Extract<Thickness, 'guide' | 'seventh' | 'full'>;
@@ -138,6 +140,23 @@ const ROTATIONS: ReadonlyArray<{ id: string; name: string; turns: number }> = [
   { id: '6-4-1-5', name: '6 4 1 5', turns: 2 },
   { id: '4-1-5-6', name: '4 1 5 6', turns: 3 },
 ];
+
+/**
+ * An entry's name, spelled the way the reader has asked for.
+ *
+ * `name` on the entry stays the baked default — it is what a test pins
+ * and what an id-shaped comparison uses — and this is what goes on a
+ * chip or above a card. Pass the card's rung where there is one: every
+ * rung this list offers is a seventh-chord reading, so a dealt card
+ * spells a half-diminished with its seventh name while the filter chip
+ * above it, which has no rung, uses the triad name.
+ */
+export function nameOf(
+  entry: Pick<SharedProgression, 'patternId' | 'name'>,
+  opts: RowOptions = {},
+): string {
+  return patternRowLabel(entry.patternId, entry.name, opts);
+}
 
 function entryOf(p: VoiceLeadingPattern): SharedProgression {
   const rungs = rungsOf(p);

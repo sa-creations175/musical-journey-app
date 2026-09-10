@@ -59,7 +59,22 @@ import {
   SHAPES_COVERAGE_PICKER_DEFS,
   shapesCoverageDenominators,
   type ShapesCoverageGroupId,
+  shapesCoverageGroupLabel,
 } from './shapesCoverageGroups';
+import { useProgressionSpelling } from '../../lib/progressionSpelling';
+
+/**
+ * A coverage group's label, spelled the way the reader has asked for.
+ *
+ * A goal scoped to a progression row and the row itself must not go by
+ * two names, so the picker's words follow the same setting the grid
+ * does. A no-op for every group whose name holds no chord row.
+ */
+function useGroupLabel(): (g: { id: ShapesCoverageGroupId; label: string }) => string {
+  const [rowSpelling] = useProgressionSpelling();
+  return g => shapesCoverageGroupLabel(g.id, g.label, { settings: rowSpelling });
+}
+
 import {
   earTrainingCounts,
   harmonicFluencyCounts,
@@ -2576,6 +2591,7 @@ function ShapesPatternsCoverageCard({
   target: ShapesPatternsTarget;
   onChange: (next: ShapesPatternsTarget) => void;
 }) {
+  const groupLabel = useGroupLabel();
   const shapesAccent =
     moduleMetaById('shapes-and-patterns')?.accentHex ?? '#7a5aa8';
   // The movements are part of the pool the moment they exist
@@ -2630,7 +2646,7 @@ function ShapesPatternsCoverageCard({
             {SHAPES_COVERAGE_GROUPS.map(group => (
               <CategoryPillButton
                 key={group.id}
-                label={`${group.label} (${liveDenominators.get(group.id) ?? group.denominator} items)`}
+                label={`${groupLabel(group)} (${liveDenominators.get(group.id) ?? group.denominator} items)`}
                 accentHex={shapesAccent}
                 active={target.coverageGroupIds.includes(group.id)}
                 onClick={() => toggleGroup(group.id)}

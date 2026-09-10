@@ -23,7 +23,7 @@ import {
   overrideIsEmpty,
   type CustomPattern,
 } from '../voiceLeadingPatternList';
-import { VOICE_LEADING_PATTERNS } from '../catalog';
+import { VOICE_LEADING_PATTERNS, patternRowLabel } from '../catalog';
 
 const MINOR_251 = VOICE_LEADING_PATTERNS.find(p => p.id === 'minor-251')!;
 
@@ -130,6 +130,62 @@ describe("the stray row already in the database is inert", () => {
       expect(mergePatternList([{ id, label: was, createdAt: 1 }])
         .find(p => p.id === id)!.label, id).toBe(builtin.label);
     }
+  });
+
+  it('reads a stray override as empty under every spelling', () => {
+    // =================================================================
+    // THE SHIPPED NAME IS THIRTY-SIX STRINGS SINCE 10 SEP 2026.
+    //
+    // A reader looking at "1-5-6m-4" who taps the title, changes
+    // nothing and blurs writes an override holding exactly that. It is
+    // inert against a `label` baked as "1-5-6m-4" only because the
+    // default happens to match — under dots it would not, and the stray
+    // click would become a rename nobody made, pinned on screen with no
+    // control to undo it.
+    //
+    // So every combination of the four controls, on every spelled row,
+    // and both rungs. 36 x 2 x 8 assertions, which is the only way to
+    // know the answer is not "the default one works".
+    // =================================================================
+    for (const separator of ['dot', 'hyphen', 'space'] as const) {
+      for (const qualities of ['all', 'spelled', 'off'] as const) {
+        for (const halfDimTriad of ['°', 'dim'] as const) {
+          for (const halfDimSeventh of ['ø', 'm7♭5'] as const) {
+            const settings = { separator, qualities, halfDimTriad, halfDimSeventh };
+            for (const p of VOICE_LEADING_PATTERNS) {
+              for (const rung of [undefined, 'seventh'] as const) {
+                const shown = patternRowLabel(p.id, p.label, {
+                  settings, ...(rung ? { rung } : {}),
+                });
+                const stray = { id: p.id, label: shown, createdAt: 1 };
+                expect(
+                  overrideIsEmpty(stray, p.label),
+                  `${p.id} ${JSON.stringify(settings)} ${rung}`,
+                ).toBe(true);
+                // And merging it leaves the row reading as it would
+                // with nothing stored at all.
+                expect(mergePatternList([stray], { settings })
+                  .find(x => x.id === p.id)!.label, p.id)
+                  .toBe(patternRowLabel(p.id, p.label, { settings }));
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('still lets a real rename through, whatever the spelling', () => {
+    // Guard the guard: a name the reader actually typed is not one of
+    // the thirty-six, so it survives.
+    const settings = {
+      separator: 'space' as const, qualities: 'off' as const,
+      halfDimTriad: 'dim' as const, halfDimSeventh: 'm7♭5' as const,
+    };
+    const mine = { id: 'minor-251', label: 'my minor turnaround', createdAt: 1 };
+    expect(overrideIsEmpty(mine, MINOR_251.label)).toBe(false);
+    expect(mergePatternList([mine], { settings })
+      .find(p => p.id === 'minor-251')!.label).toBe('my minor turnaround');
   });
 
   it('needs no write to become harmless — merging alone neutralises it', () => {

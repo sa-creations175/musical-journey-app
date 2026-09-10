@@ -43,6 +43,7 @@ import {
   INVERSIONS, type RootPick, pickFromPitchClass, rootLabel, rootPitchClass,
 } from '../../../lib/builtAnswers/rootPick';
 import { progressionRow } from '../../../lib/progressionRow';
+import { useProgressionSpelling } from '../../../lib/progressionSpelling';
 import {
   NINTH_OF, TRIAD_OF, VOICINGS, qualityTilesFor,
   type QualityId, type Thickness, type Voicing,
@@ -108,6 +109,7 @@ export default function ProgressionAnswer({
    * reader hears is the chords they were just marked on.
    */
   const [thickness, setThickness] = useState<Thickness>('seventh');
+  const [rowSpelling] = useProgressionSpelling();
   /**
    * How many doors along the progression is entered.
    *
@@ -465,7 +467,12 @@ export default function ProgressionAnswer({
                   }}
                   className={`${BTN_PLAIN} font-mono`}
                 >
-                  {progressionRow(shownChords)}
+                  {/* THE ROW'S OWN THICKNESS. This panel has a ladder
+                      on it, so a half-diminished reads with the name
+                      that rung gives it. */}
+                  {progressionRow(shownChords, {
+                    settings: rowSpelling, rung: thickness,
+                  })}
                 </button>
               </div>
 

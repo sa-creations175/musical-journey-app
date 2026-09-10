@@ -4,9 +4,11 @@ import {
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS_CIRCLE_OF_FOURTHS,
   parseVoiceLeadingItemRef,
+  ROW_NAME_BY_ID,
   VOICE_LEADING_PATTERN_BY_ID,
   type QualityKind,
 } from '../shapes-and-patterns/catalog';
+import { progressionRow, type RowOptions } from '../../lib/progressionRow';
 import {
   parseScaleItemRef,
   type ScaleKind,
@@ -248,6 +250,43 @@ const EXTENSION_FAMILY_FOR_GROUP_ID: Readonly<
  *  `vlPatternGroupDef` rather than reading this map — keeps the
  *  array readable while the map stays the single source of truth
  *  for the matcher lookup. */
+/**
+ * A coverage group's label, spelled the way the reader has asked for.
+ *
+ * =====================================================================
+ * A GOAL SCOPED TO A ROW AND THE ROW ITSELF MUST NOT GO BY TWO NAMES.
+ *
+ * The `label` on each def is baked at module load — these constants are
+ * consumed eagerly by other module-level constants in this file — so it
+ * holds the DEFAULT spelling and this derives what the picker shows.
+ * Only the voice-leading pattern groups have a chord row in their name;
+ * everything else returns its label untouched.
+ *
+ * LOWER CASE, because that is this list's own convention — "voice-
+ * leading", "diatonic cycle (…)" — and only the prefix needs it: a
+ * chord row is digits, glyphs and lower-case suffixes already.
+ *
+ * NO RUNG. A goal names a row rather than a rung of it, the same
+ * reading the grid's row label takes.
+ * =====================================================================
+ */
+export function shapesCoverageGroupLabel(
+  id: ShapesCoverageGroupId,
+  bakedLabel: string,
+  opts: RowOptions = {},
+): string {
+  const patternId = VL_PATTERN_ID_FOR_GROUP_ID[id];
+  if (patternId === undefined) return bakedLabel;
+  const name = ROW_NAME_BY_ID.get(patternId);
+  if (name === undefined) return bakedLabel;
+  const row = progressionRow(name.chords, {
+    ...opts,
+    named: name.prefix !== '' || name.suffix !== '',
+    ...(name.keepQualityAt ? { keepQualityAt: name.keepQualityAt } : {}),
+  });
+  return `${name.prefix.toLowerCase()}${row}${name.suffix.toLowerCase()}`;
+}
+
 const VL_PATTERN_ID_FOR_GROUP_ID: Readonly<
   Partial<Record<ShapesCoverageGroupId, string>>
 > = {

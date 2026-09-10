@@ -16,6 +16,9 @@ import { updateDailySummary } from '../../lib/dailySummaries';
 import ScaleDegreeCompass from './ScaleDegreeCompass';
 import LinearScaleStrip from './LinearScaleStrip';
 import { degreeNote, parseKeyRoot } from './catalog';
+import { respellProgressionCard } from './catalogExpansions';
+import { respellRow } from '../../lib/progressionRow';
+import { useProgressionSpelling } from '../../lib/progressionSpelling';
 import type { Flashcard, FlashcardCategory } from './catalog';
 import {
   getCardSpacingMany, setReviewFlag, toggleStudyLater,
@@ -78,6 +81,10 @@ export default function HarmonicFluencySession({
   onDisplayModeChange,
   focusProtected = false,
 }: Props) {
+  // ONE SPELLING EVERYWHERE — the chip that filters to this card, the
+  // grid row that drills it and the question itself. The deck is baked
+  // at module load, so the setting reaches it here.
+  const [rowSpelling] = useProgressionSpelling();
   // Flag state — live query over the spacing rows for the cards in
   // queue. The shell consumes a Set<string> of flagged ids for ★
   // (study-later) and a separate set + note map for 🚩 (review meta).
@@ -191,13 +198,34 @@ export default function HarmonicFluencySession({
          gives them — see `CardExplanation`, which decides which
          treatment a card gets from its `axis` rather than from its
          sentence. */
-      renderExplanation={(text, card) => <CardExplanation text={text} card={card} />}
+      renderExplanation={(text, card) => (
+        <CardExplanation
+          text={respellProgressionCard(card, rowSpelling)?.explanation ?? text}
+          card={card}
+        />
+      )}
+      /* THE QUESTION, RE-SPELLED. A progression card's question holds
+         the row — "The 1-5-6m-4 in the key of F major is _____" — and
+         the deck was built before the reader's spelling setting was
+         read. Null on every other card, which falls through to the
+         baked question. */
+      renderQuestion={card => respellProgressionCard(card, rowSpelling)?.question ?? null}
       /* WHAT AN OPTION READS AS, where this deck knows more than the
          shell's spelling rule does — a note answer carries the key a
          player would actually press beside it, and a degree answer
          carries both of its names. Null everywhere else, which falls
          through to `glossTheoreticalSpellings` unchanged. */
-      renderOptionLabel={(card, option) => degreeNoteOptionLabel(card.id, option)}
+      renderOptionLabel={(card, option) => (
+        /* THE OPTIONS ARE THE ANSWER KEY and stay canonical — the
+           session grades by comparing the tapped string to
+           `correctAnswer` and writes it to the attempt row — so they
+           are re-joined on the way to the eye rather than rebuilt.
+           `respellRow` splits on the canonical middle dot, which no
+           chord name contains. */
+        card.category === 'progressions'
+          ? respellRow(option, rowSpelling)
+          : degreeNoteOptionLabel(card.id, option)
+      )}
       renderFooter={(card, { answered }) => (
         <CardReference card={card} answered={answered} />
       )}

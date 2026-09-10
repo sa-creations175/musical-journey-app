@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import Modal from './Modal';
 import { Link } from 'react-router-dom';
@@ -21,6 +21,12 @@ import { useAuth } from '../lib/auth/useAuth';
 import { useSyncStatus } from '../lib/sync/useSyncStatus';
 import { useDevMode } from '../lib/devMode';
 import { SPELLING_LABEL, useSpelling } from '../lib/spellingPref';
+import {
+  QUALITY_LABEL, SEPARATOR_LABEL, useProgressionSpelling,
+  type ChordSeparator, type HalfDimSeventh, type HalfDimTriad,
+  type ProgressionSpelling, type QualityDisplay,
+} from '../lib/progressionSpelling';
+import { progressionRow } from '../lib/progressionRow';
 import type { Spelling } from '../lib/spelling';
 import SyncDiagnosticsSection from './SyncDiagnosticsSection';
 import RepertoireKeyDiagnostics from './RepertoireKeyDiagnostics';
@@ -83,6 +89,151 @@ function SpellingSection() {
         data changes.
       </p>
     </section>
+  );
+}
+
+/**
+ * Progression spelling — how the app writes a row of chords.
+ *
+ * =====================================================================
+ * THREE ROWS, BECAUSE THERE ARE THREE SEPARATE QUESTIONS.
+ *
+ * What goes between the chords, which chords show their quality, and
+ * what a half-diminished is called. Silas walked all three on the
+ * "Progression Spelling" prototype and ruled each a choice rather than
+ * a decision — the middle dot reads cleanly on a screen and the hyphen
+ * is what a chart says, and neither is wrong.
+ *
+ * THE HALF-DIMINISHED ROW HAS TWO HALVES because the chord has two
+ * right names: a diminished triad on the Triads rung and a m7♭5 on
+ * Seventh Chords. The formatter picks between them from whatever rung
+ * the surface is showing, so both are set here and neither is a mode.
+ *
+ * Says "display" and means it, the same promise the note-spelling
+ * section above makes: no id, no stored answer and no card moves.
+ * =====================================================================
+ */
+function ProgressionSpellingSection() {
+  const [spelling, setSpelling] = useProgressionSpelling();
+  const set = (patch: Partial<ProgressionSpelling>) => {
+    void setSpelling({ ...spelling, ...patch });
+  };
+  const preview = progressionRow(
+    [
+      { degree: '2', quality: 'm7b5' },
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'm7' },
+    ],
+    { settings: spelling, named: false },
+  );
+  return (
+    <section>
+      <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
+        progression spelling
+      </h4>
+      <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
+        how a row of chords is written across grids, cards and chips.
+      </p>
+
+      <SegRow label="between chords">
+        {(Object.keys(SEPARATOR_LABEL) as ChordSeparator[]).map(id => (
+          <Seg
+            key={id}
+            on={spelling.separator === id}
+            testId={`spelling-sep-${id}`}
+            onClick={() => set({ separator: id })}
+          >
+            {SEPARATOR_LABEL[id]}
+          </Seg>
+        ))}
+      </SegRow>
+
+      <SegRow label="qualities">
+        {(Object.keys(QUALITY_LABEL) as QualityDisplay[]).map(id => (
+          <Seg
+            key={id}
+            on={spelling.qualities === id}
+            testId={`spelling-qual-${id}`}
+            onClick={() => set({ qualities: id })}
+          >
+            {QUALITY_LABEL[id]}
+          </Seg>
+        ))}
+      </SegRow>
+
+      <SegRow label="half-diminished, on triads">
+        {(['°', 'dim'] as HalfDimTriad[]).map(id => (
+          <Seg
+            key={id}
+            on={spelling.halfDimTriad === id}
+            testId={`spelling-hd-triad-${id === '°' ? 'deg' : 'dim'}`}
+            onClick={() => set({ halfDimTriad: id })}
+          >
+            {`2${id}`}
+          </Seg>
+        ))}
+      </SegRow>
+
+      <SegRow label="half-diminished, on sevenths">
+        {(['ø', 'm7♭5'] as HalfDimSeventh[]).map(id => (
+          <Seg
+            key={id}
+            on={spelling.halfDimSeventh === id}
+            testId={`spelling-hd-seventh-${id === 'ø' ? 'o' : 'm7b5'}`}
+            onClick={() => set({ halfDimSeventh: id })}
+          >
+            {`2${id}`}
+          </Seg>
+        ))}
+      </SegRow>
+
+      {/* THE MINOR 2 5 1, because it is the row every one of the four
+          controls changes — it has a half-diminished in it, a minor
+          landing and a name of its own. */}
+      <p className="text-sm text-neutral-600 dark:text-neutral-300 mt-3">
+        a minor 2 5 1 reads{' '}
+        <span className="font-mono font-medium" data-testid="spelling-preview">
+          {preview}
+        </span>
+      </p>
+      <p className="text-xs text-neutral-500 mt-2">
+        display only — the same progressions either way, and no practice
+        data changes.
+      </p>
+    </section>
+  );
+}
+
+/** One labelled row of segmented choices. */
+function SegRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="mb-3">
+      <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 mb-1.5">
+        {label}
+      </div>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function Seg({
+  on, onClick, children, testId,
+}: {
+  on: boolean; onClick: () => void; children: ReactNode; testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      data-testid={testId}
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+        on
+          ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+          : 'border-neutral-200 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800'}`}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -488,6 +639,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
               getting practice data safely off and onto this device —
               and the merge procedure needs both together. */}
           <SpellingSection />
+          <ProgressionSpellingSection />
 
           <SyncDiagnosticsSection />
 

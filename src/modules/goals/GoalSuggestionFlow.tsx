@@ -43,7 +43,22 @@ import {
   SHAPES_COVERAGE_PICKER_DEFS,
   shapesCoverageDenominators,
   type ShapesCoverageGroupId,
+  shapesCoverageGroupLabel,
 } from './shapesCoverageGroups';
+import { useProgressionSpelling } from '../../lib/progressionSpelling';
+
+/**
+ * A coverage group's label, spelled the way the reader has asked for.
+ *
+ * A goal scoped to a progression row and the row itself must not go by
+ * two names, so the picker's words follow the same setting the grid
+ * does. A no-op for every group whose name holds no chord row.
+ */
+function useGroupLabel(): (g: { id: ShapesCoverageGroupId; label: string }) => string {
+  const [rowSpelling] = useProgressionSpelling();
+  return g => shapesCoverageGroupLabel(g.id, g.label, { settings: rowSpelling });
+}
+
 import { suggestHfMonthly } from './suggestions/hfMonthly';
 import { suggestEtMonthly } from './suggestions/etMonthly';
 import { suggestShapesMonthly } from './suggestions/shapesMonthly';
@@ -1698,6 +1713,7 @@ function ShapesFocusSection({
   onChange: (next: ShapesPatternsTarget) => void;
   coverageWeeklyMinutes: number | null;
 }) {
+  const groupLabel = useGroupLabel();
   const setScope = (s: 'overall' | 'specific') => {
     if (s === target.coverageScope) return;
     onChange({
@@ -1937,7 +1953,7 @@ function ShapesFocusSection({
             {SHAPES_LAYER1_OPTIONS.map(group => (
               <CategoryPillButton
                 key={group.id}
-                label={`${group.label} (${den(group)})`}
+                label={`${groupLabel(group)} (${den(group)})`}
                 accentHex={shapesAccent}
                 active={target.coverageGroupIds.includes(group.id)}
                 onClick={() => toggleGroup(group.id)}
@@ -1982,7 +1998,7 @@ function ShapesFocusSection({
                 {SHAPES_TRIAD_QUALITY_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${den(group)})`}
+                    label={`${groupLabel(group)} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2001,7 +2017,7 @@ function ShapesFocusSection({
                 {SHAPES_SEVENTH_QUALITY_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${den(group)})`}
+                    label={`${groupLabel(group)} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2020,7 +2036,7 @@ function ShapesFocusSection({
                 {SHAPES_EXTENSION_FAMILY_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${den(group)})`}
+                    label={`${groupLabel(group)} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2039,7 +2055,7 @@ function ShapesFocusSection({
                 {SHAPES_SCALE_KIND_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${den(group)})`}
+                    label={`${groupLabel(group)} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2058,7 +2074,7 @@ function ShapesFocusSection({
                 {SHAPES_VL_PATTERN_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${den(group)})`}
+                    label={`${groupLabel(group)} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2077,7 +2093,7 @@ function ShapesFocusSection({
                 {SHAPES_MAJOR_PENT_SP_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${den(group)})`}
+                    label={`${groupLabel(group)} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}
@@ -2096,7 +2112,7 @@ function ShapesFocusSection({
                 {SHAPES_MINOR_PENT_SP_OPTIONS.map(group => (
                   <CategoryPillButton
                     key={group.id}
-                    label={`${group.label} (${den(group)})`}
+                    label={`${groupLabel(group)} (${den(group)})`}
                     accentHex={shapesAccent}
                     active={target.coverageGroupIds.includes(group.id)}
                     onClick={() => toggleGroup(group.id)}

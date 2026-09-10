@@ -363,9 +363,10 @@ describe('coverage reaches twelve', () => {
     // progression is a progression — which also took it from twelve
     // keys to thirteen.
     // "in the key of" since 9 Sep 2026 — the standing rule. And the
-    // chords show their qualities since 10 Sep: "2m · 5 · 1".
+    // chords show their qualities since 10 Sep: "2m-5-1", at the
+    // spelling setting's defaults, which is what the deck is baked in.
     expect(keysIn('progressions',
-      new RegExp(`The 2m · 5 · 1 in the key of (${N}) major`), 'q').size).toBe(13);
+      new RegExp(`The 2m-5-1 in the key of (${N}) major`), 'q').size).toBe(13);
   });
 
   it('mode-of-major in all thirteen', () => {
@@ -439,7 +440,7 @@ describe('the backdoor is 4 minor → ♭7(7) → 1', () => {
   it('asks for the two borrowed chords and the landing', () => {
     const c = FLASHCARDS.find(f => f.id === 'pr-prog-backdoor-4m-C')!;
     expect(c.question)
-      .toBe('The 4m · ♭7 · 1 (backdoor) in the key of C major is _____');
+      .toBe('The 4m-♭7-1 (backdoor) in the key of C major is _____');
     expect(c.correctAnswer).toBe('Fm · B♭7 · C');
   });
 

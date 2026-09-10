@@ -40,6 +40,7 @@ import type { QualityId } from '../../../lib/builtAnswers/chordShapes';
 import { familyMatches } from '../../../lib/builtAnswers/chordShapes';
 import type { BuiltTarget } from './cardTargets';
 import { joinRow } from '../../../lib/progressionRow';
+import { CANONICAL_SPELLING } from '../../../lib/progressionSpelling';
 
 /** One chord as the reader built it. */
 export interface BuiltChord {
@@ -89,13 +90,24 @@ export function describeChords(
   chords: ReadonlyArray<BuiltChord>,
   keyName: string,
 ): string {
-  // THE SAME SEPARATOR THE CARD'S OWN ANSWER USES. A build that got
-  // every chord right and joined them differently would not match the
-  // answer it is compared against.
+  // =====================================================================
+  // CANONICAL, BECAUSE THIS STANDS IN FOR A CHOSEN OPTION.
+  //
+  // `answer(grade.correct ? card.correctAnswer : grade.built)` — a
+  // wrong build is handed to the session as the string the reader
+  // "chose", is compared against the answer key and is written to the
+  // attempt row as `chosenAnswerText`. So it takes the same spelling
+  // the key is baked in, and the reader's own spelling is applied on
+  // the way to the eye by `renderOptionLabel`.
+  //
+  // A build that got every chord right and joined them differently
+  // would not match the answer it is compared against.
+  // =====================================================================
   return joinRow(chords
     .map(c => (c.rootPc === null
       ? '—'
-      : `${spellInKey(c.rootPc, keyName)}${c.quality ?? ''}`)));
+      : `${spellInKey(c.rootPc, keyName)}${c.quality ?? ''}`)),
+  CANONICAL_SPELLING);
 }
 
 export function gradeProgression(

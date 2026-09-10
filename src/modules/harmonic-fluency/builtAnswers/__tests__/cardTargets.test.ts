@@ -25,6 +25,7 @@ import { noteList } from '../../pentatonics';
 import { spellNote } from '../../../../lib/spelling';
 import { withAccidentalGlyphs } from '../../../reading/pitch';
 import { joinRow } from '../../../../lib/progressionRow';
+import { CANONICAL_SPELLING } from '../../../../lib/progressionSpelling';
 
 const withTarget = FLASHCARDS
   .map(card => ({ card, target: builtTargetFor(card) }))
@@ -87,9 +88,12 @@ describe('a target says the same thing as the card it grades', () => {
     expect(cards).toHaveLength(78);
     for (const { card, target } of cards) {
       if (target.kind !== 'progression') continue;
-      // THE SAME SEPARATOR THE CARD'S ANSWER USES — a middle dot with
-      // a space either side, since Silas's ruling of 10 Sep 2026.
-      expect(joinRow(target.chords.map(c => c.name)), card.id)
+      // THE SAME SEPARATOR THE CARD'S ANSWER KEY IS BAKED IN — a
+      // middle dot with a space either side. Progression spelling
+      // became a setting later the same day and the KEY does not
+      // follow it: it is graded by equality and written to the attempt
+      // row, so it stays canonical and is re-joined for the eye.
+      expect(joinRow(target.chords.map(c => c.name), CANONICAL_SPELLING), card.id)
         .toBe(card.correctAnswer);
     }
   });
@@ -226,7 +230,7 @@ describe('the other version rides on the progression, not on the card', () => {
       if (target.variation === undefined) continue;
       expect(target.chords[1].quality, card.id).toBe('m');
       expect(card.correctAnswer, card.id)
-        .toBe(joinRow(target.chords.map(c => c.name)));
+        .toBe(joinRow(target.chords.map(c => c.name), CANONICAL_SPELLING));
     }
   });
 });

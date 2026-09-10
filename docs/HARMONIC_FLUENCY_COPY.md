@@ -69,17 +69,29 @@ Ruling 26. The stored value is unchanged and still what a link carries.
 | V/IV | 5 of 4 |
 | V/V | 5 of 5 |
 | V/vi | 5 of 6 |
-| 1-5-6-4 | 1 5 6 4 |
-| 1-6-4-5 | 1 6 4 5 |
-| 1-6-2-5 | 1 6 2 5 |
-| 1-4-5 | 1 4 5 |
-| backdoor | 4m ♭7 1 (backdoor) |
+| 1-5-6-4 | 1-5-6m-4 |
+| 1-6-4-5 | 1-6m-4-5 |
+| 1-6-2-5 | 1-6m-2m-5 |
+| 1-4-5 | 1-4-5 |
+| backdoor | 4m-♭7-1 (backdoor) |
+
+**THE FIVE NUMBERED CHIPS FOLLOW THE PROGRESSION-SPELLING SETTING.**
+Silas's ruling of 10 Sep 2026 — one spelling everywhere. `1-5-6-4`, `1-6-4-5`,
+`1-6-2-5`, `1-4-5` and `backdoor` are no longer words typed into
+`facetDisplay`; they are built from the shape's own chords by the one
+formatter, so the chip that filters to a card and the card's own question
+cannot spell the progression two ways. **The table above shows the DEFAULTS**
+— hyphens, every quality — and a reader who has set dots, or turned qualities
+off, sees the chip change with everything else.
+
+`ii-V-I` and the five secondary dominants stay words: `ii-V-I` is Functional
+Harmony's chip as well as this deck's (ruling 26 made the two share it), and
+"5 of 2" is not a row.
 
 **One chip per generated progression, and the row shrinks when the deck does.**
 It was four, then twelve, then eight, and is eleven: `6-4-1-5`, *gospel walk-up*,
 *rhythm changes* and *neo-soul* left with their cards, because a chip for a
-progression the deck no longer generates is a filter that finds nothing. The
-numbered ones apply ruling 26's own rule — the dashes become spaces.
+progression the deck no longer generates is a filter that finds nothing.
 
 **The three that arrived, 9 Sep 2026, are Modal Improvisation's.** That family
 asks about the 5 of the 2, the 3 and the 4 as well as the 5 and the 6, and
@@ -90,8 +102,10 @@ and one chip gathers both families. The chip words are the prototype's own
 
 **Numbers lead, names follow.** A progression with a name reads as the numbers
 first and the name in brackets, on the chip and in the card's own question:
-*The 4m ♭7 1 (backdoor) in F major is _____*. The stored value is still
-`backdoor`, so every link that named it resolves.
+*The 4m-♭7-1 (backdoor) in F major is _____*. The stored value is still
+`backdoor`, so every link that named it resolves. The backdoor's 4 keeps its
+**m** even under "qualities only on spelled loops" — a major 4 is not a
+backdoor — and loses it only when qualities are turned off entirely.
 
 **The backdoor's numbers changed on 9 Sep 2026, and its cards with them.** It is
 4 minor → ♭7(7) → 1, verified with Silas — "4m and ♭7(7) are both part of the
@@ -164,9 +178,13 @@ Approved by Silas, 9 Sep 2026 (evening). Generated in every key with that key's
 own chords. This is the key of E♭ major:
 
 ```
-1 · 6m · 2m · 5 in the key of E♭ major is E♭ · Cm · Fm · B♭, the turnaround.
+1-6m-2m-5 in the key of E♭ major is E♭-Cm-Fm-B♭, the turnaround.
 It's sometimes used to walk back to the 1 and go round again.
 ```
+
+**The two rows in it follow the progression-spelling setting** — the degrees
+and the chord names both — so this is the sentence at the defaults rather than
+the only sentence. The WORDS are approved copy and do not move.
 
 **It replaced the generator's own placeholder**, which was flagged as new copy
 when it was written: the turnaround had no hand-written card to lift an

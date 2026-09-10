@@ -23,6 +23,8 @@ import { describe, expect, it } from 'vitest';
 // document is ever moved, where a path string would fail at runtime.
 import COPY from '../../../../docs/HARMONIC_FLUENCY_COPY.md?raw';
 import { CATEGORY_LABELS, FLASHCARDS } from '../catalog';
+import { respellRow } from '../../../lib/progressionRow';
+import { DEFAULT_PROGRESSION_SPELLING } from '../../../lib/progressionSpelling';
 import { SLASH_SHAPES } from '../catalogExpansions';
 import {
   FACET_ROW, MOVEMENT_LABELS, facetValueLabel,
@@ -153,11 +155,12 @@ describe('key names carry their mode', () => {
     // the deck's now, and this asserts one card per family rather than
     // trusting the document's own table.
     const asks = (id: string) => FLASHCARDS.find(c => c.id === id)?.question;
-    // EVERY CHORD SHOWS ITS QUALITY, and the row is separated by middle
-    // dots. Silas's ruling of 10 Sep 2026 — the 2 of a 2 5 1 is minor
-    // and the question now says so.
+    // EVERY CHORD SHOWS ITS QUALITY — the 2 of a 2 5 1 is minor and the
+    // question says so. The SEPARATOR is the spelling setting's default
+    // since later the same day; the baked deck holds the defaults and
+    // the reader's own is applied at render.
     expect(asks('pr-prog-2-5-1-Bb'))
-      .toBe('The 2m · 5 · 1 in the key of B♭ major is _____');
+      .toBe('The 2m-5-1 in the key of B♭ major is _____');
     expect(asks('mo-mode-C-2'))
       .toBe('The mode of the key of C major starting on D is _____');
     expect(asks('dgn-C-b6')).toBe('In the key of C major, what is the ♭6?');
@@ -248,7 +251,14 @@ describe('the 1 6 2 5 explanation', () => {
         .toContain("It's sometimes used to walk back to the 1 and go round again.");
       // The card's own four chords, which is what makes it that key's
       // sentence rather than a sentence about a key.
-      expect(c.explanation, c.id).toContain(c.correctAnswer.replace(/ - /g, ' → '));
+      //
+      // RE-SPELLED, because the two are baked in different separators
+      // on purpose: `correctAnswer` is the answer KEY and stays
+      // canonical, the explanation is prose and takes the spelling
+      // setting's default. Same chords, two spellings — and this is
+      // where that is checked rather than assumed.
+      expect(c.explanation, c.id)
+        .toContain(respellRow(c.correctAnswer, DEFAULT_PROGRESSION_SPELLING));
     }
   });
 

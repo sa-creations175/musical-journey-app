@@ -46,9 +46,10 @@ import type { Move } from '../../../lib/builtAnswers/voiceLeading';
 import SharedPlayer from '../../../components/SharedPlayer';
 import AidsFold from '../../../components/AidsFold';
 import { useSpelling } from '../../../lib/spellingPref';
+import { useProgressionSpelling } from '../../../lib/progressionSpelling';
 import { spellNote } from '../../../lib/spelling';
 import {
-  LIST_KEYS, LIST_RUNGS, RUNG_LABEL, SHARED_PROGRESSIONS,
+  LIST_KEYS, LIST_RUNGS, RUNG_LABEL, SHARED_PROGRESSIONS, nameOf,
   SHARED_PROGRESSION_BY_ID, fullProgressionItemId, positionLabel, positionsOf,
   type ListRung, type SharedProgression,
 } from './sharedList';
@@ -128,6 +129,7 @@ const pick = <T,>(list: ReadonlyArray<T>): T => list[Math.floor(Math.random() * 
 
 export default function FullProgressionCard({ attempts }: { attempts: AttemptRecord[] }) {
   const [spelling] = useSpelling();
+  const [rowSpelling] = useProgressionSpelling();
   const [settings, setSettings] = usePlayerSettings();
   const [inPlay, setInPlay] = useState<InPlay>(EVERYTHING);
   const [card, setCard] = useState<Card | null>(null);
@@ -318,7 +320,7 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
                     : [...inPlay.progressions, p.id],
                 })}
               >
-                {p.name}
+                {nameOf(p, { settings: rowSpelling })}
               </button>
             ))}
           </FilterRow>
@@ -451,7 +453,7 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
                 className={`${chip(answerEntry === p.id)} disabled:opacity-40`}
                 onClick={() => { setAnswerEntry(p.id); setAnswerPosition(null); }}
               >
-                {p.name}
+                {nameOf(p, { settings: rowSpelling })}
               </button>
             ))}
           </FilterRow>
@@ -496,7 +498,11 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
               : answerEntry === card.entry.id
                 ? 'Right progression, wrong position. '
                 : 'Not this one. '}
-            {`${card.entry.name} from ${positionLabel(card.position).toLowerCase()}, `
+            {/* THE CARD'S OWN RUNG, unlike the chips above. Every rung
+                this list offers is a seventh-chord reading, so the
+                minor 2 5 1's 2 reads with its seventh name here. */}
+            {`${nameOf(card.entry, { settings: rowSpelling, rung: card.rung })} `
+              + `from ${positionLabel(card.position).toLowerCase()}, `
               + `in the key of ${spellNote(card.keyPc, spelling)}.`}
           </p>
           <SharedPlayer

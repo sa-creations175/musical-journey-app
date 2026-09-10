@@ -53,6 +53,7 @@ import {
   availableValues, offerableFacets, type FacetFilter,
 } from './facetFilter';
 import { facetRowLabel, facetValueLabel } from './facetDisplay';
+import { useProgressionSpelling } from '../../lib/progressionSpelling';
 
 /** Approved copy — `docs/HARMONIC_FLUENCY_COPY.md`, 8 Sep 2026. */
 export const FILTERS_LABEL = 'Filters';
@@ -83,6 +84,10 @@ export default function FacetFilterRow({
 }) {
   const facets = offerableFacets(cards);
   const [open, setOpen] = useState(false);
+  // ONE SPELLING EVERYWHERE, chips included — Silas's ruling of 10 Sep
+  // 2026. The chip that filters to a card and the card's own question
+  // now write the progression the same way.
+  const [rowSpelling] = useProgressionSpelling();
   const active = activeFacetCount(filter);
 
   if (facets.length === 0) return null;
@@ -146,7 +151,7 @@ export default function FacetFilterRow({
                           above carries it unchanged and it is what
                           `onChange` sends — and only its spelling
                           reaches the eye. See `facetDisplay`. */}
-                      {facetValueLabel(name, value)}
+                      {facetValueLabel(name, value, rowSpelling)}
                     </button>
                   );
                 })}

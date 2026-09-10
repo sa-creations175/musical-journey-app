@@ -28,7 +28,8 @@ import {
   type ExtendedShape,
 } from '../../lib/extendedVoicings';
 import { sortByCircleOfFourths } from '../repertoire/circleOfFourths';
-import { progressionRow } from '../../lib/progressionRow';
+import { progressionRow, type RowOptions } from '../../lib/progressionRow';
+import type { Thickness } from '../../lib/builtAnswers/chordShapes';
 
 export const KEYS = [
   'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
@@ -609,6 +610,36 @@ function rowLabel(
   return `${prefix}${progressionRow(chords)}${suffix}`;
 }
 
+/**
+ * A row's name in parts, so it can be re-spelled at render.
+ *
+ * =====================================================================
+ * `label` IS BAKED AND STAYS BAKED; THIS IS HOW IT MOVES.
+ *
+ * A catalog entry's `label` is computed once, at module load, before
+ * any setting has been read — the same problem `ScaleCell.label` has
+ * with note spelling, and it is solved the same way: the baked string
+ * stays as the row's IDENTITY (it is what `overrideIsEmpty` compares a
+ * rename against) and `patternRowLabel` derives what the reader sees.
+ *
+ * A row not in this table has no chord row in its name — the three
+ * passes and the 5 → 1 movement — and its `label` is what it is called
+ * whatever the setting says.
+ *
+ * `named` is what "only on spelled loops" reads: a row with a word of
+ * its own does not need its chords spelled, because the word already
+ * says what they are.
+ * =====================================================================
+ */
+export interface RowName {
+  prefix: string;
+  chords: ReadonlyArray<VLChord>;
+  suffix: string;
+  /** Chord indices whose quality survives "only on spelled loops" —
+   *  see `RowOptions.keepQualityAt`. */
+  keepQualityAt?: ReadonlyArray<number>;
+}
+
 const DIATONIC_CYCLE_CHORDS: ReadonlyArray<VLChord> = [
       { degree: '1', quality: 'maj7' },
       { degree: '4', quality: 'maj7' },
@@ -672,6 +703,56 @@ const MINOR_251_CHORDS: ReadonlyArray<VLChord> = [
       },
       { degree: '1', quality: 'm7' },
 ];
+
+/**
+ * Every row whose name contains a row of chords, in parts.
+ *
+ * The eight spelled rows and no others: the three passes and the
+ * 5 → 1 movement are named for a MOVEMENT rather than written as a row,
+ * so they keep their literal labels and their arrows.
+ */
+export const ROW_NAME_BY_ID: ReadonlyMap<string, RowName> = new Map([
+  ['diatonic-cycle', {
+    prefix: 'Diatonic Cycle (', chords: DIATONIC_CYCLE_CHORDS, suffix: ')',
+  }],
+  ['major-251', { prefix: 'Major ', chords: MAJOR_251_CHORDS, suffix: '' }],
+  ['minor-251', { prefix: 'Minor ', chords: MINOR_251_CHORDS, suffix: '' }],
+  ['1-5-6-4', { prefix: '', chords: LOOP_1564_CHORDS, suffix: '' }],
+  ['1-6-4-5', { prefix: '', chords: LOOP_1645_CHORDS, suffix: '' }],
+  ['1-6-2-5', { prefix: '', chords: LOOP_1625_CHORDS, suffix: '' }],
+  ['1-4-5', { prefix: '', chords: LOOP_145_CHORDS, suffix: '' }],
+  ['backdoor', {
+    prefix: '', chords: BACKDOOR_CHORDS, suffix: ' (backdoor)',
+    // THE 4 KEEPS ITS m EVEN WHEN A NAMED ROW DROPS ITS QUALITIES.
+    // A minor 4 in a major key is the whole of what a backdoor is;
+    // "4-♭7-1" would be a row that no longer describes the
+    // progression it is named after.
+    keepQualityAt: [0],
+  }],
+]);
+
+/**
+ * A row's name, spelled the way the reader has asked for.
+ *
+ * `id` rather than the pattern, so a caller holding only an id — a
+ * goal-coverage group, a Full Progression chip — does not have to find
+ * the entry first. A row that is not spelled returns its literal label,
+ * which is why the fallback is a parameter rather than a lookup: the
+ * caller already has the label it would fall back to, and half of them
+ * are holding a RENAMED one.
+ */
+export function patternRowLabel(
+  id: string, fallbackLabel: string, opts: RowOptions = {},
+): string {
+  const name = ROW_NAME_BY_ID.get(id);
+  if (name === undefined) return fallbackLabel;
+  const row = progressionRow(name.chords, {
+    ...opts,
+    named: name.prefix !== '' || name.suffix !== '',
+    ...(name.keepQualityAt ? { keepQualityAt: name.keepQualityAt } : {}),
+  });
+  return `${name.prefix}${row}${name.suffix}`;
+}
 
 // Array order IS the session-surfacing priority. The session
 // algorithm uses the catalog index as a soft deprioritization
@@ -1254,6 +1335,29 @@ function minorAbaNumber(p: MinorAbaPosition): 1 | 2 {
  *    "Position 1"        (minor-aba)
  *    "Position 3"        (dom7b9 / dim7)
  */
+/**
+ * The thickness a voice-leading row is played at, for the spelling of
+ * its half-diminished.
+ *
+ * =====================================================================
+ * THE GRID HAS NO TRIADS ROW, AND THAT IS THE ANSWER.
+ *
+ * Its four type rows are Guide Tones, Seventh Chords, Full Voicing and
+ * the ABA structure — every one of them a seventh-chord reading, guide
+ * tones included, because a guide tone pair IS the 3rd and the 7th. So
+ * a minor 2 5 1 drilled on this grid is spelled with the seventh name
+ * (2ø by default), and only the row LABEL — which names the row rather
+ * than a rung of it — takes the triad name.
+ *
+ * A row with no type at all (a pass, the diatonic cycle's positions)
+ * has no rung to report and gets the same seventh reading, because its
+ * cells are seventh-chord voicings too.
+ * =====================================================================
+ */
+export function voiceLeadingRung(): Thickness {
+  return 'seventh';
+}
+
 export function voiceLeadingSubCellLabel(
   desc: VoiceLeadingItemRefDescriptor,
 ): string {

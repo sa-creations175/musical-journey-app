@@ -10,11 +10,14 @@
  */
 import {
   parseVoiceLeadingItemRef,
+  patternRowLabel,
+  voiceLeadingRung,
   voiceLeadingSubCellLabel,
   VOICE_LEADING_PATTERN_BY_ID,
 } from '../shapes-and-patterns/catalog';
 import type { BreakdownItem } from './inSessionScaleRunner';
 import { DEFAULT_SPELLING, spellKey, type Spelling } from '../../lib/spelling';
+import type { ProgressionSpelling } from '../../lib/progressionSpelling';
 
 export interface VoiceLeadingRunnerItem extends BreakdownItem {
   /** "pattern in key" headline for the between-cells prep screen. */
@@ -41,14 +44,21 @@ export function isVoiceLeadingRunnerBlock(
 export function resolveVoiceLeadingRunnerItems(
   items: ReadonlyArray<BreakdownItem>,
   spelling: Spelling = DEFAULT_SPELLING,
+  rowSpelling?: ProgressionSpelling,
 ): VoiceLeadingRunnerItem[] {
   const out: VoiceLeadingRunnerItem[] = [];
   for (const item of items) {
     const desc = parseVoiceLeadingItemRef(item.itemRef);
     if (!desc) continue;
     const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
+    // THE RUNG IS KNOWN HERE — every row this grid drills is a
+    // seventh-chord reading — so a half-diminished takes its
+    // seventh name, exactly as it does beside the drill on the page.
     const label = pattern
-      ? `${pattern.label} in ${spellKey(desc.keyName, spelling)}`
+      ? `${patternRowLabel(pattern.id, pattern.label, {
+        ...(rowSpelling ? { settings: rowSpelling } : {}),
+        rung: voiceLeadingRung(),
+      })} in ${spellKey(desc.keyName, spelling)}`
       : item.itemRef;
     out.push({ ...item, label, subLabel: voiceLeadingSubCellLabel(desc) });
   }

@@ -48,9 +48,14 @@ import { withAccidentalGlyphs } from '../reading/pitch';
 import { degreeLabel } from './degreeNoteCards';
 import type { FacetName } from './facets';
 import { INTERVAL_QUALITIES } from './scaleDegreeQuality';
-import { SLASH_SHAPES } from './catalogExpansions';
+import { SLASH_SHAPES, progressionVoicing } from './catalogExpansions';
+import { progressionRow } from '../../lib/progressionRow';
+import type { ProgressionSpelling } from '../../lib/progressionSpelling';
 
-type Label = (value: string) => string;
+/** How a facet value is written for the eye. The progression facet is
+ *  the only one that reads the spelling setting; the rest ignore the
+ *  second argument. */
+type Label = (value: string, settings?: ProgressionSpelling) => string;
 
 /**
  * The row, in order, with the word above each line (ruling 24).
@@ -156,25 +161,59 @@ const PROGRESSION_WORDS: Readonly<Record<string, string>> = {
   'V/IV': '5 of 4',
   'V/V': '5 of 5',
   'V/vi': '5 of 6',
-  '1-5-6-4': '1 5 6 4',
-  // ONE ENTRY PER GENERATED PROGRESSION, AND NONE OF IT IS NEW COPY.
-  // Ruling 26's own rule — dashes become spaces.
+  // =====================================================================
+  // THE CHIPS THAT ARE A PROGRESSION ARE NOT IN THIS TABLE ANY MORE.
   //
-  // `6-4-1-5`, `gospel walk-up`, `rhythm changes` and `neo-soul` WERE
-  // HERE and went with their cards: a chip for a progression the deck
-  // no longer generates is a filter that finds nothing.
-  '1-6-4-5': '1 6 4 5',
-  '1-6-2-5': '1 6 2 5',
-  '1-4-5': '1 4 5',
-  // NUMBERS LEAD, NAMES FOLLOW — the same rule the card's own question
-  // takes. The stored value stays `backdoor`, so every link that named
-  // it still resolves; only the chip changes. The numbers themselves
-  // changed on 9 Sep 2026: the backdoor is 4 minor → ♭7(7) → 1.
-  backdoor: '4m ♭7 1 (backdoor)',
+  // `1-5-6-4`, `1-6-4-5`, `1-6-2-5`, `1-4-5` and `backdoor` were typed
+  // out here as words. They are now built from the shape's own chords
+  // by the one formatter, so the chip that filters to a card and the
+  // card's own question cannot spell the progression two ways — and
+  // both follow the reader's spelling setting. Silas's ruling of 10 Sep
+  // 2026: one spelling everywhere.
+  //
+  // `ii-V-I` stays a word because it is FUNCTIONAL HARMONY'S chip as
+  // well as the progression deck's; ruling 26 made the two share it,
+  // and a 5 1 is a little progression however it is spelled.
+  //
+  // `6-4-1-5`, `gospel walk-up`, `rhythm changes` and `neo-soul` are
+  // words with no chords behind them — the first went with its cards
+  // and the other three name a style rather than a row.
+  // =====================================================================
   'gospel walk-up': 'gospel walk-up',
   'rhythm changes': 'rhythm changes',
   'neo-soul': 'neo-soul',
 };
+
+/**
+ * A progression chip, built from the shape's own chords.
+ *
+ * The backdoor keeps its parenthetical — it is the row's name and not
+ * part of the row — and keeps its 4m under "only on spelled loops" for
+ * the reason `RowOptions.keepQualityAt` gives: a major 4 is not a
+ * backdoor.
+ *
+ * NO RUNG. A filter chip names a progression rather than a rung of one.
+ */
+function progressionChip(value: string, settings?: ProgressionSpelling): string {
+  // A WORD WINS OVER A ROW. `ii-V-I` is Functional Harmony's chip as
+  // well as the progression deck's — ruling 26 made the two share it —
+  // and the secondary dominants are read as "5 of 2", not as rows. Only
+  // a facet with no word of its own is spelled out.
+  const word = PROGRESSION_WORDS[value];
+  if (word !== undefined) return word;
+  const chords = progressionVoicing(value);
+  if (chords === null) return value;
+  const named = value === 'backdoor';
+  const row = progressionRow(
+    chords.map(([degree, quality]) => ({ degree, quality })),
+    {
+      ...(settings ? { settings } : {}),
+      named,
+      ...(named ? { keepQualityAt: [0] } : {}),
+    },
+  );
+  return named ? `${row} (backdoor)` : row;
+}
 
 /** A slash chord, written the way its own cards write it — `1/3`,
  *  not the hyphen the id is built from. Read off the deck's own shape
@@ -197,7 +236,7 @@ const FACET_LABEL: Readonly<Partial<Record<FacetName, Label>>> = {
   // NO `enharmonicGroup` HERE ANY MORE. Ruling 25 took it off the row,
   // and a label nothing renders is a label nobody maintains.
   movement: value => MOVEMENT_WORDS.get(value) ?? value,
-  progression: value => PROGRESSION_WORDS[value] ?? value,
+  progression: (value, settings) => progressionChip(value, settings),
 };
 
 /** `1/3` with its accidentals as glyphs — `6/b7` reads 6/♭7. */
@@ -206,7 +245,9 @@ function degreeLabelsIn(label: string): string {
 }
 
 /** A facet value, written for the eye. Never for a comparison. */
-export function facetValueLabel(name: FacetName, value: string): string {
+export function facetValueLabel(
+  name: FacetName, value: string, settings?: ProgressionSpelling,
+): string {
   const label = FACET_LABEL[name];
-  return label === undefined ? value : label(value);
+  return label === undefined ? value : label(value, settings);
 }

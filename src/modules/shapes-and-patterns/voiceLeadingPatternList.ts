@@ -34,7 +34,8 @@
  * the residue of a feature that has been removed.
  * =====================================================================
  */
-import { VOICE_LEADING_PATTERNS } from './catalog';
+import { VOICE_LEADING_PATTERNS, patternRowLabel } from './catalog';
+import type { RowOptions } from '../../lib/progressionRow';
 
 /** What the reader's stored list holds. */
 export interface CustomPattern {
@@ -105,7 +106,61 @@ export function overrideIsEmpty(
   builtinLabel: string,
 ): boolean {
   const stored = override.label.trim();
-  return stored === builtinLabel.trim() || RENAMED_AWAY.has(stored);
+  return stored === builtinLabel.trim()
+    || everySpellingOf(override.id).has(stored)
+    || RENAMED_AWAY.has(stored);
+}
+
+/**
+ * Every string a built-in row's name can take under the spelling
+ * setting.
+ *
+ * =====================================================================
+ * THE SHIPPED NAME IS THIRTY-SIX STRINGS NOW, NOT ONE.
+ *
+ * Progression spelling became a setting on 10 Sep 2026, so "the name
+ * this row ships with" depends on three choices and a rung. A reader
+ * looking at "1-5-6m-4" who taps the title, changes nothing and blurs
+ * writes an override holding that string — and against a `label` baked
+ * as "1-5-6m-4" that is inert only because the default happens to
+ * match. Under dots it would not, and the stray click would become a
+ * rename nobody made, pinned on screen with no control to undo it.
+ *
+ * It is also what keeps the undo working: "type the shipped name back"
+ * has to mean the name in front of you, not the name in front of
+ * somebody with different settings.
+ *
+ * Thirty-six per row and nine rows, computed once. A row with no chord
+ * row in its name has one spelling and this returns it.
+ * =====================================================================
+ */
+const SPELLINGS_BY_ID = new Map<string, ReadonlySet<string>>();
+
+function everySpellingOf(id: string): ReadonlySet<string> {
+  const cached = SPELLINGS_BY_ID.get(id);
+  if (cached !== undefined) return cached;
+  const builtin = VOICE_LEADING_PATTERNS.find(p => p.id === id);
+  const out = new Set<string>();
+  if (builtin !== undefined) {
+    for (const separator of ['dot', 'hyphen', 'space'] as const) {
+      for (const qualities of ['all', 'spelled', 'off'] as const) {
+        for (const halfDimTriad of ['°', 'dim'] as const) {
+          for (const halfDimSeventh of ['ø', 'm7♭5'] as const) {
+            const settings = {
+              separator, qualities, halfDimTriad, halfDimSeventh,
+            };
+            // BOTH RUNGS, because a row's name is shown beside a drill
+            // that knows its rung and on a grid that does not.
+            out.add(patternRowLabel(id, builtin.label, { settings }).trim());
+            out.add(patternRowLabel(
+              id, builtin.label, { settings, rung: 'seventh' }).trim());
+          }
+        }
+      }
+    }
+  }
+  SPELLINGS_BY_ID.set(id, out);
+  return out;
 }
 
 /**
@@ -154,6 +209,7 @@ const RENAMED_AWAY: ReadonlySet<string> = new Set([
  */
 export function mergePatternList(
   custom: ReadonlyArray<CustomPattern>,
+  opts: RowOptions = {},
 ): DisplayPattern[] {
   const catalogIds: ReadonlySet<string> =
     new Set<string>(VOICE_LEADING_PATTERNS.map(p => p.id));
@@ -167,7 +223,10 @@ export function mergePatternList(
     const active = o !== undefined && !overrideIsEmpty(o, p.label);
     return {
       id: p.id,
-      label: active ? o!.label : p.label,
+      // A RENAME IS A STRING THE READER TYPED and is left exactly as
+      // typed; only the shipped name is re-spelled. The setting says
+      // how this app writes a progression, not how the reader does.
+      label: active ? o!.label : patternRowLabel(p.id, p.label, opts),
       ...( (active ? o!.description : p.description) !== undefined
         ? { description: active ? o!.description : p.description }
         : {}),

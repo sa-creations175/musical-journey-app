@@ -298,21 +298,20 @@ const litPcs = () => [...host.querySelectorAll('rect[data-mark="marked"]')]
 describe('rotate — the same chords, entered by a different door', () => {
   it('labels the button with the rotation now playing', () => {
     mount(true);
-    // EVERY CHORD SHOWS ITS QUALITY, and the row is separated by
-    // middle dots. Silas's ruling of 10 Sep 2026.
-    expect(byTestId('rotate')!.textContent).toBe('2m · 5 · 1');
+    // EVERY CHORD SHOWS ITS QUALITY, and the row takes the separator
+    // the reader has set — hyphens by default since progression
+    // spelling became a setting on 10 Sep 2026.
+    expect(byTestId('rotate')!.textContent).toBe('2m-5-1');
   });
 
   it('advances one door per tap, and comes back round', () => {
     mount(true);
     tap(byTestId('rotate'));
-    expect(byTestId('rotate')!.textContent).toBe('5 · 1 · 2m');
+    expect(byTestId('rotate')!.textContent).toBe('5-1-2m');
     tap(byTestId('rotate'));
-    expect(byTestId('rotate')!.textContent).toBe('1 · 2m · 5');
+    expect(byTestId('rotate')!.textContent).toBe('1-2m-5');
     tap(byTestId('rotate'));
-    // EVERY CHORD SHOWS ITS QUALITY, and the row is separated by
-    // middle dots. Silas's ruling of 10 Sep 2026.
-    expect(byTestId('rotate')!.textContent).toBe('2m · 5 · 1');
+    expect(byTestId('rotate')!.textContent).toBe('2m-5-1');
   });
 
   it('reorders the chord names with it', () => {
@@ -358,29 +357,27 @@ describe('rotate — the same chords, entered by a different door', () => {
     // mount and the rotation is gone with it.
     mount(true);
     tap(byTestId('rotate'));
-    expect(byTestId('rotate')!.textContent).toBe('5 · 1 · 2m');
+    expect(byTestId('rotate')!.textContent).toBe('5-1-2m');
     act(() => { root.unmount(); });
     host.remove();
     mountOther('pr-prog-2-5-1-C');
-    // EVERY CHORD SHOWS ITS QUALITY, and the row is separated by
-    // middle dots. Silas's ruling of 10 Sep 2026.
-    expect(byTestId('rotate')!.textContent).toBe('2m · 5 · 1');
+    expect(byTestId('rotate')!.textContent).toBe('2m-5-1');
   });
 
   it('is on every progression card, whatever its shape', () => {
     // The brief's rule: all 78, not only the loops the deck happens to
     // teach a rotation of.
     for (const [id, label] of [
-      ['pr-prog-1-4-5-C', '1 · 4 · 5'],
-      ['pr-prog-1-5-6-4-G', '1 · 5 · 6m · 4'],
-      ['pr-prog-1-6-4-5-Eb', '1 · 6m · 4 · 5'],
+      ['pr-prog-1-4-5-C', '1-4-5'],
+      ['pr-prog-1-5-6-4-G', '1-5-6m-4'],
+      ['pr-prog-1-6-4-5-Eb', '1-6m-4-5'],
       // A degree with an accidental is written the way the deck writes
       // it everywhere else. THE BUTTON IS NUMBERS ONLY, so the
       // backdoor's borrowed 4 minor reads as a bare 4 here while the
       // question says "4m" — raised with Silas rather than changed.
       // AND THE BORROWED 4 SHOWS ITS m, which is what the ruling of
       // 10 Sep is for: the quality is the point of the chord.
-      ['pr-prog-backdoor-4m-F', '4m · ♭7 · 1'],
+      ['pr-prog-backdoor-4m-F', '4m-♭7-1'],
     ] as const) {
       act(() => { root.unmount(); });
       host.remove();
@@ -456,7 +453,7 @@ describe('hear the other version', () => {
     mountOther('pr-prog-1-6-2-5-C');
     tap(byTestId('version-other'));
     tap(byTestId('rotate'));
-    expect(byTestId('rotate')!.textContent).toBe('6 · 2m · 5 · 1');
+    expect(byTestId('rotate')!.textContent).toBe('6-2m-5-1');
     expect(names()).toBe('A7 - Dm - G - C');
     // And the board is still on the chord that changed, now first.
     expect(litPcs()).toContain(1);

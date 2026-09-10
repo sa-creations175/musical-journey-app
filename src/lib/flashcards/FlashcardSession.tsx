@@ -218,6 +218,17 @@ interface Props<TCard extends BaseFlashcard> {
    * =====================================================================
    */
   renderOptionLabel?: (card: TCard, option: string) => string | null;
+  /**
+   * What the QUESTION reads as, where a deck knows more than its own
+   * baked string does.
+   *
+   * The sibling of `renderOptionLabel`, and it exists for the same
+   * reason: a card is built once, at module load, and a display
+   * setting decided later cannot reach into it. Progression spelling
+   * is such a setting — the deck holds the canonical row and the
+   * question is re-spelled here. Null falls through to `card.question`.
+   */
+  renderQuestion?: (card: TCard) => string | null;
 
   /** True when the queue has been narrowed too much for SR math to
    *  be honest. Renders the FluencyProtectionNotice at the top.
@@ -256,6 +267,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   renderVisualAid,
   renderExplanation,
   renderOptionLabel,
+  renderQuestion,
   focusProtected = false,
   fadeStreakThreshold = DEFAULT_FADE_THRESHOLD,
   renderFooter,
@@ -766,7 +778,9 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
 
       {/* Question */}
       <div className="text-center">
-        <p className="text-base sm:text-lg font-medium">{card.question}</p>
+        <p className="text-base sm:text-lg font-medium">
+          {renderQuestion?.(card) ?? card.question}
+        </p>
       </div>
 
       {visualAidNode}

@@ -15,6 +15,7 @@ import { useMemo } from 'react';
 import { voiceLeadingSurface } from '../shapes-and-patterns/practiceTest/makeSurfaces';
 import { formatDuration } from '../shapes-and-patterns/drillModel';
 import { useSpelling } from '../../lib/spellingPref';
+import { useProgressionSpelling } from '../../lib/progressionSpelling';
 import InSessionPanelRunner, { type RunnerStop } from './InSessionPanelRunner';
 import type { BreakdownItem } from './inSessionScaleRunner';
 import { resolveVoiceLeadingRunnerItems } from './inSessionVoiceLeadingRunner';
@@ -30,10 +31,11 @@ interface Props {
 
 export default function VoiceLeadingDrillRunner({ items, accent, onComplete }: Props) {
   const [spelling] = useSpelling();
+  const [rowSpelling] = useProgressionSpelling();
   const itemsKey = items.map(i => i.itemRef).join('|');
 
   const stops = useMemo<RunnerStop[]>(
-    () => resolveVoiceLeadingRunnerItems(items, spelling).map(item => ({
+    () => resolveVoiceLeadingRunnerItems(items, spelling, rowSpelling).map(item => ({
       key: item.itemRef,
       label: item.label,
       detail: [item.subLabel, formatDuration(item.seconds)]
@@ -48,7 +50,7 @@ export default function VoiceLeadingDrillRunner({ items, accent, onComplete }: P
     // itemsKey captures the item identity; `items` is a fresh array
     // each render, so depending on it directly would rebuild every tick.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [itemsKey, spelling],
+    [itemsKey, spelling, rowSpelling],
   );
 
   return (

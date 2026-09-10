@@ -21,6 +21,7 @@ import {
   voiceLeadingGridRows,
   voiceLeadingSubCellLabel,
   type VoiceLeadingItemRefDescriptor,
+  patternRowLabel,
 } from '../catalog';
 import {
   VOICE_LEADING_PATTERN_SECONDS,
@@ -107,29 +108,56 @@ describe('VOICE_LEADING_PATTERNS catalog', () => {
     // ONE FORMATTER, AND THE LABEL IS ITS OUTPUT.
     //
     // Silas's ruling of 10 Sep 2026: every chord in a progression shows
-    // its quality, and the separator is a middle dot with a space
-    // either side. The grid said "1 5 6 4", the card's question said
+    // its quality. The grid said "1 5 6 4", the card's question said
     // "1-5-6-4" and its rotate button said "1 5 6 4" — three spellings
     // of one progression, and not one of them said the 6 is minor.
+    //
+    // THE SEPARATOR IS HYPHENS AND THE HALF-DIMINISHED IS °, which are
+    // the DEFAULTS of the spelling setting he ruled the same afternoon.
+    // `label` is baked at module load, before any setting is read, so
+    // it holds the defaults and `patternRowLabel` derives the rest —
+    // the whole matrix is walked in `lib/__tests__/progressionRow`.
     // =================================================================
     expect(VOICE_LEADING_PATTERN_BY_ID.get('1-5-6-4')!.label)
-      .toBe('1 · 5 · 6m · 4');
+      .toBe('1-5-6m-4');
     expect(VOICE_LEADING_PATTERN_BY_ID.get('1-6-4-5')!.label)
-      .toBe('1 · 6m · 4 · 5');
+      .toBe('1-6m-4-5');
     expect(VOICE_LEADING_PATTERN_BY_ID.get('1-6-2-5')!.label)
-      .toBe('1 · 6m · 2m · 5');
+      .toBe('1-6m-2m-5');
     // FOUR CHORDS, because the row returns to its 1 — which its own
     // chord data has always said and its name did not.
     expect(VOICE_LEADING_PATTERN_BY_ID.get('1-4-5')!.label)
-      .toBe('1 · 4 · 5 · 1');
+      .toBe('1-4-5-1');
     // The name comes after the numbers it names, and the flat is a
     // glyph rather than a letter b.
     expect(VOICE_LEADING_PATTERN_BY_ID.get('backdoor')!.label)
-      .toBe('4m · ♭7 · 1 (backdoor)');
+      .toBe('4m-♭7-1 (backdoor)');
     expect(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!.label)
-      .toBe('Major 2m · 5 · 1');
+      .toBe('Major 2m-5-1');
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('minor-251')!.label)
+      .toBe('Minor 2°-5-1m');
     expect(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!.label)
-      .toBe('Diatonic Cycle (1 · 4 · 7dim · 3m · 6m · 2m · 5 · 1)');
+      .toBe('Diatonic Cycle (1-4-7°-3m-6m-2m-5-1)');
+  });
+
+  it('re-spells a row without moving its id or its baked label', () => {
+    // THE LABEL IS THE ROW'S IDENTITY — it is what a rename is compared
+    // against — so it stays where it is while the reader's own spelling
+    // is derived beside it.
+    const settings = {
+      separator: 'dot' as const, qualities: 'all' as const,
+      halfDimTriad: 'dim' as const, halfDimSeventh: 'm7♭5' as const,
+    };
+    const minor = VOICE_LEADING_PATTERN_BY_ID.get('minor-251')!;
+    expect(patternRowLabel('minor-251', minor.label, { settings }))
+      .toBe('Minor 2dim · 5 · 1m');
+    expect(patternRowLabel('minor-251', minor.label, { settings, rung: 'seventh' }))
+      .toBe('Minor 2m7♭5 · 5 · 1m');
+    expect(minor.label).toBe('Minor 2°-5-1m');
+    // A row with no chord row in its name is returned untouched.
+    const pass = VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!;
+    expect(patternRowLabel('minor-aba', pass.label, { settings }))
+      .toBe(pass.label);
   });
 
   it('leaves the passes their arrow, which means resolution', () => {

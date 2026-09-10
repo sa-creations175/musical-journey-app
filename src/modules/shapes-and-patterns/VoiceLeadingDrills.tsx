@@ -7,7 +7,11 @@ import {
 import VoiceLeadingPatternGrid from './VoiceLeadingPatternGrid';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { voiceLeadingSurface } from './practiceTest/makeSurfaces';
-import { parseVoiceLeadingItemRef, voiceLeadingSubCellLabel } from './catalog';
+import {
+  parseVoiceLeadingItemRef, patternRowLabel, voiceLeadingRung,
+  voiceLeadingSubCellLabel,
+} from './catalog';
+import type { RowOptions } from '../../lib/progressionRow';
 import { VOICE_LEADING_PATTERN_BY_ID } from './catalog';
 import {
   applyRename,
@@ -19,6 +23,7 @@ import { getPref, setPref } from '../../lib/userPrefs';
 import { useToast } from '../../components/Toaster';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
+import { useProgressionSpelling } from '../../lib/progressionSpelling';
 import CellPlayer from './CellPlayer';
 import CellProgressDetails, {
   HAND_ROW_LABEL, type DetailTarget,
@@ -81,6 +86,7 @@ const PREF_CUSTOM_PATTERNS = 'shapesAndPatternsCustomVoiceLeading';
 export default function VoiceLeadingDrills() {
   const navigate = useNavigate();
   const [spelling] = useSpelling();
+  const [rowSpelling] = useProgressionSpelling();
   const [addingMovement, setAddingMovement] = useState(false);
   const [confirmingRemove, setConfirmingRemove] = useState<ChordMovement | null>(null);
   const movements = useLiveQuery<ChordMovement[]>(
@@ -102,7 +108,14 @@ export default function VoiceLeadingDrills() {
    */
   const cellLabel = (itemRef: string): string => {
     const movementId = movementIdForRef(itemRef, movementIds);
-    if (movementId === null) return voiceLeadingCellLabel(itemRef, spelling);
+    if (movementId === null) {
+      // BESIDE A DRILL THE RUNG IS KNOWN, so a half-diminished takes
+      // its seventh-chord name here and its triad name on the row
+      // label above — see `voiceLeadingRung`.
+      return voiceLeadingCellLabel(itemRef, spelling, {
+        settings: rowSpelling, rung: voiceLeadingRung(),
+      });
+    }
     const movement = movements.find(m => m.id === movementId)!;
     return movementCellLabel(movement, itemRef.split(':')[2], spelling);
   };
@@ -207,7 +220,13 @@ export default function VoiceLeadingDrills() {
   // MERGED BY ID, NOT CONCATENATED. An override replaces fields on the
   // built-in it names; it never becomes a second section. See the note
   // at the top of `voiceLeadingPatternList`.
-  const allPatterns = useMemo(() => mergePatternList(custom), [custom]);
+  // THE ROW LABEL TAKES NO RUNG. It names the row, not a rung of it,
+  // so a half-diminished reads with the triad name — which is the
+  // formatter's own default when nothing is passed.
+  const allPatterns = useMemo(
+    () => mergePatternList(custom, { settings: rowSpelling }),
+    [custom, rowSpelling],
+  );
 
   const persistCustom = async (next: CustomPattern[]) => {
     setCustom(next);
@@ -493,11 +512,15 @@ const UNNAMED_MOVEMENT = 'Unnamed movement';
 // ---------------------------------------------------------------------
 
 /** "Major 2–5–1 in E♭" — the pattern and the key, from the itemRef. */
-function voiceLeadingCellLabel(itemRef: string, spelling: Spelling): string {
+function voiceLeadingCellLabel(
+  itemRef: string, spelling: Spelling, opts: RowOptions = {},
+): string {
   const desc = parseVoiceLeadingItemRef(itemRef);
   if (!desc) return 'Voice-leading';
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
-  return `${pattern?.label ?? 'Pattern'} in ${spellKey(desc.keyName, spelling)}`;
+  if (!pattern) return `Pattern in ${spellKey(desc.keyName, spelling)}`;
+  const name = patternRowLabel(pattern.id, pattern.label, opts);
+  return `${name} in ${spellKey(desc.keyName, spelling)}`;
 }
 
 /** The row within the pattern — the starting position or voicing type. */
