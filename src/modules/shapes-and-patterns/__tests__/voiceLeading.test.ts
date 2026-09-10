@@ -438,6 +438,28 @@ describe('voiceLeadingSubCellLabel', () => {
     }
   });
 
+  it('calls the altered-dominant tail a 5 → 1, and says ABA nowhere', () => {
+    /**
+     * ABA IS A POSITION PATTERN, NOT A CHORD. Silas's ruling of
+     * 9 Sep 2026. It says which SHAPE each chord of a 2 5 1 takes —
+     * A, then B, then A again — so a two-chord row cannot be one, and
+     * the row is the tail of the minor 2 5 1 exactly as "5 → 1" is
+     * the tail of the major one.
+     *
+     * A SWEEP OVER EVERY LABEL AND DESCRIPTION, so a row added later
+     * cannot bring the word back without this failing.
+     */
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!.label)
+      .toBe('Minor 5 → 1 (7♯9♯5)');
+    for (const pattern of VOICE_LEADING_PATTERNS) {
+      const prose = [pattern.label, pattern.description ?? '',
+        ...voiceLeadingGridRows(pattern).flatMap(r => [r.label, r.hint ?? ''])];
+      for (const text of prose) expect(text, text).not.toMatch(/\bABA\b/);
+    }
+    // And the id did NOT move: it is a spacingState itemRef segment.
+    expect(VOICE_LEADING_PATTERN_BY_ID.has('minor-aba')).toBe(true);
+  });
+
   it('numbers the positions from the lowest start, in tag order', () => {
     // The display number is derived from the storage tag, so a row
     // cannot be renumbered by accident: A is 1, B is 2, C is 3.

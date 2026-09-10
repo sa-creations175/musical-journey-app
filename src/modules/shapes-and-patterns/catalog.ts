@@ -734,7 +734,25 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: 'minor-aba',
     kind: 'minor-aba',
-    label: 'Minor ABA (dom7#9#5 → minor)',
+    /**
+     * THE ROW IS NAMED FOR WHAT IT MOVES THROUGH, NOT FOR A POSITION
+     * PATTERN. Silas's ruling of 9 Sep 2026.
+     *
+     * It read "Minor ABA (dom7#9#5 → minor)". "ABA" is which SHAPE
+     * each chord of a 2 5 1 takes — the A voicing, then the B, then
+     * the A again — so it is a fact about positions and belongs on
+     * the Extended Voicings row of a three-chord pattern. This row
+     * has two chords and no third to alternate back to.
+     *
+     * What it actually is: the tail of the minor 2 5 1, exactly as
+     * "5 → 1" is the tail of the major one, with the dominant altered.
+     * So it is named the way the 5→1 Movement row is named.
+     *
+     * THE ID AND THE `kind` DID NOT MOVE. `minor-aba` and `pos-A` /
+     * `pos-B` are segments of spacingState itemRefs; renaming them
+     * would orphan every rep already logged.
+     */
+    label: 'Minor 5 → 1 (7♯9♯5)',
     description: 'Dark altered dominant resolving a 5th down to minor. Two starting positions.',
     chords: [
       { degree: '5', quality: '7#9#5' },
@@ -1014,8 +1032,9 @@ function typeLabel(type: FiveOneType | Major251Type | Minor251Type): string {
     case 'seventh-chords': return 'Seventh Chords';
     // ONE NAME FOR ONE THING. These are the same row, and the old
     // names disagreed about what it was. "ABA structure" was also
-    // simply wrong on the 5→1: it names a three-chord alternation
-    // and that pattern has two chords.
+    // never a chord: ABA is which SHAPE each chord of a 2 5 1 takes —
+    // A, then B, then A again — so it is a position pattern, and on
+    // the 5→1 there is no third chord to alternate back to.
     case 'full-voicing':   return 'Extended Voicings';
     case 'aba-structure':  return 'Extended Voicings';
   }
@@ -1046,7 +1065,7 @@ export type VLPositionSlot =
  * Bass in the left hand, rootless shape in the right. What changes
  * between one start and the next is the right-hand shape — which note
  * of it is on the bottom — and that is true of the guide tones, the
- * seventh chords, the extended voicings, the Minor ABA, the Diatonic
+ * seventh chords, the extended voicings, the minor 5 → 1, the Diatonic
  * Cycle and the two altered-dominant passes alike. So they are all
  * "Position n", numbered from the lowest start.
  *
@@ -1054,8 +1073,9 @@ export type VLPositionSlot =
  *
  *   · "Position 1/2/3" on Guide Tones, Seventh Chords and the
  *     Diatonic Cycle.
- *   · "Pos A/B" on Extended Voicings and "Position A/B" on Minor ABA,
- *     because A and B were a convention in the source material.
+ *   · "Pos A/B" on Extended Voicings and "Position A/B" on the minor
+ *     5 → 1 (then called "Minor ABA"), because A and B were a
+ *     convention in the source material.
  *   · "Root Position / 1st Inversion / 2nd Inversion / 3rd Inversion"
  *     on dom7b9 → minor and dim7 → minor.
  *
@@ -1113,7 +1133,7 @@ function positionNumber(p: DiatonicCyclePosition | InversionPosition): number {
   }
 }
 
-/** The number a minor-aba storage tag reads as. `pos-A` is the lower
+/** The number a minor 5 → 1 storage tag reads as. `pos-A` is the lower
  *  start, so it is Position 1 — the tag keeps its letter because it is
  *  in itemRefs already written. */
 function minorAbaNumber(p: MinorAbaPosition): 1 | 2 {
