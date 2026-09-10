@@ -453,8 +453,11 @@ describe('voiceLeadingSubCellLabel', () => {
      * A SWEEP OVER EVERY LABEL AND DESCRIPTION, so a row added later
      * cannot bring the word back without this failing.
      */
+    // THE NAME SAYS THE CHORDS AND THE LANDING, the shape the other
+    // two passes take. Silas's prototype of 10 Sep names all three
+    // this way.
     expect(VOICE_LEADING_PATTERN_BY_ID.get('minor-aba')!.label)
-      .toBe('Minor 5 → 1 (7♯9♯5)');
+      .toBe('5(7♯9♯5) → 1m');
     for (const pattern of VOICE_LEADING_PATTERNS) {
       const prose = [pattern.label, pattern.description ?? '',
         ...voiceLeadingGridRows(pattern).flatMap(r => [r.label, r.hint ?? ''])];

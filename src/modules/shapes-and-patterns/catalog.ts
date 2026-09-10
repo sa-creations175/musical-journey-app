@@ -793,15 +793,21 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
      * the Extended Voicings row of a three-chord pattern. This row
      * has two chords and no third to alternate back to.
      *
-     * What it actually is: the tail of the minor 2 5 1, exactly as
-     * "5 → 1" is the tail of the major one, with the dominant altered.
-     * So it is named the way the 5→1 Movement row is named.
+     * What it actually is: the tail of the minor 2 5 1, with the
+     * dominant altered — a 5 chord resolving to a minor 1.
+     *
+     * THE NAME SAYS THE CHORDS AND THE LANDING, which is the shape the
+     * other two passes take: "5(7♭9) → 1m", "7(dim7) → 1m". It read
+     * "Minor 5 → 1 (7♯9♯5)" between 9 and 10 Sep 2026, which put the
+     * quality in a bracket after the movement instead of on the chord
+     * it belongs to. Silas's signed-off shared-player prototype names
+     * it this way and the other two the same way.
      *
      * THE ID AND THE `kind` DID NOT MOVE. `minor-aba` and `pos-A` /
      * `pos-B` are segments of spacingState itemRefs; renaming them
      * would orphan every rep already logged.
      */
-    label: 'Minor 5 → 1 (7♯9♯5)',
+    label: '5(7♯9♯5) → 1m',
     description: 'Dark altered dominant resolving a 5th down to minor. Two starting positions.',
     chords: [
       { degree: '5', quality: '7#9#5' },
@@ -1114,7 +1120,7 @@ export type VLPositionSlot =
  * Bass in the left hand, rootless shape in the right. What changes
  * between one start and the next is the right-hand shape — which note
  * of it is on the bottom — and that is true of the guide tones, the
- * seventh chords, the extended voicings, the minor 5 → 1, the Diatonic
+ * seventh chords, the extended voicings, the 5(7♯9♯5) → 1m, the Diatonic
  * Cycle and the two altered-dominant passes alike. So they are all
  * "Position n", numbered from the lowest start.
  *
@@ -1182,7 +1188,7 @@ function positionNumber(p: DiatonicCyclePosition | InversionPosition): number {
   }
 }
 
-/** The number a minor 5 → 1 storage tag reads as. `pos-A` is the lower
+/** The number a 5(7♯9♯5) → 1m storage tag reads as. `pos-A` is the lower
  *  start, so it is Position 1 — the tag keeps its letter because it is
  *  in itemRefs already written. */
 function minorAbaNumber(p: MinorAbaPosition): 1 | 2 {

@@ -529,7 +529,7 @@ const GROUP_SHAPES: ReadonlyArray<GroupShape> = [
   ...vlPatternGroupDef('voice_leading_minor_251',      'minor-251',      'minor 2-5-1'),
   // The group ID keeps its old spelling — it is stored on goals —
   // while the label follows the row's name on the page.
-  ...vlPatternGroupDef('voice_leading_minor_aba',      'minor-aba',      'minor 5 → 1 (7♯9♯5)'),
+  ...vlPatternGroupDef('voice_leading_minor_aba',      'minor-aba',      '5(7♯9♯5) → 1m'),
   ...vlPatternGroupDef('voice_leading_dom7b9',         'dom7b9',         'dom7b9 → minor'),
   ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           'dim7 → minor'),
   // The five named progressions. Labelled numbers-first, as the row
