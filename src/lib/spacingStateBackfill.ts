@@ -1,6 +1,8 @@
 import { db, type AcquisitionStage } from './db';
 import { getPref, setPref } from './userPrefs';
-import { assertSpacingStage, getSpacingState } from './spacingState';
+import {
+  assertSpacingStage, declarativeAcquiredThreshold, getSpacingState,
+} from './spacingState';
 import { STAGE_FOR_RATING } from '../modules/production/lessonRating';
 
 /**
@@ -31,13 +33,24 @@ import { STAGE_FOR_RATING } from '../modules/production/lessonRating';
 
 export const PREF_SPACING_STATE_BACKFILL_V1 = 'spacingState.backfilledV1At';
 
-/** Threshold mirrors `DECLARATIVE_ACQUIRED_*` in spacingState.ts: ≥5
- *  attempts on the trailing window, ≥80% correct → acquired. Kept as
- *  local consts so the backfill stays self-contained — if those
- *  numbers are tuned later, this file should follow. */
+/** Mirrors `DECLARATIVE_ACQUIRED_*` in spacingState.ts: ≥5 attempts on
+ *  the trailing window, and the pass bar below → acquired. */
 const DECL_MIN_ATTEMPTS = 5;
 const DECL_WINDOW = 10;
-const DECL_THRESHOLD = 0.8;
+
+/**
+ * The bar an item is acquired at.
+ *
+ * =====================================================================
+ * IT WAS A LOCAL 0.8 "SO THE BACKFILL STAYS SELF-CONTAINED", and the
+ * comment beside it said this file should follow if the number were
+ * ever tuned. It was tuned — the Settings page made the Fluent floor
+ * editable on 10 Sep 2026 — and a file that has to be remembered is a
+ * file that will not be. So it reads the same rule the live grader
+ * reads, at call time.
+ * =====================================================================
+ */
+const DECL_THRESHOLD = () => declarativeAcquiredThreshold();
 /** Mirrors `RATING_ACQUIRED_MIN_RATINGS` in spacingState.ts. */
 const RATING_MIN = 3;
 
@@ -158,7 +171,7 @@ export function deriveDeclarativeStage(
   const window = sorted.slice(-DECL_WINDOW);
   if (window.length >= DECL_MIN_ATTEMPTS) {
     const correct = window.filter(a => a.correct).length;
-    if (correct / window.length >= DECL_THRESHOLD) return 'acquired';
+    if (correct / window.length >= DECL_THRESHOLD()) return 'acquired';
   }
   return 'acquiring';
 }
@@ -412,7 +425,7 @@ export async function describeHfBackfillShift(): Promise<HfBackfillShift> {
     const correct = attempts.filter(a => a.correct).length;
     if (
       attempts.length >= DECL_MIN_ATTEMPTS
-      && correct / attempts.length >= DECL_THRESHOLD
+      && correct / attempts.length >= DECL_THRESHOLD()
     ) return 'acquired';
     return 'acquiring';
   };

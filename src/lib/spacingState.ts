@@ -6,6 +6,7 @@ import { answer as engineAnswer, newCardState } from './spacing/engine';
 import { bandForRow, cardStateFromRow, rowFieldsFromCardState } from './spacing/row';
 import { loadSettingsForCard } from './spacing/store';
 import type { SpacingSettings } from './spacing/settings';
+import { ratingRules } from './ratingRules';
 
 /**
  * Phase 2 substep 1a — foundational helpers for the unified spacing-state
@@ -47,10 +48,28 @@ export const DECLARATIVE_ACQUIRED_MIN_ATTEMPTS = 5;
 /** Declarative window — only the last N attempts on this item count. */
 export const DECLARATIVE_ACQUIRED_WINDOW = 10;
 
-/** Declarative threshold — fraction correct in the window required to
- *  promote `acquiring → acquired`. Per design doc §"Acquisition stage
- *  detection". */
-export const DECLARATIVE_ACQUIRED_THRESHOLD = 0.8;
+/**
+ * Declarative threshold — fraction correct in the window required to
+ * promote `acquiring → acquired`.
+ *
+ * =====================================================================
+ * ONE 80 IN THE APP, AND IT IS THE FLUENT FLOOR.
+ *
+ * This was its own `0.8`, written down beside the design doc's
+ * §"Acquisition stage detection", and the ladders' pass bar was another
+ * one, and the Fluent rating was a third. Three numbers that had always
+ * been equal and any one of which could be moved alone — and since the
+ * Settings page made Fluent editable on 10 Sep 2026, moving it left the
+ * other two behind. A reader who set Fluent to 85 would still have
+ * items called acquired at 80.
+ *
+ * READ AT CALL TIME, for the same reason `clearBar()` is: a module-level
+ * `const` would freeze whatever was in force at import and the Settings
+ * page's promise — "a change re-grades on next read" — would be false.
+ */
+export function declarativeAcquiredThreshold(): number {
+  return ratingRules().fluentFloor;
+}
 
 /** Rating-based (procedural / integration) `acquiring → acquired` rule:
  *  the last N ratings must all be in {flying, cruising}. */
@@ -213,7 +232,7 @@ export function nextStageDeclarative(
   if (attempts.length < DECLARATIVE_ACQUIRED_MIN_ATTEMPTS) return current;
   const correct = attempts.filter(a => a.correct).length;
   const accuracy = correct / attempts.length;
-  return accuracy >= DECLARATIVE_ACQUIRED_THRESHOLD ? 'acquired' : current;
+  return accuracy >= declarativeAcquiredThreshold() ? 'acquired' : current;
 }
 
 /**

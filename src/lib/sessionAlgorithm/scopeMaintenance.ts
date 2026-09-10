@@ -77,9 +77,9 @@ import { catalogTotalForGoal } from './scopeCatalog';
 // ---------------------------------------------------------------------
 
 /** Fraction correct required across the window. Deliberately stricter
- *  than the `acquiring → acquired` bar (DECLARATIVE_ACQUIRED_THRESHOLD
- *  = 0.8): reaching acquired is a different claim from being steady
- *  enough to step down to maintenance. */
+ *  than the `acquiring → acquired` bar (`declarativeAcquiredThreshold()`,
+ *  which is the Fluent floor): reaching acquired is a different claim
+ *  from being steady enough to step down to maintenance. */
 export const MAINTENANCE_ACCURACY_THRESHOLD = 0.9;
 
 /** Attempts inspected, most recent first. Deliberately wider than the

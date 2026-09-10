@@ -16,7 +16,7 @@ import {
   PERFORMANCE_HISTORY_MAX,
   DECLARATIVE_ACQUIRED_MIN_ATTEMPTS,
   DECLARATIVE_ACQUIRED_WINDOW,
-  DECLARATIVE_ACQUIRED_THRESHOLD,
+  declarativeAcquiredThreshold,
   RATING_ACQUIRED_MIN_RATINGS,
   INITIAL_INTERVAL_DAYS,
   INTERVAL_GROWTH_FACTOR,
@@ -53,8 +53,8 @@ describe('threshold constants are sane', () => {
     expect(DECLARATIVE_ACQUIRED_WINDOW).toBeGreaterThanOrEqual(DECLARATIVE_ACQUIRED_MIN_ATTEMPTS);
   });
   it('threshold is a proper fraction', () => {
-    expect(DECLARATIVE_ACQUIRED_THRESHOLD).toBeGreaterThan(0);
-    expect(DECLARATIVE_ACQUIRED_THRESHOLD).toBeLessThanOrEqual(1);
+    expect(declarativeAcquiredThreshold()).toBeGreaterThan(0);
+    expect(declarativeAcquiredThreshold()).toBeLessThanOrEqual(1);
   });
   it('history cap is at least the largest window', () => {
     expect(PERFORMANCE_HISTORY_MAX).toBeGreaterThanOrEqual(DECLARATIVE_ACQUIRED_WINDOW);
