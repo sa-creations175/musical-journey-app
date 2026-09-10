@@ -28,6 +28,15 @@ export interface PlayerChord extends VoicedChord {
   /** What the chip says — "Cmaj9 A", "G7♯5". The caller's, because only
    *  it knows the key's spelling. */
   name: string;
+  /**
+   * How long this chord lasts, in beats.
+   *
+   * ABSENT MEANS THE SEQUENCE'S OWN LENGTH — two beats, or whatever the
+   * caller asked for. A pass gives every chord the same length; a
+   * RECORDED MOVEMENT does not, because its rhythm is part of what was
+   * played, so it sets this per chord.
+   */
+  beats?: number;
 }
 
 /**
@@ -98,7 +107,9 @@ export function chordStep(
   beats: number,
 ): SeqChord {
   const { notes, hands } = soundingNotes(chord, settings);
-  return { intervals: notes, beats, hands };
+  // THE CHORD'S OWN LENGTH WINS. A movement's rhythm is part of what
+  // was played and the sequence's default would flatten it.
+  return { intervals: notes, beats: chord.beats ?? beats, hands };
 }
 
 /**

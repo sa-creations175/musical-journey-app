@@ -2620,6 +2620,32 @@ export interface ChordMovement {
    * it should be in.
    */
   spelling?: Spelling;
+  /**
+   * What this movement IS, in the app's own vocabulary.
+   *
+   * =====================================================================
+   * A MOVEMENT IS THE ONLY THING SCALES & MODES PLAYS NOW.
+   *
+   * The built-in mode vamps retired on 10 Sep 2026. A mode sounds only
+   * once Silas has recorded a movement he knows from a song and tagged
+   * it with that mode; until then the mode plays nothing and says so.
+   * The tag is what makes that possible — without it there is no way to
+   * ask "what do I have for Dorian".
+   *
+   * TWO VOCABULARIES, ONE FIELD. `mode:<id>` names one of the modes
+   * Scales & Modes teaches; `progression:<id>` names an entry on the
+   * shared progression list, which is the Chord Movements & Passes grid.
+   * A movement is one or the other or neither, and neither is the
+   * normal case — most movements are a thing Silas played, not an
+   * example of a category.
+   *
+   * ABSENT ON EVERY MOVEMENT RECORDED BEFORE THIS FIELD, and absent
+   * means untagged. Nothing was backfilled: which mode a movement is an
+   * example of is a musical judgement and the app has no business
+   * guessing it.
+   * =====================================================================
+   */
+  tag?: string;
   /** Playback speed in BPM, remembered per movement (ruling 8). This
    *  is NOT the metronome and does not read its settings. */
   playbackBpm: number;

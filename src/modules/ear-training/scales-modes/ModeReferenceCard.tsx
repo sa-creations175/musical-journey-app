@@ -66,10 +66,11 @@ export default function ModeReferenceCard({ mode }: Props) {
             </div>
           </div>
 
-          <div>
-            <div className="text-[10px] uppercase tracking-wide text-neutral-500 mb-1">modal vamp</div>
-            <p className="text-xs text-neutral-700 dark:text-neutral-300">{mode.vamp.description}</p>
-          </div>
+          {/* THE MODAL VAMP LINE WAS HERE, describing a loop the app
+              wrote. Retired 10 Sep 2026 with the vamps themselves: what
+              a mode sounds like is now whatever Silas has recorded and
+              tagged with it, and that is named on the drill's reveal
+              rather than described here. */}
 
           {mode.songExamples.length > 0 && (
             <div>

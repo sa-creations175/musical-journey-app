@@ -1,5 +1,4 @@
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
-import type { ModalVamp } from './catalog';
 
 /**
  * Playback for the scales-modes module. Two entry points:
@@ -65,110 +64,22 @@ export async function playModeScale(
   };
 }
 
-// Schedule the whole vamp (chord + bass + melody) for `loopCount`
-// iterations. Uses 4/4 at `bpm` by default; beats-per-bar is derived
-// from the vamp config so odd meters work too.
-//
-// Chord layer: blocked chord held for each chord's beats.
-// Bass layer:  one octave below the chord root's register, slightly
-//              louder so it grounds the vamp.
-// Melody layer: sits above the chords, lower volume, slightly detuned
-//              timing so it doesn't collide with chord attacks.
-export async function playModalVamp(
-  rootMidi: number,
-  vamp: ModalVamp,
-  speedMultiplier = 1.0,
-  loopCount = 4,
-  bpm = 80,
-  onLoopStart?: (iteration: number) => void,
-): Promise<ModePlaybackHandle> {
-  const context = await ensureRunning();
-  const m = clampSpeed(speedMultiplier);
-  const secPerBeat = 60 / (bpm * m);
-  const now = context.currentTime + 0.08;
-
-  const voices: Array<{ stop: (time: number) => void }> = [];
-  const timers: number[] = [];
-  const beatsPerBar = vamp.beatsPerBar;
-  const totalBars = vamp.chords.length;
-  const barDuration = beatsPerBar * secPerBeat;
-
-  const iterations = Math.max(1, loopCount);
-  let cursor = now;
-
-  for (let iter = 0; iter < iterations; iter++) {
-    if (onLoopStart) {
-      const delay = Math.max(0, (cursor - now) * 1000);
-      const iteration = iter;
-      timers.push(window.setTimeout(() => onLoopStart(iteration), delay));
-    }
-
-    for (let bar = 0; bar < totalBars; bar++) {
-      const barStart = cursor;
-
-      // --- Chord layer ---
-      let chordCursor = barStart;
-      const chord = vamp.chords[bar];
-      const chordDur = chord.beats * secPerBeat;
-      const polyphony = chord.intervals.length;
-      const chordVol = Math.max(0.1, 0.22 / Math.sqrt(polyphony));
-      for (const iv of chord.intervals) {
-        voices.push(
-          playNote(midiToFreq(rootMidi + iv), chordCursor, chordDur * 0.95, context, chordVol),
-        );
-      }
-      chordCursor += chordDur;
-
-      // --- Bass layer ---
-      let bassCursor = barStart;
-      const bassBar = vamp.bassBars[bar] ?? [];
-      for (const b of bassBar) {
-        const dur = b.beats * secPerBeat;
-        // Bass octave: one below the chord root register for grounding.
-        voices.push(
-          playNote(midiToFreq(rootMidi + b.semitones - 12), bassCursor, dur * 0.95, context, 0.34),
-        );
-        bassCursor += dur;
-      }
-
-      // --- Melody layer ---
-      // Nudge attacks a fraction of a beat after the chord so the voice
-      // is distinct from chord block attacks.
-      let melCursor = barStart + secPerBeat * 0.08;
-      const melBar = vamp.melodyBars[bar] ?? [];
-      for (const mel of melBar) {
-        const dur = mel.beats * secPerBeat;
-        voices.push(
-          playNote(midiToFreq(rootMidi + mel.semitones), melCursor, dur * 0.9, context, 0.2),
-        );
-        melCursor += dur;
-      }
-
-      cursor = barStart + barDuration;
-    }
-  }
-
-  return {
-    stop: () => {
-      const fadeAt = context.currentTime + 0.05;
-      for (const v of voices) v.stop(fadeAt);
-      for (const id of timers) window.clearTimeout(id);
-    },
-  };
-}
-
-/** Total seconds a full vamp will play given the loop count and speed. */
-export function vampDurationSeconds(
-  vamp: ModalVamp,
-  loopCount: number,
-  speedMultiplier = 1.0,
-  bpm = 80,
-): number {
-  const m = clampSpeed(speedMultiplier);
-  const secPerBeat = 60 / (bpm * m);
-  const totalBeats = vamp.chords.length * vamp.beatsPerBar;
-  return totalBeats * secPerBeat * Math.max(1, loopCount);
-}
+/**
+ * =====================================================================
+ * `playModalVamp` AND `vampDurationSeconds` WERE HERE, AND THEY WENT
+ * WITH THE VAMPS THEMSELVES ON 10 SEP 2026.
+ *
+ * They played a mode's built-in loop — three layers at once, chord,
+ * bass and melody, each with its own per-bar rhythm. Silas retired the
+ * loops: a mode plays what he has RECORDED and tagged with it, and a
+ * recorded movement goes through the shared player like everything
+ * else. So the only sequencer with no path onto that player is the one
+ * with nothing left to sequence.
+ *
+ * The scale player below stays. It runs one line of single notes and
+ * the shared player has no shape for a mode's two-octave run yet.
+ * =====================================================================
+ */
 
 /** Total seconds the scale ascend+descend will play. */
 export function scaleDurationSeconds(

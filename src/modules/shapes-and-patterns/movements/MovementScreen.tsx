@@ -95,6 +95,7 @@ import { pitchClassOf } from '../../repertoire/chordParser';
 import BarGridView, { parseSlotDropId } from '../../repertoire/BarGridView';
 import { KEYS } from '../catalog';
 import { updateMovement } from './movementStore';
+import { movementTagOptions } from './movementTag';
 import { movementDegreeName } from './movementLabels';
 import {
   addBar, addChord, deleteBar, deleteChord, moveChord, movementGridView,
@@ -318,6 +319,42 @@ export default function MovementScreen() {
         onChange={e => save({ description: e.target.value })}
         className="block w-full max-w-xl rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-2 text-sm"
       />
+
+      {/* WHAT THIS MOVEMENT IS, in the app's own vocabulary.
+
+          IT IS THE WHOLE OF WHAT THE MODES DRILL HAS TO PLAY. The
+          built-in mode vamps retired on 10 Sep 2026: a mode sounds only
+          once Silas has recorded something he knows from a song and
+          tagged it with that mode. Untagged is the normal case and the
+          field opens on it — most movements are a thing he played, not
+          an example of a category. */}
+      <label className="block max-w-xl text-xs text-neutral-500 dark:text-neutral-400">
+        An example of
+        <select
+          data-testid="movement-tag"
+          aria-label="What this movement is an example of"
+          value={movement.tag ?? ''}
+          onChange={e => save(e.target.value === ''
+            // ABSENT, NOT AN EMPTY STRING. Untagged is the absence of
+            // an opinion, and `parseMovementTag` reads both the same
+            // way — but a stored '' is a value somebody chose.
+            ? { tag: undefined }
+            : { tag: e.target.value })}
+          className="mt-1 block w-full rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2.5 py-2 text-sm text-neutral-900 dark:text-neutral-100"
+        >
+          <option value="">Nothing yet</option>
+          <optgroup label="Mode">
+            {movementTagOptions().filter(o => o.group === 'Mode').map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Progression">
+            {movementTagOptions().filter(o => o.group === 'Progression').map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </optgroup>
+        </select>
+      </label>
 
       {/* --- transport ------------------------------------------- */}
       <div

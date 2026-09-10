@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { type AttemptRecord } from '../../../lib/db';
+import { type AttemptRecord, type ChordMovement } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
@@ -15,12 +15,18 @@ import { TIER_WEIGHT, computeTier } from '../../../lib/tier';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { recordEngagement } from '../../../lib/spacingState';
 import { getPref, setPref } from '../../../lib/userPrefs';
-import SpeedControl from '../../../components/SpeedControl';
+import AidsFold from '../../../components/AidsFold';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 import { FLUENCY_POOL_MINIMUM } from '../../../lib/fluencyPool';
 import AnswerVerdict from '../../../components/AnswerVerdict';
 import { MODES, modeById, pickDecoys, type Mode } from './catalog';
-import { playModalVamp, vampDurationSeconds, type ModePlaybackHandle } from './modeAudio';
+import type { PlaybackHandle } from '../../../lib/musicalPlayback';
+import { panelBeats, playPanel } from '../../../lib/builtAnswers/play';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
+import type { PlayerChord } from '../../../lib/player/voices';
+import { listMovements } from '../../shapes-and-patterns/movements/movementStore';
+import { movementChords } from '../../shapes-and-patterns/movements/movementChords';
+import { movementTagValue } from '../../shapes-and-patterns/movements/movementTag';
 import {
   MODULE_ID,
   PREF_LOOP_COUNT,
@@ -50,6 +56,22 @@ type RunState = 'idle' | 'playing' | 'answering' | 'reveal';
 type LoopCount = 2 | 3 | 4 | 5 | 6 | 99;
 const DEFAULT_LOOP: LoopCount = 4;
 
+/**
+ * The key name for a round's root, as a movement stores keys.
+ *
+ * `ROOT_NOTES` is this tab's own vocabulary and its labels are exactly
+ * the catalog's key names, so the two line up without a second table.
+ * Falls back to C, which is what a movement with no key would take.
+ */
+function keyNameOf(midi: number): string {
+  return ROOT_NOTES.find(r => r.midi === midi)?.label ?? 'C';
+}
+
+/** One of a list, at random. Module level, like `shuffle` below. */
+function pickOne<T>(list: ReadonlyArray<T>): T | undefined {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -65,7 +87,41 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
   // the user knows what's coming. Attempts still log (calendar, daily
   // goal, streaks unaffected) but the rolling-window tier math ignores
   // them.
-  const focusProtected = focusActive && pool.length < FLUENCY_POOL_MINIMUM;
+  const [settings, setSettings] = usePlayerSettings();
+  const settingsRef = useRef(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
+  /** The movement this round is playing, and its chords. */
+  const [activeMovement, setActiveMovement] = useState<ChordMovement | null>(null);
+  const [activeChords, setActiveChords] = useState<PlayerChord[]>([]);
+  /**
+   * What this tab has to play, which since 10 Sep 2026 is only what
+   * Silas has recorded.
+   *
+   * =====================================================================
+   * THE BUILT-IN VAMPS RETIRED AND THE MOVEMENTS TOOK THEIR PLACE.
+   *
+   * A mode plays a movement he has recorded and tagged with that mode,
+   * and nothing else. Until a mode has one it plays nothing and says so
+   * — an empty drill is the honest state, and a loop the app wrote is
+   * not the sound he is trying to learn to recognise.
+   * =====================================================================
+   */
+  const movements = useLiveQuery(() => listMovements(), []);
+  const taggedByMode = useMemo(() => {
+    const out = new Map<string, ChordMovement[]>();
+    for (const mode of MODES) {
+      const want = movementTagValue({ kind: 'mode', id: mode.id });
+      const mine = (movements ?? []).filter(m => m.tag === want);
+      if (mine.length > 0) out.set(mode.id, mine);
+    }
+    return out;
+  }, [movements]);
+  /** The modes this tab can actually serve. */
+  const playable = useMemo(
+    () => pool.filter(m => taggedByMode.has(m.id)),
+    [pool, taggedByMode],
+  );
+  const focusProtected = focusActive && playable.length < FLUENCY_POOL_MINIMUM;
   const [runState, setRunState] = useState<RunState>('idle');
   const [active, setActive] = useState<Mode | null>(null);
   /** What was in force when this round was presented. */
@@ -106,7 +162,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
   ) ?? VAMP_SPEED_DEFAULT;
   const speedRef = useRef(speed); speedRef.current = speed;
 
-  const playbackRef = useRef<ModePlaybackHandle | null>(null);
+  const playbackRef = useRef<PlaybackHandle | null>(null);
   const endTimerRef = useRef<number | null>(null);
 
   const groupedAttempts = useMemo(() => {
@@ -131,7 +187,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
 
   const buildCandidates = (): AdaptiveCandidate<Mode>[] => {
     const today = localDayKey();
-    return pool.map(mode => {
+    return playable.map(mode => {
       const keyed = groupedAttempts.get(vampItemId(mode)) ?? [];
       const recent = keyed.slice(0, ROLLING_WINDOW_SIZE);
       const correctN = recent.filter(a => a.correct).length;
@@ -161,12 +217,12 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
 
   const startRound = async () => {
     stopPlayback();
-    if (pool.length === 0) return;
+    if (playable.length === 0) return;
     const candidates = buildCandidates();
     if (candidates.length === 0) return;
     const mode = pickAdaptive(candidates);
     const newRoot = rootLock === 'random' ? randomRootMidi() : rootLock;
-    const decoyPool = pool.length >= 4 ? pool : MODES;
+    const decoyPool = playable.length >= 4 ? playable : MODES;
     const otherModes = decoyPool.filter(m => m.id !== mode.id);
     const decoys = otherModes.length >= 3
       ? pickDecoys(mode, 3)
@@ -184,28 +240,41 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
     // changes apply only to the next round, never retroactively.
     const roundLoop: LoopCount = loopCount === 99 ? 99 : loopCount;
     setActiveLoopCount(roundLoop);
-    const speed = speedRef.current;
-    const handle = await playModalVamp(newRoot, mode.vamp, speed, roundLoop);
-    playbackRef.current = handle;
-    // A LOOPING VAMP HAS NO END, so the clock starts when the FIRST
-    // pass finishes — the point at which the reader has heard the
-    // whole shape once and could answer. A vamp set to loop forever
-    // (99) is the same question with more repetitions available, not a
-    // different one, so it is measured from the same place rather than
-    // going unmeasured.
+    // ONE OF THE MOVEMENTS TAGGED WITH THIS MODE. More than one is the
+    // point — a mode Silas has recorded three times has three things to
+    // sit inside, and always playing the oldest would waste two.
+    const mine = taggedByMode.get(mode.id) ?? [];
+    const movement = pickOne(mine);
+    setActiveMovement(movement ?? null);
+    const chords = movement === undefined
+      ? []
+      // THE ROUND'S ROOT IS THE KEY IT IS PLAYED IN. A movement stores
+      // its chords as degrees, so handing it a different key transposes
+      // the whole thing — the mechanism `movementPlayback` describes.
+      : movementChords(movement, { spelling, key: keyNameOf(newRoot) });
+    setActiveChords(chords);
+    if (chords.length === 0) { setRunState('answering'); return; }
+    playbackRef.current = await playPanel(chords, settingsRef.current, {
+      loop: roundLoop === 99 ? 'untilStopped' : roundLoop,
+    });
+    // A LOOPING PASSAGE HAS NO END, so the clock starts when the FIRST
+    // pass finishes — the point at which the reader has heard the whole
+    // shape once and could answer. Set to loop for ever (99) it is the
+    // same question with more repetitions available, not a different
+    // one, so it is measured from the same place rather than going
+    // unmeasured.
+    const onePass = panelBeats(chords) * (60 / settingsRef.current.bpm) * 1000;
     asked.current = {
-      playbackEndsAt: Date.now()
-        + vampDurationSeconds(mode.vamp, 1, speed) * 1000,
-      playbackSpeed: speed,
+      playbackEndsAt: Date.now() + onePass,
+      playbackBpm: settingsRef.current.bpm,
       drillTab: 'vamp',
     };
     if (roundLoop !== 99) {
-      const dur = vampDurationSeconds(mode.vamp, roundLoop, speed);
       endTimerRef.current = window.setTimeout(() => {
         playbackRef.current = null;
         endTimerRef.current = null;
         setRunState(prev => prev === 'playing' ? 'answering' : prev);
-      }, dur * 1000 + 300);
+      }, onePass * roundLoop + 300);
     }
   };
 
@@ -220,14 +289,16 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
     // Use the loop count that was in effect when this round started —
     // not whatever the dropdown says now.
     const effectiveLoop = activeLoopCount;
-    const handle = await playModalVamp(rootMidi, active.vamp, speedRef.current, effectiveLoop);
-    playbackRef.current = handle;
+    if (activeChords.length === 0) return;
+    playbackRef.current = await playPanel(activeChords, settingsRef.current, {
+      loop: effectiveLoop === 99 ? 'untilStopped' : effectiveLoop,
+    });
     if (effectiveLoop !== 99) {
-      const dur = vampDurationSeconds(active.vamp, effectiveLoop, speedRef.current);
+      const onePass = panelBeats(activeChords) * (60 / settingsRef.current.bpm) * 1000;
       endTimerRef.current = window.setTimeout(() => {
         playbackRef.current = null;
         endTimerRef.current = null;
-      }, dur * 1000 + 300);
+      }, onePass * effectiveLoop + 300);
     }
   };
 
@@ -307,14 +378,27 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
             <option value="99">Until Stopped</option>
           </select>
         </label>
-        <div className="flex items-end">
-          <SpeedControl
-            moduleId={MODULE_ID}
-            prefKeyOverride={PREF_VAMP_SPEED}
-            fallbackOverride={VAMP_SPEED_DEFAULT}
-          />
-        </div>
       </div>
+
+      {/* THE SPEED CONTROL WAS HERE. Tempo is beats per minute on every
+          surface now, and it lives in the aids fold with the octave and
+          Listen to — the same four rows every quiz offers. */}
+      <AidsFold settings={settings} onSettings={setSettings} showListen={false} />
+
+      {/* NOTHING RECORDED YET is the honest empty state, and on the day
+          the vamps retired it is what every mode says. A mode plays what
+          Silas has recorded and tagged with it; the app has nothing of
+          its own to put there. */}
+      {playable.length === 0 && (
+        <p
+          data-testid="no-movements"
+          className="rounded-lg border border-dashed border-black/10 dark:border-white/15 px-3 py-3 text-xs text-neutral-500 dark:text-neutral-400"
+        >
+          Nothing recorded for this mode yet. Record a movement you know from a
+          song in Chord Movements &amp; Passes and tag it with the mode, and it
+          will play here.
+        </p>
+      )}
 
       <div className="flex items-center justify-center flex-wrap gap-3">
         {showRootHint && (
@@ -394,13 +478,19 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
       )}
 
       {runState === 'reveal' && active && (
-        <VampReveal mode={active} wasCorrect={!!wasCorrect} />
+        <VampReveal
+          mode={active}
+          wasCorrect={!!wasCorrect}
+          movement={activeMovement}
+        />
       )}
     </div>
   );
 }
 
-function VampReveal({ mode, wasCorrect }: { mode: Mode; wasCorrect: boolean }) {
+function VampReveal({ mode, wasCorrect, movement }: {
+  mode: Mode; wasCorrect: boolean; movement: ChordMovement | null;
+}) {
   const topSongs = mode.songExamples.slice(0, 3);
   return (
     <div className="rounded-lg border border-black/[0.07] p-4 space-y-3 text-sm">
@@ -413,10 +503,17 @@ function VampReveal({ mode, wasCorrect }: { mode: Mode; wasCorrect: boolean }) {
       <p className="text-xs text-neutral-500">{mode.quickDefinition}</p>
       <p className="text-sm text-neutral-700 dark:text-neutral-200">{mode.starterDescription}</p>
 
-      <div className="rounded-md bg-neutral-100/70 dark:bg-neutral-800/60 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
-        <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1.5">vamp</span>
-        {mode.vamp.description}
-      </div>
+      {/* WHAT YOU JUST HEARD IS SILAS'S OWN, so the reveal names it
+          rather than describing a loop the app wrote. */}
+      {movement !== null && (
+        <div className="rounded-md bg-neutral-100/70 dark:bg-neutral-800/60 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
+          <span className="text-[10px] uppercase tracking-wide text-neutral-500 mr-1.5">
+            you recorded
+          </span>
+          {movement.name === '' ? 'an untitled movement' : movement.name}
+          {movement.description === '' ? null : ` — ${movement.description}`}
+        </div>
+      )}
 
       {topSongs.length > 0 && (
         <div>

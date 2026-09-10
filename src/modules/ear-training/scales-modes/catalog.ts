@@ -28,46 +28,6 @@ export interface SongExample {
   year?: number;
 }
 
-/**
- * A modal vamp is a short, looping musical environment that evokes the
- * mode's emotional character. Each vamp has chord, bass, and melody
- * layers running in parallel over `bars` bars of 4 beats each. Semitone
- * offsets in every layer are measured from the tonic (MIDI value is
- * resolved at playback time by adding the root MIDI).
- *
- * Bass lines sit one octave below the chord root by convention. Melody
- * notes are measured from the tonic in the same octave as the chord
- * voicings — add 12 for a line sitting above the chord.
- */
-export interface VampChord {
-  /** Chord voicing as semitone offsets above the tonic (chord root included). */
-  intervals: number[];
-  /** Beat length within the bar; per-bar totals should equal beatsPerBar. */
-  beats: number;
-}
-
-export interface VampBassNote {
-  /** Semitones above tonic. Playback lowers this an octave for bass register. */
-  semitones: number;
-  beats: number;
-}
-
-export interface VampMelodyNote {
-  /** Semitones above tonic. Typical range: 12 (upper tonic) to 24 (two octaves). */
-  semitones: number;
-  beats: number;
-}
-
-export interface ModalVamp {
-  beatsPerBar: number;
-  /** One entry per bar — each bar's chord/bass/melody run in parallel. */
-  chords: VampChord[];
-  bassBars: VampBassNote[][];
-  melodyBars: VampMelodyNote[][];
-  /** Human-readable description of the vamp (used on reveal cards). */
-  description: string;
-}
-
 export interface Mode {
   id: ModeId;
   name: string;
@@ -91,7 +51,25 @@ export interface Mode {
   starterDescription: string;
   /** Song examples drawn from the user's listening taste. */
   songExamples: SongExample[];
-  vamp: ModalVamp;
+  /**
+   * =====================================================================
+   * `vamp` WAS HERE, AND IT RETIRED ON 10 SEP 2026.
+   *
+   * Every mode carried a built-in loop — chords, a bass line and a
+   * melody, written by the app — and the Sit Inside drill played it.
+   * Silas ruled them out: the point of sitting inside a mode is to sit
+   * inside a sound you know from a song, and a Dorian loop nobody had
+   * played is not that.
+   *
+   * A mode now plays only what he has RECORDED and TAGGED with it, in
+   * Chord Movements & Passes. Until a mode has one, it plays nothing
+   * and says so. See `movements/movementTag.ts`.
+   *
+   * NO HISTORY WAS TOUCHED. The modes themselves are still live items,
+   * so nothing is orphaned; the ear-training sweep keys on the mode id
+   * and finds every one of them exactly where it was.
+   * =====================================================================
+   */
 }
 
 // Standard reference: semitone offsets from tonic for a two-octave span.
@@ -119,29 +97,6 @@ export const MODES: Mode[] = [
       { title: 'All of Me', artist: 'John Legend', year: 2013 },
       { title: 'Let It Be', artist: 'The Beatles', year: 1970 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'Classic I – IV – V – I major cadence. Melody traces 1-3-5-8 and back — no tension, pure resolution.',
-      chords: [
-        { intervals: [0, 4, 7, 11], beats: 4 },      // Imaj7
-        { intervals: [5, 9, 12, 16], beats: 4 },     // IVmaj7 (voiced above tonic)
-        { intervals: [7, 11, 14, 17], beats: 4 },    // V
-        { intervals: [0, 4, 7, 11], beats: 4 },      // Imaj7
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 5, beats: 4 }],
-        [{ semitones: 7, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-      ],
-      melodyBars: [
-        [ { semitones: 12, beats: 1 }, { semitones: 16, beats: 1 }, { semitones: 19, beats: 1 }, { semitones: 23, beats: 1 } ],
-        [ { semitones: 24, beats: 1 }, { semitones: 21, beats: 1 }, { semitones: 17, beats: 1 }, { semitones: 14, beats: 1 } ],
-        [ { semitones: 19, beats: 1 }, { semitones: 23, beats: 1 }, { semitones: 26, beats: 1 }, { semitones: 23, beats: 1 } ],
-        [ { semitones: 19, beats: 1 }, { semitones: 16, beats: 1 }, { semitones: 12, beats: 2 } ],
-      ],
-    },
   },
 
   // ------------------------------------------------------------------
@@ -165,31 +120,6 @@ export const MODES: Mode[] = [
       { title: 'Impressions', artist: 'John Coltrane', year: 1963 },
       { title: 'Mas Que Nada', artist: 'Sérgio Mendes', year: 1966 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'i7 to IV7 — the IV is major, not minor, because of Dorian\'s raised 6. Melody circles the tonic and lands on that 6 for emphasis.',
-      chords: [
-        { intervals: [0, 3, 7, 10], beats: 4 },   // im7
-        { intervals: [5, 9, 12, 15], beats: 4 },  // IV7
-        { intervals: [0, 3, 7, 10], beats: 4 },
-        { intervals: [5, 9, 12, 15], beats: 4 },
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 5, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 5, beats: 4 }],
-      ],
-      melodyBars: [
-        // motif: 1, b3, 6, 5, b3, 1
-        [ { semitones: 12, beats: 0.5 }, { semitones: 15, beats: 0.5 }, { semitones: 21, beats: 1 }, { semitones: 19, beats: 1 }, { semitones: 15, beats: 0.5 }, { semitones: 12, beats: 0.5 } ],
-        // IV bar: 4, 6, 1(oct), 6, 4
-        [ { semitones: 17, beats: 1 }, { semitones: 21, beats: 1 }, { semitones: 24, beats: 1 }, { semitones: 21, beats: 1 } ],
-        [ { semitones: 12, beats: 0.5 }, { semitones: 15, beats: 0.5 }, { semitones: 21, beats: 2 }, { semitones: 19, beats: 1 } ],
-        [ { semitones: 17, beats: 1 }, { semitones: 21, beats: 2 }, { semitones: 12, beats: 1 } ],
-      ],
-    },
   },
 
   // ------------------------------------------------------------------
@@ -213,31 +143,6 @@ export const MODES: Mode[] = [
       { title: 'Flamenco guitar traditions', artist: 'Various' },
       { title: 'Pyramid Song', artist: 'Radiohead', year: 2001 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'im to ♭II — the half-step between tonic and ♭II is the Phrygian signature. Melody leans on that ♭2 for the Spanish flavor.',
-      chords: [
-        { intervals: [0, 3, 7], beats: 4 },       // im
-        { intervals: [1, 5, 8], beats: 4 },       // bIImaj
-        { intervals: [0, 3, 7], beats: 4 },
-        { intervals: [1, 5, 8], beats: 4 },
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 1, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 1, beats: 4 }],
-      ],
-      melodyBars: [
-        // motif: 1, b2, 1, b3, b2, 1
-        [ { semitones: 12, beats: 0.5 }, { semitones: 13, beats: 0.5 }, { semitones: 12, beats: 1 }, { semitones: 15, beats: 1 }, { semitones: 13, beats: 1 } ],
-        // bII bar: emphasize b2
-        [ { semitones: 13, beats: 1 }, { semitones: 17, beats: 1 }, { semitones: 20, beats: 1 }, { semitones: 17, beats: 1 } ],
-        [ { semitones: 12, beats: 0.5 }, { semitones: 13, beats: 0.5 }, { semitones: 15, beats: 1 }, { semitones: 13, beats: 1 }, { semitones: 12, beats: 1 } ],
-        [ { semitones: 13, beats: 2 }, { semitones: 12, beats: 2 } ],
-      ],
-    },
   },
 
   // ------------------------------------------------------------------
@@ -261,31 +166,6 @@ export const MODES: Mode[] = [
       { title: 'The Simpsons theme', artist: 'Danny Elfman', year: 1989 },
       { title: 'Flying in a Blue Dream', artist: 'Joe Satriani', year: 1989 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'Imaj7 with a II triad floating above a tonic pedal — the II/I voicing highlights the ♯4. Bass stays glued to the tonic so nothing pulls you home.',
-      chords: [
-        { intervals: [0, 4, 7, 11], beats: 4 },   // Imaj7
-        { intervals: [2, 6, 9, 12], beats: 4 },   // II/I (raised 4 is the #11)
-        { intervals: [0, 4, 7, 11], beats: 4 },
-        { intervals: [2, 6, 9, 14], beats: 4 },
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],    // tonic pedal
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-      ],
-      melodyBars: [
-        // motif: 1, 3, #4, 5, 3
-        [ { semitones: 12, beats: 1 }, { semitones: 16, beats: 1 }, { semitones: 18, beats: 1 }, { semitones: 19, beats: 1 } ],
-        // highlight #4 over the II/I
-        [ { semitones: 14, beats: 1 }, { semitones: 18, beats: 2 }, { semitones: 16, beats: 1 } ],
-        [ { semitones: 12, beats: 1 }, { semitones: 16, beats: 1 }, { semitones: 18, beats: 2 } ],
-        [ { semitones: 19, beats: 1 }, { semitones: 18, beats: 1 }, { semitones: 16, beats: 1 }, { semitones: 12, beats: 1 } ],
-      ],
-    },
   },
 
   // ------------------------------------------------------------------
@@ -309,31 +189,6 @@ export const MODES: Mode[] = [
       { title: 'Norwegian Wood', artist: 'The Beatles', year: 1965 },
       { title: 'Cissy Strut', artist: 'The Meters', year: 1969 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'I7 to ♭VII — the ♭7 of the key becomes the root of the ♭VII chord, that classic Stevie Wonder / gospel backdoor move.',
-      chords: [
-        { intervals: [0, 4, 7, 10], beats: 4 },   // I7
-        { intervals: [10, 14, 17], beats: 4 },    // bVII
-        { intervals: [0, 4, 7, 10], beats: 4 },
-        { intervals: [10, 14, 17], beats: 4 },
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 10, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 10, beats: 4 }],
-      ],
-      melodyBars: [
-        // motif: 1, 3, b7, 5, 1
-        [ { semitones: 12, beats: 1 }, { semitones: 16, beats: 1 }, { semitones: 22, beats: 1 }, { semitones: 19, beats: 1 } ],
-        // lean on b7
-        [ { semitones: 22, beats: 1 }, { semitones: 19, beats: 1 }, { semitones: 16, beats: 1 }, { semitones: 14, beats: 1 } ],
-        [ { semitones: 12, beats: 1 }, { semitones: 16, beats: 1 }, { semitones: 19, beats: 1 }, { semitones: 22, beats: 1 } ],
-        [ { semitones: 22, beats: 2 }, { semitones: 12, beats: 2 } ],
-      ],
-    },
   },
 
   // ------------------------------------------------------------------
@@ -357,29 +212,6 @@ export const MODES: Mode[] = [
       { title: 'Stairway to Heaven (intro)', artist: 'Led Zeppelin', year: 1971 },
       { title: 'Billie Jean', artist: 'Michael Jackson', year: 1982 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'im – ♭VI – ♭VII – im. Classic minor ballad cycle. Bass steps down then back up to the tonic; melody sits inside natural-minor territory.',
-      chords: [
-        { intervals: [0, 3, 7], beats: 4 },        // im
-        { intervals: [8, 12, 15], beats: 4 },      // bVI
-        { intervals: [10, 14, 17], beats: 4 },     // bVII
-        { intervals: [0, 3, 7], beats: 4 },        // im
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 8, beats: 4 }],
-        [{ semitones: 10, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-      ],
-      melodyBars: [
-        [ { semitones: 12, beats: 1 }, { semitones: 15, beats: 1 }, { semitones: 19, beats: 2 } ],
-        [ { semitones: 20, beats: 1 }, { semitones: 19, beats: 1 }, { semitones: 17, beats: 2 } ],
-        [ { semitones: 19, beats: 1 }, { semitones: 17, beats: 1 }, { semitones: 15, beats: 2 } ],
-        [ { semitones: 15, beats: 1 }, { semitones: 12, beats: 1 }, { semitones: 10, beats: 1 }, { semitones: 12, beats: 1 } ],
-      ],
-    },
   },
 
   // ------------------------------------------------------------------
@@ -403,30 +235,6 @@ export const MODES: Mode[] = [
       { title: 'Black Orpheus', artist: 'Luiz Bonfá', year: 1959 },
       { title: 'Purple Rain (solo)', artist: 'Prince', year: 1984 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'im – ♭VI – V7 – im. The V7 contains the raised 7 as its major third, creating that sharp pull home — the defining harmonic-minor sound.',
-      chords: [
-        { intervals: [0, 3, 7], beats: 4 },         // im
-        { intervals: [8, 12, 15], beats: 4 },       // bVI
-        { intervals: [7, 11, 14, 17], beats: 4 },   // V7 (raised 7 is the 11 = major 3rd of V)
-        { intervals: [0, 3, 7], beats: 4 },         // im
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 8, beats: 4 }],
-        [{ semitones: 7, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-      ],
-      melodyBars: [
-        [ { semitones: 12, beats: 1 }, { semitones: 15, beats: 1 }, { semitones: 19, beats: 2 } ],
-        [ { semitones: 20, beats: 2 }, { semitones: 15, beats: 2 } ],
-        // leading tone lean: 7 (raised) - b6 - 5 - 7
-        [ { semitones: 23, beats: 1 }, { semitones: 20, beats: 1 }, { semitones: 19, beats: 1 }, { semitones: 23, beats: 1 } ],
-        [ { semitones: 24, beats: 2 }, { semitones: 12, beats: 2 } ],
-      ],
-    },
   },
 
   // ------------------------------------------------------------------
@@ -450,32 +258,6 @@ export const MODES: Mode[] = [
       { title: 'My Funny Valentine', artist: 'Chet Baker', year: 1952 },
       { title: 'Blue in Green', artist: 'Miles Davis', year: 1959 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'im(maj7) to IV7 — the raised 7 appears in the tonic chord, the raised 6 in the IV7. Melody runs the ascending melodic-minor scale to make the color explicit.',
-      chords: [
-        { intervals: [0, 3, 7, 11], beats: 4 },    // im(maj7)
-        { intervals: [5, 9, 12, 15], beats: 4 },   // IV7
-        { intervals: [0, 3, 7, 11], beats: 4 },
-        { intervals: [5, 9, 12, 15], beats: 4 },
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 5, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 5, beats: 4 }],
-      ],
-      melodyBars: [
-        // ascending melodic minor: 1, 2, b3, 4, 5
-        [ { semitones: 12, beats: 1 }, { semitones: 14, beats: 1 }, { semitones: 15, beats: 1 }, { semitones: 17, beats: 1 } ],
-        // continue: 6, 7, 1(oct), 7
-        [ { semitones: 19, beats: 1 }, { semitones: 21, beats: 1 }, { semitones: 23, beats: 1 }, { semitones: 24, beats: 1 } ],
-        // descend slightly emphasizing raised 6/7
-        [ { semitones: 23, beats: 1 }, { semitones: 21, beats: 1 }, { semitones: 19, beats: 1 }, { semitones: 17, beats: 1 } ],
-        [ { semitones: 15, beats: 1 }, { semitones: 14, beats: 1 }, { semitones: 12, beats: 2 } ],
-      ],
-    },
   },
 
   // ------------------------------------------------------------------
@@ -499,29 +281,6 @@ export const MODES: Mode[] = [
       { title: 'Juicy Fruit (passages)', artist: 'Mtume', year: 1983 },
       { title: 'Symbolic', artist: 'Death', year: 1995 },
     ],
-    vamp: {
-      beatsPerBar: 4,
-      description:
-        'im7♭5 sustained with the tonic pedal in the bass. Melody drifts around the ♭2 and ♭5 — deliberately unresolved so the instability is what you hear.',
-      chords: [
-        { intervals: [0, 3, 6, 10], beats: 4 },
-        { intervals: [0, 3, 6, 10], beats: 4 },
-        { intervals: [0, 3, 6, 10], beats: 4 },
-        { intervals: [0, 3, 6, 10], beats: 4 },
-      ],
-      bassBars: [
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-        [{ semitones: 0, beats: 4 }],
-      ],
-      melodyBars: [
-        [ { semitones: 12, beats: 1 }, { semitones: 13, beats: 1 }, { semitones: 15, beats: 1 }, { semitones: 18, beats: 1 } ],
-        [ { semitones: 18, beats: 1 }, { semitones: 15, beats: 1 }, { semitones: 13, beats: 2 } ],
-        [ { semitones: 12, beats: 1 }, { semitones: 18, beats: 1 }, { semitones: 20, beats: 1 }, { semitones: 22, beats: 1 } ],
-        [ { semitones: 20, beats: 1 }, { semitones: 18, beats: 1 }, { semitones: 13, beats: 1 }, { semitones: 12, beats: 1 } ],
-      ],
-    },
   },
 ];
 

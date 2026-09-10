@@ -27,7 +27,7 @@ import { playBlocked, type PlaybackHandle } from '../musicalPlayback';
 import type { VoicedChord } from './voiceLeading';
 import { raise } from './marks';
 import {
-  DEFAULT_BPM as PANEL_BPM, type LoopCount, type PlayerSettings,
+  DEFAULT_BPM as PANEL_BPM, type PlayerSettings,
 } from '../player/settings';
 import { chordStep, type PlayerChord } from '../player/voices';
 
@@ -117,9 +117,15 @@ export async function playPanel(
     startAtBeat?: number;
     /** Beats per chord. Two, unless a surface says otherwise. */
     beats?: number;
-    /** Override the settings' loop — a quiz that plays once on arrival
-     *  whatever the panel is set to. */
-    loop?: LoopCount;
+    /**
+     * Override the settings' loop.
+     *
+     * A quiz plays once on arrival whatever the panel is set to; the
+     * modes drill loops a passage a chosen number of times. So this
+     * takes any count the engine takes rather than only the four the
+     * panel's Loop row offers.
+     */
+    loop?: number | 'untilStopped';
   } = {},
 ): Promise<PlaybackHandle> {
   const beats = opts.beats ?? CHORD_BEATS;
@@ -145,11 +151,16 @@ export function scaleBeats(noteCount: number): number {
 /** How many beats a panel sequence runs for, so Pause can say where it
  *  got to and Resume can be told. */
 export function panelBeats(
-  chordCount: number,
+  chords: number | ReadonlyArray<PlayerChord>,
   opts: { orientPc?: number; beats?: number } = {},
 ): number {
-  const beats = opts.beats ?? CHORD_BEATS;
-  return (chordCount + (opts.orientPc === undefined ? 0 : 1)) * beats;
+  const each = opts.beats ?? CHORD_BEATS;
+  const lead = opts.orientPc === undefined ? 0 : each;
+  // A LIST SUMS ITS OWN LENGTHS; a bare count multiplies. The second is
+  // what a pass needs, where every chord is the same length, and the
+  // first is what a recorded movement needs, where they are not.
+  if (typeof chords === 'number') return lead + chords * each;
+  return lead + chords.reduce((n, c) => n + (c.beats ?? each), 0);
 }
 
 /** A progression, or a slash chord in its context. */
