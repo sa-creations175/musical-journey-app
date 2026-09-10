@@ -1,7 +1,4 @@
-import {
-  accidentalCountDecoys, degreeAscii, expansionCards, practicalName,
-  MAJOR_PENT_CONTEXT, MINOR_PENT_CONTEXT, RELATIVE_PENT_CONTEXT,
-} from './catalogExpansions';
+import { degreeAscii, expansionCards, practicalName } from './catalogExpansions';
 import { chooseDecoys } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, degreeNoteCards } from './degreeNoteCards';
@@ -10,12 +7,6 @@ import { withFacets } from './facets';
 import {
   MODAL_IMPROV_CATEGORY_NAME, modalImprovisationCards,
 } from './modalImprovisation';
-import { INTERVAL_NAMES } from './intervalInversion';
-import {
-  MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteLabel,
-  noteList, pentatonicCardId, pentatonicDecoys, relativeMinorRoot, scaleName,
-} from './pentatonics';
-import { canonicaliseKey } from '../repertoire/circleOfFourths';
 // Harmonic Fluency flashcard catalog.
 // Static data — no audio, no keys in the DB beyond per-user SM-2 state.
 // Programmatic generators fill systematic categories (scale-degree math,
@@ -299,202 +290,13 @@ const DECOY_COUNT = 3;
 
 // --- Category 2: Named notes across keys ----------------------------
 
-/**
- * Notes just outside the key, spelled the way the KEY spells.
- *
- * A fallback pool for a card whose scale cannot supply same-shape
- * company. The spelling preference comes from the key, not from the
- * answer: `noteDecoys` reads the accidental on the correct note, which
- * is right where the question IS a note, and wrong here — the answer
- * "F" carries no accidental, so it would spell A♭ major's neighbours
- * with sharps and put G♯ on screen in a key that has never seen one.
- */
-function chromaticNeighbours(correct: string, key: string): string[] {
-  const useFlats = KEY_USES_FLATS[key] ?? false;
-  const tonic = MAJOR_KEY_TONICS[key] ?? 0;
-  const base = NOTE_NAMES_SHARP.indexOf(correct) >= 0
-    ? NOTE_NAMES_SHARP.indexOf(correct)
-    : NOTE_NAMES_FLAT.indexOf(correct);
-  if (base < 0) return [];
-  return [1, -1, 2, -2, 3, -3, 4, -4]
-    .map(d => noteAt(base + d, useFlats))
-    .filter(n => n !== correct && n !== noteAt(tonic, useFlats));
-}
-
-export function generateNamedNoteCards(): Flashcard[] {
-  const pairs: Array<{ key: string; degree: number }> = [
-    { key: 'C', degree: 5 }, { key: 'G', degree: 4 }, { key: 'D', degree: 3 },
-    { key: 'A', degree: 6 }, { key: 'E', degree: 2 }, { key: 'B', degree: 5 },
-    { key: 'F', degree: 4 }, { key: 'Bb', degree: 3 }, { key: 'Eb', degree: 5 },
-    { key: 'Ab', degree: 6 }, { key: 'Db', degree: 6 }, { key: 'F#', degree: 4 },
-    { key: 'C', degree: 7 }, { key: 'G', degree: 2 }, { key: 'D', degree: 7 },
-    { key: 'A', degree: 4 }, { key: 'F', degree: 6 }, { key: 'Bb', degree: 7 },
-    { key: 'Eb', degree: 2 }, { key: 'Ab', degree: 3 }, { key: 'E', degree: 4 },
-    { key: 'Db', degree: 5 }, { key: 'Bb', degree: 2 }, { key: 'Ab', degree: 7 },
-  ];
-  return pairs.map((p, i) => {
-    const correct = degreeNote(p.key, p.degree);
-    // The other degrees of the same key come first — a wrong degree is
-    // the mistake this card is about. But a key's scale can hold only
-    // one accidental (F major has just B♭), and then an answer of B♭ is
-    // the only option on screen with a flat in it. So the pool falls
-    // through to same-shape neighbours, which are wrong notes in this
-    // key and therefore still honest decoys.
-    const decoyCandidates = [
-      ...[1, 2, 3, 4, 5, 6, 7]
-        .filter(d => d !== p.degree)
-        .map(d => degreeNote(p.key, d)),
-      ...chromaticNeighbours(correct, p.key),
-    ];
-    const fullScale = [1, 2, 3, 4, 5, 6, 7]
-      .map(d => scaleDegreeSpelled(p.key, d)).join(' ');
-    return {
-      id: `nn-${i + 1}`,
-      // Coordinates from the pair the generator is standing on, not
-      // from `nn-${i+1}`, which carries no key and no degree.
-      axis: { key: p.key, degree: p.degree },
-      category: 'named-notes',
-      categoryName: CATEGORY_LABELS['named-notes'],
-      question: `In ${p.key} major, ${p.degree} of the scale = ?`,
-      correctAnswer: correct,
-      decoys: chooseDecoys(correct, decoyCandidates, {
-        count: DECOY_COUNT, seed: `nn-${i + 1}`, label: `nn-${i + 1}`,
-        category: 'named-notes',
-      }),
-      explanation: `${p.key} major is ${fullScale} — number ${p.degree} is ${correct}. Knowing every scale in every key cold is the unglamorous skill that lets you sit in at any session: when the MD calls "key of ${p.key}, hit the ${p.degree}", you're already there.`,
-      skillTag: `named-note-key-${p.key}-degree-${p.degree}`,
-      visualHint: {
-        key: `${p.key} major`,
-        destinationNote: correct,
-        startingDegree: 1,
-        destinationDegree: p.degree,
-        direction: 'up',
-        distance: Math.max(0, p.degree - 1),
-      },
-    };
-  });
-}
-
 // --- Category 6: Reverse key pivots ---------------------------------
-
-export function generateReversePivotCards(): Flashcard[] {
-  const entries: Array<{ key: string; degree: number }> = [
-    { key: 'C', degree: 1 }, { key: 'C', degree: 4 }, { key: 'C', degree: 5 }, { key: 'C', degree: 6 },
-    { key: 'G', degree: 1 }, { key: 'G', degree: 4 }, { key: 'G', degree: 5 },
-    { key: 'D', degree: 4 }, { key: 'D', degree: 5 }, { key: 'D', degree: 6 },
-    { key: 'A', degree: 4 }, { key: 'A', degree: 5 },
-    { key: 'E', degree: 4 }, { key: 'E', degree: 5 },
-    { key: 'F', degree: 4 }, { key: 'F', degree: 5 }, { key: 'F', degree: 6 },
-    { key: 'Bb', degree: 4 }, { key: 'Bb', degree: 5 }, { key: 'Bb', degree: 6 },
-    { key: 'Eb', degree: 4 }, { key: 'Eb', degree: 5 },
-    { key: 'Ab', degree: 4 }, { key: 'Ab', degree: 5 },
-  ];
-  const allKeys = Object.keys(MAJOR_KEY_TONICS);
-  return entries.map((e, i) => {
-    const note = degreeNote(e.key, e.degree);
-    // Every option is "<key> major", so the only thing separating them
-    // is the key name — and eleven of the twelve keys are available, so
-    // a flat answer can always be given flat company.
-    const decoys = chooseDecoys(
-      `${e.key} major`,
-      allKeys.filter(k => k !== e.key).map(k => `${k} major`),
-      {
-        count: DECOY_COUNT,
-        seed: `rkp-${i + 1}`,
-        label: `rkp-${i + 1}`,
-        category: 'reverse-key-pivots',
-      },
-    );
-    return {
-      id: `rkp-${i + 1}`,
-      axis: { key: e.key, degree: e.degree },
-      category: 'reverse-key-pivots',
-      categoryName: CATEGORY_LABELS['reverse-key-pivots'],
-      question: `${note} is the ${e.degree} of which major key?`,
-      correctAnswer: `${e.key} major`,
-      decoys,
-      explanation: `If ${note} is the ${e.degree}, then counting back ${e.degree - 1} steps lands you on ${e.key} as the 1 — so the key is ${e.key} major. Reverse-pivoting is what arrangers and ear-trained players do when they hear a melody first and need to figure out what key it lives in.`,
-      skillTag: `reverse-pivot-degree-${e.degree}`,
-      visualHint: {
-        startingNote: note,
-        startingDegree: e.degree,
-        destinationDegree: 1,
-        direction: 'down',
-        distance: Math.max(0, e.degree - 1),
-      },
-    };
-  });
-}
 
 // --- Category 8: Intervals (systematic) -----------------------------
 
 // INTERVAL_NAMES moved to `intervalInversion.ts`, beside the inversion
 // rule that reads it. It was private here while `seed.ts` held the same
 // thirteen again, and a third copy was one caller away.
-
-/**
- * The twenty hand-picked interval pairs, as they were before ruling 43.
- *
- * OUT OF THE DECK AND STILL EXPORTED, the same arrangement
- * `retiredModeOfCards` uses: `intervalFoldIn` reads it to prove which
- * new card each retired one became, and a hand-written table of twenty
- * questions could only be trusted. It goes when the fold-in goes.
- *
- * ITS IDS WERE POSITIONAL — `iv-1` numbers by index into the array
- * below — which is the shape `generatedCardPairing` exists to catch.
- * Nothing renumbers them now: they are retired, and the grid that
- * replaced them is content-suffixed.
- */
-export function retiredIntervalPairCards(): Flashcard[] {
-  return generateIntervalCards();
-}
-
-function generateIntervalCards(): Flashcard[] {
-  const pairs: Array<{ from: string; to: string }> = [
-    { from: 'C', to: 'G' }, { from: 'C', to: 'E' }, { from: 'C', to: 'F' },
-    { from: 'C', to: 'A' }, { from: 'C', to: 'B' }, { from: 'D', to: 'F' },
-    { from: 'D', to: 'A' }, { from: 'E', to: 'G' }, { from: 'E', to: 'B' },
-    { from: 'F', to: 'Bb' }, { from: 'G', to: 'D' }, { from: 'G', to: 'B' },
-    { from: 'A', to: 'C' }, { from: 'A', to: 'E' }, { from: 'Bb', to: 'D' },
-    { from: 'Bb', to: 'F' }, { from: 'F', to: 'B' }, { from: 'E', to: 'A' },
-    { from: 'D', to: 'G' }, { from: 'G', to: 'F' },
-  ];
-  const nameToSem = (n: string) => {
-    const sharp = NOTE_NAMES_SHARP.indexOf(n);
-    if (sharp >= 0) return sharp;
-    return NOTE_NAMES_FLAT.indexOf(n);
-  };
-  return pairs.map((p, i) => {
-    const a = nameToSem(p.from);
-    const b = nameToSem(p.to);
-    const dist = ((b - a) % 12 + 12) % 12;
-    const correct = INTERVAL_NAMES.find(iv => iv.semitones === dist)!.name;
-    const decoyPool = INTERVAL_NAMES.filter(iv => iv.name !== correct).map(iv => iv.name);
-    return {
-      id: `iv-${i + 1}`,
-      // `dist` is the computed semitone span — the axis a reader
-      // actually compares intervals along.
-      axis: { from: p.from, to: p.to, semitones: dist },
-      category: 'intervals',
-      categoryName: CATEGORY_LABELS.intervals,
-      question: `The interval from ${p.from} to ${p.to} ascending = ?`,
-      correctAnswer: correct,
-      // Through the chooser, because `longest` is asserted here: the
-      // interval names run from "Tritone" to "Augmented 4th", so an
-      // answer at the long end used to stand out from three short
-      // decoys on nine of the twenty cards.
-      decoys: chooseDecoys(correct, decoyPool, {
-        count: DECOY_COUNT,
-        seed: `iv-${i + 1}`,
-        label: `iv-${i + 1}`,
-        category: 'intervals',
-      }),
-      explanation: `${p.from} up to ${p.to} spans ${dist} semitones — that's a ${correct}. Intervals are the raw material of melody and chord voicing: every soul lick, every gospel run, every hip-hop sample chop is a specific sequence of these distances. Naming them instantly is what turns "I can copy that riff" into "I can write my own version in any key."`,
-      skillTag: `interval-${dist}-semitones`,
-      visualHint: { startingNote: p.from, destinationNote: p.to },
-    };
-  });
-}
 
 // `ACCIDENTAL_COUNTS` AND `accidentalCountDecoys` MOVED to
 // `catalogExpansions`, beside the generator that mints the count cards
@@ -628,30 +430,18 @@ const DIATONIC_QUALITY_CARDS: Flashcard[] = [
 ];
 
 /**
- * `fh-3` IS NOT IN HERE ANY MORE — the twelfth ii-V-I.
+ * `fh-3` IS NOT IN HERE, AND THE RECORD OF IT IS GONE TOO.
  *
  * Eleven generated cadence cards folded into Progression Vocabulary's
- * 2-5-1 on 9 Sep; this was the hand-written one, in C, and it asked
- * exactly what `pr-prog-2-5-1-C` asks in different words. The 2-5-1
- * lives once, and leaving one key behind in the family that gave it up
- * would have been the worst of both.
+ * 2-5-1 on 9 Sep 2026; `fh-3` was the hand-written one, in the key of
+ * C major, and it asked exactly what `pr-prog-2-5-1-C` asks in
+ * different words. The 2-5-1 lives once.
  *
- * Kept below the array rather than deleted, because `progressionFoldIn`
- * compares against its exact text to prove which card it became.
+ * A frozen copy of its text sat below this array so the fold-in could
+ * prove which card it became. The fold-in has run on both devices and
+ * went with the other movers on 10 Sep (restructure commit 9), so the
+ * copy went with it.
  */
-const RETIRED_II_V_I_IN_C: Flashcard =
-{ id: 'fh-3', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
-    question: 'The ii-V-I cadence in C major is _____',
-    correctAnswer: 'Dm7 - G7 - Cmaj7',
-    decoys: ['Dm7 - F7 - Cmaj7', 'D7 - G7 - Cmaj7', 'Em7 - G7 - Cmaj7'],
-    explanation: "The ii-V-I is the backbone of jazz and neo-soul harmony. In C: Dm7 → G7 → Cmaj7. Memorize this in every key and you've got half of jazz standard vocabulary; Robert Glasper, D'Angelo, and every Berklee grad live inside this shape.",
-    skillTag: 'cadence-2-5-1-in-C' };
-
-/** Exported for the fold-in, which is the only thing that reads it. */
-export function retiredIiViInC(): Flashcard[] {
-  return [RETIRED_II_V_I_IN_C];
-}
-
 const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
   { id: 'fh-1', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
     question: 'The V chord most strongly resolves to _____',
@@ -766,76 +556,6 @@ const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
  * filter would be reordering a reader's list to suit a machine.
  */
 const KEY_SIG_CARDS_ALL: Flashcard[] = [
-  // Counts
-  { id: 'ks-1', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'C major has _____ sharps/flats', correctAnswer: '0', decoys: accidentalCountDecoys('ks-1', 0),
-    explanation: "C major has zero sharps or flats — the all-white-keys key. That simplicity is why it's the default teaching key, but most real recorded music lives in sharper or flatter keys (the warmth of Eb, the brightness of E, the grit of Db).",
-    skillTag: 'key-sig-C' },
-  { id: 'ks-2', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'G major has _____ sharps', correctAnswer: '1', decoys: accidentalCountDecoys('ks-2', 1),
-    explanation: "G major has one sharp: F#. A common gospel, country, and rock key — rings nicely on guitar and isn't murderous on the voice.",
-    skillTag: 'key-sig-G' },
-  { id: 'ks-3', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'D major has _____ sharps', correctAnswer: '2', decoys: accidentalCountDecoys('ks-3', 2),
-    explanation: "D major has two sharps: F#, C#. Bright and ringing on guitar and violin — countless country, rock, and uplifting gospel tunes sit here.",
-    skillTag: 'key-sig-D' },
-  { id: 'ks-4', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'A major has _____ sharps', correctAnswer: '3', decoys: accidentalCountDecoys('ks-4', 3),
-    explanation: "A major has three sharps: F#, C#, G#. Big, open guitar key — common in classic rock, anthemic pop, and some soul.",
-    skillTag: 'key-sig-A' },
-  { id: 'ks-5', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'E major has _____ sharps', correctAnswer: '4', decoys: accidentalCountDecoys('ks-5', 4),
-    explanation: "E major has four sharps: F#, C#, G#, D#. A guitar's natural ringing key — the home of countless blues, rock, and gospel tunes (think early B.B. King, Hendrix, soul revival).",
-    skillTag: 'key-sig-E' },
-  { id: 'ks-6', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'B major has _____ sharps', correctAnswer: '5', decoys: accidentalCountDecoys('ks-6', 5),
-    explanation: "B major has five sharps: F#, C#, G#, D#, A#. Tougher to read for guitarists, but vocalists and horn players spend time here — Mariah Carey lives in B-region keys for many ballads.",
-    skillTag: 'key-sig-B' },
-  { id: 'ks-7', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'F# major has _____ sharps', correctAnswer: '6', decoys: accidentalCountDecoys('ks-7', 6),
-    explanation: "F# major has six sharps (F# C# G# D# A# E#). Rare to read in this spelling — most charts will write the same sound as Gb major (six flats). Same notes, different look on the page.",
-    skillTag: 'key-sig-F-sharp' },
-  { id: 'ks-8', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'F major has _____ flats', correctAnswer: '1', decoys: accidentalCountDecoys('ks-8', 1),
-    explanation: "F major has one flat: Bb. Warm, easy key for horns and vocalists; tons of jazz standards and soul ballads default here.",
-    skillTag: 'key-sig-F' },
-  { id: 'ks-9', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'Bb major has _____ flats', correctAnswer: '2', decoys: accidentalCountDecoys('ks-9', 2),
-    explanation: "Bb major has two flats: Bb, Eb. The default key for brass and sax — a huge chunk of jazz, R&B, and gospel horn charts live in Bb because that's where horns sound best.",
-    skillTag: 'key-sig-Bb' },
-  { id: 'ks-10', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'Eb major has _____ flats', correctAnswer: '3', decoys: accidentalCountDecoys('ks-10', 3),
-    explanation: "Eb major has three flats: Bb, Eb, Ab. The 'horn key' — a lot of soul, jazz, and gospel charts default here because it's comfortable for sax, trumpet, and trombone (Stevie Wonder's 'Superstition' is in Eb).",
-    skillTag: 'key-sig-Eb' },
-  { id: 'ks-11', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'Ab major has _____ flats', correctAnswer: '4', decoys: accidentalCountDecoys('ks-11', 4),
-    explanation: "Ab major has four flats: Bb, Eb, Ab, Db. Rich, mellow key favored in ballads, gospel, and jazz — Donny Hathaway and many soul vocalists love this register.",
-    skillTag: 'key-sig-Ab' },
-  { id: 'ks-12', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'Db major has _____ flats', correctAnswer: '5', decoys: accidentalCountDecoys('ks-12', 5),
-    explanation: "Db major has five flats: Bb, Eb, Ab, Db, Gb. Deep, smooth key — Mariah Carey, R&B ballads, and lush jazz cuts live here. Enharmonically the same as C# major (which would be written with seven sharps).",
-    skillTag: 'key-sig-Db' },
-  // Relative / parallel
-  { id: 'ks-13', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative minor of C major is _____', correctAnswer: 'A minor',
-    decoys: ['D minor', 'E minor', 'C minor'],
-    explanation: "A minor is the relative minor of C major — same exact notes, different home base. The relative minor sits on the 6 of the major scale; this pairing is why you can flip between C major and A minor without changing the key signature.",
-    skillTag: 'relative-minor-of-C' },
-  { id: 'ks-14', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative minor of G major is _____', correctAnswer: 'E minor',
-    decoys: ['A minor', 'D minor', 'B minor'],
-    explanation: "E minor is the relative minor of G major — same key signature (one sharp), different tonic. E minor is the sound you hear when a G-major song slides into its darker sibling for a bridge or contrast section.",
-    skillTag: 'relative-minor-of-G' },
-  { id: 'ks-15', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative minor of Ab major is _____', correctAnswer: 'F minor',
-    decoys: ['C minor', 'Eb minor', 'G minor'],
-    explanation: "F minor is the relative minor of Ab major — four flats either way. F minor shows up all over gospel, soul, and jazz ballads (a lot of Adele and Donny Hathaway-flavored tunes live here).",
-    skillTag: 'relative-minor-of-Ab' },
-  { id: 'ks-16', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of A minor is _____', correctAnswer: 'C major',
-    decoys: ['D major', 'F major', 'G major'],
-    explanation: "C major is the relative major of A minor — same notes, flipped tonic. Every 'A minor' song contains the C-major key hiding inside it; great arrangers exploit this duality constantly to pivot between bright and dark.",
-    skillTag: 'relative-major-of-A-minor' },
   { id: 'ks-17', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
     question: 'The parallel minor of the key of D major is _____', correctAnswer: 'D minor',
     decoys: ['B minor', 'A minor', 'F minor'],
@@ -846,16 +566,6 @@ const KEY_SIG_CARDS_ALL: Flashcard[] = [
     decoys: ['D minor', 'A minor', 'C minor'],
     explanation: "The key of F minor is the key of F major's parallel minor — same tonic, different quality. When a gospel song in the key of F major borrows an Ab or Bb minor chord, it's pulling from the key of F minor's palette without actually leaving the key.",
     skillTag: 'parallel-minor-of-F' },
-  { id: 'ks-19', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'A key with 3 flats is most likely _____', correctAnswer: 'Eb major or C minor',
-    decoys: ['Bb major or G minor', 'Ab major or F minor', 'Db major or Bb minor'],
-    explanation: "Three flats = Eb major or C minor (relative-minor pair). To tell which: look at the final chord — if it ends on Eb, it's the major key; if it ends on Cm, it's the minor.",
-    skillTag: 'key-sig-identify-3-flats' },
-  { id: 'ks-20', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'A key with 4 sharps is most likely _____', correctAnswer: 'E major or C# minor',
-    decoys: ['B major or G# minor', 'A major or F# minor', 'D major or B minor'],
-    explanation: "Four sharps = E major or C# minor — same note set, different tonic. Determine which by where the song lands at the end and what chord feels like home.",
-    skillTag: 'key-sig-identify-4-sharps' },
   { id: 'ks-21', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
     question: 'The order of sharps in a key signature is _____', correctAnswer: 'F# C# G# D# A# E# B#',
     decoys: ['Bb Eb Ab Db Gb Cb Fb', 'F# G# A# B# C# D# E#', 'C# D# E# F# G# A# B#'],
@@ -884,84 +594,6 @@ const KEY_SIG_CARDS_ALL: Flashcard[] = [
     decoys: ['b3 and b7 only', 'b2, b3, and b6', 'b3, 4, and b7'],
     explanation: "Three flattened notes — b3, b6, b7 — flip a major scale into its parallel natural minor. The b3 is the headline (minor third), the b7 kills the leading tone, the b6 darkens the upper tetrachord. All three together is what makes natural minor feel settled instead of yearning.",
     skillTag: 'natural-minor-vs-major' },
-  // `ksc-3` WAS HERE, AND IT WAS `ks-16` A SECOND TIME. Same question
-  // to the byte — "The relative major of A minor is _____" — same
-  // answer, a different set of decoys and a `-sc` suffix on the skill
-  // tag that made two cards look like two skills. Retired 2 Sep 2026.
-  //
-  // `ks-16` is the survivor because its one attempt is a day newer.
-  // That was the only thing separating them: one attempt each, both
-  // wrong, nothing starred, nothing flagged, no note on either.
-  //
-  // NOTHING RENUMBERED. These ids are written out one at a time rather
-  // than minted from an index, so `ksc-4` is still `ksc-4` and every
-  // card after it still addresses the question it always did.
-  { id: 'ksc-4', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of E minor is _____',
-    correctAnswer: 'G major',
-    decoys: ['D major', 'A major', 'F major'],
-    explanation: "E minor → G major (3 half steps up from E). Both share one sharp (F#) — same key signature, different tonic. E minor is the relative minor of G major, and vice versa; the relationship runs both directions.",
-    skillTag: 'relative-major-of-E-minor' },
-  { id: 'ksc-5', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of B minor is _____',
-    correctAnswer: 'D major',
-    decoys: ['A major', 'F# major', 'E major'],
-    explanation: "B minor → D major (B + minor 3rd = D). Two sharps either way: F# and C#. B minor is a common gospel and worship key; D major sits a minor 3rd above the same notes.",
-    skillTag: 'relative-major-of-B-minor' },
-  { id: 'ksc-6', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of F# minor is _____',
-    correctAnswer: 'A major',
-    decoys: ['E major', 'B major', 'D major'],
-    explanation: "F# minor → A major (F# + minor 3rd = A). Three sharps: F#, C#, G#. F# minor is the relative minor of A major — common in jazz ballads and contemporary R&B that wants the brightness of A without the resolution.",
-    skillTag: 'relative-major-of-F#-minor' },
-  { id: 'ksc-7', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of C# minor is _____',
-    correctAnswer: 'E major',
-    decoys: ['A major', 'B major', 'F# major'],
-    explanation: "C# minor → E major (C# + minor 3rd = E). Four sharps: F#, C#, G#, D#. C# minor is a moody, intimate key — Beethoven's 'Moonlight,' Rachmaninoff's prelude, plenty of neo-soul ballads.",
-    skillTag: 'relative-major-of-C#-minor' },
-  { id: 'ksc-8', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of G# minor is _____',
-    correctAnswer: 'B major',
-    decoys: ['E major', 'F# major', 'A major'],
-    explanation: "G# minor → B major (G# + minor 3rd = B). Five sharps either way. G# minor isn't a common gigging key, but its relative B major shows up plenty in choir charts and slick jazz cuts.",
-    skillTag: 'relative-major-of-G#-minor' },
-  { id: 'ksc-9', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of D# minor is _____',
-    correctAnswer: 'F# major',
-    decoys: ['B major', 'A major', 'E major'],
-    explanation: "D# minor → F# major (D# + minor 3rd = F#). Six sharps — usually re-spelled enharmonically as Eb minor / Gb major in flat-key contexts. Same sound either spelling.",
-    skillTag: 'relative-major-of-D#-minor' },
-  { id: 'ksc-10', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of Bb minor is _____',
-    correctAnswer: 'Db major',
-    decoys: ['F major', 'Ab major', 'Eb major'],
-    explanation: "Bb minor → Db major (Bb + minor 3rd = Db). Five flats either way. Db major is a smooth, ballad-friendly key — Mariah Carey, R&B and gospel ballad territory; Bb minor is its darker twin.",
-    skillTag: 'relative-major-of-Bb-minor' },
-  { id: 'ksc-11', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of F minor is _____',
-    correctAnswer: 'Ab major',
-    decoys: ['C major', 'Eb major', 'Bb major'],
-    explanation: "F minor → Ab major (F + minor 3rd = Ab). Four flats. F minor is gospel and soul ballad heartland — Adele, Donny Hathaway, Andra Day all live here often; Ab major is the lifted-out-of-it sibling.",
-    skillTag: 'relative-major-of-F-minor' },
-  { id: 'ksc-12', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of C minor is _____',
-    correctAnswer: 'Eb major',
-    decoys: ['F major', 'G major', 'Ab major'],
-    explanation: "C minor → Eb major (C + minor 3rd = Eb). Three flats either way. C minor's bittersweetness pairs with Eb's warmth — both keys live all over D'Angelo, Robert Glasper, and modern gospel ballads.",
-    skillTag: 'relative-major-of-C-minor' },
-  { id: 'ksc-13', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of G minor is _____',
-    correctAnswer: 'Bb major',
-    decoys: ['D major', 'F major', 'Eb major'],
-    explanation: "G minor → Bb major (G + minor 3rd = Bb). Two flats either way. G minor is a common songwriter key — Sade, Lauryn Hill, plenty of neo-soul lives here — and Bb major is the brighter side door.",
-    skillTag: 'relative-major-of-G-minor' },
-  { id: 'ksc-14', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
-    question: 'The relative major of D minor is _____',
-    correctAnswer: 'F major',
-    decoys: ['A major', 'C major', 'Bb major'],
-    explanation: "D minor → F major (D + minor 3rd = F). One flat: Bb. D minor is folk + soul + gospel territory ('the saddest of all keys,' per Spinal Tap); F major is its sunnier mirror.",
-    skillTag: 'relative-major-of-D-minor' },
   { id: 'ksc-15', category: 'key-signatures', categoryName: CATEGORY_LABELS['key-signatures'],
     question: 'To find the relative major of any minor key, go ___ half steps up from the minor root',
     correctAnswer: '3 half steps up (a minor third)',
@@ -992,36 +624,6 @@ const KEY_SIG_CARDS_ALL: Flashcard[] = [
     skillTag: 'parallel-minor-of-Bb' },
 ];
 
-/**
- * The ones the generated sets replaced.
- *
- * OUT OF THE DECK AND STILL HERE, the arrangement
- * `retiredIntervalPairCards` uses: `keySignatureFoldIn` reads them to
- * prove which generated card each one became, and a hand-written table
- * of twenty-seven questions could only be trusted where this can be
- * compared.
- *
- * `ks-19` AND `ks-20` ARE IN IT AND PAIR WITH NOTHING. "A key with 3
- * flats is most likely E♭ major or C minor" answers with two keys at
- * once, which today's ruling replaces with two cards — one for each
- * mode. No generated card asks that question or gives that answer, so
- * they are reported unpaired and their rows go the way the 6/♭7 cards'
- * did.
- */
-const RETIRED_KEY_SIG_IDS: ReadonlySet<string> = new Set([
-  // Counts — thirteen generated ones replace them, G♭ included.
-  'ks-1', 'ks-2', 'ks-3', 'ks-4', 'ks-5', 'ks-6', 'ks-7',
-  'ks-8', 'ks-9', 'ks-10', 'ks-11', 'ks-12',
-  // Relative minor, and relative major the other way.
-  'ks-13', 'ks-14', 'ks-15', 'ks-16',
-  'ksc-4', 'ksc-5', 'ksc-6', 'ksc-7', 'ksc-8', 'ksc-9', 'ksc-10',
-  'ksc-11', 'ksc-12', 'ksc-13', 'ksc-14',
-  // The two that name two keys at once.
-  'ks-19', 'ks-20',
-]);
-
-export const RETIRED_KEY_SIG_CARDS: Flashcard[] =
-  KEY_SIG_CARDS_ALL.filter(c => RETIRED_KEY_SIG_IDS.has(c.id));
 
 /**
  * What stays hand-written: the parallel-minor cards, the order of
@@ -1029,8 +631,7 @@ export const RETIRED_KEY_SIG_CARDS: Flashcard[] =
  * rule and the parallel-vs-relative definition. Silas has not ruled on
  * these, so they are exactly as they were.
  */
-const KEY_SIG_CARDS: Flashcard[] =
-  KEY_SIG_CARDS_ALL.filter(c => !RETIRED_KEY_SIG_IDS.has(c.id));
+const KEY_SIG_CARDS: Flashcard[] = KEY_SIG_CARDS_ALL;
 
 const MODE_CARDS: Flashcard[] = [
   { id: 'mo-1', category: 'modes', categoryName: CATEGORY_LABELS.modes,
@@ -1134,52 +735,6 @@ const MODE_CARDS: Flashcard[] = [
 // original spec) were dropped — they're performance heuristics, not
 // theory facts. ID numbering keeps the original gaps (1, 2, 5, 6,
 // 8, 9, 10) for traceability against the spec.
-/**
- * THE FIVE FORMULA CARDS, RETIRED (commit 8).
- *
- * Silas's ruling, in his words: pick the notes, per key, no formulas.
- * "What 5 notes make up the major pentatonic scale?" answers 1, 2, 3,
- * 5, 6 — a shape you can recite without being able to play it in a
- * single key, which is the opposite of what this category is for. The
- * per-key notes cards ask the same thing where it counts.
- *
- * Nothing replaces them, so nothing pairs with them: their rows go the
- * way the 6/♭7 cards' did. Kept here because the array is the record
- * of what they said.
- */
-export const RETIRED_PENTATONIC_FORMULA_CARDS: Flashcard[] = [
-  { id: 'pent-1', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
-    question: 'What 5 notes make up the major pentatonic scale?',
-    correctAnswer: '1, 2, 3, 5, 6',
-    decoys: ['1, 2, 3, 4, 5', '1, 3, 4, 5, 6', '1, 2, b3, 5, 6'],
-    explanation: "Major pentatonic removes the 4th and 7th from the major scale — the two notes that create the half-step tension against the major triad. What's left (1, 2, 3, 5, 6) is the safest melodic set inside a major key; it's the bedrock of gospel licks, country bends, and the Stevie Wonder vocal-line vocabulary.",
-    skillTag: 'major-pentatonic-intervals' },
-  { id: 'pent-2', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
-    question: 'The major pentatonic scale is the major scale with which two notes removed?',
-    correctAnswer: 'The 4th and 7th',
-    decoys: ['The 2nd and 7th', 'The 3rd and 6th', 'The 4th and 6th'],
-    explanation: "Drop the 4 and the 7 — that's the whole move. Those two notes are the half-step neighbors above the 3 and below the tonic; pulling them out kills the leading-tone tension and leaves a scale that fits any chord in the major key without bumping into a dissonance.",
-    skillTag: 'major-pent-removes-from-major' },
-  { id: 'pent-5', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
-    question: 'What 5 notes make up the minor pentatonic scale?',
-    correctAnswer: '1, b3, 4, 5, b7',
-    decoys: ['1, 2, b3, 5, b7', '1, b3, 4, b5, b7', '1, 2, 4, 5, 6'],
-    explanation: "Minor pentatonic = 1, b3, 4, 5, b7. The bluesy-soul backbone — every B.B. King line, every gospel/R&B vocal lick, the entire rock guitar vocabulary lives in this 5-note shape. Adding a b5 between the 4 and 5 gives you the 'blues scale.'",
-    skillTag: 'minor-pentatonic-intervals' },
-  { id: 'pent-6', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
-    question: 'The minor pentatonic scale is the natural minor scale with which two notes removed?',
-    correctAnswer: 'The 2nd and b6th',
-    decoys: ['The b3 and b7', 'The 4th and 5th', 'The 2nd and 5th'],
-    explanation: "Natural minor minus the 2 and the b6 = minor pentatonic. Pulling those out removes the half-step tensions that pull toward the b3 and 5, leaving the strong-chord-tone-only set you can sing over any minor chord without thinking.",
-    skillTag: 'minor-pent-removes-from-natural-minor' },
-  { id: 'pent-9', category: 'pentatonic-scales', categoryName: CATEGORY_LABELS['pentatonic-scales'],
-    question: 'The minor pentatonic scale starting on the ___ of the major pentatonic gives you the relative minor pentatonic',
-    correctAnswer: '6th',
-    decoys: ['5th', '3rd', '2nd'],
-    explanation: "Start a major pent on its 6 and the same five notes become the relative minor pent. C major pent starting from A gives A minor pent — A, C, D, E, G — identical pitch set, different home base. Counted the other way, the major root is the b3 of the minor root — C is the b3 of A. Same relative-major / relative-minor logic, applied to the pentatonic subset.",
-    skillTag: 'relative-pentatonic-degree' },
-];
-
 const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
   { id: 'cc-1', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
     question: 'A major 7 chord stacks these intervals from root', correctAnswer: 'major 3rd + minor 3rd + major 3rd',
@@ -1332,27 +887,6 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
  * =====================================================================
  */
 const PROGRESSION_CARDS_ALL: Flashcard[] = [
-  { id: 'pr-1', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The 1-5-6-4 progression in C major is _____', correctAnswer: 'C - G - Am - F',
-    decoys: ['C - Em - Am - F', 'C - G - Dm - F', 'C - G - Am - Dm'],
-    explanation: "1-5-6-4 in C is C → G → Am → F — the 'pop progression' (or 'axis' chords). You've heard this in hundreds of songs across pop, gospel, R&B, and worship; it works because it cycles through all four tonal functions in a tight loop.",
-    skillTag: 'progression-1-5-6-4-in-C' },
-  { id: 'pr-2', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The 2-5-1 in Bb major is _____', correctAnswer: 'Cm7 - F7 - Bbmaj7',
-    decoys: ['Cm7 - F7 - Cbmaj7', 'Dm7 - G7 - Cmaj7', 'Cm7 - Ab7 - Bbmaj7'],
-    explanation: "The 2-5-1 in Bb is Cm7 → F7 → Bbmaj7. Memorize this in every key and you've got half of jazz standard vocabulary — Bb is a particularly important one to know cold because so many horn charts default here.",
-    skillTag: 'progression-2-5-1-in-Bb' },
-  { id: 'pr-3', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The 1-6-4-5 in G major is _____', correctAnswer: 'G - Em - C - D',
-    decoys: ['G - Am - C - D', 'G - Em - Am - D', 'G - Em - C - D7sus4'],
-    explanation: "1-6-4-5 in G is G → Em → C → D — the 50s doo-wop progression that became the bedrock of countless soul, gospel, and pop ballads. Same chord set as 1-5-6-4, just rotated.",
-    skillTag: 'progression-1-6-4-5-in-G' },
-  { id: 'pr-7', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The backdoor progression I-IV-bVII-I in F major is _____',
-    correctAnswer: 'F - Bb - Eb - F',
-    decoys: ['F - Bb - E - F', 'F - Bbm - Eb - F', 'F - Bb - Db - F'],
-    explanation: "The backdoor progression in F is F → Bb → Eb → F — the bVII (Eb) sneaks in instead of a V. It's a gospel/soul favorite: less expected than a V-I, more melodic, and gives that broad, modal landing.",
-    skillTag: 'progression-backdoor-in-F' },
   { id: 'pr-8', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'A plagal vamp is which two chords alternating?',
     correctAnswer: 'IV - I',
@@ -1383,12 +917,6 @@ const PROGRESSION_CARDS_ALL: Flashcard[] = [
     decoys: ['the 1', 'the 3', 'the 6'],
     explanation: "A dominant pedal holds the 5 in the bass — and since the 5 wants to resolve to 1, the whole thing creates building tension. Common in gospel buildups and jazz intros where the song sits on the V, waiting and waiting before finally dropping home.",
     skillTag: 'progression-dominant-pedal' },
-  { id: 'pr-18', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
-    question: 'The 1-4-5 in A major is _____',
-    correctAnswer: 'A - D - E',
-    decoys: ['A - D - E7 only', 'A - Dm - E', 'A - D - F#m'],
-    explanation: "A → D → E is 1-4-5 in A — the most fundamental progression in Western popular music. Every blues, country tune, and early rock and R&B song cycles I-IV-V; modern soul, gospel, and hip-hop still use it as the underlying scaffolding.",
-    skillTag: 'progression-1-4-5-in-A' },
   { id: 'pr-19', category: 'progressions', categoryName: CATEGORY_LABELS.progressions,
     question: 'The Coltrane changes cycle through how many key centers?',
     correctAnswer: 'three (a major 3rd apart)',
@@ -1397,45 +925,8 @@ const PROGRESSION_CARDS_ALL: Flashcard[] = [
     skillTag: 'progression-coltrane-cycle' },
 ];
 
-/**
- * The eight that fold into the generator.
- *
- * =====================================================================
- * EIGHT MOVE, TWELVE STAY, AND THE LINE IS THE RULED LIST.
- *
- * Silas named ten progressions. Eight of them had a card in one key
- * that the generator now writes in thirteen, and those eight are here:
- * question and answer are unchanged, so each pairs with its own key's
- * generated card and its history goes with it.
- *
- * THE OTHER TWELVE ARE NOT ON THE LIST AND ARE NOT TOUCHED. Six ask
- * about a progression in no key at all — the plagal vamp, the rotation,
- * the 12-bar structure, the two pedals, the Coltrane cycle — and stay
- * prose, exactly as ruled. Five name a progression the ruled list does
- * not: the bossa turnaround, the Dorian vamp, 4-1-5-6, 1-4-5 and
- * 1-♭7-4. Generating those would be adding progressions to the family,
- * which is the one thing the brief says not to do. And `pr-11`, the
- * descending minor, is a MINOR-key card with no thirteen-key
- * vocabulary to be written in — see `PROGRESSION_SHAPES`.
- * =====================================================================
- */
-const RETIRED_PROGRESSION_IDS: ReadonlySet<string> = new Set([
-  'pr-1',  // 1-5-6-4 in C
-  'pr-2',  // 2-5-1 in B♭
-  'pr-3',  // 1-6-4-5 in G
-  'pr-7',  // the backdoor in F
-  // 9 Sep, the follow-ups: 1-4-5 joined the generated set and `pr-18`
-  // asks its exact question and gives its exact answer in A, so it
-  // pairs and its history moves. The turnaround has no such card — see
-  // the report on `pr-13`.
-  'pr-18', // the 1-4-5 in A
-]);
 
-export const RETIRED_PROGRESSION_CARDS: Flashcard[] =
-  PROGRESSION_CARDS_ALL.filter(c => RETIRED_PROGRESSION_IDS.has(c.id));
-
-const PROGRESSION_CARDS: Flashcard[] =
-  PROGRESSION_CARDS_ALL.filter(c => !RETIRED_PROGRESSION_IDS.has(c.id));
+const PROGRESSION_CARDS: Flashcard[] = PROGRESSION_CARDS_ALL;
 
 const SLASH_CHORD_CARDS: Flashcard[] = [
   { id: 'sc-1', category: 'slash-chords', categoryName: CATEGORY_LABELS['slash-chords'],
@@ -1652,41 +1143,6 @@ function noteDecoys(correct: string, count = 3): string[] {
   return makeDecoys(pool, correct, count);
 }
 
-export function generateTritonePairCards(): Flashcard[] {
-  // Six tritone pairs; each note is drilled as a question subject (both
-  // directions). The tritone bisects the octave, so it's its own
-  // inverse — the partner's tritone is the original note.
-  const pairs: Array<{ a: string; aAlt?: string; b: string; bAlt?: string }> = [
-    { a: 'C', b: 'F#', bAlt: 'Gb' },
-    { a: 'C#', aAlt: 'Db', b: 'G' },
-    { a: 'D', b: 'G#', bAlt: 'Ab' },
-    { a: 'D#', aAlt: 'Eb', b: 'A' },
-    { a: 'E', b: 'A#', bAlt: 'Bb' },
-    { a: 'F', b: 'B', bAlt: 'Cb' },
-  ];
-  const cards: Flashcard[] = [];
-  let i = 1;
-  const mk = (note: string, partner: string, partnerAlt?: string) => {
-    const altText = partnerAlt ? ` (= ${partnerAlt})` : '';
-    cards.push({
-      id: `tt-${i++}`,
-      axis: { note, partner },
-      category: 'tritone-pairs',
-      categoryName: CATEGORY_LABELS['tritone-pairs'],
-      question: `Tritone of ${note}?`,
-      correctAnswer: partner,
-      decoys: noteDecoys(partner),
-      explanation: `${note} → ${partner}${altText}: Augmented 4th / Diminished 5th — 6 semitones, exactly half an octave. Because it splits the octave in two, the tritone is its own inverse: the tritone of ${partner} is ${note} right back. It's the engine of the dominant 7th (the 3rd–♭7 tritone) and every V→I resolution in gospel, jazz, and R&B.`,
-      skillTag: `tritone-${note}`,
-    });
-  };
-  for (const p of pairs) {
-    mk(p.a, p.b, p.bAlt);
-    mk(p.b, p.a, p.aAlt);
-  }
-  return cards;
-}
-
 /**
  * The enharmonic note pairs, at module scope so the axis order can
  * read them.
@@ -1852,146 +1308,59 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
 // imports them back, so the retired cards still read exactly as they
 // did — which is what the fold-in compares against.
 
-/** The identity name for a root. Ids, axis coordinates and skill tags
- *  take this; every displayed string keeps the root as written. See
- *  `pentatonicCardId`. */
-function identityRoot(root: string): string {
-  return canonicaliseKey(root) ?? root;
-}
-
 /**
- * The pentatonic cards as they were before commit 8 — twelve roots per
- * shape, ids minted from the identity vocabulary, and a "share the
- * same _____" card that today's ruling replaces.
- *
- * OUT OF THE DECK AND STILL EXPORTED, so `pentatonicFoldIn` can prove
- * which generated card each retired one became.
- */
-export function retiredPentatonicKeyCards(): Flashcard[] {
-  return generatePentatonicKeyCards();
-}
-
-function generatePentatonicKeyCards(): Flashcard[] {
-  const cards: Flashcard[] = [];
-  const base = {
-    category: 'pentatonic-scales' as const,
-    categoryName: CATEGORY_LABELS['pentatonic-scales'],
-  };
-
-  for (const root of MINOR_ROOTS) {
-    const notes = minorPentatonic(root);
-    if (notes === null) continue;
-    cards.push({
-      ...base,
-      id: pentatonicCardId('minor', root),
-      axis: { root: identityRoot(root), shape: 'minor' },
-      question: `In ${scaleName(root, 'minor')} minor pentatonic, the notes are _____`,
-      correctAnswer: noteList(notes),
-      decoys: pentatonicDecoys(root, 'minor'),
-      explanation: `${scaleName(root, 'minor')} minor pentatonic: ${noteList(notes)} — `
-        + `the intervals 1, ♭3, 4, 5, ♭7 applied to ${noteLabel(root)} as root. `
-        + MINOR_PENT_CONTEXT,
-      skillTag: `pent-minor-${identityRoot(root)}`,
-    });
-  }
-
-  for (const root of MAJOR_ROOTS) {
-    const notes = majorPentatonic(root);
-    if (notes === null) continue;
-    cards.push({
-      ...base,
-      id: pentatonicCardId('major', root),
-      axis: { root: identityRoot(root), shape: 'major' },
-      question: `In ${scaleName(root, 'major')} major pentatonic, the notes are _____`,
-      correctAnswer: noteList(notes),
-      decoys: pentatonicDecoys(root, 'major'),
-      explanation: `${scaleName(root, 'major')} major pentatonic: ${noteList(notes)} — `
-        + `the intervals 1, 2, 3, 5, 6 applied to ${noteLabel(root)} as root. `
-        + MAJOR_PENT_CONTEXT,
-      skillTag: `pent-major-${identityRoot(root)}`,
-    });
-  }
-
-  for (const root of MAJOR_ROOTS) {
-    const rel = relativeMinorRoot(root);
-    if (rel === null) continue;
-    const majorNotes = majorPentatonic(root);
-    if (majorNotes === null) continue;
-    cards.push({
-      ...base,
-      id: pentatonicCardId('relative', root),
-      axis: { root: identityRoot(root), shape: 'relative' },
-      question: `${scaleName(root, 'major')} major pentatonic and `
-        + `${scaleName(rel, 'minor')} minor pentatonic share the same _____`,
-      correctAnswer: '5 notes (identical pitch set)',
-      decoys: ['root note', 'key signature only (different notes)', '3 notes'],
-      explanation: `${scaleName(root, 'major')} major pentatonic is `
-        + `${noteList(majorNotes)}. Start on the 6th and you are in `
-        + `${scaleName(rel, 'minor')} minor pentatonic — the same five notes. `
-        + RELATIVE_PENT_CONTEXT,
-      skillTag: `pent-relative-${identityRoot(root)}`,
-    });
-  }
-
-  return cards;
-}
-
-/**
- * The one card the fold-in cannot absorb.
+ * The one Named Note card that is still asked.
  *
  * =====================================================================
- * IT IS THE ONLY CARD IN THE DECK ASKING ANYTHING IN F♯ MAJOR.
+ * WRITTEN OUT, NOW THAT THE GENERATOR IT CAME FROM IS GONE.
  *
- * `degree-notes` generates from `FLAT_TWELVE`, which spells the sixth
- * key G♭, and the 4 of G♭ is C♭. This card asks the 4 of F♯ and answers
- * B. Same key on a keyboard, different letters on the page — so it is
- * NOT the same question, the migration's assertion refuses to move any
- * row onto the G♭ card, and folding it in would silently change an
- * answer a reader has practised.
+ * Named Notes retired into `degree-notes` on 3 Sep 2026 and its
+ * twenty-four cards folded onto their counterparts — except this one.
+ * "In the key of F# major, 4 of the scale = ?" asks about the key of
+ * F♯ major and the family that replaced it asks in G♭ major, so there
+ * was nothing to fold it onto: it kept its own id, its own rows and its
+ * own question, and only the category it is filed under moved.
  *
- * The restructure plan named it in terms (§1.5): "the likely outcome is
- * that they are quietly dropped, and you lose the only F♯-major card in
- * the app without anyone deciding to." So it is placed rather than
- * dropped.
+ * WHY IT COULD NOT BE FOLDED. `degree-notes` generates from
+ * `FLAT_TWELVE`, which spells the sixth key G♭, and the 4 of G♭ is C♭.
+ * This card asks the 4 of F♯ and answers B — the same key on a
+ * keyboard, different letters on the page. The restructure plan named
+ * the risk in terms (§1.5): "the likely outcome is that they are
+ * quietly dropped, and you lose the only F♯-major card in the app
+ * without anyone deciding to." So it was placed rather than dropped.
  *
- * IT KEEPS ITS OWN ID, WHICH IS WHY IT IS SAFE. `nn-12` is unchanged —
- * same question, same answer, same decoys, same skill tag, same
- * coordinates. Only which category it is filed under moves, and a
- * category is not part of any stored key, so not one row has to follow
- * it anywhere. The card with the most to lose is the one card that
- * moves nothing.
+ * It was derived from `generateNamedNoteCards()` — twenty-four cards
+ * built to keep one. That generator existed for the migration that
+ * read it, and it went with the migration (restructure commit 9), so
+ * the card is a literal now. Every field below is what the generator
+ * produced, to the byte, including the decoys its seeded chooser picked.
  *
  * WHAT IS STILL UNRULED. Whether the deck should ask in F♯ or in G♭ at
- * all is Part 4 item 5 of the plan and nobody has answered it. When
- * somebody does, this card is either regenerated with the rest or
- * dropped deliberately — which is the difference this comment exists to
- * make.
+ * all is Part 4 item 5 of the plan and nobody has answered it.
+ *
+ * ITS ID IS `nn-12` AND MUST STAY `nn-12`. A reader's spacing row,
+ * every attempt and any annotation are keyed on it.
  * =====================================================================
  */
-const F_SHARP_SURVIVOR: Flashcard[] = generateNamedNoteCards()
-  .filter(c => c.id === 'nn-12')
-  .map(c => ({
-    ...c,
-    category: 'degree-notes' as FlashcardCategory,
-    categoryName: DEGREE_NOTE_CATEGORY_NAME,
-    /**
-     * "THE KEY OF F# MAJOR", HERE AND NOT IN THE GENERATOR ABOVE.
-     *
-     * The standing rule of 9 Sep 2026 applies to cards a reader can
-     * meet, and this is the only one of the twenty-four that is still
-     * in the deck. Rewriting the generator would rewrite the other
-     * twenty-three as well — and those are a RECORD of what a retired
-     * card said, which `retiredCategoryMigration` reads. A record that
-     * silently follows the live wording is not a record.
-     *
-     * So the live card is patched and the record is left alone. It is
-     * the same seam the fixture's own header describes.
-     */
-    question: c.question.replace('In F# major,', 'In the key of F# major,'),
-    explanation: (c.explanation ?? '')
-      .replace('F# major is', 'The key of F# major is')
-      .replace('key of F#, hit', 'key of F# major, hit'),
-  }));
+const F_SHARP_SURVIVOR: Flashcard[] = [{
+  id: 'nn-12',
+  category: 'degree-notes',
+  categoryName: DEGREE_NOTE_CATEGORY_NAME,
+  axis: { key: 'F#', degree: 4 },
+  question: 'In the key of F# major, 4 of the scale = ?',
+  correctAnswer: 'B',
+  decoys: ['G', 'F#', 'G#'],
+  explanation: 'The key of F# major is F# G# A# B C# D# E# (F) — number 4 is B. Knowing every scale in every key cold is the unglamorous skill that lets you sit in at any session: when the MD calls "key of F# major, hit the 4", you\'re already there.',
+  skillTag: 'named-note-key-F#-degree-4',
+  visualHint: {
+    key: 'F# major',
+    destinationNote: 'B',
+    startingDegree: 1,
+    destinationDegree: 4,
+    direction: 'up',
+    distance: 3,
+  },
+}];
 
 /**
  * The deck.

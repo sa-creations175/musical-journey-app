@@ -6,10 +6,10 @@
  * no key produces a note that cannot be written.
  */
 import { describe, expect, it } from 'vitest';
-import { FLASHCARDS, generateReversePivotCards } from '../catalog';
+import { FLASHCARDS } from '../catalog';
 import {
   FLAT_TWELVE, degreeAscii, degreeLabel, degreeLabelGlossed, expansionCards,
-  generatePivotTopUps, keyboardNote, needsPracticalName, noteLabelGlossed,
+  keyboardNote, needsPracticalName, noteLabelGlossed,
   SLASH_SHAPES,
 } from '../catalogExpansions';
 import { article, intervalNameAt, invertedSemitones } from '../intervalInversion';
@@ -86,19 +86,17 @@ describe('but the teaching survives the move', () => {
 
   it('keeps a question-side gloss, which cannot give anything away', () => {
     // The answer here is a KEY NAME, so a glossed note in the question
-    // is pure teaching.
-    // The id is the IDENTITY now (F#), while every word in the card
-    // still reads the flat side — which is exactly what the two
-    // assertions below check.
+    // is pure teaching: it says where the hand goes without saying
+    // which key the note belongs to.
     //
-    // READ OFF THE GENERATOR, because the card left the deck on 3 Sep
-    // 2026 when Reverse Key Pivots folded into `degree-notes`. It is
-    // still pinned: `retiredCategoryMigration` reads this generator to
-    // prove which new card each retired one became, and `rkp-F#-4` is
-    // the one whose stored answer carries a display glyph.
-    const card = generatePivotTopUps().find(c => c.id === 'rkp-F#-4')!;
+    // READ OFF THE LIVE CARD. This used to read `rkp-F#-4` off the
+    // retired generator, which went with the migration passes on 10 Sep
+    // 2026; `dgk-Fs-4` is the card that replaced it and asks the same
+    // thing. The stored answer still spells the key ASCII while the
+    // question carries the glyph — the two halves this checks.
+    const card = FLASHCARDS.find(c => c.id === 'dgk-Fs-4')!;
     expect(card.question).toContain('C♭ (B)');
-    expect(card.correctAnswer).toBe('G♭ major');
+    expect(card.correctAnswer).toBe('Gb major');
   });
 });
 
@@ -385,17 +383,6 @@ describe('coverage reaches twelve', () => {
         new RegExp(`${shape.replace('/', '\\/')} in (${N}) major`), 'q');
       expect(s.size, shape).toBe(13);
     }
-  });
-
-  it('the retired reverse key pivots answered all twelve keys', () => {
-    // The claim the top-ups existed to make, held on the generator now
-    // that the category is out of the deck. Its successor covers all
-    // twelve by construction — twelve keys x thirteen degrees — which
-    // `degreeNoteCards.test.ts` pins.
-    const answers = new Set(generatePivotTopUps()
-      .concat(generateReversePivotCards())
-      .map(c => c.correctAnswer));
-    expect(answers.size).toBe(12);
   });
 
   it('progressions reach all thirteen', () => {

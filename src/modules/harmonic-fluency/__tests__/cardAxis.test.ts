@@ -14,10 +14,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_LABELS, ENHARMONIC_INTERVAL_GROUPS, ENHARMONIC_NOTE_PAIRS,
-  ENHARMONIC_SPELLINGS, FLASHCARDS, generateNamedNoteCards,
-  generateReversePivotCards, generateTritonePairCards, HF_MAJOR_KEYS,
-  SCALE_DEGREES,
-  type FlashcardCategory,
+  ENHARMONIC_SPELLINGS, FLASHCARDS, HF_MAJOR_KEYS, type FlashcardCategory,
 } from '../catalog';
 
 const inCategory = (c: FlashcardCategory) => FLASHCARDS.filter(f => f.category === c);
@@ -26,64 +23,6 @@ const inCategory = (c: FlashcardCategory) => FLASHCARDS.filter(f => f.category =
  *  prefix — the positional ids are exactly the generated ones. */
 const generated = (c: FlashcardCategory, prefix: RegExp) =>
   inCategory(c).filter(f => prefix.test(f.id));
-
-/**
- * RETIRED, AND STILL PINNED. Named Notes and Tritone Pairs are out of
- * the deck; their generators are not, because `retiredCategoryMigration`
- * reads them to prove which new card each retired one became. A
- * coordinate that drifted here would silently repoint a row, so these
- * two blocks read the generators directly and stay until commit 9
- * deletes both.
- */
-describe('named notes (retired — read by the migration)', () => {
-  const cards = generateNamedNoteCards().filter(f => /^nn-\d+$/.test(f.id));
-
-  it('carries key and degree on every generated card', () => {
-    expect(cards.length).toBe(24);
-    for (const c of cards) {
-      expect(Object.hasOwn(c, 'axis'), c.id).toBe(true);
-      expect(Object.keys(c.axis!).sort()).toEqual(['degree', 'key']);
-    }
-  });
-
-  it('takes coordinates from the pair, not from the id number', () => {
-    // ASYMMETRIC: the pairs deliberately repeat keys with different
-    // degrees and degrees with different keys, so a coordinate read off
-    // the id's position would not reproduce this mapping.
-    const byId = new Map(cards.map(c => [c.id, c.axis!]));
-    expect(byId.get('nn-1')).toEqual({ key: 'C', degree: 5 });
-    expect(byId.get('nn-13')).toEqual({ key: 'C', degree: 7 });
-    expect(byId.get('nn-12')).toEqual({ key: 'F#', degree: 4 });
-  });
-
-  it('lands every card on the axis lists the grid passes', () => {
-    for (const c of cards) {
-      expect(HF_MAJOR_KEYS, c.id).toContain(c.axis!.key);
-      expect(SCALE_DEGREES, c.id).toContain(c.axis!.degree);
-    }
-  });
-});
-
-describe('reverse key pivots (retired — read by the migration)', () => {
-  const cards = generateReversePivotCards().filter(f => /^rkp-\d+$/.test(f.id));
-
-  it('carries key and degree on every generated card', () => {
-    expect(cards.length).toBe(24);
-    for (const c of cards) {
-      expect(Object.hasOwn(c, 'axis'), c.id).toBe(true);
-      expect(Object.keys(c.axis!).sort()).toEqual(['degree', 'key']);
-      expect(HF_MAJOR_KEYS).toContain(c.axis!.key);
-      expect(SCALE_DEGREES).toContain(c.axis!.degree);
-    }
-  });
-
-  it('names the ANSWER key, which the question never states', () => {
-    // The question asks "X is the nth of which key?" — so the key is
-    // the answer, and it is only in scope inside the generator.
-    const c = cards[0];
-    expect(c.correctAnswer).toContain(String(c.axis!.key));
-  });
-});
 
 describe('intervals', () => {
   // `iv-{from}-up-{span}` since ruling 43. The positional `iv-1` shape
@@ -113,23 +52,6 @@ describe('intervals', () => {
     expect(by.get('C->G')).toBe(7);
     expect(by.get('C->E')).toBe(4);
     expect(by.get('G->F')).toBe(10);
-  });
-});
-
-describe('tritone pairs (retired — read by the migration)', () => {
-  const cards = generateTritonePairCards().filter(f => /^tt-\d+$/.test(f.id));
-
-  it('carries the note and its partner', () => {
-    expect(cards.length).toBe(12);
-    for (const c of cards) {
-      expect(Object.hasOwn(c, 'axis'), c.id).toBe(true);
-      expect(Object.keys(c.axis!).sort()).toEqual(['note', 'partner']);
-    }
-  });
-
-  it('gives each note exactly one partner, and never itself', () => {
-    for (const c of cards) expect(c.axis!.note).not.toBe(c.axis!.partner);
-    expect(new Set(cards.map(c => c.axis!.note)).size).toBe(12);
   });
 });
 

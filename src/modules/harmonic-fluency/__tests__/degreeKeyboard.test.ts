@@ -9,8 +9,7 @@
 import { describe, expect, it } from 'vitest';
 import { degreeKeyboardSpec } from '../DegreeKeyboard';
 import {
-  FLASHCARDS, degreeNote, generateReversePivotCards, parseKeyRoot,
-  type Flashcard,
+  FLASHCARDS, degreeNote, parseKeyRoot, type Flashcard,
 } from '../catalog';
 
 const firstOf = (category: string): Flashcard => {
@@ -57,21 +56,37 @@ describe('a card that names its key', () => {
 });
 
 describe('a card whose ANSWER is the key', () => {
-  // READ OFF THE RETIRED GENERATOR. Reverse Key Pivots folded into
-  // `degree-notes` on 3 Sep 2026 and the generated replacements carry no
-  // `visualHint`, so no card in the deck reaches this branch of
-  // `degreeKeyboardSpec` today. The branch is still there and still
-  // right, and it is pinned here until commit 9 deletes the generator
-  // and the branch together — a branch that stops being exercised and
-  // stops being tested on the same day is a branch nobody will notice
-  // rotting.
-  const card = generateReversePivotCards().find(
-    c => c.visualHint?.startingDegree !== undefined,
-  )!;
+  /**
+   * BUILT HERE, BECAUSE NO CARD IN THE DECK REACHES THIS BRANCH.
+   *
+   * It used to be read off `generateReversePivotCards`, which retired
+   * into `degree-notes` on 3 Sep 2026 and was deleted with the
+   * migration passes on 10 Sep. The generated replacements ask the same
+   * question — "C♭ (B) is the 4 of which major key?" — and carry no
+   * `visualHint`, so nothing draws a keyboard for them today.
+   *
+   * THE BRANCH IS KEPT AND SO IS ITS TEST. `degreeKeyboardSpec` decides
+   * which shape to draw from whether the HINT names a key, not from a
+   * category — its own header says so — so this is a live rule about a
+   * kind of card rather than support for one generator. A branch that
+   * stops being exercised and stops being tested on the same day is a
+   * branch nobody notices rotting; the fixture is what keeps the second
+   * half of that from happening.
+   */
+  const card = {
+    id: 'test-key-answer',
+    category: 'degree-notes',
+    categoryName: 'Notes of the Number System',
+    question: 'C♭ (B) is the 4 of which major key?',
+    correctAnswer: 'Gb major',
+    decoys: ['C major', 'D major', 'E major'],
+    skillTag: 'test',
+    visualHint: { startingNote: 'Cb', startingDegree: 4 },
+  } as unknown as Flashcard;
 
   it('lights the starting note and nothing else', () => {
     // A scale here would print the answer: the question is which key
-    // this note is the 1 of.
+    // this note is the 4 of.
     const spec = degreeKeyboardSpec(card, false, false)!;
     expect(spec.keyRoot).toBeNull();
     expect(spec.notes).toHaveLength(1);
@@ -81,6 +96,14 @@ describe('a card whose ANSWER is the key', () => {
   it('adds the tonic on the reveal, read off the answer', () => {
     const spec = degreeKeyboardSpec(card, true, true)!;
     expect(colourOf(spec, parseKeyRoot(card.correctAnswer))).toBe('green');
+  });
+
+  it('is a shape the deck no longer produces, and that is checked', () => {
+    // If a generated card ever grows a keyless hint again, this fails
+    // and the comment above it stops being true.
+    expect(FLASHCARDS.filter(
+      c => c.visualHint?.startingDegree !== undefined && !c.visualHint.key,
+    )).toEqual([]);
   });
 });
 

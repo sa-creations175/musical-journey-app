@@ -1,24 +1,26 @@
 /**
- * 6/♭7 left the deck. Its rows go — except the ones a reader wrote.
+ * A row with no live card behind it gets said out loud.
  *
  * =====================================================================
- * THREE CLAIMS, AND TWO OF THEM CANNOT BE SEEN ON SCREEN.
+ * THE SWEEP OUTLIVED THE MIGRATIONS, AND ITS JOB CHANGED WITH THEM.
  *
- * THAT IT DELETES ONLY WHAT IT WAS AUTHORISED TO. A cleanup that
- * widened by one id would take a live card's history with it and
- * nothing would look broken — the card would simply read unpractised.
- * So a live card's rows are laid down beside the orphans in every case
- * here and asserted untouched.
+ * It used to delete, against a written-down list of ids it was
+ * authorised to remove. The list went with the movers on 10 Sep 2026
+ * (restructure commit 9) and the rule underneath it stayed: the
+ * catalog is the only thing that says which cards exist, so a row keyed
+ * on an id it does not hold is practice against a question nobody can
+ * be asked.
  *
- * THAT IT NEVER THROWS AWAY SOMETHING SOMEBODY TYPED. A flag, a note, a
- * tag, a diary entry: none is derivable from anything, so the row stays
- * and is reported instead. Its attempts stay with it, because a flag
- * pointing at a history that has been deleted is worse than either.
+ * TWO CLAIMS, AND THE FIRST IS THE ONE THAT COULD GO WRONG SILENTLY.
  *
- * THAT IT IS SAFE TO RUN TWICE, ON EITHER DEVICE, IN ANY ORDER. There
- * is no pref — the mechanism is that a second run finds nothing — and a
- * row pushed back by a lagging phone is removed on the next pass rather
- * than refused because a flag says the job is done.
+ * THAT IT TOUCHES NOTHING. A read-only check that deleted one row would
+ * take a reader's history with it and nothing would look broken — the
+ * card would simply read unpractised. Every case here counts the rows
+ * before and after.
+ *
+ * THAT IT FINDS EVERY KIND OF ROW AND NAMES WHAT IS AT STAKE. An
+ * orphaned schedule and an orphaned diary entry are different problems,
+ * and the line has to say which.
  * =====================================================================
  */
 import 'fake-indexeddb/auto';
@@ -28,15 +30,16 @@ import { FLASHCARDS } from '../catalog';
 import { canonicalSkillId } from '../../skills/registry';
 import { spacingRowId } from '../../../lib/spacingState';
 import {
-  REMOVED_WITHOUT_SUCCESSOR, authoredOnAnnotation, authoredOnSpacing,
-  cleanUpOrphanedCards, describeOrphanCleanup, refusalFor,
+  authoredOnAnnotation, authoredOnSpacing, describeOrphans, reportOrphanedCards,
 } from '../orphanedCardCleanup';
 
 const MODULE = 'harmonic-fluency';
 const T = Date.UTC(2026, 8, 1);
-const ORPHAN = 'sc-6-b7-Eb';
+/** An id no deck has ever held, so the test cannot pass by accident on
+ *  a card that merely retired. */
+const ORPHAN = 'zz-not-a-card';
 /** A card that is still in the deck, laid down in every case as the
- *  thing that must survive. */
+ *  thing that must not be reported. */
 const LIVE = 'sc-slash-1-3-Eb';
 
 function spacingRow(itemRef: string, over: Record<string, unknown> = {}) {
@@ -59,14 +62,15 @@ function attempt(itemId: string) {
   } as never;
 }
 
-async function seed(over: { spacing?: Record<string, unknown> } = {}) {
-  await db.spacingState.bulkPut([
-    spacingRow(ORPHAN, over.spacing ?? {}),
-    spacingRow(LIVE),
-  ] as never[]);
-  await db.attempts.bulkAdd(
-    [attempt(ORPHAN), attempt(ORPHAN), attempt(LIVE)] as never[],
-  );
+const skillOf = (cardId: string) => canonicalSkillId(MODULE, 'card', cardId);
+
+async function rowCounts() {
+  return {
+    attempts: await db.attempts.count(),
+    spacing: await db.spacingState.count(),
+    annotations: await db.skillAnnotations.count(),
+    diary: await db.harmonicDiaryEntries.count(),
+  };
 }
 
 beforeEach(async () => {
@@ -74,195 +78,127 @@ beforeEach(async () => {
   await db.spacingState.clear();
   await db.skillAnnotations.clear();
   await db.harmonicDiaryEntries.clear();
+  nextAttemptId = 0;
 });
 
-// =====================================================================
-// What it is authorised to touch
-// =====================================================================
-
-describe('the authorised set', () => {
-  it('is the cards removed with no successor, and nothing else', () => {
-    // Twelve for the 6/♭7 shape (ruling 30), two for the key
-    // signatures that named two keys at once, five pentatonic formula
-    // cards and twelve "share the same" ones (commit 8), and the
-    // fifteen interval inversion fact cards, the four one-key
-    // progression cards, and the four generated progressions that did
-    // not survive the family being read in full — 52 generated ids
-    // plus the four hand-written cards they folded in from.
-    expect(REMOVED_WITHOUT_SUCCESSOR).toHaveLength(120);
-    // And the thirteen octave interval cards.
-    expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => /^iv-.+-up-12$/.test(id)))
-      .toHaveLength(13);
-    expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => /^pr-\d+$/.test(id)))
-      .toEqual(['pr-11', 'pr-14', 'pr-15', 'pr-20', 'pr-13',
-        'pr-4', 'pr-5', 'pr-6', 'pr-10']);
-    // BOTH SIDES OF COMMIT 8'S FOLD-IN. A device that ran it holds the
-    // rows under the generated id; one that has not still holds them
-    // under `pr-5`. Thirteen keys x four shapes.
-    expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('pr-prog-')))
-      .toHaveLength(52);
-    expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('iv-inv')))
-      .toHaveLength(15);
-    expect(REMOVED_WITHOUT_SUCCESSOR.filter(id => id.startsWith('sc-6-b7-')))
-      .toHaveLength(11);
-    expect(REMOVED_WITHOUT_SUCCESSOR).toContain('sc-11');
-    expect(REMOVED_WITHOUT_SUCCESSOR).toContain('ks-19');
-    expect(REMOVED_WITHOUT_SUCCESSOR).toContain('ks-20');
+describe('the deck is what says which cards exist', () => {
+  it('is silent on a database whose rows all have live cards', () => {
+    // The expected outcome on every boot. Asserted first, because a
+    // sweep that reported something every run would be trained away.
+    expect(describeOrphans({ orphans: [] })).toBeNull();
   });
 
-  it('names no card that is still in the deck', () => {
-    // The claim the whole file rests on. If this ever fails, the list
-    // has been widened onto a live card.
-    const live = new Set(FLASHCARDS.map(c => c.id));
-    for (const id of REMOVED_WITHOUT_SUCCESSOR) {
-      expect(live.has(id), `${id} is still in the deck`).toBe(false);
-    }
+  it('says nothing when every row belongs to a card in the deck', async () => {
+    await db.spacingState.put(spacingRow(LIVE));
+    await db.attempts.add(attempt(LIVE));
+    const r = await reportOrphanedCards();
+    expect(r.orphans).toEqual([]);
+    expect(describeOrphans(r)).toBeNull();
   });
 
-  it('refuses the whole pass if one of them comes back', () => {
-    expect(refusalFor(new Set<string>())).toBeNull();
-    const refusal = refusalFor(new Set(['sc-6-b7-Eb']));
-    expect(refusal).not.toBeNull();
-    expect(refusal).toContain('sc-6-b7-Eb');
-  });
-});
+  it('finds a row whose card is not in the deck, and counts what is under it', async () => {
+    await db.spacingState.put(spacingRow(ORPHAN));
+    await db.attempts.add(attempt(ORPHAN));
+    await db.attempts.add(attempt(ORPHAN));
+    await db.spacingState.put(spacingRow(LIVE));
+    await db.attempts.add(attempt(LIVE));
 
-// =====================================================================
-// The ordinary case
-// =====================================================================
-
-describe('a card with nothing written on it', () => {
-  it('loses its rows, and the live card keeps its own', async () => {
-    await seed();
-    const r = await cleanUpOrphanedCards();
-
-    expect(r.refused).toBeNull();
-    expect(r.attemptsDeleted).toBe(2);
-    expect(r.spacingDeleted).toBe(1);
-    expect(r.heldBack).toEqual([]);
-
-    expect(await db.spacingState.get(spacingRowId(MODULE, ORPHAN, 'both')))
-      .toBeUndefined();
-    expect(await db.spacingState.get(spacingRowId(MODULE, LIVE, 'both')))
-      .toBeDefined();
-    expect(await db.attempts.filter(a => a.itemId === LIVE).count()).toBe(1);
-    expect(await db.attempts.filter(a => a.itemId === ORPHAN).count()).toBe(0);
-  });
-
-  it('takes its annotation with it', async () => {
-    await seed();
-    await db.skillAnnotations.put({
-      skillId: canonicalSkillId(MODULE, 'card', ORPHAN),
-      tags: [], createdAt: T, updatedAt: T,
+    const r = await reportOrphanedCards();
+    expect(r.orphans).toHaveLength(1);
+    expect(r.orphans[0]).toMatchObject({
+      cardId: ORPHAN, attempts: 2, spacing: 1, annotations: 0, diary: 0,
     });
-    const r = await cleanUpOrphanedCards();
-    expect(r.annotationsDeleted).toBe(1);
-    expect(await db.skillAnnotations.count()).toBe(0);
-  });
-});
-
-// =====================================================================
-// What a reader wrote
-// =====================================================================
-
-describe('a card with something written on it', () => {
-  it('keeps everything, and says so', async () => {
-    await seed({ spacing: { reviewFlagNote: 'the Bb bass move' } });
-    const r = await cleanUpOrphanedCards();
-
-    expect(r.spacingDeleted).toBe(0);
-    // ITS ATTEMPTS STAY WITH IT. A flag pointing at a history that has
-    // been deleted is worse than either half on its own.
-    expect(r.attemptsDeleted).toBe(0);
-    expect(r.heldBack).toEqual([
-      { cardId: ORPHAN, authored: ['reviewFlagNote'] },
-    ]);
-    expect(await db.spacingState.get(spacingRowId(MODULE, ORPHAN, 'both')))
-      .toBeDefined();
+    expect(describeOrphans(r))
+      .toBe(`[hf] ${ORPHAN} is not in the deck and still has 2 attempt(s), `
+        + '1 spacing row(s)');
   });
 
-  it('holds back for a tag on the annotation', async () => {
-    await seed();
+  it('reaches annotations and diary entries, which are keyed on a skill id', async () => {
     await db.skillAnnotations.put({
-      skillId: canonicalSkillId(MODULE, 'card', ORPHAN),
-      tags: ['gospel walk-down'], createdAt: T, updatedAt: T,
-    });
-    const r = await cleanUpOrphanedCards();
-    expect(r.heldBack).toEqual([{ cardId: ORPHAN, authored: ['tags'] }]);
-    expect(r.spacingDeleted).toBe(0);
-    expect(r.annotationsDeleted).toBe(0);
-  });
-
-  it('holds back for a diary entry, which is a paragraph somebody typed', async () => {
-    await seed();
+      skillId: skillOf(ORPHAN), note: 'come back to this', updatedAt: T,
+    } as never);
     await db.harmonicDiaryEntries.put({
-      entryId: 'hd-1',
-      skillId: canonicalSkillId(MODULE, 'card', ORPHAN),
+      entryId: 'hd-1', skillId: skillOf(ORPHAN),
       userText: 'this one finally clicked in the car',
       createdAt: T, updatedAt: T,
     } as never);
-    const r = await cleanUpOrphanedCards();
-    expect(r.heldBack).toEqual([{ cardId: ORPHAN, authored: ['diaryEntry'] }]);
-    expect(r.diaryDeleted).toBe(0);
-    expect(await db.harmonicDiaryEntries.count()).toBe(1);
+    const r = await reportOrphanedCards();
+    expect(r.orphans).toHaveLength(1);
+    expect(r.orphans[0]).toMatchObject({ annotations: 1, diary: 1 });
+    expect(r.orphans[0].authored).toEqual(['diaryEntry', 'note']);
   });
 
-  it('says it every run, not only the first', async () => {
-    await seed({ spacing: { studyLater: true } });
-    const first = await cleanUpOrphanedCards();
-    const second = await cleanUpOrphanedCards();
-    expect(describeOrphanCleanup(first)).toContain('keeps its rows');
-    expect(describeOrphanCleanup(second)).toContain('keeps its rows');
+  it('names what a reader wrote, separately from what the app wrote', async () => {
+    await db.spacingState.put(spacingRow(ORPHAN, {
+      studyLater: true, reviewFlagged: true, reviewFlagNote: 'the ♭3 again',
+    }));
+    const r = await reportOrphanedCards();
+    expect(r.orphans[0].authored)
+      .toEqual(['reviewFlagNote', 'reviewFlagged', 'studyLater']);
+    expect(describeOrphans(r))
+      .toContain('reviewFlagNote, reviewFlagged, studyLater written by hand');
   });
 
-  it('knows what counts as written by hand, and what does not', () => {
-    expect(authoredOnSpacing({})).toEqual([]);
-    expect(authoredOnSpacing({ studyLater: false, reviewFlagNote: '' }))
-      .toEqual([]);
-    expect(authoredOnSpacing({ studyLater: true })).toEqual(['studyLater']);
-    // An annotation row with nothing set is one the app made, not a
-    // thought somebody had.
-    expect(authoredOnAnnotation({ tags: [] })).toEqual([]);
-    expect(authoredOnAnnotation({ tags: [], note: 'x' })).toEqual(['note']);
+  it('leaves a live card alone even when it sits beside an orphan', async () => {
+    await db.spacingState.put(spacingRow(LIVE, { studyLater: true }));
+    await db.spacingState.put(spacingRow(ORPHAN));
+    const r = await reportOrphanedCards();
+    expect(r.orphans.map(o => o.cardId)).toEqual([ORPHAN]);
+    expect(FLASHCARDS.some(c => c.id === LIVE)).toBe(true);
   });
 });
 
-// =====================================================================
-// Two devices
-// =====================================================================
-
-describe('safe on either device, in either order, more than once', () => {
-  it('a second run finds nothing and says nothing', async () => {
-    await seed();
-    await cleanUpOrphanedCards();
-    const again = await cleanUpOrphanedCards();
-    expect(again.attemptsDeleted).toBe(0);
-    expect(again.spacingDeleted).toBe(0);
-    expect(describeOrphanCleanup(again)).toBeNull();
+describe('it reads and never writes', () => {
+  it('deletes nothing, on a database full of orphans', async () => {
+    // THE CLAIM THAT REPLACED THE DELETE. "This id is not in the
+    // catalog" is true of a card retired on purpose AND of a legacy id,
+    // a synced row from an older deck, and a generator that threw on
+    // import. None of those is a licence to delete a reader's history.
+    for (const id of [ORPHAN, 'zz-another', 'zz-third']) {
+      await db.spacingState.put(spacingRow(id));
+      await db.attempts.add(attempt(id));
+      await db.skillAnnotations.put({
+        skillId: skillOf(id), priority: 'high', updatedAt: T,
+      } as never);
+      await db.harmonicDiaryEntries.put({
+        entryId: `hd-${id}`, skillId: skillOf(id), userText: 'x',
+        createdAt: T, updatedAt: T,
+      } as never);
+    }
+    const before = await rowCounts();
+    const r = await reportOrphanedCards();
+    expect(r.orphans).toHaveLength(3);
+    expect(await rowCounts()).toEqual(before);
   });
 
-  it('removes a row a lagging device pushed back afterwards', async () => {
-    // THE CASE A PREF WOULD GET WRONG. A phone that has not opened the
-    // app since the change syncs its copy up; a flag-guarded pass would
-    // refuse to touch the one row this exists to remove.
-    await seed();
-    await cleanUpOrphanedCards();
-    await db.spacingState.put(spacingRow(ORPHAN) as never);
-    await db.attempts.add(attempt(ORPHAN) as never);
+  it('is unchanged by running twice', async () => {
+    await db.spacingState.put(spacingRow(ORPHAN));
+    const first = await reportOrphanedCards();
+    const second = await reportOrphanedCards();
+    expect(second).toEqual(first);
+    expect((await rowCounts()).spacing).toBe(1);
+  });
+});
 
-    const later = await cleanUpOrphanedCards();
-    expect(later.spacingDeleted).toBe(1);
-    expect(later.attemptsDeleted).toBe(1);
-    expect(await db.spacingState.get(spacingRowId(MODULE, ORPHAN, 'both')))
-      .toBeUndefined();
+describe('what counts as written by hand', () => {
+  it('reads the three fields on a spacing row', () => {
+    expect(authoredOnSpacing({})).toEqual([]);
+    expect(authoredOnSpacing({ studyLater: false, reviewFlagged: false }))
+      .toEqual([]);
+    expect(authoredOnSpacing({ reviewFlagNote: '' })).toEqual([]);
+    expect(authoredOnSpacing({
+      studyLater: true, reviewFlagged: true, reviewFlagNote: 'x',
+    })).toEqual(['studyLater', 'reviewFlagged', 'reviewFlagNote']);
   });
 
-  it('runs on a database that never had any of these rows', async () => {
-    // The other device's first run, after the first device has already
-    // swept and synced the deletes down.
-    await db.spacingState.put(spacingRow(LIVE) as never);
-    const r = await cleanUpOrphanedCards();
-    expect(r).toMatchObject({ refused: null, spacingDeleted: 0, heldBack: [] });
-    expect(await db.spacingState.count()).toBe(1);
+  it('reads the four on an annotation, and calls an empty one nothing', () => {
+    // An annotation row with nothing set is a row the app made, not a
+    // thought — the distinction the line depends on.
+    expect(authoredOnAnnotation({})).toEqual([]);
+    expect(authoredOnAnnotation({ tags: [], customName: '', note: '' }))
+      .toEqual([]);
+    expect(authoredOnAnnotation({
+      priority: 'high', tags: ['x'], customName: 'n', note: 'b',
+    })).toEqual(['priority', 'tags', 'customName', 'note']);
   });
 });

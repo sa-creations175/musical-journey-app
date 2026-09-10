@@ -281,69 +281,10 @@ const base = (category: Flashcard['category'], categoryName: string) =>
 // Functional harmony — ii-V-I, V/V, V/vi
 // =====================================================================
 
-const II_V_I_CONTEXT =
-  'The ii-V-I is the backbone of jazz and neo-soul harmony. Know it in every '
-  + 'key and you have half of standard vocabulary — Robert Glasper, D’Angelo '
-  + 'and every gospel turnaround run through it.';
-
 const SECONDARY_DOMINANT_CONTEXT =
   'A secondary dominant is the V-of-a-chord-that-is-not-the-tonic. Gospel '
   + 'bridges, Stevie Wonder verses and jazz tunes use them to tour through '
   + 'keys without ever leaving home.';
-
-/**
- * ii-V-I in every key but C, which keeps its hand-written card.
- *
- * =====================================================================
- * OUT OF THE DECK SINCE 9 SEP 2026 — THE 2-5-1 LIVES ONCE.
- *
- * Progression Vocabulary asks the same eleven questions in different
- * words, and in thirteen keys rather than eleven. Silas ruled that one
- * of the two families keeps it, and it is the one where a progression
- * is a progression.
- *
- * Still exported, like every retired generator here: `progressionFoldIn`
- * reads it to prove which card each of the eleven became. The pairing
- * is `RuledByAnswer` — the sentences differ, the answers do not.
- * =====================================================================
- *
- * DECOYS ARE THE ORIGINAL CARD'S THREE FAMILIES, applied per key: the
- * V made a IV7, the ii made a dominant, and the ii replaced by iii7.
- * Each is a different plausible way to be wrong — a wrong dominant, a
- * wrong quality, a wrong degree — rather than three variations on one.
- */
-export function generateIiViCards(): Flashcard[] {
-  const out: Flashcard[] = [];
-  for (const root of FLAT_TWELVE) {
-    if (root === 'C') continue;
-    const one = degreeLabel(root, '1');
-    const two = degreeLabel(root, '2');
-    const four = degreeLabel(root, '4');
-    const five = degreeLabel(root, '5');
-    const three = degreeLabel(root, '3');
-    out.push({
-      ...base('functional-harmony', 'Functional Harmony'),
-      id: `fh-ii-v-i-${identityRoot(root)}`,
-      // `shape` separates the three functional-harmony generators, which
-      // all key on root and would otherwise share a cell.
-      axis: { key: identityRoot(root), shape: 'ii-V-I' },
-      question: `The ii-V-I cadence in ${noteLabel(root)} major is _____`,
-      correctAnswer: `${two}m7 - ${five}7 - ${one}maj7`,
-      decoys: [
-        `${two}m7 - ${four}7 - ${one}maj7`,
-        `${two}7 - ${five}7 - ${one}maj7`,
-        `${three}m7 - ${five}7 - ${one}maj7`,
-      ],
-      explanation: `In ${noteLabel(root)}: ${two}m7 → ${five}7 → `
-        + `${one}maj7 — the 2, the 5 and the 1, each with the quality the `
-        + `major scale gives it.`
-        + keyboardNote(degreeAscii(root, '2'), degreeAscii(root, '5'), degreeAscii(root, '1'))
-        + ` ${II_V_I_CONTEXT}`,
-      skillTag: `ii-v-i-${identityRoot(root)}`,
-    });
-  }
-  return out;
-}
 
 /** V/V — the dominant of the dominant, which is the 2 made major. */
 export function generateVofVCards(): Flashcard[] {
@@ -424,21 +365,6 @@ export const MODE_BY_DEGREE: ReadonlyArray<{ degree: string; mode: string }> = [
   { degree: '5', mode: 'Mixolydian' },
   { degree: '6', mode: 'Aeolian' },
   { degree: '7', mode: 'Locrian' },
-];
-
-/**
- * The three degrees the generator covered before ruling 42, and the
- * roots it covered them in.
- *
- * KEPT SO THE FOLD-IN HAS SOMETHING TO COMPARE AGAINST. `modeFoldIn`
- * proves which new card each retired one became by re-deriving the old
- * card and matching its question and answer; a hand-written table could
- * only be trusted. It goes when the fold-in goes.
- */
-const RETIRED_MODE_DEGREES: ReadonlyArray<{ degree: string; mode: string }> = [
-  { degree: '2', mode: 'Dorian' },
-  { degree: '5', mode: 'Mixolydian' },
-  { degree: '6', mode: 'Aeolian' },
 ];
 
 /**
@@ -527,21 +453,6 @@ const MODE_CONTEXT =
  */
 export function modeCardId(root: string, degree: string): string {
   return `mo-mode-${root}-${degree}`;
-}
-
-/**
- * The mode cards as they were before ruling 42 — three degrees, eleven
- * keys, ids minted from the identity vocabulary.
- *
- * OUT OF THE DECK AND STILL EXPORTED. `modeFoldIn` reads it to prove
- * which new card each retired one became. It goes when the fold-in
- * goes.
- */
-export function retiredModeOfCards(): Flashcard[] {
-  return buildModeCards(FLAT_TWELVE, RETIRED_MODE_DEGREES, {
-    skipC: true,
-    id: (root, degree) => `mo-mode-of-${identityRoot(root)}-${degree}`,
-  });
 }
 
 /** Every mode of every key — 13 x 7 (ruling 42). */
@@ -724,18 +635,6 @@ export function slashCardId(shapeId: string, root: string): string {
   return `sc-slash-${shapeId}-${root}`;
 }
 
-/**
- * The slash cards as they were before ruling 39 — twelve keys, ids
- * minted from the identity vocabulary.
- *
- * OUT OF THE DECK AND STILL EXPORTED, so `slashFoldIn` can prove which
- * new card each retired one became. It goes when the fold-in goes.
- */
-export function retiredSlashCards(): Flashcard[] {
-  return buildSlashCards(FLAT_TWELVE, (shapeId, root) =>
-    `sc-${shapeId}-${identityRoot(root)}`, identityRoot);
-}
-
 /** Every shape in every key — 13 x 7 (rulings 39 and 40). */
 export function generateSlashCards(): Flashcard[] {
   return buildSlashCards(THIRTEEN_KEYS, slashCardId, root => root);
@@ -868,77 +767,6 @@ function buildSlashCards(
 // =====================================================================
 // Coverage top-ups — the categories that were partial
 // =====================================================================
-
-const PIVOT_CONTEXT =
-  'Reverse-pivoting is what an ear-trained player does when the melody arrives '
-  + 'before the key does: hear a note, decide what degree it is, and the key '
-  + 'falls out.';
-
-/**
- * Reverse key pivots for the three answer keys that had none.
- *
- * The degree is chosen per key so the SUBJECT note is one worth
- * meeting: G♭'s 4 is C♭, which is the whole reason the parenthetical
- * rule exists.
- */
-export function generatePivotTopUps(): Flashcard[] {
-  const missing: ReadonlyArray<{ root: string; degree: string }> = [
-    { root: 'Db', degree: '3' },
-    { root: 'Gb', degree: '4' },
-    { root: 'B', degree: '6' },
-  ];
-  return missing.map(({ root, degree }) => {
-    // QUESTION-SIDE gloss, which cannot give anything away: the answer
-    // is a key name, not a note.
-    const note = degreeLabelGlossed(root, degree);
-    const wrong = FLAT_TWELVE.filter(k => k !== root).slice(0, 3);
-    return {
-      ...base('reverse-key-pivots', 'Reverse Key Pivots'),
-      id: `rkp-${identityRoot(root)}-${degree}`,
-      axis: { key: identityRoot(root), degree: Number(degree) },
-      question: `${note} is the ${degree} of which major key?`,
-      correctAnswer: `${noteLabel(root)} major`,
-      decoys: wrong.map(k => `${noteLabel(k)} major`),
-      explanation: `${note} sits on the ${degree} of ${noteLabel(root)} major. `
-        + PIVOT_CONTEXT,
-      skillTag: `pivot-${identityRoot(root)}-${degree}`,
-    };
-  });
-}
-
-const PROGRESSION_CONTEXT =
-  'The pop or axis progression — hundreds of songs across pop, gospel, R&B '
-  + 'and worship, because it cycles through all four tonal functions and lands '
-  + 'home.';
-
-/**
- * 1-5-6-4 in the six keys the category never reached — RETIRED in
- * commit 8, kept because the fold-in compares against the exact text
- * these shipped with.
- */
-export function generateProgressionTopUps(): Flashcard[] {
-  const missing = ['Db', 'Eb', 'E', 'Gb', 'Ab', 'B'];
-  return missing.map(root => {
-    const [one, five, six, four] = ['1', '5', '6', '4'].map(d => degreeLabel(root, d));
-    return {
-      ...base('progressions', 'Progressions'),
-      id: `pr-1564-${identityRoot(root)}`,
-      axis: { key: identityRoot(root), shape: '1-5-6-4' },
-      question: `The 1-5-6-4 progression in ${noteLabel(root)} major is _____`,
-      correctAnswer: `${one} - ${five} - ${six}m - ${four}`,
-      decoys: [
-        `${one} - ${degreeLabel(root, '3')}m - ${six}m - ${four}`,
-        `${one} - ${five} - ${degreeLabel(root, '2')}m - ${four}`,
-        `${one} - ${five} - ${six}m - ${degreeLabel(root, '2')}m`,
-      ],
-      explanation: `1-5-6-4 in ${noteLabel(root)} is ${one} → ${five} → `
-        + `${six}m → ${four}.`
-        + keyboardNote(...['1', '5', '6', '4'].map(d => degreeAscii(root, d)))
-        + ` ${PROGRESSION_CONTEXT}`,
-      skillTag: `prog-1564-${identityRoot(root)}`,
-    };
-  });
-}
 
 const RELATIVE_CONTEXT =
   'The relative minor sits on the 6 of the major scale — same seven notes, '
@@ -1273,42 +1101,6 @@ export function generateKeyFromCountCards(): Flashcard[] {
   return out;
 }
 
-/**
- * The relative-minor top-ups as they were — twelve keys, three of them
- * hand-written elsewhere.
- *
- * OUT OF THE DECK AND STILL EXPORTED, so `keySignatureFoldIn` can prove
- * which generated card each retired one became.
- */
-export function generateRelativeMinorTopUps(): Flashcard[] {
-  const have = new Set(['C', 'G', 'Ab']);
-  return FLAT_TWELVE.filter(r => !have.has(r)).map(root => {
-    const six = degreeLabel(root, '6');
-    return {
-      ...base('key-signatures', 'Key Signatures'),
-      id: `ks-relative-${identityRoot(root)}`,
-      axis: { key: identityRoot(root), relation: 'relative' },
-      question: `The relative minor of ${noteLabel(root)} major is _____`,
-      correctAnswer: `${six} minor`,
-      decoys: chooseDecoys(
-        `${six} minor`,
-        MINOR_DECOY_DEGREES.map(d => `${degreeLabel(root, d)} minor`),
-        {
-          count: 3,
-          seed: `ks-relative-${root}`,
-          label: `ks-relative-${root}`,
-          category: 'key-signatures',
-        },
-      ),
-      explanation: `${six} minor is the relative minor of ${noteLabel(root)} `
-        + `major.`
-        + keyboardNote(degreeAscii(root, '6'))
-        + ` ${RELATIVE_CONTEXT}`,
-      skillTag: `relative-minor-${identityRoot(root)}`,
-    };
-  });
-}
-
 export function generateParallelMinorTopUps(): Flashcard[] {
   const have = new Set(['Bb', 'D', 'F', 'G']);
   return FLAT_TWELVE.filter(r => !have.has(r)).map(root => ({
@@ -1597,66 +1389,6 @@ function movementForSpan(semitones: number): string | null {
     q => q.letterSteps === steps && q.semitones === semitones,
   );
   return quality === undefined ? null : `up:${quality.id}`;
-}
-
-/**
- * One card per previously-unused start note, each a different interval
- * so the five do not drill one distance five times.
- *
- * OUT OF THE DECK SINCE RULING 43 and still exported, like the mode
- * generator before it: `intervalFoldIn` reads it to prove which new
- * card each retired one became.
- */
-export function generateIntervalTopUps(): Flashcard[] {
-  const missing: ReadonlyArray<{ from: string; degree: string }> = [
-    { from: 'Db', degree: '5' },
-    { from: 'Eb', degree: '3' },
-    { from: 'Gb', degree: '4' },
-    { from: 'Ab', degree: '6' },
-    { from: 'B', degree: '7' },
-  ];
-  return missing.map(({ from, degree }) => {
-    const to = degreeLabel(from, degree);
-    const toGlossed = degreeLabelGlossed(from, degree);
-    const semitones = DEGREE[degree][1];
-    const correct = intervalName(semitones);
-    // Nearest distances first — a semitone out is the mistake worth
-    // making — then the rest of the table, so the chooser has room to
-    // find company for a long answer name. `longest` is asserted in
-    // this category: "Perfect 4th" beside three shorter names was the
-    // answer without the question being read.
-    const decoys = chooseDecoys(
-      correct,
-      intervalDecoyPool(semitones),
-      {
-        count: 3,
-        seed: `iv-${from}-${degree}`,
-        label: `iv-${from}-${degree}`,
-        category: 'intervals',
-      },
-    );
-    return {
-      ...base('intervals', 'Intervals'),
-      // NOT CANONICALISED, AND THAT IS THE POINT OF THE COMMENT BELOW.
-      // `from` here is a NOTE in an interval, not a key: the intervals
-      // grid's row axis is `FLAT_TWELVE`, so a canonicalised `from`
-      // would fall off it into the tail — the exact failure this
-      // generator's coordinates were aligned to avoid. The note
-      // vocabulary has its own spelling question; it is not this one.
-      id: `iv-${from}-${degree}`,
-      // Same coordinates as the catalog's own interval generator, so
-      // the top-ups land in the SAME grid rather than a parallel one.
-      axis: { from, to, semitones },
-      question: `The interval from ${noteLabel(from)} to ${toGlossed} ascending = ?`,
-      correctAnswer: correct,
-      decoys,
-      explanation: `${noteLabel(from)} up to ${to} spans ${semitones} `
-        + `semitones — a ${correct}.`
-        + keyboardNote(degreeAscii(from, degree))
-        + ` ${INTERVAL_CONTEXT}`,
-      skillTag: `interval-${from}-${degree}`,
-    };
-  });
 }
 
 // =====================================================================

@@ -6,49 +6,9 @@ import { migrateSongSpacingPrefs } from './modules/repertoire/spacingPrefs';
 import { backfillChartingEngagement } from './modules/repertoire/chartingEngagement';
 import { describeWipe, wipeRetiredCellFields } from './modules/repertoire/wipeRetiredCellFields';
 import {
-  describeIdentityMigration,
-  migrateIdentityCardIds,
-} from './modules/harmonic-fluency/identityIdMigration';
-import {
-  cleanUpOrphanedCards,
-  describeOrphanCleanup,
+  describeOrphans,
+  reportOrphanedCards,
 } from './modules/harmonic-fluency/orphanedCardCleanup';
-import {
-  describeSlashCFoldIn,
-  foldInSlashCCards,
-} from './modules/harmonic-fluency/slashCFoldIn';
-import {
-  describeModeFoldIn,
-  foldInModeCards,
-} from './modules/harmonic-fluency/modeFoldIn';
-import {
-  describeIntervalFoldIn,
-  foldInIntervalCards,
-} from './modules/harmonic-fluency/intervalFoldIn';
-import {
-  describeSlashFoldIn,
-  foldInSlashCards,
-} from './modules/harmonic-fluency/slashFoldIn';
-import {
-  describeKeySignatureFoldIn,
-  foldInKeySignatureCards,
-} from './modules/harmonic-fluency/keySignatureFoldIn';
-import {
-  describePentatonicFoldIn,
-  foldInPentatonicCards,
-} from './modules/harmonic-fluency/pentatonicFoldIn';
-import {
-  describeProgressionFoldIn,
-  foldInProgressionCards,
-} from './modules/harmonic-fluency/progressionFoldIn';
-import {
-  cleanUpRetiredCard,
-  describeRetiredCardCleanup,
-} from './modules/harmonic-fluency/retiredCardCleanup';
-import {
-  describeRetiredCategoryMigration,
-  migrateRetiredCategories,
-} from './modules/harmonic-fluency/retiredCategoryMigration';
 import {
   describeDedupe, removeDuplicateSpacingRows,
 } from './lib/spacing/dedupeSpacingRows';
@@ -189,130 +149,45 @@ export default function App() {
       .catch(err => {
         console.warn('[repertoire] retired-field wipe failed', err);
       });
-    // Four harmonic-fluency cards whose ids carried a display spelling
-    // move onto their identity. It VERIFIES BEFORE IT WRITES and
-    // refuses if the row shape is not the one that was authorised —
-    // see the header. A refusal logs and leaves the pref unset, so it
-    // is a state to come back to rather than a step taken.
-    void migrateIdentityCardIds()
+    /**
+     * =====================================================================
+     * NO HARMONIC-FLUENCY MIGRATION RUNS AT BOOT ANY MORE.
+     *
+     * Eleven one-time passes stood here — the identity-id move, the
+     * `ksc-3` row cleanup, the retired-category fold, and the slash-C,
+     * mode, interval, slash, key-signature, pentatonic and progression
+     * fold-ins. Each moved the rows out from under a retired card onto
+     * the card that replaced it; each was idempotent by data rather
+     * than by a flag, so it was safe on two devices in either order any
+     * number of times.
+     *
+     * THEY HAVE RUN. Prod shipped on 9 Sep 2026 and the deployed app
+     * has been opened on the laptop and on the phone since, which is
+     * the condition the restructure plan set for deleting them —
+     * Part 3, commit 9.
+     *
+     * A mover kept past that point costs more than it looks. It holds a
+     * FROZEN COPY of every retired card's wording, and every one of
+     * those copies has to be compared against the live wording to pair
+     * — so changing a sentence anywhere in the deck meant proving the
+     * history again. That is what made yesterday's "the key of C major"
+     * pass hold four questions back.
+     *
+     * WHAT REPLACES THEM IS NOTHING, and that is the point: a card's
+     * rows are keyed on its id, and the ids have stopped moving.
+     * =====================================================================
+     */
+    // THE ORPHAN SWEEP IS NOT ONE OF THEM AND STAYS. It is the standing
+    // rule that a row with no live card behind it is said out loud —
+    // not a step taken once, but a check that should keep coming back
+    // empty. It reports and never deletes.
+    void reportOrphanedCards()
       .then(r => {
-        if (!r.skipped) console.info(describeIdentityMigration(r));
-      })
-      .catch(err => {
-        console.warn('[hf] identity id migration failed', err);
-      });
-    // `ksc-3` was `ks-16` a second time and has been taken out of the
-    // catalog. Its one attempt and its spacing row live in a database
-    // the catalog cannot reach, so they go from here. Same rule as the
-    // migration above: it checks the shape it was authorised against
-    // and refuses if it moved, rather than deleting whatever it finds.
-    void cleanUpRetiredCard()
-      .then(r => {
-        if (!r.skipped) console.info(describeRetiredCardCleanup(r));
-      })
-      .catch(err => {
-        console.warn('[hf] retired-card cleanup failed', err);
-      });
-    // 6/♭7 left the slash deck with ruling 30, and nothing in the deck
-    // asks what it asked — so its rows go rather than move. IDEMPOTENT
-    // BY DATA, not by a pref, for the reason the retired-category
-    // migration below states at length: a phone that is days behind can
-    // push a row back by sync, and a flag-guarded pass would refuse to
-    // touch the one row this exists to remove.
-    //
-    // It refuses outright if any of the twelve is in the deck again,
-    // and it leaves anything a reader wrote by hand where it is —
-    // saying so on every boot until somebody decides.
-    void cleanUpOrphanedCards()
-      .then(r => {
-        const line = describeOrphanCleanup(r);
+        const line = describeOrphans(r);
         if (line !== null) console.info(line);
       })
       .catch(err => {
-        console.warn('[hf] orphaned-card cleanup failed', err);
-      });
-    // The three hand-written C slash cards folded into the generator
-    // (ruling 37). Same machinery and same two-device reasoning as the
-    // retired-category migration below — the difference is the proof,
-    // which here is a byte-identical question and answer.
-    void foldInSlashCCards()
-      .then(r => {
-        const line = describeSlashCFoldIn(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] slash C fold-in failed', err);
-      });
-    // Mode Identification regenerated to every key by every mode
-    // (ruling 42). Thirty-six old cards fold into the new grid by the
-    // same question-and-answer proof, and every old id retires for good
-    // — see `modeFoldIn` for why the whole family took a new id shape.
-    void foldInModeCards()
-      .then(r => {
-        const line = describeModeFoldIn(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] mode fold-in failed', err);
-      });
-    // Interval Identification regenerated to every note by every
-    // distance (ruling 43). Twenty hand-picked pairs and five top-ups
-    // fold into the grid; their positional and degree-named ids retire
-    // for good — see `intervalFoldIn` for why neither could be kept.
-    void foldInIntervalCards()
-      .then(r => {
-        const line = describeIntervalFoldIn(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] interval fold-in failed', err);
-      });
-    // Slash Chords regenerated for thirteen keys (rulings 39 and 40).
-    // Every old id retires for good, for the reason `slashFoldIn`
-    // gives: the old shape could not tell F♯ major from G♭ major.
-    void foldInSlashCards()
-      .then(r => {
-        const line = describeSlashFoldIn(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] slash fold-in failed', err);
-      });
-    // Key Signatures regenerated: the count, the relative pair both
-    // ways, and a count-to-key card per mode, in thirteen keys.
-    // `ks-19` and `ks-20` named two keys at once and pair with
-    // nothing; they are reported rather than guessed at.
-    void foldInKeySignatureCards()
-      .then(r => {
-        const line = describeKeySignatureFoldIn(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] key-signature fold-in failed', err);
-      });
-    // Pentatonics: the notes cards move, the five formula cards and the
-    // twelve "share the same" ones do not — nothing in the deck asks
-    // what they asked any more.
-    void foldInPentatonicCards()
-      .then(r => {
-        const line = describePentatonicFoldIn(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] pentatonic fold-in failed', err);
-      });
-    // Progressions: nine hand-written in-key cards, the six 1-5-6-4
-    // top-ups and Functional Harmony's eleven ii-V-I cadences land on
-    // their own key's generated card. Nothing is deleted here — every
-    // retired card in this pass has a successor; the four one-key
-    // cards that did not are `cleanUpOrphanedCards`' business, above.
-    void foldInProgressionCards()
-      .then(r => {
-        const line = describeProgressionFoldIn(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] progression fold-in failed', err);
+        console.warn('[hf] orphaned-card sweep failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from
@@ -326,30 +201,6 @@ export default function App() {
     // something he can see and rescope himself, and `scopeShrink`
     // already tells him. This is the app declining to have an opinion
     // about a number its owner already understands.
-    // Named Notes and Tritone Pairs are folded into Degrees And Notes,
-    // and their rows follow their cards: spacing state with its
-    // schedule and its hand-written flags, every attempt, the skill
-    // annotation and every diary entry. Deleting the cards without this
-    // would leave the rows in IndexedDB and read on screen as though
-    // the practice had never happened.
-    //
-    // IDEMPOTENT BY DATA AND NOT BY A PREF, which is the whole reason
-    // it can live in a boot path at all. Two devices, either order, any
-    // number of times: it looks for rows still keyed on a retired id
-    // and finds none on the second pass. A pref would refuse to touch a
-    // legacy row that arrived by sync from a device that had not opened
-    // the app since the change.
-    //
-    // It refuses to move a row it cannot prove belongs — see the
-    // module's header — and says so rather than moving it anyway.
-    void migrateRetiredCategories()
-      .then(r => {
-        const line = describeRetiredCategoryMigration(r);
-        if (line !== null) console.info(line);
-      })
-      .catch(err => {
-        console.warn('[hf] retired-category migration failed', err);
-      });
     // ONE-TIME, AND DELIBERATELY NOT ARMED YET.
     //
     // Carrying every flashcard schedule onto the one engine is a
