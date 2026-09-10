@@ -186,7 +186,7 @@ describe('the value survives the sync push unstripped', () => {
  * ---------------------------------------------------------------
  */
 const WRITERS = import.meta.glob(
-  '/src/modules/ear-training/**/{IntervalsQuiz,KeyDetectionTab,ChordProgressionsQuiz}.tsx',
+  '/src/modules/ear-training/**/{IntervalsQuiz,KeyDetectionTab,FullProgressionCard}.tsx',
   { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>;
 
@@ -209,19 +209,31 @@ describe('the three writers record the choice', () => {
     expect(src).not.toContain('chosenItemId: selectedNote');
   });
 
-  it('the pattern question writes the suffixed chosen id', () => {
-    const src = sourceFor('ChordProgressionsQuiz');
-    expect(src).toContain('chosenItemId: `${choiceId}-pattern`');
-    // A bare id here would read as a full-progression attempt.
-    expect(src).not.toContain('chosenItemId: choiceId,');
+  it('the full-progression card writes the choice through the id builder', () => {
+    // =================================================================
+    // THIS WAS `ChordProgressionsQuiz`'S PATTERN QUESTION until 10 Sep
+    // 2026, which wrote `chosenItemId: `${choiceId}-pattern`` — a
+    // suffix, because that quiz ALSO wrote full-progression rows and a
+    // bare id there would have read as one of them.
+    //
+    // The screen is gone and the card that replaced it has no such
+    // ambiguity: one question, one row, and the chosen id is built by
+    // the same function that builds the asked one. The claim moves
+    // rather than being dropped, because "the choice is recorded, and
+    // through the builder" is still true of the live surface.
+    // =================================================================
+    const src = sourceFor('FullProgressionCard');
+    expect(src).toContain('chosenItemId: fullProgressionItemId(answerEntry, answerPosition)');
+    // Not the raw entry id: the choice is an entry AND a position, and
+    // an id missing the position would read as a different answer.
+    expect(src).not.toContain('chosenItemId: answerEntry');
   });
 
-  it('leaves the multi-row and array-answer writers alone', () => {
-    // The full-progression bulk writer emits one row per chord slot and
-    // the chord-motion tab carries array answers; both are a separate
-    // step, and a single chosen item is not what either records.
-    const quiz = sourceFor('ChordProgressionsQuiz');
-    const occurrences = quiz.split('chosenItemId').length - 1;
+  it('leaves the array-answer writer alone', () => {
+    // The chord-motion tab carries array answers; a single chosen item
+    // is not what it records, so it stays out of this sweep.
+    const src = sourceFor('FullProgressionCard');
+    const occurrences = src.split('chosenItemId').length - 1;
     expect(occurrences).toBe(1);
   });
 });

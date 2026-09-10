@@ -4,7 +4,7 @@
  *
  *   · IntervalsQuiz       (intervals catalog)
  *   · ChordRecognitionQuiz (chord-recognition catalog)
- *   · ChordProgressionsQuiz (chord-progressions catalog)
+ *   · FullProgressionCard  (chord-progressions catalog)
  *   · ScalesModes          (modes catalog)
  *
  * The sheet supports three operations against the etItemCuration

@@ -5,7 +5,7 @@
  * THE DUPLICATION THIS REPLACES WAS ALREADY AT FIVE.
  *
  * `Intervals`, `ChordRecognition`, `ScalesModes`, `Reading` and
- * `ChordProgressionsQuiz` each carried their own copy of
+ * `ChordProgressions` each carried their own copy of
  *
  *     const raw = params.get('focus');
  *     if (!raw) return undefined;

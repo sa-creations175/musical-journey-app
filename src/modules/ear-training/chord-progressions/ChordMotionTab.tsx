@@ -537,8 +537,8 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     const excludeFlag = focusProtected ? { excludeFromFluency: true } : {};
 
     // Primary record — destination correctness drives fluency per
-    // motion type. Mirrors the convention used by ChordProgressionsQuiz
-    // (main record per item + sub-records for sub-skills). Scaffold is
+    // motion type. Mirrors this module's own convention (main record
+    // per item + sub-records for sub-skills). Scaffold is
     // read from the round snapshot so toggling the pill after playback
     // can't swap which mode gets credited.
     const records: AttemptRecord[] = [

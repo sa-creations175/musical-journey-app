@@ -80,9 +80,9 @@ describe('bulkAddAttempts', () => {
   });
 
   it('preserves the per-slot timestamps the collapse rule depends on', async () => {
-    // ChordProgressionsQuiz writes `now + i` per slot. Grouping a
-    // submission back together reads those, so the id change must not
-    // disturb them.
+    // A bulk writer stamps `now + i` per slot. Grouping a submission
+    // back together reads those, so the id change must not disturb
+    // them.
     const now = 1_700_000_000_000;
     await bulkAddAttempts([0, 1, 2, 3].map(i => row({ itemId: '2-5-1', timestamp: now + i })));
     const stored = (await db.attempts.toArray()).sort((a, b) => a.timestamp - b.timestamp);

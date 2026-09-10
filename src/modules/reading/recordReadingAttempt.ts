@@ -146,8 +146,8 @@ export function buildReadingAttempt(
  *
  * Serial, not parallel: `recordEngagement` reads-then-writes its
  * spacing row, so overlapping calls on one item can lose an update.
- * ChordProgressionsQuiz already learned this and says so at its own
- * call site.
+ * Chord progressions learned this first and says so at its own call
+ * site.
  */
 export async function recordReadingAttempt(
   input: ReadingAttemptInput,

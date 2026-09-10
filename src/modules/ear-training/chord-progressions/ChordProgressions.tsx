@@ -151,10 +151,12 @@ export default function ChordProgressions() {
           Passes list with the passes in it, in the voicing the grid
           drills. One question, one list, one place it is answered.
 
-          THE OLD QUIZ IS STILL IN THE TREE and nothing renders it. Its
-          tiers, its unlock ladder and its fluency tracker are read by
-          other things; retiring them is its own piece of work and is
-          raised in the report rather than done on the way past.
+          THE OLD QUIZ IS GONE from the tree as of 10 Sep 2026. Its
+          tiers and its unlock ladder are NOT: `progressionStages` and
+          `progressionTierUnlock` are read by the session generator, by
+          the cross-submodule stage gate and by the catalog itself, so
+          they outlived the screen that introduced them. Retiring those
+          is a separate decision with live readers behind it.
           ================================================================= */}
       {tab === 'full-progression' && (
         <FullProgressionCard attempts={attempts} />

@@ -4,15 +4,19 @@
  * =====================================================================
  * A TEST ON ONE MODULE PASSES WHILE FIVE OTHERS RECORD NOTHING.
  *
- * There are TWELVE places in this app that write an attempt row —
- * not the eight the brief assumed, and not the eleven I first counted
- * back. Chord recognition writes twice (quality and inversion), and
- * chord progressions writes four times across three tabs (the
- * transcription in bulk, the pattern question, chord motion in bulk,
- * and key detection). Instrumenting the ones that came to mind and calling
- * it done is the failure this file exists to catch, and it would be
- * invisible — the app works, the field is simply missing from some
- * rows, and the gap only shows up months later as a lopsided sample.
+ * There are ELEVEN places in this app that write an attempt row —
+ * not the eight the brief assumed. Chord recognition writes twice
+ * (quality and inversion), and chord progressions writes three times
+ * across three tabs (the full-progression card, chord motion in bulk,
+ * and key detection). Instrumenting the ones that came to mind and
+ * calling it done is the failure this file exists to catch, and it
+ * would be invisible — the app works, the field is simply missing from
+ * some rows, and the gap only shows up months later as a lopsided
+ * sample.
+ *
+ * It was TWELVE until 10 Sep 2026: the retired `ChordProgressionsQuiz`
+ * wrote the transcription in bulk and a separate "which pattern is
+ * this" question. Both went with the screen.
  *
  * SOURCE, NOT A RENDER. Following `homeRoute.test.tsx`: rendering five
  * quizzes to look at one spread would pull in Dexie, the audio graph
@@ -28,7 +32,7 @@
 import { describe, expect, it } from 'vitest';
 import intervalsSource from '../../modules/ear-training/intervals/IntervalsQuiz.tsx?raw';
 import chordRecognitionSource from '../../modules/ear-training/chord-recognition/ChordRecognitionQuiz.tsx?raw';
-import progressionsSource from '../../modules/ear-training/chord-progressions/ChordProgressionsQuiz.tsx?raw';
+import progressionsSource from '../../modules/ear-training/chord-progressions/FullProgressionCard.tsx?raw';
 import chordMotionSource from '../../modules/ear-training/chord-progressions/ChordMotionTab.tsx?raw';
 import keyDetectionSource from '../../modules/ear-training/chord-progressions/KeyDetectionTab.tsx?raw';
 import hearScaleSource from '../../modules/ear-training/scales-modes/HearScaleTab.tsx?raw';
@@ -42,7 +46,12 @@ const count = (text: string, needle: RegExp) => (text.match(needle) ?? []).lengt
 const HEARD: ReadonlyArray<{ name: string; source: string; writes: number }> = [
   { name: 'intervals', source: intervalsSource, writes: 1 },
   { name: 'chord recognition', source: chordRecognitionSource, writes: 2 },
-  { name: 'chord progressions — full progression', source: progressionsSource, writes: 2 },
+  // ONE WRITE, NOT TWO. `ChordProgressionsQuiz` was here and wrote
+  // twice — the whole progression in bulk and a separate "which
+  // pattern is this" question. It was deleted on 10 Sep 2026 having
+  // been unrendered since the shared list arrived, and the card that
+  // replaced it asks one question and writes one row.
+  { name: 'chord progressions — full progression', source: progressionsSource, writes: 1 },
   { name: 'chord progressions — chord motion', source: chordMotionSource, writes: 1 },
   { name: 'chord progressions — key detection', source: keyDetectionSource, writes: 1 },
   { name: 'scales & modes — hear scale', source: hearScaleSource, writes: 1 },
@@ -155,15 +164,20 @@ describe('chord recognition records the stage, not a tab', () => {
 });
 
 describe('the count itself', () => {
-  it('is twelve write sites — nine heard, two shell, one reading', () => {
+  it('is eleven write sites — eight heard, two shell, one reading', () => {
     // PINNED, because the number is the thing that was wrong twice.
-    // The brief said eight; I reported eleven; it is twelve. A new
+    // The brief said eight; I reported eleven; it was twelve. A new
     // write site added without a line here fails this assertion rather
     // than quietly recording nothing.
+    //
+    // IT IS ELEVEN AGAIN SINCE 10 SEP 2026, and this is the one way the
+    // count is allowed to fall: `ChordProgressionsQuiz` was deleted and
+    // the card that replaced it asks one question where the quiz asked
+    // two. The site did not go uninstrumented — it stopped existing.
     const heard = HEARD.reduce((sum, m) => sum + m.writes, 0);
-    expect(heard).toBe(9);
+    expect(heard).toBe(8);
     const shell = 2;
     const reading = 1;
-    expect(heard + shell + reading).toBe(12);
+    expect(heard + shell + reading).toBe(11);
   });
 });

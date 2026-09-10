@@ -63,13 +63,12 @@ function diarySettings(bpm: number, mode: DiaryPlaybackMode) {
 
 /**
  * Preview a progression from the shared catalog at a sensible diary
- * default: key C, ~100 BPM, seventh complexity. Used by the Harmonic
- * Diary play button; the full quiz uses its own per-round config.
+ * default: key C, 50 BPM, seventh complexity. Used by the Harmonic
+ * Diary play button.
  *
- * 'blocked' mode mirrors ChordProgressionsQuiz's playWith() — bass +
- * chord layered, optional tonic prime. 'asc' / 'desc' arpeggiates each
- * chord within its allotted beats (catalog `durationPattern[i]`),
- * preserving total progression time across modes.
+ * BOTH MODES GO THROUGH THE SHARED PLAYER, which is where the bass,
+ * the hand balance and the tonic lead-in come from. The mode chooses
+ * the attack and nothing else — see `DiaryPlaybackMode` above.
  */
 export async function playProgressionById(
   id: string,

@@ -180,11 +180,15 @@ describe('the two fields never appear on one row', () => {
     const withText = Object.entries(ALL_WRITE_SITES)
       .filter(([, s]) => s.includes('chosenAnswerText:')).map(([p]) => p);
 
-    // Both halves are non-empty, or "disjoint" is vacuous. FOUR SINCE
-    // 10 SEP 2026: the Full Progression card joined intervals, key
-    // detection and chord motion — it records which progression and
-    // position the reader chose, which is an item and not a sentence.
-    expect(withItemId.length).toBe(4);
+    // Both halves are non-empty, or "disjoint" is vacuous.
+    //
+    // THREE: intervals, key detection, and the Full Progression card —
+    // which records which progression and position the reader chose, an
+    // item rather than a sentence. It was four until the retired
+    // `ChordProgressionsQuiz` was deleted on 10 Sep 2026; the chord
+    // motion tab has never been one of them, because it carries array
+    // answers and a single chosen item is not what it records.
+    expect(withItemId.length).toBe(3);
     expect(withText.length).toBe(2);
     expect(withItemId.filter(p => withText.includes(p))).toEqual([]);
   });

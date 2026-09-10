@@ -101,19 +101,29 @@ describe('all four drills read the hook, not their own parse', () => {
   });
 
   it('closes the chord-progressions gap specifically', () => {
-    // It had focus state and no way to set it from outside the modal.
-    const quiz = QUIZ_SOURCE;
-    expect(quiz).toContain('initialFocusKeys');
-    expect(quiz).toContain('filterSize(');
-    // And it no longer sizes the pool with an undeduped length or a
-    // literal 4 — the two things it was behind on.
-    expect(quiz).not.toContain('focusKeys.length < 4');
-    expect(quiz).toContain('FLUENCY_POOL_MINIMUM');
+    // =================================================================
+    // THE TAB THAT TAKES THE FOCUS KEYS IS THE ONE TO CHECK.
+    //
+    // This read `ChordProgressionsQuiz` until 10 Sep 2026, which was
+    // the gap when it was written — focus state and no way to set it
+    // from outside the modal. That screen is deleted, and the page now
+    // hands `initialFocusKeys` to the chord-motion tab, so the same
+    // claim is made about the surface that actually receives them.
+    // =================================================================
+    const tab = MOTION_SOURCE;
+    expect(tab).toContain('initialFocusKeys');
+    // And it does not size the pool with an undeduped length or a
+    // literal 4 — the two things the old screen was behind on. It
+    // dedupes inline rather than through `filterSize`, which is the
+    // same rule and is pinned directly at the top of this file.
+    expect(tab).not.toContain('focusKeys.length < 4');
+    expect(tab).toContain('new Set(focusKeys).size');
+    expect(tab).toContain('FLUENCY_POOL_MINIMUM');
   });
 });
 
-const QUIZ_SOURCE = Object.values(import.meta.glob(
-  '/src/modules/ear-training/chord-progressions/ChordProgressionsQuiz.tsx',
+const MOTION_SOURCE = Object.values(import.meta.glob(
+  '/src/modules/ear-training/chord-progressions/ChordMotionTab.tsx',
   { query: '?raw', import: 'default', eager: true },
 ) as Record<string, string>)[0];
 
