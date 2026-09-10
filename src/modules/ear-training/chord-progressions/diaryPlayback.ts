@@ -3,11 +3,12 @@ import {
   keyToRootMidi,
   numeralOffset,
   parseSlashChord,
-  playProgression,
   voicingFor,
-  type ProgressionStep,
 } from './progressionTheory';
 import { playNoteSequence, type NoteEvent } from '../../../lib/musicalPlayback';
+import { playPanel } from '../../../lib/builtAnswers/play';
+import { DEFAULT_PLAYER_SETTINGS } from '../../../lib/player/settings';
+import { progressionChords } from './progressionChords';
 
 // Shared defaults for diary-triggered playback. Single-shot (no loop),
 // middle register, seventh complexity so the chord colour matches how
@@ -23,8 +24,11 @@ import { playNoteSequence, type NoteEvent } from '../../../lib/musicalPlayback';
 const DEFAULT_KEY = 'C';
 const DEFAULT_BPM = 50;
 const DEFAULT_COMPLEXITY = 'seventh' as const;
-const DEFAULT_LISTENING = 'bass-chords' as const;
-const DEFAULT_TONIC_CONTEXT = 'singleNote' as const;
+// `DEFAULT_LISTENING` AND `DEFAULT_TONIC_CONTEXT` WERE HERE. Both were
+// arguments to this module's own sequencer: bass and chords together,
+// and a single low tonic in front. The shared panel does both by
+// default — bass and chords is its Listen to, and one low note is what
+// `orientPc` plays — so the two constants had nothing left to say.
 
 /** Same legato amount as the rest of the diary's arpeggio playback so
  *  chord-internal arpeggios feel consistent across single-chord and
@@ -69,31 +73,28 @@ export async function playProgressionById(
   const rootMidi = keyToRootMidi(key);
 
   if (mode === 'blocked') {
-    const steps: ProgressionStep[] = prog.numerals.map((numeral, i) => {
-      const parsed = parseSlashChord(numeral);
-      const chordRootMidi = rootMidi + numeralOffset(parsed.chord);
-      const isSlash = parsed.bassOffset !== undefined;
-      const bassMidi = isSlash
-        ? (rootMidi + parsed.bassOffset!) - 12
-        : chordRootMidi - 12;
-      return {
-        rootMidi: chordRootMidi,
-        bassMidi,
-        isSlash,
-        quality: prog.chordQualities[i] ?? 'major',
-        beats: prog.durationPattern[i] ?? 1,
-      };
-    });
-    await playProgression(
-      steps,
-      bpm,
-      DEFAULT_COMPLEXITY,
-      DEFAULT_LISTENING,
-      1.0,
-      1,
-      DEFAULT_TONIC_CONTEXT,
-      rootMidi,
-      prog.requiresDominant ?? false,
+    // ONE TAP, ONE SOUND, THROUGH THE SHARED PLAYER. The diary is a
+    // thin adapter over other people's players — the playback audit's
+    // own words — and this is the half of it that is a progression.
+    // `progressionChords` is the same builder Key Detection uses, so
+    // an entry sounds here exactly as it does there.
+    await playPanel(
+      progressionChords(
+        prog.numerals.map((numeral, i) => ({
+          numeral,
+          quality: prog.chordQualities[i] ?? 'major',
+          beats: prog.durationPattern[i] ?? 1,
+        })),
+        rootMidi,
+        {
+          complexity: DEFAULT_COMPLEXITY,
+          requiresDominant: prog.requiresDominant ?? false,
+        },
+      ),
+      { ...DEFAULT_PLAYER_SETTINGS, bpm },
+      // A SINGLE LOW TONIC IN FRONT, which is what `singleNote` meant
+      // here and what the panel plays everywhere else.
+      { orientPc: ((rootMidi % 12) + 12) % 12, loop: 1 },
     );
     return;
   }
@@ -221,23 +222,33 @@ export async function playMotionById(
   const requiresDominant = def.qualities.includes('dominant');
 
   if (mode === 'blocked') {
-    const chord1Root = rootMidi + chord1RootSemis;
-    const chord2Root = rootMidi + chord2RootSemis;
-    const steps: ProgressionStep[] = [
-      { rootMidi: chord1Root, bassMidi: chord1Root - 12, isSlash: false, quality: def.qualities[0], beats: 2 },
-      { rootMidi: chord2Root, bassMidi: chord2Root - 12, isSlash: false, quality: def.qualities[1], beats: 2 },
-    ];
-    await playProgression(
-      steps,
-      bpm,
-      DEFAULT_COMPLEXITY,
-      DEFAULT_LISTENING,
-      1.0,
-      1,
-      DEFAULT_TONIC_CONTEXT,
+    // THE SAME BUILDER AS EVERY OTHER PASSAGE. A motion is two chords,
+    // and its own octave nudge has already been applied above — which
+    // is why the numerals are handed over already shifted rather than
+    // re-derived here.
+    const chords = progressionChords(
+      [
+        { numeral: def.numerals[0], quality: def.qualities[0], beats: 2 },
+        { numeral: def.numerals[1], quality: def.qualities[1], beats: 2 },
+      ],
       rootMidi,
-      requiresDominant,
+      { complexity: DEFAULT_COMPLEXITY, requiresDominant },
     );
+    // THE NUDGE, APPLIED TO WHAT WAS BUILT. `progressionChords` places
+    // a chord from its own numeral; the direction hint is this drill's
+    // and moves the second chord's whole voicing an octave.
+    const shift = chord2RootSemis - numeralOffset(def.numerals[1]);
+    const shifted = shift === 0 ? chords : [
+      chords[0],
+      {
+        ...chords[1],
+        hand: chords[1].hand.map(m => m + shift),
+        bass: chords[1].bass === null ? null : chords[1].bass + shift,
+      },
+    ];
+    await playPanel(shifted, { ...DEFAULT_PLAYER_SETTINGS, bpm }, {
+      orientPc: ((rootMidi % 12) + 12) % 12, loop: 1,
+    });
     return;
   }
 

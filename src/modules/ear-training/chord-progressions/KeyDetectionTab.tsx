@@ -9,19 +9,18 @@ import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { getPref } from '../../../lib/userPrefs';
 import { defaultSpeed, speedPrefKey } from '../../../lib/goalConfig';
-import SpeedControl from '../../../components/SpeedControl';
+import AidsFold from '../../../components/AidsFold';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
+import { playPanel } from '../../../lib/builtAnswers/play';
+import { progressionChords } from './progressionChords';
 import AnswerVerdict from '../../../components/AnswerVerdict';
 import { PROGRESSIONS, type Progression } from './catalog';
 import {
   KEYS,
   chordAtDegree,
   keyToRootMidi,
-  numeralOffset,
-  parseSlashChord,
-  playProgression,
   playTonicDrone,
   type PlaybackHandle,
-  type ProgressionStep,
 } from './progressionTheory';
 import { spellKey, spellNote, type Spelling } from '../../../lib/spelling';
 import { useSpelling } from '../../../lib/spellingPref';
@@ -52,22 +51,34 @@ function noteNameForKey(midi: number, spelling: Spelling): string {
   return spellNote(((midi % 12) + 12) % 12, spelling);
 }
 
-function buildSteps(prog: Progression, rootMidi: number): ProgressionStep[] {
-  return prog.numerals.map((numeral, i) => {
-    const parsed = parseSlashChord(numeral);
-    const chordRootMidi = rootMidi + numeralOffset(parsed.chord);
-    const isSlash = parsed.bassOffset !== undefined;
-    const bassMidi = isSlash
-      ? (rootMidi + parsed.bassOffset!) - 12
-      : chordRootMidi - 12;
-    return {
-      rootMidi: chordRootMidi,
-      bassMidi,
-      isSlash,
+/**
+ * The passage, as the shared player takes it.
+ *
+ * IT WAS `buildSteps` AND IT BUILT THIS MODULE'S OWN STEP SHAPE. The
+ * chords are the same — each one from its own root, root position,
+ * which is what makes the tonal gravity the question turns on — and
+ * `progressionChords` is now the one place that builds them, shared
+ * with the harmonic diary.
+ */
+function buildChords(prog: Progression, rootMidi: number, spelling: Spelling) {
+  return progressionChords(
+    prog.numerals.map((numeral, i) => ({
+      numeral,
       quality: prog.chordQualities[i] ?? 'major',
       beats: prog.durationPattern[i] ?? 1,
-    };
-  });
+    })),
+    rootMidi,
+    {
+      complexity: 'seventh',
+      requiresDominant: prog.requiresDominant ?? false,
+      spelling,
+    },
+  );
+}
+
+/** How long a passage runs, in beats. */
+function passageBeats(prog: Progression): number {
+  return prog.durationPattern.reduce((s, b) => s + b, 0);
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -94,6 +105,9 @@ interface Props {
 export default function KeyDetectionTab({ attempts }: Props) {
   void attempts; // reserved for future scope/history UI
   const [spelling] = useSpelling();
+  const [settings, setSettings] = usePlayerSettings();
+  const settingsRef = useRef(settings);
+  useEffect(() => { settingsRef.current = settings; }, [settings]);
   const [runState, setRunState] = useState<RunState>('idle');
   const [round, setRound] = useState<Round | null>(null);
   const [selectedNote, setSelectedNote] = useState<string | null>(null);
@@ -160,30 +174,24 @@ export default function KeyDetectionTab({ attempts }: Props) {
     setRunState('playing');
 
     const rootMidi = keyToRootMidi(r.key);
-    const steps = buildSteps(r.progression, rootMidi);
-    const handle = await playProgression(
-      steps,
-      90, // steady pulse so tonal gravity is easy to feel
-      'seventh',
-      'bass-chords',
-      speedRef.current,
-      3, // auto-loop 3 times
-      'none', // no priming tonic — discovering the tonic IS the task
-      rootMidi,
-      r.progression.requiresDominant ?? false,
-    );
-    playbackRef.current = handle;
+    const chords = buildChords(r.progression, rootMidi, spelling);
+    // NO PRIMING TONIC — discovering the tonic IS the task, so there is
+    // no `orientPc` here where every other surface has one.
+    playbackRef.current = await playPanel(chords, settingsRef.current, {
+      loop: 3,
+    });
 
-    // Advance to answering once the three loops finish. Scheduled via
-    // the same timing used by ChordProgressionsQuiz.
-    const m = Math.max(0.1, speedRef.current);
-    const totalBeats = r.progression.durationPattern.reduce((s, b) => s + b, 0) * 3;
-    const totalMs = ((totalBeats * 60) / (90 * m)) * 1000 + 300;
-    // The clock starts when the passage stops. Same number the
-    // run-state timer uses, so measurement and UI agree.
+    // Advance to answering once the three loops finish.
+    //
+    // THE CLOCK IS THE SAME NUMBER IT ALWAYS WAS, in a different unit:
+    // the passage's own beats at the panel's tempo, times three. It
+    // starts when the passage stops, which is what the run-state timer
+    // uses too, so measurement and screen still agree.
+    const totalMs = passageBeats(r.progression) * 3
+      * (60 / settingsRef.current.bpm) * 1000 + 300;
     asked.current = {
       playbackEndsAt: Date.now() + totalMs,
-      playbackSpeed: speedRef.current,
+      playbackBpm: settingsRef.current.bpm,
       drillTab: 'key-detection',
     };
     endTimerRef.current = window.setTimeout(() => {
@@ -197,12 +205,11 @@ export default function KeyDetectionTab({ attempts }: Props) {
     if (!round) return;
     stopAll();
     const rootMidi = keyToRootMidi(round.key);
-    const steps = buildSteps(round.progression, rootMidi);
-    const handle = await playProgression(
-      steps, 90, 'seventh', 'bass-chords', speedRef.current, 1, 'none',
-      rootMidi, round.progression.requiresDominant ?? false,
+    playbackRef.current = await playPanel(
+      buildChords(round.progression, rootMidi, spelling),
+      settingsRef.current,
+      { loop: 1 },
     );
-    playbackRef.current = handle;
   };
 
   const playOption = async (midi: number) => {
@@ -251,16 +258,14 @@ export default function KeyDetectionTab({ attempts }: Props) {
     // impossible to miss.
     stopAll();
     const rootMidi = keyToRootMidi(round.key);
-    const steps = buildSteps(round.progression, rootMidi);
-    const m = Math.max(0.1, speedRef.current);
-    const totalBeats = round.progression.durationPattern.reduce((s, b) => s + b, 0);
-    const droneSecs = (totalBeats * 60) / (90 * m) + 0.6;
+    const droneSecs = passageBeats(round.progression)
+      * (60 / settingsRef.current.bpm) + 0.6;
     droneRef.current = await playTonicDrone(rootMidi, droneSecs, { volume: 0.18 });
-    const handle = await playProgression(
-      steps, 90, 'seventh', 'bass-chords', speedRef.current, 1, 'none',
-      rootMidi, round.progression.requiresDominant ?? false,
+    playbackRef.current = await playPanel(
+      buildChords(round.progression, rootMidi, spelling),
+      settingsRef.current,
+      { loop: 1 },
     );
-    playbackRef.current = handle;
   };
 
   const nextRound = () => {
@@ -288,9 +293,15 @@ export default function KeyDetectionTab({ attempts }: Props) {
         all key detection progressions — {CURATED_POOL.length} curated from tiers 1–3
       </p>
 
-      <div className="flex justify-center">
-        <SpeedControl moduleId={MODULE_ID} />
-      </div>
+      {/* THE SPEED CONTROL WAS HERE. Tempo is beats per minute now, in
+          the aids fold with the octave — the same rows every quiz
+          offers. Listen to is not among them: this passage's bass IS
+          the question, and soloing it would answer it. */}
+      <AidsFold
+        settings={settings}
+        onSettings={setSettings}
+        showListen={false}
+      />
 
       <div className="flex flex-wrap items-center justify-center gap-3">
         {runState === 'idle' && (
