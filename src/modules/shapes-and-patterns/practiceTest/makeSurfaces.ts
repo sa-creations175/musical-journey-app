@@ -10,7 +10,9 @@
  * dimensions.
  */
 
+import { createElement } from 'react';
 import type { DrillHand, DrillSkill, DrillType } from '../../../lib/db';
+import CellPlayer from '../CellPlayer';
 import { getSpacingState, recordEngagement } from '../../../lib/spacingState';
 import { NOT_STARTED, type BandVerdict } from '../../../lib/spacing/banding';
 import { bandVerdictForRow } from '../../../lib/spacing/row';
@@ -122,6 +124,7 @@ export function chordShapeSurface(args: {
     // The plain control is the whole of a drill's metronome: its
     // target rate is always set, so there is nothing to prompt for.
     renderMetronome: null,
+    renderReference: null,
     // The session IS the panel here, so there is no record to tell.
     onSessionPause: null,
     onSessionStart: null,
@@ -203,6 +206,7 @@ export function scaleSurface(args: {
     // The plain control is the whole of a drill's metronome: its
     // target rate is always set, so there is nothing to prompt for.
     renderMetronome: null,
+    renderReference: null,
     // The session IS the panel here, so there is no record to tell.
     onSessionPause: null,
     onSessionStart: null,
@@ -280,6 +284,10 @@ export function voiceLeadingSurface(args: {
     // The plain control is the whole of a drill's metronome: its
     // target rate is always set, so there is nothing to prompt for.
     renderMetronome: null,
+    // HEAR THE CELL, BESIDE THE RATING. The same panel that sits under
+    // the grid, on the cell being drilled — a reference, not a rating,
+    // and it writes nothing.
+    renderReference: () => createElement(CellPlayer, { itemRef: args.itemRef }),
     // The session IS the panel here, so there is no record to tell.
     onSessionPause: null,
     onSessionStart: null,
@@ -566,6 +574,10 @@ export function songSurface(args: {
     ),
     passKeyName: args.spelledKeyName,
     renderMetronome: args.renderMetronome,
+    // A SONG HAS NOTHING SINGLE TO SOUND. The reference panel plays one
+    // voicing; a section run covers a passage and a whole-song run the
+    // lot, and neither is a chord.
+    renderReference: null,
     onSessionPause: args.onSessionPause,
     onSessionStart: args.onSessionStart,
     renderBadgePreview: args.renderBadgePreview,

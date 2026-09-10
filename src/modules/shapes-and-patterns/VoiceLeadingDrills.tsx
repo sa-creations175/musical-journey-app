@@ -19,6 +19,7 @@ import { getPref, setPref } from '../../lib/userPrefs';
 import { useToast } from '../../components/Toaster';
 import { spellKey, type Spelling } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
+import CellPlayer from './CellPlayer';
 import CellProgressDetails, {
   HAND_ROW_LABEL, type DetailTarget,
 } from './CellProgressDetails';
@@ -403,6 +404,16 @@ export default function VoiceLeadingDrills() {
           </section>
         );
       })}
+
+      {/* HEAR IT BEFORE YOU DRILL IT. A reference panel for the cell
+          that is selected: the same voicing the grid teaches and the
+          ear-training card asks about, with the rung locked to the row.
+          Nothing here is rated.
+
+          KEYED ON THE itemRef, so tapping another square gives it a
+          fresh panel rather than one still showing the last cell's
+          position. */}
+      {selected !== null && <CellPlayer key={selected} itemRef={selected} />}
 
       {/* THE SAME SECTION THE OTHER TWO GRIDS FILL. A cell used to open
           the session panel directly — the one grid where clicking a

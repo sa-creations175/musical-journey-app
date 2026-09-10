@@ -18,6 +18,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../lib/instrumentContext';
 import ScaleDrills from '../ScaleDrills';
 import ChordShapeDrills from '../ChordShapeDrills';
 import VoiceLeadingDrills from '../VoiceLeadingDrills';
@@ -63,7 +66,11 @@ async function render(node: React.ReactNode) {
   // THE PAGE ROUTES NOW — its add button opens a movement's own page —
   // so it needs a router around it. Rendering it bare threw where the
   // subject is the grid, which is not what these are about.
-  await act(async () => { root!.render(<MemoryRouter>{node}</MemoryRouter>); });
+  await act(async () => {
+    root!.render(
+      <InstrumentProvider><MemoryRouter>{node}</MemoryRouter></InstrumentProvider>,
+    );
+  });
   for (let i = 0; i < 10; i += 1) {
     await act(async () => { await new Promise(r => setTimeout(r, 5)); });
   }

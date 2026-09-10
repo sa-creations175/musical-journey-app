@@ -29,6 +29,9 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../lib/instrumentContext';
 import { act } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ShapesAndPatternsSection from '../ShapesAndPatternsSection';
@@ -61,14 +64,16 @@ async function renderSection(section: string) {
   root = createRoot(container);
   await act(async () => {
     root!.render(
-      <MemoryRouter initialEntries={[`/shapes-and-patterns/${section}`]}>
-        <Routes>
-          <Route
-            path="/shapes-and-patterns/:section"
-            element={<ShapesAndPatternsSection />}
-          />
-        </Routes>
-      </MemoryRouter>,
+      <InstrumentProvider>
+        <MemoryRouter initialEntries={[`/shapes-and-patterns/${section}`]}>
+          <Routes>
+            <Route
+              path="/shapes-and-patterns/:section"
+              element={<ShapesAndPatternsSection />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </InstrumentProvider>,
     );
   });
   for (let i = 0; i < 12; i++) {

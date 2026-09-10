@@ -20,6 +20,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../../lib/instrumentContext';
 import PracticeTestPanel from '../PracticeTestPanel';
 import { metronome } from '../../../../lib/metronome';
 import type { DrillRecord, DrillSurface } from '../surfaces';
@@ -79,7 +82,13 @@ function render(s: DrillSurface = surface()) {
   const host = document.createElement('div');
   document.body.appendChild(host);
   const root = createRoot(host);
-  act(() => { root.render(<PracticeTestPanel surface={s} onClose={() => {}} />); });
+  act(() => {
+    root.render(
+      <InstrumentProvider>
+        <PracticeTestPanel surface={s} onClose={() => {}} />
+      </InstrumentProvider>,
+    );
+  });
   const labels = () => [...document.body.querySelectorAll('button')]
     .map(b => (b.textContent ?? '').replace(/\s+/g, ' ').trim());
   const press = async (label: string) => {

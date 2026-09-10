@@ -301,6 +301,24 @@ export interface DrillSurface {
    */
   renderMetronome: ((onStoppedByUser: () => void) => ReactNode) | null;
   /**
+   * Something to HEAR beside the rating, or null.
+   *
+   * =====================================================================
+   * A REFERENCE, AND NOT PART OF THE RUN.
+   *
+   * The voice-leading drill supplies the shared player for the cell
+   * being drilled, so a reader can check what the voicing is meant to
+   * sound like without leaving the panel. It writes nothing, it is not
+   * rated, and it does not touch the clock.
+   *
+   * NULL WHERE A SURFACE HAS NOTHING TO PLAY, which is most of them —
+   * a song is not a voicing and a whole-song run has no single thing to
+   * sound.
+   * =====================================================================
+   */
+  renderReference: (() => ReactNode) | null;
+
+  /**
    * Tell the surface the session paused or resumed.
    *
    * =====================================================================

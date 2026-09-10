@@ -1676,6 +1676,8 @@ function RunRatingBox({
   // want, and the picker is how you say so.
   const options = mode === 'practice' ? surface.scopeOptions : null;
   const wholeSong = options !== null && scope.length === options.length;
+  /** Something to hear beside the rating, where the surface has one. */
+  const reference = surface.renderReference?.();
   return (
     <div className="space-y-2.5 rounded-lg border border-neutral-200 dark:border-neutral-700 p-2.5">
 
@@ -1753,6 +1755,20 @@ function RunRatingBox({
             </div>
           )}
         </div>
+      )}
+
+      {/* HEAR THE CELL, ABOVE THE RATING. A reference the surface
+          supplies — the same panel that sits under the grid — so a
+          reader can check what the thing is meant to sound like without
+          leaving the drill. It is not rated and does not touch the run;
+          surfaces that have nothing to play supply nothing. */}
+      {/* OPTIONAL-CALLED, like the metronome two hundred lines up: a
+          surface built by hand in a test carries only the fields that
+          test is about, and a missing one is a surface with nothing to
+          play rather than a crash. Called ONCE, into a variable — twice
+          would build the panel twice and throw one away. */}
+      {reference !== undefined && reference !== null && (
+        <div data-testid="drill-reference">{reference}</div>
       )}
 
       <div>
