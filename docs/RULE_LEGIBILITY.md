@@ -382,14 +382,14 @@ and don't know why.
 
 | Rule | Where | Status | UI |
 |---|---|---|---|
-| CR tier N+1: every tier-N item needs ≥10 attempts **and** ≥75% lifetime | `chord-recognition/tierUnlock.ts:15, 19` | `[HALF]` | Toast on unlock only (`ChordRecognitionQuiz.tsx:282`). Current tier, requirements, progress all invisible |
+| CR tier N+1: 80% of tier-N items need ≥10 attempts **and** ≥80% passed (read live from `ratingRules`) | `chord-recognition/tierUnlock.ts` | `[VISIBLE]` | Settings §3 states the rule and the two numbers are editable there; the unlock toast names the material and links to it (`useTierUnlockNotice.ts`) |
 | Only 3 new items introduced per tier per session | `chord-recognition/tierUnlock.ts:24` | `[INVISIBLE]` | — |
-| Progressions stage unlock — same 10 / 75% / 3 rule | `progressionTierUnlock.ts:33-35` | `[INVISIBLE]` | Nothing. Not even a toast |
-| Scales-modes stage unlock — same rule | `scaleModeTierUnlock.ts:38-40` | `[INVISIBLE]` | Nothing |
-| Cross-submodule ET stage gate (CR T1 unlocks progressions S1, etc.) | `etStageGate.ts:54-62` | `[INVISIBLE]` | Nothing. Whole submodules stay empty with no explanation |
-| S&P tier N+1 at 50% of tier-N cells acquired+ | `spTiers.ts:53` | `[INVISIBLE]` | Nothing |
+| ~~Progressions stage unlock~~ — **rule deleted 10 Sep 2026**; the Full Progression card has no Tiers and a session draws the whole shared list narrowed by the card's filter | `fullProgressionPool.ts` | `[CLOSED]` | Settings §3 names Progressions among the modules with no Tiers |
+| Scales-modes tier unlock — same rule as chord recognition | `scaleModeTierUnlock.ts` | `[VISIBLE]` | Settings §3 states it; the unlock toast names the modes and links to it |
+| Cross-submodule ET gate — Scales & Modes opens once CR Tier 1 clears (the progressions half was deleted 10 Sep 2026) | `etStageGate.ts` | `[VISIBLE]` | Settings §3 says it in a sentence |
+| S&P tier N+1 at 50% of tier-N cells acquired+ | `spTiers.ts` (`spTierUnlockThreshold`) | `[VISIBLE]` | Settings §3 has its own block, and the 50 is editable there |
 | Earlier-tier items you never touched stay hidden after unlock | `chord-recognition/tierUnlock.ts:135-143` | `[INVISIBLE]` | — |
-| Weak spots: <60% accuracy with ≥4 attempts, padded to 8 with untouched items | `ChordMotionTab.tsx:1155-1163` | `[INVISIBLE]` | Untouched items presented as "weak spots" |
+| Weak spots: <60% accuracy with ≥4 attempts, padded to 8 with untouched items | `ChordMotionTab.tsx` (`suggestWeakMotions`) | `[INVISIBLE]` | Untouched items presented as "weak spots" |
 | Prep breakdown hidden above 12 items | `prepItemBreakdown.ts:39` | `[INVISIBLE]` | Silently shows total only |
 | Swap picker caps: 20 same-submodule, top 3 different-submodule | `proposalSwap.ts:101, 104` | `[INVISIBLE]` | — |
 | Max 20 items per block | `sessionDesign.ts:443` | `[INVISIBLE]` | — |
@@ -468,7 +468,9 @@ did not survive.
 
 **Completely invisible — 24:** including acquisition stage, all four tier/stage
 unlock systems, both SR schedulers, the maintenance bar, and the fact that
-drill days don't count as practice days.
+drill days don't count as practice days. *Superseded 10 Sep 2026 for the
+unlock systems — see the changelog entry for that date; the count above is
+left as it was written.*
 
 **Defects (not legibility) — 3:** §1.8b a catalog id rendered as a label (468
 rows still open) · §1.12 three disagreeing tier computations · §2.4 first
@@ -487,3 +489,4 @@ threshold. Same shape as §1.12, and a design call rather than a wiring job.
 | 2026-08-14 | Initial audit against `af9fccf`. No fixes applied. |
 | 2026-08-20 | Dashboard legibility step. §1.5, §1.6, §1.7 invisible → half; §1.3 and §3.8 gained their dashboard surfaces; §1.8b's predicted recurrence found and sized at 468 rows. §3.1 checked and deliberately **not** flipped — the dashboard's coverage is a different rule from the acquisition stage. Counts re-read rather than estimated. Commits `1ff0d48`, `a400f87`, `690f55e`. |
 | 2026-08-20 | §1.7 **closed by reversing the rule**, hours after being half-surfaced. Supplementary rows now gate acquisition; `gatesAcquisition()` deleted; chord shapes 648 → 720. New *closed* marker added for a rule removed rather than explained. |
+| 2026-09-10 | **The four tier/stage unlock systems stopped being invisible.** Settings gained *Unlocking Tiers of Difficulty*, which states the rule, names what is in each Tier, and makes the attempts-to-clear, the Tier share and the Shapes & Patterns cell share editable — read live from `ratingRules`, so a change re-grades on the next read. The unlock message on both Ear Training ladders now names the material it opened and links back to that section. The **progressions ladder was deleted rather than explained**, the second use of the *closed* marker: it gated the old eight-entry catalog and no card drew from it. The acquisition stage's own 0.8 now reads the Fluent floor, so the app has one 80. |

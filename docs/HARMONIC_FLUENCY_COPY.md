@@ -194,11 +194,15 @@ progression on a card about this one. It is gone.
 
 **The spacing question is settled, 10 Sep 2026.** It read "1 6 2 5" in the
 explanation and "1-6-2-5" in the question, and neither said the 6 is minor.
-Every chord shows its quality now and the separator is a middle dot with a
-space either side, in the question, the answer, the explanation and the rotate
-button alike — one formatter, `lib/progressionRow`, and nothing builds the
-string itself. The arrow is spoken for: it means resolution, which is why the
-passes keep it and a row of chords never uses it.
+Every chord shows its quality now, and the separator is **whatever the reader
+has set** — dot, hyphen or space, hyphen by default — in the question, the
+answer, the explanation and the rotate button alike. One formatter,
+`lib/progressionRow`, reading `lib/progressionSpelling`; nothing builds the
+string itself. *Corrected 10 Sep 2026: this paragraph named the middle dot as
+though it were fixed, which it was for the afternoon between the ruling and
+Settings' Note & Progression Spelling section.* The arrow is spoken for: it
+means resolution, which is why the passes keep it and a row of chords never
+uses it.
 
 ---
 
