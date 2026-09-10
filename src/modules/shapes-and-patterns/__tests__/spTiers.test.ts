@@ -13,7 +13,7 @@ import {
   CIRCLE_OF_FOURTHS,
   SP_MAX_TIER,
   SP_TIERS,
-  SP_TIER_UNLOCK_THRESHOLD,
+  spTierUnlockThreshold,
   computeSPUnlockedTier,
   getTierForShape,
   isTrackedShape,
@@ -157,7 +157,7 @@ describe('tierTotalCells', () => {
     // Unlock is 50% of the tier, and the tier is now counted in the
     // same unit the numerator counts. 216 was half of 432 cells against
     // a row count that could reach 1296.
-    expect(tierTotalCells(2) * SP_TIER_UNLOCK_THRESHOLD).toBe(540);
+    expect(tierTotalCells(2) * spTierUnlockThreshold()).toBe(540);
   });
 });
 
@@ -252,7 +252,7 @@ describe('computeSPUnlockedTier', () => {
   });
 
   it('threshold constant matches the design doc', () => {
-    expect(SP_TIER_UNLOCK_THRESHOLD).toBe(0.5);
+    expect(spTierUnlockThreshold()).toBe(0.5);
   });
 });
 

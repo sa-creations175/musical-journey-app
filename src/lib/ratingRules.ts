@@ -88,6 +88,19 @@ export interface RatingRules {
   itemClearAttempts: number;
   /** Share of a Tier's items that must clear before it opens. */
   tierOpenShare: number;
+  /**
+   * Share of a Shapes & Patterns Tier's CELLS that must be solid
+   * before the next Tier opens.
+   *
+   * ITS OWN NUMBER, NOT `tierOpenShare`. The Ear Training ladders count
+   * ITEMS — twelve chord qualities, nine modes — and ask for 80% of
+   * them. This counts CELLS: a quality across twelve keys and every
+   * inversion state, 1,080 of them for Tier 1. Asking for 80% of that
+   * is asking for a different thing, and the design doc's own example
+   * is 50. One name for two measures would have made the Settings page
+   * offer a reader one field that moved both.
+   */
+  shapesTierOpenShare: number;
 }
 
 export const DEFAULT_RATING_RULES: RatingRules = {
@@ -99,6 +112,7 @@ export const DEFAULT_RATING_RULES: RatingRules = {
   selfRatedFloor: 3,
   itemClearAttempts: 10,
   tierOpenShare: 0.80,
+  shapesTierOpenShare: 0.50,
 };
 
 /** Needs Work has no floor of its own; it is what is left. */
@@ -132,6 +146,10 @@ export function coerceRules(value: unknown): RatingRules {
     selfRatedFloor: num(v.selfRatedFloor, d.selfRatedFloor, 2, 5),
     itemClearAttempts: num(v.itemClearAttempts, d.itemClearAttempts, 5, 30),
     tierOpenShare: num(v.tierOpenShare, d.tierOpenShare, 0.5, 1),
+    // ADDED 10 SEP 2026, and additive on purpose: a record written
+    // before today has no such key, `num` falls to the default, and
+    // nothing is migrated.
+    shapesTierOpenShare: num(v.shapesTierOpenShare, d.shapesTierOpenShare, 0.1, 1),
   };
 }
 

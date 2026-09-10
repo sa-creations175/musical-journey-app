@@ -55,7 +55,16 @@ import {
 import {
   CHORD_RECOGNITION_ROWS, SCALE_MODE_ROWS,
 } from '../../modules/ear-training/tierContents';
+import {
+  SP_MAX_TIER, tierTotalCells,
+} from '../../modules/shapes-and-patterns/spTiers';
 import { Example, NumberField, PartHeading, RatingWord, RuleTable } from './ratingsCopy';
+
+/** Chord Shapes, Tiers 1 and 2 — the Shapes & Patterns ladder. */
+const CHORD_SHAPE_ROWS: ReadonlyArray<string> = [
+  'core triads: major, minor, diminished, augmented, sus2, sus4',
+  'essential sevenths: maj7, m7, 7, dim7, m7♭5, mMaj7',
+];
 
 /** A ladder's heading, with how many Tiers it has. */
 function LadderHeading({ name, tiers }: { name: string; tiers: number }) {
@@ -91,6 +100,7 @@ export default function UnlockingSection() {
 
   const passPercent = Math.round(rules.fluentFloor * 100);
   const sharePercent = Math.round(rules.tierOpenShare * 100);
+  const shapesPercent = Math.round(rules.shapesTierOpenShare * 100);
 
   // THE EXAMPLE IS COMPUTED FROM THE CATALOG AND THE RULES, both. A
   // worked example that quoted a fixed six would be wrong the day a
@@ -178,6 +188,39 @@ export default function UnlockingSection() {
         Harmonic Fluency, Progressions, Reading and Intervals have no Tiers:
         every card is available from the start.
       </p>
+
+      {/* =============================================================
+          A SECOND MODULE'S LADDER, AND IT COUNTS SOMETHING ELSE.
+
+          Ear Training's Tiers count ITEMS — six chord qualities, five
+          modes — and ask for 80% of them. This one counts CELLS: a
+          quality across twelve keys and every inversion state, which is
+          over a thousand for Tier 1. That is why the share is its own
+          number and its own field rather than the one above.
+          ============================================================= */}
+      <div className="space-y-2 pt-1">
+        <LadderHeading name="Shapes &amp; Patterns · Chord Shapes" tiers={SP_MAX_TIER} />
+        <Ladder
+          rows={CHORD_SHAPE_ROWS}
+          totals={([1, 2] as const).map(t => tierTotalCells(t))}
+        />
+        <p className="text-sm text-neutral-500">
+          Tier 2 opens when{' '}
+          <NumberField
+            id="shapes-share"
+            label="Share of a Chord Shapes Tier's cells that must be solid"
+            value={shapesPercent}
+            min={10}
+            max={100}
+            onChange={n => set({ shapesTierOpenShare: n / 100 })}
+          />
+          % of Tier 1&apos;s cells read{' '}
+          <RatingWord status="fluent">Fluent</RatingWord> or better.
+        </p>
+        <p className="text-sm text-neutral-500">
+          This applies to generated practice sessions only.
+        </p>
+      </div>
     </div>
   );
 }

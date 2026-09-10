@@ -25,7 +25,8 @@
  * field).
  *
  * Unlock model: tier N+1 unlocks when at least
- * `SP_TIER_UNLOCK_THRESHOLD` (50%) of the tier-N possible-cell
+ * `spTierUnlockThreshold()` (50% by default, editable in Settings) of
+ * the tier-N possible-cell
  * count is at acquisitionStage `comfortable` or `internalized`.
  * Possible cells = catalog inversion-state count × 12 keys per
  * quality. Every inversion state counts, supplementary included.
@@ -37,6 +38,7 @@ import {
   type SpacingState,
 } from '../../lib/db';
 import { parseShapesItemRef } from './drillModel';
+import { ratingRules } from '../../lib/ratingRules';
 import { sectionTargets } from './cellTargets';
 
 export type SPTier = 1 | 2;
@@ -58,12 +60,24 @@ export function clampStoredTier(value: unknown): SPTier {
   return value === 1 ? 1 : 2;
 }
 
-/** Fraction of a tier's possible cells that must be at comfortable+
- *  for the next tier to unlock. 50% mirrors the design-doc example
- *  ("let the data decide ... if ≥50% of Tier N cells are
- *  comfortable, Tier N+1 unlocks"). Tunable — recalibrate after a
- *  few weeks of real drilling data. */
-export const SP_TIER_UNLOCK_THRESHOLD = 0.5;
+/**
+ * Fraction of a tier's possible cells that must be at comfortable+ for
+ * the next tier to unlock.
+ *
+ * =====================================================================
+ * EDITABLE, AND READ AT CALL TIME.
+ *
+ * It was a `const 0.5` with "Tunable — recalibrate after a few weeks of
+ * real drilling data" beside it, and the only way to tune it was to
+ * edit the file. It is on the Settings page as of 10 Sep 2026, under
+ * Unlocking Tiers of Difficulty, and lives in `ratingRules` with every
+ * other number a reader can move. A module-level const would freeze
+ * whatever was in force at import.
+ * =====================================================================
+ */
+export function spTierUnlockThreshold(): number {
+  return ratingRules().shapesTierOpenShare;
+}
 
 const TIER_1_QUALITIES = [
   'maj', 'min', 'dim', 'aug', 'sus2', 'sus4',
@@ -172,7 +186,7 @@ const COMFORTABLE_STAGES: ReadonlySet<AcquisitionStage> = new Set<AcquisitionSta
 /**
  * Pure unlock walk. Public so tests can pass fixture rows without
  * touching Dexie. Walks tiers in order; advances when ≥
- * `SP_TIER_UNLOCK_THRESHOLD` of the tier's possible cells are at
+ * `spTierUnlockThreshold()` of the tier's possible cells are at
  * a comfortable+ stage. Returns 1 when the user has zero qualifying
  * cells.
  */
@@ -188,7 +202,7 @@ export function computeSPUnlockedTier(
     const comfortable = tierRows.filter(
       r => COMFORTABLE_STAGES.has(r.acquisitionStage),
     ).length;
-    if (comfortable / total >= SP_TIER_UNLOCK_THRESHOLD) {
+    if (comfortable / total >= spTierUnlockThreshold()) {
       unlocked = (t + 1) as SPTier;
     } else {
       break;

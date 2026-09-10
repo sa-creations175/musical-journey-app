@@ -27,6 +27,7 @@ import {
 import {
   modesForStage,
 } from '../../../modules/ear-training/scales-modes/scaleModeTierUnlock';
+import { tierTotalCells } from '../../../modules/shapes-and-patterns/spTiers';
 import { db } from '../../../lib/db';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -87,7 +88,9 @@ describe('the rule', () => {
     // would let a reader set two, and the last one typed would win.
     await render();
     expect(host!.textContent).toContain('the same as the Fluent proficiency rating');
-    expect(host!.querySelectorAll('input[type="number"]')).toHaveLength(2);
+    // Three fields on the page: attempts-to-clear, the Ear Training
+    // Tier share, and the Shapes & Patterns cell share. No second Fluent.
+    expect(host!.querySelectorAll('input[type="number"]')).toHaveLength(3);
   });
 
   it('moves the pass bar when Fluent moves', async () => {
@@ -148,8 +151,10 @@ describe('the two ladders', () => {
     const totalsFor = (first: string) => rows
       .filter(r => r.textContent!.includes(first))
       .map(r => r.querySelectorAll('td')[2]?.textContent);
+    // Two rows open with those words — Chord Recognition's Tier 1 and
+    // Chord Shapes' Tier 1, which counts CELLS rather than qualities.
     expect(totalsFor('major, minor, diminished'))
-      .toEqual([String(CHORD_RECOGNITION_TIERS[1].length)]);
+      .toEqual([String(CHORD_RECOGNITION_TIERS[1].length), String(tierTotalCells(1))]);
     expect(totalsFor('Ionian (major)'))
       .toEqual([String(modesForStage(1).length)]);
     expect(totalsFor('Dorian, Mixolydian'))
@@ -167,8 +172,33 @@ describe('the two sentences under the ladders', () => {
       'Harmonic Fluency, Progressions, Reading and Intervals have no Tiers');
   });
 
-  it('says nothing about Shapes & Patterns, whose gate is a separate ruling', async () => {
+  it('gives Shapes & Patterns its own block, under the Ear Training ones', async () => {
+    // A SECOND MODULE'S LADDER, COUNTING SOMETHING ELSE. Ear Training's
+    // Tiers count items and ask for 80%; this one counts cells — a
+    // quality across twelve keys and every inversion state — and asks
+    // for 50. Its own field, so moving one cannot move the other.
     await render();
-    expect(host!.textContent).not.toContain('Shapes');
+    const text = host!.textContent!;
+    expect(text).toContain('Shapes & Patterns · Chord Shapes');
+    expect(text).toContain('core triads: major, minor, diminished, augmented, sus2, sus4');
+    expect(text).toContain('essential sevenths: maj7, m7, 7, dim7, m7♭5, mMaj7');
+    expect(text).toContain("of Tier 1's cells read Fluent or better");
+    expect(text).toContain('This applies to generated practice sessions only.');
+    expect(Number((byTestId('shapes-share') as HTMLInputElement).value)).toBe(50);
+  });
+
+  it('counts cells from the catalog rather than typing the totals', async () => {
+    await render();
+    const rows = [...host!.querySelectorAll('tbody tr')];
+    const shapeRow = rows.find(r => r.textContent!.includes('essential sevenths'))!;
+    expect(shapeRow.querySelectorAll('td')[2].textContent)
+      .toBe(String(tierTotalCells(2)));
+  });
+
+  it('moves the Shapes share without touching the Ear Training one', async () => {
+    await render();
+    await type('shapes-share', '70');
+    expect(ratingRules().shapesTierOpenShare).toBe(0.7);
+    expect(ratingRules().tierOpenShare).toBe(DEFAULT_RATING_RULES.tierOpenShare);
   });
 });
