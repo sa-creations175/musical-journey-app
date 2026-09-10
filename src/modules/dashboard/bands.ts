@@ -42,6 +42,7 @@ import { FEEL_OPTIONS } from '../../lib/fluencyScale';
 import { bandPercent, ratingBands, type BandKey } from '../../lib/ratingRules';
 import { FLUENCY_POOL_RULE } from '../../lib/fluencyPool';
 import type { AccuracyKind } from './read/itemStats';
+import { ALL_MOTIONS } from '../ear-training/chord-progressions/chordMotionPool';
 
 export type Band = 'red' | 'amber' | 'yellow-green' | 'green';
 
@@ -53,6 +54,13 @@ export type Band = 'red' | 'amber' | 'yellow-green' | 'green';
  * this column, `computeTier`, both legends and every band word in one
  * edit — which is the whole reason the two ladders could drift.
  */
+/**
+ * The Chord Motion example on the Rules page, counted rather than typed.
+ * The pool grew from 132 to 204 on 10 Sep 2026 and the sentence said
+ * 132 for as long as nobody noticed; now it reads the pool.
+ */
+const DIATONIC_MOTIONS = ALL_MOTIONS.filter(m => m.isDiatonic).length;
+
 const BAND_FOR_RATING: Readonly<Record<BandKey, Band>> = {
   mastered: 'green',
   fluent: 'yellow-green',
@@ -358,8 +366,8 @@ export const COLUMN_RULES: Readonly<Record<ColumnTopic, ReadonlyArray<ColumnRule
         + 'whatever the filters are showing.',
       why: 'So the percentage means the same thing every time you open the '
         + "screen, and two rows can be compared. Ear Training's chord-motion "
-        + 'drill, for instance, shows 42 motions with its diatonic-only filter '
-        + 'on; the catalog holds 132, and 132 is what coverage divides by.',
+        + `drill, for instance, shows ${DIATONIC_MOTIONS} motions with its diatonic-only filter `
+        + `on; the catalog holds ${ALL_MOTIONS.length}, and ${ALL_MOTIONS.length} is what coverage divides by.`,
     },
     {
       rule: 'A group row shows a percentage and a total attempt count; an item '

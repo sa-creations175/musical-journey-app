@@ -157,14 +157,25 @@ describe('reading — 52 signature items over 52 rows', () => {
 describe('chord progressions — three sub-drills, one moduleId', () => {
   const refs = [...catalogRefSet(chordProgressionsCatalog)];
 
-  it('chord motion denominator is 132, not the 42 on screen', () => {
-    // 12 chromatic degrees × 11 destinations. The 42 is
+  it('chord motion denominator is 204, not the 42 on screen', () => {
+    // Fifteen chords (twelve degrees + the borrowed 4m, 2ø, 5m), each
+    // to every chord on a different root: 15 × 14 − 6. The 42 is
     // activePool.length after the diatonic-only filter, which is the
     // default scope and so looks like the catalog.
-    expect(refs.filter(r => r.startsWith('motion:'))).toHaveLength(132);
+    expect(refs.filter(r => r.startsWith('motion:'))).toHaveLength(204);
   });
 
-  it('motion-first is a sibling sub-skill on the same 132 denominator', () => {
+  it('keeps every id stored before the borrowed chords arrived, unchanged', () => {
+    // 12 × 11 legacy ids, spelled exactly as they were.
+    const legacy = refs.filter(r => r.startsWith('motion:') && !/m7b5|4m|5m/.test(r));
+    expect(legacy).toHaveLength(132);
+    expect(legacy).toContain('motion:1-4-asc');
+    expect(legacy).toContain('motion:2-5-asc');
+  });
+
+  it('motion-first stays on the 132 that could ever be written', () => {
+    // Its rows came from the scaffolding modes, which retired before the
+    // borrowed chords arrived: no first-chord row can name one.
     expect(refs.filter(r => r.startsWith('motion-first:'))).toHaveLength(132);
     const firstRows = chordProgressionsCatalog.items.filter(
       i => i.path[3] === 'First Chord',

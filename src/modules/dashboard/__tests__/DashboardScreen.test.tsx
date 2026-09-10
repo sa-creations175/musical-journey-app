@@ -563,11 +563,12 @@ describe('the drill affordance', () => {
     expect(pathname(el)).toBe('/ear-training/chord-progressions');
     const query = new URLSearchParams(search(el));
     expect(query.get('tab')).toBe('chord-motion');
-    expect(query.get('focus')!.split(',')).toHaveLength(132);
+    expect(query.get('focus')!.split(',')).toHaveLength(204);
   });
 
   it('says open module on the first-chord rows beside them', async () => {
-    // Same 132 motions, and the pool filter would take them — but an
+    // The same motions (the 132 that predate the borrowed chords), and
+    // the pool filter would take them — but an
     // attempt only lands under `motion-first:` in the minimal
     // scaffold, so a filtered drill would never touch the row's item.
     const el = await renderScreen();

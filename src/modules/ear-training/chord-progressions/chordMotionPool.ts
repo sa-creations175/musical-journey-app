@@ -18,10 +18,23 @@
  * THE POOL IS GENERATED, WHICH IS WHY IT CAN BE ASKED WITHOUT A TABLE
  * OF IDS.
  *
- * Twelve chromatic positions against the eleven that are not
- * themselves: 132 motions, built once. An id is `motion:{start}-{dest}-
- * {asc|desc}`, and `parseMotionId` is the only thing that says whether
- * a stored one still names a motion this app has.
+ * Fifteen chords against every other chord on a different root: 204
+ * motions, built once. An id is `motion:{start}-{dest}-{asc|desc}`, and
+ * `parseMotionId` is the only thing that says whether a stored one
+ * still names a motion this app has.
+ *
+ * =====================================================================
+ * A DEGREE CAN CARRY MORE THAN ONE QUALITY. Silas's ruling of 10 Sep
+ * 2026: under Chromatic the pool gains 4m, 2ø and 5m — the borrowed
+ * minor 4 of every backdoor, the half-diminished 2 of a minor 2 5 1,
+ * the minor 5 of a Mixolydian vamp — beside the diatonic 4, 2m and 5.
+ *
+ * THE STORED IDS DID NOT MOVE. An id's degree segment has always meant
+ * the degree AND its diatonic quality, and it still does: `motion:1-4-asc`
+ * is 1 → 4 major, exactly as the rows written before today recorded it.
+ * Only the borrowed chords carry a quality in the segment — `4m`, `5m`,
+ * `2m7b5` — so no existing row is rewritten and none changes meaning.
+ * Twelve positions × eleven made 132 before; the borrowed three add 72.
  * =====================================================================
  */
 import type { ChordQuality } from './catalog';
@@ -37,28 +50,45 @@ export type Direction = 'asc' | 'desc';
 // the pool filters at runtime by entry.diatonic when the user is in
 // "diatonic only" mode.
 export type DegreeLabel =
-  | '1' | 'b2' | '2' | 'b3' | '3' | '4' | '#4' | '5' | 'b6' | '6' | 'b7' | '7';
+  | '1' | 'b2' | '2' | 'b3' | '3' | '4' | '#4' | '5' | 'b6' | '6' | 'b7' | '7'
+  // The borrowed three: a degree the table already has, in a second
+  // quality. The segment names both, because the bare degree is taken.
+  | '2m7b5' | '4m' | '5m';
 
 export interface DegreeEntry {
   label: DegreeLabel;
+  /** The degree alone — '4' for both the 4 and the 4m. */
+  degree: string;
   semi: number;
   diatonic: boolean;
   quality: ChordQuality;
+  /** A second quality on a degree the table already has. */
+  borrowed?: true;
 }
 
+/**
+ * Every chord a motion can start or land on, in chip order.
+ *
+ * A BORROWED CHORD SITS AFTER ITS DIATONIC TWIN, which is the chip row
+ * Silas walked (1 · ♭2 · 2m · 2ø · ♭3 …) and also what makes a piano
+ * tap — a pitch, with no quality — resolve to the diatonic one.
+ */
 export const DEGREE_TABLE: DegreeEntry[] = [
-  { label: '1',  semi: 0,  diatonic: true,  quality: 'major' },
-  { label: 'b2', semi: 1,  diatonic: false, quality: 'major' },
-  { label: '2',  semi: 2,  diatonic: true,  quality: 'minor' },
-  { label: 'b3', semi: 3,  diatonic: false, quality: 'major' },
-  { label: '3',  semi: 4,  diatonic: true,  quality: 'minor' },
-  { label: '4',  semi: 5,  diatonic: true,  quality: 'major' },
-  { label: '#4', semi: 6,  diatonic: false, quality: 'diminished' },
-  { label: '5',  semi: 7,  diatonic: true,  quality: 'dominant' },
-  { label: 'b6', semi: 8,  diatonic: false, quality: 'major' },
-  { label: '6',  semi: 9,  diatonic: true,  quality: 'minor' },
-  { label: 'b7', semi: 10, diatonic: false, quality: 'major' },
-  { label: '7',  semi: 11, diatonic: true,  quality: 'diminished' },
+  { label: '1',     degree: '1',  semi: 0,  diatonic: true,  quality: 'major' },
+  { label: 'b2',    degree: 'b2', semi: 1,  diatonic: false, quality: 'major' },
+  { label: '2',     degree: '2',  semi: 2,  diatonic: true,  quality: 'minor' },
+  { label: '2m7b5', degree: '2',  semi: 2,  diatonic: false, quality: 'diminished', borrowed: true },
+  { label: 'b3',    degree: 'b3', semi: 3,  diatonic: false, quality: 'major' },
+  { label: '3',     degree: '3',  semi: 4,  diatonic: true,  quality: 'minor' },
+  { label: '4',     degree: '4',  semi: 5,  diatonic: true,  quality: 'major' },
+  { label: '4m',    degree: '4',  semi: 5,  diatonic: false, quality: 'minor', borrowed: true },
+  { label: '#4',    degree: '#4', semi: 6,  diatonic: false, quality: 'diminished' },
+  { label: '5',     degree: '5',  semi: 7,  diatonic: true,  quality: 'dominant' },
+  { label: '5m',    degree: '5',  semi: 7,  diatonic: false, quality: 'minor', borrowed: true },
+  { label: 'b6',    degree: 'b6', semi: 8,  diatonic: false, quality: 'major' },
+  { label: '6',     degree: '6',  semi: 9,  diatonic: true,  quality: 'minor' },
+  { label: 'b7',    degree: 'b7', semi: 10, diatonic: false, quality: 'major' },
+  { label: '7',     degree: '7',  semi: 11, diatonic: true,  quality: 'diminished' },
 ];
 
 const DEGREE_BY_LABEL = new Map<string, DegreeEntry>(DEGREE_TABLE.map(e => [e.label, e]));
@@ -97,6 +127,32 @@ export interface Motion {
   /** True when BOTH endpoints are diatonic (scale degrees 1..7 of the
    *  major scale). Drives the diatonic-only scope filter. */
   isDiatonic: boolean;
+  /** Each end's degree alone, and the quality it carries — so a
+   *  `4m` reads as the 4, minor, and a legacy `4` as the 4, major. */
+  startDegree: string;
+  startQuality: ChordQuality;
+  destDegree: string;
+  destQuality: ChordQuality;
+  /** Either end is a borrowed chord. None of these existed before
+   *  10 Sep 2026, so no row from the scaffolding era can name one. */
+  borrowed: boolean;
+}
+
+function motionBetween(s: DegreeEntry, d: DegreeEntry, direction: Direction): Motion {
+  return {
+    startLabel: s.label,
+    destLabel: d.label,
+    startSemi: s.semi,
+    destSemi: d.semi,
+    direction,
+    distance: intervalCountFromSemi(Math.abs(d.semi - s.semi)),
+    isDiatonic: s.diatonic && d.diatonic,
+    startDegree: s.degree,
+    startQuality: s.quality,
+    destDegree: d.degree,
+    destQuality: d.quality,
+    borrowed: s.borrowed === true || d.borrowed === true,
+  };
 }
 
 export function motionId(m: Pick<Motion, 'startLabel' | 'destLabel' | 'direction'>): string {
@@ -112,37 +168,23 @@ export function parseMotionId(id: string): Motion | null {
   const startEntry = degreeEntry(m[1]);
   const destEntry = degreeEntry(m[2]);
   if (!startEntry || !destEntry) return null;
-  const direction = m[3] as Direction;
-  const distance = intervalCountFromSemi(Math.abs(destEntry.semi - startEntry.semi));
-  return {
-    startLabel: startEntry.label,
-    destLabel: destEntry.label,
-    startSemi: startEntry.semi,
-    destSemi: destEntry.semi,
-    direction,
-    distance,
-    isDiatonic: startEntry.diatonic && destEntry.diatonic,
-  };
+  return motionBetween(startEntry, destEntry, m[3] as Direction);
 }
 
-// Every in-octave motion between any two distinct chromatic-scale
-// positions. The pool is generated once and filtered at call time by
-// distance / direction / note-context (see filterMotions). Order is
-// asc/desc by the underlying semitone offsets — no octave crossing.
+// Every in-octave motion between two chords on DIFFERENT roots. The
+// pool is generated once and filtered at call time by distance /
+// direction / note-context (see filterMotions). Direction is by the
+// underlying semitone offsets.
+//
+// A CHORD AND ITS OWN BORROWED TWIN ARE NOT A MOTION HERE. 4 → 4m keeps
+// its root, so it has no direction and no distance for the card to ask
+// about, and the filters have no bucket for it.
 function buildAllMotions(): Motion[] {
   const motions: Motion[] = [];
   for (const s of DEGREE_TABLE) {
     for (const d of DEGREE_TABLE) {
-      if (s.label === d.label) continue;
-      motions.push({
-        startLabel: s.label,
-        destLabel: d.label,
-        startSemi: s.semi,
-        destSemi: d.semi,
-        direction: d.semi > s.semi ? 'asc' : 'desc',
-        distance: intervalCountFromSemi(Math.abs(d.semi - s.semi)),
-        isDiatonic: s.diatonic && d.diatonic,
-      });
+      if (s.semi === d.semi) continue;
+      motions.push(motionBetween(s, d, d.semi > s.semi ? 'asc' : 'desc'));
     }
   }
   return motions;

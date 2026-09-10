@@ -304,12 +304,17 @@ export const scalesModesCatalog: ModuleCatalog = {
  * Chord progressions is three sub-drills sharing one moduleId, split by
  * itemId prefix.
  *
- * CHORD MOTION'S DENOMINATOR IS 132 — every in-octave motion between
- * two distinct chromatic degrees, 12 × 11. The `42` the app shows is
- * `activePool.length` after the diatonic-only filter, which is the
- * default scope, so it looks like the catalog and is not.
+ * CHORD MOTION'S DENOMINATOR IS 204 — every in-octave motion between
+ * two chords on different roots, fifteen chords once the borrowed 4m,
+ * 2ø and 5m joined the twelve degrees on 10 Sep 2026. The `42` the app
+ * shows is `activePool.length` after the diatonic-only filter, which is
+ * the default scope, so it looks like the catalog and is not.
  *
- * `motion-first:` is a sibling sub-skill with the same 132 denominator.
+ * `motion-first:` is a sibling sub-skill, and it STAYS ON THE 132 that
+ * existed while it could be earned. Its rows were written by the
+ * scaffolding modes, which retired before the borrowed chords arrived,
+ * so no motion that names one can ever have a first-chord row — adding
+ * them would be 72 items nobody can attempt.
  * It is only attemptable in the minimal scaffold, which the affordance
  * must say — otherwise a low number reads as "bad at this" rather than
  * "haven't been in that mode". Narrowing its denominator to motions
@@ -335,7 +340,7 @@ export const chordProgressionsCatalog: ModuleCatalog = {
       motionLabel(m),
       [EAR_TRAINING, 'Chord Progressions', 'Chord Motion', 'Destination'],
     )),
-    ...ALL_MOTIONS.map(m => one(
+    ...ALL_MOTIONS.filter(m => !m.borrowed).map(m => one(
       `motion-first:${m.startLabel}-${m.destLabel}-${m.direction}`,
       motionLabel(m),
       [EAR_TRAINING, 'Chord Progressions', 'Chord Motion', 'First Chord'],

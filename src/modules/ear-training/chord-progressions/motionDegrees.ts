@@ -10,10 +10,11 @@
  * key the card named, before they can say what they heard. Silas's
  * ruling of 10 Sep 2026 puts degrees first and the board second.
  *
- * SEVEN CHIPS DIATONIC, TWELVE CHROMATIC, and the twelve are the same
- * seven with the five borrowed degrees between them — the motion pool's
- * own `DEGREE_TABLE`, so a chip cannot exist for a motion the pool
- * cannot produce.
+ * SEVEN CHIPS DIATONIC, FIFTEEN CHROMATIC: the seven, the five
+ * chromatic degrees between them, and the three borrowed qualities
+ * (2ø, 4m, 5m) beside their diatonic twins — the motion pool's own
+ * `DEGREE_TABLE`, so a chip cannot exist for a motion the pool cannot
+ * produce.
  *
  * THE QUALITY SUFFIX IS THE APP'S OWN. "7°" or "7dim" is the
  * progression-spelling setting, read through `qualitySuffix`, so the
@@ -75,9 +76,18 @@ export function chipText(
   settings?: ProgressionSpelling,
 ): string {
   const entry = DEGREE_TABLE.find(e => e.label === label);
-  return label.replace(/b/g, '♭').replace(/#/g, '♯')
-    + qualitySuffix(SUFFIX_QUALITY[entry?.quality ?? 'major'] ?? 'maj7',
-      settings ? { settings } : {});
+  // THE BORROWED 2 IS NAMED AS THE SEVENTH CHORD IT IS BORROWED AS —
+  // the ø of a minor 2 5 1 — while the 7 and the ♯4 keep their triad
+  // name, °. Both are the same m7♭5 shape; the chip row Silas walked
+  // spells them "2ø" and "7°", and the half-diminished setting decides
+  // the ø the way the diminished setting decides the °.
+  const rung = entry?.borrowed === true && entry.quality === 'diminished'
+    ? 'seventh' as const : undefined;
+  return (entry?.degree ?? label).replace(/b/g, '♭').replace(/#/g, '♯')
+    + qualitySuffix(SUFFIX_QUALITY[entry?.quality ?? 'major'] ?? 'maj7', {
+      ...(settings ? { settings } : {}),
+      ...(rung ? { rung } : {}),
+    });
 }
 
 /** A degree's pitch class in a key. */
@@ -93,7 +103,9 @@ export function degreePc(keyPc: number, label: DegreeLabel): number {
  * DEGREE. "It landed on the 4, not the 5" — never "not the C", because
  * the card's question is which degree, and a letter would make the
  * reader translate their own answer back before they could read it.
- * Every pitch class has exactly one entry in the table.
+ * A PITCH HAS NO QUALITY, so a tap on the 4's key is the 4, never the
+ * 4m: the table lists each diatonic chord before its borrowed twin and
+ * this takes the first.
  */
 export function degreeOfPc(keyPc: number, pc: number): DegreeLabel {
   const semi = (((pc - keyPc) % 12) + 12) % 12;

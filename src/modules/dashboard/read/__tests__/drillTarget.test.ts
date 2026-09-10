@@ -433,7 +433,7 @@ describe('chord progressions — filterability is per row', () => {
     const destination = nodeNamed('Destination');
     const target = drillTargetFor(destination, 'ear-training');
     if (target.kind !== 'filtered') throw new Error('expected filtered');
-    expect(target.focusKeys).toHaveLength(132);
+    expect(target.focusKeys).toHaveLength(204);
     expect(target.focusKeys).toEqual(target.itemRefs);
     expect(target.focusKeys[0]).toMatch(/^motion:/);
   });
@@ -448,11 +448,12 @@ describe('chord progressions — filterability is per row', () => {
     expect(href.startsWith('/ear-training/chord-progressions?')).toBe(true);
     const query = new URLSearchParams(href.slice(href.indexOf('?') + 1));
     expect(query.get('tab')).toBe('chord-motion');
-    expect(query.get('focus')!.split(',')).toHaveLength(132);
+    expect(query.get('focus')!.split(',')).toHaveLength(204);
   });
 
   it('refuses the first-chord rows rather than half-delivering them', () => {
-    // Same 132 motions, and the translation would be trivial — but an
+    // The same motions (the 132 that predate the borrowed chords), and
+    // the translation would be trivial — but an
     // attempt only lands under `motion-first:` in the MINIMAL
     // scaffold, so filtering the pool and arriving in full scaffold
     // never touches the row's item.

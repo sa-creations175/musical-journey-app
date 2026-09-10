@@ -441,15 +441,32 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
   const aided = isAided(settings) || startingNote === 'given';
 
-  const submit = async (startPc: number | null, destPc: number) => {
+  /**
+   * Grade an answer.
+   *
+   * DEGREES ARE GRADED AS CHORDS, KEYS AS PITCHES. A degree chip names a
+   * quality as well as a root, so answering 4 when it was 4m is wrong on
+   * that half — right degree, wrong chord — and the whole answer is half
+   * right. A piano key names a pitch and nothing else, so it can only
+   * be asked whether the root was right. `byPitch` says which.
+   */
+  const submit = async (
+    yourStart: DegreeLabel | null,
+    yourDest: DegreeLabel,
+    byPitch: boolean,
+  ) => {
     const r = round;
     if (r === null) return;
     handle.current?.stop();
+    const same = (yours: DegreeLabel, asked: DegreeLabel) => (byPitch
+      ? degreePc(r.keyPc, yours) === degreePc(r.keyPc, asked)
+      : yours === asked);
     // THE STARTING NOTE IS GIVEN OR IT IS ANSWERED. With the aid on the
     // reader was told it, so it cannot be wrong; the rating already
     // carries the cost of having been told.
-    const startOk = startingNote === 'given' || startPc === r.startPc;
-    const destOk = destPc === r.destPc;
+    const startOk = startingNote === 'given'
+      || (yourStart !== null && same(yourStart, r.motion.startLabel));
+    const destOk = same(yourDest, r.motion.destLabel);
     const f = heardFeel({
       // AT LEAST ONE RIGHT is the first question here: neither right is
       // Struggled, one right is Working on it, both right is graded on
@@ -460,14 +477,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
       aided,
     });
     setFeel(f);
-    // THE ANSWER IS KEPT AS DEGREES whichever way it was given. A piano
-    // tap is a pitch class, and the line names it as the degree it is.
-    setAnswered({
-      startOk,
-      destOk,
-      yourStart: startPc === null ? null : degreeOfPc(r.keyPc, startPc),
-      yourDest: degreeOfPc(r.keyPc, destPc),
-    });
+    setAnswered({ startOk, destOk, yourStart, yourDest });
     setPhase('reveal');
     // NOTHING PLAYS ON THE REVEAL. The shared panel owns the transport
     // from here — its Hear it, its Pause, its Resume — and a second
@@ -503,7 +513,14 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
       setTappedStart(pc);
       return;
     }
-    void submit(startingNote === 'given' ? null : tappedStart, pc);
+    // THE ANSWER IS KEPT AS DEGREES whichever way it was given. A piano
+    // tap is a pitch class, and the line names it as the degree it is.
+    void submit(
+      startingNote === 'given' || tappedStart === null
+        ? null : degreeOfPc(round.keyPc, tappedStart),
+      degreeOfPc(round.keyPc, pc),
+      true,
+    );
   };
 
   const canSubmit = pickedDest !== null
@@ -579,7 +596,16 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
   // --- Render --------------------------------------------------------
 
-  const chips = degreeChips(noteContext === 'chromatic', rowSpelling);
+  // THE CHIPS COVER WHATEVER THE POOL CAN DEAL. Note context decides
+  // the pool, except under focus, which overrides it — so a chromatic
+  // motion sent from the dashboard while Note context says diatonic
+  // would be dealt with no chip that could answer it. Read from the
+  // POOL rather than from the card on screen, so a longer chip row
+  // never gives away that this card is chromatic.
+  const chips = degreeChips(
+    noteContext === 'chromatic' || activePool.some(m => !m.isDiatonic),
+    rowSpelling,
+  );
   const feelWord = feel === null
     ? null
     : FEEL_OPTIONS.find(o => o.feel === feel)?.label ?? '';
@@ -783,8 +809,9 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 onClick={() => {
                   if (round === null || pickedDest === null) return;
                   void submit(
-                    pickedStart === null ? null : degreePc(round.keyPc, pickedStart),
-                    degreePc(round.keyPc, pickedDest),
+                    startingNote === 'given' ? null : pickedStart,
+                    pickedDest,
+                    false,
                   );
                 }}
                 className={`${CHIP} ${CHIP_ON} disabled:opacity-40 disabled:cursor-default`}

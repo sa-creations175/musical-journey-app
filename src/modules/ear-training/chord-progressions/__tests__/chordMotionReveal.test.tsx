@@ -16,6 +16,9 @@ import { MemoryRouter } from 'react-router-dom';
 import { setPref } from '../../../../lib/userPrefs';
 import { motionResult } from '../motionResult';
 import { degreePalette } from '../../../repertoire/chordColors';
+import { ALL_MOTIONS, parseMotionId } from '../chordMotionPool';
+import { degreeChips } from '../motionDegrees';
+import { motionChords } from '../motionChords';
 
 // NOTHING SOUNDS. The card plays on arrival; the test is about what it
 // says afterwards.
@@ -280,5 +283,87 @@ describe('the verdict line wears the in-the-key colours', () => {
     expect(token(el, 'verdict-dest').textContent).toBe('♭7');
     expect(token(el, 'verdict-dest').style.color).toBe(twin);
     expect(token(el, 'verdict-dest-chord').style.color).toBe(twin);
+  });
+});
+
+describe('the borrowed qualities: 4m, 2ø and 5m', () => {
+  it('reads the chromatic chip row as ruled, and the diatonic one unchanged', () => {
+    expect(degreeChips(true).map(c => c.text).join(' · '))
+      .toBe('1 · ♭2 · 2m · 2ø · ♭3 · 3m · 4 · 4m · ♯4° · 5 · 5m · ♭6 · 6m · ♭7 · 7°');
+    expect(degreeChips(false).map(c => c.text).join(' · '))
+      .toBe('1 · 2m · 3m · 4 · 5 · 6m · 7°');
+  });
+
+  it('keeps every stored id meaning what it meant, and names both halves of a new one', () => {
+    const legacy = parseMotionId('motion:1-4-asc')!;
+    expect([legacy.destDegree, legacy.destQuality]).toEqual(['4', 'major']);
+    const borrowed = parseMotionId('motion:1-4m-asc')!;
+    expect([borrowed.destDegree, borrowed.destQuality]).toEqual(['4', 'minor']);
+    expect(parseMotionId('motion:1-2m7b5-asc')!.destQuality).toBe('diminished');
+    expect(parseMotionId('motion:4m-b7-asc')).not.toBeNull();
+    // Guard: a legacy id is not quietly read as the borrowed chord.
+    expect(legacy.borrowed).toBe(false);
+    expect(borrowed.borrowed).toBe(true);
+  });
+
+  it('adds borrowed motions only under Chromatic, and none that keep their root', () => {
+    const borrowed = ALL_MOTIONS.filter(m => m.borrowed);
+    expect(borrowed.length).toBeGreaterThan(0);
+    expect(borrowed.every(m => !m.isDiatonic)).toBe(true);
+    expect(ALL_MOTIONS.filter(m => m.isDiatonic)).toHaveLength(42);
+    expect(ALL_MOTIONS.some(m => m.startSemi === m.destSemi)).toBe(false);
+  });
+
+  it('voices 1 → 4m as a minor chord on the 4', () => {
+    // Key of C: the 4m is F minor, so an A♭ sounds and no A does.
+    const { chords } = motionChords(0, '1', '4m', 'seventh');
+    expect(chords[1].name).toBe('Fm7');
+    const pcs = chords[1].hand.map(m => m % 12);
+    expect(pcs).toContain(8);
+    expect(pcs).not.toContain(9);
+  });
+
+  it('answered 4 when it was 4m: half right, rated Working on it', async () => {
+    const el = await deal('motion:1-4m-asc');
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-4');
+    await click(el, 'motion-submit');
+    expect(resultOf(el)).toEqual({
+      tone: 'half',
+      text: 'Starting chord right (1). It landed on the 4m, not the 4.',
+    });
+    expect(el.querySelector('[data-testid="motion-feel"]')?.textContent)
+      .toBe('Working on it');
+  });
+
+  it('answered 4m when it was 4m: Right., with the 4m chip on offer under focus', async () => {
+    // Note context is diatonic (beforeEach); the focus pool is not, so
+    // the chip row has to carry the chip that answers it.
+    const el = await deal('motion:1-4m-asc');
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-4m');
+    await click(el, 'motion-submit');
+    expect(resultOf(el)).toEqual({ tone: 'right', text: 'Right.' });
+  });
+
+  it('on the piano, the 4’s key answers a 4m: a key names a pitch, not a quality', async () => {
+    const el = await deal('motion:1-4m-asc');
+    await click(el, 'motion-answer-piano');
+    await tap(el, 60);
+    await tap(el, 65);
+    expect(resultOf(el)).toEqual({ tone: 'right', text: 'Right.' });
+  });
+
+  it('says the 4m is the 4 of the key, and rings it in the 4’s purple', async () => {
+    const el = await deal('motion:1-4m-asc');
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-4m');
+    await click(el, 'motion-submit');
+    const line = el.querySelector('[data-testid="legend-ring-line"]');
+    expect(line?.textContent).toMatch(/this chord is the 4 of the key/);
+    expect(line?.textContent).not.toMatch(/4m/);
+    const rings = [...el.querySelectorAll('[data-testid^="key-ring-"]')];
+    expect(rings.length).toBeGreaterThan(0);
+    for (const r of rings) expect(r.getAttribute('stroke')).toBe('#9333ea');
   });
 });
