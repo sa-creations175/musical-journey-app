@@ -7,7 +7,7 @@ import {
   modesForStage,
   STAGED_INTRODUCTION_BATCH_SIZE,
 } from '../scaleModeTierUnlock';
-import type { ScaleModeStage } from '../catalog';
+import { MODE_IDS, type ScaleModeStage } from '../catalog';
 
 const MODULE_REF = 'scales-modes';
 
@@ -47,17 +47,36 @@ function row(itemRef: string, moduleRef = MODULE_REF): SpacingState {
 // -----------------------------------------------------------------
 
 describe('modesForStage', () => {
-  it('returns the 7 church modes as Stage 1', () => {
-    const stage1 = modesForStage(1);
-    expect(stage1.length).toBe(7);
-    expect(new Set(stage1)).toEqual(new Set([
-      'ionian', 'dorian', 'phrygian', 'lydian',
-      'mixolydian', 'aeolian', 'locrian',
-    ]));
+  /**
+   * =====================================================================
+   * TIER 1 IS THE FOUR SCALES A PLAYER ALREADY LIVES IN.
+   *
+   * Silas's ruling of 10 Sep 2026. It was the seven modes of the major
+   * scale, with the two minors held back — which put Locrian, a mode
+   * almost nothing is written in, ahead of the natural minor, and left
+   * two scales a reader plays every day behind a gate.
+   *
+   * IN ORDER, because the order is the order they are introduced in and
+   * several surfaces walk the array. A set would pass on a shuffle.
+   * =====================================================================
+   */
+  it('is Ionian, Aeolian and the two minors, in that order', () => {
+    expect(modesForStage(1)).toEqual([
+      'ionian', 'aeolian', 'harmonic-minor', 'melodic-minor',
+    ]);
   });
 
-  it('returns harmonic-minor + melodic-minor as Stage 2', () => {
-    expect(new Set(modesForStage(2))).toEqual(new Set(['harmonic-minor', 'melodic-minor']));
+  it('is the other five modes as Tier 2, brightest and most used first', () => {
+    expect(modesForStage(2)).toEqual([
+      'dorian', 'mixolydian', 'lydian', 'phrygian', 'locrian',
+    ]);
+  });
+
+  it('moves no mode out of the catalog and no id with it', () => {
+    // The ids are itemRef segments: every rep already logged against
+    // Dorian is still logged against Dorian, in whichever tier it sits.
+    expect([...modesForStage(1), ...modesForStage(2)].sort())
+      .toEqual([...MODE_IDS].sort());
   });
 });
 
@@ -142,13 +161,17 @@ describe('getEligibleScaleModeItems', () => {
     }
   });
 
-  it('Stage 2 fresh batch: harmonic + melodic minor both surface, both variants', () => {
+  it('Tier 2 fresh batch surfaces the first modes introduced, both variants', () => {
     const eligible = getEligibleScaleModeItems(2, []);
-    // Stage 2 has only 2 modes — both fit in the BATCH_SIZE (3) cap.
-    expect(eligible).toContain('harmonic-minor-tab1');
-    expect(eligible).toContain('harmonic-minor-tab2');
-    expect(eligible).toContain('melodic-minor-tab1');
-    expect(eligible).toContain('melodic-minor-tab2');
+    // Tier 2 holds five modes and the batch caps at three, so the
+    // first three in introduction order surface — Dorian first, which
+    // is the whole point of the order.
+    expect(eligible).toContain('dorian-tab1');
+    expect(eligible).toContain('dorian-tab2');
+    expect(eligible).toContain('mixolydian-tab1');
+    expect(eligible).toContain('lydian-tab1');
+    // And Locrian, which is last, does not.
+    expect(eligible).not.toContain('locrian-tab1');
   });
 
   it('rows from a different moduleRef are ignored entirely', () => {

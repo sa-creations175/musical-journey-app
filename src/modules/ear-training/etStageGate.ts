@@ -6,7 +6,8 @@
  *   Stage 1 — Always available (intervals + CR T1).
  *   Stage 2 — Requires CR T1 cleared.
  *             Unlocks: chord-progressions Stage 1 (key detection),
- *                      scales-modes Stage 1 (church modes).
+ *                      scales-modes Tier 1 (Ionian, Aeolian and the
+ *                      two minors).
  *   Stage 3 — Requires CR T2 cleared AND progressions Stage 1 cleared.
  *             Unlocks: chord-progressions Stage 2 (chord motion +
  *                      short diatonic), scales-modes Stage 2

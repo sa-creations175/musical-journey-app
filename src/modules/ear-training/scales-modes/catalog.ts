@@ -1,6 +1,11 @@
 // Scales & Modes catalog — 9 modes with scale intervals, vamps,
 // descriptions, and song examples. Data-only: audio/quiz/tracker code
 // derives everything from here.
+//
+// ARRAY ORDER IS TIER ORDER, and within a tier it is the order the
+// modes are introduced in. Silas's ruling of 10 Sep 2026 — see
+// `ScaleModeStage`. Several surfaces walk this array, so the order is
+// load-bearing rather than cosmetic.
 
 export type ModeId =
   | 'ionian'
@@ -13,11 +18,31 @@ export type ModeId =
   | 'melodic-minor'
   | 'locrian';
 
-/** ET tier-progression stage. Stage 1 = the seven church modes
- *  (always available once CR T1 clears); Stage 2 = harmonic + melodic
- *  minor (unlocked when every Stage 1 mode hits ≥10 attempts +
- *  ≥75% accuracy). Cross-submodule gate lives in
- *  scaleModeTierUnlock.ts. */
+/**
+ * Which Tier a mode sits in.
+ *
+ * =====================================================================
+ * TIER 1 IS THE FOUR SCALES A PLAYER ALREADY LIVES IN. Ruled 10 Sep
+ * 2026.
+ *
+ * It was the seven modes of the major scale, with harmonic and melodic
+ * minor held back in Tier 2 — which put Locrian, a mode almost nothing
+ * is written in, in front of the natural minor, and left the two minors
+ * a reader plays every day behind a gate.
+ *
+ * Tier 1: Ionian, Aeolian, harmonic minor, melodic minor.
+ * Tier 2, in the order they are introduced: Dorian, Mixolydian, Lydian,
+ * Phrygian, Locrian — brightest and most-used first, Locrian last.
+ *
+ * Tier 1 is available once chord recognition's Tier 1 clears (the
+ * cross-ladder gate is unchanged and lives in `scaleModeTierUnlock`);
+ * Tier 2 opens when 80% of Tier 1's modes clear.
+ *
+ * THE `stage` FIELD KEEPS ITS NAME. It is a code identifier; what a
+ * reader sees says Tier. Ids and stored attempts are untouched, so a
+ * mode that moved tier keeps every rep logged against it.
+ * =====================================================================
+ */
 export type ScaleModeStage = 1 | 2;
 
 export const MAX_SCALE_MODE_STAGE: ScaleModeStage = 2;
@@ -31,12 +56,12 @@ export interface SongExample {
 export interface Mode {
   id: ModeId;
   name: string;
-  /** ET tier-progression stage. Stage 1 = the seven church modes;
-   *  Stage 2 = harmonic + melodic minor. Drives scaleModeTierUnlock.ts. */
+  /** Which Tier this mode sits in — see `ScaleModeStage`. Drives
+   *  scaleModeTierUnlock.ts. */
   stage: ScaleModeStage;
-  /** Major-scale position (1-7) for church modes. For harmonic/melodic
-   *  minor we use 8/9 so they sort after the church modes in parent-scale
-   *  view. */
+  /** Major-scale position (1-7) for the modes of the major scale. For
+   *  harmonic/melodic minor we use 8/9 so they sort after them in
+   *  parent-scale view. */
   parentScalePosition: number;
   /** 1 = brightest, 9 = darkest. Used by brightness sort and fluency color. */
   brightnessRank: number;
@@ -100,98 +125,6 @@ export const MODES: Mode[] = [
   },
 
   // ------------------------------------------------------------------
-  // DORIAN
-  // ------------------------------------------------------------------
-  {
-    id: 'dorian',
-    name: 'Dorian',
-    stage: 1,
-    parentScalePosition: 2,
-    brightnessRank: 5,
-    scaleIntervals: [0, 2, 3, 5, 7, 9, 10, 12],
-    signatureAlteration: 'raised 6 (♮6 against a minor key)',
-    quickDefinition: '2nd mode of major scale — minor with a raised 6.',
-    characteristicChords: ['i7', 'IV7', 'im6'],
-    starterDescription:
-      'Melancholic but hopeful. Minor with a brightness — that raised 6 gives it a warm quality underneath the sadness. Hear it in "So What" (Miles Davis), D\'Angelo\'s "Untitled (How Does It Feel)," and a lot of neo-soul atmospheres.',
-    songExamples: [
-      { title: 'So What', artist: 'Miles Davis', year: 1959 },
-      { title: 'Untitled (How Does It Feel)', artist: 'D\'Angelo', year: 2000 },
-      { title: 'Impressions', artist: 'John Coltrane', year: 1963 },
-      { title: 'Mas Que Nada', artist: 'Sérgio Mendes', year: 1966 },
-    ],
-  },
-
-  // ------------------------------------------------------------------
-  // PHRYGIAN
-  // ------------------------------------------------------------------
-  {
-    id: 'phrygian',
-    name: 'Phrygian',
-    stage: 1,
-    parentScalePosition: 3,
-    brightnessRank: 8,
-    scaleIntervals: [0, 1, 3, 5, 7, 8, 10, 12],
-    signatureAlteration: 'flat 2 (♭2)',
-    quickDefinition: '3rd mode of major scale — minor with a ♭2 right above the tonic.',
-    characteristicChords: ['im', '♭II'],
-    starterDescription:
-      'Dark, exotic, Spanish. The flat 2 gives it that immediate tension right above the tonic — you hear it in flamenco, some hip-hop beats with eastern flavor, and dramatic minor passages.',
-    songExamples: [
-      { title: 'Hit the Road Jack', artist: 'Ray Charles', year: 1961 },
-      { title: 'Wherever I May Roam', artist: 'Metallica', year: 1991 },
-      { title: 'Flamenco guitar traditions', artist: 'Various' },
-      { title: 'Pyramid Song', artist: 'Radiohead', year: 2001 },
-    ],
-  },
-
-  // ------------------------------------------------------------------
-  // LYDIAN
-  // ------------------------------------------------------------------
-  {
-    id: 'lydian',
-    name: 'Lydian',
-    stage: 1,
-    parentScalePosition: 4,
-    brightnessRank: 1,
-    scaleIntervals: [0, 2, 4, 6, 7, 9, 11, 12],
-    signatureAlteration: 'sharp 4 (♯4)',
-    quickDefinition: '4th mode of major scale — major with a raised 4.',
-    characteristicChords: ['Imaj7', 'Imaj7♯11', 'II/I'],
-    starterDescription:
-      'Dreamy, floating, cinematic. The raised 4 creates that magical "lift" — no tension to resolve, just atmosphere. Hear it in D\'Angelo\'s "Playa Playa," Tom Misch\'s atmospheric sections, and film score moments that feel otherworldly.',
-    songExamples: [
-      { title: 'Playa Playa', artist: 'D\'Angelo', year: 2000 },
-      { title: 'Dreams', artist: 'Fleetwood Mac', year: 1977 },
-      { title: 'The Simpsons theme', artist: 'Danny Elfman', year: 1989 },
-      { title: 'Flying in a Blue Dream', artist: 'Joe Satriani', year: 1989 },
-    ],
-  },
-
-  // ------------------------------------------------------------------
-  // MIXOLYDIAN
-  // ------------------------------------------------------------------
-  {
-    id: 'mixolydian',
-    name: 'Mixolydian',
-    stage: 1,
-    parentScalePosition: 5,
-    brightnessRank: 3,
-    scaleIntervals: [0, 2, 4, 5, 7, 9, 10, 12],
-    signatureAlteration: 'flat 7 (♭7)',
-    quickDefinition: '5th mode of major scale — major with a ♭7.',
-    characteristicChords: ['I7', '♭VII', 'IV'],
-    starterDescription:
-      'Bluesy, gospel, funky. Major scale with a flat 7 — that ♭7 is what gives gospel and blues their signature feel. Hear it in Stevie Wonder\'s "Isn\'t She Lovely," gospel backdoor cadences, and most funk tonic chords.',
-    songExamples: [
-      { title: 'Isn\'t She Lovely', artist: 'Stevie Wonder', year: 1976 },
-      { title: 'Sweet Child O\' Mine', artist: 'Guns N\' Roses', year: 1987 },
-      { title: 'Norwegian Wood', artist: 'The Beatles', year: 1965 },
-      { title: 'Cissy Strut', artist: 'The Meters', year: 1969 },
-    ],
-  },
-
-  // ------------------------------------------------------------------
   // AEOLIAN
   // ------------------------------------------------------------------
   {
@@ -220,7 +153,7 @@ export const MODES: Mode[] = [
   {
     id: 'harmonic-minor',
     name: 'Harmonic minor',
-    stage: 2,
+    stage: 1,
     parentScalePosition: 8,
     brightnessRank: 7,
     scaleIntervals: [0, 2, 3, 5, 7, 8, 11, 12],
@@ -243,7 +176,7 @@ export const MODES: Mode[] = [
   {
     id: 'melodic-minor',
     name: 'Melodic minor',
-    stage: 2,
+    stage: 1,
     parentScalePosition: 9,
     brightnessRank: 4,
     scaleIntervals: [0, 2, 3, 5, 7, 9, 11, 12],
@@ -261,12 +194,104 @@ export const MODES: Mode[] = [
   },
 
   // ------------------------------------------------------------------
+  // DORIAN
+  // ------------------------------------------------------------------
+  {
+    id: 'dorian',
+    name: 'Dorian',
+    stage: 2,
+    parentScalePosition: 2,
+    brightnessRank: 5,
+    scaleIntervals: [0, 2, 3, 5, 7, 9, 10, 12],
+    signatureAlteration: 'raised 6 (♮6 against a minor key)',
+    quickDefinition: '2nd mode of major scale — minor with a raised 6.',
+    characteristicChords: ['i7', 'IV7', 'im6'],
+    starterDescription:
+      'Melancholic but hopeful. Minor with a brightness — that raised 6 gives it a warm quality underneath the sadness. Hear it in "So What" (Miles Davis), D\'Angelo\'s "Untitled (How Does It Feel)," and a lot of neo-soul atmospheres.',
+    songExamples: [
+      { title: 'So What', artist: 'Miles Davis', year: 1959 },
+      { title: 'Untitled (How Does It Feel)', artist: 'D\'Angelo', year: 2000 },
+      { title: 'Impressions', artist: 'John Coltrane', year: 1963 },
+      { title: 'Mas Que Nada', artist: 'Sérgio Mendes', year: 1966 },
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  // MIXOLYDIAN
+  // ------------------------------------------------------------------
+  {
+    id: 'mixolydian',
+    name: 'Mixolydian',
+    stage: 2,
+    parentScalePosition: 5,
+    brightnessRank: 3,
+    scaleIntervals: [0, 2, 4, 5, 7, 9, 10, 12],
+    signatureAlteration: 'flat 7 (♭7)',
+    quickDefinition: '5th mode of major scale — major with a ♭7.',
+    characteristicChords: ['I7', '♭VII', 'IV'],
+    starterDescription:
+      'Bluesy, gospel, funky. Major scale with a flat 7 — that ♭7 is what gives gospel and blues their signature feel. Hear it in Stevie Wonder\'s "Isn\'t She Lovely," gospel backdoor cadences, and most funk tonic chords.',
+    songExamples: [
+      { title: 'Isn\'t She Lovely', artist: 'Stevie Wonder', year: 1976 },
+      { title: 'Sweet Child O\' Mine', artist: 'Guns N\' Roses', year: 1987 },
+      { title: 'Norwegian Wood', artist: 'The Beatles', year: 1965 },
+      { title: 'Cissy Strut', artist: 'The Meters', year: 1969 },
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  // LYDIAN
+  // ------------------------------------------------------------------
+  {
+    id: 'lydian',
+    name: 'Lydian',
+    stage: 2,
+    parentScalePosition: 4,
+    brightnessRank: 1,
+    scaleIntervals: [0, 2, 4, 6, 7, 9, 11, 12],
+    signatureAlteration: 'sharp 4 (♯4)',
+    quickDefinition: '4th mode of major scale — major with a raised 4.',
+    characteristicChords: ['Imaj7', 'Imaj7♯11', 'II/I'],
+    starterDescription:
+      'Dreamy, floating, cinematic. The raised 4 creates that magical "lift" — no tension to resolve, just atmosphere. Hear it in D\'Angelo\'s "Playa Playa," Tom Misch\'s atmospheric sections, and film score moments that feel otherworldly.',
+    songExamples: [
+      { title: 'Playa Playa', artist: 'D\'Angelo', year: 2000 },
+      { title: 'Dreams', artist: 'Fleetwood Mac', year: 1977 },
+      { title: 'The Simpsons theme', artist: 'Danny Elfman', year: 1989 },
+      { title: 'Flying in a Blue Dream', artist: 'Joe Satriani', year: 1989 },
+    ],
+  },
+
+  // ------------------------------------------------------------------
+  // PHRYGIAN
+  // ------------------------------------------------------------------
+  {
+    id: 'phrygian',
+    name: 'Phrygian',
+    stage: 2,
+    parentScalePosition: 3,
+    brightnessRank: 8,
+    scaleIntervals: [0, 1, 3, 5, 7, 8, 10, 12],
+    signatureAlteration: 'flat 2 (♭2)',
+    quickDefinition: '3rd mode of major scale — minor with a ♭2 right above the tonic.',
+    characteristicChords: ['im', '♭II'],
+    starterDescription:
+      'Dark, exotic, Spanish. The flat 2 gives it that immediate tension right above the tonic — you hear it in flamenco, some hip-hop beats with eastern flavor, and dramatic minor passages.',
+    songExamples: [
+      { title: 'Hit the Road Jack', artist: 'Ray Charles', year: 1961 },
+      { title: 'Wherever I May Roam', artist: 'Metallica', year: 1991 },
+      { title: 'Flamenco guitar traditions', artist: 'Various' },
+      { title: 'Pyramid Song', artist: 'Radiohead', year: 2001 },
+    ],
+  },
+
+  // ------------------------------------------------------------------
   // LOCRIAN
   // ------------------------------------------------------------------
   {
     id: 'locrian',
     name: 'Locrian',
-    stage: 1,
+    stage: 2,
     parentScalePosition: 7,
     brightnessRank: 9,
     scaleIntervals: [0, 1, 3, 5, 6, 8, 10, 12],

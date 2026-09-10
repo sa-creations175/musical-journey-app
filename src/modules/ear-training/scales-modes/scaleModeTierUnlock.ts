@@ -1,27 +1,36 @@
 /**
- * Progressive-stage unlock for ear-training scales/modes. Mirrors
- * the chord-recognition tierUnlock.ts architecture and the
- * chord-progressions progressionTierUnlock.ts implementation —
- * same thresholds (≥10 attempts + ≥75% accuracy per item), same
- * staged-introduction batch (3 fresh items per stage per session),
- * same `'introduced' = has a spacingState row` signal.
+ * Tier unlock for ear-training scales/modes. Mirrors the
+ * chord-recognition tierUnlock.ts architecture and the
+ * chord-progressions progressionTierUnlock.ts implementation — same
+ * thresholds (see `lib/ratingRules`), same staged-introduction batch
+ * (3 fresh items per tier per session), same `'introduced' = has a
+ * spacingState row` signal.
  *
- * Stage layout (catalog-tagged via Mode.stage):
- *   Stage 1: Lydian, Ionian, Mixolydian, Dorian, Aeolian,
- *            Phrygian, Locrian (7 church modes)
- *   Stage 2: Harmonic minor, Melodic minor
+ * =====================================================================
+ * TIER LAYOUT (catalog-tagged via `Mode.stage`), RULED 10 SEP 2026.
  *
- * Cross-submodule gate: Stage 1 is locked behind chord-recognition
- * Tier 1 being CLEARED (CR's `unlockedTier >= 2`). Mirrors the
- * gate in progressionTierUnlock.ts.
+ *   Tier 1: Ionian, Aeolian, harmonic minor, melodic minor
+ *   Tier 2: Dorian, Mixolydian, Lydian, Phrygian, Locrian
+ *
+ * It was the seven modes of the major scale in Tier 1 with the two
+ * minors held back — which put Locrian, a mode almost nothing is
+ * written in, ahead of the natural minor. Tier 1 is now the four
+ * scales a player already lives in; Tier 2 introduces the rest,
+ * brightest and most-used first.
+ *
+ * The FIELD is still called `stage`; a reader sees Tier.
+ * =====================================================================
+ *
+ * Cross-submodule gate: Tier 1 is locked behind chord-recognition
+ * Tier 1 being CLEARED (CR's `unlockedTier >= 2`). Unchanged, and
+ * mirrors the gate in progressionTierUnlock.ts.
  *
  * itemRef format quirk: scales-modes records attempts AND
  * spacingState rows against `${mode.id}-tab1` (HearScaleTab) and
  * `${mode.id}-tab2` (SitInsideTab) — NOT bare mode IDs. The
  * tier system aggregates the two tab variants per mode for unlock
- * stats (Stage 2 unlocks when each of the 7 Stage 1 MODES has
- * ≥10 combined attempts + ≥75% accuracy, not when each of the
- * 14 mode×tab cells does). The eligible set returned for the
+ * stats (a mode clears on its ≥10 COMBINED attempts, not on each of
+ * the 14 mode×tab cells separately). The eligible set returned for the
  * candidates filter emits BOTH variant forms (`mode-tab1`,
  * `mode-tab2`) so spacingState rows match cleanly downstream.
  */
@@ -76,7 +85,7 @@ export interface ItemStats {
 
 /** Strip the `-tab1` / `-tab2` suffix so per-tab attempts roll up
  *  to a single per-mode bucket. Mirrors how the user-facing spec
- *  ("Stage 2 unlocks when all 7 Stage 1 items meet the threshold")
+ *  ("Tier 2 unlocks when 80% of Tier 1's items meet the threshold")
  *  treats one mode as one item regardless of how many drill surfaces
  *  it has. */
 function bareIdOf(attemptItemId: string): string {

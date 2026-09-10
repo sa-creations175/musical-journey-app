@@ -9,7 +9,9 @@ import { computeTier } from '../../../lib/tier';
 import { daysBetween, localDayKey } from '../../../lib/dailyGoal';
 import type { AttemptRecord } from '../../../lib/db';
 
-// Church modes = the seven diatonic modes of the major scale.
+// The seven diatonic modes of the major scale. The CONSTANT keeps its
+// name — it is a code identifier — and no reader sees the word; Silas's
+// ruling of 10 Sep 2026.
 const CHURCH_MODES: ModeId[] = [
   'ionian', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'aeolian', 'locrian',
 ];
@@ -31,7 +33,7 @@ export default function FocusPanel({
 }: Props) {
   const sections: SelectionSection[] = useMemo(() => ([
     {
-      title: 'Church modes (diatonic)',
+      title: 'Major scale modes (diatonic)',
       items: MODES
         .filter(m => CHURCH_MODES.includes(m.id))
         .sort((a, b) => a.parentScalePosition - b.parentScalePosition)
@@ -99,7 +101,7 @@ export default function FocusPanel({
       emptySuggestionMessage="no modes in developing, needs-work, stale, or untouched tiers yet."
       extraQuickSelects={[
         {
-          label: 'Church Modes Only',
+          label: 'Major Scale Modes Only',
           compute: () => CHURCH_MODES as string[],
         },
         {

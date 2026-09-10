@@ -12,7 +12,10 @@ export const PREF_SCALE_SPEED = 'scalesModesScaleSpeed';
 export const PREF_VAMP_SPEED = 'scalesModesVampSpeed';
 
 // Scope presets for the "pick a starting pool" selector. Interpretation:
-//   · church       — the 7 modes of the major scale (positions 1-7)
+//   · church       — the 7 modes of the major scale (positions 1-7).
+//                    THE ID IS STORED (userPrefs `scalesModesScope`) and
+//                    so stays as it is; what a reader sees does not say
+//                    "church", per Silas's ruling of 10 Sep 2026.
 //   · minor-variants — just harmonic and melodic minor
 //   · brightest    — brightnessRank ≤ 3 (Lydian / Ionian / Mixolydian)
 //   · darkest      — brightnessRank ≥ 7 (Harmonic Minor / Phrygian / Locrian)
@@ -20,7 +23,7 @@ export type ModeScope = 'all' | 'church' | 'minor-variants' | 'brightest' | 'dar
 
 export const SCOPE_LABELS: Record<ModeScope, string> = {
   'all': 'all modes',
-  'church': 'church modes only',
+  'church': 'major scale modes only',
   'minor-variants': 'harmonic & melodic minor',
   'brightest': 'brightest modes',
   'darkest': 'darkest modes',

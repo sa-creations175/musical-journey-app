@@ -76,7 +76,8 @@ const NOTE_BASES: Record<string, number> = {
 };
 
 // Each mode's natural root within the C-major parent scale.
-// Church modes 1-7 land on C, D, E, F, G, A, B respectively. The
+// The seven modes of the major scale land on C, D, E, F, G, A, B
+// respectively. The
 // minor variants (harmonic, melodic) ride on A (parallel to Aeolian)
 // since they're typically taught as altered natural-minor scales.
 //

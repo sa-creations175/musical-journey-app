@@ -515,7 +515,8 @@ export async function buildSkillRegistry(now: number = Date.now()): Promise<Skil
     }
   }
 
-  // Scales & Modes — split the 7 church modes from the harmonic /
+  // Scales & Modes — split the 7 modes of the major scale from the
+  // harmonic /
   // melodic minor variants so users can scan the two families
   // separately in the Catalogue.
   {
