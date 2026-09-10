@@ -20,6 +20,15 @@
 // DrillType rows lazily per interaction.
 
 import type { InversionState } from '../../lib/db';
+import {
+  EXTENDED_QUALITY_OF,
+  extendedShape,
+  isDominantExtended,
+  shapeInRun,
+  type ExtendedPosition,
+  type ExtendedQuality,
+  type ExtendedShape,
+} from '../../lib/extendedVoicings';
 import { sortByCircleOfFourths } from '../repertoire/circleOfFourths';
 
 export const KEYS = [
@@ -479,8 +488,28 @@ export interface VLChord {
    *  '1', '2', '4', '5', '6', 'b7'. */
   degree: string;
   /** Quality, as the deck writes it: '' (major triad), 'm7', 'maj7',
-   *  '7', 'm7b5', 'dim7', '7b9', '7#9#5'. */
+   *  '7', 'm7b5', 'dim7', '7b9', '7#9#5'. THE SEVENTH-CHORD READING —
+   *  see the header above. */
   quality: string;
+  /**
+   * The quality this chord takes on the EXTENDED VOICINGS row, when
+   * that is a different chord in each position.
+   *
+   * =====================================================================
+   * ONE ROW WHERE THE CHORD ITSELF CHANGES WITH THE POSITION, and it is
+   * the minor 2 5 1's 5. Silas's notes voice it as a 7♯5 in the ABA run
+   * and as a 7(♭9♯9♭13) in the BAB run — not two voicings of one chord
+   * but two chords, each written for one run and neither given a second
+   * position.
+   *
+   * OMITTED EVERYWHERE ELSE, and omitted is not a gap: every other
+   * chord's extended reading follows from its seventh-chord quality
+   * (`EXTENDED_QUALITY_OF`), so writing it out again would be a second
+   * copy that could disagree. `voiceLeadingExtendedRun` is the one
+   * place that reads either.
+   * =====================================================================
+   */
+  extendedQuality?: Readonly<Record<ExtendedPosition, string>>;
 }
 
 /** Diatonic-cycle starting position — three voicings of the 1 chord. */
@@ -722,7 +751,14 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     description: 'The iiø → V → i movement. Guide tones and extended voicings across two starting positions; seventh chords across three.',
     chords: [
       { degree: '2', quality: 'm7b5' },
-      { degree: '5', quality: '7' },
+      // THE 5 IS TWO DIFFERENT CHORDS ON THE EXTENDED ROW. The plain 7
+      // recorded on 9 Sep is the seventh-chord reading and stays that;
+      // Silas's notes voice this chord as a 7♯5 in the ABA run and as a
+      // 7(♭9♯9♭13) in the BAB run, and the extended row plays those.
+      {
+        degree: '5', quality: '7',
+        extendedQuality: { A: '7#5', B: '7b9#9b13' },
+      },
       { degree: '1', quality: 'm7' },
     ],
     types: [
@@ -1162,6 +1198,87 @@ export function voiceLeadingSubCellLabel(
     case 'inversion-4':
       return positionLabel(desc);
   }
+}
+
+/**
+ * One chord of an Extended Voicings run: which chord, which shape.
+ */
+export interface VLExtendedChord {
+  /** Degree of the key, as `VLChord` writes it. */
+  degree: string;
+  /** The extended chord this degree becomes. */
+  quality: ExtendedQuality;
+  /** Which of Silas's two shapes it takes in this run. */
+  position: ExtendedPosition;
+  /** The shape itself — left hand, right hand, and his degree names. */
+  shape: ExtendedShape;
+}
+
+/**
+ * The Extended Voicings row of a pattern, in one position.
+ *
+ * =====================================================================
+ * POSITION 1 IS THE ABA RUN AND POSITION 2 IS THE BAB RUN.
+ *
+ * That is what the two positions of an Extended Voicings row have
+ * always been; until now the row knew it only as a letter in an
+ * itemRef. Silas's notes lay both runs out chord by chord for the
+ * major and the minor 2 5 1, and `shapeInRun` is the one line those
+ * two runs come down to — the dominant takes the opposite letter to
+ * the chords either side of it. The 5 → 1 and the five named
+ * progressions are derived by that same rule, per Silas's brief.
+ *
+ * THE STORAGE TAG IS THE RUN. `A` is the ABA run, `B` the BAB one, and
+ * `positionLabel` is what turns either into the "Position 1" / "Position
+ * 2" a reader sees. Nothing new is stored.
+ *
+ * RETURNS NULL rather than voicing something Silas did not write:
+ * a pattern with no Extended Voicings row, a position that row does not
+ * have, or a chord whose quality the notes do not cover. A silent
+ * substitution here would be the app teaching a voicing off its own
+ * bat, which is the one thing this data exists to prevent.
+ * =====================================================================
+ */
+/** The one shape a quality has, or null when it has none or both. */
+function soleShapePosition(q: ExtendedQuality): ExtendedPosition | null {
+  const a = extendedShape(q, 'A') !== null;
+  const b = extendedShape(q, 'B') !== null;
+  if (a && !b) return 'A';
+  if (b && !a) return 'B';
+  return null;
+}
+
+export function voiceLeadingExtendedRun(
+  pattern: VoiceLeadingPattern,
+  position: ExtendedPosition,
+): VLExtendedChord[] | null {
+  if (pattern.kind !== 'type-position') return null;
+  const row = pattern.types.find(
+    t => t.type === 'full-voicing' || t.type === 'aba-structure',
+  );
+  if (!row || !row.positions.includes(position)) return null;
+
+  const out: VLExtendedChord[] = [];
+  for (const chord of pattern.chords) {
+    const named = chord.extendedQuality?.[position] ?? chord.quality;
+    const quality = EXTENDED_QUALITY_OF[named] as ExtendedQuality | undefined;
+    if (quality === undefined) return null;
+    // A CHORD WRITTEN FOR ONE RUN KEEPS THE SHAPE IT WAS WRITTEN WITH.
+    // The minor 2 5 1's 7♯5 exists only as the B of the ABA run and the
+    // 7(♭9♯9♭13) only as the A of the BAB one — each is one chord in one
+    // place, not a chord with two voicings — so a per-position quality
+    // takes the single shape the notes give it. `soleShapePosition`
+    // returns null the day one of them gains a second, which is the
+    // moment `shapeInRun` would have to decide instead.
+    const shapePosition = chord.extendedQuality?.[position] !== undefined
+      ? soleShapePosition(quality)
+      : shapeInRun(position, isDominantExtended(quality));
+    if (shapePosition === null) return null;
+    const shape = extendedShape(quality, shapePosition);
+    if (shape === null) return null;
+    out.push({ degree: chord.degree, quality, position: shapePosition, shape });
+  }
+  return out;
 }
 
 /**

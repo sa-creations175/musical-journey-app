@@ -1,0 +1,254 @@
+/**
+ * Silas's notes, checked note for note.
+ *
+ * =====================================================================
+ * THE TEST SPELLS THE CHORDS THE WAY THE NOTES DO.
+ *
+ * `~/cc-scratch/SILAS_NOTES_VOICINGS_AND_MODAL_INTERCHANGE.md` writes
+ * every voicing twice — once in degrees and once in letters, "1 + [b7,
+ * 9, 3, 13] or G + [F, A, B, E]". A test written in semitone offsets
+ * would restate the table it is checking and pass on any transcription
+ * slip that got into both. So the expectations here are the LETTERS,
+ * turned back into notes over a named root, which is the half of the
+ * notes the table was not typed from.
+ * =====================================================================
+ */
+import { describe, expect, it } from 'vitest';
+import {
+  EXTENDED_QUALITY_OF,
+  EXTENDED_VOICINGS,
+  extendedShape,
+  extendedTones,
+  isDominantExtended,
+  shapeInRun,
+  type ExtendedPosition,
+  type ExtendedQuality,
+} from '../extendedVoicings';
+import { CHORD_SEEDS } from '../../modules/ear-training/chord-recognition/seed';
+import { handTones } from '../builtAnswers/chordShapes';
+import { voicingFor } from '../../modules/ear-training/chord-progressions/progressionTheory';
+import {
+  VOICE_LEADING_PATTERN_BY_ID,
+  voiceLeadingExtendedRun,
+} from '../../modules/shapes-and-patterns/catalog';
+
+/** Flat names, which is the alphabet the notes are written in. */
+const NAMES = [
+  'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B',
+];
+const PC: Readonly<Record<string, number>> = Object.fromEntries(
+  NAMES.map((n, i) => [n, i]),
+);
+
+/** A list of semitones over a named root, spelled back out. */
+function over(root: string, tones: ReadonlyArray<number>): string[] {
+  return tones.map(t => NAMES[(PC[root] + t) % 12]);
+}
+
+/** One shape as Silas writes it: `left | right`. */
+function spell(
+  quality: ExtendedQuality, position: ExtendedPosition, root: string,
+): string {
+  const shape = extendedShape(quality, position)!;
+  return `${over(root, shape.left).join(' ')} | ${over(root, shape.right).join(' ')}`;
+}
+
+describe("the voicings are Silas's, note for note", () => {
+  it('stage 2 — the dominant 9(13)', () => {
+    // A: G + [B, E, F, A] · B: G + [F, A, B, E]
+    expect(spell('dom9-13', 'A', 'G')).toBe('G | B E F A');
+    expect(spell('dom9-13', 'B', 'G')).toBe('G | F A B E');
+  });
+
+  it('stage 4 — the dominant 7♯9♯5', () => {
+    // A: C + [E, Ab, Bb, Eb] · B: C + [Bb, Eb, E, Ab]
+    expect(spell('dom7#9#5', 'A', 'C')).toBe('C | E Ab Bb Eb');
+    expect(spell('dom7#9#5', 'B', 'C')).toBe('C | Bb Eb E Ab');
+  });
+
+  it('stage 6 — the minor 6/9', () => {
+    // A: C + [Eb, G, A, D] · B: C + [A, D, Eb, G]
+    expect(spell('m6-9', 'A', 'C')).toBe('C | Eb G A D');
+    expect(spell('m6-9', 'B', 'C')).toBe('C | A D Eb G');
+  });
+
+  it('stage 7 — the minor 9', () => {
+    // A: C + [Eb, G, Bb, D] · B: C + [Bb, D, Eb, G]
+    //
+    // THE B'S DEGREE LIST IN STAGE 7 IS A SLIP and the letters are the
+    // source: it reads `[b7, b3, 9, 5]` and then spells `Bb, D, Eb, G`,
+    // which is ♭7, 9, ♭3, 5. Stage 10 writes the same voicing again and
+    // agrees with the letters.
+    expect(spell('m9', 'A', 'C')).toBe('C | Eb G Bb D');
+    expect(spell('m9', 'B', 'C')).toBe('C | Bb D Eb G');
+    expect(EXTENDED_VOICINGS.m9.B!.rightDegrees).toEqual(['b7', '9', 'b3', '5']);
+  });
+
+  it('stage 8 — the major 9', () => {
+    // A: C + [E, G, B, D] · B: C + [B, D, E, G]
+    expect(spell('maj9', 'A', 'C')).toBe('C | E G B D');
+    expect(spell('maj9', 'B', 'C')).toBe('C | B D E G');
+  });
+
+  it('stage 10 — the minor 7♭5(11), whose left hand holds two notes', () => {
+    // A: [D + G] + [Ab, C, F] · B: [D + Ab] + [C, F, G]
+    expect(spell('m7b5-11', 'A', 'D')).toBe('D G | Ab C F');
+    expect(spell('m7b5-11', 'B', 'D')).toBe('D Ab | C F G');
+    expect(EXTENDED_VOICINGS['m7b5-11'].A!.left).toHaveLength(2);
+    expect(EXTENDED_VOICINGS['m7b5-11'].B!.left).toHaveLength(2);
+  });
+
+  it('stage 10 — the two dominants of the minor 2 5 1, one position each', () => {
+    // Dom7♯5 B: G + [F, B, Eb] · Dom7(♭9♯9♭13) A: [G + D + Ab] + [B, Eb, F, Bb]
+    expect(spell('dom7#5', 'B', 'G')).toBe('G | F B Eb');
+    expect(spell('dom7b9#9b13', 'A', 'G')).toBe('G D Ab | B Eb F Bb');
+    // ONE POSITION EACH, and the absence is the point: each is written
+    // for one run, so there is no second voicing of it to hand out.
+    expect(extendedShape('dom7#5', 'A')).toBeNull();
+    expect(extendedShape('dom7b9#9b13', 'B')).toBeNull();
+  });
+
+  it('never voices a note twice and always ascends', () => {
+    // A SWEEP, so a row typed in later cannot arrive out of order or
+    // with the same key pressed by both hands.
+    for (const [quality, voicing] of Object.entries(EXTENDED_VOICINGS)) {
+      for (const [position, shape] of Object.entries(voicing)) {
+        const all = extendedTones(shape);
+        const where = `${quality} ${position}`;
+        expect(new Set(all).size, where).toBe(all.length);
+        expect([...all].sort((a, b) => a - b), where).toEqual(all);
+      }
+    }
+  });
+});
+
+describe('the runs', () => {
+  it('flips the dominant and leaves everything else', () => {
+    expect(shapeInRun('A', false)).toBe('A');
+    expect(shapeInRun('A', true)).toBe('B');
+    expect(shapeInRun('B', false)).toBe('B');
+    expect(shapeInRun('B', true)).toBe('A');
+    expect(isDominantExtended('dom9-13')).toBe(true);
+    expect(isDominantExtended('m9')).toBe(false);
+  });
+
+  /** A pattern's Extended Voicings row, spelled in one key. */
+  function run(patternId: string, position: ExtendedPosition, roots: string[]) {
+    const pattern = VOICE_LEADING_PATTERN_BY_ID.get(patternId)!;
+    const chords = voiceLeadingExtendedRun(pattern, position)!;
+    expect(chords).toHaveLength(roots.length);
+    return chords.map((c, i) => (
+      `${over(roots[i], c.shape.left).join(' ')} | `
+      + `${over(roots[i], c.shape.right).join(' ')}`
+    ));
+  }
+
+  it('reads the major 2 5 1 exactly as stage 9 writes it', () => {
+    // ABA — A: D + [F, A, C, E] · B: G + [F, A, B, E] · A: C + [E, G, B, D]
+    expect(run('major-251', 'A', ['D', 'G', 'C'])).toEqual([
+      'D | F A C E', 'G | F A B E', 'C | E G B D',
+    ]);
+    // BAB — B: D + [C, E, F, A] · A: G + [B, E, F, A] · B: C + [B, D, E, G]
+    expect(run('major-251', 'B', ['D', 'G', 'C'])).toEqual([
+      'D | C E F A', 'G | B E F A', 'C | B D E G',
+    ]);
+  });
+
+  it('reads the minor 2 5 1 exactly as stage 10 writes it', () => {
+    // ABA — [D + G] + [Ab, C, F] · G + [F, B, Eb] · C + [Eb, G, Bb, D]
+    expect(run('minor-251', 'A', ['D', 'G', 'C'])).toEqual([
+      'D G | Ab C F', 'G | F B Eb', 'C | Eb G Bb D',
+    ]);
+    // BAB — [D + Ab] + [C, F, G] · [G + D + Ab] + [B, Eb, F, Bb]
+    //       · C + [Bb, D, Eb, G]
+    expect(run('minor-251', 'B', ['D', 'G', 'C'])).toEqual([
+      'D Ab | C F G', 'G D Ab | B Eb F Bb', 'C | Bb D Eb G',
+    ]);
+  });
+
+  it('gives the minor 2 5 1 a different 5 in each position', () => {
+    // The plain 7 is the SEVENTH-CHORD reading and stays; the extended
+    // row plays the two chords Silas wrote for the two runs.
+    const pattern = VOICE_LEADING_PATTERN_BY_ID.get('minor-251')!;
+    expect(pattern.chords[1].quality).toBe('7');
+    expect(voiceLeadingExtendedRun(pattern, 'A')![1].quality).toBe('dom7#5');
+    expect(voiceLeadingExtendedRun(pattern, 'B')![1].quality)
+      .toBe('dom7b9#9b13');
+  });
+
+  it('derives the 5 → 1 and the five named progressions the same way', () => {
+    // Position 1 = the ABA run: the dominant takes B, the rest take A.
+    const five = voiceLeadingExtendedRun(
+      VOICE_LEADING_PATTERN_BY_ID.get('five-one')!, 'A',
+    )!;
+    expect(five.map(c => `${c.quality}:${c.position}`))
+      .toEqual(['dom9-13:B', 'maj9:A']);
+    const backdoor = voiceLeadingExtendedRun(
+      VOICE_LEADING_PATTERN_BY_ID.get('backdoor')!, 'B',
+    )!;
+    // Position 2 = the BAB run, the other way round.
+    expect(backdoor.map(c => c.position).every(p => p === 'B' || p === 'A'))
+      .toBe(true);
+    expect(new Set(backdoor.map(c => c.quality)).has('dom9-13')).toBe(true);
+  });
+
+  it('has no run where the page draws no Extended Voicings row', () => {
+    for (const id of ['diatonic-cycle', 'minor-aba', 'dom7b9', 'dim7']) {
+      const pattern = VOICE_LEADING_PATTERN_BY_ID.get(id)!;
+      expect(voiceLeadingExtendedRun(pattern, 'A'), id).toBeNull();
+      expect(voiceLeadingExtendedRun(pattern, 'B'), id).toBeNull();
+    }
+  });
+});
+
+describe('one table, and the players read it', () => {
+  it("the built-answer full rung is Silas's A shape", () => {
+    // THE DOMINANT IS THE ONE THAT MOVED: the rung stacked 3-5-7-9 and
+    // Silas's dominant holds the 13 where that had the 5.
+    expect(handTones('7', 'full')).toEqual([4, 9, 10, 14]);
+    expect(handTones('9', 'full')).toEqual([4, 9, 10, 14]);
+    // The major and the minor were already right, and still are.
+    expect(handTones('maj7', 'full')).toEqual([4, 7, 11, 14]);
+    expect(handTones('m7', 'full')).toEqual([3, 7, 10, 14]);
+    expect(handTones('7#9#5', 'full')).toEqual([4, 8, 10, 15]);
+    // The right hand only — the half-diminished's second left-hand note
+    // is the bass's, not the hand's.
+    expect(handTones('m7b5', 'full')).toEqual([6, 10, 15]);
+  });
+
+  it('keeps a quality the notes do not cover, and its own ninth', () => {
+    // A 7♭9 stacked 3-5-7 and handed a 14 would lose the ♭9 that IS the
+    // chord and gain a natural 9 a semitone off it.
+    expect(handTones('7b9', 'full')).toEqual([4, 7, 10, 13]);
+    // A plain triad has no seventh to build on, so the rung stacks the
+    // octave — unchanged.
+    expect(handTones('', 'full')).toEqual([4, 7, 12]);
+  });
+
+  it("the ear-training jazz rung is the same table", () => {
+    expect(voicingFor('dominant', 'jazz')).toEqual([0, 4, 9, 10, 14]);
+    expect(voicingFor('major', 'jazz')).toEqual([0, 4, 7, 11, 14]);
+    expect(voicingFor('minor', 'jazz')).toEqual([0, 3, 7, 10, 14]);
+    expect(voicingFor('half-dim', 'jazz')).toEqual([0, 5, 6, 10, 15]);
+    expect(voicingFor('dom7#9#5', 'jazz')).toEqual([0, 4, 8, 10, 15]);
+  });
+
+  it('agrees with what chord recognition teaches a 7♯9♯5 is', () => {
+    // The ladder used to read this off `CHORD_SEEDS` and now reads the
+    // notes. Both still say the same chord, and this is what fails the
+    // day they stop.
+    const seed = CHORD_SEEDS.find(s => s.id === 'dom7#9#5')!;
+    expect(extendedTones(extendedShape('dom7#9#5', 'A')!))
+      .toEqual([...seed.intervals]);
+  });
+
+  it('translates the deck\'s quality strings once', () => {
+    expect(EXTENDED_QUALITY_OF.maj7).toBe('maj9');
+    expect(EXTENDED_QUALITY_OF['7']).toBe('dom9-13');
+    expect(EXTENDED_QUALITY_OF.m7b5).toBe('m7b5-11');
+    // A quality with no extended voicing in the notes has no entry, and
+    // its callers keep their own rule.
+    expect(EXTENDED_QUALITY_OF.dim7).toBeUndefined();
+    expect(EXTENDED_QUALITY_OF['7b9']).toBeUndefined();
+  });
+});

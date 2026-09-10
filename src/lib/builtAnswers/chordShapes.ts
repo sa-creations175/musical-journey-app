@@ -31,6 +31,8 @@
  * =====================================================================
  */
 
+import { EXTENDED_QUALITY_OF, extendedShape } from '../extendedVoicings';
+
 /**
  * The suffix a chord's name carries. '' is a plain major triad.
  *
@@ -297,6 +299,36 @@ export function hasBass(v: Voicing | Thickness): boolean {
 }
 
 /**
+ * The full-voicing rung of one quality, or null.
+ *
+ * =====================================================================
+ * THE TOP RUNG IS SILAS'S, AND IT IS READ, NOT REBUILT.
+ *
+ * `lib/extendedVoicings` holds his notes for every extended chord this
+ * app plays. This rung used to stack 3-5-7-9 by rule, which is right
+ * for the major and the minor and WRONG for the dominant: Silas's
+ * dominant extended voicing holds the 13 where the rule put the 5.
+ * Three files each had their own idea of that and one of them has to be
+ * the answer, so this one asks.
+ *
+ * THE A SHAPE, because a card with no position control is playing the
+ * ABA run's outer chords, and A is what those take. The B shape and the
+ * runs arrive with the shared player's Compare row.
+ *
+ * NULL for a quality the notes do not cover — the caller keeps its own
+ * rule there rather than being handed a chord Silas never wrote.
+ */
+function extendedHand(q: QualityId): number[] | null {
+  const named = EXTENDED_QUALITY_OF[q];
+  if (named === undefined) return null;
+  const shape = extendedShape(named, 'A');
+  // The left hand's extra notes are the BASS's, not the hand's — the
+  // half-diminished holds its 11 down there — so only the right hand
+  // is this function's answer.
+  return shape === null ? null : [...shape.right];
+}
+
+/**
  * The notes the HAND plays, as semitones above the chord root.
  *
  * Takes either a hand layout (while the reader is building) or a
@@ -320,7 +352,18 @@ export function handTones(q: QualityId, mode: Voicing | Thickness): number[] {
       return seventh ? [iv[1], iv[3]] : [iv[1], iv[2]];
     case 'seventh':
       return seventh ? [iv[1], iv[2], iv[3]] : iv.slice(0, 3);
-    case 'full':
-      return seventh ? [iv[1], iv[2], iv[3], 14] : [iv[1], iv[2], iv[0] + 12];
+    case 'full': {
+      const extended = extendedHand(q);
+      if (extended !== null) return extended;
+      // A QUALITY THE NOTES DO NOT COVER KEEPS ITS OWN NINTH RATHER
+      // THAN BEING GIVEN ONE. A 7♭9 stacked 3-5-7 and then handed a 14
+      // loses the ♭9 that IS the chord and gains a natural 9 a semitone
+      // off it — the ruling `NINTH_OF` already states, applied here
+      // where the rung is actually built.
+      if (seventh) {
+        return iv.length > 4 ? iv.slice(1) : [iv[1], iv[2], iv[3], 14];
+      }
+      return [iv[1], iv[2], iv[0] + 12];
+    }
   }
 }

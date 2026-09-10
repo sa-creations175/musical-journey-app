@@ -2,6 +2,9 @@ import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
 import { CHORD_SEEDS } from '../chord-recognition/seed';
 import type { ChordQuality } from './catalog';
 import { DEFAULT_SPELLING, pitchClassOf, spellNote, type Spelling } from '../../../lib/spelling';
+import {
+  extendedShape, extendedTones, type ExtendedQuality,
+} from '../../../lib/extendedVoicings';
 
 export const KEYS: readonly string[] = [
   'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
@@ -66,10 +69,38 @@ function seedIntervals(id: string): number[] {
   return [...seed.intervals];
 }
 
+/**
+ * The top rung of one quality, out of Silas's notes.
+ *
+ * =====================================================================
+ * THE JAZZ RUNG IS A VOICING, AND SILAS WROTE THE VOICINGS DOWN.
+ *
+ * `lib/extendedVoicings` is that transcription and it is now the one
+ * place this app says what an extended chord holds. Two of these rows
+ * were already right and one was not: the dominant's jazz rung stacked
+ * 0-4-7-10-14, and Silas's dominant 9(13) holds the 13 where that has
+ * the 5 — `G + [B, E, F, A]`, which is 0-4-9-10-14. The half-diminished
+ * gains its 11 and the two-note left hand that comes with it.
+ *
+ * THE A SHAPE, because the rung has no position control: A is what the
+ * outer chords of the ABA run take, and a run is the shared player's to
+ * offer.
+ *
+ * IT THROWS on a quality it was asked for and cannot find, for the same
+ * reason `seedIntervals` does — a fallback here would sound a chord the
+ * notes do not contain.
+ * =====================================================================
+ */
+function extendedIntervals(named: ExtendedQuality): number[] {
+  const shape = extendedShape(named, 'A');
+  if (!shape) throw new Error(`no A-position extended voicing for "${named}"`);
+  return extendedTones(shape);
+}
+
 const VOICINGS: Record<ChordQuality, Record<Complexity, number[]>> = {
-  major:      { triad: [0, 4, 7],     seventh: [0, 4, 7, 11],  jazz: [0, 4, 7, 11, 14] },
-  minor:      { triad: [0, 3, 7],     seventh: [0, 3, 7, 10],  jazz: [0, 3, 7, 10, 14] },
-  dominant:   { triad: [0, 4, 7],     seventh: [0, 4, 7, 10],  jazz: [0, 4, 7, 10, 14] },
+  major:      { triad: [0, 4, 7],     seventh: [0, 4, 7, 11],  jazz: extendedIntervals('maj9') },
+  minor:      { triad: [0, 3, 7],     seventh: [0, 3, 7, 10],  jazz: extendedIntervals('m9') },
+  dominant:   { triad: [0, 4, 7],     seventh: [0, 4, 7, 10],  jazz: extendedIntervals('dom9-13') },
   // THE ALTERED TONES LIVE ON THE TOP RUNG ONLY, which is Silas's
   // ruling of 9 Sep 2026 and is also what the ladder already means
   // everywhere else: "triads" is the plain major triad the hand would
@@ -77,10 +108,19 @@ const VOICINGS: Record<ChordQuality, Record<Complexity, number[]>> = {
   // ♭9 or the ♯9♯5 arrives with "full voicing". A reader on the
   // triads rung is not being told the chord is a plain major; they are
   // being played the rung they asked for.
+  //
+  // THE ♭9 IS THE ONE ALTERED DOMINANT SILAS'S NOTES DO NOT WRITE OUT
+  // on its own — they give the 7♯9♯5 and, inside the minor 2 5 1, the
+  // 7♯5 and the 7(♭9♯9♭13) — so the plain ♭9 keeps reading the
+  // chord-recognition seed. A test asserts the 7♯9♯5's two sources
+  // still agree, which is what that seed is for.
   dom7b9:     { triad: [0, 4, 7],     seventh: [0, 4, 7, 10],  jazz: seedIntervals('dom7b9') },
-  'dom7#9#5': { triad: [0, 4, 7],     seventh: [0, 4, 7, 10],  jazz: seedIntervals('dom7#9#5') },
+  'dom7#9#5': { triad: [0, 4, 7],     seventh: [0, 4, 7, 10],  jazz: extendedIntervals('dom7#9#5') },
   diminished: { triad: [0, 3, 6],     seventh: [0, 3, 6, 9],   jazz: [0, 3, 6, 9] },
-  'half-dim': { triad: [0, 3, 6, 10], seventh: [0, 3, 6, 10],  jazz: [0, 3, 6, 10, 13] },
+  // THE HALF-DIMINISHED IS THE m7♭5(11) — Silas's `[1 + 11] + [♯4, ♭7,
+  // ♭3]`, left hand and right hand run together, because this rung
+  // sounds one list of intervals over one root.
+  'half-dim': { triad: [0, 3, 6, 10], seventh: [0, 3, 6, 10],  jazz: extendedIntervals('m7b5-11') },
   augmented:  { triad: [0, 4, 8],     seventh: [0, 4, 8, 10],  jazz: [0, 4, 8, 10, 14] },
 };
 
