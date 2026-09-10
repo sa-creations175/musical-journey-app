@@ -60,7 +60,8 @@ import {
   type DegreeLabel, type Direction, type Motion,
 } from './chordMotionPool';
 import { motionChords } from './motionChords';
-import { degreeChips, degreePc } from './motionDegrees';
+import { chipText, degreeChips, degreeOfPc, degreePc } from './motionDegrees';
+import { motionResult, type MotionResultTone } from './motionResult';
 import { spellKey } from '../../../lib/spelling';
 import { useSpelling } from '../../../lib/spellingPref';
 import { useProgressionSpelling } from '../../../lib/progressionSpelling';
@@ -232,6 +233,28 @@ interface Props {
 
 type Phase = 'idle' | 'answering' | 'reveal';
 
+/** What the reader answered, kept for the result line. */
+interface Answered {
+  startOk: boolean;
+  destOk: boolean;
+  /** Null when the start was given rather than answered. */
+  yourStart: DegreeLabel | null;
+  yourDest: DegreeLabel;
+}
+
+/**
+ * The result box's colour, from the status palette.
+ *
+ * HALF RIGHT WEARS WORKING ON IT, because that is what it rates — the
+ * box and the rating word beside the verdict are one colour, not two
+ * that happen to be near each other.
+ */
+const RESULT_TONE: Readonly<Record<MotionResultTone, string>> = {
+  right: statusColour('fluent').badge,
+  half: statusColour('developing').badge,
+  wrong: statusColour('needs-work').badge,
+};
+
 interface Round {
   motion: Motion;
   key: string;
@@ -268,6 +291,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   const [pickedDest, setPickedDest] = useState<DegreeLabel | null>(null);
   const [tappedStart, setTappedStart] = useState<number | null>(null);
   const [feel, setFeel] = useState<1 | 2 | 3 | 4 | null>(null);
+  const [answered, setAnswered] = useState<Answered | null>(null);
   const [lit, setLit] = useState<number | null>(null);
 
   const replays = useRef(0);
@@ -361,6 +385,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     setPickedDest(null);
     setTappedStart(null);
     setFeel(null);
+    setAnswered(null);
     setRung(DEFAULT_RUNG);
     await play(next, false);
   };
@@ -404,6 +429,14 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
       aided,
     });
     setFeel(f);
+    // THE ANSWER IS KEPT AS DEGREES whichever way it was given. A piano
+    // tap is a pitch class, and the line names it as the degree it is.
+    setAnswered({
+      startOk,
+      destOk,
+      yourStart: startPc === null ? null : degreeOfPc(r.keyPc, startPc),
+      yourDest: degreeOfPc(r.keyPc, destPc),
+    });
     setPhase('reveal');
     // NOTHING PLAYS ON THE REVEAL. The shared panel owns the transport
     // from here — its Hear it, its Pause, its Resume — and a second
@@ -521,6 +554,17 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     : FEEL_OPTIONS.find(o => o.feel === feel)?.label ?? '';
   const feelClass = feel === null
     ? '' : statusColour(STATUS_FOR_FEEL[feel]).text;
+  const result = round === null || answered === null
+    ? null
+    : motionResult({
+      startOk: answered.startOk,
+      destOk: answered.destOk,
+      start: chipText(round.motion.startLabel, rowSpelling),
+      dest: chipText(round.motion.destLabel, rowSpelling),
+      yourStart: answered.yourStart === null
+        ? null : chipText(answered.yourStart, rowSpelling),
+      yourDest: chipText(answered.yourDest, rowSpelling),
+    });
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
@@ -738,6 +782,17 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
           {phase === 'reveal' && (
             <div className="space-y-3">
+              {/* WHICH HALF WAS RIGHT, in the chips' own words. */}
+              {result !== null && (
+                <p
+                  data-testid="motion-result"
+                  data-tone={result.tone}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${RESULT_TONE[result.tone]}`}
+                >
+                  {result.text}
+                </p>
+              )}
+
               {/* THE VERDICT, with the rating word in its own status
                   colour — the same colour that word wears on every grid
                   in the app. */}

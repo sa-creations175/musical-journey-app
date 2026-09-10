@@ -58,15 +58,44 @@ export function degreeChips(
     .filter(e => chromatic || e.diatonic)
     .map(e => ({
       label: e.label,
-      text: `${e.label.replace(/b/g, '♭').replace(/#/g, '♯')}`
-        + qualitySuffix(SUFFIX_QUALITY[e.quality] ?? 'maj7',
-          settings ? { settings } : {}),
+      text: chipText(e.label, settings),
       diatonic: e.diatonic,
     }));
+}
+
+/**
+ * What a degree's chip says: "1", "2m", "♯4°".
+ *
+ * ONE SPELLING FOR THE CHIP AND EVERY LINE THAT NAMES IT. The result
+ * line and the verdict say "the 4m", not "the 4" or "B♭m7", so a reader
+ * checks their answer against the same words they tapped.
+ */
+export function chipText(
+  label: DegreeLabel,
+  settings?: ProgressionSpelling,
+): string {
+  const entry = DEGREE_TABLE.find(e => e.label === label);
+  return label.replace(/b/g, '♭').replace(/#/g, '♯')
+    + qualitySuffix(SUFFIX_QUALITY[entry?.quality ?? 'major'] ?? 'maj7',
+      settings ? { settings } : {});
 }
 
 /** A degree's pitch class in a key. */
 export function degreePc(keyPc: number, label: DegreeLabel): number {
   const entry = DEGREE_TABLE.find(e => e.label === label);
   return (((keyPc + (entry?.semi ?? 0)) % 12) + 12) % 12;
+}
+
+/**
+ * The degree a tapped key is, in a key.
+ *
+ * THE PIANO ANSWERS WITH A NOTE, AND THE RESULT LINE NAMES IT AS A
+ * DEGREE. "It landed on the 4, not the 5" — never "not the C", because
+ * the card's question is which degree, and a letter would make the
+ * reader translate their own answer back before they could read it.
+ * Every pitch class has exactly one entry in the table.
+ */
+export function degreeOfPc(keyPc: number, pc: number): DegreeLabel {
+  const semi = (((pc - keyPc) % 12) + 12) % 12;
+  return DEGREE_TABLE.find(e => e.semi === semi)?.label ?? '1';
 }
