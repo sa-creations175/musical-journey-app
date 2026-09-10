@@ -16,27 +16,57 @@
  *   value is its own band: struggled / working on it / comfortable /
  *   in flow.
  *
- *   ACCURACY is measured and continuous. Below 50 is getting half of
- *   them wrong and reads as failing. 85 rather than 100 for green
- *   because demanding perfect accuracy makes the top band unreachable,
- *   and 85+ is the practical equivalent of "this holds up".
+ *   ACCURACY is measured and continuous, and its four cut-offs are the
+ *   app's own rating bands — see `lib/ratingRules`.
+ *
+ * =====================================================================
+ * THIS COLUMN USED TO GRADE 50 / 70 / 85, AND THAT WAS THE SECOND
+ * LADDER.
+ *
+ * `lib/tier.ts` graded 50 / 80 and called the results Needs Work,
+ * Developing, Fluent and Mastered; this file graded 50 / 70 / 85 and
+ * painted them red, amber, lime and green. One item, two screens, two
+ * answers — and each file was right about itself, which is what made it
+ * invisible. Silas's ruling of 25 Aug 2026, brought into the code on
+ * 10 Sep: there is one ladder, and it is 60 / 80 / 95.
+ *
+ * So the colours are unchanged and the numbers behind them are imported
+ * rather than chosen here. A red cell now means Needs Work in the exact
+ * sense the rest of the app means it.
+ * =====================================================================
  *
  * Early practice will look like a wall of red. That is honest, and the
  * same principle as the screen opening nearly empty.
  */
 import { FEEL_OPTIONS } from '../../lib/fluencyScale';
+import { RATING_BANDS, bandPercent } from '../../lib/ratingRules';
 import { FLUENCY_POOL_RULE } from '../../lib/fluencyPool';
 import type { AccuracyKind } from './read/itemStats';
 
 export type Band = 'red' | 'amber' | 'yellow-green' | 'green';
 
-/** Lower bound of each accuracy band, highest first. */
-const ACCURACY_BANDS: ReadonlyArray<{ min: number; band: Band }> = [
-  { min: 85, band: 'green' },
-  { min: 70, band: 'yellow-green' },
-  { min: 50, band: 'amber' },
-  { min: 0, band: 'red' },
-];
+/**
+ * Lower bound of each accuracy band, highest first.
+ *
+ * DERIVED FROM `RATING_BANDS`, never retyped. The colours are this
+ * screen's and the numbers are the app's, so moving a threshold moves
+ * this column, `computeTier`, both legends and every band word in one
+ * edit — which is the whole reason the two ladders could drift.
+ */
+const BAND_FOR_RATING: Readonly<Record<
+  typeof RATING_BANDS[number]['key'], Band
+>> = {
+  mastered: 'green',
+  fluent: 'yellow-green',
+  developing: 'amber',
+  needsWork: 'red',
+};
+
+const ACCURACY_BANDS: ReadonlyArray<{ min: number; band: Band }> =
+  RATING_BANDS.map(({ key, floor }) => ({
+    min: bandPercent(floor),
+    band: BAND_FOR_RATING[key],
+  }));
 
 /** One band per fluency value, in scale order. */
 const FLUENCY_BANDS: ReadonlyArray<{ value: number; band: Band }> = [

@@ -120,7 +120,8 @@ describe('the four cells', () => {
   });
 
   it('carries the band as data, so a colour class cannot drift from it', () => {
-    for (const [value, band] of [[40, 'red'], [60, 'amber'], [75, 'yellow-green'], [90, 'green']] as const) {
+    // 60 / 80 / 95 — the app's one ladder, since 10 Sep 2026.
+    for (const [value, band] of [[40, 'red'], [60, 'amber'], [80, 'yellow-green'], [95, 'green']] as const) {
       const el = render(
         <TreeRow node={leaf({ score: value })} moduleId="intervals" now={NOW} expanded={false} />,
       );

@@ -52,7 +52,7 @@ describe('focus-protected reps set freshness — the §1.12 divergence', () => {
     expect(last).toBe(NOW - DAY);
   });
 
-  it('does not let focus practice tip a fluent item into stale', () => {
+  it('does not let focus practice tip a graded item into stale', () => {
     // 10 correct 40 days ago would be stale on its own. A focus rep
     // yesterday means the player HAS been drilling it. Under the old
     // aggregation behaviour this read `stale`.
@@ -63,7 +63,12 @@ describe('focus-protected reps set freshness — the §1.12 divergence', () => {
       ...old,
       attempt({ timestamp: NOW - DAY, excludeFromFluency: true }),
     ];
-    expect(tierAndLastFromAttempts(withFocusRep, NOW).tier).toBe('fluent');
+    // MASTERED RATHER THAN FLUENT SINCE 10 SEP 2026. Ten out of ten is
+    // 100%, which clears the 95% band; the top band used to demand a
+    // full window of twenty with nothing wrong. What this test is
+    // about — that a focus rep keeps the item off the stale pile — is
+    // unchanged.
+    expect(tierAndLastFromAttempts(withFocusRep, NOW).tier).toBe('mastered');
   });
 
   it('still keeps focus reps out of the accuracy window', () => {

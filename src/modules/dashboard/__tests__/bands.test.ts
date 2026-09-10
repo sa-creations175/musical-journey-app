@@ -26,14 +26,23 @@ import {
   type ColumnTopic,
 } from '../bands';
 import { FEEL_OPTIONS, fluencyValue } from '../../../lib/fluencyScale';
+import { RATING_BANDS, bandPercent } from '../../../lib/ratingRules';
 
 describe('accuracy bands', () => {
   it('places each cut-off on the right side', () => {
+    // =================================================================
+    // 60 / 80 / 95, WHICH IS THE APP'S ONE LADDER.
+    //
+    // This column graded 50 / 70 / 85 and `lib/tier.ts` graded 50 / 80,
+    // so one item could be amber here and Developing there. Silas's
+    // ruling of 25 Aug 2026, in the code since 10 Sep: the four bands
+    // live in `lib/ratingRules` and both readers import them.
+    // =================================================================
     const cases: Array<[number, string]> = [
-      [0, 'red'], [49, 'red'], [49.9, 'red'],
-      [50, 'amber'], [69, 'amber'], [69.9, 'amber'],
-      [70, 'yellow-green'], [84, 'yellow-green'], [84.9, 'yellow-green'],
-      [85, 'green'], [100, 'green'],
+      [0, 'red'], [59, 'red'], [59.9, 'red'],
+      [60, 'amber'], [79, 'amber'], [79.9, 'amber'],
+      [80, 'yellow-green'], [94, 'yellow-green'], [94.9, 'yellow-green'],
+      [95, 'green'], [100, 'green'],
     ];
     for (const [score, band] of cases) {
       expect(bandFor(score, 'measured'), `${score}`).toBe(band);
@@ -41,10 +50,24 @@ describe('accuracy bands', () => {
   });
 
   it('makes green reachable without perfection', () => {
-    // 85 rather than 100: demanding perfect accuracy makes the top
-    // band unreachable, and 85+ is the practical "this holds up".
-    expect(bandFor(85, 'measured')).toBe('green');
-    expect(bandFor(99, 'measured')).toBe('green');
+    // 95 rather than 100. The top band used to be a claim about
+    // PERFECTION over a full window of twenty, which one wrong answer
+    // in the twentieth attempt threw away.
+    expect(bandFor(95, 'measured')).toBe('green');
+    expect(bandFor(100, 'measured')).toBe('green');
+    expect(bandFor(94.9, 'measured')).not.toBe('green');
+  });
+
+  it('takes its numbers from the shared rules rather than its own', () => {
+    // Guard the guard: the cases above would still pass on a second
+    // copy of the numbers typed into this file.
+    for (const { key, floor } of RATING_BANDS) {
+      const at = bandPercent(floor);
+      expect(bandFor(at, 'measured'), key).toBe(
+        { mastered: 'green', fluent: 'yellow-green',
+          developing: 'amber', needsWork: 'red' }[key],
+      );
+    }
   });
 });
 
@@ -91,11 +114,18 @@ describe('fluency bands', () => {
   });
 
   it('bands the same number differently from accuracy', () => {
-    // The whole reason there are two legends. 70 is yellow-green
-    // measured and amber self-rated.
-    expect(bandFor(70, 'measured')).toBe('yellow-green');
+    // The whole reason there are two legends. 80 is yellow-green
+    // measured and amber self-rated — a rating of "comfortable" is 75
+    // and 80 has not reached the next rung.
+    expect(bandFor(80, 'measured')).toBe('yellow-green');
+    expect(bandFor(80, 'self-rated')).toBe('yellow-green');
+    expect(bandFor(70, 'measured')).toBe('amber');
     expect(bandFor(70, 'self-rated')).toBe('amber');
-    expect(bandFor(60, 'measured')).toBe('amber');
+    expect(bandFor(100, 'measured')).toBe('green');
+    expect(bandFor(95, 'measured')).toBe('green');
+    // And 95 self-rated is still only "comfortable": the scale has no
+    // rung between 75 and 100, so it rounds down to the one earned.
+    expect(bandFor(95, 'self-rated')).toBe('yellow-green');
     expect(bandFor(40, 'measured')).toBe('red');
     expect(bandFor(40, 'self-rated')).toBe('red');
   });
@@ -143,10 +173,10 @@ describe('legends', () => {
     // function does not use is worse than no legend: it is a confident,
     // WRONG account of a colour the reader can see for themselves.
     //
-    // Asserted at both edges, because "85 is green" alone passes even if
-    // 84 is green too — which would make the stated boundary fiction.
+    // Asserted at both edges, because "95 is green" alone passes even if
+    // 94 is green too — which would make the stated boundary fiction.
     expect(ACCURACY_LEGEND.map(e => e.label))
-      .toEqual(['below 50%', '50–69%', '70–84%', '85%+']);
+      .toEqual(['below 60%', '60–79%', '80–94%', '95%+']);
     for (const entry of ACCURACY_LEGEND) {
       expect(bandFor(entry.value, 'measured'), entry.label).toBe(entry.band);
       if (entry.value > 0) {

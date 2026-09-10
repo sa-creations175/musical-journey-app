@@ -947,8 +947,8 @@ describe('the column rules, asked for from the column', () => {
     click(help(el, 'score'));
     const text = panel(el)!.textContent!;
     expect(text).toContain('comfortable');
-    expect(text).toContain('below 50%');
-    expect(text).toContain('85%+');
+    expect(text).toContain('below 60%');
+    expect(text).toContain('95%+');
   });
 });
 

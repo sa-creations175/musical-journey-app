@@ -18,6 +18,9 @@ import {
   computeTier,
   type Tier,
 } from '../tier';
+import {
+  MEASURED_RATING_FLOOR, RATING_BANDS, RATING_WINDOW,
+} from '../ratingRules';
 
 const tier = (windowCorrect: number, windowTotal: number, days: number | null = 0): Tier =>
   computeTier({ windowCorrect, windowTotal, daysSinceLastAttempt: days });
@@ -40,8 +43,26 @@ describe('the split under the grade line', () => {
   });
 
   it('grades from the minimum up, and never says started there', () => {
-    expect(tier(MIN_ATTEMPTS_FOR_TIER, MIN_ATTEMPTS_FOR_TIER)).toBe('fluent');
+    // MASTERED, NOT FLUENT, SINCE 10 SEP 2026. Five out of five is
+    // 100% and the top band is 95% of the window — it used to demand
+    // a full twenty with nothing wrong.
+    expect(tier(MIN_ATTEMPTS_FOR_TIER, MIN_ATTEMPTS_FOR_TIER)).toBe('mastered');
     expect(tier(0, MIN_ATTEMPTS_FOR_TIER)).toBe('needsWork');
+  });
+
+  it('grades a self-rated drill from three', () => {
+    // TWO FLOORS, AND THE GAP IS THE POINT. A measured answer can be
+    // lucky; a self-rated rep is a judgement the player made about a
+    // shape they just played, and three of those is a rating.
+    const selfRated = (correct: number, total: number) => computeTier({
+      windowCorrect: correct, windowTotal: total,
+      daysSinceLastAttempt: 0, kind: 'self-rated',
+    });
+    expect(selfRated(3, 3)).toBe('mastered');
+    expect(selfRated(2, 3)).toBe('developing');
+    expect(selfRated(2, 2)).toBe('started');
+    // And a measured drill at the same count is still ungraded.
+    expect(tier(3, 3)).toBe('started');
   });
 
   it('does not let a perfect run below the minimum read as fluent', () => {
@@ -50,12 +71,44 @@ describe('the split under the grade line', () => {
   });
 });
 
-describe('the graded bands are unchanged', () => {
-  it('keeps the four accuracy grades where they were', () => {
+describe('the four bands are the ruling', () => {
+  /**
+   * =====================================================================
+   * UNDER 60 · 60–79 · 80–94 · 95 AND UP.
+   *
+   * Rules of the Game, 25 Aug 2026, in the code since 10 Sep. This file
+   * used to be headed "the graded bands are unchanged" and asserted
+   * 50 / 80 with Mastered reserved for a perfect window of twenty.
+   *
+   * Both edges of every band, because "80 is fluent" alone passes on a
+   * function where 79 is fluent too.
+   * =====================================================================
+   */
+  it('puts every cut-off on the right side', () => {
+    for (const [correct, band] of [
+      [0, 'needsWork'], [11, 'needsWork'],     // 55%
+      [12, 'developing'], [15, 'developing'],  // 60% .. 75%
+      [16, 'fluent'], [18, 'fluent'],          // 80% .. 90%
+      [19, 'mastered'], [20, 'mastered'],      // 95% .. 100%
+    ] as const) {
+      expect(tier(correct, 20), `${correct}/20`).toBe(band);
+    }
+  });
+
+  it('takes its numbers from the shared rules rather than its own', () => {
+    // Guard the guard: the cases above would still pass on a second
+    // copy of the thresholds typed into `tier.ts`.
+    for (const { key, floor } of RATING_BANDS) {
+      expect(tier(Math.round(floor * 20), 20), key).toBe(key);
+    }
+    expect(MASTERY_WINDOW).toBe(RATING_WINDOW);
+    expect(MIN_ATTEMPTS_FOR_TIER).toBe(MEASURED_RATING_FLOOR);
+  });
+
+  it('no longer demands perfection for the top band', () => {
+    // Nineteen of twenty used to throw away the other nineteen.
+    expect(tier(19, 20)).toBe('mastered');
     expect(tier(MASTERY_WINDOW, MASTERY_WINDOW)).toBe('mastered');
-    expect(tier(9, 10)).toBe('fluent');
-    expect(tier(6, 10)).toBe('developing');
-    expect(tier(4, 10)).toBe('needsWork');
   });
 
   it('still stales a good grade left alone, and only a good one', () => {

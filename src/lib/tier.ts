@@ -32,10 +32,12 @@
 //   2. Spacing state begins populating per item, with the algorithm
 //      consuming the band thresholds directly.
 //
-// At that point the band breakpoints (which differ subtly between
-// Tier and garden — Tier's "developing 50–79%" splits into the garden's
-// "sprouting 50–65%" + "branching 65–80%") need a single source of
-// truth. The plan is to introduce a `computeStage()` here that returns
+// At that point the band breakpoints need a single source of truth
+// ACROSS THE TWO VOCABULARIES. Tier's own four now live in
+// `lib/ratingRules` and agree with the garden at the top — both call
+// 80–94 the fourth rung and 95%+ the fifth — and still differ below it,
+// where the garden splits Tier's "developing" in two.
+// The plan is to introduce a `computeStage()` here that returns
 // the garden levels, retire `computeTier()`, and migrate the surfaces
 // listed above to render the new labels. Until then, Tier remains the
 // only accuracy-band classifier in production.
@@ -45,6 +47,11 @@
 // src/modules/goals/GoalFormModal.tsx::LevelSelect.
 
 import { statusColour, type StatusColour, type StatusKey } from './spacing/statusColour';
+import {
+  MEASURED_RATING_FLOOR, RATING_WINDOW, bandOf, bandPercent, ratingFloor,
+  DEVELOPING_FLOOR, FLUENT_FLOOR, MASTERED_FLOOR,
+  SELF_RATED_RATING_FLOOR, type RatingKind,
+} from './ratingRules';
 
 export type Tier =
   | 'mastered' | 'fluent' | 'developing' | 'needsWork'
@@ -71,27 +78,61 @@ export type Tier =
  * `started` deliberately carries the SAME adaptive weight `untouched`
  * carries. Splitting the band is a change to what the user can see,
  * not to what the scheduler picks.
+ *
+ * =====================================================================
+ * THE NUMBERS THEMSELVES ARE `ratingRules`', SINCE 10 SEP 2026.
+ *
+ * They were here, and there was a second set of them on the desktop
+ * dashboard grading 50 / 70 / 85. Both read one module now, because the
+ * Settings page will edit these and a threshold typed into a second
+ * file is one that control cannot reach.
+ *
+ * The names stay: a dozen files import `MIN_ATTEMPTS_FOR_TIER`, and
+ * renaming it would be churn in place of a change. A SELF-RATED DRILL
+ * IS GRADED AT THREE rather than five — see `ratingRules` — which is a
+ * floor this constant does not carry and `computeTier` reads directly.
+ * =====================================================================
  */
-export const MIN_ATTEMPTS_FOR_TIER = 5;
-export const MASTERY_WINDOW = 20;
+export const MIN_ATTEMPTS_FOR_TIER = MEASURED_RATING_FLOOR;
+export const MASTERY_WINDOW = RATING_WINDOW;
 export const STALE_DAYS = 30;
 
 export interface TierInput {
   windowCorrect: number;
   windowTotal: number;
   daysSinceLastAttempt: number | null;
+  /** How the score was arrived at, which picks the floor. Measured
+   *  unless a caller says otherwise. */
+  kind?: RatingKind;
 }
 
+/**
+ * The band an item has earned.
+ *
+ * =====================================================================
+ * THE FOUR NUMBERS ARE `ratingRules`' AND NOT THIS FILE'S.
+ *
+ * This graded 50 / 80 and reserved Mastered for a full window of twenty
+ * with nothing wrong. Silas's ruling of 25 Aug 2026, brought into the
+ * code on 10 Sep: under 60 Needs Work, 60–79 Developing, 80–94 Fluent,
+ * 95 and up Mastered.
+ *
+ * MASTERED NO LONGER MEANS PERFECT, and that is the ruling rather than
+ * a relaxation on the way past. A top band that needs twenty answers
+ * with nothing wrong is a band almost nobody reaches, and one wrong
+ * answer in the twentieth attempt threw away nineteen right ones.
+ * Ninety-five per cent of the window is the claim being made instead.
+ *
+ * `kind` picks the floor: five answers to grade a measured item, three
+ * to grade a self-rated one. It defaults to measured, which is what
+ * every caller but the dashboard's tree is.
+ * =====================================================================
+ */
 export function computeTier(input: TierInput): Tier {
   const { windowCorrect, windowTotal, daysSinceLastAttempt } = input;
   if (windowTotal === 0) return 'untouched';
-  if (windowTotal < MIN_ATTEMPTS_FOR_TIER) return 'started';
-  const pct = windowCorrect / windowTotal;
-  let base: Exclude<Tier, 'stale' | 'started' | 'untouched'>;
-  if (windowTotal >= MASTERY_WINDOW && windowCorrect === windowTotal) base = 'mastered';
-  else if (pct >= 0.8) base = 'fluent';
-  else if (pct >= 0.5) base = 'developing';
-  else base = 'needsWork';
+  if (windowTotal < ratingFloor(input.kind ?? 'measured')) return 'started';
+  const base = bandOf(windowCorrect / windowTotal);
   if ((base === 'mastered' || base === 'fluent') &&
       daysSinceLastAttempt !== null && daysSinceLastAttempt >= STALE_DAYS) {
     return 'stale';
@@ -148,13 +189,22 @@ export const TIER_LABEL: Record<Tier, string> = {
   untouched: 'Not Started',
 };
 
+/**
+ * What each band means, in numbers.
+ *
+ * BUILT FROM THE THRESHOLDS RATHER THAN TYPED OUT. A legend stating a
+ * cut-off the grader does not use is a confident, wrong account of a
+ * word the reader can see — and this file carried "50–79%" for a
+ * fortnight after the ruling said 60.
+ */
 export const TIER_DESCRIPTION: Record<Tier, string> = {
-  mastered: '20/20 correct over the last 20 attempts',
-  fluent: '80–99% over the last 20 attempts',
-  developing: '50–79% over the last 20 attempts',
-  needsWork: 'below 50% over the last 20 attempts',
-  stale: 'was fluent or mastered, no attempts in 30+ days',
-  started: 'fewer than 5 attempts',
+  mastered: `${bandPercent(MASTERED_FLOOR)}% and up over the last ${MASTERY_WINDOW} attempts`,
+  fluent: `${bandPercent(FLUENT_FLOOR)}–${bandPercent(MASTERED_FLOOR) - 1}% over the last ${MASTERY_WINDOW} attempts`,
+  developing: `${bandPercent(DEVELOPING_FLOOR)}–${bandPercent(FLUENT_FLOOR) - 1}% over the last ${MASTERY_WINDOW} attempts`,
+  needsWork: `below ${bandPercent(DEVELOPING_FLOOR)}% over the last ${MASTERY_WINDOW} attempts`,
+  stale: `was fluent or mastered, no attempts in ${STALE_DAYS}+ days`,
+  started: `fewer than ${MIN_ATTEMPTS_FOR_TIER} attempts`
+    + ` (${SELF_RATED_RATING_FLOOR} on a self-rated drill)`,
   untouched: 'no attempts yet',
 };
 

@@ -18,7 +18,7 @@
  * Pure — no Dexie, no clock of its own.
  */
 import type { AttemptRecord } from '../../../lib/db';
-import { MASTERY_WINDOW, MIN_ATTEMPTS_FOR_TIER } from '../../../lib/tier';
+import { MASTERY_WINDOW } from '../../../lib/tier';
 import type { TreeNode } from './tree';
 import { computeTier, type Tier } from '../../../lib/tier';
 import { catalogRollupKey } from './canonicalItemId';
@@ -210,34 +210,49 @@ export function tierCountsForCatalog(
  * `registry.ts` makes from a flashcard's lifetime totals. Named here so
  * a third copy does not appear.
  *
- * WHAT IT GETS RIGHT is the thing the colour is for: the band. What it
- * cannot get right is `mastered`, which needs a full window of twenty
- * with nothing wrong — over a category that is a claim about every item
- * at once, and the mean cannot tell twenty perfect items from forty
- * items averaging perfect. It is reachable, and it means what it says.
+ * WHAT IT GETS RIGHT is the thing the colour is for: the band.
  *
  * SELF-RATED SCORES ARE NOT PERCENTAGES. Shapes & Patterns and the
  * production lessons rate on a four-rung feel scale projected onto
  * 0–100, where 75 is "comfortable" rather than "three quarters right".
  * The thresholds still separate the rungs in the same order, so the
- * band is honest; what would not be honest is calling a self-rated
- * category `mastered`, which would mean twenty clean run-throughs
- * nobody counted. Self-rated tops out at `fluent`.
+ * band is honest — and such a row is graded from THREE reps rather than
+ * five, and tops out at `fluent`. Both of those are in `tierForNode`
+ * with their reasons.
  * =====================================================================
  */
 export function tierForNode(node: TreeNode, now: number): Tier {
   if (node.score === null || node.engagementCount === 0) return 'untouched';
-  if (node.engagementCount < MIN_ATTEMPTS_FOR_TIER) return 'started';
 
   const windowTotal = Math.min(MASTERY_WINDOW, node.engagementCount);
   const windowCorrect = Math.round((node.score / 100) * windowTotal);
   const daysSince = node.recency.mostRecentAt === null
     ? null
     : Math.floor((now - node.recency.mostRecentAt) / DAY_MS);
-  const tier = computeTier({ windowCorrect, windowTotal, daysSinceLastAttempt: daysSince });
+  // THE FLOOR IS THE KIND'S — five measured, three self-rated. This
+  // read `MIN_ATTEMPTS_FOR_TIER` for both and so held two honest
+  // ratings off a self-rated row for no reason; `computeTier` picks it
+  // now, from the same `accuracyKind` the column header reads.
+  const tier = computeTier({
+    windowCorrect,
+    windowTotal,
+    daysSinceLastAttempt: daysSince,
+    kind: node.accuracyKind,
+  });
 
-  // See the header: a rating scale cannot earn a perfect measured
-  // window, so it stops one rung below rather than claiming one.
+  // =====================================================================
+  // SELF-RATED STOPS AT FLUENT, AND THE REASON CHANGED ON 10 SEP 2026.
+  //
+  // It used to be that Mastered meant a full window with nothing wrong,
+  // which a four-rung feel scale cannot produce. Mastered is now 95% of
+  // the window, which a wall of "In flow" reaches easily — so the cap
+  // is no longer a statement about what the scale can express.
+  //
+  // It stays because of what the WORD claims. Mastered is the app's
+  // strongest rating and a self-rated row is the player's own account
+  // of how it felt; the app has not tested it. Fluent is as far as an
+  // untested claim goes. Raised with Silas rather than dropped quietly.
+  // =====================================================================
   if (node.accuracyKind === 'self-rated' && tier === 'mastered') return 'fluent';
   return tier;
 }
