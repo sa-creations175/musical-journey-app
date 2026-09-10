@@ -230,6 +230,90 @@ describe('key names carry their mode', () => {
   });
 });
 
+describe('the 1 6 2 5 explanation', () => {
+  it('reads in the key of E♭ major exactly as the file says', () => {
+    const card = FLASHCARDS.find(c => c.id === 'pr-prog-1-6-2-5-Eb')!;
+    expect(card.explanation).toBe(blockUnder('The 1 6 2 5 explanation'));
+  });
+
+  it('says the same thing in all thirteen, with that key\'s chords', () => {
+    const cards = FLASHCARDS.filter(c => c.id.startsWith('pr-prog-1-6-2-5-'));
+    expect(cards).toHaveLength(13);
+    for (const c of cards) {
+      expect(c.explanation, c.id).toContain(', the turnaround.');
+      expect(c.explanation, c.id)
+        .toContain("It's sometimes used to walk back to the 1 and go round again.");
+      // The card's own four chords, which is what makes it that key's
+      // sentence rather than a sentence about a key.
+      expect(c.explanation, c.id).toContain(c.correctAnswer.replace(/ - /g, ' → '));
+    }
+  });
+
+  it('has dropped the rhythm-changes clause everywhere', () => {
+    // Named rather than merely absent: it was true, and it was a
+    // second fact about a different progression.
+    for (const c of FLASHCARDS) {
+      expect(c.explanation ?? '', c.id).not.toContain('Rhythm changes is the same');
+    }
+    expect(COPY).toContain('Rhythm changes is the same four');
+  });
+});
+
+describe('one name for one mark', () => {
+  it('says "marked" on every card that names the mark', () => {
+    const modal = FLASHCARDS.filter(c => c.category === 'modal-improvisation');
+    const naming = modal.filter(c => /marked notes/.test(c.explanation ?? ''));
+    // The sixty-five borrowed cards. The in-key cards mark nothing and
+    // do not mention it.
+    expect(naming).toHaveLength(65);
+  });
+
+  it('says "highlighted" nowhere in the deck', () => {
+    for (const c of FLASHCARDS) {
+      expect(`${c.question} ${c.explanation ?? ''}`, c.id).not.toMatch(/highlight/i);
+    }
+    expect(COPY).toContain('no card in the deck says "highlighted"');
+  });
+});
+
+describe('the minor-target sentence', () => {
+  const MINOR_TARGETS = ['5of2', '5of3', '5of6'];
+  const minorCards = FLASHCARDS.filter(
+    c => MINOR_TARGETS.some(t => c.id.startsWith(`mi-modal-${t}-`)));
+
+  it('reads on the 5 of 6 in C exactly as the file says', () => {
+    const card = FLASHCARDS.find(c => c.id === 'mi-modal-5of6-C')!;
+    expect(card.explanation).toContain(blockUnder('The minor-target sentence'));
+  });
+
+  it('is on all 39 minor-target cards, and only those', () => {
+    expect(minorCards).toHaveLength(39);
+    const opening = 'When a secondary dominant takes you to a minor chord';
+    for (const c of minorCards) expect(c.explanation, c.id).toContain(opening);
+    const others = FLASHCARDS.filter(
+      c => c.category === 'modal-improvisation' && !minorCards.includes(c));
+    for (const c of others) expect(c.explanation, c.id).not.toContain(opening);
+  });
+
+  it('says the marked notes once, and never the old claim', () => {
+    for (const c of minorCards) {
+      expect(c.explanation, c.id).not.toContain('one note raised');
+      expect(c.explanation, c.id).not.toContain('highlighted notes');
+      const marked = (c.explanation ?? '').split('The marked notes are').length - 1;
+      expect(marked, c.id).toBe(1);
+    }
+  });
+
+  it('gets the article right on every note it names', () => {
+    // "an F", not "a F". A, E and F are said with a vowel however they
+    // are spelled after the letter.
+    for (const c of minorCards) {
+      expect(c.explanation, c.id).not.toMatch(/\ba [AEF]/);
+      expect(c.explanation, c.id).not.toMatch(/\ban [BCDG]/);
+    }
+  });
+});
+
 describe('the Modal Improvisation row', () => {
   it('says Silas\'s sentence, word for word', () => {
     expect(MODAL_IMPROV_DESCRIPTION).toBe(blockUnder('The Modal Improvisation row'));

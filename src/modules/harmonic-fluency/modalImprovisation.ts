@@ -220,7 +220,12 @@ export function modalCardText(root: string, chord: ModalChord): ModalCardText {
       + 'for that bar. '
       + (minor
         ? minorTargetSentence(root, chord, chordName, targetRoot, targetChord)
-        : `The highlighted notes are the ones the key of ${key} major does `
+        // MARKED, NOT HIGHLIGHTED. The minor-target cards have said
+        // "the marked notes" since Silas's sentence landed, and the
+        // reveal draws one kind of mark. Two words for it on two cards
+        // of the same family is a reader wondering what the difference
+        // is.
+        : `The marked notes are the ones the key of ${key} major does `
           + 'not have.'),
   };
 }

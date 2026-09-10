@@ -185,9 +185,19 @@ interface Props<TCard extends BaseFlashcard> {
   /** Render-prop for the per-card visual aid. Returns null to skip. */
   renderVisualAid?: (args: VisualAidArgs<TCard>) => ReactNode;
 
-  /** Optional explanation renderer (e.g. mode-name linkifier in HF).
-   *  Defaults to plain text. */
-  renderExplanation?: (text: string) => ReactNode;
+  /**
+   * Optional explanation renderer (e.g. mode-name linkifier in HF).
+   * Defaults to plain text.
+   *
+   * IT IS GIVEN THE CARD AS WELL AS THE TEXT, and the reason is the
+   * same one `renderOptionLabel` states: a family can know what kind of
+   * word it is looking at and the shell cannot. Colouring a key
+   * signature's accidentals needs the key they belong to, and finding
+   * that key in the sentence would be the parsing the catalog refuses
+   * in terms. The shell still hands over a string and takes back a
+   * node; nothing here compares or stores what comes back.
+   */
+  renderExplanation?: (text: string, card: TCard) => ReactNode;
 
   /**
    * What one option should READ as, where a family knows better than
@@ -834,7 +844,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
             {card.explanation && (
               <div className="mt-1 text-xs text-neutral-500 italic whitespace-pre-wrap">
                 {renderExplanation
-                  ? renderExplanation(card.explanation)
+                  ? renderExplanation(card.explanation, card)
                   : card.explanation}
               </div>
             )}

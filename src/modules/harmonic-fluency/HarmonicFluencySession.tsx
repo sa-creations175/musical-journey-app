@@ -3,7 +3,7 @@
  *
  * The module-specific bits live here: the visual-aid dispatcher
  * (LinearScaleStrip / ScaleDegreeCompass), the explanation linkifier
- * (ModeLinkify), and the persistence pipeline (db.attempts +
+ * (`CardExplanation`), and the persistence pipeline (db.attempts +
  * recordEngagement + dailySummary).
  * Generic UI behavior (queue, timer, choices, streaks, summary,
  * shortcuts) is in src/lib/flashcards/FlashcardSession.tsx.
@@ -21,7 +21,6 @@ import {
   getCardSpacingMany, setReviewFlag, toggleStudyLater,
 } from '../../lib/flashcards/cardSpacing';
 import { recordEngagement } from '../../lib/spacingState';
-import ModeLinkify from '../ear-training/scales-modes/ModeLinkify';
 import LydianChordRows from './LydianChordRows';
 import DegreeGroundedRows from './DegreeGroundedRows';
 import CardPlayback from './CardPlayback';
@@ -29,6 +28,7 @@ import DegreeNoteReveal from './DegreeNoteReveal';
 import ModalScaleReveal from './ModalScaleReveal';
 import DegreeKeyboardAnswer from './DegreeKeyboardAnswer';
 import BuiltAnswer from './builtAnswers/BuiltAnswer';
+import CardExplanation from './CardExplanation';
 import { degreeNoteOptionLabel, isPressedCard, parsePressedId } from './degreeNoteCards';
 import DegreeKeyboard, { degreeKeyboardSpec } from './DegreeKeyboard';
 import { qualityOfCardId } from './scaleDegreeQualityCards';
@@ -186,7 +186,12 @@ export default function HarmonicFluencySession({
       renderVisualAid={({ card, mode, answered, chosen }) => (
         <VisualAid card={card} mode={mode} answered={answered} chosen={chosen} />
       )}
-      renderExplanation={text => <ModeLinkify text={text} />}
+      /* ONE RENDERER FOR THE FAMILY. Mode names become links, and a
+         key signature's accidentals take the colours the keyboard
+         gives them — see `CardExplanation`, which decides which
+         treatment a card gets from its `axis` rather than from its
+         sentence. */
+      renderExplanation={(text, card) => <CardExplanation text={text} card={card} />}
       /* WHAT AN OPTION READS AS, where this deck knows more than the
          shell's spelling rule does — a note answer carries the key a
          player would actually press beside it, and a degree answer

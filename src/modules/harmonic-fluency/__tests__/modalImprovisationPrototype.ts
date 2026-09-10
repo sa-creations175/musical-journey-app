@@ -251,7 +251,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of C major, the band is on C7 (5 of 4). Which notes fit?',
     answer: 'Notes of the F major scale',
     explanation:
-      'C7 (the 1 as a dominant, the 5 of 4) is not in the key of C major; it is the 5 of F. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of C major does not have.',
+      'C7 (the 1 as a dominant, the 5 of 4) is not in the key of C major; it is the 5 of F. Play the notes of the key it points to for that bar. The marked notes are the ones the key of C major does not have.',
     scale: [
       { note: 'F', outside: false },
       { note: 'G', outside: false },
@@ -268,7 +268,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of C major, the band is on D7 (5 of 5). Which notes fit?',
     answer: 'Notes of the G major scale',
     explanation:
-      'D7 (the 2 as a dominant, the 5 of 5) is not in the key of C major; it is the 5 of G. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of C major does not have.',
+      'D7 (the 2 as a dominant, the 5 of 5) is not in the key of C major; it is the 5 of G. Play the notes of the key it points to for that bar. The marked notes are the ones the key of C major does not have.',
     scale: [
       { note: 'G', outside: false },
       { note: 'A', outside: false },
@@ -421,7 +421,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D♭ major, the band is on D♭7 (5 of 4). Which notes fit?',
     answer: 'Notes of the G♭ major scale',
     explanation:
-      'D♭7 (the 1 as a dominant, the 5 of 4) is not in the key of D♭ major; it is the 5 of G♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of D♭ major does not have.',
+      'D♭7 (the 1 as a dominant, the 5 of 4) is not in the key of D♭ major; it is the 5 of G♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of D♭ major does not have.',
     scale: [
       { note: 'G♭', outside: false },
       { note: 'A♭', outside: false },
@@ -438,7 +438,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D♭ major, the band is on E♭7 (5 of 5). Which notes fit?',
     answer: 'Notes of the A♭ major scale',
     explanation:
-      'E♭7 (the 2 as a dominant, the 5 of 5) is not in the key of D♭ major; it is the 5 of A♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of D♭ major does not have.',
+      'E♭7 (the 2 as a dominant, the 5 of 5) is not in the key of D♭ major; it is the 5 of A♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of D♭ major does not have.',
     scale: [
       { note: 'A♭', outside: false },
       { note: 'B♭', outside: false },
@@ -591,7 +591,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D major, the band is on D7 (5 of 4). Which notes fit?',
     answer: 'Notes of the G major scale',
     explanation:
-      'D7 (the 1 as a dominant, the 5 of 4) is not in the key of D major; it is the 5 of G. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of D major does not have.',
+      'D7 (the 1 as a dominant, the 5 of 4) is not in the key of D major; it is the 5 of G. Play the notes of the key it points to for that bar. The marked notes are the ones the key of D major does not have.',
     scale: [
       { note: 'G', outside: false },
       { note: 'A', outside: false },
@@ -608,7 +608,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of D major, the band is on E7 (5 of 5). Which notes fit?',
     answer: 'Notes of the A major scale',
     explanation:
-      'E7 (the 2 as a dominant, the 5 of 5) is not in the key of D major; it is the 5 of A. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of D major does not have.',
+      'E7 (the 2 as a dominant, the 5 of 5) is not in the key of D major; it is the 5 of A. Play the notes of the key it points to for that bar. The marked notes are the ones the key of D major does not have.',
     scale: [
       { note: 'A', outside: false },
       { note: 'B', outside: false },
@@ -761,7 +761,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E♭ major, the band is on E♭7 (5 of 4). Which notes fit?',
     answer: 'Notes of the A♭ major scale',
     explanation:
-      'E♭7 (the 1 as a dominant, the 5 of 4) is not in the key of E♭ major; it is the 5 of A♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of E♭ major does not have.',
+      'E♭7 (the 1 as a dominant, the 5 of 4) is not in the key of E♭ major; it is the 5 of A♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of E♭ major does not have.',
     scale: [
       { note: 'A♭', outside: false },
       { note: 'B♭', outside: false },
@@ -778,7 +778,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E♭ major, the band is on F7 (5 of 5). Which notes fit?',
     answer: 'Notes of the B♭ major scale',
     explanation:
-      'F7 (the 2 as a dominant, the 5 of 5) is not in the key of E♭ major; it is the 5 of B♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of E♭ major does not have.',
+      'F7 (the 2 as a dominant, the 5 of 5) is not in the key of E♭ major; it is the 5 of B♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of E♭ major does not have.',
     scale: [
       { note: 'B♭', outside: false },
       { note: 'C', outside: false },
@@ -931,7 +931,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E major, the band is on E7 (5 of 4). Which notes fit?',
     answer: 'Notes of the A major scale',
     explanation:
-      'E7 (the 1 as a dominant, the 5 of 4) is not in the key of E major; it is the 5 of A. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of E major does not have.',
+      'E7 (the 1 as a dominant, the 5 of 4) is not in the key of E major; it is the 5 of A. Play the notes of the key it points to for that bar. The marked notes are the ones the key of E major does not have.',
     scale: [
       { note: 'A', outside: false },
       { note: 'B', outside: false },
@@ -948,7 +948,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of E major, the band is on F♯7 (5 of 5). Which notes fit?',
     answer: 'Notes of the B major scale',
     explanation:
-      'F♯7 (the 2 as a dominant, the 5 of 5) is not in the key of E major; it is the 5 of B. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of E major does not have.',
+      'F♯7 (the 2 as a dominant, the 5 of 5) is not in the key of E major; it is the 5 of B. Play the notes of the key it points to for that bar. The marked notes are the ones the key of E major does not have.',
     scale: [
       { note: 'B', outside: false },
       { note: 'C♯', outside: false },
@@ -1101,7 +1101,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F major, the band is on F7 (5 of 4). Which notes fit?',
     answer: 'Notes of the B♭ major scale',
     explanation:
-      'F7 (the 1 as a dominant, the 5 of 4) is not in the key of F major; it is the 5 of B♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of F major does not have.',
+      'F7 (the 1 as a dominant, the 5 of 4) is not in the key of F major; it is the 5 of B♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of F major does not have.',
     scale: [
       { note: 'B♭', outside: false },
       { note: 'C', outside: false },
@@ -1118,7 +1118,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F major, the band is on G7 (5 of 5). Which notes fit?',
     answer: 'Notes of the C major scale',
     explanation:
-      'G7 (the 2 as a dominant, the 5 of 5) is not in the key of F major; it is the 5 of C. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of F major does not have.',
+      'G7 (the 2 as a dominant, the 5 of 5) is not in the key of F major; it is the 5 of C. Play the notes of the key it points to for that bar. The marked notes are the ones the key of F major does not have.',
     scale: [
       { note: 'C', outside: false },
       { note: 'D', outside: false },
@@ -1271,7 +1271,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F♯ major, the band is on F♯7 (5 of 4). Which notes fit?',
     answer: 'Notes of the B major scale',
     explanation:
-      'F♯7 (the 1 as a dominant, the 5 of 4) is not in the key of F♯ major; it is the 5 of B. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of F♯ major does not have.',
+      'F♯7 (the 1 as a dominant, the 5 of 4) is not in the key of F♯ major; it is the 5 of B. Play the notes of the key it points to for that bar. The marked notes are the ones the key of F♯ major does not have.',
     scale: [
       { note: 'B', outside: false },
       { note: 'C♯', outside: false },
@@ -1288,7 +1288,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of F♯ major, the band is on G♯7 (5 of 5). Which notes fit?',
     answer: 'Notes of the C♯ major scale',
     explanation:
-      'G♯7 (the 2 as a dominant, the 5 of 5) is not in the key of F♯ major; it is the 5 of C♯. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of F♯ major does not have.',
+      'G♯7 (the 2 as a dominant, the 5 of 5) is not in the key of F♯ major; it is the 5 of C♯. Play the notes of the key it points to for that bar. The marked notes are the ones the key of F♯ major does not have.',
     scale: [
       { note: 'C♯', outside: false },
       { note: 'D♯', outside: false },
@@ -1441,7 +1441,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G♭ major, the band is on G♭7 (5 of 4). Which notes fit?',
     answer: 'Notes of the C♭ major scale',
     explanation:
-      'G♭7 (the 1 as a dominant, the 5 of 4) is not in the key of G♭ major; it is the 5 of C♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of G♭ major does not have.',
+      'G♭7 (the 1 as a dominant, the 5 of 4) is not in the key of G♭ major; it is the 5 of C♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of G♭ major does not have.',
     scale: [
       { note: 'C♭', outside: false },
       { note: 'D♭', outside: false },
@@ -1458,7 +1458,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G♭ major, the band is on A♭7 (5 of 5). Which notes fit?',
     answer: 'Notes of the D♭ major scale',
     explanation:
-      'A♭7 (the 2 as a dominant, the 5 of 5) is not in the key of G♭ major; it is the 5 of D♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of G♭ major does not have.',
+      'A♭7 (the 2 as a dominant, the 5 of 5) is not in the key of G♭ major; it is the 5 of D♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of G♭ major does not have.',
     scale: [
       { note: 'D♭', outside: false },
       { note: 'E♭', outside: false },
@@ -1611,7 +1611,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G major, the band is on G7 (5 of 4). Which notes fit?',
     answer: 'Notes of the C major scale',
     explanation:
-      'G7 (the 1 as a dominant, the 5 of 4) is not in the key of G major; it is the 5 of C. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of G major does not have.',
+      'G7 (the 1 as a dominant, the 5 of 4) is not in the key of G major; it is the 5 of C. Play the notes of the key it points to for that bar. The marked notes are the ones the key of G major does not have.',
     scale: [
       { note: 'C', outside: false },
       { note: 'D', outside: false },
@@ -1628,7 +1628,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of G major, the band is on A7 (5 of 5). Which notes fit?',
     answer: 'Notes of the D major scale',
     explanation:
-      'A7 (the 2 as a dominant, the 5 of 5) is not in the key of G major; it is the 5 of D. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of G major does not have.',
+      'A7 (the 2 as a dominant, the 5 of 5) is not in the key of G major; it is the 5 of D. Play the notes of the key it points to for that bar. The marked notes are the ones the key of G major does not have.',
     scale: [
       { note: 'D', outside: false },
       { note: 'E', outside: false },
@@ -1781,7 +1781,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A♭ major, the band is on A♭7 (5 of 4). Which notes fit?',
     answer: 'Notes of the D♭ major scale',
     explanation:
-      'A♭7 (the 1 as a dominant, the 5 of 4) is not in the key of A♭ major; it is the 5 of D♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of A♭ major does not have.',
+      'A♭7 (the 1 as a dominant, the 5 of 4) is not in the key of A♭ major; it is the 5 of D♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of A♭ major does not have.',
     scale: [
       { note: 'D♭', outside: false },
       { note: 'E♭', outside: false },
@@ -1798,7 +1798,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A♭ major, the band is on B♭7 (5 of 5). Which notes fit?',
     answer: 'Notes of the E♭ major scale',
     explanation:
-      'B♭7 (the 2 as a dominant, the 5 of 5) is not in the key of A♭ major; it is the 5 of E♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of A♭ major does not have.',
+      'B♭7 (the 2 as a dominant, the 5 of 5) is not in the key of A♭ major; it is the 5 of E♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of A♭ major does not have.',
     scale: [
       { note: 'E♭', outside: false },
       { note: 'F', outside: false },
@@ -1951,7 +1951,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A major, the band is on A7 (5 of 4). Which notes fit?',
     answer: 'Notes of the D major scale',
     explanation:
-      'A7 (the 1 as a dominant, the 5 of 4) is not in the key of A major; it is the 5 of D. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of A major does not have.',
+      'A7 (the 1 as a dominant, the 5 of 4) is not in the key of A major; it is the 5 of D. Play the notes of the key it points to for that bar. The marked notes are the ones the key of A major does not have.',
     scale: [
       { note: 'D', outside: false },
       { note: 'E', outside: false },
@@ -1968,7 +1968,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of A major, the band is on B7 (5 of 5). Which notes fit?',
     answer: 'Notes of the E major scale',
     explanation:
-      'B7 (the 2 as a dominant, the 5 of 5) is not in the key of A major; it is the 5 of E. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of A major does not have.',
+      'B7 (the 2 as a dominant, the 5 of 5) is not in the key of A major; it is the 5 of E. Play the notes of the key it points to for that bar. The marked notes are the ones the key of A major does not have.',
     scale: [
       { note: 'E', outside: false },
       { note: 'F♯', outside: false },
@@ -2121,7 +2121,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B♭ major, the band is on B♭7 (5 of 4). Which notes fit?',
     answer: 'Notes of the E♭ major scale',
     explanation:
-      'B♭7 (the 1 as a dominant, the 5 of 4) is not in the key of B♭ major; it is the 5 of E♭. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of B♭ major does not have.',
+      'B♭7 (the 1 as a dominant, the 5 of 4) is not in the key of B♭ major; it is the 5 of E♭. Play the notes of the key it points to for that bar. The marked notes are the ones the key of B♭ major does not have.',
     scale: [
       { note: 'E♭', outside: false },
       { note: 'F', outside: false },
@@ -2138,7 +2138,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B♭ major, the band is on C7 (5 of 5). Which notes fit?',
     answer: 'Notes of the F major scale',
     explanation:
-      'C7 (the 2 as a dominant, the 5 of 5) is not in the key of B♭ major; it is the 5 of F. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of B♭ major does not have.',
+      'C7 (the 2 as a dominant, the 5 of 5) is not in the key of B♭ major; it is the 5 of F. Play the notes of the key it points to for that bar. The marked notes are the ones the key of B♭ major does not have.',
     scale: [
       { note: 'F', outside: false },
       { note: 'G', outside: false },
@@ -2291,7 +2291,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B major, the band is on B7 (5 of 4). Which notes fit?',
     answer: 'Notes of the E major scale',
     explanation:
-      'B7 (the 1 as a dominant, the 5 of 4) is not in the key of B major; it is the 5 of E. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of B major does not have.',
+      'B7 (the 1 as a dominant, the 5 of 4) is not in the key of B major; it is the 5 of E. Play the notes of the key it points to for that bar. The marked notes are the ones the key of B major does not have.',
     scale: [
       { note: 'E', outside: false },
       { note: 'F♯', outside: false },
@@ -2308,7 +2308,7 @@ export const PROTOTYPE_CARDS: ReadonlyArray<PrototypeRow> = [
       'In the key of B major, the band is on C♯7 (5 of 5). Which notes fit?',
     answer: 'Notes of the F♯ major scale',
     explanation:
-      'C♯7 (the 2 as a dominant, the 5 of 5) is not in the key of B major; it is the 5 of F♯. Play the notes of the key it points to for that bar. The highlighted notes are the ones the key of B major does not have.',
+      'C♯7 (the 2 as a dominant, the 5 of 5) is not in the key of B major; it is the 5 of F♯. Play the notes of the key it points to for that bar. The marked notes are the ones the key of B major does not have.',
     scale: [
       { note: 'F♯', outside: false },
       { note: 'G♯', outside: false },

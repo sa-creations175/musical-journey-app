@@ -899,6 +899,23 @@ export const KEY_SIGNATURES: ReadonlyArray<KeySignature> = [
 ];
 
 /** The accidentals a key actually carries, in signature order. */
+/**
+ * The accidentals a key carries, as the card writes them.
+ *
+ * EXPORTED SO THE REVEAL CAN COLOUR THEM RATHER THAN FIND THEM IN THE
+ * SENTENCE. The count card's explanation ends "…3 flats: B♭ E♭ A♭",
+ * and colouring those three means knowing which three — which this
+ * already knows, because it is what wrote them. Reading them back out
+ * of the text would be the parsing `catalog.ts` refuses in terms.
+ *
+ * Returns display names with glyphs, the same strings the explanation
+ * prints, so a caller can match them without re-spelling anything.
+ */
+export function signatureAccidentals(root: string): string[] {
+  const sig = KEY_SIGNATURES.find(k => k.root === root);
+  return sig === undefined ? [] : accidentalsOf(sig).map(noteLabel);
+}
+
 function accidentalsOf(sig: KeySignature): string[] {
   if (sig.kind === 'sharps/flats') return [];
   const order = sig.kind === 'sharps' ? SHARP_ORDER : FLAT_ORDER;
@@ -1628,16 +1645,20 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
     facet: '1-6-2-5',
     ask: k => `The 1-6-2-5 in the key of ${k} major is _____`,
     chords: [['1', ''], ['6', 'm'], ['2', 'm'], ['5', '']],
-    // NEW COPY, AND IT IS FLAGGED IN THE REPORT. Every other
-    // explanation here was lifted from the hand-written card that
-    // taught that progression in one key; the turnaround had no such
-    // card, so this says what the deck can already prove — the shape,
-    // the name Silas gave it, and the card that plays the same four
-    // numbers as sevenths — and nothing about how it feels.
-    explain: (k, c) => `1-6-2-5 in the key of ${k} major is `
-      + `${c.join(' → ')} — the turnaround. `
-      + 'It closes a section by walking back to the 1, ready to go round '
-      + 'again. Rhythm changes is the same four numbers played as sevenths.',
+    /**
+     * SILAS'S WORDS, 9 SEP 2026 (evening), replacing the placeholder.
+     *
+     * The turnaround had no hand-written card to lift an explanation
+     * from, so this generator wrote one and it was flagged as new copy.
+     * This is the sentence Silas wrote for it.
+     *
+     * THE RHYTHM-CHANGES CLAUSE IS GONE. "Rhythm changes is the same
+     * four numbers played as sevenths" was true and was also a second
+     * fact about a different progression, on a card about this one.
+     */
+    explain: (k, c) => `1 6 2 5 in the key of ${k} major is `
+      + `${c.join(' → ')}, the turnaround. It's sometimes used to walk `
+      + 'back to the 1 and go round again.',
   },
   {
     id: '1-4-5',
