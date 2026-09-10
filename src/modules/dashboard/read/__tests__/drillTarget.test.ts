@@ -451,22 +451,6 @@ describe('chord progressions — filterability is per row', () => {
     expect(query.get('focus')!.split(',')).toHaveLength(467);
   });
 
-  it('refuses the first-chord rows rather than half-delivering them', () => {
-    // The same motions (the 132 that predate the borrowed chords), and
-    // the translation would be trivial — but an
-    // attempt only lands under `motion-first:` in the MINIMAL
-    // scaffold, so filtering the pool and arriving in full scaffold
-    // never touches the row's item.
-    const first = nodeNamed('First Chord');
-    // Guard the guard: these refs really are the same motions, so the
-    // refusal is a decision rather than a missing translation.
-    expect(first.itemRefs).toHaveLength(132);
-    expect(first.itemRefs[0]).toMatch(/^motion-first:/);
-    const target = drillTargetFor(first, 'ear-training');
-    if (target.kind !== 'navigate') throw new Error('expected navigate');
-    expect(target.reason).toBe('no-filter-mechanism');
-  });
-
   it('refuses key detection and full progression', () => {
     for (const label of ['Key Detection', 'Full Progression']) {
       const target = drillTargetFor(nodeNamed(label), 'ear-training');

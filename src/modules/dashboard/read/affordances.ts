@@ -166,12 +166,6 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     + 'work: the smallest unit of harmonic movement there is.',
   [`${EAR}/Chord Progressions/Chord Motion/Destination`]:
     'Given where the motion started, name where it landed.',
-  [`${EAR}/Chord Progressions/Chord Motion/First Chord`]:
-    'Name where the motion STARTED, which is the harder direction. It is '
-    + 'only asked in the minimal scaffold, so a low number here usually '
-    + 'means you have not spent time in that mode. Coverage counts all '
-    + '132 motions whichever scaffold you have been using, so the '
-    + 'percentage means the same thing each time you look at it.',
   [`${EAR}/Chord Progressions/Full Progression`]:
     'Name every chord of a progression, in order. Harder than the '
     + 'cadence-level work in Chord Motion, because it tests holding the '

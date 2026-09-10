@@ -134,20 +134,11 @@ const ROUTES: Readonly<Record<string, string>> = {
  * ─── Why a key can be null ───────────────────────────────────────────
  *
  * Filterability is a property of a ROW, not of a module. Chord
- * progressions is one catalog holding four sub-drills: 132 `motion:`
- * refs that Chord Motion's focus set matches exactly, 132
- * `motion-first:` refs, 12 `key-detection:` refs and 144 full
- * progression rows, none of which any focus mechanism reads.
- *
- * `motion-first:` is the one worth stating, because the translation is
- * trivial and doing it would still be wrong. Those are the same 132
- * motions, but an attempt only lands under `motion-first:` in the
- * MINIMAL scaffold. Filtering the pool and arriving in full scaffold
- * narrows the drill and never touches the row's item - a filtered
- * claim the drill does not deliver, which is the failure the honest
- * label exists to prevent. Sending `scaffold=minimal` alongside would
- * deliver it, and overrides a persisted user setting, so it is queued
- * rather than assumed.
+ * progressions is one catalog holding three sub-drills: 467 `motion:`
+ * refs that Chord Motion's focus set matches exactly, 12
+ * `key-detection:` refs and the full progression rows, none of which
+ * any focus mechanism reads. (A fourth, `motion-first:`, was fed by the
+ * retired minimal scaffold and left the dashboard on 10 Sep 2026.)
  */
 const FOCUS_KEY_FORMAT: Readonly<
   Record<string, (itemRef: string) => string | null>

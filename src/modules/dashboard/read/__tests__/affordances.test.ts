@@ -143,17 +143,18 @@ describe('an inherited description says whose it is', () => {
   });
 
   it('inherits from the NEAREST described ancestor, not the module', () => {
-    // Chord motion sits three deep under ear training. A first-chord
-    // item must borrow the first-chord row's explanation, not the
-    // module's — which would lose the one thing worth knowing about it.
+    // Chord motion sits three deep under ear training. A destination
+    // item must borrow the Destination row's explanation, not the
+    // module's or Chord Motion's — the nearest one says the most.
+    // (Was the First Chord row, which left the dashboard 10 Sep 2026.)
     const et = DASHBOARD.modules.find(m => m.moduleId === 'ear-training')!;
-    const firstChord = flatten(et.root).find(
-      n => n.id.endsWith('/Chord Motion/First Chord'),
+    const destination = flatten(et.root).find(
+      n => n.id.endsWith('/Chord Motion/Destination'),
     )!;
-    const item = leavesOf(firstChord)[0];
+    const item = leavesOf(destination)[0];
     const inherited = skillDescriptionFor(item, 'ear-training')!;
-    expect(inherited.inheritedFrom).toBe('First Chord');
-    expect(inherited.text).toContain('minimal scaffold');
+    expect(inherited.inheritedFrom).toBe('Destination');
+    expect(inherited.text).toContain('name where it landed');
   });
 
   it('names Reading\'s two skills apart, which is what prompted all this', () => {

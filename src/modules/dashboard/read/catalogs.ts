@@ -315,15 +315,12 @@ export const scalesModesCatalog: ModuleCatalog = {
  * shows is `activePool.length` after the diatonic-only filter, which is
  * the default scope, so it looks like the catalog and is not.
  *
- * `motion-first:` is a sibling sub-skill, and it STAYS ON THE 132 that
- * existed while it could be earned. Its rows were written by the
- * scaffolding modes, which retired before the borrowed chords arrived,
- * so no motion that names one can ever have a first-chord row — adding
- * them would be 72 items nobody can attempt.
- * It is only attemptable in the minimal scaffold, which the affordance
- * must say — otherwise a low number reads as "bad at this" rather than
- * "haven't been in that mode". Narrowing its denominator to motions
- * seen in minimal would be the filter-as-denominator failure again.
+ * THE FIRST CHORD ROW IS GONE (10 Sep 2026). `motion-first:` rows were
+ * written by the minimal scaffold, and scaffolding retired when Chord
+ * Motion moved onto the shared player, so the row could never move
+ * again — a frozen number with a live-looking percentage. The stored
+ * rows are untouched and the orphan sweep still counts them as live;
+ * they are simply no longer a row anyone is measured against.
  *
  * `motion-mode:{full|partial|minimal}` is DELIBERATELY ABSENT. Those
  * three ids are per-scaffold aggregates, not musical items; as tree
@@ -344,13 +341,6 @@ export const chordProgressionsCatalog: ModuleCatalog = {
       `motion:${m.startLabel}-${m.destLabel}-${m.direction}`,
       motionLabel(m),
       [EAR_TRAINING, 'Chord Progressions', 'Chord Motion', 'Destination'],
-    )),
-    // THE 132 THAT EXISTED while first-chord rows could be written: no
-    // borrowed chord, and no twin direction.
-    ...ALL_MOTIONS.filter(m => !m.borrowed && !m.twin).map(m => one(
-      `motion-first:${m.startLabel}-${m.destLabel}-${m.direction}`,
-      motionLabel(m),
-      [EAR_TRAINING, 'Chord Progressions', 'Chord Motion', 'First Chord'],
     )),
     ...PROGRESSIONS.flatMap(p => {
       const path = [

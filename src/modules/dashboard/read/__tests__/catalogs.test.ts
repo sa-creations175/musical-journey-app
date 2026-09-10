@@ -182,14 +182,11 @@ describe('chord progressions — three sub-drills, one moduleId', () => {
     expect(ALL_MOTIONS.find(m => motionId(m) === 'motion:1-5-desc')?.semitones).toBe(-5);
   });
 
-  it('motion-first stays on the 132 that could ever be written', () => {
-    // Its rows came from the scaffolding modes, which retired before the
-    // borrowed chords arrived: no first-chord row can name one.
-    expect(refs.filter(r => r.startsWith('motion-first:'))).toHaveLength(132);
-    const firstRows = chordProgressionsCatalog.items.filter(
-      i => i.path[3] === 'First Chord',
-    );
-    expect(firstRows).toHaveLength(132);
+  it('has no First Chord row: its rows came from the retired scaffold', () => {
+    // Guard the guard: Chord Motion's own rows are there to look beside.
+    expect(chordProgressionsCatalog.items.some(i => i.path[3] === 'Destination')).toBe(true);
+    expect(refs.some(r => r.startsWith('motion-first:'))).toBe(false);
+    expect(chordProgressionsCatalog.items.some(i => i.path[3] === 'First Chord')).toBe(false);
   });
 
   it('excludes motion-mode — scaffold aggregates are not musical items', () => {

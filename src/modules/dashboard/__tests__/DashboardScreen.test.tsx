@@ -566,17 +566,14 @@ describe('the drill affordance', () => {
     expect(query.get('focus')!.split(',')).toHaveLength(467);
   });
 
-  it('says open module on the first-chord rows beside them', async () => {
-    // The same motions (the 132 that predate the borrowed chords), and
-    // the pool filter would take them — but an
-    // attempt only lands under `motion-first:` in the minimal
-    // scaffold, so a filtered drill would never touch the row's item.
+  it('shows no First Chord row under Chord Motion', async () => {
+    // It was fed by the retired minimal scaffold; the stored rows stay.
     const el = await renderScreen();
     click(rowNamed(el, 'Chord Progressions').querySelector('[data-testid="expand-toggle"]')!);
     click(rowNamed(el, 'Chord Motion').querySelector('[data-testid="expand-toggle"]')!);
-    const first = rowNamed(el, 'First Chord');
-    expect(drillButton(first).getAttribute('data-filtered')).toBe('false');
-    expect(drillButton(first).textContent).toMatch(/^open module · \d+ items$/);
+    // Guard: the section is open and its other row is there.
+    expect(el.textContent).toContain('Destination');
+    expect(el.textContent).not.toContain('First Chord');
   });
 
   it('sends the skill as well as the mode', async () => {
