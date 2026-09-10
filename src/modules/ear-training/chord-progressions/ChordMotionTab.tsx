@@ -56,7 +56,7 @@ import { KEYS, keyToRootMidi } from './progressionTheory';
 // ear-training orphan sweep — and neither should import a screen to
 // find out. Re-exported below, unchanged, so no caller moved.
 import {
-  ALL_MOTIONS, INTERVAL_NAME, motionId,
+  ALL_MOTIONS, distanceLabel, motionId,
   type DegreeLabel, type Direction, type Motion,
 } from './chordMotionPool';
 import { bassMove, motionChords } from './motionChords';
@@ -80,7 +80,8 @@ const MODULE_ID = 'chord-progressions';
 
 // --- Types + tables ---------------------------------------------------
 
-type DistanceFilter = 'all' | 2 | 3 | 4 | 5 | 6 | 7;
+/** 1 is Same Root, the first chip after All. */
+type DistanceFilter = 'all' | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 type DirectionFilter = 'both' | Direction;
 type NoteContext = 'diatonic' | 'chromatic';
 /** How the reader answers. Degrees is the question the card asks. */
@@ -133,7 +134,9 @@ function starterAssociation(m: Motion): string {
   const id = motionId(m);
   return (
     STARTER_ASSOCIATIONS[id] ??
-    `a ${m.direction === 'asc' ? m.distance + 'th up' : m.distance + 'th down'} from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`
+    // A SAME-ROOT MOVE HAS NO DISTANCE to put in front, so the line
+    // starts at "from".
+    `${m.direction === 'same' ? '' : `a ${m.direction === 'asc' ? m.distance + 'th up' : m.distance + 'th down'} `}from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`
   );
 }
 
@@ -168,7 +171,9 @@ function filterMotions(
   return ALL_MOTIONS.filter(m => {
     if (noteContext === 'diatonic' && !m.isDiatonic) return false;
     if (distance !== 'all' && m.distance !== distance) return false;
-    if (direction !== 'both' && m.direction !== direction) return false;
+    // A SAME-ROOT MOVE GOES NEITHER WAY, so neither Direction chip
+    // excludes it — Up does not mean "not same root".
+    if (direction !== 'both' && m.direction !== 'same' && m.direction !== direction) return false;
     return true;
   });
 }
@@ -585,6 +590,13 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
       items: ALL_MOTIONS.filter(m => m.direction === 'desc')
         .map(m => ({ key: motionId(m), label: motionName(m, rowSpelling) })),
     },
+    {
+      // Neither ascending nor descending, so a section of their own,
+      // named as the Distance chip names them.
+      title: 'Same Root',
+      items: ALL_MOTIONS.filter(m => m.direction === 'same')
+        .map(m => ({ key: motionId(m), label: motionName(m, rowSpelling) })),
+    },
   ]), [rowSpelling]);
 
   const onStartFocus = async (keys: string[]) => {
@@ -646,14 +658,14 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
         </summary>
         <div className="space-y-3 pt-2">
           <Row label="Distance">
-            {(['all', 2, 3, 4, 5, 6, 7] as const).map(d => (
+            {(['all', 1, 2, 3, 4, 5, 6, 7] as const).map(d => (
               <Chip
                 key={String(d)}
                 on={distance === d}
                 testId={`motion-dist-${d}`}
                 onClick={() => setDistance(d)}
               >
-                {d === 'all' ? 'All' : `${INTERVAL_NAME[d]}s`}
+                {d === 'all' ? 'All' : distanceLabel(d)}
               </Chip>
             ))}
           </Row>
@@ -913,7 +925,9 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                   {starterAssociation(round.motion)}
                 </div>
                 <AssociationsEditor progressionId={motionId(round.motion)} alwaysEditing />
-                {(() => {
+                {/* NO INTERVAL TO DESCRIBE on a move that keeps its root:
+                    the note would be filed under a unison. */}
+                {round.motion.direction !== 'same' && (() => {
                   const semitones = Math.abs(
                     ((round.destPc - round.startPc) + 12) % 12,
                   );
@@ -957,7 +971,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
           <span>
             {focusActive
               ? `focused practice — ${focusPoolSize} motion${focusPoolSize === 1 ? '' : 's'} selected`
-              : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction === 'both' ? 'both directions' : direction === 'asc' ? 'ascending' : 'descending'} · ${distance === 'all' ? 'all distances' : INTERVAL_NAME[distance] + 's'} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
+              : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction === 'both' ? 'both directions' : direction === 'asc' ? 'ascending' : 'descending'} · ${distance === 'all' ? 'all distances' : distanceLabel(distance).toLowerCase()} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
           </span>
           {focusActive && (
             <button

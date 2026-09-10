@@ -157,12 +157,13 @@ describe('reading — 52 signature items over 52 rows', () => {
 describe('chord progressions — three sub-drills, one moduleId', () => {
   const refs = [...catalogRefSet(chordProgressionsCatalog)];
 
-  it('chord motion denominator is 204, not the 42 on screen', () => {
+  it('chord motion denominator is 207, not the 42 on screen', () => {
     // Fifteen chords (twelve degrees + the borrowed 4m, 2ø, 5m), each
-    // to every chord on a different root: 15 × 14 − 6. The 42 is
+    // to every chord on a different root: 15 × 14 − 6 = 204, plus the
+    // three same-root moves (4 → 4m, 5 → 5m, 2m → 2ø). The 42 is
     // activePool.length after the diatonic-only filter, which is the
     // default scope and so looks like the catalog.
-    expect(refs.filter(r => r.startsWith('motion:'))).toHaveLength(204);
+    expect(refs.filter(r => r.startsWith('motion:'))).toHaveLength(207);
   });
 
   it('keeps every id stored before the borrowed chords arrived, unchanged', () => {

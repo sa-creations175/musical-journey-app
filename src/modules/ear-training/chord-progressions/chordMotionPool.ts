@@ -39,7 +39,13 @@
  */
 import type { ChordQuality } from './catalog';
 
-export type Direction = 'asc' | 'desc';
+/**
+ * Which way a motion goes, by scale position.
+ *
+ * `'same'` IS A MOTION THAT KEEPS ITS ROOT — 4 → 4m, 5 → 5m, 2m → 2ø.
+ * It has no up or down, so neither Direction chip excludes it.
+ */
+export type Direction = 'asc' | 'desc' | 'same';
 
 // 12 positions in the chromatic scale relative to the tonic of a major
 // key. Diatonic positions are 1-7 (offsets 0,2,4,5,7,9,11); the five
@@ -101,8 +107,12 @@ export function degreeEntry(label: string): DegreeEntry | undefined {
 // the scope filter buckets sensible across both diatonic and chromatic
 // endpoints. The boundary cases (tritone at 6 st, mediant overlaps) are
 // not strict music-theory spellings — they're just scope buckets.
-export function intervalCountFromSemi(semi: number): 2 | 3 | 4 | 5 | 6 | 7 {
+export function intervalCountFromSemi(semi: number): Distance {
   const s = Math.abs(semi);
+  // SAME ROOT is its own bucket, the Distance row's first chip. A zero
+  // used to fall in with the 2nds, when nothing in the pool could
+  // produce one.
+  if (s === 0) return 1;
   if (s <= 2) return 2;
   if (s <= 4) return 3;
   if (s <= 5) return 4;
@@ -110,6 +120,9 @@ export function intervalCountFromSemi(semi: number): 2 | 3 | 4 | 5 | 6 | 7 {
   if (s <= 9) return 6;
   return 7;
 }
+
+/** A distance bucket: 1 is Same Root, then 2nds through 7ths. */
+export type Distance = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 export interface Motion {
   startLabel: DegreeLabel;
@@ -123,7 +136,7 @@ export interface Motion {
    *  buckets; feedback quality (major 3rd vs minor 3rd, perfect 5th vs
    *  tritone, etc.) is computed separately from the actual semitone
    *  delta via intervalFromSemitones(). */
-  distance: 2 | 3 | 4 | 5 | 6 | 7;
+  distance: Distance;
   /** True when BOTH endpoints are diatonic (scale degrees 1..7 of the
    *  major scale). Drives the diatonic-only scope filter. */
   isDiatonic: boolean;
@@ -163,22 +176,38 @@ export function parseMotionId(id: string): Motion | null {
   // Labels can contain b/# plus a digit, so we lean on a non-hyphen
   // match rather than \d+. Legacy ids stored as `motion:1-5-asc` parse
   // cleanly because "1" and "5" are valid DegreeLabel entries.
-  const m = id.match(/^motion:([^-]+)-([^-]+)-(asc|desc)$/);
+  const m = id.match(/^motion:([^-]+)-([^-]+)-(asc|desc|same)$/);
   if (!m) return null;
   const startEntry = degreeEntry(m[1]);
   const destEntry = degreeEntry(m[2]);
   if (!startEntry || !destEntry) return null;
-  return motionBetween(startEntry, destEntry, m[3] as Direction);
+  const direction = m[3] as Direction;
+  // A same-root id names a root it keeps; an asc/desc id names two.
+  // Anything else — `motion:4-4m-asc`, `motion:4-5-same` — is not a
+  // motion this pool has, and a stored one is not read as one.
+  if ((direction === 'same') !== (startEntry.semi === destEntry.semi)) return null;
+  return motionBetween(startEntry, destEntry, direction);
 }
+
+/**
+ * The moves that keep their root. Silas's ruling of 10 Sep 2026: under
+ * Chromatic the pool gains 4 → 4m, 5 → 5m and 2m → 2ø — the diatonic
+ * chord to its borrowed twin, which is how the move is met in a song
+ * (a IV going minor, not a iv going major). Ids follow the borrowed
+ * rule: `motion:4-4m-same`.
+ */
+const SAME_ROOT_PAIRS: ReadonlyArray<readonly [DegreeLabel, DegreeLabel]> = [
+  ['4', '4m'], ['5', '5m'], ['2', '2m7b5'],
+];
 
 // Every in-octave motion between two chords on DIFFERENT roots. The
 // pool is generated once and filtered at call time by distance /
 // direction / note-context (see filterMotions). Direction is by the
 // underlying semitone offsets.
 //
-// A CHORD AND ITS OWN BORROWED TWIN ARE NOT A MOTION HERE. 4 → 4m keeps
-// its root, so it has no direction and no distance for the card to ask
-// about, and the filters have no bucket for it.
+// A CHORD AND ITS OWN BORROWED TWIN ARE NOT GENERATED HERE — only the
+// three same-root moves Silas ruled in, from `SAME_ROOT_PAIRS`, which
+// carry `'same'` and the Same Root distance.
 function buildAllMotions(): Motion[] {
   const motions: Motion[] = [];
   for (const s of DEGREE_TABLE) {
@@ -186,6 +215,11 @@ function buildAllMotions(): Motion[] {
       if (s.semi === d.semi) continue;
       motions.push(motionBetween(s, d, d.semi > s.semi ? 'asc' : 'desc'));
     }
+  }
+  for (const [from, to] of SAME_ROOT_PAIRS) {
+    const s = degreeEntry(from);
+    const d = degreeEntry(to);
+    if (s && d) motions.push(motionBetween(s, d, 'same'));
   }
   return motions;
 }
@@ -202,3 +236,8 @@ export const ALL_MOTIONS: ReadonlyArray<Motion> = buildAllMotions();
 export const INTERVAL_NAME: Record<2 | 3 | 4 | 5 | 6 | 7, string> = {
   2: '2nd', 3: '3rd', 4: '4th', 5: '5th', 6: '6th', 7: '7th',
 };
+
+/** A distance bucket as the Distance row names it: "Same Root", "2nds". */
+export function distanceLabel(d: Distance): string {
+  return d === 1 ? 'Same Root' : `${INTERVAL_NAME[d]}s`;
+}

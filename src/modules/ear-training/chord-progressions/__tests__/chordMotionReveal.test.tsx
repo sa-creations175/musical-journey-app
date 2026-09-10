@@ -16,7 +16,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { setPref } from '../../../../lib/userPrefs';
 import { motionResult } from '../motionResult';
 import { degreePalette } from '../../../repertoire/chordColors';
-import { ALL_MOTIONS, parseMotionId } from '../chordMotionPool';
+import { ALL_MOTIONS, motionId, parseMotionId } from '../chordMotionPool';
 import { degreeChips } from '../motionDegrees';
 import { motionChords } from '../motionChords';
 
@@ -106,6 +106,8 @@ beforeEach(async () => {
   await setPref('chordProgressionsMotionAnswerWith', 'degrees');
   await setPref('chordProgressionsMotionStartingNote', 'find');
   await setPref('chordProgressionsMotionNoteContext', 'diatonic');
+  await setPref('chordProgressionsMotionDistance', 'all');
+  await setPref('chordProgressionsMotionDirection', 'both');
 });
 
 afterEach(async () => {
@@ -312,12 +314,15 @@ describe('the borrowed qualities: 4m, 2ø and 5m', () => {
     expect(borrowed.borrowed).toBe(true);
   });
 
-  it('adds borrowed motions only under Chromatic, and none that keep their root', () => {
+  it('adds borrowed motions only under Chromatic, and exactly the three ruled same-root moves', () => {
     const borrowed = ALL_MOTIONS.filter(m => m.borrowed);
     expect(borrowed.length).toBeGreaterThan(0);
     expect(borrowed.every(m => !m.isDiatonic)).toBe(true);
     expect(ALL_MOTIONS.filter(m => m.isDiatonic)).toHaveLength(42);
-    expect(ALL_MOTIONS.some(m => m.startSemi === m.destSemi)).toBe(false);
+    const same = ALL_MOTIONS.filter(m => m.startSemi === m.destSemi);
+    expect(same.map(motionId).sort())
+      .toEqual(['motion:2-2m7b5-same', 'motion:4-4m-same', 'motion:5-5m-same']);
+    expect(same.every(m => m.direction === 'same' && m.distance === 1)).toBe(true);
   });
 
   it('voices 1 → 4m as a minor chord on the 4', () => {
@@ -417,5 +422,66 @@ describe('the Focus panel names motions as the chips do', () => {
     expect(text).toContain('1 → 2ø');
     expect(text).toContain('♭2 → 3m');
     expect(text).not.toMatch(/→ \S*m7b5|b\d →|→ b\d/);
+  });
+});
+
+describe('same-root moves: 4 → 4m, 5 → 5m, 2m → 2ø', () => {
+  it('reads "same root" with no direction and no interval', async () => {
+    const el = await deal('motion:4-4m-same');
+    await click(el, 'motion-start-4');
+    await click(el, 'motion-dest-4m');
+    await click(el, 'motion-submit');
+    expect(resultOf(el)).toEqual({ tone: 'right', text: 'Right.' });
+    const verdict = token(el, 'motion-verdict').textContent ?? '';
+    expect(verdict).toContain('4 → 4m · same root · Fmaj7 → Fm7');
+    expect(verdict).not.toMatch(/\b(up|down)\b|unison|octave/);
+    // The ring and legend as for any borrowed chord: the 4 of the key.
+    expect(el.querySelector('[data-testid="legend-ring-line"]')?.textContent)
+      .toMatch(/this chord is the 4 of the key/);
+  });
+
+  it('answered 4 → 4 is half right, and says so', async () => {
+    const el = await deal('motion:4-4m-same');
+    await click(el, 'motion-start-4');
+    await click(el, 'motion-dest-4');
+    await click(el, 'motion-submit');
+    expect(resultOf(el)).toEqual({
+      tone: 'half',
+      text: 'Starting chord right (4). It landed on the 4m, not the 4.',
+    });
+  });
+
+  it('puts Same Root first on the Distance row, and neither Direction chip excludes it', async () => {
+    await setPref('chordProgressionsMotionNoteContext', 'chromatic');
+    await setPref('chordProgressionsMotionDistance', 1);
+    await setPref('chordProgressionsMotionDirection', 'asc');
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(
+        <InstrumentProvider><MemoryRouter><ChordMotionTab attempts={[]} /></MemoryRouter></InstrumentProvider>,
+      );
+    });
+    await settle();
+    const chips = [...container.querySelectorAll('[data-testid^="motion-dist-"]')]
+      .map(c => c.textContent);
+    expect(chips.slice(0, 3)).toEqual(['All', 'Same Root', '2nds']);
+    // Up, Same Root, Chromatic: all three same-root moves are in play.
+    expect(container.textContent).toContain('ascending · same root · 3 motions');
+    await setPref('chordProgressionsMotionDirection', 'desc');
+    await setPref('chordProgressionsMotionDistance', 'all');
+  });
+
+  it('gives them a section of their own in the Focus panel', async () => {
+    const el = await deal();
+    const open = [...el.querySelectorAll('button')]
+      .find(b => b.textContent?.includes('Focus on Specific Motions'));
+    await act(async () => { open!.click(); });
+    await settle();
+    const text = document.body.textContent ?? '';
+    expect(text).toContain('Same Root');
+    expect(text).toContain('4 → 4m');
+    expect(text).toContain('2m → 2ø');
   });
 });

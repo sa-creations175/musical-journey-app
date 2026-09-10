@@ -44,14 +44,21 @@ describe('the verdict follows the bass', () => {
           const { chords } = motionChords(key, m.startLabel, m.destLabel, 'seventh');
           const [from, to] = scheduledBass(chords, settings);
           const semis = to - from;
-          expect(Math.abs(semis), `${key} ${m.startLabel}-${m.destLabel}`).toBeGreaterThan(0);
+          // A SAME-ROOT MOVE HOLDS ITS BASS: the same note twice, never
+          // an octave. Every other move goes somewhere under an octave.
+          if (m.direction === 'same') expect(semis, `${key} ${m.startLabel}-${m.destLabel}`).toBe(0);
+          else expect(Math.abs(semis), `${key} ${m.startLabel}-${m.destLabel}`).toBeGreaterThan(0);
           expect(Math.abs(semis)).toBeLessThan(12);
-          const want = `${semis > 0 ? 'up' : 'down'} a ${RULED[Math.abs(semis)]}`;
+          const want = semis === 0
+            ? 'same root'
+            : `${semis > 0 ? 'up' : 'down'} a ${RULED[Math.abs(semis)]}`;
           const got = bassMove(chords, settings);
           expect(got?.words, `${key} ${m.startLabel}-${m.destLabel} ${settings.bass}`).toBe(want);
           expect([got?.from, got?.to]).toEqual([from, to]);
           directions.add(got!.direction);
-          if ((got!.direction === 'up') !== (m.direction === 'asc')) disagreesWithPool += 1;
+          if (m.direction !== 'same' && (got!.direction === 'up') !== (m.direction === 'asc')) {
+            disagreesWithPool += 1;
+          }
           checked += 1;
         }
       }
@@ -60,7 +67,7 @@ describe('the verdict follows the bass', () => {
     // the bass really does disagree with the pool's scale-position
     // direction somewhere — otherwise the old rule would pass too.
     expect(checked).toBe(ALL_MOTIONS.length * KEYS.length * MODES.length);
-    expect(directions).toEqual(new Set(['up', 'down']));
+    expect(directions).toEqual(new Set(['up', 'down', 'same']));
     expect(disagreesWithPool).toBeGreaterThan(0);
   });
 

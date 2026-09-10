@@ -92,7 +92,13 @@ export function motionChords(
   // NO MOVES PASSED: the bass rule chooses, which is the whole point of
   // retiring "no octave crossing". A fourth or a fifth alternates and
   // everything else takes the smaller move — see `bassLine`.
-  const line = bassLine(rootPcs, []) as number[];
+  const ruled = bassLine(rootPcs, []) as number[];
+  // THE SAME NOTE TWICE ON A SAME-ROOT MOVE. The bass rule, handed a
+  // root it already has, goes an octave up or down — a leap that is
+  // not the move. Silas's ruling of 10 Sep 2026: 4 → 4m keeps its bass
+  // where the first chord put it, and a Forward drop moves the whole
+  // line, so it stays there with Forward too.
+  const line = rootPcs[0] === rootPcs[1] ? [ruled[0], ruled[0]] : ruled;
 
   const chords: PlayerChord[] = [];
   let previous: number[] | null = null;
@@ -136,10 +142,12 @@ export interface BassMove {
   /** The two bass notes that sounded, as MIDI. */
   from: number;
   to: number;
-  direction: 'up' | 'down';
-  /** "minor 3rd", "tritone" — the interval's quality and size. */
+  /** `'same'` when the bass holds its note — a same-root move. */
+  direction: 'up' | 'down' | 'same';
+  /** "minor 3rd", "tritone" — the interval's quality and size; empty
+   *  when the bass holds. */
   interval: string;
-  /** The verdict's middle part: "down a minor 3rd". */
+  /** The verdict's middle part: "down a minor 3rd", or "same root". */
   words: string;
 }
 
@@ -166,7 +174,7 @@ export interface BassMove {
  *
  * THE FILTERS DO NOT MOVE. Distance and Direction still describe the
  * pool, which is what they narrow; this describes one voicing of it.
- * An octave never happens: a motion never keeps its root.
+ * An octave never happens: a same-root move holds its bass instead.
  * =====================================================================
  */
 export function bassMove(
@@ -177,7 +185,10 @@ export function bassMove(
   const drop = bassDrop(chords, settings);
   const [from, to] = [chords[0], chords[1]]
     .map(c => chordStep(c, settings, 2, drop).intervals[0]);
-  if (from === undefined || to === undefined || from === to) return null;
+  if (from === undefined || to === undefined) return null;
+  // NO DIRECTION AND NO INTERVAL when the bass holds: the verdict reads
+  // `4 → 4m · same root · F → Fm`.
+  if (from === to) return { from, to, direction: 'same', interval: '', words: 'same root' };
   const direction = to > from ? 'up' : 'down';
   const interval = intervalFromSemitones(to - from).name.toLowerCase();
   return { from, to, direction, interval, words: `${direction} a ${interval}` };

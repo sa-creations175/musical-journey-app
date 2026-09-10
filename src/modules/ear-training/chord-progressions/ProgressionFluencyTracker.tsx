@@ -25,7 +25,9 @@ import EtSelectToggle from '../EtSelectToggle';
 import { useEtCurationsLive } from '../useEtCurations';
 import { useEtSelection, type EtSelectionState } from '../useEtSelection';
 import type { EtItemCuration } from '../../../lib/db';
-import { ALL_MOTIONS, INTERVAL_NAME, parseMotionId } from './chordMotionPool';
+import {
+  ALL_MOTIONS, INTERVAL_NAME, distanceLabel, parseMotionId, type Distance,
+} from './chordMotionPool';
 import { motionName } from './motionDegrees';
 import { useProgressionSpelling } from '../../../lib/progressionSpelling';
 import AssociationsEditor from './AssociationsEditor';
@@ -398,7 +400,7 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
       .sort((a, b) => a[0] - b[0])
       .map(([dist, motions]) => ({
         key: String(dist),
-        title: `${INTERVAL_NAME[dist as 2 | 3 | 4 | 5 | 6 | 7]}s — ${motions.length} motions`,
+        title: `${distanceLabel(dist as Distance)} — ${motions.length} motions`,
         motions,
       }));
   }, []);
@@ -419,7 +421,9 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
               const parsed = parseMotionId(id);
               const stats = rollingFor(attempts, id);
               const label = motionName(m, rowSpelling);
-              const extra = `${m.direction === 'asc' ? 'ascending' : 'descending'} · ${parsed?.distance ?? ''}${parsed ? INTERVAL_NAME[parsed.distance].slice(-2) : ''}${m.isDiatonic ? '' : ' · chromatic'}`;
+              const extra = m.direction === 'same'
+                ? `same root${m.isDiatonic ? '' : ' · chromatic'}`
+                : `${m.direction === 'asc' ? 'ascending' : 'descending'} · ${parsed && parsed.distance !== 1 ? INTERVAL_NAME[parsed.distance] : ''}${m.isDiatonic ? '' : ' · chromatic'}`;
               return <SimpleStatRow key={id} label={label} stats={stats} extra={extra} />;
             })}
           </div>

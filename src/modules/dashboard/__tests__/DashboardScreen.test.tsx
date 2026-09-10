@@ -563,7 +563,7 @@ describe('the drill affordance', () => {
     expect(pathname(el)).toBe('/ear-training/chord-progressions');
     const query = new URLSearchParams(search(el));
     expect(query.get('tab')).toBe('chord-motion');
-    expect(query.get('focus')!.split(',')).toHaveLength(204);
+    expect(query.get('focus')!.split(',')).toHaveLength(207);
   });
 
   it('says open module on the first-chord rows beside them', async () => {
