@@ -318,6 +318,26 @@ function rootDegreeToken(chord: ChordFunction): string {
   return EXTENSION_DEGREES.has(joined) ? match[1] + joined : fn;
 }
 
+/**
+ * The palette for a bare degree token — "1", "♭7", "#4".
+ *
+ * SPLIT OUT OF `palettePairFor`, which wraps this in a `ChordFunction`.
+ * The shared player needs a degree's colour without having a chord cell
+ * to hand: it draws a ring on a chord root in its degree-of-the-key
+ * colour, and a second copy of this lookup would be a second answer to
+ * "what colour is the 4".
+ */
+export function degreePalette(token: string, isDark: boolean): ChordPalette | null {
+  const resolved = resolveDegree(token.replace(/♭/g, 'b').replace(/♯/g, '#'));
+  if (!resolved) return null;
+  const base = DEGREE_PALETTES[resolved.family];
+  if (!base) return null;
+  const pair = resolved.flattened
+    ? FLATTENED_PALETTES[resolved.family] ?? base
+    : base;
+  return isDark ? pair.dark : pair.light;
+}
+
 function palettePairFor(chord: ChordFunction): PalettePair {
   if (chord.unparsed) return NEUTRAL_PALETTE;
   const source =

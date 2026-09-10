@@ -59,6 +59,9 @@ import {
 } from '../lib/player/settings';
 import { bassDrop, playerMarks, type PlayerChord } from '../lib/player/voices';
 import { useInstrument } from '../lib/instrumentContext';
+import { useSpelling } from '../lib/spellingPref';
+import ChordColorLegend from './ChordColorLegend';
+import type { InKeyRing } from '../lib/player/inKeyColour';
 import type { Instrument } from '../lib/audio';
 
 const CHIP = 'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors';
@@ -152,6 +155,16 @@ interface SharedPlayerProps {
   showListen?: boolean;
   /** Show "Chord sounds". Chord recognition only. */
   attack?: { value: ChordAttack; onChange: (a: ChordAttack) => void };
+  /**
+   * The ring this surface draws on the sounding chord's root, in its
+   * degree-of-the-key colour.
+   *
+   * OMITTED WHERE A SURFACE DRAWS NO RING, and the legend then does not
+   * write the line about it — a legend naming a mark that is not on the
+   * screen is worse than no legend. Chord Motion is the surface that
+   * draws one today.
+   */
+  ring?: InKeyRing | null;
 
   /** The board. `false` hides it — a quiz before the answer. A node
    *  replaces it, for a surface whose board is also its input. */
@@ -210,9 +223,10 @@ export default function SharedPlayer({
   chords, orientPc, settings, onSettings, thickness,
   bassDirection, handDirection, showHands, showListen, attack,
   board, boardLabel = 'What is sounding', caption, compare, children,
-  controls = true, onStep, beats, play, totalBeats,
+  controls = true, onStep, beats, play, totalBeats, ring,
 }: SharedPlayerProps) {
   const { currentInstrument, setCurrentInstrument } = useInstrument();
+  const [spelling] = useSpelling();
   const [handle, setHandle] = useState<PlaybackHandle | null>(null);
   const [transport, setTransport] = useState<Transport>('stopped');
   const [lit, setLit] = useState<number | null>(null);
@@ -335,6 +349,20 @@ export default function SharedPlayer({
         board === undefined
           ? <BuiltAnswerKeyboard marks={marks} label={boardLabel} />
           : board
+      )}
+
+      {/* UNDER THE SHARED KEYBOARD, ON EVERY REVEAL. The board has been
+          teaching a colour vocabulary nobody wrote down; this names it.
+          Closed by default and remembered per device — see
+          `ChordColorLegend`. */}
+      {board !== false && (
+        <ChordColorLegend
+          chord={lit === null ? (chords[0] ?? null) : (chords[lit] ?? null)}
+          settings={settings}
+          drop={drop}
+          spelling={spelling}
+          {...(ring === undefined ? {} : { ring })}
+        />
       )}
 
       {chords.length > 0 && controls && (
