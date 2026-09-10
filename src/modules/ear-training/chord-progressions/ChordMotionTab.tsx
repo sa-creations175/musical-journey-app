@@ -49,6 +49,7 @@ import {
   defaultIntervalDescription,
   intervalDescriptionKey,
   intervalFromSemitones,
+  moveWords,
 } from './intervalQuality';
 import { KEYS, keyToRootMidi } from './progressionTheory';
 // THE POOL LIVES IN ITS OWN FILE. Two things outside this drill need
@@ -136,9 +137,10 @@ function starterAssociation(m: Motion): string {
   const id = motionId(m);
   return (
     STARTER_ASSOCIATIONS[id] ??
-    // A SAME-ROOT MOVE HAS NO DISTANCE to put in front, so the line
-    // starts at "from".
-    `${m.direction === 'same' ? '' : `a ${m.direction === 'asc' ? m.distance + 'th up' : m.distance + 'th down'} `}from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`
+    // THE MOVE IN THE VERDICT'S WORDS, from the same formatter: "up a
+    // major 2nd", never "a 2th up". A SAME-ROOT MOVE HAS NO MOVE to put
+    // in front, so its line starts at "from".
+    `${m.direction === 'same' ? '' : `${moveWords(m.semitones)} `}from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`
   );
 }
 

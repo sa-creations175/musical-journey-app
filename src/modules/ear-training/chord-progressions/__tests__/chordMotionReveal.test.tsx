@@ -584,3 +584,26 @@ describe('Direction and Distance read the card’s own move', () => {
     expect(await scope('desc', 6)).toContain(`${downSixths} motion`);
   });
 });
+
+describe('the starter-association line names the move as the verdict does', () => {
+  it('says "up a major 2nd", not "a 2th up", and the twin "down a minor 7th"', async () => {
+    for (const [id, words] of [
+      ['motion:1-2-asc', 'up a major 2nd from the 1 to the 2m'],
+      ['motion:1-2-desc', 'down a minor 7th from the 1 to the 2m'],
+    ] as const) {
+      const el = await deal(id);
+      await click(el, 'motion-start-1');
+      await click(el, 'motion-dest-2');
+      await click(el, 'motion-submit');
+      const text = el.textContent ?? '';
+      // And the verdict says the same words for the same move.
+      expect(token(el, 'verdict-bass-move').textContent).toBe(words.split(' from')[0]);
+      expect(text).toContain(words);
+      expect(text).not.toMatch(/\d(th|nd|rd) (up|down)/);
+      await act(async () => root!.unmount());
+      container!.remove();
+      root = null;
+      container = null;
+    }
+  });
+});
