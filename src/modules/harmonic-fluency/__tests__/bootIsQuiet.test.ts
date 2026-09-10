@@ -28,10 +28,18 @@
 import { describe, expect, it } from 'vitest';
 import APP from '../../../App.tsx?raw';
 import { describeOrphans } from '../orphanedCardSweep';
+import { describeOrphanedEtItems } from '../../ear-training/orphanedItemSweep';
 
 /** Every module `App.tsx` imports from this one. */
 function harmonicFluencyImports(): string[] {
   return [...APP.matchAll(/from '\.\/modules\/harmonic-fluency\/([^']+)'/g)]
+    .map(m => m[1]);
+}
+
+/** Every module `App.tsx` imports from ear training, however it is
+ *  reached — a static import or a lazy one. */
+function earTrainingImports(): string[] {
+  return [...APP.matchAll(/'\.\/modules\/ear-training\/([^']+)'/g)]
     .map(m => m[1]);
 }
 
@@ -92,12 +100,58 @@ describe('the boot path holds no harmonic-fluency mover', () => {
   });
 });
 
+describe('the boot path holds no ear-training mover either', () => {
+  /**
+   * =====================================================================
+   * EAR TRAINING GOT ITS OWN SWEEP ON 9 SEP 2026, AND IT IS THE ONLY
+   * NON-SCREEN THING THE BOOT PATH IS ALLOWED TO REACH IT FOR.
+   *
+   * The chord-progressions catalog was cut from sixty-nine named
+   * progressions to eight, and the rule was followed exactly: nothing
+   * deleted the rows the other sixty-one earned. The obvious next move
+   * — a one-time pass to tidy them — is the move this file exists to
+   * stop, and it would be as easy to add here as it ever was in
+   * Harmonic Fluency.
+   * =====================================================================
+   */
+  it('imports one non-screen module from ear training, and it is the sweep', () => {
+    // Screens are routed, not run at start. Anything else the boot
+    // path reaches for is something it DOES.
+    // Guard the guard: this would pass on an App.tsx that imported
+    // nothing from ear training at all.
+    expect(earTrainingImports().length).toBeGreaterThan(5);
+    const screens = /^(EarTraining|.*Calendar$)/;
+    const modules = earTrainingImports().filter(m => {
+      const leaf = m.split('/').pop() ?? m;
+      // A component file, by the app's own convention: PascalCase.
+      return !screens.test(leaf) && !/^[A-Z]/.test(leaf);
+    });
+    expect(modules).toEqual(['orphanedItemSweep']);
+  });
+
+  it('names no fold-in, migration or cleanup module', () => {
+    for (const m of earTrainingImports()) {
+      expect(m, m).not.toMatch(/FoldIn|Migration|migrate|Cleanup$/i);
+    }
+  });
+
+  it('has one ear-training console line, and it is the sweep failing', () => {
+    const lines = [...APP.matchAll(/'\[et\][^']*'/g)].map(m => m[0]);
+    expect(lines).toEqual(["'[et] orphaned-item sweep failed'"]);
+  });
+});
+
 describe('what the boot path does still do', () => {
   it('runs the orphan sweep, which is a check and not a step', () => {
     expect(APP).toContain('reportOrphanedCards()');
     // AND PRINTS NOTHING WHEN THERE IS NOTHING TO SAY. A boot line on
     // every start is a boot line nobody reads.
     expect(describeOrphans({ orphans: [] })).toBeNull();
+  });
+
+  it('runs the ear-training sweep, on the same terms', () => {
+    expect(APP).toContain('reportOrphanedEtItems()');
+    expect(describeOrphanedEtItems({ orphans: [] })).toBeNull();
   });
 
   it('has no harmonic-fluency console line left to print', () => {

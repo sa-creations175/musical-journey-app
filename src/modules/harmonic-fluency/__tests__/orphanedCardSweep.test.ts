@@ -106,7 +106,12 @@ describe('the deck is what says which cards exist', () => {
     const r = await reportOrphanedCards();
     expect(r.orphans).toHaveLength(1);
     expect(r.orphans[0]).toMatchObject({
-      cardId: ORPHAN, attempts: 2, spacing: 1, annotations: 0, diary: 0,
+      ref: ORPHAN,
+      scope: 'the deck',
+      // EVERY TABLE THE SCOPE READS, zero included — so the shape of
+      // an orphan does not change with the data and a missing count
+      // is a missing table rather than an empty one.
+      counts: { attempts: 2, spacing: 1, annotations: 0, diary: 0 },
     });
     expect(describeOrphans(r))
       .toBe(`[hf] ${ORPHAN} is not in the deck and still has 2 attempt(s), `
@@ -124,7 +129,7 @@ describe('the deck is what says which cards exist', () => {
     } as never);
     const r = await reportOrphanedCards();
     expect(r.orphans).toHaveLength(1);
-    expect(r.orphans[0]).toMatchObject({ annotations: 1, diary: 1 });
+    expect(r.orphans[0].counts).toMatchObject({ annotations: 1, diary: 1 });
     expect(r.orphans[0].authored).toEqual(['diaryEntry', 'note']);
   });
 
@@ -143,7 +148,7 @@ describe('the deck is what says which cards exist', () => {
     await db.spacingState.put(spacingRow(LIVE, { studyLater: true }));
     await db.spacingState.put(spacingRow(ORPHAN));
     const r = await reportOrphanedCards();
-    expect(r.orphans.map(o => o.cardId)).toEqual([ORPHAN]);
+    expect(r.orphans.map(o => o.ref)).toEqual([ORPHAN]);
     expect(FLASHCARDS.some(c => c.id === LIVE)).toBe(true);
   });
 });

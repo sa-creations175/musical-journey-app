@@ -33,6 +33,14 @@ import {
   type PlaybackHandle,
 } from './progressionTheory';
 import type { ChordQuality } from './catalog';
+// THE POOL LIVES IN ITS OWN FILE. Two things outside this drill need
+// to know which motions exist — the dashboard read layer and the
+// ear-training orphan sweep — and neither should import a screen to
+// find out. Re-exported below, unchanged, so no caller moved.
+import {
+  ALL_MOTIONS, degreeEntry, motionId, parseMotionId,
+  type DegreeLabel, type Direction, type Motion,
+} from './chordMotionPool';
 import { pitchClassOf, spellKey, spellNote, type Spelling } from '../../../lib/spelling';
 import { useSpelling } from '../../../lib/spellingPref';
 
@@ -40,7 +48,6 @@ const MODULE_ID = 'chord-progressions';
 
 // --- Types + tables ---------------------------------------------------
 
-type Direction = 'asc' | 'desc';
 type DistanceFilter = 'all' | 2 | 3 | 4 | 5 | 6 | 7;
 type DirectionFilter = 'both' | Direction;
 type NoteContext = 'diatonic' | 'chromatic';
@@ -56,134 +63,11 @@ const SCAFFOLD_LABEL: Record<Scaffolding, string> = {
   minimal: 'minimal',
 };
 
-// 12 positions in the chromatic scale relative to the tonic of a major
-// key. Diatonic positions are 1-7 (offsets 0,2,4,5,7,9,11); the five
-// chromatic slots fill the gaps with borrowed-quality defaults:
-//   b2 / b3 / b6 / b7 as majors (Neapolitan + borrowed-from-minor
-//   majors) and #4 as diminished (tritone / vii° of V).
-// This is the universe of motion endpoints across both scope settings;
-// the pool filters at runtime by entry.diatonic when the user is in
-// "diatonic only" mode.
-export type DegreeLabel =
-  | '1' | 'b2' | '2' | 'b3' | '3' | '4' | '#4' | '5' | 'b6' | '6' | 'b7' | '7';
-
-interface DegreeEntry {
-  label: DegreeLabel;
-  semi: number;
-  diatonic: boolean;
-  quality: ChordQuality;
-}
-
-const DEGREE_TABLE: DegreeEntry[] = [
-  { label: '1',  semi: 0,  diatonic: true,  quality: 'major' },
-  { label: 'b2', semi: 1,  diatonic: false, quality: 'major' },
-  { label: '2',  semi: 2,  diatonic: true,  quality: 'minor' },
-  { label: 'b3', semi: 3,  diatonic: false, quality: 'major' },
-  { label: '3',  semi: 4,  diatonic: true,  quality: 'minor' },
-  { label: '4',  semi: 5,  diatonic: true,  quality: 'major' },
-  { label: '#4', semi: 6,  diatonic: false, quality: 'diminished' },
-  { label: '5',  semi: 7,  diatonic: true,  quality: 'dominant' },
-  { label: 'b6', semi: 8,  diatonic: false, quality: 'major' },
-  { label: '6',  semi: 9,  diatonic: true,  quality: 'minor' },
-  { label: 'b7', semi: 10, diatonic: false, quality: 'major' },
-  { label: '7',  semi: 11, diatonic: true,  quality: 'diminished' },
-];
-
-const DEGREE_BY_LABEL = new Map<string, DegreeEntry>(DEGREE_TABLE.map(e => [e.label, e]));
-
-function degreeEntry(label: string): DegreeEntry | undefined {
-  return DEGREE_BY_LABEL.get(label);
-}
-
 // Module-level complexity for Chord Motion playback. Default is seventh
 // (richer sound; matches what the audio engine actually renders).
 // Kept as a const for v1 — exposing a user-facing complexity toggle
 // lives in the Chord Motion roadmap.
 const MOTION_COMPLEXITY: Complexity = 'seventh';
-
-// Approximate musical-interval count (2..7) from a semitone span. Keeps
-// the scope filter buckets sensible across both diatonic and chromatic
-// endpoints. The boundary cases (tritone at 6 st, mediant overlaps) are
-// not strict music-theory spellings — they're just scope buckets.
-function intervalCountFromSemi(semi: number): 2 | 3 | 4 | 5 | 6 | 7 {
-  const s = Math.abs(semi);
-  if (s <= 2) return 2;
-  if (s <= 4) return 3;
-  if (s <= 5) return 4;
-  if (s <= 7) return 5;
-  if (s <= 9) return 6;
-  return 7;
-}
-
-// --- Motion pool + encoding ------------------------------------------
-
-interface Motion {
-  startLabel: DegreeLabel;
-  destLabel: DegreeLabel;
-  /** Semitones above the tonic for start / destination. Preserved on
-   *  the motion so callers don't need to re-look-up the degree table. */
-  startSemi: number;
-  destSemi: number;
-  direction: Direction;
-  /** Musical interval count (2..7). Used only for the scope filter
-   *  buckets; feedback quality (major 3rd vs minor 3rd, perfect 5th vs
-   *  tritone, etc.) is computed separately from the actual semitone
-   *  delta via intervalFromSemitones(). */
-  distance: 2 | 3 | 4 | 5 | 6 | 7;
-  /** True when BOTH endpoints are diatonic (scale degrees 1..7 of the
-   *  major scale). Drives the diatonic-only scope filter. */
-  isDiatonic: boolean;
-}
-
-function motionId(m: Pick<Motion, 'startLabel' | 'destLabel' | 'direction'>): string {
-  return `motion:${m.startLabel}-${m.destLabel}-${m.direction}`;
-}
-function parseMotionId(id: string): Motion | null {
-  // Labels can contain b/# plus a digit, so we lean on a non-hyphen
-  // match rather than \d+. Legacy ids stored as `motion:1-5-asc` parse
-  // cleanly because "1" and "5" are valid DegreeLabel entries.
-  const m = id.match(/^motion:([^-]+)-([^-]+)-(asc|desc)$/);
-  if (!m) return null;
-  const startEntry = degreeEntry(m[1]);
-  const destEntry = degreeEntry(m[2]);
-  if (!startEntry || !destEntry) return null;
-  const direction = m[3] as Direction;
-  const distance = intervalCountFromSemi(Math.abs(destEntry.semi - startEntry.semi));
-  return {
-    startLabel: startEntry.label,
-    destLabel: destEntry.label,
-    startSemi: startEntry.semi,
-    destSemi: destEntry.semi,
-    direction,
-    distance,
-    isDiatonic: startEntry.diatonic && destEntry.diatonic,
-  };
-}
-
-// Every in-octave motion between any two distinct chromatic-scale
-// positions. The pool is generated once and filtered at call time by
-// distance / direction / note-context (see filterMotions). Order is
-// asc/desc by the underlying semitone offsets — no octave crossing.
-function buildAllMotions(): Motion[] {
-  const motions: Motion[] = [];
-  for (const s of DEGREE_TABLE) {
-    for (const d of DEGREE_TABLE) {
-      if (s.label === d.label) continue;
-      motions.push({
-        startLabel: s.label,
-        destLabel: d.label,
-        startSemi: s.semi,
-        destSemi: d.semi,
-        direction: d.semi > s.semi ? 'asc' : 'desc',
-        distance: intervalCountFromSemi(Math.abs(d.semi - s.semi)),
-        isDiatonic: s.diatonic && d.diatonic,
-      });
-    }
-  }
-  return motions;
-}
-
-const ALL_MOTIONS = buildAllMotions();
 
 // --- Pre-populated "starter" associations ----------------------------
 
@@ -1266,3 +1150,4 @@ function scaffoldTitle(mode: Scaffolding): string {
 // Kept exported for the fluency tracker to parse motion ids back into
 // distance/direction when grouping stats by sub-dimension.
 export { parseMotionId, ALL_MOTIONS, INTERVAL_NAME };
+export type { DegreeLabel };

@@ -308,7 +308,7 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
   // "startDeg → destDeg (dir)" row. Each attempt row reuses the same
   // rolling-window tier logic as the full-progression rows.
   const groups = useMemo(() => {
-    const byDistance = new Map<number, typeof ALL_MOTIONS>();
+    const byDistance = new Map<number, Array<typeof ALL_MOTIONS[number]>>();
     for (const m of ALL_MOTIONS) {
       const list = byDistance.get(m.distance) ?? [];
       list.push(m);

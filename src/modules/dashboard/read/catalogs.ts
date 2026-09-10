@@ -42,7 +42,10 @@ import { MODES } from '../../ear-training/scales-modes/catalog';
 import { PROGRESSIONS } from '../../ear-training/chord-progressions/catalog';
 import { KEYS as PROGRESSION_KEYS } from '../../ear-training/chord-progressions/progressionTheory';
 import { containsSlashChords } from '../../ear-training/chord-progressions/progressionTheory';
-import { ALL_MOTIONS } from '../../ear-training/chord-progressions/ChordMotionTab';
+// THE POOL, NOT THE SCREEN. This used to import the drill component,
+// which is the thing this file's own comments say the read layer must
+// not do; the pool moved into a module of its own on 9 Sep 2026.
+import { ALL_MOTIONS } from '../../ear-training/chord-progressions/chordMotionPool';
 import {
   SIGNATURES, KEY_MODES, CLEFS, NOTE_POSITIONS, CHORD_QUALITIES as READING_CHORD_QUALITIES,
   positionsForFamily, clefsForFamily, SHAPE_FAMILIES, SHAPE_FAMILY_LABEL,

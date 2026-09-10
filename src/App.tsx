@@ -10,6 +10,10 @@ import {
   reportOrphanedCards,
 } from './modules/harmonic-fluency/orphanedCardSweep';
 import {
+  describeOrphanedEtItems,
+  reportOrphanedEtItems,
+} from './modules/ear-training/orphanedItemSweep';
+import {
   describeDedupe, removeDuplicateSpacingRows,
 } from './lib/spacing/dedupeSpacingRows';
 import {
@@ -188,6 +192,19 @@ export default function App() {
       })
       .catch(err => {
         console.warn('[hf] orphaned-card sweep failed', err);
+      });
+    // AND THE SAME CHECK FOR EAR TRAINING, which had none until
+    // 9 Sep 2026. The chord-progressions catalog was cut from
+    // sixty-nine progressions to eight and nothing deleted the rows
+    // the other sixty-one earned — correctly, and silently. This is
+    // what says so out loud. It reports and never deletes.
+    void reportOrphanedEtItems()
+      .then(r => {
+        const line = describeOrphanedEtItems(r);
+        if (line !== null) console.info(line);
+      })
+      .catch(err => {
+        console.warn('[et] orphaned-item sweep failed', err);
       });
     // A ONE-SHOT WAS HERE, AND IT IS DELETED RATHER THAN REPINNED.
     // It was authorised to move a coverage goal's stored target from
