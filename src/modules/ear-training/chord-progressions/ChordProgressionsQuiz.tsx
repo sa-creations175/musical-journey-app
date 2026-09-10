@@ -63,6 +63,7 @@ import {
   type TonicContext,
 } from './progressionTheory';
 import { useSpelling } from '../../../lib/spellingPref';
+import { PATTERN_DECOY_COUNT, patternDecoyPool } from './patternRound';
 
 const MODULE_ID = 'chord-progressions';
 
@@ -507,12 +508,11 @@ export default function ChordProgressionsQuiz({ attempts, initialFocusKeys }: Pr
     await updateDailySummary(MODULE_ID);
     setSubmitted(true);
 
-    // Set up pattern recognition bonus round
-    const decoys = shuffle(
-      PROGRESSIONS.filter(p =>
-        p.id !== active.id && Math.abs(p.tier - active.tier) <= 1,
-      ),
-    ).slice(0, 4);
+    // Set up pattern recognition bonus round. Which progressions can
+    // stand as wrong answers is `patternDecoyPool`'s call, and it has
+    // a comment about why that got harder after the catalog cut.
+    const decoys = shuffle(patternDecoyPool(active, PROGRESSIONS))
+      .slice(0, PATTERN_DECOY_COUNT);
     setPatternOptions(shuffle([active, ...decoys]));
     setRunState('pattern');
   };

@@ -236,8 +236,17 @@ const MODES: ModeLine[] = [
     emotional: ['contemplative', 'dreamy'], genre: ['jazz'] },
 ];
 
-// --- Progressions (20 entries) ------------------------------------
-// Subset of PROGRESSIONS picked for emotional-territory clarity.
+// --- Progressions (8 entries) -------------------------------------
+// The whole of the ear-training catalog, which is eight progressions
+// since the cut of 9 Sep 2026. It was a hand-picked subset of twenty
+// back when the catalog held sixty-nine; the thirteen starters whose
+// progression left the catalog went with it, because a seed for an id
+// nothing can be practised under is a diary entry about nothing.
+//
+// SEEDED ENTRIES ALREADY ON DISK ARE NOT TOUCHED. `seedStartersIfNeeded`
+// only ever adds, so a reader who has been running this app keeps every
+// starter they were given and everything they wrote on it; what changes
+// is what a fresh install is handed.
 
 interface ProgressionLine { id: string; text: string; emotional: string[]; genre?: string[]; }
 
@@ -254,41 +263,10 @@ const PROGRESSIONS: ProgressionLine[] = [
     emotional: ['resolved', 'soulful'], genre: ['gospel', 'jazz'] },
   { id: '2-5-1',       text: "The classic resolution — the feeling of arriving home. The sentence every jazz player learns first.",
     emotional: ['resolved'], genre: ['jazz'] },
-  { id: '12-bar-blues',text: "12 bars of truth — the blues form that carries grief, swagger, and grit in equal measure. The lineage's bedrock.",
-    emotional: ['soulful', 'stormy'], genre: ['blues'] },
-  { id: '1-4-vamp',    text: "Plagal rocking — two chords forever. The gospel vamp that lets the singer preach.",
-    emotional: ['reverent', 'soulful'], genre: ['gospel'] },
-  { id: 'gospel-walk-up',
-    text: "The stepwise climb up to the IV — that signature gospel lift. Like rising to your feet in the middle of the verse.",
-    emotional: ['triumphant', 'reverent'], genre: ['gospel'] },
-  { id: 'gospel-walk-down',
-    text: "The stepwise descent — the hymn coming to rest, the congregation settling back into the pew.",
-    emotional: ['reverent', 'resolved'], genre: ['gospel'] },
   { id: 'backdoor',    text: "The backdoor cadence — bVII to I, the funky side-entry resolution. Sneaky, soulful, satisfying.",
     emotional: ['funky', 'soulful'], genre: ['funk', 'gospel'] },
-  { id: '6-2-5-1',     text: "The extended turnaround — adds the vi, giving the cycle more room to breathe. Ballad-length resolution.",
-    emotional: ['contemplative', 'resolved'], genre: ['jazz'] },
-  { id: '4-5-3-6',     text: "The circle motion in the middle of a song — descending fifths dressed up for church. Arrival with a detour.",
-    emotional: ['soulful', 'contemplative'], genre: ['gospel'] },
-  { id: '1-3-4',       text: "The major-third lift — I to iii to IV, a voicing that rises through the mediant before arriving.",
-    emotional: ['hopeful', 'bright'] },
-  { id: 'plagal-vamp', text: "IV to I forever — the Amen cadence looped. Worship-tune simplicity; the chord change as prayer.",
-    emotional: ['reverent', 'resolved'], genre: ['worship', 'gospel'] },
-  { id: '6-4-5',       text: "Minor tonic to subdominant to dominant — the pop-ballad opener that sets the key before settling.",
-    emotional: ['melancholy', 'hopeful'] },
-  { id: 'mariah-rnb-turnaround',
-    text: "The Mariah R&B turnaround — rich chromatic movement inside the turnaround. 90s R&B sophistication.",
-    emotional: ['soulful', 'dreamy'], genre: ['r&b'] },
   { id: '4-1-5-6',     text: "Starting on IV — the uplifted opening, the chorus that enters mid-arc. Common in modern worship.",
     emotional: ['hopeful', 'triumphant'], genre: ['worship'] },
-  { id: '1-b7-4',      text: "Mixolydian vamp — the funky non-resolution, two neighbouring chords holding the groove.",
-    emotional: ['funky', 'warm'], genre: ['funk', 'r&b'] },
-  { id: 'descending-bass',
-    text: "Bass walks down while chords shift on top — the most universal ballad tool in gospel, soul, and standards.",
-    emotional: ['melancholy', 'soulful'], genre: ['gospel', 'soul'] },
-  { id: 'pj-morton-turnaround',
-    text: "PJ Morton's turnaround — neo-soul chromaticism dressed in gospel harmony. A signature of modern black church music.",
-    emotional: ['soulful', 'contemplative'], genre: ['gospel', 'neo-soul'] },
 ];
 
 // --- Chord motions (12 entries) -----------------------------------
@@ -469,9 +447,9 @@ export function inferConceptTags(starter: StarterSeed): string[] {
     else tags.add(g.toLowerCase());
   }
 
-  // Explicit text mentions also qualify — the starter for the '1-4-vamp'
-  // progression ("gospel's vamp") doesn't list gospel in its genre
-  // array but clearly belongs in the gospel bucket.
+  // Explicit text mentions also qualify — a starter can describe a
+  // gospel or jazz home without listing the genre in its own array,
+  // and it still belongs in that bucket.
   if (/\bgospel\b/i.test(text)) tags.add('gospel');
   if (/\bjazz\b/i.test(text)) tags.add('jazz');
 

@@ -14,6 +14,13 @@
  * Stage N meets the per-item threshold. The check walks the
  * catalog's stage-tagged progressions, not the bare PROGRESSIONS
  * array, so a future re-classification flows through automatically.
+ *
+ * Since the catalog cut of 9 Sep 2026 the stages are thin — stage 3
+ * is one progression and stage 4 is one — and nothing here needed
+ * changing for that: a stage of one clears on that one item, and the
+ * staged-introduction batch simply hands over fewer than three fresh
+ * items. The one thing that DID need changing is the empty-stage case;
+ * see `computeUnlockedStage`.
  */
 import { db, type SpacingState } from '../../../lib/db';
 import { PROGRESSIONS } from './catalog';
@@ -76,7 +83,19 @@ export function computeUnlockedStage(
   let unlocked: ProgressionStage = 1;
   for (let stage = 1; stage < MAX_PROGRESSION_STAGE; stage++) {
     const items = itemsForStage(stage as ProgressionStage);
-    if (items.length === 0) continue;
+    // A STAGE WITH NOTHING IN IT IS CLEARED, NOT A WALL.
+    //
+    // This used to `continue`, which left `unlocked` where it was and
+    // then broke out on the next stage that was not cleared — so an
+    // empty stage 2 made stages 3 and 4 unreachable for ever, with no
+    // action the reader could take to open them. The catalog cut of
+    // 9 Sep leaves every stage populated, and the shape of the bug is
+    // exactly the shape of a future cut, so it is fixed rather than
+    // relied upon.
+    if (items.length === 0) {
+      unlocked = (stage + 1) as ProgressionStage;
+      continue;
+    }
     const allCleared = items.every(id => {
       const s = statsByItem.get(id);
       if (!s) return false;

@@ -32,6 +32,7 @@ import {
   enumerateAllReadingItems,
   CHORD_QUALITIES as READING_CHORD_QUALITIES,
 } from '../../../reading/catalog';
+import { PROGRESSIONS } from '../../../ear-training/chord-progressions/catalog';
 import { itemRefForAttempt } from '../canonicalItemId';
 import { LESSON_COVERAGE_RULE } from '../itemStats';
 
@@ -178,9 +179,21 @@ describe('chord progressions — three sub-drills, one moduleId', () => {
   it('grades inversions only on slash progressions', () => {
     const inversionRows = refs.filter(r => r.endsWith('-inversion'));
     const patternRows = refs.filter(r => r.endsWith('-pattern'));
-    // Every progression has a pattern row; only some have inversion.
-    expect(inversionRows.length).toBeGreaterThan(0);
-    expect(inversionRows.length).toBeLessThan(patternRows.length);
+    // Every progression has a pattern row.
+    expect(patternRows).toHaveLength(PROGRESSIONS.length);
+    // AND THE RULE IS ASSERTED, NOT THE NUMBER IT HAPPENS TO GIVE.
+    //
+    // This used to say "more than none and fewer than the patterns",
+    // which was true while the catalog held slash progressions and
+    // stopped being true on 9 Sep 2026: the cut to eight survivors left
+    // none with a slash chord, so there are no inversion rows today.
+    // The row builder is unchanged and will make one again the day a
+    // slash progression comes back, so what is checked is the
+    // correspondence rather than a count.
+    const slashIds = PROGRESSIONS
+      .filter(p => p.numerals.some(n => n.includes('/')))
+      .map(p => `${p.id}-inversion`);
+    expect([...inversionRows].sort()).toEqual([...slashIds].sort());
   });
 
   it('has a key-detection row per key', () => {

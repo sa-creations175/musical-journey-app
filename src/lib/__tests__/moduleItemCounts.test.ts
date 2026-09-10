@@ -25,7 +25,9 @@ import {
 } from '../../modules/shapes-and-patterns/cellTargets';
 
 // -------------------------------------------------------------------
-// Ear Training — 26 + 30 + 69 + 18 = 143 (spacingState-row counts)
+// Ear Training — 25 + 51 + 8 + 18 = 102 (spacingState-row counts)
+// (9 Sep 2026: 163 → 102. The chord-progressions catalog was cut from
+//  69 named progressions to the eight survivors Silas named.)
 // -------------------------------------------------------------------
 
 describe('earTrainingCounts', () => {
@@ -51,18 +53,23 @@ describe('earTrainingCounts', () => {
     expect(c.chordRecognition).toBe(51);
   });
 
-  it('chordProgressions = 69 (full PROGRESSIONS catalog)', () => {
-    expect(c.chordProgressions).toBe(69);
+  it('chordProgressions = 8 (the whole PROGRESSIONS catalog)', () => {
+    // Sixty-nine until the cut of 9 Sep 2026. It is the whole catalog
+    // either way — the number moves when the catalog does, and the
+    // point of naming it here is that a cut has to be noticed rather
+    // than absorbed.
+    expect(c.chordProgressions).toBe(8);
   });
 
   it('scalesModes = 9 modes × 2 tabs (HearScale + SitInside) = 18', () => {
     expect(c.scalesModes).toBe(18);
   });
 
-  it('total = 163 (sum of sub-areas)', () => {
-    // 143 before the unison merge, 142 after it, and 163 once chord
-    // recognition started counting inversions rather than seeds.
-    expect(c.total).toBe(163);
+  it('total = 102 (sum of sub-areas)', () => {
+    // 143 before the unison merge, 142 after it, 163 once chord
+    // recognition started counting inversions rather than seeds, and
+    // 102 after the chord-progressions cut of 9 Sep 2026.
+    expect(c.total).toBe(102);
     expect(c.total).toBe(
       c.intervals + c.chordRecognition + c.chordProgressions + c.scalesModes,
     );

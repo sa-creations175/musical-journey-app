@@ -38,8 +38,14 @@ export const DETECTION_PATTERNS: DetectionPattern[] = [
     rotation: true,
     etCatalogId: '1-5-6-4',
   },
-  { id: 'walk-up', numerals: ['I', 'II', 'III', 'IV'], etCatalogId: 'gospel-walk-up' },
-  { id: 'walk-down', numerals: ['I', 'VII', 'vi', 'V'], etCatalogId: 'gospel-walk-down' },
+  // THE TWO WALKS LOST THEIR ET LINK ON 9 SEP 2026 and kept their
+  // detection. `gospel-walk-up` and `gospel-walk-down` were among the
+  // sixty-one progressions cut from the ear-training catalog, so there
+  // is nothing to add them to and the + button hides — but the pattern
+  // is still worth naming when it turns up in a song, which is what
+  // this list is for.
+  { id: 'walk-up', numerals: ['I', 'II', 'III', 'IV'] },
+  { id: 'walk-down', numerals: ['I', 'VII', 'vi', 'V'] },
   { id: 'IV-V-I', numerals: ['IV', 'V', 'I'] },
   { id: 'I-vi-IV-V', numerals: ['I', 'vi', 'IV', 'V'], etCatalogId: '1-6-4-5' },
 ];

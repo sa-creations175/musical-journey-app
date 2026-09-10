@@ -68,6 +68,22 @@ describe('every description is attached to a row that exists', () => {
     }
   });
 
+  /**
+   * Descriptions kept for a row the catalog cannot currently build.
+   *
+   * "Inversion Accuracy" is added only to a progression with a slash
+   * chord in it, and the chord-progressions cut of 9 Sep 2026 left
+   * eight survivors with no slash chord between them. The row builder
+   * is unchanged and will make the row again the day a slash
+   * progression returns, so the copy stays where it is rather than
+   * being deleted and rewritten later.
+   *
+   * NAMED ONE BY ONE, so this stays a guard. The check exists to catch
+   * a description that quietly detached from its row in a rename; a
+   * blanket allowance for "no match" would catch nothing.
+   */
+  const NO_ROW_TODAY = new Set(['ear-training::Inversion Accuracy']);
+
   it('resolves every label key against a row in that module', () => {
     expect(DESCRIBED_MODULE_LABELS.length).toBeGreaterThan(15);
     for (const key of DESCRIBED_MODULE_LABELS) {
@@ -75,6 +91,11 @@ describe('every description is attached to a row that exists', () => {
       const matches = ALL.filter(
         ({ node, moduleId: m }) => m === moduleId && node.label === label,
       );
+      if (NO_ROW_TODAY.has(key)) {
+        expect(matches, `"${label}" is back in ${moduleId} — drop the exception`)
+          .toHaveLength(0);
+        continue;
+      }
       expect(matches.length, `no row "${label}" in ${moduleId}`).toBeGreaterThan(0);
     }
   });

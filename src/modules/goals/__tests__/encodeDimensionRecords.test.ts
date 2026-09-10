@@ -94,7 +94,10 @@ describe('encodeDimensionRecords — Ear Training', () => {
     const records = encodeDimensionRecords(et(baseEt));
     const breadth = records[0];
     expect(breadth.targetMetric).toBe('ear_training_coverage_at_acquired');
-    expect(breadth.targetValue).toBe(163);
+    // 163 until the chord-progressions catalog was cut to eight on
+    // 9 Sep 2026. It is the live total either way — the point is
+    // that the record stores what the catalog says today.
+    expect(breadth.targetValue).toBe(102);
     expect(breadth.targetUnit).toBe('items');
     expect(breadth.relatedItems).toEqual([]);
   });
@@ -131,7 +134,7 @@ describe('encodeDimensionRecords — Ear Training', () => {
     const records = encodeDimensionRecords(et(e));
     const mastery = records.find(r => r.targetMetric.includes('mastery'));
     expect(mastery!.targetMetric).toBe('ear_training_mastery_at_mastered');
-    expect(mastery!.targetValue).toBe(163);
+    expect(mastery!.targetValue).toBe(102);
     expect(mastery!.relatedItems).toEqual([]);
   });
 
