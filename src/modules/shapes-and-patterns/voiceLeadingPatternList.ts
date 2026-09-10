@@ -104,8 +104,43 @@ export function overrideIsEmpty(
   override: CustomPattern,
   builtinLabel: string,
 ): boolean {
-  return override.label.trim() === builtinLabel.trim();
+  const stored = override.label.trim();
+  return stored === builtinLabel.trim() || RENAMED_AWAY.has(stored);
 }
+
+/**
+ * Names a built-in row USED to have, which an override may still hold.
+ *
+ * =====================================================================
+ * A LABEL THAT CHANGED TURNS AN OLD STRAY CLICK INTO A RENAME.
+ *
+ * The stray row in the live database is `minor-251` labelled
+ * "Minor 2-5-1" — a click on the title that saved on blur and changed
+ * nothing. It was harmless while the built-in said "Minor 2-5-1"; the
+ * moment the row is renamed, that same stored string becomes an
+ * override that pins the OLD name on screen, silently and for ever.
+ *
+ * So a name a built-in has been renamed away from reads as empty too.
+ * This is a short, dated list of exact strings, not a mechanism: an
+ * override matching one of them is a rename nobody made.
+ *
+ * 10 Sep 2026 — every chord in a progression shows its quality and the
+ * numbers are separated by a middle dot, so eight rows were renamed.
+ * =====================================================================
+ */
+const RENAMED_AWAY: ReadonlySet<string> = new Set([
+  'Diatonic Cycle (1-4-7-3-6-2-5-1)',
+  'Major 2-5-1',
+  'Minor 2-5-1',
+  '1 5 6 4',
+  '1 6 4 5',
+  '1 6 2 5',
+  '1 4 5',
+  '4m ♭7 1 (backdoor)',
+  // 9 Sep 2026 — the pass named for its chords and its landing.
+  'Minor ABA (dom7#9#5 → minor)',
+  'Minor 5 → 1 (7♯9♯5)',
+]);
 
 /**
  * The catalog, in catalog order, with any rename applied.

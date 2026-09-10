@@ -153,8 +153,11 @@ describe('key names carry their mode', () => {
     // the deck's now, and this asserts one card per family rather than
     // trusting the document's own table.
     const asks = (id: string) => FLASHCARDS.find(c => c.id === id)?.question;
+    // EVERY CHORD SHOWS ITS QUALITY, and the row is separated by middle
+    // dots. Silas's ruling of 10 Sep 2026 — the 2 of a 2 5 1 is minor
+    // and the question now says so.
     expect(asks('pr-prog-2-5-1-Bb'))
-      .toBe('The 2-5-1 in the key of B♭ major is _____');
+      .toBe('The 2m · 5 · 1 in the key of B♭ major is _____');
     expect(asks('mo-mode-C-2'))
       .toBe('The mode of the key of C major starting on D is _____');
     expect(asks('dgn-C-b6')).toBe('In the key of C major, what is the ♭6?');

@@ -92,10 +92,14 @@ describe('a progression is graded on its roots and its families', () => {
   });
 
   it('writes back what was built, the way the card writes its answer', () => {
-    expect(gradeProgression(t, asBuilt(t)).built).toBe('Cm7 - F7 - B♭maj7');
+    // A MIDDLE DOT, the same separator the card's own answer uses since
+    // Silas's ruling of 10 Sep 2026. A build that got every chord right
+    // and joined them differently would not match what it is compared
+    // against.
+    expect(gradeProgression(t, asBuilt(t)).built).toBe('Cm7 · F7 · B♭maj7');
     const built = asBuilt(t);
     built[1] = { rootPc: 5, quality: 'm7' };
-    expect(gradeProgression(t, built).built).toBe('Cm7 - Fm7 - B♭maj7');
+    expect(gradeProgression(t, built).built).toBe('Cm7 · Fm7 · B♭maj7');
   });
 });
 

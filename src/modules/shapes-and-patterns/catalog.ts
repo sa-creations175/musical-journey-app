@@ -28,6 +28,7 @@ import {
   type ExtendedShape,
 } from '../../lib/extendedVoicings';
 import { sortByCircleOfFourths } from '../repertoire/circleOfFourths';
+import { progressionRow } from '../../lib/progressionRow';
 
 export const KEYS = [
   'C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B',
@@ -582,6 +583,96 @@ export type VoiceLeadingPattern =
       positions: ReadonlyArray<InversionPosition>;
     };
 
+/**
+ * A row's name: its word, its chords as the app writes a row, and
+ * anything the name puts after them.
+ *
+ * =====================================================================
+ * BUILT BY THE FORMATTER, NOT TYPED OUT.
+ *
+ * Silas's ruling of 10 Sep 2026 asks for one formatter that every
+ * surface calls, reading the quality from the progression's own chord
+ * data. A hand-typed label is a second answer to "what is this row
+ * called" and would drift from the card that asks about it — which is
+ * exactly what had happened: the grid said "1 5 6 4", the card's
+ * question said "1-5-6-4", its chip said "1 5 6 4" and its rotate
+ * button said "1 5 6 4", and not one of them said the 6 is minor.
+ *
+ * THE PASSES ARE NOT BUILT THIS WAY and keep their literal labels: an
+ * arrow means resolution, and "5(7♯9♯5) → 1m" is a name for a movement
+ * rather than a row of chords.
+ * =====================================================================
+ */
+function rowLabel(
+  prefix: string, chords: ReadonlyArray<VLChord>, suffix: string,
+): string {
+  return `${prefix}${progressionRow(chords)}${suffix}`;
+}
+
+const DIATONIC_CYCLE_CHORDS: ReadonlyArray<VLChord> = [
+      { degree: '1', quality: 'maj7' },
+      { degree: '4', quality: 'maj7' },
+      { degree: '7', quality: 'm7b5' },
+      { degree: '3', quality: 'm7' },
+      { degree: '6', quality: 'm7' },
+      { degree: '2', quality: 'm7' },
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+];
+
+const MAJOR_251_CHORDS: ReadonlyArray<VLChord> = [
+      { degree: '2', quality: 'm7' },
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+];
+
+const LOOP_1564_CHORDS: ReadonlyArray<VLChord> = [
+      { degree: '1', quality: 'maj7' },
+      { degree: '5', quality: '7' },
+      { degree: '6', quality: 'm7' },
+      { degree: '4', quality: 'maj7' },
+];
+
+const LOOP_1645_CHORDS: ReadonlyArray<VLChord> = [
+      { degree: '1', quality: 'maj7' },
+      { degree: '6', quality: 'm7' },
+      { degree: '4', quality: 'maj7' },
+      { degree: '5', quality: '7' },
+];
+
+const LOOP_1625_CHORDS: ReadonlyArray<VLChord> = [
+      { degree: '1', quality: 'maj7' },
+      { degree: '6', quality: 'm7' },
+      { degree: '2', quality: 'm7' },
+      { degree: '5', quality: '7' },
+];
+
+const LOOP_145_CHORDS: ReadonlyArray<VLChord> = [
+      { degree: '1', quality: 'maj7' },
+      { degree: '4', quality: 'maj7' },
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+];
+
+const BACKDOOR_CHORDS: ReadonlyArray<VLChord> = [
+      { degree: '4', quality: 'm7' },
+      { degree: 'b7', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+];
+
+const MINOR_251_CHORDS: ReadonlyArray<VLChord> = [
+      { degree: '2', quality: 'm7b5' },
+      // THE 5 IS TWO DIFFERENT CHORDS ON THE EXTENDED ROW. The plain 7
+      // recorded on 9 Sep is the seventh-chord reading and stays that;
+      // Silas's notes voice this chord as a 7♯5 in the ABA run and as a
+      // 7(♭9♯9♭13) in the BAB run, and the extended row plays those.
+      {
+        degree: '5', quality: '7',
+        extendedQuality: { A: '7#5', B: '7b9#9b13' },
+      },
+      { degree: '1', quality: 'm7' },
+];
+
 // Array order IS the session-surfacing priority. The session
 // algorithm uses the catalog index as a soft deprioritization
 // factor for the unstarted-cell tier in buildVoiceLeadingSegment
@@ -591,18 +682,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: 'diatonic-cycle',
     kind: 'diatonic-cycle',
-    label: 'Diatonic Cycle (1-4-7-3-6-2-5-1)',
+    label: rowLabel('Diatonic Cycle (', DIATONIC_CYCLE_CHORDS, ')'),
     description: 'Full diatonic cycle in 7th chords across three starting inversions of the 1 chord.',
-    chords: [
-      { degree: '1', quality: 'maj7' },
-      { degree: '4', quality: 'maj7' },
-      { degree: '7', quality: 'm7b5' },
-      { degree: '3', quality: 'm7' },
-      { degree: '6', quality: 'm7' },
-      { degree: '2', quality: 'm7' },
-      { degree: '5', quality: '7' },
-      { degree: '1', quality: 'maj7' },
-    ],
+    chords: DIATONIC_CYCLE_CHORDS,
     startingPositions: ['pos1', 'pos2', 'pos3'],
   },
   {
@@ -623,13 +705,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: 'major-251',
     kind: 'type-position',
-    label: 'Major 2-5-1',
+    label: rowLabel('Major ', MAJOR_251_CHORDS, ''),
     description: 'The foundational ii → V → I movement. Guide tones and extended voicings across two starting positions; seventh chords across three.',
-    chords: [
-      { degree: '2', quality: 'm7' },
-      { degree: '5', quality: '7' },
-      { degree: '1', quality: 'maj7' },
-    ],
+    chords: MAJOR_251_CHORDS,
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -660,14 +738,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: '1-5-6-4',
     kind: 'type-position',
-    label: '1 5 6 4',
+    label: rowLabel('', LOOP_1564_CHORDS, ''),
     description: 'The 1, the 5, the 6 minor and the 4.',
-    chords: [
-      { degree: '1', quality: 'maj7' },
-      { degree: '5', quality: '7' },
-      { degree: '6', quality: 'm7' },
-      { degree: '4', quality: 'maj7' },
-    ],
+    chords: LOOP_1564_CHORDS,
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -677,14 +750,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: '1-6-4-5',
     kind: 'type-position',
-    label: '1 6 4 5',
+    label: rowLabel('', LOOP_1645_CHORDS, ''),
     description: 'The 1, the 6 minor, the 4 and the 5.',
-    chords: [
-      { degree: '1', quality: 'maj7' },
-      { degree: '6', quality: 'm7' },
-      { degree: '4', quality: 'maj7' },
-      { degree: '5', quality: '7' },
-    ],
+    chords: LOOP_1645_CHORDS,
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -694,14 +762,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: '1-6-2-5',
     kind: 'type-position',
-    label: '1 6 2 5',
+    label: rowLabel('', LOOP_1625_CHORDS, ''),
     description: 'The 1, the 6 minor, the 2 minor and the 5.',
-    chords: [
-      { degree: '1', quality: 'maj7' },
-      { degree: '6', quality: 'm7' },
-      { degree: '2', quality: 'm7' },
-      { degree: '5', quality: '7' },
-    ],
+    chords: LOOP_1625_CHORDS,
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -711,14 +774,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: '1-4-5',
     kind: 'type-position',
-    label: '1 4 5',
+    label: rowLabel('', LOOP_145_CHORDS, ''),
     description: 'The 1, the 4 and the 5, back to the 1.',
-    chords: [
-      { degree: '1', quality: 'maj7' },
-      { degree: '4', quality: 'maj7' },
-      { degree: '5', quality: '7' },
-      { degree: '1', quality: 'maj7' },
-    ],
+    chords: LOOP_145_CHORDS,
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -742,13 +800,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
      * the same pattern id across the same three types and the same
      * positions, so every rep logged against it still reads.
      */
-    label: '4m ♭7 1 (backdoor)',
+    label: rowLabel('', BACKDOOR_CHORDS, ' (backdoor)'),
     description: 'The 4 minor, the flat 7 and the 1.',
-    chords: [
-      { degree: '4', quality: 'm7' },
-      { degree: 'b7', quality: '7' },
-      { degree: '1', quality: 'maj7' },
-    ],
+    chords: BACKDOOR_CHORDS,
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -758,20 +812,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: 'minor-251',
     kind: 'type-position',
-    label: 'Minor 2-5-1',
+    label: rowLabel('Minor ', MINOR_251_CHORDS, ''),
     description: 'The iiø → V → i movement. Guide tones and extended voicings across two starting positions; seventh chords across three.',
-    chords: [
-      { degree: '2', quality: 'm7b5' },
-      // THE 5 IS TWO DIFFERENT CHORDS ON THE EXTENDED ROW. The plain 7
-      // recorded on 9 Sep is the seventh-chord reading and stays that;
-      // Silas's notes voice this chord as a 7♯5 in the ABA run and as a
-      // 7(♭9♯9♭13) in the BAB run, and the extended row plays those.
-      {
-        degree: '5', quality: '7',
-        extendedQuality: { A: '7#5', B: '7b9#9b13' },
-      },
-      { degree: '1', quality: 'm7' },
-    ],
+    chords: MINOR_251_CHORDS,
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },

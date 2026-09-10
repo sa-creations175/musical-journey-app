@@ -42,7 +42,7 @@ import ChordPicker from '../../../components/ChordPicker';
 import {
   INVERSIONS, type RootPick, pickFromPitchClass, rootLabel, rootPitchClass,
 } from '../../../lib/builtAnswers/rootPick';
-import { degreeLabel } from '../degreeNoteCards';
+import { progressionRow } from '../../../lib/progressionRow';
 import {
   NINTH_OF, TRIAD_OF, VOICINGS, qualityTilesFor,
   type QualityId, type Thickness, type Voicing,
@@ -465,7 +465,7 @@ export default function ProgressionAnswer({
                   }}
                   className={`${BTN_PLAIN} font-mono`}
                 >
-                  {shownChords.map(c => degreeLabel(c.degree)).join(' ')}
+                  {progressionRow(shownChords)}
                 </button>
               </div>
 

@@ -102,13 +102,44 @@ describe('VOICE_LEADING_PATTERNS catalog', () => {
     expect(chordsOf('backdoor')).toEqual(['4m7', 'b77', '1maj7']);
   });
 
-  it('labels the five numbers-first, the way the deck writes them', () => {
-    expect(VOICE_LEADING_PATTERN_BY_ID.get('1-5-6-4')!.label).toBe('1 5 6 4');
-    expect(VOICE_LEADING_PATTERN_BY_ID.get('1-4-5')!.label).toBe('1 4 5');
+  it('labels every row with its own chords, qualities and all', () => {
+    // =================================================================
+    // ONE FORMATTER, AND THE LABEL IS ITS OUTPUT.
+    //
+    // Silas's ruling of 10 Sep 2026: every chord in a progression shows
+    // its quality, and the separator is a middle dot with a space
+    // either side. The grid said "1 5 6 4", the card's question said
+    // "1-5-6-4" and its rotate button said "1 5 6 4" — three spellings
+    // of one progression, and not one of them said the 6 is minor.
+    // =================================================================
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('1-5-6-4')!.label)
+      .toBe('1 · 5 · 6m · 4');
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('1-6-4-5')!.label)
+      .toBe('1 · 6m · 4 · 5');
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('1-6-2-5')!.label)
+      .toBe('1 · 6m · 2m · 5');
+    // FOUR CHORDS, because the row returns to its 1 — which its own
+    // chord data has always said and its name did not.
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('1-4-5')!.label)
+      .toBe('1 · 4 · 5 · 1');
     // The name comes after the numbers it names, and the flat is a
     // glyph rather than a letter b.
     expect(VOICE_LEADING_PATTERN_BY_ID.get('backdoor')!.label)
-      .toBe('4m ♭7 1 (backdoor)');
+      .toBe('4m · ♭7 · 1 (backdoor)');
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('major-251')!.label)
+      .toBe('Major 2m · 5 · 1');
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('diatonic-cycle')!.label)
+      .toBe('Diatonic Cycle (1 · 4 · 7dim · 3m · 6m · 2m · 5 · 1)');
+  });
+
+  it('leaves the passes their arrow, which means resolution', () => {
+    // The dot separates a ROW of chords; the arrow says one chord
+    // resolves to another. Silas's ruling of 9 Sep, kept on 10 Sep.
+    for (const id of ['five-one', 'minor-aba', 'dom7b9', 'dim7']) {
+      const label = VOICE_LEADING_PATTERN_BY_ID.get(id)!.label;
+      expect(label, id).toContain('→');
+      expect(label, id).not.toContain(' · ');
+    }
   });
 
   it('shapes the five exactly like Major 2-5-1', () => {

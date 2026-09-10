@@ -164,8 +164,8 @@ Approved by Silas, 9 Sep 2026 (evening). Generated in every key with that key's
 own chords. This is the key of E♭ major:
 
 ```
-1 6 2 5 in the key of E♭ major is E♭ → Cm → Fm → B♭, the turnaround. It's
-sometimes used to walk back to the 1 and go round again.
+1 · 6m · 2m · 5 in the key of E♭ major is E♭ · Cm · Fm · B♭, the turnaround.
+It's sometimes used to walk back to the 1 and go round again.
 ```
 
 **It replaced the generator's own placeholder**, which was flagged as new copy
@@ -174,10 +174,13 @@ explanation from. The old sentence ended "Rhythm changes is the same four
 numbers played as sevenths" — true, and a second fact about a different
 progression on a card about this one. It is gone.
 
-**The explanation spaces the numbers and the question hyphenates them** —
-"1 6 2 5 in the key of E♭ major" under "The 1-6-2-5 in the key of E♭ major is
-_____". The spaced form is the chip's, above; the hyphenated one is what the
-other five generated progressions ask in. Not resolved either way here.
+**The spacing question is settled, 10 Sep 2026.** It read "1 6 2 5" in the
+explanation and "1-6-2-5" in the question, and neither said the 6 is minor.
+Every chord shows its quality now and the separator is a middle dot with a
+space either side, in the question, the answer, the explanation and the rotate
+button alike — one formatter, `lib/progressionRow`, and nothing builds the
+string itself. The arrow is spoken for: it means resolution, which is why the
+passes keep it and a row of chords never uses it.
 
 ---
 

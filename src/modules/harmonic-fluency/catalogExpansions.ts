@@ -7,6 +7,7 @@ import {
 import { INTERVAL_QUALITIES, playableName } from './scaleDegreeQuality';
 import type { Flashcard } from './catalog';
 import { chooseDecoys, rankTarget, sortedRank } from './decoyGuard';
+import { CHORD_SEPARATOR, joinRow, progressionRow } from '../../lib/progressionRow';
 import { PRACTICAL_NAME as PRACTICAL_SPELLINGS } from '../../lib/theoreticalSpellings';
 import { canonicaliseKey } from '../repertoire/circleOfFourths';
 import {
@@ -1581,12 +1582,21 @@ interface ProgressionShape {
    * the same row.
    */
   facet: string;
-  /** The card's own question, with the key spelled in. */
-  ask: (key: string) => string;
+  /**
+   * The card's own question, with the key spelled in.
+   *
+   * `row` is the progression written as a row of chords — "1 · 5 · 6m ·
+   * 4" — built by the one formatter every surface calls. The question
+   * takes it rather than spelling the numbers itself, so a card cannot
+   * name a progression differently from the grid that drills it.
+   */
+  ask: (key: string, row: string) => string;
   /** Degree and quality, in order. */
   chords: ReadonlyArray<readonly [string, string]>;
-  /** The card's own explanation, given the chords as written. */
-  explain: (key: string, chords: string[]) => string;
+  /** The card's own explanation, given the chords as written and the
+   *  progression as a row of degrees — the same row the question uses,
+   *  so a card cannot name a progression two ways in two sentences. */
+  explain: (key: string, chords: string[], row: string) => string;
   /** The one near-miss this progression's hand-written card made that
    *  a plain degree swap cannot produce. */
   extra?: (root: string) => string[];
@@ -1638,10 +1648,10 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
   {
     id: '1-5-6-4',
     facet: '1-5-6-4',
-    ask: k => `The 1-5-6-4 progression in the key of ${k} major is _____`,
+    ask: (k, row) => `The ${row} progression in the key of ${k} major is _____`,
     chords: [['1', ''], ['5', ''], ['6', 'm'], ['4', '']],
-    explain: (k, c) => `1-5-6-4 in the key of ${k} major is `
-      + `${c.join(' → ')} — the `
+    explain: (k, c, row) => `${row} in the key of ${k} major is `
+      + `${joinRow(c)} — the `
       + "'pop progression' (or 'axis' chords). You've heard this in hundreds "
       + 'of songs across pop, gospel, R&B, and worship; it works because it '
       + 'cycles through all four tonal functions in a tight loop.',
@@ -1649,30 +1659,30 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
   {
     id: '2-5-1',
     facet: 'ii-V-I',
-    ask: k => `The 2-5-1 in the key of ${k} major is _____`,
+    ask: (k, row) => `The ${row} in the key of ${k} major is _____`,
     chords: [['2', 'm7'], ['5', '7'], ['1', 'maj7']],
     // THE B♭-ONLY CLAUSE IS GONE, not rewritten for twelve more keys.
     // "so many horn charts default here" is true of B♭ and of nowhere
     // else, and inventing a reason to care about each of the others is
     // exactly the copy this generator has no business writing.
-    explain: (k, c) => `The 2-5-1 in the key of ${k} major is `
-      + `${c.join(' → ')}. Memorize this `
+    explain: (k, c, row) => `The ${row} in the key of ${k} major is `
+      + `${joinRow(c)}. Memorize this `
       + "in every key and you've got half of jazz standard vocabulary.",
   },
   {
     id: '1-6-4-5',
     facet: '1-6-4-5',
-    ask: k => `The 1-6-4-5 in the key of ${k} major is _____`,
+    ask: (k, row) => `The ${row} in the key of ${k} major is _____`,
     chords: [['1', ''], ['6', 'm'], ['4', ''], ['5', '']],
-    explain: (k, c) => `1-6-4-5 in the key of ${k} major is `
-      + `${c.join(' → ')} — the 50s doo-wop `
+    explain: (k, c, row) => `${row} in the key of ${k} major is `
+      + `${joinRow(c)} — the 50s doo-wop `
       + 'progression that became the bedrock of countless soul, gospel, and '
-      + 'pop ballads. Same chord set as 1-5-6-4, just rotated.',
+      + 'pop ballads. Same chord set as 1 · 5 · 6m · 4, just rotated.',
   },
   {
     id: '1-6-2-5',
     facet: '1-6-2-5',
-    ask: k => `The 1-6-2-5 in the key of ${k} major is _____`,
+    ask: (k, row) => `The ${row} in the key of ${k} major is _____`,
     chords: [['1', ''], ['6', 'm'], ['2', 'm'], ['5', '']],
     /**
      * SILAS'S WORDS, 9 SEP 2026 (evening), replacing the placeholder.
@@ -1685,8 +1695,8 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
      * four numbers played as sevenths" was true and was also a second
      * fact about a different progression, on a card about this one.
      */
-    explain: (k, c) => `1 6 2 5 in the key of ${k} major is `
-      + `${c.join(' → ')}, the turnaround. It's sometimes used to walk `
+    explain: (k, c, row) => `${row} in the key of ${k} major is `
+      + `${joinRow(c)}, the turnaround. It's sometimes used to walk `
       + 'back to the 1 and go round again.',
     // The 6 played as a dominant, pulling to the 2 rather than sitting
     // as the minor chord the key gives. The reveal can play both; the
@@ -1696,9 +1706,9 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
   {
     id: '1-4-5',
     facet: '1-4-5',
-    ask: k => `The 1-4-5 in the key of ${k} major is _____`,
+    ask: (k, row) => `The ${row} in the key of ${k} major is _____`,
     chords: [['1', ''], ['4', ''], ['5', '']],
-    explain: (k, c) => `${c.join(' → ')} is 1-4-5 in the key of ${k} major `
+    explain: (k, c, row) => `${joinRow(c)} is ${row} in the key of ${k} major `
       + '— the most '
       + 'fundamental progression in Western popular music. Every blues, '
       + 'country tune, and early rock and R&B song cycles I-IV-V; modern '
@@ -1734,27 +1744,27 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
   {
     id: 'backdoor-4m',
     facet: 'backdoor',
-    ask: k => `The 4m ♭7 1 (backdoor) in the key of ${k} major is _____`,
+    ask: (k, row) => `The ${row} (backdoor) in the key of ${k} major is _____`,
     chords: [['4', 'm'], ['b7', '7'], ['1', '']],
     // SILAS'S OWN SENTENCES, from his modal-interchange notes of
     // 9 Sep 2026 and from the ruling that changed this card. Nothing
     // here is written for him.
     explain: (k, c) => `The backdoor in the key of ${k} major is `
-      + `${c.join(' → ')} — 4m and ♭7(7) are both part of the parallel `
+      + `${joinRow(c)} — 4m and ♭7(7) are both part of the parallel `
       + 'minor chords, and the ♭7(7) typically wants to resolve to the 1.',
     extra: root => [
       // THE ♭7 PLAYED AS THE NATURAL 7 — the wrong answer that tests
       // which seventh the progression means, kept from the card this
       // replaces.
-      [`${degreeLabel(root, '4')}m`,
-        `${degreeLabel(root, '7')}7`, degreeLabel(root, '1')].join(' - '),
+      joinRow([`${degreeLabel(root, '4')}m`,
+        `${degreeLabel(root, '7')}7`, degreeLabel(root, '1')]),
       // AND THE 4 PLAYED MAJOR, which the swap loop cannot reach: it
       // leaves the first chord and the landing alone, and on a
       // three-chord progression that is everything but the middle.
       // A borrowed 4 minor against the 4 the key gives is the whole
       // question this card now asks.
-      [degreeLabel(root, '4'),
-        `${degreeLabel(root, 'b7')}7`, degreeLabel(root, '1')].join(' - '),
+      joinRow([degreeLabel(root, '4'),
+        `${degreeLabel(root, 'b7')}7`, degreeLabel(root, '1')]),
     ],
   },
 ];
@@ -1834,7 +1844,7 @@ function progressionDecoyPool(
   const write = (i: number, chord: string) => {
     const text = shape.chords
       .map(([d, q], j) => (j === i ? chord : `${degreeLabel(root, d)}${q}`))
-      .join(' - ');
+      .join(CHORD_SEPARATOR);
     if (text !== answer) out.push(text);
   };
 
@@ -1909,19 +1919,26 @@ export function generateProgressionCards(): Flashcard[] {
       const id = `pr-prog-${shape.id}-${root}`;
       const written = shape.chords
         .map(([d, q]) => `${degreeLabel(root, d)}${q}`);
-      const answer = written.join(' - ');
+      const answer = joinRow(written);
+      // THE PROGRESSION, IN DEGREES, AS THE APP WRITES A ROW. One
+      // formatter — see `lib/progressionRow` — so the question, the
+      // grid's row, the card's chip and the rotate button cannot come
+      // to spell the same progression four ways.
+      const row = progressionRow(
+        shape.chords.map(([degree, quality]) => ({ degree, quality })),
+      );
       out.push({
         ...base('progressions', 'Progressions'),
         id,
         // THE KEY AS WRITTEN (ruling 40). The 1-5-6-4 of G♭ ends on C♭
         // and the 1-5-6-4 of F♯ ends on B: two keys, two cards.
         axis: { key: root, shape: shape.facet },
-        question: shape.ask(noteLabel(root)),
+        question: shape.ask(noteLabel(root), row),
         correctAnswer: answer,
         decoys: chooseDecoys(answer, progressionDecoyPool(root, shape, answer), {
           count: 3, seed: id, label: id, category: 'progressions',
         }),
-        explanation: shape.explain(noteLabel(root), written)
+        explanation: shape.explain(noteLabel(root), written, row)
           + keyboardNote(...shape.chords.map(([d]) => degreeAscii(root, d))),
         skillTag: `progression-${shape.id}-in-${root}`,
       });

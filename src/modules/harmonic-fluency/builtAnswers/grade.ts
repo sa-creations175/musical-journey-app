@@ -39,6 +39,7 @@ import { spellNote } from '../../../lib/spelling';
 import type { QualityId } from '../../../lib/builtAnswers/chordShapes';
 import { familyMatches } from '../../../lib/builtAnswers/chordShapes';
 import type { BuiltTarget } from './cardTargets';
+import { joinRow } from '../../../lib/progressionRow';
 
 /** One chord as the reader built it. */
 export interface BuiltChord {
@@ -88,11 +89,13 @@ export function describeChords(
   chords: ReadonlyArray<BuiltChord>,
   keyName: string,
 ): string {
-  return chords
+  // THE SAME SEPARATOR THE CARD'S OWN ANSWER USES. A build that got
+  // every chord right and joined them differently would not match the
+  // answer it is compared against.
+  return joinRow(chords
     .map(c => (c.rootPc === null
       ? '—'
-      : `${spellInKey(c.rootPc, keyName)}${c.quality ?? ''}`))
-    .join(' - ');
+      : `${spellInKey(c.rootPc, keyName)}${c.quality ?? ''}`)));
 }
 
 export function gradeProgression(

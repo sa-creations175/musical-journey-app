@@ -24,6 +24,7 @@ import { builtTargetFor, type BuiltTarget } from '../cardTargets';
 import { noteList } from '../../pentatonics';
 import { spellNote } from '../../../../lib/spelling';
 import { withAccidentalGlyphs } from '../../../reading/pitch';
+import { joinRow } from '../../../../lib/progressionRow';
 
 const withTarget = FLASHCARDS
   .map(card => ({ card, target: builtTargetFor(card) }))
@@ -86,7 +87,9 @@ describe('a target says the same thing as the card it grades', () => {
     expect(cards).toHaveLength(78);
     for (const { card, target } of cards) {
       if (target.kind !== 'progression') continue;
-      expect(target.chords.map(c => c.name).join(' - '), card.id)
+      // THE SAME SEPARATOR THE CARD'S ANSWER USES — a middle dot with
+      // a space either side, since Silas's ruling of 10 Sep 2026.
+      expect(joinRow(target.chords.map(c => c.name)), card.id)
         .toBe(card.correctAnswer);
     }
   });
@@ -223,7 +226,7 @@ describe('the other version rides on the progression, not on the card', () => {
       if (target.variation === undefined) continue;
       expect(target.chords[1].quality, card.id).toBe('m');
       expect(card.correctAnswer, card.id)
-        .toBe(target.chords.map(c => c.name).join(' - '));
+        .toBe(joinRow(target.chords.map(c => c.name)));
     }
   });
 });

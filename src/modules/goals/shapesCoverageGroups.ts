@@ -523,22 +523,24 @@ const GROUP_SHAPES: ReadonlyArray<GroupShape> = [
   // map) to avoid a temporal-dead-zone ReferenceError at module
   // init — SHAPES_COVERAGE_GROUP_DEFS is consumed eagerly by other
   // module-level constants in this file.
-  ...vlPatternGroupDef('voice_leading_diatonic_cycle', 'diatonic-cycle', 'diatonic cycle'),
+  ...vlPatternGroupDef('voice_leading_diatonic_cycle', 'diatonic-cycle', 'diatonic cycle (1 · 4 · 7dim · 3m · 6m · 2m · 5 · 1)'),
   ...vlPatternGroupDef('voice_leading_five_one',       'five-one',       '5→1 movement'),
-  ...vlPatternGroupDef('voice_leading_major_251',      'major-251',      'major 2-5-1'),
-  ...vlPatternGroupDef('voice_leading_minor_251',      'minor-251',      'minor 2-5-1'),
+  ...vlPatternGroupDef('voice_leading_major_251',      'major-251',      'major 2m · 5 · 1'),
+  ...vlPatternGroupDef('voice_leading_minor_251',      'minor-251',      'minor 2dim · 5 · 1m'),
   // The group ID keeps its old spelling — it is stored on goals —
   // while the label follows the row's name on the page.
   ...vlPatternGroupDef('voice_leading_minor_aba',      'minor-aba',      '5(7♯9♯5) → 1m'),
   ...vlPatternGroupDef('voice_leading_dom7b9',         'dom7b9',         'dom7b9 → minor'),
   ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           'dim7 → minor'),
-  // The five named progressions. Labelled numbers-first, as the row
-  // on the page is.
-  ...vlPatternGroupDef('voice_leading_1_5_6_4',        '1-5-6-4',        '1 5 6 4'),
-  ...vlPatternGroupDef('voice_leading_1_6_4_5',        '1-6-4-5',        '1 6 4 5'),
-  ...vlPatternGroupDef('voice_leading_1_6_2_5',        '1-6-2-5',        '1 6 2 5'),
-  ...vlPatternGroupDef('voice_leading_1_4_5',          '1-4-5',          '1 4 5'),
-  ...vlPatternGroupDef('voice_leading_backdoor',       'backdoor',       '4m ♭7 1 (backdoor)'),
+  // The five named progressions, labelled as the row on the page is:
+  // every chord showing its quality, separated by middle dots (Silas's
+  // ruling of 10 Sep 2026). A goal scoped to a row and the row itself
+  // must not go by two names.
+  ...vlPatternGroupDef('voice_leading_1_5_6_4',        '1-5-6-4',        '1 · 5 · 6m · 4'),
+  ...vlPatternGroupDef('voice_leading_1_6_4_5',        '1-6-4-5',        '1 · 6m · 4 · 5'),
+  ...vlPatternGroupDef('voice_leading_1_6_2_5',        '1-6-2-5',        '1 · 6m · 2m · 5'),
+  ...vlPatternGroupDef('voice_leading_1_4_5',          '1-4-5',          '1 · 4 · 5 · 1'),
+  ...vlPatternGroupDef('voice_leading_backdoor',       'backdoor',       '4m · ♭7 · 1 (backdoor)'),
 ];
 
 /**

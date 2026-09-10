@@ -362,9 +362,10 @@ describe('coverage reaches twelve', () => {
     // twelve. The 2-5-1 lives once now and it lives where a
     // progression is a progression — which also took it from twelve
     // keys to thirteen.
-    // "in the key of" since 9 Sep 2026 — the standing rule.
+    // "in the key of" since 9 Sep 2026 — the standing rule. And the
+    // chords show their qualities since 10 Sep: "2m · 5 · 1".
     expect(keysIn('progressions',
-      new RegExp(`The 2-5-1 in the key of (${N}) major`), 'q').size).toBe(13);
+      new RegExp(`The 2m · 5 · 1 in the key of (${N}) major`), 'q').size).toBe(13);
   });
 
   it('mode-of-major in all thirteen', () => {
@@ -437,8 +438,9 @@ describe('the backdoor is 4 minor → ♭7(7) → 1', () => {
 
   it('asks for the two borrowed chords and the landing', () => {
     const c = FLASHCARDS.find(f => f.id === 'pr-prog-backdoor-4m-C')!;
-    expect(c.question).toBe('The 4m ♭7 1 (backdoor) in the key of C major is _____');
-    expect(c.correctAnswer).toBe('Fm - B♭7 - C');
+    expect(c.question)
+      .toBe('The 4m · ♭7 · 1 (backdoor) in the key of C major is _____');
+    expect(c.correctAnswer).toBe('Fm · B♭7 · C');
   });
 
   it('offers the 4 major and the natural 7 as near misses', () => {
@@ -453,10 +455,10 @@ describe('the backdoor is 4 minor → ♭7(7) → 1', () => {
     const all = new Set(backdoors.flatMap(c => c.decoys));
     // The 4 played major: the first chord loses its `m` and nothing
     // else moves.
-    expect([...all].some(d => /^[A-G][♭♯]? - [A-G][♭♯]?7 - [A-G][♭♯]?$/.test(d)))
+    expect([...all].some(d => /^[A-G][♭♯]? · [A-G][♭♯]?7 · [A-G][♭♯]?$/.test(d)))
       .toBe(true);
     // The ♭7 played as the natural 7, in the key of C: B7, not B♭7.
-    expect(all.has('Fm - B7 - C')).toBe(true);
+    expect(all.has('Fm · B7 · C')).toBe(true);
   });
 
   it('keeps the deck at thirteen cards for the chip', () => {
