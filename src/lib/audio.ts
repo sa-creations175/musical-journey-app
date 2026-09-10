@@ -22,6 +22,7 @@
 //     continuation — the gesture attribution is already set.
 
 import type { PlaybackHandle } from './musicalPlayback';
+import { visualTimingSeconds } from './player/visualTiming';
 
 export type Instrument = 'piano' | 'rhodes' | 'strings' | 'voice' | 'organ';
 
@@ -736,7 +737,13 @@ export async function playSeqChords(
     // over Bluetooth "a little" is a fifth of a second — long enough
     // that keys lighting at T look wrong. The browser reports the two
     // halves of that delay and this holds the paint by their sum.
-    const latency = outputLatency(context);
+    //
+    // PLUS THE READER'S OWN DIAL, for headphones that report nothing —
+    // see `visualTiming`. The prototype's formula is `now = currentTime
+    // + offset − latency`, so the offset comes OFF the hold: a negative
+    // dial delays the paint. Read every frame, so moving the dial while
+    // a sequence plays moves the very next repaint.
+    const latency = outputLatency(context) - visualTimingSeconds();
     while (painted < paints.length
       && paints[painted].at + latency <= context.currentTime + PAINT_SLACK) {
       opts.onStep?.(paints[painted].index);

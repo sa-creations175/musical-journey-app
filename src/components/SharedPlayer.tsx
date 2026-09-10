@@ -69,6 +69,10 @@ import { bassDrop, playerMarks, type PlayerChord } from '../lib/player/voices';
 import { useInstrument } from '../lib/instrumentContext';
 import { useSpelling } from '../lib/spellingPref';
 import ChordColorLegend from './ChordColorLegend';
+import {
+  VISUAL_TIMING_MAX, VISUAL_TIMING_MIN, VISUAL_TIMING_STEP,
+  clampVisualTiming, readVisualTiming, writeVisualTiming,
+} from '../lib/player/visualTiming';
 import type { InKeyRing } from '../lib/player/inKeyColour';
 import type { Instrument } from '../lib/audio';
 
@@ -274,6 +278,9 @@ export default function SharedPlayer({
   // READ ONCE, AT FIRST RENDER. It is a value this device already
   // holds, not something to synchronise with after the fact.
   const [foldOpen, setFoldOpen] = useState(readSettingsOpen);
+  // PER DEVICE, like the fold — see `visualTiming`. The paint loop reads
+  // the stored value itself; this copy is only what the dial shows.
+  const [visualTiming, setVisualTiming] = useState(readVisualTiming);
   /** Wall-clock start and the beat it started at, for Pause. */
   const clock = useRef<{ at: number; beat: number }>({ at: 0, beat: 0 });
 
@@ -597,6 +604,32 @@ export default function SharedPlayer({
                   {i.charAt(0).toUpperCase() + i.slice(1)}
                 </Chip>
               ))}
+            </Row>
+
+            {/* VISUAL TIMING, for headphones that do not report their
+                delay. Negative holds the keys back. Free. */}
+            <Row label="Visual timing">
+              <label className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                <input
+                  type="range"
+                  min={VISUAL_TIMING_MIN}
+                  max={VISUAL_TIMING_MAX}
+                  step={VISUAL_TIMING_STEP}
+                  value={visualTiming}
+                  data-testid="visual-timing"
+                  aria-label="Visual timing in milliseconds"
+                  onChange={e => {
+                    const ms = clampVisualTiming(Number(e.target.value));
+                    setVisualTiming(ms);
+                    writeVisualTiming(ms);
+                  }}
+                  className="w-36 align-middle"
+                />
+                <span className="font-mono tabular-nums" data-testid="visual-timing-value">
+                  {visualTiming}
+                </span>
+                ms
+              </label>
             </Row>
 
             {attack !== undefined && (

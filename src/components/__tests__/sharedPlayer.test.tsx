@@ -265,3 +265,31 @@ describe('one chord at a time', () => {
     expect(calls[0].opts.loop).toBe(1);
   });
 });
+
+describe('Visual timing, in the panel’s Settings', () => {
+  afterEach(() => { window.localStorage.removeItem('playerVisualTiming'); });
+
+  it('is a dial from −600 to +600 ms in 10 ms steps, inside Settings', () => {
+    mount();
+    const dial = byTestId('visual-timing') as HTMLInputElement;
+    expect(dial).not.toBeNull();
+    expect(dial.closest('[data-testid="player-settings"]')).not.toBeNull();
+    expect([dial.min, dial.max, dial.step]).toEqual(['-600', '600', '10']);
+    expect(byTestId('visual-timing-value')!.textContent).toBe('0');
+  });
+
+  it('remembers a move on the device, and shows it', () => {
+    mount();
+    const dial = byTestId('visual-timing') as HTMLInputElement;
+    // React listens for `input`; set the value the way a drag would.
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype, 'value',
+    )!.set!;
+    act(() => {
+      setter.call(dial, '-250');
+      dial.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(window.localStorage.getItem('playerVisualTiming')).toBe('-250');
+    expect(byTestId('visual-timing-value')!.textContent).toBe('-250');
+  });
+});
