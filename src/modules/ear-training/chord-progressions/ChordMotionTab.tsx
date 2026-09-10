@@ -60,7 +60,7 @@ import {
   type DegreeLabel, type Direction, type Motion,
 } from './chordMotionPool';
 import { bassMove, motionChords } from './motionChords';
-import { chipText, degreeChips, degreeOfPc, degreePc } from './motionDegrees';
+import { chipText, degreeChips, degreeOfPc, degreePc, motionName } from './motionDegrees';
 import { motionResult, type MotionResultTone } from './motionResult';
 import { spellKey } from '../../../lib/spelling';
 import { useSpelling } from '../../../lib/spellingPref';
@@ -133,7 +133,7 @@ function starterAssociation(m: Motion): string {
   const id = motionId(m);
   return (
     STARTER_ASSOCIATIONS[id] ??
-    `a ${m.direction === 'asc' ? m.distance + 'th up' : m.distance + 'th down'} from the ${m.startLabel} to the ${m.destLabel} — sit inside this motion and see what feeling it leaves.`
+    `a ${m.direction === 'asc' ? m.distance + 'th up' : m.distance + 'th down'} from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`
   );
 }
 
@@ -578,14 +578,14 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     {
       title: 'Ascending',
       items: ALL_MOTIONS.filter(m => m.direction === 'asc')
-        .map(m => ({ key: motionId(m), label: `${m.startLabel} → ${m.destLabel}` })),
+        .map(m => ({ key: motionId(m), label: motionName(m, rowSpelling) })),
     },
     {
       title: 'Descending',
       items: ALL_MOTIONS.filter(m => m.direction === 'desc')
-        .map(m => ({ key: motionId(m), label: `${m.startLabel} → ${m.destLabel}` })),
+        .map(m => ({ key: motionId(m), label: motionName(m, rowSpelling) })),
     },
-  ]), []);
+  ]), [rowSpelling]);
 
   const onStartFocus = async (keys: string[]) => {
     setFocusKeys(keys);

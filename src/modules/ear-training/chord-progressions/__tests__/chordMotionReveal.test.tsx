@@ -402,3 +402,20 @@ describe('the verdict names what the bass did', () => {
     expect(verdict).not.toContain('up a 6th');
   });
 });
+
+describe('the Focus panel names motions as the chips do', () => {
+  it('lists 1 → 2ø and ♭2 → 3m, and no raw id', async () => {
+    const el = await deal();
+    const open = [...el.querySelectorAll('button')]
+      .find(b => b.textContent?.includes('Focus on Specific Motions'));
+    if (!open) throw new Error('no focus button');
+    await act(async () => { open.click(); });
+    await settle();
+    const text = document.body.textContent ?? '';
+    // Guard: the panel is open and listing motions.
+    expect(text).toContain('Ascending');
+    expect(text).toContain('1 → 2ø');
+    expect(text).toContain('♭2 → 3m');
+    expect(text).not.toMatch(/→ \S*m7b5|b\d →|→ b\d/);
+  });
+});

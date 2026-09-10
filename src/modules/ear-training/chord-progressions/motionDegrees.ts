@@ -22,8 +22,8 @@
  * =====================================================================
  */
 import { qualitySuffix } from '../../../lib/progressionRow';
-import type { ProgressionSpelling } from '../../../lib/progressionSpelling';
-import { DEGREE_TABLE, type DegreeLabel } from './chordMotionPool';
+import type { ProgressionSpelling } from '../../../lib/progressionSpellingShape';
+import { DEGREE_TABLE, type DegreeLabel, type Motion } from './chordMotionPool';
 
 /** The chord-shape quality a degree's chord takes, for the suffix. */
 const SUFFIX_QUALITY: Readonly<Record<string, string>> = {
@@ -88,6 +88,33 @@ export function chipText(
       ...(settings ? { settings } : {}),
       ...(rung ? { rung } : {}),
     });
+}
+
+/**
+ * A motion by name, the way its chips spell it: "1 → 2ø", "♭2 → 3m",
+ * "4m → ♭7".
+ *
+ * =====================================================================
+ * THE ONE FORMATTER. Three places named a motion — the Focus panel, the
+ * progressions tracker and the dashboard's rows — and each wrote its
+ * stored id straight to the screen: "1 → 2m7b5 (Up)", "b2 → 3". An id is
+ * a key, not a name; the chips had the name all along.
+ *
+ * SAFE FOR THE READ LAYER. Nothing under this imports React or Dexie —
+ * the spelling comes from `progressionSpellingShape`, not from the file
+ * with the hooks — so the dashboard can call it. Without `settings` it
+ * spells at the app's default (° and ø).
+ *
+ * NO DIRECTION. A pair of chords has one motion in the pool, so "(Up)"
+ * said nothing the two names do not, and the direction a reader cares
+ * about is the one the bass took, which the verdict now says.
+ * =====================================================================
+ */
+export function motionName(
+  m: Pick<Motion, 'startLabel' | 'destLabel'>,
+  settings?: ProgressionSpelling,
+): string {
+  return `${chipText(m.startLabel, settings)} → ${chipText(m.destLabel, settings)}`;
 }
 
 /** A degree's pitch class in a key. */

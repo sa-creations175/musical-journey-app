@@ -45,7 +45,9 @@ import { containsSlashChords } from '../../ear-training/chord-progressions/progr
 // THE POOL, NOT THE SCREEN. This used to import the drill component,
 // which is the thing this file's own comments say the read layer must
 // not do; the pool moved into a module of its own on 9 Sep 2026.
-import { ALL_MOTIONS } from '../../ear-training/chord-progressions/chordMotionPool';
+import { ALL_MOTIONS, type DegreeLabel } from '../../ear-training/chord-progressions/chordMotionPool';
+// The motion's NAME, the way its chips spell it. Pure — see its note.
+import { motionName } from '../../ear-training/chord-progressions/motionDegrees';
 import {
   SIGNATURES, KEY_MODES, CLEFS, NOTE_POSITIONS, CHORD_QUALITIES as READING_CHORD_QUALITIES,
   positionsForFamily, clefsForFamily, SHAPE_FAMILIES, SHAPE_FAMILY_LABEL,
@@ -363,17 +365,15 @@ export const chordProgressionsCatalog: ModuleCatalog = {
 };
 
 /**
- * `b2 → 3 (Ascending)`.
+ * `♭2 → 3m`, as the chips spell it.
  *
- * THE DEGREE SPELLINGS ARE LEFT EXACTLY AS STORED. They are musical
- * notation, not words: `b2` is a flat second, and `B2` would be a note.
- * Only the direction is a word, so only the direction is cased — which
- * matches how an interval row reads two catalogs up.
+ * IT WAS THE STORED ID, `b2 → 3 (Ascending)` — and for a borrowed chord
+ * `1 → 2m7b5 (Ascending)`. The id is a key; `motionName` is the one
+ * formatter the Focus panel and the tracker read too. At the app's
+ * default spelling, since the read layer holds no settings.
  */
-function motionLabel(
-  m: { startLabel: string; destLabel: string; direction: 'asc' | 'desc' },
-): string {
-  return `${m.startLabel} → ${m.destLabel} (${DIRECTION_LABEL[m.direction]})`;
+function motionLabel(m: { startLabel: DegreeLabel; destLabel: DegreeLabel }): string {
+  return motionName(m);
 }
 
 export const earTrainingCatalogs: ReadonlyArray<ModuleCatalog> = [

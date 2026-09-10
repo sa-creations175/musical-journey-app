@@ -59,9 +59,11 @@
  */
 import { FAMILY_OF, type QualityId } from './builtAnswers/chordShapes';
 import type { Thickness } from './builtAnswers/chordShapes';
+// THE SHAPE, NOT THE HOOKS — so a read layer can spell a row without
+// pulling React in. See `progressionSpellingShape`.
 import {
   DEFAULT_PROGRESSION_SPELLING, SEPARATOR_TEXT, type ProgressionSpelling,
-} from './progressionSpelling';
+} from './progressionSpellingShape';
 
 /**
  * The separator the app opened with before the setting existed, and

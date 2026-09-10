@@ -26,6 +26,8 @@ import { useEtCurationsLive } from '../useEtCurations';
 import { useEtSelection, type EtSelectionState } from '../useEtSelection';
 import type { EtItemCuration } from '../../../lib/db';
 import { ALL_MOTIONS, INTERVAL_NAME, parseMotionId } from './chordMotionPool';
+import { motionName } from './motionDegrees';
+import { useProgressionSpelling } from '../../../lib/progressionSpelling';
 import AssociationsEditor from './AssociationsEditor';
 import ProgressTrackerBand from '../../../components/moduleHome/ProgressTrackerBand';
 import { PROGRESS_TRACKER_LABEL } from '../../../components/moduleHome/cardShell';
@@ -380,6 +382,8 @@ function KeyDetectionView({ attempts }: { attempts: AttemptRecord[] }) {
 // --- Chord Motion view ----------------------------------------------
 
 function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
+  // THE CHIPS' SPELLING, so a row reads "1 → 2ø" where the card does.
+  const [rowSpelling] = useProgressionSpelling();
   // Group motions by distance (2nds, 3rds, …) and show each as a
   // "startDeg → destDeg (dir)" row. Each attempt row reuses the same
   // rolling-window tier logic as the full-progression rows.
@@ -414,7 +418,7 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
               const id = `motion:${m.startLabel}-${m.destLabel}-${m.direction}`;
               const parsed = parseMotionId(id);
               const stats = rollingFor(attempts, id);
-              const label = `${m.startLabel} → ${m.destLabel}`;
+              const label = motionName(m, rowSpelling);
               const extra = `${m.direction === 'asc' ? 'ascending' : 'descending'} · ${parsed?.distance ?? ''}${parsed ? INTERVAL_NAME[parsed.distance].slice(-2) : ''}${m.isDiatonic ? '' : ' · chromatic'}`;
               return <SimpleStatRow key={id} label={label} stats={stats} extra={extra} />;
             })}
