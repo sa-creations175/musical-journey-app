@@ -7,7 +7,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import {
-  NO_FILTER, filterSize, isNarrowed, parseFilterKeys, useDrillFilter,
+  NO_FILTER, isNarrowed, parseFilterKeys, useDrillFilter,
 } from '../drillFilter';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -24,16 +24,6 @@ describe('the parse', () => {
   it('reads empty as no narrowing, not as narrowed to nothing', () => {
     expect(isNarrowed(NO_FILTER)).toBe(false);
     expect(isNarrowed({ keys: ['a'], source: 'url' })).toBe(true);
-  });
-});
-
-describe('filterSize dedupes', () => {
-  it('counts distinct keys, which the old chord-progressions count did not', () => {
-    // ASYMMETRIC: three entries, two distinct. `keys.length` gives 3
-    // and would clear a minimum of 3 that the real pool does not.
-    expect(filterSize({ keys: ['I-V-vi-IV', 'I-V-vi-IV', 'ii-V-I'], source: 'panel' }))
-      .toBe(2);
-    expect(filterSize(NO_FILTER)).toBe(0);
   });
 });
 
@@ -114,8 +104,9 @@ describe('all four drills read the hook, not their own parse', () => {
     expect(tab).toContain('initialFocusKeys');
     // And it does not size the pool with an undeduped length or a
     // literal 4 — the two things the old screen was behind on. It
-    // dedupes inline rather than through `filterSize`, which is the
-    // same rule and is pinned directly at the top of this file.
+    // dedupes inline. `filterSize` used to hold that rule for it and
+    // was deleted on 10 Sep 2026 with its last caller; the assertion
+    // below is what is left of it, at the surface that applies it.
     expect(tab).not.toContain('focusKeys.length < 4');
     expect(tab).toContain('new Set(focusKeys).size');
     expect(tab).toContain('FLUENCY_POOL_MINIMUM');

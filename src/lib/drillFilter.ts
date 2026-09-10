@@ -94,15 +94,10 @@ export function isNarrowed(filter: DrillFilter): boolean {
   return filter.keys.length > 0;
 }
 
-/**
- * The distinct items a filter selects.
- *
- * DEDUPED, and that is the point. `chord-progressions` counts
- * `focusKeys.length` against its pool minimum, so two keys naming one
- * progression read as a pool of two — the exact bug chord recognition
- * fixed by counting the resolved pool instead. Any surface that sizes a
- * filter should size it through here.
- */
-export function filterSize(filter: DrillFilter): number {
-  return new Set(filter.keys).size;
-}
+// `filterSize` WAS HERE, AND IT IS GONE (10 Sep 2026). It deduped a
+// filter's keys so a pool minimum could not be cleared by naming one
+// progression twice — a real rule, and the surface that needed it is
+// the chord-motion tab, which dedupes inline with
+// `new Set(focusKeys).size`. Its only caller was the screen deleted
+// this morning, so it went with it, per the standing dead-code rule.
+// The RULE is still tested, at the tab that applies it.
