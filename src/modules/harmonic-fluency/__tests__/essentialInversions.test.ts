@@ -58,6 +58,17 @@ describe('the six Silas keeps', () => {
     expect(byName.get('2 / 3')!.sound).toContain('#4');
   });
 
+  it('carries the app\'s own name beside his, as ruled', () => {
+    // Silas, 10 Sep 2026, in the notes file: "these notes name the bass
+    // as a tone of the chord. The app names it as a note of the key."
+    // The app's is what a card says; his is kept because it is how the
+    // words in this file were written.
+    expect(ESSENTIAL_INVERSIONS.map(i => `${i.name} → ${i.appName}`)).toEqual([
+      '1 / 3 → 1/3', '1 / 5 → 1/5', '4 / 5 → 4/1',
+      '2 / 3 → 2/♯4', '3 / 3 → 3/♯5', '5 / 3 → 5/7',
+    ]);
+  });
+
   it('names the bass twice, because the two conventions disagree', () => {
     // A degree of the CHORD, which is how the notes name it, and a
     // degree of the KEY, which is how the deck does. They agree only

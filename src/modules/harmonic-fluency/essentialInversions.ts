@@ -37,16 +37,25 @@
  * F/C and the deck's `4-5` card is F/G, two different chords under one
  * label.
  *
- * SO BOTH ARE WRITTEN DOWN HERE, per row, and `shapeId` links a row to
- * the deck's shape only where the two names describe the same chord.
- * Three of the six have no card in the deck at all. Which of the two
- * conventions the reveal should speak is Silas's, and is in the report.
+ * THE APP'S NAMING WINS. Ruled by Silas on 10 Sep 2026, in the notes
+ * file itself: "these notes name the bass as a tone of the chord. The
+ * app names it as a note of the key." So `bassOfKey` is what a card
+ * says and `bassOfChord` is kept because it is how the words below
+ * were written — his "4 / 5" is the app's 4/1, his "2 / 3" the app's
+ * 2/♯4, his "3 / 3" the app's 3/♯5, and his "5 / 3" the `5-7` card the
+ * deck already has.
+ *
+ * `shapeId` links a row to the deck's shape only where the two names
+ * describe the same chord. Three of the six have no card in the deck at
+ * all; whether they get one is a separate ruling.
  * =====================================================================
  */
 
 export interface EssentialInversion {
-  /** Silas's own heading, e.g. "1 / 3". */
+  /** Silas's own heading, e.g. "1 / 3" — the notes' naming. */
   name: string;
+  /** The same shape as the APP names it, which is what a card says. */
+  appName: string;
   /** The chord, as a degree of the key. */
   chord: string;
   /** Its quality where the notes give one — every one of the six is a
@@ -74,6 +83,7 @@ export interface EssentialInversion {
 export const ESSENTIAL_INVERSIONS: ReadonlyArray<EssentialInversion> = [
   {
     name: '1 / 3',
+    appName: '1/3',
     chord: '1', quality: 'major', bassOfChord: '3', bassOfKey: '3',
     inC: 'C/E',
     shapeId: '1-3',
@@ -86,6 +96,7 @@ export const ESSENTIAL_INVERSIONS: ReadonlyArray<EssentialInversion> = [
   },
   {
     name: '1 / 5',
+    appName: '1/5',
     chord: '1', quality: 'major', bassOfChord: '5', bassOfKey: '5',
     inC: 'C/G',
     shapeId: '1-5',
@@ -99,6 +110,7 @@ export const ESSENTIAL_INVERSIONS: ReadonlyArray<EssentialInversion> = [
     // 5th (also the key's tonic) in the bass". The deck's `4-5` card is
     // F/G. Same label, different chord — hence no `shapeId`.
     name: '4 / 5',
+    appName: '4/1',
     chord: '4', quality: 'major', bassOfChord: '5', bassOfKey: '1',
     inC: 'F/C',
     shapeId: null,
@@ -108,6 +120,7 @@ export const ESSENTIAL_INVERSIONS: ReadonlyArray<EssentialInversion> = [
   },
   {
     name: '2 / 3',
+    appName: '2/♯4',
     chord: '2', quality: 'major', bassOfChord: '3', bassOfKey: '#4',
     inC: 'D/F♯',
     shapeId: null,
@@ -121,6 +134,7 @@ export const ESSENTIAL_INVERSIONS: ReadonlyArray<EssentialInversion> = [
   },
   {
     name: '3 / 3',
+    appName: '3/♯5',
     chord: '3', quality: 'major', bassOfChord: '3', bassOfKey: '#5',
     inC: 'E/G♯',
     shapeId: null,
@@ -133,6 +147,7 @@ export const ESSENTIAL_INVERSIONS: ReadonlyArray<EssentialInversion> = [
     // The deck asks for this chord as `5-7` — G/B in the key of C —
     // which is the same chord under the other naming convention.
     name: '5 / 3',
+    appName: '5/7',
     chord: '5', quality: 'major', bassOfChord: '3', bassOfKey: '7',
     inC: 'G/B',
     shapeId: '5-7',
