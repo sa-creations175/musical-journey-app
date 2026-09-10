@@ -27,6 +27,9 @@
  *     keys mode, and unlit until the reader taps
  *   · chord motion adds "Starting note", the one aid no other surface
  *     has, and shows no Compare row
+ *   · chord motion pins the one-hand root line (`oneHandRoot`), so in
+ *     "One, root in the chord" the lowest voice makes the move its card
+ *     names; every other surface places the root under each hand
  *
  * Anything else that differs is a bug. A surface chooses which ROWS it
  * shows and never what a row means — the tempo, the lift, the hands and

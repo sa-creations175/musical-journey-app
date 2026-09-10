@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest';
 import { seqSchedule } from '../../../../lib/audio';
 import { bassDrop, chordStep, type PlayerChord } from '../../../../lib/player/voices';
 import { DEFAULT_PLAYER_SETTINGS, type PlayerSettings } from '../../../../lib/player/settings';
-import { ALL_MOTIONS } from '../chordMotionPool';
+import { ALL_MOTIONS, motionId } from '../chordMotionPool';
 import { bassMove, motionChords } from '../motionChords';
 
 /** The ruled names, by semitones. An octave never happens. */
@@ -34,41 +34,60 @@ const MODES: PlayerSettings[] = [
 ];
 
 describe('the verdict follows the bass', () => {
-  it('names the scheduled bass pair, for every motion, three keys, both bass modes', () => {
+  it('makes the jump the card names, for every card, three keys, both bass modes', () => {
+    // =====================================================================
+    // THE BASS MAKES THE JUMP THE CARD NAMES (10 Sep 2026). Every card
+    // carries its move — +9 for 1 → 6m up, −3 for its twin down — and
+    // the bass pair the sequencer is handed must move by exactly that:
+    // same direction, same interval, never bent by the register.
+    // =====================================================================
     let checked = 0;
-    let disagreesWithPool = 0;
     const directions = new Set<string>();
     for (const settings of MODES) {
       for (const key of KEYS) {
         for (const m of ALL_MOTIONS) {
-          const { chords } = motionChords(key, m.startLabel, m.destLabel, 'seventh');
+          const where = `${key} ${motionId(m)} ${settings.bass}`;
+          const { chords } = motionChords(key, m.startLabel, m.destLabel, 'seventh', 'flat', m.direction);
           const [from, to] = scheduledBass(chords, settings);
-          const semis = to - from;
-          // A SAME-ROOT MOVE HOLDS ITS BASS: the same note twice, never
-          // an octave. Every other move goes somewhere under an octave.
-          if (m.direction === 'same') expect(semis, `${key} ${m.startLabel}-${m.destLabel}`).toBe(0);
-          else expect(Math.abs(semis), `${key} ${m.startLabel}-${m.destLabel}`).toBeGreaterThan(0);
-          expect(Math.abs(semis)).toBeLessThan(12);
-          const want = semis === 0
-            ? 'same root'
-            : `${semis > 0 ? 'up' : 'down'} a ${RULED[Math.abs(semis)]}`;
-          const got = bassMove(chords, settings);
-          expect(got?.words, `${key} ${m.startLabel}-${m.destLabel} ${settings.bass}`).toBe(want);
-          expect([got?.from, got?.to]).toEqual([from, to]);
-          directions.add(got!.direction);
-          if (m.direction !== 'same' && (got!.direction === 'up') !== (m.direction === 'asc')) {
-            disagreesWithPool += 1;
-          }
+          expect(to - from, where).toBe(m.semitones);
+          expect(Math.abs(to - from), where).toBeLessThan(12);
+          // The verdict reads that pair, so it names the card's move.
+          expect(bassMove(chords, settings)?.words, where).toBe(
+            m.semitones === 0 ? 'same root'
+              : `${m.semitones > 0 ? 'up' : 'down'} a ${RULED[Math.abs(m.semitones)]}`,
+          );
+          // And the bass stays under the hand, on the board.
+          chords.forEach((c, i) => {
+            const b = [from, to][i];
+            expect(b, where).toBeLessThan(Math.min(...c.hand));
+            expect(b, where).toBeGreaterThanOrEqual(36);
+          });
+          directions.add(bassMove(chords, settings)!.direction);
           checked += 1;
         }
       }
     }
-    // Guard the guard: the fixture really exercises both directions, and
-    // the bass really does disagree with the pool's scale-position
-    // direction somewhere — otherwise the old rule would pass too.
+    // Guard the guard: every card was checked and all three kinds occur.
     expect(checked).toBe(ALL_MOTIONS.length * KEYS.length * MODES.length);
     expect(directions).toEqual(new Set(['up', 'down', 'same']));
-    expect(disagreesWithPool).toBeGreaterThan(0);
+  });
+
+  it('in one-hand mode, the lowest voice makes the card’s move wherever it is pinned', () => {
+    const oneHand: PlayerSettings = { ...DEFAULT_PLAYER_SETTINGS, hands: 'one' };
+    let pinned = 0;
+    for (const key of KEYS) {
+      for (const m of ALL_MOTIONS) {
+        const { chords } = motionChords(key, m.startLabel, m.destLabel, 'seventh', 'flat', m.direction);
+        if (chords[0].oneHandRoot === undefined) continue;
+        const [from, to] = scheduledBass(chords, oneHand);
+        expect(to - from, `${key} ${motionId(m)}`).toBe(m.semitones);
+        // The root is the lowest note it plays, under its own hand.
+        chords.forEach((c, i) => expect([from, to][i]).toBeLessThanOrEqual(Math.min(...c.hand)));
+        pinned += 1;
+      }
+    }
+    // Guard: the rule is actually in force on the cards, not skipped.
+    expect(pinned).toBeGreaterThan(ALL_MOTIONS.length * KEYS.length * 0.9);
   });
 
   it('reads the Forward bass where it sounds, an octave down, and names the same move', () => {
@@ -87,15 +106,14 @@ describe('the verdict follows the bass', () => {
   });
 
   it('key of C, Cmaj7 → Am7, bass C down to A: down a minor 3rd', () => {
-    const { chords } = motionChords(0, '1', '6', 'seventh');
+    const { chords } = motionChords(0, '1', '6', 'seventh', 'flat', 'desc');
     expect(chords.map(c => c.name)).toEqual(['Cmaj7', 'Am7']);
     expect(bassMove(chords, DEFAULT_PLAYER_SETTINGS)?.words).toBe('down a minor 3rd');
   });
 
   it('the same move with the bass climbing: up a major 6th', () => {
-    const { chords } = motionChords(0, '1', '6', 'seventh');
-    const climbing = [chords[0], { ...chords[1], bass: chords[0].bass! + 9 }];
-    expect(bassMove(climbing, { ...DEFAULT_PLAYER_SETTINGS, bass: 'blended' })?.words)
+    const { chords } = motionChords(0, '1', '6', 'seventh', 'flat', 'asc');
+    expect(bassMove(chords, { ...DEFAULT_PLAYER_SETTINGS, bass: 'blended' })?.words)
       .toBe('up a major 6th');
   });
 });

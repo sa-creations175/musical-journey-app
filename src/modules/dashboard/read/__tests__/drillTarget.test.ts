@@ -433,7 +433,7 @@ describe('chord progressions — filterability is per row', () => {
     const destination = nodeNamed('Destination');
     const target = drillTargetFor(destination, 'ear-training');
     if (target.kind !== 'filtered') throw new Error('expected filtered');
-    expect(target.focusKeys).toHaveLength(235);
+    expect(target.focusKeys).toHaveLength(467);
     expect(target.focusKeys).toEqual(target.itemRefs);
     expect(target.focusKeys[0]).toMatch(/^motion:/);
   });
@@ -448,7 +448,7 @@ describe('chord progressions — filterability is per row', () => {
     expect(href.startsWith('/ear-training/chord-progressions?')).toBe(true);
     const query = new URLSearchParams(href.slice(href.indexOf('?') + 1));
     expect(query.get('tab')).toBe('chord-motion');
-    expect(query.get('focus')!.split(',')).toHaveLength(235);
+    expect(query.get('focus')!.split(',')).toHaveLength(467);
   });
 
   it('refuses the first-chord rows rather than half-delivering them', () => {

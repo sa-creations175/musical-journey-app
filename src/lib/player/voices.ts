@@ -37,6 +37,16 @@ export interface PlayerChord extends VoicedChord {
    * played, so it sets this per chord.
    */
   beats?: number;
+  /**
+   * Where the root sits in one-hand mode, when the surface pins it.
+   *
+   * ABSENT ON EVERY SURFACE BUT ONE, and then the root goes just under
+   * each hand, chord by chord (`rootInHand`). Chord Motion pins it: its
+   * card names a move, and the lowest voice has to make that move in
+   * one-hand mode too — see `oneHandRoots` in `motionChords`. Written
+   * into the shared player's allowed differences.
+   */
+  oneHandRoot?: number;
 }
 
 /**
@@ -131,8 +141,13 @@ export function soundingNotes(
   }
   if (settings.hands === 'one') {
     // ONE HAND PUTS THE ROOT INSIDE THE CHORD, so there is no bass line
-    // to move and the drop has nothing to act on.
-    const root = rootInHand(bass, hand);
+    // to move and the drop has nothing to act on. A PINNED ROOT rides
+    // the lift with the hand, so "Up an octave" keeps it the same
+    // distance under the chord.
+    const lifted = hand.length > 0 && chord.hand.length > 0 && hand[0] !== chord.hand[0];
+    const root = chord.oneHandRoot !== undefined
+      ? chord.oneHandRoot + (lifted ? 12 : 0)
+      : rootInHand(bass, hand);
     const notes = [root, ...hand];
     return { notes, hands: notes.map((): 'R' => 'R') };
   }

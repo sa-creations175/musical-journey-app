@@ -406,6 +406,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     const keyPc = ((keyToRootMidi(key) % 12) + 12) % 12;
     const { chords, rootPcs } = motionChords(
       keyPc, motion.startLabel, motion.destLabel, DEFAULT_RUNG, spelling,
+      motion.direction,
     );
     const next: Round = {
       motion,
@@ -440,6 +441,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     if (round === null) return;
     const { chords, rootPcs } = motionChords(
       round.keyPc, round.motion.startLabel, round.motion.destLabel, next, spelling,
+      round.motion.direction,
     );
     setRound({ ...round, chords, rootPcs });
   };
@@ -585,12 +587,14 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
   const focusSections: SelectionSection[] = useMemo(() => ([
     {
-      title: 'Ascending',
+      // UP AND DOWN ARE THE BASS'S, the words the Direction chips use:
+      // 1 → 6m up a major 6th is here, its minor-3rd-down twin below.
+      title: 'Up',
       items: ALL_MOTIONS.filter(m => m.direction === 'asc')
         .map(m => ({ key: motionId(m), label: motionName(m, rowSpelling) })),
     },
     {
-      title: 'Descending',
+      title: 'Down',
       items: ALL_MOTIONS.filter(m => m.direction === 'desc')
         .map(m => ({ key: motionId(m), label: motionName(m, rowSpelling) })),
     },
@@ -935,10 +939,10 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 {/* NO INTERVAL TO DESCRIBE on a move that keeps its root:
                     the note would be filed under a unison. */}
                 {round.motion.direction !== 'same' && (() => {
-                  const semitones = Math.abs(
-                    ((round.destPc - round.startPc) + 12) % 12,
-                  );
-                  const quality = intervalFromSemitones(semitones);
+                  // THE CARD'S INTERVAL AND DIRECTION, which is what
+                  // sounded: 1 → 6m down a minor 3rd opens the note for
+                  // a descending minor 3rd, not an ascending major 6th.
+                  const quality = intervalFromSemitones(round.motion.semitones);
                   const long = round.motion.direction === 'asc'
                     ? 'ascending' : 'descending';
                   return (

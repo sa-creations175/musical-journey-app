@@ -320,7 +320,8 @@ describe('the borrowed qualities: 4m, 2ø and 5m', () => {
     const borrowed = ALL_MOTIONS.filter(m => m.borrowed);
     expect(borrowed.length).toBeGreaterThan(0);
     expect(borrowed.every(m => !m.isDiatonic)).toBe(true);
-    expect(ALL_MOTIONS.filter(m => m.isDiatonic)).toHaveLength(42);
+    // 7 × 6 diatonic pairs, both ways.
+    expect(ALL_MOTIONS.filter(m => m.isDiatonic)).toHaveLength(84);
     const same = ALL_MOTIONS.filter(m => m.startSemi === m.destSemi);
     expect(same.map(motionId).sort())
       .toEqual(['motion:2-2m7b5-same', 'motion:4-4m-same', 'motion:5-5m-same']);
@@ -398,8 +399,8 @@ describe('the ring follows a chord chip', () => {
 });
 
 describe('the verdict names what the bass did', () => {
-  it('1 → 6m in the key of C: down a minor 3rd, not the pool’s up a 6th', async () => {
-    const el = await deal('motion:1-6-asc');
+  it('1 → 6m down, in the key of C: down a minor 3rd', async () => {
+    const el = await deal('motion:1-6-desc');
     await click(el, 'motion-start-1');
     await click(el, 'motion-dest-6');
     await click(el, 'motion-submit');
@@ -420,7 +421,7 @@ describe('the Focus panel names motions as the chips do', () => {
     await settle();
     const text = document.body.textContent ?? '';
     // Guard: the panel is open and listing motions.
-    expect(text).toContain('Ascending');
+    expect(text).toContain('Up');
     expect(text).toContain('1 → 2ø');
     expect(text).toContain('♭2 → 3m');
     expect(text).not.toMatch(/→ \S*m7b5|b\d →|→ b\d/);
@@ -545,5 +546,41 @@ describe('the diminished family spells as Settings says, and the ♯4 has two se
     expect(chipTexts).toContain('7m7♭5');
     expect(chipTexts).not.toContain('7°');
     await setPref('progressionSpelling', { ...DIM_WORDS, halfDimTriad: '°', halfDimSeventh: 'ø' });
+  });
+});
+
+describe('Direction and Distance read the card’s own move', () => {
+  async function scope(dir: string, dist: number | 'all'): Promise<string> {
+    await setPref('chordProgressionsMotionDirection', dir);
+    await setPref('chordProgressionsMotionDistance', dist);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(
+        <InstrumentProvider><MemoryRouter><ChordMotionTab attempts={[]} /></MemoryRouter></InstrumentProvider>,
+      );
+    });
+    await settle();
+    const text = container.textContent ?? '';
+    await act(async () => root!.unmount());
+    container.remove();
+    root = null;
+    container = null;
+    return text;
+  }
+
+  it('deals up cards under Up and down cards under Down, bucketed by the card’s interval', async () => {
+    const diatonic = ALL_MOTIONS.filter(m => m.isDiatonic);
+    const upSixths = diatonic.filter(m => m.semitones > 0 && m.distance === 6).length;
+    const downSixths = diatonic.filter(m => m.semitones < 0 && m.distance === 6).length;
+    // Guard: 1 → 6m up is a 6th and its twin down is a 3rd.
+    const find = (id: string) => ALL_MOTIONS.find(m => motionId(m) === id)!;
+    expect(find('motion:1-6-asc').distance).toBe(6);
+    expect(find('motion:1-6-desc').distance).toBe(3);
+    expect(await scope('both', 'all')).toContain('84 motions');
+    expect(await scope('asc', 'all')).toContain('42 motions');
+    expect(await scope('asc', 6)).toContain(`${upSixths} motion`);
+    expect(await scope('desc', 6)).toContain(`${downSixths} motion`);
   });
 });

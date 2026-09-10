@@ -18,8 +18,8 @@
  * THE POOL IS GENERATED, WHICH IS WHY IT CAN BE ASKED WITHOUT A TABLE
  * OF IDS.
  *
- * Fifteen chords against every other chord on a different root: 204
- * motions, built once. An id is `motion:{start}-{dest}-{asc|desc}`, and
+ * Sixteen chords against every other chord on a different root, both
+ * ways, plus three same-root moves: 467 motions, built once. An id is `motion:{start}-{dest}-{asc|desc}`, and
  * `parseMotionId` is the only thing that says whether a stored one
  * still names a motion this app has.
  *
@@ -40,10 +40,22 @@
 import type { ChordQuality } from './catalog';
 
 /**
- * Which way a motion goes, by scale position.
+ * Which way the bass goes. `asc` is up, `desc` is down.
+ *
+ * =====================================================================
+ * THE BASS'S REAL DIRECTION, EVERYWHERE. Silas's ruling of 10 Sep 2026.
+ *
+ * It used to be scale position — 1 → 6m was `asc` because the 6 sits
+ * above the 1 in the octave — while the bass, taking the smaller move,
+ * went down. Now every pair is two cards and the bass makes the jump
+ * the card names: `motion:1-6-asc` is up a major 6th, `motion:1-6-desc`
+ * down a minor 3rd. An id that existed before keeps the direction it
+ * already meant, because scale-position `asc` WAS "up by the distance
+ * to the next one above"; the twin is new.
  *
  * `'same'` IS A MOTION THAT KEEPS ITS ROOT — 4 → 4m, 5 → 5m, 2m → 2ø.
  * It has no up or down, so neither Direction chip excludes it.
+ * =====================================================================
  */
 export type Direction = 'asc' | 'desc' | 'same';
 
@@ -161,16 +173,32 @@ export interface Motion {
   /** Either end is a borrowed chord. None of these existed before
    *  10 Sep 2026, so no row from the scaffolding era can name one. */
   borrowed: boolean;
+  /**
+   * The bass's move, in semitones: +9 for up a major 6th, −3 for down
+   * a minor 3rd, 0 for a same-root move. Never more than eleven either
+   * way — the two cards of a pair add up to an octave.
+   */
+  semitones: number;
+  /** The direction the pair did NOT have before 10 Sep 2026 — `1 → 6m`
+   *  down, `6m → 1` up. New ids; no stored row can name one. */
+  twin: boolean;
 }
 
 function motionBetween(s: DegreeEntry, d: DegreeEntry, direction: Direction): Motion {
+  const upBy = (((d.semi - s.semi) % 12) + 12) % 12;
+  const semitones = direction === 'same' ? 0
+    : direction === 'asc' ? upBy : -((12 - upBy) % 12);
   return {
     startLabel: s.label,
     destLabel: d.label,
     startSemi: s.semi,
     destSemi: d.semi,
     direction,
-    distance: intervalCountFromSemi(Math.abs(d.semi - s.semi)),
+    semitones,
+    // THE CARD'S INTERVAL, not the scale-position gap: a 6th up and its
+    // 3rd-down twin sit in different Distance buckets.
+    distance: intervalCountFromSemi(semitones),
+    twin: direction !== 'same' && (direction === 'asc') !== (d.semi > s.semi),
     isDiatonic: s.diatonic && d.diatonic,
     startDegree: s.degree,
     startQuality: s.quality,
@@ -212,10 +240,10 @@ const SAME_ROOT_PAIRS: ReadonlyArray<readonly [DegreeLabel, DegreeLabel]> = [
   ['4', '4m'], ['5', '5m'], ['2', '2m7b5'],
 ];
 
-// Every in-octave motion between two chords on DIFFERENT roots. The
-// pool is generated once and filtered at call time by distance /
-// direction / note-context (see filterMotions). Direction is by the
-// underlying semitone offsets.
+// Every motion between two chords on DIFFERENT roots, BOTH WAYS: up to
+// the next instance of the destination root, and down to the one
+// below. The pool is generated once and filtered at call time by
+// distance / direction / note-context (see filterMotions).
 //
 // A CHORD AND ITS OWN BORROWED TWIN ARE NOT GENERATED HERE — only the
 // three same-root moves Silas ruled in, from `SAME_ROOT_PAIRS`, which
@@ -225,7 +253,11 @@ function buildAllMotions(): Motion[] {
   for (const s of DEGREE_TABLE) {
     for (const d of DEGREE_TABLE) {
       if (s.semi === d.semi) continue;
-      motions.push(motionBetween(s, d, d.semi > s.semi ? 'asc' : 'desc'));
+      // The direction the pair always had first, then its twin, so the
+      // legacy half of the pool keeps its order.
+      const natural: Direction = d.semi > s.semi ? 'asc' : 'desc';
+      motions.push(motionBetween(s, d, natural));
+      motions.push(motionBetween(s, d, natural === 'asc' ? 'desc' : 'asc'));
     }
   }
   for (const [from, to] of SAME_ROOT_PAIRS) {

@@ -7,6 +7,7 @@
  * separately where they differ, that a merged row aggregates its refs,
  * and that the refs match what the app actually stores.
  */
+import { ALL_MOTIONS, motionId } from '../../../ear-training/chord-progressions/chordMotionPool';
 import { describe, expect, it } from 'vitest';
 import { CHORD_SEEDS } from '../../../ear-training/chord-recognition/seed';
 import { reachableInversions } from '../../../ear-training/chord-recognition/inversionUtils';
@@ -157,22 +158,28 @@ describe('reading — 52 signature items over 52 rows', () => {
 describe('chord progressions — three sub-drills, one moduleId', () => {
   const refs = [...catalogRefSet(chordProgressionsCatalog)];
 
-  it('chord motion denominator is 235, not the 42 on screen', () => {
+  it('chord motion denominator is 467, not the 42 on screen', () => {
     // Sixteen chords (twelve degrees + the borrowed 4m, 2ø, 5m + the
-    // ♯4's dim7), each to every chord on a different root: 16 × 15 − 8
-    // = 232, plus the three same-root moves (4 → 4m, 5 → 5m, 2m → 2ø).
-    // The 42 is
-    // activePool.length after the diatonic-only filter, which is the
-    // default scope and so looks like the catalog.
-    expect(refs.filter(r => r.startsWith('motion:'))).toHaveLength(235);
+    // ♯4's dim7), each to every chord on a different root, BOTH WAYS
+    // since 10 Sep 2026: (16 × 15 − 8) × 2 = 464, plus the three
+    // same-root moves. The 42 on screen is the diatonic-only pool of
+    // one direction.
+    expect(refs.filter(r => r.startsWith('motion:'))).toHaveLength(467);
   });
 
-  it('keeps every id stored before the borrowed chords arrived, unchanged', () => {
-    // 12 × 11 legacy ids, spelled exactly as they were.
-    const legacy = refs.filter(r => r.startsWith('motion:') && !/m7b5|4m|5m|dim7|same/.test(r));
+  it('keeps every id stored before today, meaning the direction it meant', () => {
+    // 12 × 11 legacy ids. Their `asc` / `desc` was scale position, and
+    // scale-position asc IS up to the next instance above — so every one
+    // still names the same move: the bass goes dest − start.
+    const legacy = ALL_MOTIONS.filter(m => !m.borrowed && !m.twin && m.direction !== 'same');
     expect(legacy).toHaveLength(132);
-    expect(legacy).toContain('motion:1-4-asc');
-    expect(legacy).toContain('motion:2-5-asc');
+    for (const m of legacy) {
+      expect(refs).toContain(motionId(m));
+      expect(m.semitones, motionId(m)).toBe(m.destSemi - m.startSemi);
+    }
+    expect(refs).toContain('motion:1-5-asc');
+    // And its twin is a new id, down a perfect 4th.
+    expect(ALL_MOTIONS.find(m => motionId(m) === 'motion:1-5-desc')?.semitones).toBe(-5);
   });
 
   it('motion-first stays on the 132 that could ever be written', () => {

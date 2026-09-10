@@ -48,6 +48,7 @@ import { containsSlashChords } from '../../ear-training/chord-progressions/progr
 import { ALL_MOTIONS, type DegreeLabel } from '../../ear-training/chord-progressions/chordMotionPool';
 // The motion's NAME, the way its chips spell it. Pure — see its note.
 import { motionName } from '../../ear-training/chord-progressions/motionDegrees';
+import { moveWords } from '../../ear-training/chord-progressions/intervalQuality';
 import {
   SIGNATURES, KEY_MODES, CLEFS, NOTE_POSITIONS, CHORD_QUALITIES as READING_CHORD_QUALITIES,
   positionsForFamily, clefsForFamily, SHAPE_FAMILIES, SHAPE_FAMILY_LABEL,
@@ -306,11 +307,11 @@ export const scalesModesCatalog: ModuleCatalog = {
  * Chord progressions is three sub-drills sharing one moduleId, split by
  * itemId prefix.
  *
- * CHORD MOTION'S DENOMINATOR IS 235 — every in-octave motion between
- * two chords on different roots, sixteen chords once the borrowed 4m,
- * 2ø and 5m and the ♯4's dim7 joined the twelve degrees on 10 Sep 2026
- * (232), plus the three same-root moves ruled the same day: 4 → 4m,
- * 5 → 5m, 2m → 2ø. The `42` the app
+ * CHORD MOTION'S DENOMINATOR IS 467 — every motion between two chords
+ * on different roots, BOTH WAYS (1 → 6m up a major 6th and down a minor
+ * 3rd are two cards), among sixteen chords once the borrowed 4m, 2ø and
+ * 5m and the ♯4's dim7 joined the twelve degrees: 464. Plus the three
+ * same-root moves: 4 → 4m, 5 → 5m, 2m → 2ø. All ruled 10 Sep 2026. The `42` the app
  * shows is `activePool.length` after the diatonic-only filter, which is
  * the default scope, so it looks like the catalog and is not.
  *
@@ -344,7 +345,9 @@ export const chordProgressionsCatalog: ModuleCatalog = {
       motionLabel(m),
       [EAR_TRAINING, 'Chord Progressions', 'Chord Motion', 'Destination'],
     )),
-    ...ALL_MOTIONS.filter(m => !m.borrowed).map(m => one(
+    // THE 132 THAT EXISTED while first-chord rows could be written: no
+    // borrowed chord, and no twin direction.
+    ...ALL_MOTIONS.filter(m => !m.borrowed && !m.twin).map(m => one(
       `motion-first:${m.startLabel}-${m.destLabel}-${m.direction}`,
       motionLabel(m),
       [EAR_TRAINING, 'Chord Progressions', 'Chord Motion', 'First Chord'],
@@ -374,8 +377,12 @@ export const chordProgressionsCatalog: ModuleCatalog = {
  * formatter the Focus panel and the tracker read too. At the app's
  * default spelling, since the read layer holds no settings.
  */
-function motionLabel(m: { startLabel: DegreeLabel; destLabel: DegreeLabel }): string {
-  return motionName(m);
+function motionLabel(
+  m: { startLabel: DegreeLabel; destLabel: DegreeLabel; semitones: number },
+): string {
+  // EVERY PAIR IS TWO ROWS since 10 Sep 2026, so the name alone would
+  // appear twice: the move says which — "1 → 6m · up a major 6th".
+  return `${motionName(m)} · ${moveWords(m.semitones)}`;
 }
 
 export const earTrainingCatalogs: ReadonlyArray<ModuleCatalog> = [

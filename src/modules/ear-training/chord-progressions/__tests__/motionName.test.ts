@@ -42,7 +42,10 @@ describe('motionName', () => {
       .map(i => i.label);
     // Guard: the rows are there to read.
     expect(labels.length).toBe(ALL_MOTIONS.length);
-    expect(labels).toContain('1 → 2ø');
+    // A pair is two rows, told apart by the move.
+    expect(labels).toContain('1 → 2ø · up a major 2nd');
+    expect(labels).toContain('1 → 2ø · down a minor 7th');
+    expect(new Set(labels).size).toBe(labels.length);
     for (const l of labels) {
       expect(l).not.toMatch(/b\d/);
       expect(l).not.toContain('m7b5');

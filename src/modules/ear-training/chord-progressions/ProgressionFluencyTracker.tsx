@@ -26,9 +26,10 @@ import { useEtCurationsLive } from '../useEtCurations';
 import { useEtSelection, type EtSelectionState } from '../useEtSelection';
 import type { EtItemCuration } from '../../../lib/db';
 import {
-  ALL_MOTIONS, INTERVAL_NAME, distanceLabel, parseMotionId, type Distance,
+  ALL_MOTIONS, distanceLabel, motionId, type Distance,
 } from './chordMotionPool';
 import { motionName } from './motionDegrees';
+import { moveWords } from './intervalQuality';
 import { useProgressionSpelling } from '../../../lib/progressionSpelling';
 import AssociationsEditor from './AssociationsEditor';
 import ProgressTrackerBand from '../../../components/moduleHome/ProgressTrackerBand';
@@ -417,13 +418,12 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
           <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{g.title}</h3>
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
             {g.motions.map(m => {
-              const id = `motion:${m.startLabel}-${m.destLabel}-${m.direction}`;
-              const parsed = parseMotionId(id);
+              const id = motionId(m);
               const stats = rollingFor(attempts, id);
               const label = motionName(m, rowSpelling);
-              const extra = m.direction === 'same'
-                ? `same root${m.isDiatonic ? '' : ' · chromatic'}`
-                : `${m.direction === 'asc' ? 'ascending' : 'descending'} · ${parsed && parsed.distance !== 1 ? INTERVAL_NAME[parsed.distance] : ''}${m.isDiatonic ? '' : ' · chromatic'}`;
+              // WHAT THE BASS DOES, as the verdict says it — a pair is two
+              // rows now, and "up a major 6th" is what tells them apart.
+              const extra = `${moveWords(m.semitones)}${m.isDiatonic ? '' : ' · chromatic'}`;
               return <SimpleStatRow key={id} label={label} stats={stats} extra={extra} />;
             })}
           </div>

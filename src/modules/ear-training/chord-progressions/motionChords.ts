@@ -28,13 +28,13 @@
  */
 import { bassLine, nearest, allVoicings } from '../../../lib/builtAnswers/voiceLeading';
 import { bassDrop, chordStep, playerMarks } from '../../../lib/player/voices';
-import { intervalFromSemitones } from './intervalQuality';
+import { intervalFromSemitones, moveWords } from './intervalQuality';
 import type { PlayerSettings } from '../../../lib/player/settings';
 import type { KeyMark } from '../../../lib/builtAnswers/board';
 import { handTones, type QualityId } from '../../../lib/builtAnswers/chordShapes';
 import type { PlayerChord } from '../../../lib/player/voices';
 import { spellNote, type Spelling } from '../../../lib/spelling';
-import { degreeEntry, type DegreeLabel } from './chordMotionPool';
+import { degreeEntry, type DegreeLabel, type Direction } from './chordMotionPool';
 import type { ListRung } from './sharedList';
 
 /**
@@ -71,10 +71,49 @@ export interface MotionVoicing {
 }
 
 /**
+ * Where the root sits in each chord in one-hand mode, so the lowest
+ * voice makes the card's move too.
+ *
+ * =====================================================================
+ * THE BASS LINE, MOVED UP AS A BLOCK. "One, root in the chord" puts the
+ * root just under each hand, chord by chord — which, with the hands
+ * voice-led and the bass jumping, can send the lowest voice the other
+ * way from the card. So the line is lifted by the largest whole number
+ * of octaves that keeps every root at or under its own hand, and the
+ * jump survives. Where even the lowest octave would sit above a hand,
+ * or below the board, there is no such lift and this returns null: the
+ * shared player's own per-chord rule takes over, and the card's report
+ * says which ones.
+ * =====================================================================
+ */
+export function oneHandRoots(
+  line: ReadonlyArray<number>,
+  hands: ReadonlyArray<ReadonlyArray<number>>,
+): number[] | null {
+  if (hands.some(h => h.length === 0)) return null;
+  let lift: number | null = null;
+  for (let k = 48; k >= 0; k -= 12) {
+    const roots = line.map(m => m + k);
+    if (roots.every((r, i) => r <= Math.min(...hands[i]) && r >= BOARD_LOW)) {
+      lift = k;
+      break;
+    }
+  }
+  return lift === null ? null : line.map(m => m + lift!);
+}
+
+/** The board's lowest key, and its highest. */
+const BOARD_LOW = 36;
+const BOARD_HIGH = 84;
+
+/**
  * The two chords of a motion, in a key, at a thickness.
  *
  * `keyPc` is the key's tonic pitch class. `from` and `to` are the
- * motion's own degree labels, which carry their diatonic quality.
+ * motion's own degree labels, which carry their quality. `direction`
+ * is the card's: the bass goes that way. Absent, it is the direction
+ * the pair always had — up when the destination sits higher in the
+ * octave — which is what a legacy id means.
  */
 export function motionChords(
   keyPc: number,
@@ -82,6 +121,7 @@ export function motionChords(
   to: DegreeLabel,
   rung: ListRung,
   spelling: Spelling = 'flat',
+  direction?: Direction,
 ): MotionVoicing {
   const steps = [from, to].map(label => {
     const entry = degreeEntry(label);
@@ -93,29 +133,62 @@ export function motionChords(
   });
 
   const rootPcs = steps.map(s => s.rootPc);
-  // NO MOVES PASSED: the bass rule chooses, which is the whole point of
-  // retiring "no octave crossing". A fourth or a fifth alternates and
-  // everything else takes the smaller move — see `bassLine`.
-  const ruled = bassLine(rootPcs, []) as number[];
+  const fromSemi = degreeEntry(from)?.semi ?? 0;
+  const toSemi = degreeEntry(to)?.semi ?? 0;
+  const dir: Direction = direction ?? (toSemi === fromSemi ? 'same'
+    : toSemi > fromSemi ? 'asc' : 'desc');
+  // =====================================================================
+  // THE BASS MAKES THE JUMP THE CARD NAMES. Silas's ruling of 10 Sep
+  // 2026. The move is handed to the bass rule, which goes to the next
+  // instance of the root that way — up a major 6th, or down a minor 3rd,
+  // never more than a 7th — and then shifts the WHOLE line by octaves
+  // into the bass register. A note is never moved on its own, so the
+  // jump is never bent to fit.
+  // =====================================================================
+  let ruled = bassLine(rootPcs, dir === 'same' ? [] : [dir === 'asc' ? 'up' : 'down']) as number[];
   // THE SAME NOTE TWICE ON A SAME-ROOT MOVE. The bass rule, handed a
   // root it already has, goes an octave up or down — a leap that is
   // not the move. Silas's ruling of 10 Sep 2026: 4 → 4m keeps its bass
   // where the first chord put it, and a Forward drop moves the whole
   // line, so it stays there with Forward too.
-  const line = rootPcs[0] === rootPcs[1] ? [ruled[0], ruled[0]] : ruled;
+  if (rootPcs[0] === rootPcs[1]) ruled = [ruled[0], ruled[0]];
+  const line = ruled;
 
-  const chords: PlayerChord[] = [];
+  // THE CHORDS STAY VOICE-LED: the first at its lowest voicing, the
+  // second the nearest to it, as before.
+  const hands: number[][] = [];
   let previous: number[] | null = null;
-  steps.forEach((step, i) => {
+  steps.forEach(step => {
     const tones = handTones(SHAPE_OF_QUALITY[step.quality] ?? 'maj7', rung);
     const pcs = tones.map(t => (step.rootPc + t) % 12);
     const hand = previous === null
       ? allVoicings(pcs)[0] ?? []
       : nearest(pcs, previous, 'auto');
     if (hand.length > 0) previous = hand;
+    hands.push(hand);
+  });
+
+  // =====================================================================
+  // THE BASS STAYS UNDER THE HAND. A jump up a 7th can carry the bass
+  // into the chord above it. The whole line comes down an octave if the
+  // board's floor allows; if it does not, the CHORDS go up an octave
+  // instead. Never the direction, and never one note.
+  // =====================================================================
+  const crosses = () => hands.some((h, i) => h.length > 0 && line[i] >= Math.min(...h));
+  if (crosses() && Math.min(...line) - 12 >= BOARD_LOW) {
+    line.splice(0, line.length, ...line.map(m => m - 12));
+  }
+  if (crosses() && hands.every(h => h.every(m => m + 12 <= BOARD_HIGH))) {
+    hands.forEach((h, i) => { hands[i] = h.map(m => m + 12); });
+  }
+
+  const roots = oneHandRoots(line, hands);
+  const chords: PlayerChord[] = [];
+  steps.forEach((step, i) => {
     chords.push({
-      hand,
+      hand: hands[i],
       bass: line[i] ?? null,
+      ...(roots === null ? {} : { oneHandRoot: roots[i] }),
       rootPc: step.rootPc,
       name: chordName(step.rootPc, step.quality, spelling),
     });
@@ -195,5 +268,5 @@ export function bassMove(
   if (from === to) return { from, to, direction: 'same', interval: '', words: 'same root' };
   const direction = to > from ? 'up' : 'down';
   const interval = intervalFromSemitones(to - from).name.toLowerCase();
-  return { from, to, direction, interval, words: `${direction} a ${interval}` };
+  return { from, to, direction, interval, words: moveWords(to - from) };
 }

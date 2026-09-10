@@ -49,6 +49,21 @@ export function intervalFromSemitones(semitones: number): IntervalQuality {
 }
 
 /**
+ * A bass move in words, the way the Chord Motion verdict says it:
+ * "up a major 6th", "down a minor 3rd", "up a tritone", "same root".
+ *
+ * ONE FORMATTER for the verdict, the starter-association line and the
+ * tracker, so the three cannot name one move three ways. Signed: up is
+ * positive. The names are the interval table's, lower-cased to the
+ * ruled list (perfect 4th, tritone).
+ */
+export function moveWords(semitones: number): string {
+  if (semitones === 0) return 'same root';
+  const name = intervalFromSemitones(semitones).name.toLowerCase();
+  return `${semitones > 0 ? 'up' : 'down'} a ${name}`;
+}
+
+/**
  * Stable row key for the intervalDescriptions table. Combines quality
  * id with direction so ascending and descending versions store
  * separately — they often attract different associations.
