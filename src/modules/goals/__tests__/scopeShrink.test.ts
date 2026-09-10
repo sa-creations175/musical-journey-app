@@ -35,16 +35,19 @@ function mkGoal(patch: Partial<Goal>): Goal {
 
 describe('detectScopeShrink', () => {
   it('leaves a reachable goal alone', () => {
-    // 100 of the 1152 items that exist today.
+    // 100 of the 1572 items that exist today.
     expect(detectScopeShrink(mkGoal({ targetValue: 100 }))).toBeNull();
   });
 
   it('flags an overall goal whose target outlived the catalog', () => {
-    // 852 + 96 + 408 = 1356 was the pre-cut module total.
-    const shrink = detectScopeShrink(mkGoal({ targetValue: 1320 }));
+    // A target above what the catalog can offer. 1600 sits above the
+    // 1572 that exist today — it was 1320 against 1152, before the
+    // five named progressions joined the passes on 9 Sep 2026 and
+    // took voice leading from 408 cells to 828.
+    const shrink = detectScopeShrink(mkGoal({ targetValue: 1600 }));
     expect(shrink).not.toBeNull();
-    expect(shrink!.storedTarget).toBe(1320);
-    expect(shrink!.availableNow).toBe(1152);
+    expect(shrink!.storedTarget).toBe(1600);
+    expect(shrink!.availableNow).toBe(1572);
     expect(shrink!.isEmpty).toBe(false);
   });
 
@@ -83,10 +86,10 @@ describe('detectScopeShrink', () => {
 
 describe('describeScopeShrink', () => {
   it('never proposes a replacement number', () => {
-    const shrink = detectScopeShrink(mkGoal({ targetValue: 1320 }))!;
+    const shrink = detectScopeShrink(mkGoal({ targetValue: 1600 }))!;
     const text = describeScopeShrink(shrink);
-    expect(text).toContain('1152');
-    expect(text).toContain('1320');
+    expect(text).toContain('1572');
+    expect(text).toContain('1600');
     // The whole point is handing the decision back, so no "change it
     // to N" phrasing.
     expect(text).not.toMatch(/change it to|we('| ha)ve (set|updated)|now targets/i);

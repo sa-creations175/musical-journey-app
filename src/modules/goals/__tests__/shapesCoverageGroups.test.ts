@@ -97,9 +97,11 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
       0;
     // Scales gain the hand axis too — 96 cells are 288 drills.
     const scalesSide = 288 + 36 + 36 + 108 + 3 * 36 + 108 + 3 * 36;
-    // Voice leading is two-handed by nature: one target per cell,
-    // nothing to multiply, every figure unchanged.
-    const vlSide = 408 + 36 + 84 + 84 + 84 + 24 + 48 + 48;
+    // Voice leading is two-handed by nature: one target per cell and
+    // nothing to multiply. The broad bucket plus the twelve
+    // per-pattern groups — eight of them 84, since the five named
+    // progressions are shaped like Major 2-5-1.
+    const vlSide = 828 + 36 + 84 * 8 + 24 + 48 + 48;
     expect(defSum).toBe(chordShapeSide + scalesSide + vlSide);
   });
 });
@@ -365,9 +367,41 @@ describe('Voice-leading per-pattern coverage groups', () => {
       denominator: 48,
       sampleRef: 'vl:dim7:pos4:Eb',
     },
+    // The five named progressions, added to the passes 9 Sep 2026.
+    // Shaped like Major 2-5-1, so 7 cells a key and 84 in all.
+    {
+      id: 'voice_leading_1_5_6_4',
+      patternId: '1-5-6-4',
+      denominator: 84,
+      sampleRef: 'vl:1-5-6-4:guide-tones:A:C',
+    },
+    {
+      id: 'voice_leading_1_6_4_5',
+      patternId: '1-6-4-5',
+      denominator: 84,
+      sampleRef: 'vl:1-6-4-5:seventh-chords:C:F',
+    },
+    {
+      id: 'voice_leading_1_6_2_5',
+      patternId: '1-6-2-5',
+      denominator: 84,
+      sampleRef: 'vl:1-6-2-5:full-voicing:B:G',
+    },
+    {
+      id: 'voice_leading_1_4_5',
+      patternId: '1-4-5',
+      denominator: 84,
+      sampleRef: 'vl:1-4-5:guide-tones:B:Bb',
+    },
+    {
+      id: 'voice_leading_backdoor',
+      patternId: 'backdoor',
+      denominator: 84,
+      sampleRef: 'vl:backdoor:seventh-chords:A:Eb',
+    },
   ];
 
-  it('exposes all 7 per-pattern defs with catalog-sourced denominators', () => {
+  it('exposes a def per pattern, with catalog-sourced denominators', () => {
     for (const d of VL_PATTERN_DEFS) {
       const def = getShapesCoverageGroup(d.id);
       expect(def, `missing def for ${d.id}`).toBeDefined();
@@ -376,13 +410,16 @@ describe('Voice-leading per-pattern coverage groups', () => {
     }
   });
 
-  it('per-pattern denominators sum to the broad voice_leading bucket (408)', () => {
+  it('per-pattern denominators sum to the broad voice_leading bucket (828)', () => {
     const sum = VL_PATTERN_DEFS.reduce(
       (acc, d) => acc + getShapesCoverageGroup(d.id)!.denominator,
       0,
     );
     expect(sum).toBe(getShapesCoverageGroup('voice_leading')!.denominator);
-    expect(sum).toBe(408);
+    // 408 until the five named progressions joined the passes on
+    // 9 Sep 2026. Every one of them has a per-pattern group of its
+    // own, which is what keeps this sum equal to the bucket.
+    expect(sum).toBe(828);
   });
 
   it('every per-pattern id routes to the voice_leading activity area', () => {

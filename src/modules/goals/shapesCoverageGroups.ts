@@ -61,8 +61,8 @@ import {
  * the pickers — see GoalCreationFlow / GoalSuggestionFlow, which both
  * filter on `denominator > 0`.
  *   scale_drills           — 4 scales × 12 keys = 48
- *   voice_leading          — 34 sub-cells × 12 keys = 408
- *                            (7 patterns; see voiceLeadingTotalCellCount)
+ *   voice_leading          — 69 sub-cells × 12 keys = 828
+ *                            (12 patterns; see voiceLeadingTotalCellCount)
  *
  * `chord_shape_drills` (the legacy single bucket) is intentionally
  * not in the union — saved goals from before the split still hit
@@ -129,7 +129,13 @@ export type ShapesCoverageGroupId =
   | 'voice_leading_minor_251'
   | 'voice_leading_minor_aba'
   | 'voice_leading_dom7b9'
-  | 'voice_leading_dim7';
+  | 'voice_leading_dim7'
+  // The five named progressions, added to the passes 9 Sep 2026.
+  | 'voice_leading_1_5_6_4'
+  | 'voice_leading_1_6_4_5'
+  | 'voice_leading_1_6_2_5'
+  | 'voice_leading_1_4_5'
+  | 'voice_leading_backdoor';
 
 /**
  * Per-triad-quality coverage groups (Layer 2). Each represents a
@@ -252,6 +258,11 @@ const VL_PATTERN_ID_FOR_GROUP_ID: Readonly<
   voice_leading_minor_aba:      'minor-aba',
   voice_leading_dom7b9:         'dom7b9',
   voice_leading_dim7:           'dim7',
+  voice_leading_1_5_6_4:        '1-5-6-4',
+  voice_leading_1_6_4_5:        '1-6-4-5',
+  voice_leading_1_6_2_5:        '1-6-2-5',
+  voice_leading_1_4_5:          '1-4-5',
+  voice_leading_backdoor:       'backdoor',
 };
 
 /** Broad-sub-area coverage-group id → ScaleKind. Drives both the
@@ -519,6 +530,13 @@ const GROUP_SHAPES: ReadonlyArray<GroupShape> = [
   ...vlPatternGroupDef('voice_leading_minor_aba',      'minor-aba',      'minor ABA'),
   ...vlPatternGroupDef('voice_leading_dom7b9',         'dom7b9',         'dom7b9 → minor'),
   ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           'dim7 → minor'),
+  // The five named progressions. Labelled numbers-first, as the row
+  // on the page is.
+  ...vlPatternGroupDef('voice_leading_1_5_6_4',        '1-5-6-4',        '1 5 6 4'),
+  ...vlPatternGroupDef('voice_leading_1_6_4_5',        '1-6-4-5',        '1 6 4 5'),
+  ...vlPatternGroupDef('voice_leading_1_6_2_5',        '1-6-2-5',        '1 6 2 5'),
+  ...vlPatternGroupDef('voice_leading_1_4_5',          '1-4-5',          '1 4 5'),
+  ...vlPatternGroupDef('voice_leading_backdoor',       'backdoor',       '1 4 ♭7 1 (backdoor)'),
 ];
 
 /**

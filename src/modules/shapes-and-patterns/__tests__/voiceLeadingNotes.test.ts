@@ -69,7 +69,7 @@ describe('the two key shapes cannot collide', () => {
       }
     }
     expect(seen.size).toBe(cells);
-    expect(cells).toBe(408);
+    expect(cells).toBe(828);
   });
 });
 

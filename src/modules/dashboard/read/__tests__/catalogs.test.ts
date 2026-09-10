@@ -87,16 +87,16 @@ describe('catalog sizes — the denominators', () => {
     expect(productionLessonsCatalog.accuracyKind).toBe('self-rated');
   });
 
-  it('shapes & patterns: 648 chord shapes + 96 scales + 408 VL = 1152', () => {
+  it('shapes & patterns: 648 chord shapes + 96 scales + 828 VL = 1572', () => {
     // THE TREE IS ITEMREFS, NOT DRILLS. It is a browsable list of the
     // things in the module, one row each; the hand axis that the
     // COUNTING unit gained on 31 Aug 2026 would triple the rows without
     // telling the reader anything the row does not already say.
-    expect(catalogItemCount(shapesCatalog)).toBe(1152);
+    expect(catalogItemCount(shapesCatalog)).toBe(1572);
     const refs = catalogRefSet(shapesCatalog);
     expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(648);
     expect([...refs].filter(r => r.startsWith('scale:'))).toHaveLength(96);
-    expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(408);
+    expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(828);
   });
 
   it('EXCLUDES the 72 supplementary rows — 648, not 720', () => {
@@ -389,13 +389,19 @@ describe('the capitalisation convention, across every catalog', () => {
     }
 
     // EXCEPTION ONE, and it is a known gap rather than a decision. The
-    // 96 scale cells and 408 voice-leading cells still render their
+    // 96 scale cells and 828 voice-leading cells still render their
     // stored itemRef as their label (`major:C`) — RULE_LEGIBILITY
     // §1.8b's predicted recurrence, and not a capitalisation problem,
     // because casing a raw ref would not make it a label. Pinned at its
     // exact size so it cannot grow quietly, and so closing it fails here
     // and asks for this number to go rather than passing silently.
-    expect(lower.get('shapes-and-patterns')).toHaveLength(504);
+    //
+    // 504 until 9 Sep 2026, then 588. The five named progressions added
+    // 420 raw-ref rows and only 84 of them land in this bucket: four of
+    // the five are labelled from an itemRef that opens on a DIGIT
+    // (`1-5-6-4:guide-tones:A:C`), which has no first letter to check.
+    // They are the same gap wearing a different first character.
+    expect(lower.get('shapes-and-patterns')).toHaveLength(588);
 
     // EXCEPTION TWO, and it is correct as it stands. Harmonic fluency's
     // leaf label is the card's whole QUESTION, left as written — and two

@@ -66,7 +66,7 @@ export type ShapesActivityArea =
  *  drill mix (90 s/rep for individual inversions, 120 s/rep for
  *  fluid + extensions/special voicings) — see Phase 4 inversion
  *  spec. Voice-leading became per-sub-cell with the Phase 1 VL
- *  submodule build: the 408-cell catalog mixes 90 s, 120 s, and
+ *  submodule build: the 828-cell catalog mixes 90 s, 120 s, and
  *  180 s drills, weighted average ~1.6 min — see VOICE_LEADING_PATTERN_SECONDS
  *  for the per-pattern table and `voiceLeadingCellSeconds` for the
  *  sub-cell-precise lookup the algo uses. Recalibrate alongside
@@ -74,7 +74,7 @@ export type ShapesActivityArea =
 export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
   chord_shape_drills: 1.6,  // weighted avg: triads ~1.625, sevenths ~1.6
   scale_drills:       2,
-  voice_leading:      1.7,  // weighted avg ≈1.72 across 408 sub-cells (see VOICE_LEADING_PATTERN_SECONDS)
+  voice_leading:      1.7,  // weighted avg ≈1.68 across 828 sub-cells (see VOICE_LEADING_PATTERN_SECONDS)
 };
 
 /** Weighted-average fallback used when a Shapes time estimate is
@@ -86,18 +86,19 @@ export const SHAPES_TIME_PER_REP_MINUTES: Record<ShapesActivityArea, number> = {
  *    chord_shape_drills = 852 acquisition-path items
  *      (triads 6×12×4=288, sevenths 6×12×5=360, extensions 14×12=168, special 3×12=36)
  *    scale_drills       = 4 scales × 12 keys = 48
- *    voice_leading      = 408 sub-cells (34 sub-cells/key × 12 keys)
+ *    voice_leading      = 828 sub-cells (69 sub-cells/key × 12 keys)
  *      Per-pattern per-key time (seventh chords carries three
  *      starting positions, the other two types carry two):
  *        five-one     = (2 × 90) + (3 × 90) + (2 × 120) =  690 s
  *        major-251    = (2 × 90) + (3 × 90) + (2 × 120) =  690 s
  *        minor-251    = (2 × 90) + (3 × 90) + (2 × 120) =  690 s
+ *        the five named progressions, 690 s each        = 3450 s
  *        diatonic-cyc = 3 × 180                          =  540 s
  *        minor-aba    = 2 × 90                           =  180 s
  *        dom7b9       = 4 × 90                           =  360 s
  *        dim7         = 4 × 90                           =  360 s
- *      Per-key total = 3510 s; × 12 keys = 42 120 s = 702 min.
- *      → 702 min / 408 cells ≈ 1.721 min/rep on average for VL.
+ *      Per-key total = 6960 s; × 12 keys = 83 520 s = 1392 min.
+ *      → 1392 min / 828 cells ≈ 1.681 min/rep on average for VL.
  *
  *  TWO WEIGHTS ABOVE ARE ALSO STALE, AND PREDATE THE VL CHANGE. The
  *  catalog now holds 720 chord-shape items rather than 852 and 96
@@ -264,7 +265,9 @@ export const SCALE_KIND_SECONDS: Readonly<Record<ScaleKind, number>> = {
  *  `voiceLeadingCellSeconds` with the parsed sub-cell descriptor to
  *  get the type-aware value. */
 export const VOICE_LEADING_PATTERN_SECONDS: Readonly<Record<
-  'five-one' | 'major-251' | 'minor-251' | 'diatonic-cycle' | 'minor-aba' | 'dom7b9' | 'dim7',
+  'five-one' | 'major-251' | 'minor-251' | 'diatonic-cycle' | 'minor-aba'
+  | 'dom7b9' | 'dim7'
+  | '1-5-6-4' | '1-6-4-5' | '1-6-2-5' | '1-4-5' | 'backdoor',
   number
 >> = {
   'five-one':       90,   // guide-tones / seventh-chords baseline; full-voicing → 120 (see fn)
@@ -274,6 +277,13 @@ export const VOICE_LEADING_PATTERN_SECONDS: Readonly<Record<
   'minor-aba':      90,
   'dom7b9':         90,
   'dim7':           90,
+  // The five named progressions (9 Sep 2026). Same shape as Major
+  // 2-5-1, so the same seeds: 90 s baseline, 120 s on the capstone.
+  '1-5-6-4':        90,
+  '1-6-4-5':        90,
+  '1-6-2-5':        90,
+  '1-4-5':          90,
+  'backdoor':       90,
 };
 
 /** Per-sub-cell time-per-attempt for a parsed VL itemRef. Routes by
@@ -285,12 +295,14 @@ export function voiceLeadingCellSeconds(
 ): number {
   switch (desc.kind) {
     case 'type-position': {
-      // Capstone types per pattern that warrant the 120 s window.
-      if (desc.patternId === 'major-251' && desc.type === 'aba-structure') return 120;
-      if (
-        (desc.patternId === 'five-one' || desc.patternId === 'minor-251')
-        && desc.type === 'full-voicing'
-      ) return 120;
+      // THE CAPSTONE IS THE TYPE, NOT THE PATTERN. This used to name
+      // each pattern beside the type it calls its capstone, which meant
+      // a pattern added later silently got 90 s on its Extended
+      // Voicings row. `full-voicing` and `aba-structure` are the same
+      // row under two ids — Major 2-5-1 keeps the legacy spelling
+      // because reps are logged against it — and both take the 120 s
+      // window on every pattern that has one.
+      if (desc.type === 'full-voicing' || desc.type === 'aba-structure') return 120;
       return 90;
     }
     case 'diatonic-cycle':

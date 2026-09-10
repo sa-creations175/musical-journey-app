@@ -241,7 +241,8 @@ describe('harmonicFluencyCounts', () => {
 // -------------------------------------------------------------------
 // Shapes & Patterns — post 20 Aug 2026 drill-catalog cut:
 // triads (6×12×4 = 288) + sevenths (6×12×6 = 432) = 720 chord-shape;
-// + 96 scales + 408 voice-leading = 1224 total (Mental Viz excluded).
+// + 96 scales + 828 voice-leading = 1644 total (Mental Viz excluded).
+// (9 Sep 2026: voice leading 408 → 828, five named progressions added.)
 // Extensions (14) and special/sixth (3) left the catalog — see
 // docs/DASHBOARD_REDESIGN_DESIGN.md § Catalog cuts.
 // Supplementary two-handed seventh rows are excluded — they're
@@ -291,26 +292,27 @@ describe('shapesCounts', () => {
     expect(c.scaleDrills).toBe(96 * 3);
   });
 
-  it('voiceLeading = 34 sub-cells × 12 keys = 408 (Seventh Chords got its 3rd position)', () => {
-    // Per src/docs/VOICE_LEADING_SUBMODULE_DESIGN.md § Total Cell Count
-    // (corrected catalog): five-one (6) + major-251 (6) + minor-251 (6)
-    // + diatonic-cycle (3) + minor-aba (2) + dom7b9 (4) + dim7 (4)
-    // = 34 sub-cells per key × 12 keys.
-    expect(c.voiceLeading).toBe(408);
+  it('voiceLeading = 69 sub-cells × 12 keys = 828', () => {
+    // Eight patterns shaped 2+3+2 (five-one, major-251, minor-251 and
+    // the five named progressions added 9 Sep 2026) = 56, plus
+    // diatonic-cycle (3) + minor-aba (2) + dom7b9 (4) + dim7 (4)
+    // = 69 sub-cells per key × 12 keys. Was 408.
+    expect(c.voiceLeading).toBe(828);
   });
 
-  it('total = 2640 (sum of sub-areas)', () => {
-    // 1944 chord-shape + 288 scale + 408 voice-leading.
-    expect(c.total).toBe(2640);
+  it('total = 3060 (sum of sub-areas)', () => {
+    // 1944 chord-shape + 288 scale + 828 voice-leading. Was 2640,
+    // before the five named progressions joined the passes.
+    expect(c.total).toBe(3060);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 
   it('voice leading and mental visualisation are UNTOUCHED by the hand axis', () => {
     // Voice leading is two-handed by nature and mental visualisation
     // is away from the keyboard entirely: one target per cell, so
-    // there is nothing to multiply. 408 and 504 either way.
-    expect(c.voiceLeading).toBe(408);
-    expect(sectionTargetCount('voice-leading')).toBe(408);
+    // there is nothing to multiply. 828 and 504 either way.
+    expect(c.voiceLeading).toBe(828);
+    expect(sectionTargetCount('voice-leading')).toBe(828);
     expect(sectionTargetCount('mental-viz')).toBe(504);
   });
 

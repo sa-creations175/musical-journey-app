@@ -129,7 +129,7 @@ describe('the four cards', () => {
     // one target per cell and are untouched by the hand axis.
     expect(cards.get('scales')!.itemCount).toBe(288);
     expect(cards.get('chord-shapes')!.itemCount).toBe(1944);
-    expect(cards.get('voice-leading')!.itemCount).toBe(408);
+    expect(cards.get('voice-leading')!.itemCount).toBe(828);
     expect(cards.get('mental-viz')!.itemCount).toBe(504);
   });
 

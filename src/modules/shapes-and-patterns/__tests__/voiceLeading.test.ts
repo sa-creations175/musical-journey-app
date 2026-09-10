@@ -28,17 +28,95 @@ import {
 } from '../../../lib/sessionAlgorithm/timePerAttempt';
 
 describe('VOICE_LEADING_PATTERNS catalog', () => {
-  it('ships exactly the 7 design-doc patterns', () => {
-    const ids = VOICE_LEADING_PATTERNS.map(p => p.id).sort();
-    expect(ids).toEqual([
+  it('ships the twelve rows of the page, in page order', () => {
+    // ORDER IS ASSERTED, not just membership. The array order is the
+    // page order AND the session algorithm's soft priority within the
+    // unstarted tier, so a reorder is a behaviour change and has to
+    // be a deliberate edit here. The five named progressions sit
+    // straight after Major 2-5-1, per Silas's ruling of 9 Sep 2026.
+    expect(VOICE_LEADING_PATTERNS.map(p => p.id)).toEqual([
+      'diatonic-cycle',
       'five-one',
       'major-251',
+      '1-5-6-4',
+      '1-6-4-5',
+      '1-6-2-5',
+      '1-4-5',
+      'backdoor',
       'minor-251',
-      'diatonic-cycle',
       'minor-aba',
       'dom7b9',
       'dim7',
-    ].sort());
+    ]);
+  });
+
+  it('every pattern says which chords it moves through', () => {
+    /**
+     * THE PAGE USED TO KNOW ITS CHORDS ONLY IN PROSE. A pattern
+     * carried a label and a description, so the only place the app
+     * said what Major 2-5-1 plays was an English sentence — nothing
+     * could sound the row, draw it, or make a card from it without
+     * parsing that sentence.
+     */
+    for (const p of VOICE_LEADING_PATTERNS) {
+      expect(p.chords.length, p.id).toBeGreaterThanOrEqual(2);
+      for (const c of p.chords) {
+        // Degrees as the deck writes them: a number, optionally with
+        // a leading flat.
+        expect(c.degree, `${p.id} ${c.degree}`).toMatch(/^b?[1-7]$/);
+        // And a quality out of the deck's vocabulary, not free text.
+        expect(
+          ['', 'm', 'm7', 'm9', 'maj7', 'maj9', '7', '9', 'm7b5', 'dim7',
+            '7b9', '7#9#5'],
+          `${p.id} ${c.quality}`,
+        ).toContain(c.quality);
+      }
+    }
+  });
+
+  it('names the chords the labels and descriptions already claimed', () => {
+    const chordsOf = (id: string) => VOICE_LEADING_PATTERN_BY_ID.get(id)!
+      .chords.map(c => `${c.degree}${c.quality}`);
+    expect(chordsOf('major-251')).toEqual(['2m7', '57', '1maj7']);
+    expect(chordsOf('minor-251')).toEqual(['2m7b5', '57', '1m7']);
+    expect(chordsOf('five-one')).toEqual(['57', '1maj7']);
+    // The eight of the cycle, in the order the label spells out.
+    expect(chordsOf('diatonic-cycle'))
+      .toEqual(['1maj7', '4maj7', '7m7b5', '3m7', '6m7', '2m7', '57', '1maj7']);
+    // The two altered passes name the quality that is in their label.
+    expect(chordsOf('minor-aba')).toEqual(['57#9#5', '1m9']);
+    expect(chordsOf('dom7b9')).toEqual(['57b9', '1m9']);
+  });
+
+  it('gives the five named progressions the chords the deck gives them', () => {
+    const chordsOf = (id: string) => VOICE_LEADING_PATTERN_BY_ID.get(id)!
+      .chords.map(c => `${c.degree}${c.quality}`);
+    expect(chordsOf('1-5-6-4')).toEqual(['1maj7', '57', '6m7', '4maj7']);
+    expect(chordsOf('1-6-4-5')).toEqual(['1maj7', '6m7', '4maj7', '57']);
+    expect(chordsOf('1-6-2-5')).toEqual(['1maj7', '6m7', '2m7', '57']);
+    expect(chordsOf('1-4-5')).toEqual(['1maj7', '4maj7', '57', '1maj7']);
+    expect(chordsOf('backdoor')).toEqual(['1maj7', '4maj7', 'b77', '1maj7']);
+  });
+
+  it('labels the five numbers-first, the way the deck writes them', () => {
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('1-5-6-4')!.label).toBe('1 5 6 4');
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('1-4-5')!.label).toBe('1 4 5');
+    // The name comes after the numbers it names, and the flat is a
+    // glyph rather than a letter b.
+    expect(VOICE_LEADING_PATTERN_BY_ID.get('backdoor')!.label)
+      .toBe('1 4 ♭7 1 (backdoor)');
+  });
+
+  it('shapes the five exactly like Major 2-5-1', () => {
+    const major = VOICE_LEADING_PATTERN_BY_ID.get('major-251')!;
+    if (major.kind !== 'type-position') throw new Error('wrong kind');
+    const shape = (p: typeof major) => p.types.map(t => t.positions.length);
+    for (const id of ['1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5', 'backdoor']) {
+      const p = VOICE_LEADING_PATTERN_BY_ID.get(id)!;
+      if (p.kind !== 'type-position') throw new Error(`${id} wrong kind`);
+      expect(shape(p), id).toEqual(shape(major));
+      expect(enumerateVoiceLeadingCells(p, 'C'), id).toHaveLength(7);
+    }
   });
 
   it('lookup map indexes by id', () => {
@@ -131,22 +209,22 @@ describe('enumerateVoiceLeadingCells', () => {
     ]);
   });
 
-  it('total catalog cell count = 34 × 12 keys = 408', () => {
+  it('total catalog cell count = 69 × 12 keys = 828', () => {
     let total = 0;
     for (const p of VOICE_LEADING_PATTERNS) {
       for (const k of KEYS) {
         total += enumerateVoiceLeadingCells(p, k).length;
       }
     }
-    expect(total).toBe(408);
+    expect(total).toBe(828);
   });
 
-  it('per-key cell totals: 7 + 7 + 7 + 3 + 2 + 4 + 4 = 34', () => {
+  it('per-key cell totals: eight 7s + 3 + 2 + 4 + 4 = 69', () => {
     let perKey = 0;
     for (const p of VOICE_LEADING_PATTERNS) {
       perKey += enumerateVoiceLeadingCells(p, 'C').length;
     }
-    expect(perKey).toBe(34);
+    expect(perKey).toBe(69);
   });
 });
 
@@ -554,5 +632,69 @@ describe('VoiceLeadingItemRefDescriptor type-narrowing', () => {
       .toBe('mab pos-A');
     expect(dispatch(parseVoiceLeadingItemRef('vl:dim7:pos1:C')!))
       .toBe('inv pos1');
+  });
+});
+
+// ---------------------------------------------------------------------
+// The five named progressions, end to end
+// ---------------------------------------------------------------------
+
+describe('the five named progressions on the passes page', () => {
+  const FIVE = ['1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5', 'backdoor'] as const;
+
+  it('round-trips every one of their cells through the parser', () => {
+    // A pattern id the parser does not know returns null, and a null
+    // descriptor is a cell with no label, no time seed and no coverage
+    // group — a row that draws and cannot be drilled.
+    for (const id of FIVE) {
+      const pattern = VOICE_LEADING_PATTERN_BY_ID.get(id)!;
+      for (const key of KEYS) {
+        for (const ref of enumerateVoiceLeadingCells(pattern, key)) {
+          const desc = parseVoiceLeadingItemRef(ref);
+          expect(desc, ref).not.toBeNull();
+          expect(desc!.patternId, ref).toBe(id);
+          expect(desc!.keyName, ref).toBe(key);
+        }
+      }
+    }
+  });
+
+  it('refuses a position the type does not have, the same as the rest', () => {
+    expect(parseVoiceLeadingItemRef('vl:1-5-6-4:seventh-chords:C:C')).not.toBeNull();
+    expect(parseVoiceLeadingItemRef('vl:1-5-6-4:guide-tones:C:C')).toBeNull();
+    expect(parseVoiceLeadingItemRef('vl:backdoor:full-voicing:C:C')).toBeNull();
+    // And the legacy Extended Voicings id belongs to Major 2-5-1 alone.
+    expect(parseVoiceLeadingItemRef('vl:1-4-5:aba-structure:A:C')).toBeNull();
+  });
+
+  it('says Position n on their rows too', () => {
+    const rows = voiceLeadingGridRows(VOICE_LEADING_PATTERN_BY_ID.get('backdoor')!);
+    expect(rows.map(r => r.label)).toEqual([
+      'Guide Tones · Position 1',
+      'Guide Tones · Position 2',
+      'Seventh Chords · Position 1',
+      'Seventh Chords · Position 2',
+      'Seventh Chords · Position 3',
+      'Extended Voicings · Position 1',
+      'Extended Voicings · Position 2',
+    ]);
+  });
+
+  it('gives their Extended Voicings row the capstone time seed', () => {
+    // THE CAPSTONE IS THE TYPE, NOT THE PATTERN. The seed used to name
+    // each pattern beside its own capstone type, so a pattern added
+    // later would silently have taken the 90 s baseline on a row that
+    // is the longest thing on it.
+    for (const id of FIVE) {
+      const capstone = parseVoiceLeadingItemRef(`vl:${id}:full-voicing:A:C`)!;
+      expect(voiceLeadingCellSeconds(capstone), id).toBe(120);
+      const plain = parseVoiceLeadingItemRef(`vl:${id}:guide-tones:A:C`)!;
+      expect(voiceLeadingCellSeconds(plain), id).toBe(90);
+      expect(VOICE_LEADING_PATTERN_SECONDS[id], id).toBe(90);
+    }
+    // The three that were already there keep what they had.
+    expect(voiceLeadingCellSeconds(
+      parseVoiceLeadingItemRef('vl:major-251:aba-structure:A:C')!,
+    )).toBe(120);
   });
 });

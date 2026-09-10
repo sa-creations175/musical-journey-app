@@ -372,14 +372,22 @@ export function defaultDrillTypesForScale(): DefaultDrill[] {
 // `parseVoiceLeadingItemRef` for the canonical parse + the dimensions
 // per pattern.
 //
-// Total cells: 34 per key × 12 keys = 408. Breakdown:
+// Total cells: 69 per key × 12 keys = 828. Breakdown:
 //   five-one          7 (2+3+2 — see below)
 //   major-251         7 (2+3+2)
+//   1-5-6-4           7 (2+3+2)
+//   1-6-4-5           7 (2+3+2)
+//   1-6-2-5           7 (2+3+2)
+//   1-4-5             7 (2+3+2)
+//   backdoor          7 (2+3+2)
 //   minor-251         7 (2+3+2)
 //   diatonic-cycle    3 (3 starting positions)
 //   minor-aba         2 (2 positions)
-//   dom7b9            4 (4 inversions of the dominant)
-//   dim7              4 (4 inversions of the diminished)
+//   dom7b9            4 (4 starting positions)
+//   dim7              4 (4 starting positions)
+//
+// (9 Sep 2026: 34 → 69 per key. The five named progressions the
+//  ear-training catalog kept were added as drill rows.)
 
 /** Starting-position tag on the type-position patterns.
  *
@@ -426,6 +434,55 @@ export type Major251Type = 'guide-tones' | 'seventh-chords' | 'aba-structure';
 /** Types for the Minor 2-5-1 pattern. */
 export type Minor251Type = 'guide-tones' | 'seventh-chords' | 'full-voicing';
 
+/**
+ * The five named progressions added on 9 Sep 2026. They are shaped
+ * exactly like Major 2-5-1 — the same three types across the same
+ * positions — and they share one variant rather than getting five
+ * near-identical ones, because nothing about them differs but the
+ * chords.
+ */
+export type ProgressionVLId =
+  | '1-5-6-4' | '1-6-4-5' | '1-6-2-5' | '1-4-5' | 'backdoor';
+/** Their types. The same three as the Minor 2-5-1; `full-voicing` is
+ *  the canonical id for the Extended Voicings row (`aba-structure` is
+ *  Major 2-5-1's legacy spelling of the same thing, kept only because
+ *  reps are logged against it). */
+export type ProgressionVLType = Minor251Type;
+
+/**
+ * One chord of a pattern, as data rather than as a sentence.
+ *
+ * =====================================================================
+ * THE PAGE KNEW ITS CHORDS ONLY IN PROSE, AND THAT IS WHY THIS EXISTS.
+ *
+ * A pattern carried a `label` and a `description` and nothing else, so
+ * "The foundational ii → V → I movement" was the only place the app
+ * said which chords Major 2-5-1 moves through. Nothing could play the
+ * row, nothing could draw it on a keyboard, and no flashcard could be
+ * generated from it — every one of those would have had to parse
+ * English.
+ *
+ * SPELLED THE WAY THE DECK SPELLS THEM. The degree is the deck's
+ * degree string (`'1'`, `'b7'`) and the quality is the deck's quality
+ * string (`''`, `'m7'`, `'maj7'`, `'7'`, `'m7b5'`), so a Harmonic
+ * Fluency card and a pass are naming chords in one vocabulary.
+ *
+ * IT IS THE SEVENTH-CHORD READING, which is the row the ladder is
+ * built around: Guide Tones takes two notes out of these chords and
+ * Extended Voicings adds ninths to them (and thirteenths on the
+ * dominant, which is what that row's hint says). One reading, three
+ * types, rather than three lists that could disagree.
+ * =====================================================================
+ */
+export interface VLChord {
+  /** Degree of the key the chord is built on, as the deck writes it:
+   *  '1', '2', '4', '5', '6', 'b7'. */
+  degree: string;
+  /** Quality, as the deck writes it: '' (major triad), 'm7', 'maj7',
+   *  '7', 'm7b5', 'dim7', '7b9', '7#9#5'. */
+  quality: string;
+}
+
 /** Diatonic-cycle starting position — three voicings of the 1 chord. */
 export type DiatonicCyclePosition = 'pos1' | 'pos2' | 'pos3';
 /** Minor-ABA position — A or B starting voicing. Hyphenated tags
@@ -446,6 +503,7 @@ export type VoiceLeadingPattern =
       kind: 'type-position';
       label: string;
       description?: string;
+      chords: ReadonlyArray<VLChord>;
       types: ReadonlyArray<VLTypeRow<FiveOneType>>;
     }
   | {
@@ -453,6 +511,7 @@ export type VoiceLeadingPattern =
       kind: 'type-position';
       label: string;
       description?: string;
+      chords: ReadonlyArray<VLChord>;
       types: ReadonlyArray<VLTypeRow<Major251Type>>;
     }
   | {
@@ -460,13 +519,23 @@ export type VoiceLeadingPattern =
       kind: 'type-position';
       label: string;
       description?: string;
+      chords: ReadonlyArray<VLChord>;
       types: ReadonlyArray<VLTypeRow<Minor251Type>>;
+    }
+  | {
+      id: ProgressionVLId;
+      kind: 'type-position';
+      label: string;
+      description?: string;
+      chords: ReadonlyArray<VLChord>;
+      types: ReadonlyArray<VLTypeRow<ProgressionVLType>>;
     }
   | {
       id: 'diatonic-cycle';
       kind: 'diatonic-cycle';
       label: string;
       description?: string;
+      chords: ReadonlyArray<VLChord>;
       startingPositions: ReadonlyArray<DiatonicCyclePosition>;
     }
   | {
@@ -474,6 +543,7 @@ export type VoiceLeadingPattern =
       kind: 'minor-aba';
       label: string;
       description?: string;
+      chords: ReadonlyArray<VLChord>;
       positions: ReadonlyArray<MinorAbaPosition>;
     }
   | {
@@ -481,6 +551,7 @@ export type VoiceLeadingPattern =
       kind: 'inversion-4';
       label: string;
       description?: string;
+      chords: ReadonlyArray<VLChord>;
       positions: ReadonlyArray<InversionPosition>;
     };
 
@@ -495,6 +566,16 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     kind: 'diatonic-cycle',
     label: 'Diatonic Cycle (1-4-7-3-6-2-5-1)',
     description: 'Full diatonic cycle in 7th chords across three starting inversions of the 1 chord.',
+    chords: [
+      { degree: '1', quality: 'maj7' },
+      { degree: '4', quality: 'maj7' },
+      { degree: '7', quality: 'm7b5' },
+      { degree: '3', quality: 'm7' },
+      { degree: '6', quality: 'm7' },
+      { degree: '2', quality: 'm7' },
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+    ],
     startingPositions: ['pos1', 'pos2', 'pos3'],
   },
   {
@@ -502,6 +583,10 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     kind: 'type-position',
     label: '5→1 Movement',
     description: 'The last two chords of a 2-5-1 — for when you want tension resolving home without the full turnaround, or to tonicise a chord.',
+    chords: [
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+    ],
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -513,10 +598,121 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     kind: 'type-position',
     label: 'Major 2-5-1',
     description: 'The foundational ii → V → I movement. Guide tones and extended voicings across two starting positions; seventh chords across three.',
+    chords: [
+      { degree: '2', quality: 'm7' },
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+    ],
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
       { type: 'aba-structure',  positions: ['A', 'B'] },
+    ],
+  },
+  /**
+   * =================================================================
+   * THE FIVE NAMED PROGRESSIONS, ADDED 9 SEP 2026.
+   *
+   * Shaped exactly like Major 2-5-1 and placed straight after it, per
+   * Silas's ruling. They are the progressions the ear-training
+   * catalog kept, arriving on the page where they are PLAYED rather
+   * than only heard.
+   *
+   * THE DESCRIPTIONS STATE THE CHORDS AND STOP. Every other
+   * description on this page says what its pattern is for, and those
+   * were written when the pattern was designed. These are new rows
+   * for progressions the app already teaches elsewhere; a sentence
+   * about how each one is used would be new copy about music, which
+   * is Silas's to write and not this file's to guess.
+   *
+   * NO SEEDED REPS. Nothing here writes a spacing row. Every cell
+   * starts unstarted and the cold-start, ordering and proficiency
+   * logic reads them exactly as it reads any other zero-rep cell.
+   * =================================================================
+   */
+  {
+    id: '1-5-6-4',
+    kind: 'type-position',
+    label: '1 5 6 4',
+    description: 'The 1, the 5, the 6 minor and the 4.',
+    chords: [
+      { degree: '1', quality: 'maj7' },
+      { degree: '5', quality: '7' },
+      { degree: '6', quality: 'm7' },
+      { degree: '4', quality: 'maj7' },
+    ],
+    types: [
+      { type: 'guide-tones',    positions: ['A', 'B'] },
+      { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
+      { type: 'full-voicing',   positions: ['A', 'B'] },
+    ],
+  },
+  {
+    id: '1-6-4-5',
+    kind: 'type-position',
+    label: '1 6 4 5',
+    description: 'The 1, the 6 minor, the 4 and the 5.',
+    chords: [
+      { degree: '1', quality: 'maj7' },
+      { degree: '6', quality: 'm7' },
+      { degree: '4', quality: 'maj7' },
+      { degree: '5', quality: '7' },
+    ],
+    types: [
+      { type: 'guide-tones',    positions: ['A', 'B'] },
+      { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
+      { type: 'full-voicing',   positions: ['A', 'B'] },
+    ],
+  },
+  {
+    id: '1-6-2-5',
+    kind: 'type-position',
+    label: '1 6 2 5',
+    description: 'The 1, the 6 minor, the 2 minor and the 5.',
+    chords: [
+      { degree: '1', quality: 'maj7' },
+      { degree: '6', quality: 'm7' },
+      { degree: '2', quality: 'm7' },
+      { degree: '5', quality: '7' },
+    ],
+    types: [
+      { type: 'guide-tones',    positions: ['A', 'B'] },
+      { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
+      { type: 'full-voicing',   positions: ['A', 'B'] },
+    ],
+  },
+  {
+    id: '1-4-5',
+    kind: 'type-position',
+    label: '1 4 5',
+    description: 'The 1, the 4 and the 5, back to the 1.',
+    chords: [
+      { degree: '1', quality: 'maj7' },
+      { degree: '4', quality: 'maj7' },
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+    ],
+    types: [
+      { type: 'guide-tones',    positions: ['A', 'B'] },
+      { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
+      { type: 'full-voicing',   positions: ['A', 'B'] },
+    ],
+  },
+  {
+    id: 'backdoor',
+    kind: 'type-position',
+    label: '1 4 ♭7 1 (backdoor)',
+    description: 'The 1, the 4, the flat 7 and the 1.',
+    chords: [
+      { degree: '1', quality: 'maj7' },
+      { degree: '4', quality: 'maj7' },
+      { degree: 'b7', quality: '7' },
+      { degree: '1', quality: 'maj7' },
+    ],
+    types: [
+      { type: 'guide-tones',    positions: ['A', 'B'] },
+      { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
+      { type: 'full-voicing',   positions: ['A', 'B'] },
     ],
   },
   {
@@ -524,6 +720,11 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     kind: 'type-position',
     label: 'Minor 2-5-1',
     description: 'The iiø → V → i movement. Guide tones and extended voicings across two starting positions; seventh chords across three.',
+    chords: [
+      { degree: '2', quality: 'm7b5' },
+      { degree: '5', quality: '7' },
+      { degree: '1', quality: 'm7' },
+    ],
     types: [
       { type: 'guide-tones',    positions: ['A', 'B'] },
       { type: 'seventh-chords', positions: ['A', 'B', 'C'] },
@@ -535,6 +736,10 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     kind: 'minor-aba',
     label: 'Minor ABA (dom7#9#5 → minor)',
     description: 'Dark altered dominant resolving a 5th down to minor. Two starting positions.',
+    chords: [
+      { degree: '5', quality: '7#9#5' },
+      { degree: '1', quality: 'm9' },
+    ],
     positions: ['pos-A', 'pos-B'],
   },
   {
@@ -542,6 +747,10 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     kind: 'inversion-4',
     label: 'dom7b9 → minor',
     description: 'Right-hand dim7 voicing over dominant bass, resolving to minor. Four starting positions for the right hand.',
+    chords: [
+      { degree: '5', quality: '7b9' },
+      { degree: '1', quality: 'm9' },
+    ],
     positions: ['pos1', 'pos2', 'pos3', 'pos4'],
   },
   {
@@ -549,6 +758,16 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
     kind: 'inversion-4',
     label: 'dim7 → minor',
     description: 'Diminished passing chord resolving to minor. Four starting positions for the right hand.',
+    // THE HALF-STEP-UP RESOLUTION, which is the one the submodule
+    // design doc leads with (Bdim7 → Cm in the key of C). That doc
+    // also gives a half-step-DOWN version, and the shipped catalog
+    // has no dimension for the direction — so this records the up
+    // resolution and the down one is not represented. Flagged to
+    // Silas rather than invented in both directions.
+    chords: [
+      { degree: '7', quality: 'dim7' },
+      { degree: '1', quality: 'm9' },
+    ],
     positions: ['pos1', 'pos2', 'pos3', 'pos4'],
   },
 ];
@@ -577,7 +796,7 @@ export function voiceLeadingCellsPerKey(pattern: VoiceLeadingPattern): number {
 }
 
 /** Total VL cell count across the whole catalog: sum of per-pattern
- *  fan-outs × number of keys. 408 today (34 sub-cells/key × 12). */
+ *  fan-outs × number of keys. 828 today (69 sub-cells/key × 12). */
 export function voiceLeadingTotalCellCount(): number {
   return VOICE_LEADING_PATTERNS.reduce(
     (sum, p) => sum + voiceLeadingCellsPerKey(p), 0,
@@ -638,6 +857,13 @@ export type VoiceLeadingItemRefDescriptor =
       keyName: string;
     }
   | {
+      patternId: ProgressionVLId;
+      kind: 'type-position';
+      type: ProgressionVLType;
+      position: VLABPosition;
+      keyName: string;
+    }
+  | {
       patternId: 'diatonic-cycle';
       kind: 'diatonic-cycle';
       startingPosition: DiatonicCyclePosition;
@@ -683,6 +909,14 @@ function isMajor251Type(s: string): s is Major251Type {
 }
 function isMinor251Type(s: string): s is Minor251Type {
   return s === 'guide-tones' || s === 'seventh-chords' || s === 'full-voicing';
+}
+/** The five named progressions carry the same three types. */
+function isProgressionVLType(s: string): s is ProgressionVLType {
+  return isMinor251Type(s);
+}
+function isProgressionVLId(s: string): s is ProgressionVLId {
+  return s === '1-5-6-4' || s === '1-6-4-5' || s === '1-6-2-5'
+    || s === '1-4-5' || s === 'backdoor';
 }
 function isDiatonicCyclePosition(s: string): s is DiatonicCyclePosition {
   return s === 'pos1' || s === 'pos2' || s === 'pos3';
@@ -733,6 +967,19 @@ export function parseVoiceLeadingItemRef(
       const type = parts[2];
       const position = parts[3];
       if (!isMinor251Type(type) || !isVLABPosition(position)) return null;
+      if (!typeHasPosition(patternId, type, position)) return null;
+      return { patternId, kind: 'type-position', type, position, keyName };
+    }
+    case '1-5-6-4':
+    case '1-6-4-5':
+    case '1-6-2-5':
+    case '1-4-5':
+    case 'backdoor': {
+      if (parts.length !== 5) return null;
+      const type = parts[2];
+      const position = parts[3];
+      if (!isProgressionVLId(patternId)) return null;
+      if (!isProgressionVLType(type) || !isVLABPosition(position)) return null;
       if (!typeHasPosition(patternId, type, position)) return null;
       return { patternId, kind: 'type-position', type, position, keyName };
     }

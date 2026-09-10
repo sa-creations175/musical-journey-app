@@ -40,13 +40,13 @@ function shapesGoal(overrides: Partial<Goal>): Goal {
 }
 
 describe('enumerateScopeForGoal — voice-leading scope', () => {
-  it('VL sub-area returns exactly 408 cells (34 × 12 keys)', () => {
+  it('VL sub-area returns exactly 828 cells (69 × 12 keys)', () => {
     const goal = shapesGoal({
       targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
       targetUnit: 'voice_leading',
     });
     const refs = enumerateScopeForGoal(goal);
-    expect(refs).toHaveLength(408);
+    expect(refs).toHaveLength(828);
     // All start with vl: — the prefix-based matcher should accept them all.
     for (const r of refs) {
       expect(r.startsWith('vl:')).toBe(true);
@@ -57,7 +57,7 @@ describe('enumerateScopeForGoal — voice-leading scope', () => {
     const goal = shapesGoal({ targetMetric: COVERAGE_OVERALL_METRIC.SHAPES });
     const refs = enumerateScopeForGoal(goal);
     const vlRefs = refs.filter(r => r.startsWith('vl:'));
-    expect(vlRefs).toHaveLength(408);
+    expect(vlRefs).toHaveLength(828);
   });
 
   it('VL scope contains the expected per-pattern cardinalities × 12 keys', () => {

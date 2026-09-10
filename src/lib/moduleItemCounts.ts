@@ -202,7 +202,7 @@ export interface ShapesCounts {
   chordShapeDrills: number;
   /** Scale drills: 96 cells × 3 hands = 288. */
   scaleDrills: number;
-  /** 408 — sum of per-pattern sub-cell fan-outs × 12 keys (34 × 12),
+  /** 828 — sum of per-pattern sub-cell fan-outs × 12 keys (69 × 12),
    *  one target each: voice leading is two-handed by nature and has no
    *  hand axis to multiply by. See VOICE_LEADING_SUBMODULE_DESIGN.md. */
   voiceLeading: number;
