@@ -15,6 +15,7 @@
 import type { Flashcard } from '../catalog';
 import { builtTargetFor } from './cardTargets';
 import ProgressionAnswer from './ProgressionAnswer';
+import ScaleAnswer from './ScaleAnswer';
 import SlashAnswer from './SlashAnswer';
 
 export default function BuiltAnswer({
@@ -50,6 +51,16 @@ export default function BuiltAnswer({
     case 'slash':
       return (
         <SlashAnswer
+          key={card.id}
+          card={card}
+          target={target}
+          answered={answered}
+          answer={answer}
+        />
+      );
+    case 'scale':
+      return (
+        <ScaleAnswer
           key={card.id}
           card={card}
           target={target}

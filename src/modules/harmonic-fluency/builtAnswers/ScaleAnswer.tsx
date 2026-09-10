@@ -1,0 +1,237 @@
+/**
+ * Tap the five notes.
+ *
+ * =====================================================================
+ * NO LETTER ROW: THE KEYBOARD IS THE ANSWER.
+ *
+ * "In the key of E♭ major pentatonic, the notes are _____" offered four
+ * lists of five notes, and a reader could pick the one that started on
+ * the right letter. Finding the five on a keyboard is the thing the
+ * card is for, so the board is the only surface — which is the
+ * prototype's own note on this card.
+ *
+ * Tap a key to choose it, tap it again to remove it. Octave does not
+ * matter: E♭ in either octave counts once, because a pentatonic is five
+ * notes and not five notes in one register.
+ *
+ * =====================================================================
+ * ONE SURFACE, TWO CARD WORDINGS.
+ *
+ * The notes card asks which five. The lick card asks which minor
+ * pentatonic fits over a major key — so the ROOT is the answer, the
+ * first tap is the claim, and it shows in green while the rest show
+ * blue. Right notes from the wrong first tap is told apart from five
+ * wrong notes, because they are different mistakes.
+ *
+ * =====================================================================
+ * THE DRONE HOLDS THE KEY, NEVER THE SCALE'S OWN ROOT.
+ *
+ * On the lick card that is A♭ under F minor pentatonic. The prototype
+ * says it in terms — "the scale sitting on the key, never the root of
+ * the scale" — because what the card teaches is which scale fits over
+ * which key, and a drone on F would teach that F minor pentatonic is
+ * its own key.
+ * =====================================================================
+ */
+import { useMemo, useState } from 'react';
+import type { PlaybackHandle } from '../../../lib/musicalPlayback';
+import BuiltAnswerKeyboard from '../../../components/BuiltAnswerKeyboard';
+import PlayItPanel from '../../../components/PlayItPanel';
+import { scaleMarks, tapMarks } from '../../../lib/builtAnswers/marks';
+import { scaleLine, type Direction } from '../../../lib/builtAnswers/scaleLine';
+import { DEFAULT_BPM, playScale } from '../../../lib/builtAnswers/play';
+import type { Flashcard } from '../catalog';
+import type { BuiltTarget } from './cardTargets';
+import { gradeScale, spellInKey } from './grade';
+import { useColourMode } from './useColourMode';
+import ColourToggle from './ColourToggle';
+
+const BTN = 'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors '
+  + 'disabled:opacity-40 disabled:cursor-default';
+const BTN_PRIMARY = `${BTN} border-neutral-900 bg-neutral-900 text-white `
+  + 'dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900';
+const BTN_PLAIN = `${BTN} border-black/10 dark:border-white/20 `
+  + 'hover:bg-black/[0.04] dark:hover:bg-white/10';
+
+const DIRECTIONS: ReadonlyArray<{ id: Direction; label: string }> = [
+  { id: 'up', label: 'Up' },
+  { id: 'down', label: 'Down' },
+  { id: 'both', label: 'Up and down' },
+];
+
+export default function ScaleAnswer({
+  card, target, answered, answer,
+}: {
+  card: Flashcard;
+  target: Extract<BuiltTarget, { kind: 'scale' }>;
+  answered: boolean;
+  answer: (choice: string) => void;
+}) {
+  /** In the order they were tapped: the lick card needs the first. */
+  const [taps, setTaps] = useState<number[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const [colour, setColour] = useColourMode();
+  const [bpm, setBpm] = useState(DEFAULT_BPM);
+  const [octaveUp, setOctaveUp] = useState(false);
+  const [start, setStart] = useState<number | null>(null);
+  const [direction, setDirection] = useState<Direction>('both');
+  const [playing, setPlaying] = useState<PlaybackHandle | null>(null);
+  /** Which note is sounding, so the board follows the run. */
+  const [sounding, setSounding] = useState<number | null>(null);
+
+  const marks = useMemo(() => {
+    if (answered) {
+      // THE WHOLE SCALE LIGHTS ON REVEAL, because the card is about the
+      // scale rather than about five keys.
+      const scale = scaleMarks(target.pcs, target.rootPc, colour);
+      if (sounding !== null) scale.set(sounding, { pressed: true });
+      return scale;
+    }
+    return tapMarks(taps, { rootPc: target.rootFirst ? taps[0] ?? null : null });
+  }, [answered, target.pcs, target.rootPc, target.rootFirst, colour, taps, sounding]);
+
+  const stop = () => { playing?.stop(); setPlaying(null); };
+
+  const hear = () => {
+    stop();
+    const from = start ?? target.rootPc;
+    const line = scaleLine(target.pcs, from, direction, { toOctave: false });
+    void playScale(line, {
+      bpm,
+      octaveUp,
+      home: target.homePcs.map(pc => 48 + pc),
+      dronePc: target.dronePc,
+      onNote: i => setSounding(line[i] ?? null),
+    }).then(setPlaying).catch(() => {});
+  };
+
+  const submit = () => {
+    if (taps.length !== target.pcs.length) {
+      setMessage(
+        `${target.rootFirst ? 'Tap five notes, root first.' : 'Choose five notes.'}`
+        + ` You have ${taps.length}.`,
+      );
+      return;
+    }
+    const grade = gradeScale(target, taps);
+    setMessage(null);
+    setStart(target.rootPc);
+    answer(grade.correct ? card.correctAnswer : grade.built);
+  };
+
+  const built = taps.length === 0
+    ? (target.rootFirst ? 'tap the root first' : 'nothing yet')
+    : taps.map(pc => spellInKey(pc, target.rootName)).join(' ');
+
+  return (
+    <div className="space-y-3" data-testid="scale-answer">
+      <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+        {target.rootFirst ? 'Tap the five notes, root first' : 'Tap the five notes'}
+      </div>
+
+      <BuiltAnswerKeyboard
+        marks={marks}
+        label={`Tap the notes of ${card.categoryName}`}
+        {...(answered ? {} : {
+          onTap: (midi: number) => {
+            const pc = midi % 12;
+            setMessage(null);
+            setTaps(prev => (prev.includes(pc)
+              ? prev.filter(p => p !== pc)
+              : [...prev, pc]));
+          },
+        })}
+      />
+
+      {!answered && (
+        <>
+          <div className="flex flex-wrap items-center gap-3">
+            <div
+              className={`font-mono text-lg ${taps.length === 0 ? 'text-neutral-400' : ''}`}
+              data-testid="scale-built"
+            >
+              {built}
+            </div>
+            <button type="button" className={BTN_PRIMARY} data-testid="submit" onClick={submit}>
+              Submit
+            </button>
+            <button
+              type="button"
+              className={BTN_PLAIN}
+              onClick={() => { setTaps([]); setMessage(null); }}
+            >
+              Clear
+            </button>
+          </div>
+          {message !== null && (
+            <p className="text-xs text-needswork" data-testid="picker-message">{message}</p>
+          )}
+        </>
+      )}
+
+      {answered && (
+        <>
+          <ColourToggle value={colour} onChange={setColour} />
+          <PlayItPanel
+            bpm={bpm}
+            onBpm={setBpm}
+            octaveUp={octaveUp}
+            onOctaveUp={setOctaveUp}
+            onPlay={hear}
+            onStop={playing === null ? null : stop}
+            names={target.pcs.map(pc => spellInKey(pc, target.rootName)).join(' ')}
+          >
+            {/* STARTING POINTS ARE THE PENTATONIC CARDS' OWN. Those are
+                the hand shapes Shapes & Patterns drills; a seven-note
+                scale from another note is a mode, and the Modes family
+                already plays those. */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+                Starting point
+              </div>
+              <div className="flex flex-wrap gap-1.5" data-testid="start-row">
+                {target.pcs.map(pc => (
+                  <button
+                    key={pc}
+                    type="button"
+                    aria-pressed={(start ?? target.rootPc) === pc}
+                    data-testid={`start-${pc}`}
+                    onClick={() => setStart(pc)}
+                    className={`${BTN} ${(start ?? target.rootPc) === pc
+                      ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                      : 'border-black/10 dark:border-white/20'}`}
+                  >
+                    {spellInKey(pc, target.rootName)}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+                Direction
+              </div>
+              <div className="flex flex-wrap gap-1.5" data-testid="direction-row">
+                {DIRECTIONS.map(d => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    aria-pressed={direction === d.id}
+                    data-testid={`direction-${d.id}`}
+                    onClick={() => setDirection(d.id)}
+                    className={`${BTN} ${direction === d.id
+                      ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                      : 'border-black/10 dark:border-white/20'}`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              {`The home chord of the key, then the scale with ${
+                spellInKey(target.dronePc, target.rootName)} held low underneath.`}
+            </p>
+          </PlayItPanel>
+        </>
+      )}
+    </div>
+  );
+}
