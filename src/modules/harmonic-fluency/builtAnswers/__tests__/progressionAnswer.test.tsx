@@ -23,6 +23,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../../lib/instrumentContext';
 import { act } from 'react';
 
 /** The engine, stubbed and counted. Nothing here should reach it
@@ -60,12 +63,14 @@ function mount(answered = false) {
   root = createRoot(host);
   act(() => {
     root.render(
-      <ProgressionAnswer
-        card={card}
-        target={target}
-        answered={answered}
-        answer={c => chosen.push(c)}
-      />,
+      <InstrumentProvider>
+        <ProgressionAnswer
+          card={card}
+          target={target}
+          answered={answered}
+          answer={c => chosen.push(c)}
+        />,
+      </InstrumentProvider>,
     );
   });
 }
@@ -80,6 +85,9 @@ const tap = (el: Element | null) => {
   });
 };
 const byTestId = (id: string) => q(`[data-testid="${id}"]`);
+/** The chord chips, joined — what the panel says is about to sound. */
+const names = () => [...host.querySelectorAll('[data-testid^="hear-one-"]')]
+  .map(b => b.textContent).join(' - ');
 
 /** Build one chord into the slot the picker is on. */
 function buildChord(letter: string, acc: '' | 'flat' | 'sharp', quality: string) {
@@ -233,21 +241,23 @@ describe('the reveal is the card\'s progression', () => {
 
   it('offers the player, and no picker rows', () => {
     mount(true);
-    expect(byTestId('play-it-panel')).not.toBeNull();
+    expect(byTestId('shared-player')).not.toBeNull();
     expect(byTestId('quality-row')).toBeNull();
     expect(byTestId('letter-row')).toBeNull();
     expect(byTestId('submit')).toBeNull();
   });
 
   it('changes the chord names with the thickness, one rung at a time', () => {
+    // THE NAMES ARE THE CHIPS NOW — one per chord, each tappable to
+    // hear that chord alone, which is what "Hear one chord" is. The
+    // "Bass only" rung went to the Listen to row on 10 Sep, so the
+    // ladder's lowest rung is Triads.
     mount(true);
-    expect(byTestId('play-it-names')!.textContent).toBe('Cm7 - F7 - B♭maj7');
+    expect(names()).toBe('Cm7 - F7 - B♭maj7');
     tap(byTestId('thickness-triads'));
-    expect(byTestId('play-it-names')!.textContent).toBe('Cm - F - B♭');
+    expect(names()).toBe('Cm - F - B♭');
     tap(byTestId('thickness-full'));
-    expect(byTestId('play-it-names')!.textContent).toBe('Cm9 - F9 - B♭maj9');
-    tap(byTestId('thickness-bass'));
-    expect(byTestId('play-it-names')!.textContent).toBe('C - F - B♭');
+    expect(names()).toBe('Cm9 - F9 - B♭maj9');
   });
 
   it('still plays nothing until Hear it is tapped', () => {
@@ -255,7 +265,7 @@ describe('the reveal is the card\'s progression', () => {
     expect(played.seq).toHaveLength(0);
     tap(byTestId('thickness-triads'));
     expect(played.seq).toHaveLength(0);
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     expect(played.seq).toHaveLength(1);
   });
 });
@@ -274,7 +284,9 @@ function mountOther(id: string) {
   root = createRoot(host);
   act(() => {
     root.render(
-      <ProgressionAnswer card={other} target={t} answered answer={() => {}} />,
+      <InstrumentProvider>
+        <ProgressionAnswer card={other} target={t} answered answer={() => {}} />,
+      </InstrumentProvider>,
     );
   });
 }
@@ -301,15 +313,15 @@ describe('rotate — the same chords, entered by a different door', () => {
 
   it('reorders the chord names with it', () => {
     mount(true);
-    expect(byTestId('play-it-names')!.textContent).toBe('Cm7 - F7 - B♭maj7');
+    expect(names()).toBe('Cm7 - F7 - B♭maj7');
     tap(byTestId('rotate'));
-    expect(byTestId('play-it-names')!.textContent).toBe('F7 - B♭maj7 - Cm7');
+    expect(names()).toBe('F7 - B♭maj7 - Cm7');
   });
 
   it('plays the rotated order, still behind the key\'s own low tonic', () => {
     mount(true);
     tap(byTestId('rotate'));
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     const steps = played.seq[0] as Array<{ intervals: number[] }>;
     expect(steps).toHaveLength(4);
     // The orienting note is the KEY's tonic, not the rotation's first
@@ -392,11 +404,11 @@ describe('hear the other version', () => {
 
   it('turns the 6 into a dominant and leaves every other chord alone', () => {
     mountOther('pr-prog-1-6-2-5-C');
-    expect(byTestId('play-it-names')!.textContent).toBe('C - Am - Dm - G');
+    expect(names()).toBe('C - Am - Dm - G');
     tap(byTestId('version-other'));
-    expect(byTestId('play-it-names')!.textContent).toBe('C - A7 - Dm - G');
+    expect(names()).toBe('C - A7 - Dm - G');
     tap(byTestId('version-regular'));
-    expect(byTestId('play-it-names')!.textContent).toBe('C - Am - Dm - G');
+    expect(names()).toBe('C - Am - Dm - G');
   });
 
   it('plays it as a plain major triad on the triads rung', () => {
@@ -406,11 +418,11 @@ describe('hear the other version', () => {
     mountOther('pr-prog-1-6-2-5-C');
     tap(byTestId('version-other'));
     tap(byTestId('thickness-triads'));
-    expect(byTestId('play-it-names')!.textContent).toBe('C - A - Dm - G');
+    expect(names()).toBe('C - A - Dm - G');
     tap(byTestId('thickness-seventh'));
-    expect(byTestId('play-it-names')!.textContent).toBe('C - A7 - Dm - G');
+    expect(names()).toBe('C - A7 - Dm - G');
     tap(byTestId('thickness-full'));
-    expect(byTestId('play-it-names')!.textContent).toBe('C - A9 - Dm - G');
+    expect(names()).toBe('C - A9 - Dm - G');
   });
 
   it('lights the chord the two versions disagree about', () => {
@@ -432,7 +444,7 @@ describe('hear the other version', () => {
     tap(byTestId('version-other'));
     tap(byTestId('rotate'));
     expect(byTestId('rotate')!.textContent).toBe('6 2 5 1');
-    expect(byTestId('play-it-names')!.textContent).toBe('A7 - Dm - G - C');
+    expect(names()).toBe('A7 - Dm - G - C');
     // And the board is still on the chord that changed, now first.
     expect(litPcs()).toContain(1);
   });
@@ -441,7 +453,7 @@ describe('hear the other version', () => {
     mountOther('pr-prog-1-6-2-5-C');
     tap(byTestId('version-other'));
     expect(played.seq).toHaveLength(0);
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     const steps = played.seq[0] as Array<{ intervals: number[] }>;
     // Tonic, then the four chords; the second of them carries a C♯.
     expect(steps).toHaveLength(5);

@@ -8,6 +8,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../../lib/instrumentContext';
 import { act } from 'react';
 
 const played = vi.hoisted(() => ({ seq: [] as unknown[][], drones: [] as unknown[] }));
@@ -55,12 +58,14 @@ function mount(which: typeof notes, answered = false) {
   root = createRoot(host);
   act(() => {
     root.render(
-      <ScaleAnswer
-        card={which.card}
-        target={which.target}
-        answered={answered}
-        answer={c => chosen.push(c)}
-      />,
+      <InstrumentProvider>
+        <ScaleAnswer
+          card={which.card}
+          target={which.target}
+          answered={answered}
+          answer={c => chosen.push(c)}
+        />,
+      </InstrumentProvider>,
     );
   });
 }
@@ -192,7 +197,7 @@ describe('the reveal lights the scale and plays it over a drone', () => {
   it('drones on the KEY and not on the scale, on the lick card', async () => {
     // The prototype's rule: A♭ under F minor pentatonic.
     mount(lick, true);
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     await settle();
     expect(played.drones).toEqual([36 + lick.target.dronePc]);
     expect(lick.target.dronePc).not.toBe(lick.target.rootPc);
@@ -200,7 +205,7 @@ describe('the reveal lights the scale and plays it over a drone', () => {
 
   it('turns at the top note, not at the octave', async () => {
     mount(notes, true);
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     await settle();
     const steps = played.seq[0] as unknown[];
     // The home chord, then five up and four back.
@@ -210,7 +215,7 @@ describe('the reveal lights the scale and plays it over a drone', () => {
   it('runs the full octave when one direction is chosen', async () => {
     mount(notes, true);
     tap(byTestId('direction-up'));
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     await settle();
     expect(played.seq[0]).toHaveLength(1 + 6);
   });

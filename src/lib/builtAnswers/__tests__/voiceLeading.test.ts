@@ -188,14 +188,19 @@ describe('a whole progression, voiced', () => {
   it('puts the root in the bass for every layout but one hand', () => {
     const chords = [{ rootPc: 0, tones: handTones('m7', 'one') }];
     expect(voiceAll(chords, { bass: false })[0]!.bass).toBeNull();
-    expect(voiceAll(chords, { bass: true })[0]!.bass).toBe(BASS_FLOOR);
+    // A C STARTS AN OCTAVE UP FROM THE FLOOR. The line's first note
+    // takes the bottom octave only from A♭ upward — below that it opens
+    // an octave higher, so a walk downward has somewhere to go and the
+    // opening note is not so low it disappears. Silas's shared-player
+    // prototype, 10 Sep 2026.
+    expect(voiceAll(chords, { bass: true })[0]!.bass).toBe(BASS_FLOOR + 12);
   });
 
   it('plays a bass-only rung as a bass and no hand at all', () => {
     const chords = [{ rootPc: 0, tones: handTones('maj7', 'bass') }];
     const v = voiceAll(chords, { bass: true })[0]!;
     expect(v.hand).toEqual([]);
-    expect(v.bass).toBe(BASS_FLOOR);
+    expect(v.bass).toBe(BASS_FLOOR + 12);
   });
 });
 

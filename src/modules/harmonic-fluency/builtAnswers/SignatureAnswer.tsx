@@ -31,12 +31,12 @@
  * =====================================================================
  */
 import { useMemo, useState } from 'react';
-import type { PlaybackHandle } from '../../../lib/musicalPlayback';
 import BuiltAnswerKeyboard from '../../../components/BuiltAnswerKeyboard';
-import PlayItPanel from '../../../components/PlayItPanel';
+import SharedPlayer from '../../../components/SharedPlayer';
 import { scaleMarks } from '../../../lib/builtAnswers/marks';
 import { scaleLine } from '../../../lib/builtAnswers/scaleLine';
-import { DEFAULT_BPM, playScale } from '../../../lib/builtAnswers/play';
+import { playScale, scaleBeats } from '../../../lib/builtAnswers/play';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
 import type { Flashcard } from '../catalog';
 import type { BuiltTarget } from './cardTargets';
 import { gradeSignature } from './grade';
@@ -68,9 +68,9 @@ export default function SignatureAnswer({
   const [direction, setDirection] = useState<'sharps' | 'flats' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [colour, setColour] = useColourMode();
-  const [bpm, setBpm] = useState(DEFAULT_BPM);
-  const [octaveUp, setOctaveUp] = useState(false);
-  const [playing, setPlaying] = useState<PlaybackHandle | null>(null);
+  /** The shared panel's settings — one set of words for tempo, the
+   *  lift, the loop and the colours on every screen that sounds. */
+  const [settings, setSettings] = usePlayerSettings();
   const [sounding, setSounding] = useState<number | null>(null);
 
   const marks = useMemo(() => {
@@ -80,19 +80,26 @@ export default function SignatureAnswer({
     return scale;
   }, [answered, target.pcs, target.keyPc, colour, sounding]);
 
-  const stop = () => { playing?.stop(); setPlaying(null); };
 
-  const hear = () => {
-    stop();
-    const line = scaleLine(target.pcs, target.keyPc, 'both', { toOctave: true });
-    void playScale(line, {
-      bpm,
-      octaveUp,
-      home: target.homePcs.map(pc => 48 + pc),
-      dronePc: target.keyPc,
-      onNote: i => setSounding(line[i] ?? null),
-    }).then(setPlaying).catch(() => {});
-  };
+  /**
+   * The run, handed to the shared panel.
+   *
+   * IT RETURNS THE HANDLE RATHER THAN KEEPING IT. The panel owns the
+   * transport now — one Hear it, one Pause that stops where it is, one
+   * Resume that picks up from there — and it can only do that if it
+   * holds what is sounding. `startAtBeat` is how far in Resume asks
+   * for.
+   */
+  const line = scaleLine(target.pcs, target.keyPc, 'both', { toOctave: true });
+
+  const hear = (startAtBeat = 0) => playScale(line, {
+    bpm: settings.bpm,
+    octaveUp: settings.octaveUp,
+    home: target.homePcs.map(pc => 48 + pc),
+    dronePc: target.keyPc,
+    onNote: i => setSounding(line[i] ?? null),
+    ...(startAtBeat > 0 ? { startAtBeat } : {}),
+  });
 
   const submit = () => {
     if (count === null) {
@@ -183,14 +190,14 @@ export default function SignatureAnswer({
             label={`The scale of the key of ${target.keyName} major`}
           />
           <ColourToggle value={colour} onChange={setColour} />
-          <PlayItPanel
-            bpm={bpm}
-            onBpm={setBpm}
-            octaveUp={octaveUp}
-            onOctaveUp={setOctaveUp}
-            onPlay={hear}
-            onStop={playing === null ? null : stop}
-            names={`${target.keyName} major — ${target.count === 0
+          <SharedPlayer
+            chords={[]}
+            settings={settings}
+            onSettings={setSettings}
+            board={false}
+            play={({ startAtBeat }) => hear(startAtBeat)}
+            totalBeats={scaleBeats(line.length)}
+            caption={`${target.keyName} major — ${target.count === 0
               ? 'no sharps and no flats'
               : `${target.count} ${target.count === 1
                 ? target.direction.slice(0, -1) : target.direction}`}`}
@@ -199,7 +206,7 @@ export default function SignatureAnswer({
               {'The scale of the key, so the accidentals in it are the black '
                 + 'keys you can count.'}
             </p>
-          </PlayItPanel>
+          </SharedPlayer>
         </>
       )}
     </div>

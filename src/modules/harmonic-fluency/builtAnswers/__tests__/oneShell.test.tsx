@@ -19,6 +19,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../../lib/instrumentContext';
 import { act } from 'react';
 // The surfaces as TEXT. `?raw` rather than `readFileSync` because this
 // file is type-checked by the app's own tsconfig, which has no node
@@ -69,7 +72,9 @@ function mount(id: string, answered = false) {
   root = createRoot(host);
   act(() => {
     root.render(
-      <BuiltAnswer card={card} answered={answered} answer={() => {}} />,
+      <InstrumentProvider>
+        <BuiltAnswer card={card} answered={answered} answer={() => {}} />,
+      </InstrumentProvider>,
     );
   });
 }
@@ -80,17 +85,21 @@ beforeEach(() => { /* fresh host per mount */ });
 afterEach(() => { act(() => { root.unmount(); }); host.remove(); });
 
 describe('every family that builds an answer goes through one board', () => {
-  it('draws the same three-octave board, C to C, on all of them', () => {
+  it('draws the same four-octave board, C2 to C6, on all of them', () => {
     for (const id of Object.values(CARDS)) {
       // The count card is the one with no board before Submit, and it
       // draws the same one after.
       mount(id, id === CARDS.signature);
       const board = host.querySelector('[data-testid="built-answer-keyboard"]')!;
       expect(board, id).not.toBeNull();
-      // 36 white keys and black keys: three octaves plus the closing C.
+      // Four octaves plus the closing C: 36 to 84 and not a key past it.
       expect(board.querySelectorAll('rect[data-midi="36"]'), id).toHaveLength(1);
-      expect(board.querySelectorAll('rect[data-midi="72"]'), id).toHaveLength(1);
-      expect(board.querySelectorAll('rect[data-midi="73"]'), id).toHaveLength(0);
+      expect(board.querySelectorAll('rect[data-midi="84"]'), id).toHaveLength(1);
+      expect(board.querySelectorAll('rect[data-midi="85"]'), id).toHaveLength(0);
+      // AND EVERY C SAYS WHICH C IT IS, so middle C is findable.
+      expect([...board.querySelectorAll('text[data-testid^="key-label-"]')]
+        .map(t => t.textContent), id)
+        .toEqual(['C2', 'C3', 'C4', 'C5', 'C6']);
       act(() => { root.unmount(); });
       host.remove();
       mount(id, id === CARDS.signature);
@@ -145,11 +154,11 @@ describe('the player is one component, on every family that has one', () => {
   it('appears on the reveal and nowhere else', () => {
     for (const id of Object.values(CARDS)) {
       mount(id);
-      expect(has('play-it-panel'), `${id} before`).toBe(false);
+      expect(has('shared-player'), `${id} before`).toBe(false);
       act(() => { root.unmount(); });
       host.remove();
       mount(id, true);
-      expect(has('play-it-panel'), `${id} after`).toBe(true);
+      expect(has('shared-player'), `${id} after`).toBe(true);
       // Tempo and hand are the panel's own and are on all of them.
       expect(has('tempo'), id).toBe(true);
       expect(has('hand-up'), id).toBe(true);
@@ -158,9 +167,14 @@ describe('the player is one component, on every family that has one', () => {
 
   it('shows the thickness ladder on the chord cards and nowhere else', () => {
     // The brief's own per-family line: chord cards only.
+    //
+    // "BASS ONLY" IS NOT A RUNG ANY MORE — it moved to the Listen to
+    // row on 10 Sep, because how thick a chord is and whether you are
+    // listening to the bass are two questions. So the ladder is checked
+    // on its lowest real rung.
     for (const [family, id] of Object.entries(CARDS)) {
       mount(id, true);
-      expect(has('thickness-bass'), family).toBe(family === 'progression');
+      expect(has('thickness-triads'), family).toBe(family === 'progression');
       act(() => { root.unmount(); });
       host.remove();
       mount(id, true);
@@ -195,7 +209,7 @@ describe('there is one picker in the tree, and one player', () => {
       expect(/<svg/.test(src)).toBe(false);
     }
     // And every player is the shared panel.
-    const withPlayer = files.filter(s => /PlayItPanel/.test(s));
+    const withPlayer = files.filter(s => /SharedPlayer/.test(s));
     expect(withPlayer).toHaveLength(5);
   });
 

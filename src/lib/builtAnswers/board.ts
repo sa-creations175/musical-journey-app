@@ -1,8 +1,17 @@
 /**
- * The board the built answers are drawn on.
+ * The board the shared player is drawn on.
  *
  * =====================================================================
- * THREE OCTAVES, AND THE BASS OCTAVE IS THE LEFT ONE.
+ * FOUR OCTAVES, C2 TO C6, AND THE BASS OCTAVE IS THE LEFT ONE.
+ *
+ * It was three until 10 Sep 2026. The shared player's brief asks for
+ * four — C2 to C6, with every C labelled by its number so C4 is
+ * findable as middle C — because the surfaces moving onto this board
+ * put a bass line under a hand that can also be lifted an octave, and
+ * three octaves cannot hold both ends of that at once.
+ *
+ * =====================================================================
+ * THE OLD HEADER, WHICH STILL SAYS WHY THE BASS OCTAVE IS THERE.
  *
  * A slash chord is a chord over a note and a progression has a bass
  * line, so the board has to hold a hand in the middle and a bass
@@ -21,7 +30,7 @@
 import { BH, BLACK_KEYS, BW, WH, WHITE_PCS, WHITE_PER_OCTAVE, WW } from '../answerKeyboard';
 
 export const KEYBOARD_LOW_MIDI = 36;
-export const KEYBOARD_OCTAVES = 3;
+export const KEYBOARD_OCTAVES = 4;
 export const KEYBOARD_HIGH_MIDI = KEYBOARD_LOW_MIDI + KEYBOARD_OCTAVES * 12;
 
 /** How one key is marked. Absent fields are simply not drawn. */
@@ -51,6 +60,18 @@ export const BOARD_WIDTH = (KEYBOARD_OCTAVES * WHITE_PER_OCTAVE + 1) * WW;
 /** Whether a note is drawn at all. */
 export function onBoard(midi: number): boolean {
   return midi >= KEYBOARD_LOW_MIDI && midi <= KEYBOARD_HIGH_MIDI;
+}
+
+/**
+ * The label a key carries, or null.
+ *
+ * ONLY THE Cs, AND EVERY ONE OF THEM. The prototype writes C2 through
+ * C6 on the board and nothing else: a name on all 49 keys is noise, and
+ * a board with no landmark at all leaves a reader counting up from the
+ * left edge to find middle C.
+ */
+export function keyLabel(midi: number): string | null {
+  return midi % 12 === 0 ? `C${Math.floor(midi / 12) - 1}` : null;
 }
 
 /** Every key, white before black so the black ones draw over them. */

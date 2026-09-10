@@ -49,9 +49,12 @@ describe('a chord is marked note by note, not pitch class by pitch class', () =>
 describe('the hand moves up an octave, note by note', () => {
   it('raises what fits and leaves what does not', () => {
     expect(raise([60, 64, 67], true)).toEqual([72, 76, 79].map(m => (m <= KEYBOARD_HIGH_MIDI ? m : m - 12)));
-    // 76 and 79 are off the top of a board that ends at 72, so they
-    // stay rather than the whole chord refusing to move.
-    expect(raise([60, 64, 67], true)).toEqual([72, 64, 67]);
+    // ALL THREE FIT NOW. The board ran to 72 until 10 Sep 2026 and 76
+    // and 79 were off the top of it; four octaves reach 84, so a middle
+    // C major triad lifts whole. The per-note rule is unchanged and the
+    // top of the board is still where it stops — see below.
+    expect(raise([60, 64, 67], true)).toEqual([72, 76, 79]);
+    expect(raise([76, 79, 84], true)).toEqual([76, 79, 84]);
     expect(raise([60, 64, 67], false)).toEqual([60, 64, 67]);
   });
 });
@@ -59,9 +62,10 @@ describe('the hand moves up an octave, note by note', () => {
 describe('a scale lights across the whole board', () => {
   it('lights every octave of every note in it', () => {
     const marks = scaleMarks([0, 4, 7], 0, 'plain');
-    // Three octaves and a closing C: four Cs, three Es, three Gs.
-    expect([...marks.keys()].filter(m => m % 12 === 0)).toHaveLength(4);
-    expect([...marks.keys()].filter(m => m % 12 === 4)).toHaveLength(3);
+    // Four octaves and a closing C: five Cs, four Es, four Gs.
+    expect([...marks.keys()].filter(m => m % 12 === 0)).toHaveLength(5);
+    expect([...marks.keys()].filter(m => m % 12 === 4)).toHaveLength(4);
+    expect([...marks.keys()].filter(m => m % 12 === 7)).toHaveLength(4);
   });
 
   it('is plain or by interval, and the root is green in both', () => {

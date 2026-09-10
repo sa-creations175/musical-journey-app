@@ -1,5 +1,5 @@
 /**
- * Three octaves, addressed by MIDI, marked one key at a time.
+ * Four octaves, addressed by MIDI, marked one key at a time.
  *
  * =====================================================================
  * WHY NOT `KeyboardVisual`, WHICH ALREADY DRAWS A KEYBOARD.
@@ -36,7 +36,7 @@
  */
 import { useId } from 'react';
 import {
-  BOARD_HEIGHT, BOARD_WIDTH, type BoardKey, type KeyMark, boardKeys,
+  BOARD_HEIGHT, BOARD_WIDTH, type BoardKey, type KeyMark, boardKeys, keyLabel,
 } from '../lib/builtAnswers/board';
 
 const PLAIN_FILL = '#C9E3F7';
@@ -68,6 +68,9 @@ export default function BuiltAnswerKeyboard({
   const keyEl = (k: BoardKey) => {
     const mark = marks.get(k.midi);
     const fill = fillOf(mark, k.isBlack);
+    // NOT `label` — that name is the board's own, and the key's aria
+    // label reads it two lines down.
+    const cLabel = k.isBlack ? null : keyLabel(k.midi);
     return (
       <g key={k.midi}>
         <rect
@@ -103,6 +106,23 @@ export default function BuiltAnswerKeyboard({
             data-testid={`bass-band-${k.midi}`}
             pointerEvents="none"
           />
+        )}
+        {/* THE Cs CARRY THEIR NUMBER, so middle C is findable without
+            counting from the edge. Drawn above the bass band's line and
+            under nothing, in a colour that reads on a lit key as well
+            as an unlit one. */}
+        {cLabel !== null && (
+          <text
+            x={k.x + k.width / 2}
+            y={k.height - 20}
+            textAnchor="middle"
+            fontSize={11}
+            fill={mark === undefined ? '#8A9299' : '#FFFFFF'}
+            pointerEvents="none"
+            data-testid={`key-label-${k.midi}`}
+          >
+            {cLabel}
+          </text>
         )}
       </g>
     );

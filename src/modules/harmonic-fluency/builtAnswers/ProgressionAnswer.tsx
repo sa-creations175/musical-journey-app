@@ -48,15 +48,17 @@ import {
   type QualityId, type Thickness, type Voicing,
   hasBass, handTones, inversionCount, hasSeventh,
 } from '../../../lib/builtAnswers/chordShapes';
-import { voiceAll } from '../../../lib/builtAnswers/voiceLeading';
+import { voiceAll, type Move } from '../../../lib/builtAnswers/voiceLeading';
 import { chordMarks } from '../../../lib/builtAnswers/marks';
-import { DEFAULT_BPM, playChords, playOneChord } from '../../../lib/builtAnswers/play';
+import { playOneChord, playPanel } from '../../../lib/builtAnswers/play';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
+import type { PlayerChord } from '../../../lib/player/voices';
 import type { Flashcard } from '../catalog';
 import type { BuiltTarget } from './cardTargets';
 import {
   gradeProgression, keySpelling, spellInKey, type BuiltChord,
 } from './grade';
-import PlayItPanel from '../../../components/PlayItPanel';
+import SharedPlayer from '../../../components/SharedPlayer';
 
 /** One slot: the root as the picker holds it, and the quality. */
 interface Slot { pick: RootPick | null; quality: QualityId | null }
@@ -87,8 +89,17 @@ export default function ProgressionAnswer({
   const [layout, setLayout] = useState<Voicing>('both');
   const [message, setMessage] = useState<string | null>(null);
   const [playing, setPlaying] = useState<PlaybackHandle | null>(null);
-  const [bpm, setBpm] = useState(DEFAULT_BPM);
-  const [octaveUp, setOctaveUp] = useState(false);
+  /**
+   * The panel's settings. Tempo, the lift, the hands, the loop and the
+   * colours all live here now rather than as four `useState`s per
+   * family — the shared player owns them, so a reader meets one set of
+   * words on every screen that makes a sound.
+   */
+  const [settings, setSettings] = usePlayerSettings();
+  /** Which way the bass and the right hand move between chords.
+   *  `'auto'` until the reader taps an arrow. */
+  const [bassMoves, setBassMoves] = useState<Move[]>([]);
+  const [handMoves, setHandMoves] = useState<Move[]>([]);
   /**
    * The rung the player is on, once the card is answered.
    *
@@ -183,8 +194,10 @@ export default function ProgressionAnswer({
     () => voiceAll(chords, {
       bass: hasBass(answered ? thickness : layout),
       inversion,
+      moves: bassMoves,
+      handMoves,
     }),
-    [chords, layout, thickness, answered, inversion],
+    [chords, layout, thickness, answered, inversion, bassMoves, handMoves],
   );
 
   /**
@@ -198,7 +211,25 @@ export default function ProgressionAnswer({
       + target.chords.length) % target.chords.length;
 
   const shown = answered ? (lit ?? 0) : cur;
-  const marks = chordMarks(voiced[shown] ?? null, { octaveUp });
+  const marks = chordMarks(voiced[shown] ?? null, { octaveUp: settings.octaveUp });
+
+  /** The chords as the shared player takes them: voiced, and named the
+   *  way this card's key spells them. */
+  const playerChords: PlayerChord[] = useMemo(() => voiced
+    .map((v, i) => (v === null ? null : {
+      ...v,
+      name: `${spellInKey(shownChords[i].rootPc, target.keyName)}${played[i]}`,
+    }))
+    .filter((v): v is PlayerChord => v !== null),
+  [voiced, shownChords, played, target.keyName]);
+
+  /** Which way each move ACTUALLY went, for the arrows. */
+  const effective = (pick: (v: NonNullable<typeof voiced[number]>) => number | null) =>
+    playerChords.slice(1).map((c, i) => {
+      const a = pick(c);
+      const b = pick(playerChords[i]);
+      return a !== null && b !== null && a < b ? 'down' as const : 'up' as const;
+    });
 
   const stop = () => { playing?.stop(); setPlaying(null); };
   const start = (make: () => Promise<PlaybackHandle>) => {
@@ -206,19 +237,28 @@ export default function ProgressionAnswer({
     void make().then(setPlaying).catch(() => {});
   };
 
+  /**
+   * The whole progression, before the card is answered.
+   *
+   * IT IS THE SAME `playPanel` THE SHARED PLAYER USES, at the same
+   * settings. After Submit the panel owns the transport and this
+   * button is gone; before it there is no panel, and a second way of
+   * sounding chords is the thing this build is removing.
+   */
+  const hearAll = () => {
+    if (playerChords.length !== count) return;
+    start(() => playPanel(playerChords, settings, {
+      orientPc: target.keyPc, onStep: i => setLit(i),
+    }));
+  };
+
   const hearChord = () => {
     const v = voiced[shown];
     if (v === null || v === undefined) return;
-    start(() => playOneChord(v, { bpm, octaveUp }));
+    start(() => playOneChord(v, { bpm: settings.bpm, octaveUp: settings.octaveUp }));
   };
 
-  const hearAll = () => {
-    const all = voiced.filter((v): v is NonNullable<typeof v> => v !== null);
-    if (all.length !== count) return;
-    start(() => playChords(all, {
-      bpm, octaveUp, orientPc: target.keyPc, onStep: i => setLit(i),
-    }));
-  };
+
 
   const submit = () => {
     const empty = built.findIndex(c => c.rootPc === null || c.quality === null);
@@ -382,89 +422,97 @@ export default function ProgressionAnswer({
       )}
 
       {answered && (
-        <PlayItPanel
-          bpm={bpm}
-          onBpm={setBpm}
-          octaveUp={octaveUp}
-          onOctaveUp={setOctaveUp}
+        <SharedPlayer
+          chords={playerChords}
+          orientPc={target.keyPc}
+          settings={settings}
+          onSettings={setSettings}
           thickness={{ value: thickness, onChange: setThickness }}
-          onPlay={hearAll}
-          onHearChord={hearChord}
-          onStop={playing === null ? null : stop}
-          names={shownChords.map((c, i) => (
-            thickness === 'bass'
-              ? spellInKey(c.rootPc, target.keyName)
-              : `${spellInKey(c.rootPc, target.keyName)}${played[i]}`
-          )).join(' - ')}
-        >
-          {/* ROTATE — one tap, one door along. The label is the numbers
-              of the rotation now playing, so what is on the button is
-              what is about to sound rather than what tapping it will
-              do. */}
-          <div className="space-y-1.5">
-            <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
-              Starting point
-            </div>
-            <button
-              type="button"
-              data-testid="rotate"
-              onClick={() => {
-                setRotation(r => (r + 1) % count);
-                // THE BOARD STAYS ON THE CHORD IT WAS ON, not on the
-                // slot: rotating moves every chord one place left, so
-                // the lit index moves with it. Without this, opening
-                // "6 as a dominant" and then rotating would quietly
-                // leave the board on whatever slid into that slot.
-                setLit(l => (l === null ? null : (l - 1 + count) % count));
-              }}
-              className={`${BTN_PLAIN} font-mono`}
-            >
-              {shownChords.map(c => degreeLabel(c.degree)).join(' ')}
-            </button>
-          </div>
+          board={false}
+          onStep={setLit}
+          bassDirection={{
+            value: bassMoves,
+            onChange: setBassMoves,
+            effective: effective(c => c.bass),
+          }}
+          handDirection={{
+            value: handMoves,
+            onChange: setHandMoves,
+            effective: effective(c => (c.hand.length > 0 ? c.hand[0] : null)),
+          }}
+          compare={(
+            <>
+              {/* ROTATE — one tap, one door along. The label is the
+                  numbers of the rotation now playing, so what is on the
+                  button is what is about to sound rather than what
+                  tapping it will do. */}
+              <div className="space-y-1.5">
+                <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+                  Starting point
+                </div>
+                <button
+                  type="button"
+                  data-testid="rotate"
+                  onClick={() => {
+                    setRotation(r => (r + 1) % count);
+                    // THE BOARD STAYS ON THE CHORD IT WAS ON, not on
+                    // the slot: rotating moves every chord one place
+                    // left, so the lit index moves with it. Without
+                    // this, opening "6 as a dominant" and then rotating
+                    // would quietly leave the board on whatever slid
+                    // into that slot.
+                    setLit(l => (l === null ? null : (l - 1 + count) % count));
+                  }}
+                  className={`${BTN_PLAIN} font-mono`}
+                >
+                  {shownChords.map(c => degreeLabel(c.degree)).join(' ')}
+                </button>
+              </div>
 
-          {/* THE OTHER VERSION — two buttons side by side, so the two
-              can be A/B'd at one tempo and one thickness. */}
-          {target.variation !== undefined && (
-            <div className="space-y-1.5">
-              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
-                Hear the other version
-              </div>
-              <div className="flex flex-wrap gap-1.5" data-testid="version-row">
-                {([[false, 'Regular'], [true, target.variation.label]] as const)
-                  .map(([v, label]) => (
-                    <button
-                      key={label}
-                      type="button"
-                      aria-pressed={otherVersion === v}
-                      data-testid={v ? 'version-other' : 'version-regular'}
-                      onClick={() => {
-                        setOtherVersion(v);
-                        // SHOW THE CHORD THAT CHANGED, so the A7's C♯
-                        // is on the board beside the Am's C rather
-                        // than a rung away. Nothing sounds; the board
-                        // moves to the one chord the two versions
-                        // disagree about.
-                        setLit(versionSlot);
-                      }}
-                      className={`${BTN} ${otherVersion === v
-                        ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                        : 'border-black/10 dark:border-white/20'}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-              </div>
-            </div>
+              {/* THE OTHER VERSION — two buttons side by side, so the
+                  two can be A/B'd at one tempo and one thickness. */}
+              {target.variation !== undefined && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+                    Hear the other version
+                  </div>
+                  <div className="flex flex-wrap gap-1.5" data-testid="version-row">
+                    {([[false, 'Regular'], [true, target.variation.label]] as const)
+                      .map(([v, label]) => (
+                        <button
+                          key={label}
+                          type="button"
+                          aria-pressed={otherVersion === v}
+                          data-testid={v ? 'version-other' : 'version-regular'}
+                          onClick={() => {
+                            setOtherVersion(v);
+                            // SHOW THE CHORD THAT CHANGED, so the A7's
+                            // C♯ is on the board beside the Am's C
+                            // rather than a rung away. Nothing sounds;
+                            // the board moves to the one chord the two
+                            // versions disagree about.
+                            setLit(versionSlot);
+                          }}
+                          className={`${BTN} ${otherVersion === v
+                            ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                            : 'border-black/10 dark:border-white/20'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
-
+        >
           <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
             {'A single low tonic in the key of '
               + `${target.keyName} major to orient, then the chords in order. `
               + 'Each rung adds a note, and the names change to match what '
               + 'is sounding.'}
           </p>
-        </PlayItPanel>
+        </SharedPlayer>
       )}
     </div>
   );

@@ -25,7 +25,7 @@
 import { useMemo, useState } from 'react';
 import type { PlaybackHandle } from '../../../lib/musicalPlayback';
 import ChordPicker from '../../../components/ChordPicker';
-import PlayItPanel from '../../../components/PlayItPanel';
+import SharedPlayer from '../../../components/SharedPlayer';
 import {
   INVERSIONS, type RootPick, pickFromPitchClass, rootLabel, rootPitchClass,
 } from '../../../lib/builtAnswers/rootPick';
@@ -35,7 +35,9 @@ import {
 } from '../../../lib/builtAnswers/chordShapes';
 import { voiceAround, voicingsOf } from '../../../lib/builtAnswers/voiceLeading';
 import { chordMarks } from '../../../lib/builtAnswers/marks';
-import { DEFAULT_BPM, playChords, playOneChord } from '../../../lib/builtAnswers/play';
+import { playOneChord } from '../../../lib/builtAnswers/play';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
+import type { PlayerChord } from '../../../lib/player/voices';
 import type { Flashcard } from '../catalog';
 import type { BuiltTarget } from './cardTargets';
 import { gradeSlash, keySpelling, spellInKey } from './grade';
@@ -69,10 +71,11 @@ export default function SlashAnswer({
   const [quality, setQuality] = useState<QualityId | null>('');
   const [inversion, setInversion] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
-  const [bpm, setBpm] = useState(DEFAULT_BPM);
-  const [octaveUp, setOctaveUp] = useState(false);
+  /** The shared panel's settings. "Bass only" used to be two buttons of
+   *  this surface's own; it is the panel's Listen to row now, in one
+   *  place, on every screen. */
+  const [settings, setSettings] = usePlayerSettings();
   const [playing, setPlaying] = useState<PlaybackHandle | null>(null);
-  const [bassOnly, setBassOnly] = useState(false);
   const [contextId, setContextId] = useState<string | null>(null);
 
   const contexts = useMemo(
@@ -101,10 +104,13 @@ export default function SlashAnswer({
     return voicingsOf(pcs, inversion)[0] ?? [];
   }, [chordRootPc, chordQuality, inversion]);
 
-  const voiced = chordRootPc === null
+  // MEMOISED because the phrase below depends on it: a new object every
+  // render would re-voice the whole phrase on every keystroke.
+  const voiced = useMemo(() => (chordRootPc === null
     ? null
-    : { hand, bass: bassPc === null ? null : 36 + bassPc, rootPc: chordRootPc };
-  const marks = chordMarks(voiced, { octaveUp });
+    : { hand, bass: bassPc === null ? null : 36 + bassPc, rootPc: chordRootPc }),
+  [chordRootPc, hand, bassPc]);
+  const marks = chordMarks(voiced, { octaveUp: settings.octaveUp });
 
   const stop = () => { playing?.stop(); setPlaying(null); };
   const start = (make: () => Promise<PlaybackHandle>) => {
@@ -114,7 +120,9 @@ export default function SlashAnswer({
 
   const hearChord = () => {
     if (voiced === null) return;
-    start(() => playOneChord(voiced, { bpm, octaveUp }));
+    start(() => playOneChord(voiced, {
+      bpm: settings.bpm, octaveUp: settings.octaveUp,
+    }));
   };
 
   /**
@@ -124,19 +132,31 @@ export default function SlashAnswer({
    * steps, with the hand left out, so a reader can hear the bass line
    * walk without the chords over it.
    */
-  const hearContext = () => {
-    if (voiced === null || bassPc === null) return;
+  /**
+   * The phrase, voiced around the reader's own hand.
+   *
+   * BASS ONLY IS THE PANEL'S "LISTEN TO" NOW, not two buttons here: it
+   * is the same question on every surface — the bass line without the
+   * chords over it — and one row asks it once.
+   */
+  const phrase: PlayerChord[] = useMemo(() => {
+    if (voiced === null || bassPc === null) return [];
     const tones = context.steps.map(s => stepTones(s, target.keyPc));
     const hands = voiceAround(tones, hand);
-    const chords = context.steps.map((step, i) => ({
-      hand: bassOnly ? [] : hands[i],
+    return context.steps.map((step, i) => ({
+      hand: hands[i],
       bass: stepBass(step, target.keyPc),
       rootPc: tones[i]?.rootPc ?? target.chordRootPc,
+      // THE CHIP SAYS WHICH CHORD IT IS. The slash chord itself is the
+      // one the card is about and goes by the name the card gives it;
+      // the chords around it are named by their degree of the key,
+      // which is how the context list writes them.
+      name: 'slash' in step
+        ? target.name
+        : `${step.chord}/${step.bassDegree}`,
     }));
-    start(() => playChords(chords, {
-      bpm, octaveUp, orientPc: target.keyPc,
-    }));
-  };
+  }, [voiced, bassPc, context.steps, hand, target.keyPc, target.chordRootPc,
+    target.name]);
 
   const submit = () => {
     if (pick === null || quality === null) {
@@ -257,59 +277,42 @@ export default function SlashAnswer({
       )}
 
       {answered && (
-        <PlayItPanel
-          bpm={bpm}
-          onBpm={setBpm}
-          octaveUp={octaveUp}
-          onOctaveUp={setOctaveUp}
-          onPlay={hearContext}
-          onHearChord={hearChord}
-          onStop={playing === null ? null : stop}
-          names={target.name}
+        <SharedPlayer
+          chords={phrase}
+          orientPc={target.keyPc}
+          settings={settings}
+          onSettings={setSettings}
+          board={false}
+          compare={(
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+                In context
+              </div>
+              <div className="flex flex-wrap gap-1.5" data-testid="context-row">
+                {contexts.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    aria-pressed={c.id === context.id}
+                    data-testid={`context-${c.id}`}
+                    onClick={() => setContextId(c.id)}
+                    className={`${BTN} ${c.id === context.id
+                      ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                      : 'border-black/10 dark:border-white/20'}`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         >
-          <div className="space-y-1.5">
-            <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
-              In context
-            </div>
-            <div className="flex flex-wrap gap-1.5" data-testid="context-row">
-              {contexts.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  aria-pressed={c.id === context.id}
-                  data-testid={`context-${c.id}`}
-                  onClick={() => setContextId(c.id)}
-                  className={`${BTN} ${c.id === context.id
-                    ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                    : 'border-black/10 dark:border-white/20'}`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {([[false, 'Bass + chords'], [true, 'Bass only']] as const).map(([v, name]) => (
-                <button
-                  key={name}
-                  type="button"
-                  aria-pressed={bassOnly === v}
-                  data-testid={`bass-only-${String(v)}`}
-                  onClick={() => setBassOnly(v)}
-                  className={`${BTN} ${bassOnly === v
-                    ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                    : 'border-black/10 dark:border-white/20'}`}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-          </div>
           <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
             {'A single low tonic to orient, then the slash chord where it '
               + 'lives. The chords around it are voice-led to and from your '
               + 'hand shape.'}
           </p>
-        </PlayItPanel>
+        </SharedPlayer>
       )}
     </div>
   );

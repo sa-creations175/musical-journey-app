@@ -34,12 +34,12 @@
  * =====================================================================
  */
 import { useMemo, useState } from 'react';
-import type { PlaybackHandle } from '../../../lib/musicalPlayback';
 import BuiltAnswerKeyboard from '../../../components/BuiltAnswerKeyboard';
-import PlayItPanel from '../../../components/PlayItPanel';
+import SharedPlayer from '../../../components/SharedPlayer';
 import { scaleMarks, tapMarks } from '../../../lib/builtAnswers/marks';
 import { scaleLine, type Direction } from '../../../lib/builtAnswers/scaleLine';
-import { DEFAULT_BPM, playScale } from '../../../lib/builtAnswers/play';
+import { playScale, scaleBeats } from '../../../lib/builtAnswers/play';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
 import type { Flashcard } from '../catalog';
 import type { BuiltTarget } from './cardTargets';
 import { gradeScale, spellInKey } from './grade';
@@ -71,11 +71,11 @@ export default function ScaleAnswer({
   const [taps, setTaps] = useState<number[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [colour, setColour] = useColourMode();
-  const [bpm, setBpm] = useState(DEFAULT_BPM);
-  const [octaveUp, setOctaveUp] = useState(false);
+  /** The shared panel's settings — one set of words for tempo, the
+   *  lift, the loop and the colours on every screen that sounds. */
+  const [settings, setSettings] = usePlayerSettings();
   const [start, setStart] = useState<number | null>(null);
   const [direction, setDirection] = useState<Direction>('both');
-  const [playing, setPlaying] = useState<PlaybackHandle | null>(null);
   /** Which note is sounding, so the board follows the run. */
   const [sounding, setSounding] = useState<number | null>(null);
 
@@ -90,20 +90,26 @@ export default function ScaleAnswer({
     return tapMarks(taps, { rootPc: target.rootFirst ? taps[0] ?? null : null });
   }, [answered, target.pcs, target.rootPc, target.rootFirst, colour, taps, sounding]);
 
-  const stop = () => { playing?.stop(); setPlaying(null); };
 
-  const hear = () => {
-    stop();
-    const from = start ?? target.rootPc;
-    const line = scaleLine(target.pcs, from, direction, { toOctave: false });
-    void playScale(line, {
-      bpm,
-      octaveUp,
-      home: target.homePcs.map(pc => 48 + pc),
-      dronePc: target.dronePc,
-      onNote: i => setSounding(line[i] ?? null),
-    }).then(setPlaying).catch(() => {});
-  };
+  /**
+   * The run, handed to the shared panel.
+   *
+   * IT RETURNS THE HANDLE RATHER THAN KEEPING IT. The panel owns the
+   * transport now — one Hear it, one Pause that stops where it is, one
+   * Resume that picks up from there — and it can only do that if it
+   * holds what is sounding. `startAtBeat` is how far in Resume asks
+   * for.
+   */
+  const line = scaleLine(target.pcs, start ?? target.rootPc, direction, { toOctave: false });
+
+  const hear = (startAtBeat = 0) => playScale(line, {
+    bpm: settings.bpm,
+    octaveUp: settings.octaveUp,
+    home: target.homePcs.map(pc => 48 + pc),
+    dronePc: target.dronePc,
+    onNote: i => setSounding(line[i] ?? null),
+    ...(startAtBeat > 0 ? { startAtBeat } : {}),
+  });
 
   const submit = () => {
     if (taps.length !== target.pcs.length) {
@@ -172,14 +178,14 @@ export default function ScaleAnswer({
       {answered && (
         <>
           <ColourToggle value={colour} onChange={setColour} />
-          <PlayItPanel
-            bpm={bpm}
-            onBpm={setBpm}
-            octaveUp={octaveUp}
-            onOctaveUp={setOctaveUp}
-            onPlay={hear}
-            onStop={playing === null ? null : stop}
-            names={target.pcs.map(pc => spellInKey(pc, target.rootName)).join(' ')}
+          <SharedPlayer
+            chords={[]}
+            settings={settings}
+            onSettings={setSettings}
+            board={false}
+            play={({ startAtBeat }) => hear(startAtBeat)}
+            totalBeats={scaleBeats(line.length)}
+            caption={target.pcs.map(pc => spellInKey(pc, target.rootName)).join(' ')}
           >
             {/* STARTING POINTS ARE THE PENTATONIC CARDS' OWN. Those are
                 the hand shapes Shapes & Patterns drills; a seven-note
@@ -229,7 +235,7 @@ export default function ScaleAnswer({
               {`The home chord of the key, then the scale with ${
                 spellInKey(target.dronePc, target.rootName)} held low underneath.`}
             </p>
-          </PlayItPanel>
+          </SharedPlayer>
         </>
       )}
     </div>

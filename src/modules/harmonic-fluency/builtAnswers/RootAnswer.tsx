@@ -26,15 +26,15 @@
  * =====================================================================
  */
 import { useMemo, useState } from 'react';
-import type { PlaybackHandle } from '../../../lib/musicalPlayback';
 import ChordPicker from '../../../components/ChordPicker';
-import PlayItPanel from '../../../components/PlayItPanel';
+import SharedPlayer from '../../../components/SharedPlayer';
 import {
   type RootPick, pickFromPitchClass, rootLabel, rootPitchClass,
 } from '../../../lib/builtAnswers/rootPick';
 import { scaleMarks, singleMark } from '../../../lib/builtAnswers/marks';
 import { scaleLine, type Direction } from '../../../lib/builtAnswers/scaleLine';
-import { DEFAULT_BPM, playScale } from '../../../lib/builtAnswers/play';
+import { playScale, scaleBeats } from '../../../lib/builtAnswers/play';
+import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
 import type { Flashcard } from '../catalog';
 import type { BuiltTarget } from './cardTargets';
 import { gradeRoot, keySpelling } from './grade';
@@ -68,10 +68,10 @@ export default function RootAnswer({
   const [tapped, setTapped] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [colour, setColour] = useColourMode();
-  const [bpm, setBpm] = useState(DEFAULT_BPM);
-  const [octaveUp, setOctaveUp] = useState(false);
+  /** The shared panel's settings — one set of words for tempo, the
+   *  lift, the loop and the colours on every screen that sounds. */
+  const [settings, setSettings] = usePlayerSettings();
   const [direction, setDirection] = useState<Direction>('both');
-  const [playing, setPlaying] = useState<PlaybackHandle | null>(null);
   const [sounding, setSounding] = useState<number | null>(null);
 
   const marks = useMemo(() => {
@@ -86,21 +86,28 @@ export default function RootAnswer({
     return pick === null ? new Map() : singleMark(48 + rootPitchClass(pick));
   }, [answered, target.pcs, target.rootPc, colour, sounding, tapped, pick]);
 
-  const stop = () => { playing?.stop(); setPlaying(null); };
 
-  const hear = () => {
-    stop();
-    // THE KEY CARDS RUN TO THE OCTAVE AND BACK, which is what a
-    // seven-note scale does; the pentatonic cards turn earlier.
-    const line = scaleLine(target.pcs, target.rootPc, direction, { toOctave: true });
-    void playScale(line, {
-      bpm,
-      octaveUp,
-      home: target.homePcs.map(pc => 48 + pc),
-      dronePc: target.rootPc,
-      onNote: i => setSounding(line[i] ?? null),
-    }).then(setPlaying).catch(() => {});
-  };
+  /**
+   * The run, handed to the shared panel.
+   *
+   * IT RETURNS THE HANDLE RATHER THAN KEEPING IT. The panel owns the
+   * transport now — one Hear it, one Pause that stops where it is, one
+   * Resume that picks up from there — and it can only do that if it
+   * holds what is sounding. `startAtBeat` is how far in Resume asks
+   * for.
+   */
+  // THE KEY CARDS RUN TO THE OCTAVE AND BACK, which is what a
+  // seven-note scale does; the pentatonic cards turn earlier.
+  const line = scaleLine(target.pcs, target.rootPc, direction, { toOctave: true });
+
+  const hear = (startAtBeat = 0) => playScale(line, {
+    bpm: settings.bpm,
+    octaveUp: settings.octaveUp,
+    home: target.homePcs.map(pc => 48 + pc),
+    dronePc: target.rootPc,
+    onNote: i => setSounding(line[i] ?? null),
+    ...(startAtBeat > 0 ? { startAtBeat } : {}),
+  });
 
   const submit = () => {
     if (pick === null) {
@@ -166,14 +173,14 @@ export default function RootAnswer({
       {answered && (
         <>
           <ColourToggle value={colour} onChange={setColour} />
-          <PlayItPanel
-            bpm={bpm}
-            onBpm={setBpm}
-            octaveUp={octaveUp}
-            onOctaveUp={setOctaveUp}
-            onPlay={hear}
-            onStop={playing === null ? null : stop}
-            names={`${target.rootName} ${mode}`}
+          <SharedPlayer
+            chords={[]}
+            settings={settings}
+            onSettings={setSettings}
+            board={false}
+            play={({ startAtBeat }) => hear(startAtBeat)}
+            totalBeats={scaleBeats(line.length)}
+            caption={`${target.rootName} ${mode}`}
           >
             {/* NO STARTING POINTS ON A KEY CARD. A seven-note scale
                 from another note is a mode, and the Modes family
@@ -203,7 +210,7 @@ export default function RootAnswer({
               {`The home chord of the key of ${target.rootName} ${mode}, then its `
                 + 'scale to the octave and back, with the root held low underneath.'}
             </p>
-          </PlayItPanel>
+          </SharedPlayer>
         </>
       )}
     </div>

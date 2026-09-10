@@ -9,6 +9,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../../lib/instrumentContext';
 import { act } from 'react';
 
 const played = vi.hoisted(() => ({ seq: [] as unknown[][] }));
@@ -44,12 +47,14 @@ function mount(answered = false) {
   root = createRoot(host);
   act(() => {
     root.render(
-      <SlashAnswer
-        card={card}
-        target={target}
-        answered={answered}
-        answer={c => chosen.push(c)}
-      />,
+      <InstrumentProvider>
+        <SlashAnswer
+          card={card}
+          target={target}
+          answered={answered}
+          answer={c => chosen.push(c)}
+        />,
+      </InstrumentProvider>,
     );
   });
 }
@@ -166,7 +171,7 @@ describe('the reveal plays it in context', () => {
 
   it('plays the tonic and the phrase, in order', () => {
     mount(true);
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     // 1 · 5/7 · 6m, with a low tonic in front of it.
     expect(played.seq[0]).toHaveLength(4);
   });
@@ -174,14 +179,16 @@ describe('the reveal plays it in context', () => {
   it('plays the chord alone when that is chosen', () => {
     mount(true);
     tap(byTestId('context-alone'));
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     expect(played.seq[0]).toHaveLength(2);
   });
 
   it('drops the hand for bass only, and keeps the bass', () => {
+    // BASS ONLY IS THE PANEL'S NOW, not two buttons of this surface's.
+    // One row asks it, on every screen that sounds a bass line.
     mount(true);
-    tap(byTestId('bass-only-true'));
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('listen-bass'));
+    tap(byTestId('player-hear'));
     const steps = played.seq[0] as Array<{ intervals: number[] }>;
     // The tonic, then three steps each of one note.
     for (const step of steps.slice(1)) expect(step.intervals).toHaveLength(1);

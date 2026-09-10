@@ -523,6 +523,30 @@ export interface SeqChordsOptions {
    */
   loop?: number | 'untilStopped';
   bassBalance?: BassBalance;
+  /**
+   * Where in the sequence to start, in beats from the top.
+   *
+   * =====================================================================
+   * THIS IS WHAT RESUME IS MADE OF, AND IT IS NOT A SECOND PLAYER.
+   *
+   * Pause stops what is sounding and remembers how far in it had got;
+   * Resume calls this function again with that number. A chord whose
+   * beat has already gone by is not scheduled, and the rest play at the
+   * same distance from each other they always had — so the sequence
+   * carries on from the point it stopped rather than from the top.
+   *
+   * A CHORD ALREADY SOUNDING WHEN PAUSE LANDS IS NOT RE-STRUCK. Its
+   * moment is behind the offset, so Resume waits out the rest of its
+   * beats in silence and then plays the next one. That is the
+   * prototype's own behaviour (`shared-player-prototype_1.html`,
+   * `fire(idx, from)` drops any moment whose time has passed) and it is
+   * what makes Resume land on the beat rather than half a chord early.
+   *
+   * ONLY THE FIRST PASS IS SHORTENED. A loop that started in the middle
+   * plays whole passes after that.
+   * =====================================================================
+   */
+  startAtBeat?: number;
 }
 
 /**
@@ -562,12 +586,23 @@ export async function playSeqChords(
   const timers: number[] = [];
   let stopped = false;
 
-  /** One pass through the sequence, starting at an absolute time. */
-  const schedulePass = (startAt: number) => {
+  /**
+   * One pass through the sequence, starting at an absolute time.
+   *
+   * `skipBeats` drops the chords whose turn has already gone by and
+   * shifts the rest back, which is how Resume picks up mid-sequence.
+   * It applies to the FIRST pass only; the caller passes zero for the
+   * passes after it.
+   */
+  const schedulePass = (startAt: number, skipBeats = 0) => {
     let cursor = startAt;
+    let beatCursor = 0;
     chords.forEach((chord, idx) => {
       const beats = chord.beats ?? 2;
       const duration = secPerBeat * beats;
+      const skipped = beatCursor < skipBeats;
+      beatCursor += beats;
+      if (skipped) return;
       const vol = chordVolume(chord.intervals.length);
       chord.intervals.forEach((iv, note) => {
         const hand = chord.hands?.[note] ?? 'R';
@@ -586,24 +621,32 @@ export async function playSeqChords(
   };
 
   const now = context.currentTime + 0.05;
+  // THE SKIPPED BEATS COST NO TIME. A pass that starts three beats in
+  // is three beats shorter, so the loop after it follows immediately
+  // rather than after a silence the length of what was skipped.
+  const skip = Math.max(0, Math.min(opts.startAtBeat ?? 0, passBeats));
+  const firstSeconds = (passBeats - skip) * secPerBeat;
 
   if (opts.loop === 'untilStopped') {
     // ARM THE NEXT PASS AS THIS ONE ENDS. Scheduling a large finite
     // number instead would make Stop silent but leave the notes already
     // queued in the audio graph — which is the bug the handle exists to
     // prevent.
-    const armNext = (startAt: number) => {
+    const armNext = (startAt: number, skipBeats: number) => {
       if (stopped) return;
-      const end = schedulePass(startAt);
+      const end = schedulePass(startAt, skipBeats);
       timers.push(window.setTimeout(
-        () => armNext(end),
+        () => armNext(end, 0),
         Math.max(0, (end - context.currentTime) * 1000),
       ));
     };
-    armNext(now);
+    armNext(now, skip);
   } else {
     const passes = Math.max(1, Math.floor(opts.loop ?? 1));
-    for (let i = 0; i < passes; i++) schedulePass(now + i * passSeconds);
+    schedulePass(now, skip);
+    for (let i = 1; i < passes; i++) {
+      schedulePass(now + firstSeconds + (i - 1) * passSeconds);
+    }
   }
 
   return {

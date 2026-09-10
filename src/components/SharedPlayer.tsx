@@ -1,0 +1,534 @@
+/**
+ * The app's one playback panel.
+ *
+ * =====================================================================
+ * ONE COMPONENT, EVERY SURFACE THAT MAKES A SOUND.
+ *
+ * It was `PlayItPanel` and it served the six built-answer families;
+ * this is the same component grown to the shape Silas signed off in
+ * `shared-player-prototype_1.html` on 10 Sep 2026. Ear training, the
+ * Shapes & Patterns grids and the harmonic diary move onto it in the
+ * commits after this one.
+ *
+ * WHAT MAY DIFFER BETWEEN SURFACES IS A WRITTEN LIST, and it is short:
+ *
+ *   · a quiz hides the board before the answer and may play on arrival;
+ *     every other surface waits for a tap
+ *   · chord recognition never re-voices, and adds "Chord sounds"
+ *   · beside a drill the ladder is locked to the row and nothing is
+ *     rated
+ *   · the melody ring appears only where a surface has a melody line
+ *   · "aids before you answer" exist only on quiz surfaces
+ *
+ * Anything else that differs is a bug. A surface chooses which ROWS it
+ * shows and never what a row means — the tempo, the lift, the hands and
+ * the colours are this component's, so two screens cannot come to
+ * disagree about what "up an octave" does.
+ *
+ * =====================================================================
+ * IT OWNS THE PLAYING, WHICH IS WHY PAUSE WORKS.
+ *
+ * The old panel took an `onPlay` callback and each caller ran its own
+ * handle. Pause and Resume cannot be right that way: resuming needs to
+ * know how far in the sequence had got, and that is one clock, held in
+ * one place. So this component calls the player and the caller hands it
+ * chords.
+ *
+ * PAUSE STOPS WHERE IT IS. RESUME PICKS UP FROM THERE. HEAR IT ALWAYS
+ * STARTS OVER. The three are different on purpose and the prototype
+ * says so on the screen.
+ *
+ * =====================================================================
+ * NOTHING AUTOPLAYS EXCEPT A QUIZ CARD ON ARRIVAL.
+ *
+ * This component has no effect that starts audio. A quiz that plays as
+ * its card arrives does it from its own arrival handler, which is the
+ * one allowed difference — everything else waits for a tap.
+ * =====================================================================
+ */
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import BuiltAnswerKeyboard from './BuiltAnswerKeyboard';
+import { THICKNESSES, type Thickness } from '../lib/builtAnswers/chordShapes';
+import type { KeyMark } from '../lib/builtAnswers/board';
+import type { Move } from '../lib/builtAnswers/voiceLeading';
+import type { PlaybackHandle } from '../lib/musicalPlayback';
+import { panelBeats, playPanel } from '../lib/builtAnswers/play';
+import {
+  BPM_MAX, BPM_MIN, LADDER_RUNGS, LOOP_OPTIONS, clampBpm, readSettingsOpen,
+  writeSettingsOpen, type ChordAttack, type PlayerSettings,
+} from '../lib/player/settings';
+import { playerMarks, type PlayerChord } from '../lib/player/voices';
+import { useInstrument } from '../lib/instrumentContext';
+import type { Instrument } from '../lib/audio';
+
+const CHIP = 'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors';
+const CHIP_OFF = 'border-black/10 dark:border-white/20 bg-black/[0.03] '
+  + 'dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/10';
+const CHIP_ON = 'border-neutral-900 dark:border-neutral-100 bg-neutral-900 '
+  + 'text-white dark:bg-neutral-100 dark:text-neutral-900';
+
+function Chip({
+  on, onClick, children, testId, disabled,
+}: {
+  on: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  testId?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      data-testid={testId}
+      disabled={disabled === true}
+      onClick={onClick}
+      className={`${CHIP} ${on ? CHIP_ON : CHIP_OFF} `
+        + 'disabled:opacity-40 disabled:cursor-default'}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+        {label}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+/** A direction row: the chord names with a tappable arrow between. */
+interface DirectionRow {
+  /** The moves as the reader has set them; `'auto'` where they have
+   *  not touched it. Index i is the move from chord i into chord i+1. */
+  value: ReadonlyArray<Move>;
+  onChange: (moves: Move[]) => void;
+  /** Which way each move ACTUALLY went, once voiced. The arrow shows
+   *  this, not the setting, so an untouched row still says what the
+   *  bass is doing. */
+  effective: ReadonlyArray<'up' | 'down'>;
+}
+
+interface SharedPlayerProps {
+  /** The chords, voiced and named. */
+  chords: ReadonlyArray<PlayerChord>;
+  /** Sound a single low tonic in this key first. Omit for none — a
+   *  single quiz chord never gets one. */
+  orientPc?: number;
+  settings: PlayerSettings;
+  onSettings: (next: PlayerSettings) => void;
+
+  /** The thickness ladder. Omit for no ladder — a scale has none. */
+  thickness?: {
+    value: Thickness;
+    onChange: (t: Thickness) => void;
+    /** Which rungs this surface offers. A triad has one. */
+    rungs?: ReadonlyArray<Thickness>;
+    /** Beside a drill the rung IS the row, so it is shown and fixed. */
+    locked?: boolean;
+  };
+  /** The Bass direction row. Omit where fewer than two chords move. */
+  bassDirection?: DirectionRow;
+  /** The Hand direction row, same shape. */
+  handDirection?: DirectionRow;
+
+  /**
+   * Show the Hands row and the Listen to row.
+   *
+   * BOTH DEFAULT TO "WHERE THERE IS A BASS TO SEPARATE FROM THE HAND".
+   * On a scale card there is no left hand and no bass line, so both
+   * rows would be controls that do nothing; on a progression there is,
+   * so both appear. A surface can say otherwise — chord recognition
+   * hides Hands because one chord has one hand and the inversion is the
+   * question, and shows Listen to because "bass only" there means the
+   * bottom note alone.
+   */
+  showHands?: boolean;
+  showListen?: boolean;
+  /** Show "Chord sounds". Chord recognition only. */
+  attack?: { value: ChordAttack; onChange: (a: ChordAttack) => void };
+
+  /** The board. `false` hides it — a quiz before the answer. A node
+   *  replaces it, for a surface whose board is also its input. */
+  board?: false | ReactNode;
+  /** What the board says it is, for a screen reader. */
+  boardLabel?: string;
+  /**
+   * A line under the board, for a surface with no chord chips.
+   *
+   * THE CHIPS ARE THE NAMES WHERE THERE ARE CHORDS — one per chord,
+   * tappable, which is what "Hear one chord" is. A scale or a key
+   * signature has no chords to chip, and still has something to say
+   * about what is about to sound.
+   */
+  caption?: string;
+  /** The Compare row and anything else that sits above the ladder. */
+  compare?: ReactNode;
+  /** Under everything, in small type. */
+  children?: ReactNode;
+
+  /** Hide every control of the player's own. A quiz before the answer
+   *  drives it from its own Play button and shows nothing here. */
+  controls?: boolean;
+  /** Fires as each chord starts, so a caller can follow along. */
+  onStep?: (index: number) => void;
+  /** Beats per chord, where a surface wants something other than two. */
+  beats?: number;
+  /**
+   * Sound something that is not a list of chords.
+   *
+   * =====================================================================
+   * THE SCALE CARDS ARE WHY THIS EXISTS, AND IT IS A SEAM, NOT AN
+   * ESCAPE HATCH.
+   *
+   * A scale is a run of single notes over a drone, not chords in a row,
+   * so `playPanel` has no shape for it. What it DOES share with every
+   * other surface is the transport: one Hear it, one Pause that stops
+   * where it is, one Resume that picks up from there. Handing the panel
+   * a play function keeps that one clock in one place; a scale card
+   * running its own would be the second transport this component exists
+   * to prevent.
+   *
+   * `totalBeats` is what Pause measures against — without it the panel
+   * cannot say how far in the sequence had got.
+   * =====================================================================
+   */
+  play?: (opts: { startAtBeat: number }) => Promise<PlaybackHandle>;
+  /** How long the custom sequence runs, in beats. */
+  totalBeats?: number;
+}
+
+/** Where the transport is, so Pause knows what to do. */
+type Transport = 'stopped' | 'playing' | 'paused';
+
+export default function SharedPlayer({
+  chords, orientPc, settings, onSettings, thickness,
+  bassDirection, handDirection, showHands, showListen, attack,
+  board, boardLabel = 'What is sounding', caption, compare, children,
+  controls = true, onStep, beats, play, totalBeats,
+}: SharedPlayerProps) {
+  const { currentInstrument, setCurrentInstrument } = useInstrument();
+  const [handle, setHandle] = useState<PlaybackHandle | null>(null);
+  const [transport, setTransport] = useState<Transport>('stopped');
+  const [lit, setLit] = useState<number | null>(null);
+  // READ ONCE, AT FIRST RENDER. It is a value this device already
+  // holds, not something to synchronise with after the fact.
+  const [foldOpen, setFoldOpen] = useState(readSettingsOpen);
+  /** Wall-clock start and the beat it started at, for Pause. */
+  const clock = useRef<{ at: number; beat: number }>({ at: 0, beat: 0 });
+
+  // Leaving the card mid-playback leaves nothing ringing.
+  useEffect(() => () => { handle?.stop(); }, [handle]);
+
+  const total = totalBeats ?? panelBeats(chords.length, {
+    ...(orientPc === undefined ? {} : { orientPc }),
+    ...(beats === undefined ? {} : { beats }),
+  });
+
+  const run = (startAtBeat: number) => {
+    handle?.stop();
+    clock.current = { at: Date.now(), beat: startAtBeat };
+    setTransport('playing');
+    const started = play !== undefined
+      ? play({ startAtBeat })
+      : playPanel(chords, settings, {
+        ...(orientPc === undefined ? {} : { orientPc }),
+        ...(beats === undefined ? {} : { beats }),
+        ...(startAtBeat > 0 ? { startAtBeat } : {}),
+        onStep: (i: number) => { setLit(i); onStep?.(i); },
+      });
+    void started.then(setHandle).catch(() => { setTransport('stopped'); });
+  };
+
+  /** How far in the sequence is, in beats. */
+  const elapsedBeats = (): number => {
+    const seconds = (Date.now() - clock.current.at) / 1000;
+    const beat = clock.current.beat + seconds * (settings.bpm / 60);
+    // A LOOPING SEQUENCE WRAPS. Resuming a fourth pass at beat 30 of a
+    // 6-beat sequence would start past the end and play nothing.
+    return total > 0 ? beat % total : 0;
+  };
+
+  const hearIt = () => run(0);
+
+  const pauseOrResume = () => {
+    if (transport === 'paused') { run(clock.current.beat); return; }
+    if (transport !== 'playing') return;
+    const at = elapsedBeats();
+    handle?.stop();
+    setHandle(null);
+    clock.current = { at: Date.now(), beat: at };
+    setTransport('paused');
+  };
+
+  /** One chord alone, from its chip. */
+  const hearOne = (i: number) => {
+    const chord = chords[i];
+    if (chord === undefined) return;
+    handle?.stop();
+    setLit(i);
+    setTransport('playing');
+    void playPanel([chord], settings, { loop: 1, beats: 3 })
+      .then(setHandle)
+      .catch(() => { setTransport('stopped'); });
+  };
+
+  const set = (patch: Partial<PlayerSettings>) => onSettings({ ...settings, ...patch });
+
+  const rungs = thickness?.rungs ?? LADDER_RUNGS;
+  const hasBass = chords.some(c => c.bass !== null);
+  const handsRow = showHands ?? hasBass;
+  const listenRow = showListen ?? hasBass;
+  const marks: ReadonlyMap<number, KeyMark> = playerMarks(
+    lit === null ? (chords[0] ?? null) : (chords[lit] ?? null),
+    settings,
+  );
+
+  const directionRow = (
+    label: string, row: DirectionRow, what: string, testId: string,
+  ) => (
+    <Row label={label}>
+      {chords.map((c, i) => (
+        <span key={`${c.name}-${i}`} className="flex items-center gap-1.5">
+          <span className={`${CHIP} border-dashed ${CHIP_OFF} font-mono`}>{c.name}</span>
+          {i < chords.length - 1 && (
+            <button
+              type="button"
+              data-testid={`${testId}-${i}`}
+              title={`${what} moves ${row.effective[i] ?? 'up'} into the next chord. Tap to flip.`}
+              onClick={() => {
+                const next = [...row.value];
+                while (next.length < chords.length - 1) next.push('auto');
+                next[i] = (row.effective[i] ?? 'up') === 'down' ? 'up' : 'down';
+                row.onChange(next);
+              }}
+              className={`${CHIP} ${CHIP_OFF}`}
+            >
+              {(row.effective[i] ?? 'up') === 'down' ? '↓' : '↑'}
+            </button>
+          )}
+        </span>
+      ))}
+    </Row>
+  );
+
+  return (
+    <div
+      className="space-y-3 rounded-xl border border-black/[0.07] dark:border-white/10 p-3"
+      data-testid="shared-player"
+    >
+      {board !== false && (
+        board === undefined
+          ? <BuiltAnswerKeyboard marks={marks} label={boardLabel} />
+          : board
+      )}
+
+      {chords.length > 0 && controls && (
+        <Row label="Hear one chord">
+          {chords.map((c, i) => (
+            <Chip
+              key={`${c.name}-${i}`}
+              on={lit === i}
+              testId={`hear-one-${i}`}
+              onClick={() => hearOne(i)}
+            >
+              <span className="font-mono">{c.name}</span>
+            </Chip>
+          ))}
+        </Row>
+      )}
+
+      {caption !== undefined && (
+        <div className="font-mono text-sm" data-testid="play-it-names">{caption}</div>
+      )}
+
+      {compare !== undefined && compare}
+
+      {controls && thickness !== undefined && (
+        <Row
+          label={thickness.locked === true
+            ? 'Thickness · locked to this row'
+            : 'Thickness'}
+        >
+          {THICKNESSES.filter(t => rungs.includes(t.id)).map(t => (
+            <Chip
+              key={t.id}
+              on={thickness.value === t.id}
+              testId={`thickness-${t.id}`}
+              disabled={thickness.locked === true && t.id !== thickness.value}
+              onClick={() => thickness.onChange(t.id)}
+            >
+              {t.label}
+            </Chip>
+          ))}
+        </Row>
+      )}
+
+      {controls && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            data-testid="player-hear"
+            onClick={hearIt}
+            className={`${CHIP} ${CHIP_ON}`}
+          >
+            Hear it
+          </button>
+          <button
+            type="button"
+            data-testid="player-pause"
+            disabled={transport === 'stopped'}
+            onClick={pauseOrResume}
+            className={`${CHIP} ${CHIP_OFF} disabled:opacity-40 disabled:cursor-default`}
+          >
+            {transport === 'paused' ? 'Resume' : 'Pause'}
+          </button>
+          {transport === 'paused' && (
+            <span
+              className="text-[11px] text-neutral-500 dark:text-neutral-400"
+              data-testid="player-paused-note"
+            >
+              Paused where it was. Resume picks up from here; Hear it starts over.
+            </span>
+          )}
+        </div>
+      )}
+
+      {controls && (
+        <details
+          open={foldOpen}
+          data-testid="player-settings"
+          onToggle={e => {
+            const open = (e.currentTarget as HTMLDetailsElement).open;
+            setFoldOpen(open);
+            writeSettingsOpen(open);
+          }}
+          className="rounded-lg border border-dashed border-black/10 dark:border-white/15 px-3 py-2"
+        >
+          <summary className="cursor-pointer text-xs text-neutral-500 dark:text-neutral-400">
+            Settings
+          </summary>
+          <div className="space-y-3 pt-2">
+            {bassDirection !== undefined && chords.length > 1
+              && directionRow('Bass direction', bassDirection, 'Bass', 'bass-dir')}
+            {handDirection !== undefined && chords.length > 1
+              && directionRow('Hand direction', handDirection, 'Right hand', 'hand-dir')}
+
+            {listenRow && (
+              <Row label="Listen to">
+                <Chip on={settings.listen === 'both'} testId="listen-both" onClick={() => set({ listen: 'both' })}>
+                  Bass and chords
+                </Chip>
+                <Chip on={settings.listen === 'bass'} testId="listen-bass" onClick={() => set({ listen: 'bass' })}>
+                  Bass only
+                </Chip>
+              </Row>
+            )}
+
+            {handsRow && (
+              <Row label="Hands">
+                <Chip on={settings.hands === 'both'} testId="hands-both" onClick={() => set({ hands: 'both' })}>
+                  Both, root in the left
+                </Chip>
+                <Chip on={settings.hands === 'one'} testId="hands-one" onClick={() => set({ hands: 'one' })}>
+                  One, root in the chord
+                </Chip>
+              </Row>
+            )}
+
+            <Row label="Right hand">
+              <Chip on={!settings.octaveUp} testId="hand-written" onClick={() => set({ octaveUp: false })}>
+                As voiced
+              </Chip>
+              <Chip on={settings.octaveUp} testId="hand-up" onClick={() => set({ octaveUp: true })}>
+                Up an octave
+              </Chip>
+            </Row>
+
+            <Row label="Tempo">
+              <label className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+                <input
+                  type="range"
+                  min={BPM_MIN}
+                  max={BPM_MAX}
+                  value={settings.bpm}
+                  data-testid="tempo"
+                  aria-label="Tempo in beats per minute"
+                  onChange={e => set({ bpm: clampBpm(Number(e.target.value)) })}
+                  className="w-28 align-middle"
+                />
+                <input
+                  type="number"
+                  min={BPM_MIN}
+                  max={BPM_MAX}
+                  value={settings.bpm}
+                  data-testid="tempo-number"
+                  aria-label="Tempo, typed"
+                  onChange={e => set({ bpm: clampBpm(Number(e.target.value)) })}
+                  className="w-14 rounded-md border border-black/10 dark:border-white/20 bg-transparent px-1.5 py-0.5 font-mono tabular-nums"
+                />
+                bpm
+              </label>
+            </Row>
+
+            <Row label="Loop">
+              {LOOP_OPTIONS.map(o => (
+                <Chip
+                  key={String(o.id)}
+                  on={settings.loop === o.id}
+                  testId={`loop-${String(o.id)}`}
+                  onClick={() => set({ loop: o.id })}
+                >
+                  {o.label}
+                </Chip>
+              ))}
+            </Row>
+
+            <Row label="Colours">
+              <Chip on={settings.colours === 'plain'} testId="colours-plain" onClick={() => set({ colours: 'plain' })}>
+                Plain
+              </Chip>
+              <Chip on={settings.colours === 'interval'} testId="colours-interval" onClick={() => set({ colours: 'interval' })}>
+                By interval
+              </Chip>
+            </Row>
+
+            <Row label="Instrument">
+              {(['piano', 'rhodes', 'organ', 'strings', 'voice'] as const).map(i => (
+                <Chip
+                  key={i}
+                  on={currentInstrument === i}
+                  testId={`instrument-${i}`}
+                  onClick={() => setCurrentInstrument(i as Instrument)}
+                >
+                  {i.charAt(0).toUpperCase() + i.slice(1)}
+                </Chip>
+              ))}
+            </Row>
+
+            {attack !== undefined && (
+              <Row label="Chord sounds">
+                <Chip on={attack.value === 'blocked'} testId="attack-blocked" onClick={() => attack.onChange('blocked')}>
+                  Blocked
+                </Chip>
+                <Chip on={attack.value === 'up'} testId="attack-up" onClick={() => attack.onChange('up')}>
+                  Broken, up
+                </Chip>
+                <Chip on={attack.value === 'down'} testId="attack-down" onClick={() => attack.onChange('down')}>
+                  Broken, down
+                </Chip>
+              </Row>
+            )}
+          </div>
+        </details>
+      )}
+
+      {children}
+    </div>
+  );
+}

@@ -26,9 +26,20 @@ import { playSeqChords, type SeqChord } from '../audio';
 import { playBlocked, type PlaybackHandle } from '../musicalPlayback';
 import type { VoicedChord } from './voiceLeading';
 import { raise } from './marks';
+import {
+  DEFAULT_BPM as PANEL_BPM, type LoopCount, type PlayerSettings,
+} from '../player/settings';
+import { chordStep, type PlayerChord } from '../player/voices';
 
-/** The tempo the panel opens at. */
-export const DEFAULT_BPM = 72;
+/**
+ * The tempo the panel opens at.
+ *
+ * RE-EXPORTED FROM `player/settings`, WHICH IS NOW WHERE IT LIVES. It
+ * was 72 here and 50 in the shared player's prototype, and two defaults
+ * for one number is exactly what the panel exists to stop. Fifty is the
+ * one Silas signed off.
+ */
+export const DEFAULT_BPM = PANEL_BPM;
 
 /** Two beats a chord, which is the prototype's `beat()*2`. */
 const CHORD_BEATS = 2;
@@ -72,6 +83,73 @@ export interface SequenceOptions {
   /** Fires as each chord starts — index into `chords`, or -1 for the
    *  orienting tonic. */
   onStep?: (index: number) => void;
+}
+
+/**
+ * A whole progression, as the shared panel plays it.
+ *
+ * =====================================================================
+ * THE SAME ENGINE, HANDED THE PANEL'S SETTINGS INSTEAD OF TWO OF THEM.
+ *
+ * `playChords` below takes a bpm and an octave flag because that is all
+ * the Built Answers panel had. This takes the whole settings object, so
+ * "bass only", "one hand", the loop count and the resume point arrive
+ * the same way on every surface rather than as four more arguments per
+ * caller. It is the same `playSeqChords` underneath — there is one
+ * sequencer in this app and this does not add another.
+ *
+ * THE TONIC LEAD-IN IS ONE LOW NOTE AND IT IS NOT REPEATED. It orients
+ * the ear at the top and a loop that sounded it every pass would turn
+ * an orientation into part of the music. So it is played once and the
+ * loop covers the chords.
+ * =====================================================================
+ */
+export async function playPanel(
+  chords: ReadonlyArray<PlayerChord>,
+  settings: PlayerSettings,
+  opts: {
+    /** The key to sound a low tonic in front. Omit for none — a single
+     *  quiz chord never gets one. */
+    orientPc?: number;
+    /** Fires as each chord starts; -1 for the orienting tonic. */
+    onStep?: (index: number) => void;
+    /** Where to pick up, in beats from the top. Resume's whole trick. */
+    startAtBeat?: number;
+    /** Beats per chord. Two, unless a surface says otherwise. */
+    beats?: number;
+    /** Override the settings' loop — a quiz that plays once on arrival
+     *  whatever the panel is set to. */
+    loop?: LoopCount;
+  } = {},
+): Promise<PlaybackHandle> {
+  const beats = opts.beats ?? CHORD_BEATS;
+  const steps = chords.map(c => chordStep(c, settings, beats));
+  const lead = opts.orientPc === undefined ? [] : [tonicStep(opts.orientPc)];
+  const offset = lead.length;
+  return playSeqChords([...lead, ...steps], 0, settings.bpm, {
+    bassBalance: 'forward',
+    loop: opts.loop ?? settings.loop,
+    ...(opts.startAtBeat === undefined ? {} : { startAtBeat: opts.startAtBeat }),
+    ...(opts.onStep
+      ? { onStep: (i: number) => opts.onStep!(i - offset) }
+      : {}),
+  });
+}
+
+/** How many beats a scale runs for — the home chord, then half a beat
+ *  a note. What Pause measures a scale card against. */
+export function scaleBeats(noteCount: number): number {
+  return CHORD_BEATS + noteCount * 0.5;
+}
+
+/** How many beats a panel sequence runs for, so Pause can say where it
+ *  got to and Resume can be told. */
+export function panelBeats(
+  chordCount: number,
+  opts: { orientPc?: number; beats?: number } = {},
+): number {
+  const beats = opts.beats ?? CHORD_BEATS;
+  return (chordCount + (opts.orientPc === undefined ? 0 : 1)) * beats;
 }
 
 /** A progression, or a slash chord in its context. */
@@ -121,6 +199,8 @@ export async function playScale(
     /** The note held underneath, as absolute MIDI. */
     dronePc: number;
     onNote?: (index: number) => void;
+    /** Where to pick up, in beats from the top — the panel's Resume. */
+    startAtBeat?: number;
   },
 ): Promise<PlaybackHandle> {
   const handles: PlaybackHandle[] = [];
@@ -131,14 +211,20 @@ export async function playScale(
     { intervals: [...opts.home], beats: CHORD_BEATS, hands: opts.home.map(() => 'R') },
     ...notes.map((m): SeqChord => ({ intervals: [m], beats: 0.5, hands: ['R'] })),
   ];
+  // THE DRONE IS SHORTENED BY WHAT WAS SKIPPED, not restarted at full
+  // length: resuming three beats in should leave three beats of key
+  // under the rest of the run, not a drone outlasting the scale.
+  const skip = Math.max(0, opts.startAtBeat ?? 0);
+  const runBeats = Math.max(0.5, CHORD_BEATS + notes.length * 0.5 - skip);
   handles.push(await playBlocked(
     36 + opts.dronePc,
     [0],
-    CHORD_BEATS + notes.length * 0.5,
+    runBeats,
     opts.bpm,
     { velocity: DRONE_VELOCITY },
   ));
   handles.push(await playSeqChords(steps, 0, opts.bpm, {
+    ...(skip > 0 ? { startAtBeat: skip } : {}),
     ...(opts.onNote ? { onStep: (i: number) => opts.onNote!(i - 1) } : {}),
   }));
   return { stop: () => handles.forEach(h => h.stop()) };

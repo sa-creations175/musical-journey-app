@@ -32,15 +32,15 @@
  * A voicing is only offered if its bottom note is at or above `FLOOR`
  * and its top note at or below `CEILING`. Without a floor the nearest
  * voicing walks downward chord by chord until the hand is in the bass
- * clef; without a ceiling it climbs off the top of the three octaves
- * the board draws. Where nothing fits between them the search widens
+ * clef; without a ceiling it climbs off the top of where the hand
+ * belongs. Where nothing fits between them the search widens
  * down to `BOTTOM` rather than returning nothing, because a chord that
  * cannot be voiced is a card that cannot be played.
  * =====================================================================
  */
 
-/** The window the hand plays in. Three octaves are drawn from MIDI 36;
- *  the hand lives in the top two. */
+/** The window the hand plays in. The board runs from MIDI 36; the hand
+ *  lives in the middle of it, above the bass and below the lift. */
 export const FLOOR = 55;
 export const CEILING = 72;
 /** How far down the search may reach when nothing fits above `FLOOR` —
@@ -133,15 +133,38 @@ export function voicingDistance(
   return d;
 }
 
-/** The placement closest to the chord before it. */
+/**
+ * The placement closest to the chord before it, in a direction.
+ *
+ * =====================================================================
+ * THE DIRECTION NARROWS THE POOL; IT DOES NOT REPLACE THE MEASURING.
+ *
+ * "Up" means the hand's bottom note lands above the previous hand's,
+ * and among the placements that do, the nearest still wins. So forcing
+ * a direction moves the hand the smallest distance that goes that way,
+ * rather than to some arbitrary octave.
+ *
+ * A DIRECTION WITH NOTHING IN IT IS IGNORED rather than obeyed into
+ * silence: if no placement of this chord sits above the last one inside
+ * the window, the whole pool is measured and the hand goes wherever is
+ * nearest. A control that could produce no chord at all would read as
+ * broken.
+ * =====================================================================
+ */
 export function nearest(
   pcs: ReadonlyArray<number>,
   previous: ReadonlyArray<number>,
+  direction: HandMove | 'auto' = 'auto',
 ): number[] {
   const all = allVoicings(pcs);
+  const bottom = previous.length > 0 ? Math.min(...previous) : null;
+  const wanted = direction === 'auto' || bottom === null
+    ? all
+    : all.filter(v => (direction === 'up' ? v[0] > bottom : v[0] < bottom));
+  const pool = wanted.length > 0 ? wanted : all;
   let best: number[] | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
-  for (const v of all) {
+  for (const v of pool) {
     const d = voicingDistance(v, previous);
     if (d < bestDistance) { bestDistance = d; best = v; }
   }
@@ -150,6 +173,24 @@ export function nearest(
 
 /** Which way the bass moves between two chords. */
 export type BassMove = 'up' | 'down';
+
+/** Which way the right hand moves into the next chord. */
+export type HandMove = 'up' | 'down';
+
+/** A move the reader has not forced. */
+export type Move = BassMove | 'auto';
+
+/**
+ * Where the first bass note sits.
+ *
+ * THE LOW ROOTS START AN OCTAVE DOWN. A line beginning on A♭ or above
+ * takes the bottom octave and everything below it the one above, so the
+ * opening note is never so low it disappears and never so high the line
+ * has nowhere to walk. The prototype's own rule.
+ */
+function firstBass(pc: number): number {
+  return BASS_FLOOR + pc + (pc >= 8 ? 0 : 12);
+}
 
 /**
  * The root under each chord, walking.
@@ -171,21 +212,45 @@ export type BassMove = 'up' | 'down';
  */
 export function bassLine(
   roots: ReadonlyArray<number | null>,
-  moves: ReadonlyArray<BassMove>,
+  moves: ReadonlyArray<Move>,
 ): Array<number | null> {
   const first = roots[0];
   if (first === null || first === undefined) return roots.map(() => null);
-  const line: Array<number | null> = [BASS_FLOOR + first];
+  const line: Array<number | null> = [firstBass(first)];
+  /** Which way the last move actually went, for the alternating rule. */
+  let lastDir: BassMove | null = null;
   for (let i = 1; i < roots.length; i += 1) {
     const root = roots[i];
     if (root === null) { line.push(null); continue; }
     // The last note actually placed, so a gap does not restart the walk.
-    const prev = [...line].reverse().find(m => m !== null) ?? BASS_FLOOR + first;
+    const prev = [...line].reverse().find(m => m !== null) ?? firstBass(first);
     const up = (((root - (prev % 12)) % 12) + 12) % 12;
     const down = ((((prev % 12) - root) % 12) + 12) % 12;
-    line.push((moves[i - 1] ?? 'up') === 'up'
+    let move: Move = moves[i - 1] ?? 'auto';
+    if (move === 'auto') {
+      // =================================================================
+      // A FOURTH OR A FIFTH ALTERNATES; EVERYTHING ELSE TAKES THE
+      // SMALLEST MOVE.
+      //
+      // A 2 5 1 walks by fourths, and a bass that always took the
+      // nearest instance would climb (or fall) a fourth at a time and
+      // be at the end of the keyboard by the third chord. Alternating
+      // keeps it near home: up a fourth, then down a fifth, which is
+      // the same two notes a bass player would reach for.
+      //
+      // Only where the app has not been TOLD. A tapped arrow is the
+      // reader's and this never overrules it.
+      // =================================================================
+      const step = up;
+      move = (step === 5 || step === 7) && lastDir !== null
+        ? (lastDir === 'up' ? 'down' : 'up')
+        : (Math.min(up === 0 ? 12 : up, 12) <= (down === 0 ? 12 : down) ? 'up' : 'down');
+    }
+    const next: number = move === 'up'
       ? prev + (up === 0 ? 12 : up)
-      : prev - (down === 0 ? 12 : down));
+      : prev - (down === 0 ? 12 : down);
+    lastDir = next > prev ? 'up' : 'down';
+    line.push(next);
   }
   const placed = line.filter((m): m is number => m !== null);
   if (placed.length === 0) return line;
@@ -210,8 +275,12 @@ export function voiceAll(
     bass: boolean;
     /** The inversion the FIRST chord takes. */
     inversion?: number;
-    /** Which way the bass walks between chords. */
-    moves?: ReadonlyArray<BassMove>;
+    /** Which way the bass walks between chords. `'auto'`, or absent,
+     *  takes the rule in `bassLine`. */
+    moves?: ReadonlyArray<Move>;
+    /** Which way the RIGHT HAND moves into each next chord. `'auto'`,
+     *  or absent, takes the nearest voicing. */
+    handMoves?: ReadonlyArray<Move>;
   },
 ): Array<VoicedChord | null> {
   const line = bassLine(chords.map(c => (c ? c.rootPc : null)), opts.moves ?? []);
@@ -223,7 +292,7 @@ export function voiceAll(
     const hand = pcs.length === 0
       ? []
       : previous !== null
-        ? nearest(pcs, previous)
+        ? nearest(pcs, previous, opts.handMoves?.[i - 1] ?? 'auto')
         : voicingsOf(pcs, opts.inversion ?? 0)[0] ?? allVoicings(pcs)[0] ?? [];
     out.push({ hand, bass: opts.bass ? line[i] : null, rootPc: chord.rootPc });
     if (hand.length > 0) previous = hand;

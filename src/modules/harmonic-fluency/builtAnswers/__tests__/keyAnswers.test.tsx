@@ -14,6 +14,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
+// THE PANEL READS THE GLOBAL INSTRUMENT, so a surface that shows it
+// has to be mounted inside the provider the app mounts it inside.
+import { InstrumentProvider } from '../../../../lib/instrumentContext';
 import { act } from 'react';
 
 const played = vi.hoisted(() => ({ seq: [] as unknown[][], drones: [] as number[] }));
@@ -72,12 +75,14 @@ function mountRoot(which: typeof relMinor, answered = false) {
   root = createRoot(host);
   act(() => {
     root.render(
-      <RootAnswer
-        card={which.card}
-        target={which.target}
-        answered={answered}
-        answer={c => chosen.push(c)}
-      />,
+      <InstrumentProvider>
+        <RootAnswer
+          card={which.card}
+          target={which.target}
+          answered={answered}
+          answer={c => chosen.push(c)}
+        />,
+      </InstrumentProvider>,
     );
   });
 }
@@ -88,12 +93,14 @@ function mountSignature(which: typeof countG, answered = false) {
   root = createRoot(host);
   act(() => {
     root.render(
-      <SignatureAnswer
-        card={which.card}
-        target={which.target}
-        answered={answered}
-        answer={c => chosen.push(c)}
-      />,
+      <InstrumentProvider>
+        <SignatureAnswer
+          card={which.card}
+          target={which.target}
+          answered={answered}
+          answer={c => chosen.push(c)}
+        />,
+      </InstrumentProvider>,
     );
   });
 }
@@ -183,7 +190,7 @@ describe('the relative key reveals its scale', () => {
 
   it('plays the home chord, then the scale over its own root', async () => {
     mountRoot(relMinor, true);
-    tap(byTestId('play-it-hear'));
+    tap(byTestId('player-hear'));
     await settle();
     // The home chord, then fifteen notes: seven up, the octave, seven
     // back.
@@ -255,11 +262,11 @@ describe('the count card reveals the key it was about', () => {
   it('draws the scale, so the accidentals are countable', () => {
     mountSignature(countG, true);
     expect(host.querySelector('[data-testid="built-answer-keyboard"]')).not.toBeNull();
-    expect(lit()).toBeGreaterThanOrEqual(21);
-    // One black key in the key of G major, in each octave.
+    expect(lit()).toBeGreaterThanOrEqual(28);
+    // One black key in the key of G major, in each of the four octaves.
     const blackLit = [...host.querySelectorAll('rect[data-mark="marked"]')]
       .filter(r => [1, 3, 6, 8, 10].includes(Number(r.getAttribute('data-midi')) % 12));
-    expect(blackLit).toHaveLength(3);
+    expect(blackLit).toHaveLength(4);
   });
 
   it('says the count in words under the panel', () => {
