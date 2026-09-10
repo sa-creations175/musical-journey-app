@@ -399,29 +399,13 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
       }));
   }, []);
 
-  // Also roll up per scaffolding mode so the user can see whether
-  // Minimal mode is lagging Full.
-  const scaffoldStats = useMemo(() => ([
-    { mode: 'full' as const, label: 'Full Scaffolding', stats: rollingFor(attempts, 'motion-mode:full') },
-    { mode: 'partial' as const, label: 'Partial Scaffolding', stats: rollingFor(attempts, 'motion-mode:partial') },
-    { mode: 'minimal' as const, label: 'Minimal Scaffolding', stats: rollingFor(attempts, 'motion-mode:minimal') },
-  ]), [attempts]);
-
+  // NO BREAKDOWN BY SCAFFOLDING. There was one — Full / Partial /
+  // Minimal — read from `motion-mode:*` rows, and scaffolding retired as
+  // a setting when Chord Motion moved onto the shared player (10 Sep
+  // 2026). Nothing writes those rows now, so the three numbers could
+  // only ever show a frozen split. The stored rows are untouched.
   return (
     <div className="space-y-5">
-      <div>
-        <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">accuracy by scaffolding</h3>
-        <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-          {scaffoldStats.map(s => (
-            <SimpleStatRow
-              key={s.mode}
-              label={s.label}
-              stats={s.stats}
-              extra="full credit only — half-credit Minimal rounds count as wrong here"
-            />
-          ))}
-        </div>
-      </div>
       {groups.map(g => (
         <div key={g.key}>
           <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{g.title}</h3>
@@ -463,10 +447,9 @@ export default function ProgressionFluencyTracker({ attempts }: Props) {
   const intervals = useSpacingIntervals(MODULE_ID);
   // One instant for every strip on the screen, and one subscription for
   // every bar — a hook per StatRow would open a live query per row.
-  const stripFacts = useMemo(
-    () => ({ intervals, now: Date.now() }),
-    [intervals],
-  );
+  // TAKEN AT MOUNT, not during a render, the way the S&P grids take it.
+  const [now] = useState(() => Date.now());
+  const stripFacts = useMemo(() => ({ intervals, now }), [intervals, now]);
 
   return (
     <StripContext.Provider value={stripFacts}>

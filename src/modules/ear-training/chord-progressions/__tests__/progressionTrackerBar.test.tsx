@@ -169,3 +169,24 @@ describe('each sub-skill fades on its own interval', () => {
     h.unmount();
   });
 });
+
+describe('the Chord Motion view', () => {
+  it('shows no scaffolding breakdown, even over stored scaffolding rows', () => {
+    // THE ROWS STILL EXIST — Chord Motion wrote `motion-mode:*` until
+    // scaffolding retired on 10 Sep 2026 — so a breakdown reading them
+    // would render a frozen split. Feed it some and look.
+    const t = mount([
+      att('motion-mode:full', true, 3),
+      att('motion-mode:minimal', false, 3),
+      att('motion:1-4-asc', true, 1),
+    ]);
+    const tab = [...document.querySelectorAll('button')]
+      .find(b => b.textContent === 'Chord Motion');
+    if (!tab) throw new Error('no Chord Motion tab');
+    act(() => { tab.click(); });
+    // Guard the guard: this IS the Chord Motion view.
+    expect(t.text()).toMatch(/2nds — \d+ motions/);
+    expect(t.text()).not.toMatch(/Scaffolding|scaffolding/);
+    t.unmount();
+  });
+});
