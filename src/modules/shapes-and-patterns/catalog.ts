@@ -859,7 +859,14 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: 'dom7b9',
     kind: 'inversion-4',
-    label: 'dom7b9 → minor',
+    // NAMED LIKE ITS SIBLINGS: the chords and the landing. It read
+    // "dom7b9 → minor" until 10 Sep 2026, which named a chord QUALITY
+    // on the left and a chord FAMILY on the right — two different kinds
+    // of fact either side of one arrow, and neither of them a degree.
+    // Silas's signed-off shared-player prototype names all three passes
+    // the same way. The id did not move: `dom7b9` is a segment of every
+    // spacingState itemRef already logged against this row.
+    label: '5(7♭9) → 1m',
     description: 'Right-hand dim7 voicing over dominant bass, resolving to minor. Four starting positions for the right hand.',
     chords: [
       { degree: '5', quality: '7b9' },
@@ -870,7 +877,9 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: 'dim7',
     kind: 'inversion-4',
-    label: 'dim7 → minor',
+    // The same rename, for the same reason — see the row above. The id
+    // stays `dim7`.
+    label: '7(dim7) → 1m',
     description: 'Diminished passing chord resolving to minor. Four starting positions for the right hand.',
     // THE HALF-STEP-UP RESOLUTION, which is the one the submodule
     // design doc leads with (Bdim7 → Cm in the key of C). That doc
@@ -1173,7 +1182,7 @@ export type VLPositionSlot =
  *     5 → 1 (then called "Minor ABA"), because A and B were a
  *     convention in the source material.
  *   · "Root Position / 1st Inversion / 2nd Inversion / 3rd Inversion"
- *     on dom7b9 → minor and dim7 → minor.
+ *     on 5(7♭9) → 1m and 7(dim7) → 1m.
  *
  * THE LAST OF THOSE WAS THE ONE THAT MATTERED. Naming an inversion
  * says the row is about which note of the CHORD is in the bass — and

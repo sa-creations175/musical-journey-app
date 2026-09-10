@@ -115,6 +115,23 @@ describe("the stray row already in the database is inert", () => {
     expect(row.label).toBe(MINOR_251.label);
   });
 
+  it('reads a name a row was renamed away from as empty too', () => {
+    // THE RENAME OF 10 SEP 2026. An override still holding "dom7b9 →
+    // minor" is a stray click from before the rename, not a decision —
+    // left as an override it would pin the old name on screen for ever,
+    // with no control on the page to undo it.
+    for (const [id, was] of [
+      ['dom7b9', 'dom7b9 → minor'],
+      ['dim7', 'dim7 → minor'],
+    ] as const) {
+      const builtin = VOICE_LEADING_PATTERNS.find(p => p.id === id)!;
+      expect(overrideIsEmpty({ id, label: was, createdAt: 1 }, builtin.label), id)
+        .toBe(true);
+      expect(mergePatternList([{ id, label: was, createdAt: 1 }])
+        .find(p => p.id === id)!.label, id).toBe(builtin.label);
+    }
+  });
+
   it('needs no write to become harmless — merging alone neutralises it', () => {
     const before = [STRAY_ROW];
     const merged = mergePatternList(before);

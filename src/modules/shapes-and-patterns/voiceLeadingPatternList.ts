@@ -140,6 +140,9 @@ const RENAMED_AWAY: ReadonlySet<string> = new Set([
   // 9 Sep 2026 — the pass named for its chords and its landing.
   'Minor ABA (dom7#9#5 → minor)',
   'Minor 5 → 1 (7♯9♯5)',
+  // 10 Sep 2026 — the other two passes take the same shape of name.
+  'dom7b9 → minor',
+  'dim7 → minor',
 ]);
 
 /**

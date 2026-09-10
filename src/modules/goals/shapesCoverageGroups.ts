@@ -530,8 +530,8 @@ const GROUP_SHAPES: ReadonlyArray<GroupShape> = [
   // The group ID keeps its old spelling — it is stored on goals —
   // while the label follows the row's name on the page.
   ...vlPatternGroupDef('voice_leading_minor_aba',      'minor-aba',      '5(7♯9♯5) → 1m'),
-  ...vlPatternGroupDef('voice_leading_dom7b9',         'dom7b9',         'dom7b9 → minor'),
-  ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           'dim7 → minor'),
+  ...vlPatternGroupDef('voice_leading_dom7b9',         'dom7b9',         '5(7♭9) → 1m'),
+  ...vlPatternGroupDef('voice_leading_dim7',           'dim7',           '7(dim7) → 1m'),
   // The five named progressions, labelled as the row on the page is:
   // every chord showing its quality, separated by middle dots (Silas's
   // ruling of 10 Sep 2026). A goal scoped to a row and the row itself

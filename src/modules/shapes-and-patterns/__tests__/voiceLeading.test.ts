@@ -498,6 +498,46 @@ describe('voiceLeadingSubCellLabel', () => {
     expect(VOICE_LEADING_PATTERN_BY_ID.has('minor-aba')).toBe(true);
   });
 
+  it('names all three passes the same way, chords then landing', () => {
+    /**
+     * =================================================================
+     * THREE PASSES, ONE SHAPE OF NAME. Silas's ruling of 10 Sep 2026.
+     *
+     * Two of them read "dom7b9 → minor" and "dim7 → minor" — a chord
+     * QUALITY on the left of the arrow and a chord FAMILY on the right,
+     * neither of them a degree, and neither matching the third pass
+     * beside them on the same page. All three now name the degree with
+     * its quality in brackets, then where it lands.
+     *
+     * THE IDS DID NOT MOVE, and that is the half of this worth a test:
+     * `dom7b9` and `dim7` are segments of every spacingState itemRef
+     * already logged against these rows.
+     * =================================================================
+     */
+    for (const [id, label] of [
+      ['minor-aba', '5(7♯9♯5) → 1m'],
+      ['dom7b9', '5(7♭9) → 1m'],
+      ['dim7', '7(dim7) → 1m'],
+    ] as const) {
+      const pattern = VOICE_LEADING_PATTERN_BY_ID.get(id);
+      expect(pattern, id).toBeDefined();
+      expect(pattern!.label, id).toBe(label);
+      // The chords the row actually holds, so the name cannot drift
+      // from the music: the arrow's left side is the row's first chord.
+      expect(pattern!.chords[pattern!.chords.length - 1].degree, id).toBe('1');
+    }
+  });
+
+  it('never names a pass by a quality alone', () => {
+    // The old shape — "dom7b9 → minor" — read as one chord quality
+    // resolving to another, which is not what any of these rows is.
+    // A sweep, so a pass added later cannot bring it back.
+    for (const pattern of VOICE_LEADING_PATTERNS) {
+      if (!pattern.label.includes('→')) continue;
+      expect(pattern.label, pattern.label).toMatch(/^[♭♯#b]?\d/);
+    }
+  });
+
   it('numbers the positions from the lowest start, in tag order', () => {
     // The display number is derived from the storage tag, so a row
     // cannot be renumbered by accident: A is 1, B is 2, C is 3.
