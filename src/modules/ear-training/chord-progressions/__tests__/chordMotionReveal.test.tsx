@@ -24,7 +24,12 @@ import { motionChords } from '../motionChords';
 // says afterwards.
 vi.mock('../../../../lib/builtAnswers/play', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../../lib/builtAnswers/play')>()),
-  playPanel: vi.fn(async () => ({ stop() {} })),
+  // The first step "sounds" at once, so a caller following along by
+  // `onStep` is told — which is how the ring follows a chord chip.
+  playPanel: vi.fn(async (_c: unknown, _s: unknown, opts?: { onStep?: (i: number) => void }) => {
+    opts?.onStep?.(0);
+    return { stop() {} };
+  }),
 }));
 
 const { default: ChordMotionTab } = await import('../ChordMotionTab');
@@ -365,5 +370,21 @@ describe('the borrowed qualities: 4m, 2ø and 5m', () => {
     const rings = [...el.querySelectorAll('[data-testid^="key-ring-"]')];
     expect(rings.length).toBeGreaterThan(0);
     for (const r of rings) expect(r.getAttribute('stroke')).toBe('#9333ea');
+  });
+});
+
+describe('the ring follows a chord chip', () => {
+  it('tapping the 1 after the reveal drops the 4’s ring and says so', async () => {
+    const el = await deal();
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-4');
+    await click(el, 'motion-submit');
+    // Guard: the reveal opens on the 4, ringed.
+    expect(el.querySelectorAll('[data-testid^="key-ring-"]').length).toBeGreaterThan(0);
+    await click(el, 'hear-one-0');
+    // The 1 carries no ring, and the legend says it is home — not
+    // "the 4 of the key" left over from the chord before.
+    expect(el.querySelectorAll('[data-testid^="key-ring-"]')).toHaveLength(0);
+    expect(el.querySelector('[data-testid="legend-home-line"]')).not.toBeNull();
   });
 });

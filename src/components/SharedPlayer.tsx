@@ -332,14 +332,28 @@ export default function SharedPlayer({
     setTransport('paused');
   };
 
-  /** One chord alone, from its chip. */
+  /**
+   * One chord alone, from its chip.
+   *
+   * IT LIGHTS THROUGH THE PAINT LOOP, LIKE HEAR IT. It used to set the
+   * board as the chip was tapped and then play, so the keys changed
+   * before the chord was heard — on headphones with any delay, and
+   * whatever the Visual timing dial said. Now the chord's one step
+   * paints when the audio clock reaches it, held by the reported delay
+   * and the dial, and the caller hears about it the same way it hears
+   * about every step of Hear it — so a surface drawing its own ring
+   * follows the chip too.
+   */
   const hearOne = (i: number) => {
     const chord = chords[i];
     if (chord === undefined) return;
     handle?.stop();
-    setLit(i);
     setTransport('playing');
-    void playPanel([chord], settings, { loop: 1, beats: 3 })
+    void playPanel([chord], settings, {
+      loop: 1,
+      beats: 3,
+      onStep: () => { setLit(i); onStep?.(i); },
+    })
       .then(setHandle)
       .catch(() => { setTransport('stopped'); });
   };
