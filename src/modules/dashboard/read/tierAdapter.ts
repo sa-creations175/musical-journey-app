@@ -81,6 +81,13 @@ export function tierFromItemStats(stats: ItemStats, now: number): Tier {
     daysSinceLastAttempt: stats.lastAt === null
       ? null
       : Math.floor((now - stats.lastAt) / DAY_MS),
+    // THE KIND IS ON THE STATS AND WAS BEING DROPPED. Every self-rated
+    // item was held to the measured floor of five, so a shape rated
+    // three times read Started while the page said three was enough.
+    kind: stats.accuracyKind,
+    // And its score is a RUNG rather than a percentage — see
+    // `TierInput.selfRatedScore`.
+    ...(stats.score === null ? {} : { selfRatedScore: stats.score }),
   });
 }
 
@@ -238,21 +245,23 @@ export function tierForNode(node: TreeNode, now: number): Tier {
     windowTotal,
     daysSinceLastAttempt: daysSince,
     kind: node.accuracyKind,
+    ...(node.accuracyKind === 'self-rated' ? { selfRatedScore: node.score } : {}),
   });
 
   // =====================================================================
-  // SELF-RATED STOPS AT FLUENT, AND THE REASON CHANGED ON 10 SEP 2026.
+  // THE FLUENT CAP IS GONE. Ruled 25 Aug 2026, confirmed 10 Sep.
   //
-  // It used to be that Mastered meant a full window with nothing wrong,
-  // which a four-rung feel scale cannot produce. Mastered is now 95% of
-  // the window, which a wall of "In flow" reaches easily — so the cap
-  // is no longer a statement about what the scale can express.
+  // A self-rated cell used to stop one rung below the top, because
+  // Mastered meant a full window of twenty with nothing wrong and a
+  // four-rung feel scale cannot produce one. Mastered is 95% of the
+  // window now, and the window on a self-rated cell is its last three
+  // reps: THREE In flow IN A ROW reads Mastered.
   //
-  // It stays because of what the WORD claims. Mastered is the app's
-  // strongest rating and a self-rated row is the player's own account
-  // of how it felt; the app has not tested it. Fluent is as far as an
-  // untested claim goes. Raised with Silas rather than dropped quietly.
+  // Which is the right claim to let a player make. They played the
+  // thing three times and said it flowed each time; the app declining
+  // to believe them was an artefact of a rule that has since changed.
+  // In flow, In flow, Clean is still Fluent — the lowest of the three
+  // is what the cell reads, so one merely-clean rep holds it.
   // =====================================================================
-  if (node.accuracyKind === 'self-rated' && tier === 'mastered') return 'fluent';
   return tier;
 }

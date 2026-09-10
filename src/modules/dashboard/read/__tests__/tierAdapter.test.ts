@@ -269,3 +269,65 @@ describe('tierCountsForCatalog — the denominator fix', () => {
     expect(tierFromItemStats(stats, NOW)).not.toBe('untouched');
   });
 });
+
+/**
+ * A self-rated cell can reach Mastered.
+ *
+ * =====================================================================
+ * THREE In flow IN A ROW. Ruled 25 Aug 2026, confirmed 10 Sep.
+ *
+ * Shapes & Patterns, Mental Visualisation and the production lessons
+ * used to stop one rung below the top, because Mastered meant a full
+ * window of twenty with nothing wrong and a four-rung feel scale cannot
+ * produce one. Both halves of that changed: Mastered is 95% of the
+ * window, and a self-rated window is the last three reps.
+ *
+ * The two cases the ruling names, and they are the whole test: three In
+ * flow reads Mastered, and In flow / In flow / Clean reads Fluent —
+ * because the cell is the LOWEST of the three, so one merely-clean rep
+ * holds it.
+ * =====================================================================
+ */
+describe('a self-rated cell can reach Mastered', () => {
+  /** A run of self-rated reps, newest last, as feel values. */
+  const cell = (...feels: number[]) => itemStatsFromEngagements(
+    'shape',
+    feels.map((score, i) => ({
+      itemRef: 'shape', timestamp: NOW - (feels.length - i) * 1000, score,
+    })),
+    { accuracyKind: 'self-rated' },
+  );
+
+  const IN_FLOW = 100;
+  const CLEAN = 75;
+  const WORKING = 50;
+  const STRUGGLED = 25;
+
+  it('reads Mastered on three In flow in a row', () => {
+    expect(tierFromItemStats(cell(IN_FLOW, IN_FLOW, IN_FLOW), NOW)).toBe('mastered');
+  });
+
+  it('reads Fluent on In flow, In flow, Clean', () => {
+    expect(tierFromItemStats(cell(IN_FLOW, IN_FLOW, CLEAN), NOW)).toBe('fluent');
+  });
+
+  it('takes the lowest of the three, not their average', () => {
+    // THE RULE THE PAGE STATES. Averaging let one Struggled hide behind
+    // two In flows: 25, 100, 100 means 75, and the cell read Fluent on
+    // a shape that fell apart one time in three.
+    expect(tierFromItemStats(cell(STRUGGLED, IN_FLOW, IN_FLOW), NOW)).toBe('needsWork');
+    expect(tierFromItemStats(cell(CLEAN, CLEAN, WORKING), NOW)).toBe('developing');
+    expect(tierFromItemStats(cell(CLEAN, CLEAN, CLEAN), NOW)).toBe('fluent');
+  });
+
+  it('reads Started under three reps, however good they were', () => {
+    expect(tierFromItemStats(cell(IN_FLOW, IN_FLOW), NOW)).toBe('started');
+  });
+
+  it('reads only the last three, so an old rep cannot hold it down', () => {
+    // Newest last: the Struggled is four reps back and has dropped out.
+    expect(tierFromItemStats(
+      cell(STRUGGLED, IN_FLOW, IN_FLOW, IN_FLOW), NOW,
+    )).toBe('mastered');
+  });
+});

@@ -75,13 +75,30 @@ describe('the tier a category reads as', () => {
     }), NOW)).toBe('mastered');
   });
 
-  it('stops a SELF-RATED category one rung short of mastered', () => {
-    // A four-rung feel scale cannot earn a perfect measured window, and
-    // calling it mastered would claim twenty clean run-throughs nobody
-    // counted.
+  it('lets a SELF-RATED category reach mastered too', () => {
+    // =================================================================
+    // THE CAP IS GONE. Ruled 25 Aug 2026, confirmed 10 Sep.
+    //
+    // It stopped one rung short because Mastered meant a full window of
+    // twenty with nothing wrong, which a four-rung feel scale cannot
+    // produce. Mastered is 95% of the window now, and a self-rated
+    // window is the last three reps — so three In flow in a row reads
+    // Mastered, which is the right claim to let a player make.
+    // =================================================================
     expect(tierForNode(node({
       score: 100, engagementCount: MASTERY_WINDOW, accuracyKind: 'self-rated',
+    }), NOW)).toBe('mastered');
+  });
+
+  it('still holds a self-rated category at the rung it earned', () => {
+    // A rung, not a percentage: Clean is 75 and reads Fluent, where a
+    // measured 75 would read Developing.
+    expect(tierForNode(node({
+      score: 75, engagementCount: MASTERY_WINDOW, accuracyKind: 'self-rated',
     }), NOW)).toBe('fluent');
+    expect(tierForNode(node({
+      score: 50, engagementCount: MASTERY_WINDOW, accuracyKind: 'self-rated',
+    }), NOW)).toBe('developing');
   });
 
   it('goes stale on a good grade left alone', () => {

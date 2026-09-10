@@ -46,7 +46,10 @@
 // surface that renders the canonical garden vocabulary — see
 // src/modules/goals/GoalFormModal.tsx::LevelSelect.
 
-import { statusColour, type StatusColour, type StatusKey } from './spacing/statusColour';
+import {
+  STATUS_FOR_FEEL, statusColour, type StatusColour, type StatusKey,
+} from './spacing/statusColour';
+import { fluencyValue } from './fluencyScale';
 import {
   bandOf, bandPercent, ratingFloor, ratingRules, type RatingKind,
 } from './ratingRules';
@@ -105,7 +108,43 @@ export interface TierInput {
   /** How the score was arrived at, which picks the floor. Measured
    *  unless a caller says otherwise. */
   kind?: RatingKind;
+  /**
+   * The window's score, 0–100, for a SELF-RATED item.
+   *
+   * =====================================================================
+   * A FEEL RATING IS A RUNG, NOT A PERCENTAGE, AND IS NOT BANDED.
+   *
+   * Clean is 75, and 75 falls in the 60–79 accuracy band — so putting a
+   * self-rated score through `bandOf` called a Clean rep Developing,
+   * which is the app disagreeing with the word the player pressed. The
+   * four rungs map to the four words directly and always have; that
+   * mapping is `STATUS_FOR_FEEL`, and it is the alignment the whole
+   * colour palette is built on.
+   *
+   * Absent on a measured item, where the score IS a percentage.
+   * =====================================================================
+   */
+  selfRatedScore?: number;
 }
+
+/** The word a self-rated score has earned: the highest rung at or below
+ *  it. A rolled-up average landing between two rungs reads as the lower
+ *  one — you reach a rung, you are not rounded up into it. */
+function tierOfRung(score: number): Exclude<Tier, 'stale' | 'started' | 'untouched'> {
+  const feel = ([4, 3, 2, 1] as const).find(f => score >= fluencyValue(f)) ?? 1;
+  return TIER_FOR_STATUS[STATUS_FOR_FEEL[feel]];
+}
+
+const TIER_FOR_STATUS: Readonly<Record<
+  StatusKey, Exclude<Tier, 'stale' | 'started' | 'untouched'>
+>> = {
+  'not-started': 'needsWork',
+  'started': 'needsWork',
+  'needs-work': 'needsWork',
+  'developing': 'developing',
+  'fluent': 'fluent',
+  'mastered': 'mastered',
+};
 
 /**
  * The band an item has earned.
@@ -133,7 +172,9 @@ export function computeTier(input: TierInput): Tier {
   const { windowCorrect, windowTotal, daysSinceLastAttempt } = input;
   if (windowTotal === 0) return 'untouched';
   if (windowTotal < ratingFloor(input.kind ?? 'measured')) return 'started';
-  const base = bandOf(windowCorrect / windowTotal);
+  const base = input.kind === 'self-rated' && input.selfRatedScore !== undefined
+    ? tierOfRung(input.selfRatedScore)
+    : bandOf(windowCorrect / windowTotal);
   if ((base === 'mastered' || base === 'fluent') &&
       daysSinceLastAttempt !== null && daysSinceLastAttempt >= STALE_DAYS) {
     return 'stale';
