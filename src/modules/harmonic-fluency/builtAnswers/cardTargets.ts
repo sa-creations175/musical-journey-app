@@ -30,7 +30,8 @@ import type { QualityId } from '../../../lib/builtAnswers/chordShapes';
 import { CHORD_INTERVALS } from '../../../lib/builtAnswers/chordShapes';
 import type { Flashcard } from '../catalog';
 import {
-  SLASH_SHAPES, degreeAsciiOrNull, noteLabel, progressionVoicing,
+  SLASH_SHAPES, degreeAsciiOrNull, noteLabel, progressionVariation,
+  progressionVoicing,
 } from '../catalogExpansions';
 import { majorPentatonic, minorPentatonic, relativeMinorRoot } from '../pentatonics';
 
@@ -52,6 +53,14 @@ export type BuiltTarget =
     keyPc: number;
     keyName: string;
     chords: TargetChord[];
+    /**
+     * The other version of this progression, where it has one.
+     *
+     * NOT PART OF THE ANSWER. The card grades the roots and families of
+     * the chords above; this is something the reveal can play beside
+     * them so a reader can hear what the 6 does when it is a dominant.
+     */
+    variation?: { index: number; quality: QualityId; label: string };
   }
   | {
     kind: 'scale';
@@ -163,7 +172,27 @@ export function builtTargetFor(card: Flashcard): BuiltTarget | null {
           name: `${noteLabel(ascii)}${quality}`,
         });
       }
-      return { kind: 'progression', keyPc, keyName: noteLabel(key), chords };
+      const other = progressionVariation(shape);
+      // A version naming a quality this deck cannot build, or a chord
+      // the progression does not have, is not offered — the same
+      // refusal the chords themselves take above.
+      const usable = other !== undefined && other !== null
+        && other.quality in CHORD_INTERVALS && other.index < chords.length;
+      return {
+        kind: 'progression',
+        keyPc,
+        keyName: noteLabel(key),
+        chords,
+        ...(usable
+          ? {
+            variation: {
+              index: other.index,
+              quality: other.quality as QualityId,
+              label: other.label,
+            },
+          }
+          : {}),
+      };
     }
 
     case 'slash-chords': {

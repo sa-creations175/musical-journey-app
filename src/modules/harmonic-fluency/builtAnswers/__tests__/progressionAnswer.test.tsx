@@ -259,3 +259,198 @@ describe('the reveal is the card\'s progression', () => {
     expect(played.seq).toHaveLength(1);
   });
 });
+
+/**
+ * Mount a different progression card than the file's own, answered, on
+ * its own root — every test here is about the reveal, and the reveal is
+ * where these two controls live.
+ */
+function mountOther(id: string) {
+  const other = FLASHCARDS.find(c => c.id === id)!;
+  const t = builtTargetFor(other)!;
+  if (t.kind !== 'progression') throw new Error(`${id} is not a progression`);
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  act(() => {
+    root.render(
+      <ProgressionAnswer card={other} target={t} answered answer={() => {}} />,
+    );
+  });
+}
+
+/** The pitch classes the board is showing. */
+const litPcs = () => [...host.querySelectorAll('rect[data-mark="marked"]')]
+  .map(r => Number(r.getAttribute('data-midi')) % 12);
+
+describe('rotate — the same chords, entered by a different door', () => {
+  it('labels the button with the rotation now playing', () => {
+    mount(true);
+    expect(byTestId('rotate')!.textContent).toBe('2 5 1');
+  });
+
+  it('advances one door per tap, and comes back round', () => {
+    mount(true);
+    tap(byTestId('rotate'));
+    expect(byTestId('rotate')!.textContent).toBe('5 1 2');
+    tap(byTestId('rotate'));
+    expect(byTestId('rotate')!.textContent).toBe('1 2 5');
+    tap(byTestId('rotate'));
+    expect(byTestId('rotate')!.textContent).toBe('2 5 1');
+  });
+
+  it('reorders the chord names with it', () => {
+    mount(true);
+    expect(byTestId('play-it-names')!.textContent).toBe('Cm7 - F7 - B♭maj7');
+    tap(byTestId('rotate'));
+    expect(byTestId('play-it-names')!.textContent).toBe('F7 - B♭maj7 - Cm7');
+  });
+
+  it('plays the rotated order, still behind the key\'s own low tonic', () => {
+    mount(true);
+    tap(byTestId('rotate'));
+    tap(byTestId('play-it-hear'));
+    const steps = played.seq[0] as Array<{ intervals: number[] }>;
+    expect(steps).toHaveLength(4);
+    // The orienting note is the KEY's tonic, not the rotation's first
+    // chord: B♭ either way, which is the point of hearing a 5 1 2 as a
+    // rotation rather than as a progression in F.
+    expect(steps[0].intervals).toEqual([36 + 10, 48 + 10]);
+    // And the first chord after it is the F7, not the Cm7.
+    expect(steps[1].intervals.includes(53) || steps[1].intervals.includes(41))
+      .toBe(true);
+  });
+
+  it('is silent until Hear it is tapped', () => {
+    mount(true);
+    tap(byTestId('rotate'));
+    tap(byTestId('rotate'));
+    expect(played.seq).toHaveLength(0);
+  });
+
+  it('changes nothing about the answer', () => {
+    // A player setting. The slots still read the card's own chords in
+    // the card's own order.
+    mount(true);
+    tap(byTestId('rotate'));
+    expect(all('[data-testid^="slot-"]').map(s => s.textContent))
+      .toEqual(['Cm7', 'F7', 'B♭maj7']);
+  });
+
+  it('starts back at the card\'s own order on the next card', () => {
+    // The surface is keyed on the card id, so a new card is a new
+    // mount and the rotation is gone with it.
+    mount(true);
+    tap(byTestId('rotate'));
+    expect(byTestId('rotate')!.textContent).toBe('5 1 2');
+    act(() => { root.unmount(); });
+    host.remove();
+    mountOther('pr-prog-2-5-1-C');
+    expect(byTestId('rotate')!.textContent).toBe('2 5 1');
+  });
+
+  it('is on every progression card, whatever its shape', () => {
+    // The brief's rule: all 78, not only the loops the deck happens to
+    // teach a rotation of.
+    for (const [id, label] of [
+      ['pr-prog-1-4-5-C', '1 4 5'],
+      ['pr-prog-1-5-6-4-G', '1 5 6 4'],
+      ['pr-prog-1-6-4-5-Eb', '1 6 4 5'],
+      // A degree with an accidental is written the way the deck writes
+      // it everywhere else.
+      ['pr-prog-backdoor-F', '1 4 ♭7 1'],
+    ] as const) {
+      act(() => { root.unmount(); });
+      host.remove();
+      mountOther(id);
+      expect(byTestId('rotate')!.textContent, id).toBe(label);
+    }
+  });
+});
+
+describe('hear the other version', () => {
+  it('is offered only where the progression carries one', () => {
+    mount(true);
+    expect(byTestId('version-row')).toBeNull();
+    act(() => { root.unmount(); });
+    host.remove();
+    mountOther('pr-prog-1-6-2-5-C');
+    expect(byTestId('version-row')).not.toBeNull();
+    expect(byTestId('version-other')!.textContent).toBe('6 as a dominant');
+  });
+
+  it('reads the label off the progression, so it is the same in all thirteen keys', () => {
+    for (const id of ['pr-prog-1-6-2-5-C', 'pr-prog-1-6-2-5-F#', 'pr-prog-1-6-2-5-Db']) {
+      act(() => { root.unmount(); });
+      host.remove();
+      mountOther(id);
+      expect(byTestId('version-other')!.textContent, id).toBe('6 as a dominant');
+    }
+  });
+
+  it('turns the 6 into a dominant and leaves every other chord alone', () => {
+    mountOther('pr-prog-1-6-2-5-C');
+    expect(byTestId('play-it-names')!.textContent).toBe('C - Am - Dm - G');
+    tap(byTestId('version-other'));
+    expect(byTestId('play-it-names')!.textContent).toBe('C - A7 - Dm - G');
+    tap(byTestId('version-regular'));
+    expect(byTestId('play-it-names')!.textContent).toBe('C - Am - Dm - G');
+  });
+
+  it('plays it as a plain major triad on the triads rung', () => {
+    // The brief's rule, and it falls out of the order rather than
+    // being written: the version goes on first and the ladder thins it
+    // afterwards, so `TRIAD_OF['7']` does the work.
+    mountOther('pr-prog-1-6-2-5-C');
+    tap(byTestId('version-other'));
+    tap(byTestId('thickness-triads'));
+    expect(byTestId('play-it-names')!.textContent).toBe('C - A - Dm - G');
+    tap(byTestId('thickness-seventh'));
+    expect(byTestId('play-it-names')!.textContent).toBe('C - A7 - Dm - G');
+    tap(byTestId('thickness-full'));
+    expect(byTestId('play-it-names')!.textContent).toBe('C - A9 - Dm - G');
+  });
+
+  it('lights the chord the two versions disagree about', () => {
+    // So the A7's C♯ is on the board beside the Am's C rather than a
+    // rung away.
+    mountOther('pr-prog-1-6-2-5-C');
+    tap(byTestId('version-other'));
+    expect(litPcs()).toContain(1);      // C♯
+    expect(litPcs()).not.toContain(0);
+    tap(byTestId('version-regular'));
+    expect(litPcs()).toContain(0);      // C natural
+    expect(litPcs()).not.toContain(1);
+  });
+
+  it('follows the 6 through a rotation', () => {
+    // The version names a CHORD, not a slot: rotating moves where it
+    // sits and it is still the 6 that changes.
+    mountOther('pr-prog-1-6-2-5-C');
+    tap(byTestId('version-other'));
+    tap(byTestId('rotate'));
+    expect(byTestId('rotate')!.textContent).toBe('6 2 5 1');
+    expect(byTestId('play-it-names')!.textContent).toBe('A7 - Dm - G - C');
+    // And the board is still on the chord that changed, now first.
+    expect(litPcs()).toContain(1);
+  });
+
+  it('sounds the version that is selected, and only when asked', () => {
+    mountOther('pr-prog-1-6-2-5-C');
+    tap(byTestId('version-other'));
+    expect(played.seq).toHaveLength(0);
+    tap(byTestId('play-it-hear'));
+    const steps = played.seq[0] as Array<{ intervals: number[] }>;
+    // Tonic, then the four chords; the second of them carries a C♯.
+    expect(steps).toHaveLength(5);
+    expect(steps[2].intervals.some(m => m % 12 === 1)).toBe(true);
+    expect(steps[2].intervals.some(m => m % 12 === 0)).toBe(false);
+  });
+
+  it('changes nothing about the answer', () => {
+    mountOther('pr-prog-1-6-2-5-C');
+    tap(byTestId('version-other'));
+    expect(all('[data-testid^="slot-"]').map(s => s.textContent))
+      .toEqual(['C', 'Am', 'Dm', 'G']);
+  });
+});

@@ -42,6 +42,7 @@ import ChordPicker from '../../../components/ChordPicker';
 import {
   INVERSIONS, type RootPick, pickFromPitchClass, rootLabel, rootPitchClass,
 } from '../../../lib/builtAnswers/rootPick';
+import { degreeLabel } from '../degreeNoteCards';
 import {
   NINTH_OF, QUALITIES, TRIAD_OF, VOICINGS,
   type QualityId, type Thickness, type Voicing,
@@ -94,6 +95,21 @@ export default function ProgressionAnswer({
    * reader hears is the chords they were just marked on.
    */
   const [thickness, setThickness] = useState<Thickness>('seventh');
+  /**
+   * How many doors along the progression is entered.
+   *
+   * THE SAME CHORDS, FROM A DIFFERENT ONE. A 1 5 6 4 rotated once is a
+   * 5 6 4 1 — four entry points into one loop, which is the fact `pr-9`
+   * teaches and the thing a reader cannot hear from a card that only
+   * ever starts on the 1.
+   *
+   * It is a PLAYER setting and not an answer: nothing about the grade
+   * or the slots moves with it, and it starts at zero on every card
+   * because the surface is remounted per card.
+   */
+  const [rotation, setRotation] = useState(0);
+  /** Whether the other version is the one selected. */
+  const [otherVersion, setOtherVersion] = useState(false);
   /** Which chord is sounding, so the board can follow the player. */
   const [lit, setLit] = useState<number | null>(null);
 
@@ -117,21 +133,49 @@ export default function ProgressionAnswer({
    * every other rung keeps the card's own quality and changes how much
    * of it the hand takes.
    */
-  const played: QualityId[] = useMemo(() => target.chords.map(c => (
+  /**
+   * The card's chords as the player is set to play them: the other
+   * version if it is chosen, then rotated, then thickened.
+   *
+   * THE ORDER OF THOSE THREE IS THE WHOLE OF IT.
+   *
+   * The VERSION goes first, because it changes which chord is there —
+   * the 6 becomes a dominant before anything asks how thick to play it.
+   *
+   * The ROTATION goes second, because it only reorders. Rotating first
+   * would mean the version's index pointed at whichever chord had
+   * moved into that slot, and "the 6 as a dominant" would become "the
+   * second chord, whatever it is".
+   *
+   * The LADDER goes last, and that is what makes the brief's rule fall
+   * out rather than be written: "triads" plays the dominant as a plain
+   * major triad because `TRIAD_OF['7']` is a major triad, and sevenths
+   * and above leave it a 7.
+   */
+  const shownChords = useMemo(() => {
+    const withVersion = target.chords.map((c, i) => (
+      otherVersion && target.variation !== undefined && target.variation.index === i
+        ? { ...c, quality: target.variation.quality }
+        : c));
+    const turns = rotation % withVersion.length;
+    return [...withVersion.slice(turns), ...withVersion.slice(0, turns)];
+  }, [target.chords, target.variation, otherVersion, rotation]);
+
+  const played: QualityId[] = useMemo(() => shownChords.map(c => (
     thickness === 'triads' ? TRIAD_OF[c.quality] ?? c.quality
       : thickness === 'full' ? NINTH_OF[c.quality] ?? c.quality
-        : c.quality)), [target.chords, thickness]);
+        : c.quality)), [shownChords, thickness]);
 
   /** The chords drawn and played: the reader's while building, the
    *  card's once it is answered. */
   const chords = useMemo(() => (answered
-    ? target.chords.map((c, i) => ({
+    ? shownChords.map((c, i) => ({
       rootPc: c.rootPc, tones: handTones(played[i], thickness),
     }))
     : built.map(c => (c.rootPc === null || c.quality === null
       ? null
       : { rootPc: c.rootPc, tones: handTones(c.quality, layout) }))),
-  [answered, target.chords, played, built, layout, thickness]);
+  [answered, shownChords, played, built, layout, thickness]);
 
   const voiced = useMemo(
     () => voiceAll(chords, {
@@ -140,6 +184,16 @@ export default function ProgressionAnswer({
     }),
     [chords, layout, thickness, answered, inversion],
   );
+
+  /**
+   * Where the chord the two versions disagree about sits, after
+   * rotation. Zero when the progression has no other version, which is
+   * the chord the board opens on anyway.
+   */
+  const versionSlot = target.variation === undefined
+    ? 0
+    : (target.variation.index - (rotation % target.chords.length)
+      + target.chords.length) % target.chords.length;
 
   const shown = answered ? (lit ?? 0) : cur;
   const marks = chordMarks(voiced[shown] ?? null, { octaveUp });
@@ -331,12 +385,73 @@ export default function ProgressionAnswer({
           onPlay={hearAll}
           onHearChord={hearChord}
           onStop={playing === null ? null : stop}
-          names={target.chords.map((c, i) => (
+          names={shownChords.map((c, i) => (
             thickness === 'bass'
               ? spellInKey(c.rootPc, target.keyName)
               : `${spellInKey(c.rootPc, target.keyName)}${played[i]}`
           )).join(' - ')}
         >
+          {/* ROTATE — one tap, one door along. The label is the numbers
+              of the rotation now playing, so what is on the button is
+              what is about to sound rather than what tapping it will
+              do. */}
+          <div className="space-y-1.5">
+            <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+              Starting point
+            </div>
+            <button
+              type="button"
+              data-testid="rotate"
+              onClick={() => {
+                setRotation(r => (r + 1) % count);
+                // THE BOARD STAYS ON THE CHORD IT WAS ON, not on the
+                // slot: rotating moves every chord one place left, so
+                // the lit index moves with it. Without this, opening
+                // "6 as a dominant" and then rotating would quietly
+                // leave the board on whatever slid into that slot.
+                setLit(l => (l === null ? null : (l - 1 + count) % count));
+              }}
+              className={`${BTN_PLAIN} font-mono`}
+            >
+              {shownChords.map(c => degreeLabel(c.degree)).join(' ')}
+            </button>
+          </div>
+
+          {/* THE OTHER VERSION — two buttons side by side, so the two
+              can be A/B'd at one tempo and one thickness. */}
+          {target.variation !== undefined && (
+            <div className="space-y-1.5">
+              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+                Hear the other version
+              </div>
+              <div className="flex flex-wrap gap-1.5" data-testid="version-row">
+                {([[false, 'Regular'], [true, target.variation.label]] as const)
+                  .map(([v, label]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      aria-pressed={otherVersion === v}
+                      data-testid={v ? 'version-other' : 'version-regular'}
+                      onClick={() => {
+                        setOtherVersion(v);
+                        // SHOW THE CHORD THAT CHANGED, so the A7's C♯
+                        // is on the board beside the Am's C rather
+                        // than a rung away. Nothing sounds; the board
+                        // moves to the one chord the two versions
+                        // disagree about.
+                        setLit(versionSlot);
+                      }}
+                      className={`${BTN} ${otherVersion === v
+                        ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                        : 'border-black/10 dark:border-white/20'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
           <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
             {'A single low tonic in the key of '
               + `${target.keyName} major to orient, then the chords in order. `

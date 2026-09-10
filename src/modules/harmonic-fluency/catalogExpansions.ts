@@ -1590,6 +1590,35 @@ interface ProgressionShape {
   /** The one near-miss this progression's hand-written card made that
    *  a plain degree swap cannot produce. */
   extra?: (root: string) => string[];
+  /**
+   * The version of this progression a player also hears in the wild.
+   *
+   * =====================================================================
+   * DATA ON THE PROGRESSION, NOT A CASE IN A COMPONENT.
+   *
+   * The 1 6 2 5 is played two ways: the 6 as the minor chord the key
+   * gives, and the 6 as a dominant pulling to the 2. Both are the same
+   * progression and only one of them is the card's answer, so this is
+   * not a second card and not a second decoy — it is something the
+   * reveal can play so a reader can hear the difference.
+   *
+   * Written HERE so the next one is a line of data. `1 4 5` has a
+   * version with the 4 as a dominant, `1 5 6 4` one with the 5 as a
+   * sus; neither is written down yet, and when either is, nothing in
+   * the player has to learn about it.
+   *
+   * THE LABEL CARRIES NO KEY. "6 as a dominant" is true in all
+   * thirteen; naming the chord ("A7") would be true in one.
+   * =====================================================================
+   */
+  variation?: {
+    /** Which chord of the progression changes, by position. */
+    index: number;
+    /** What it becomes. */
+    quality: string;
+    /** What the button says. */
+    label: string;
+  };
 }
 
 /**
@@ -1659,6 +1688,10 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
     explain: (k, c) => `1 6 2 5 in the key of ${k} major is `
       + `${c.join(' → ')}, the turnaround. It's sometimes used to walk `
       + 'back to the 1 and go round again.',
+    // The 6 played as a dominant, pulling to the 2 rather than sitting
+    // as the minor chord the key gives. The reveal can play both; the
+    // card still grades the one it asks for.
+    variation: { index: 1, quality: '7', label: '6 as a dominant' },
   },
   {
     id: '1-4-5',
@@ -1710,6 +1743,20 @@ export function progressionVoicing(
   facet: string | undefined,
 ): ReadonlyArray<readonly [string, string]> | null {
   return PROGRESSION_SHAPES.find(s => s.facet === facet)?.chords ?? null;
+}
+
+/**
+ * The other version of one named progression, or null.
+ *
+ * READ FROM THE SAME LIST THE CHORDS COME FROM, for the reason
+ * `progressionVoicing` gives: a second copy of "the 6 of a 1 6 2 5 is
+ * sometimes a dominant" is a second copy that would one day disagree
+ * with the progression it is a version of.
+ */
+export function progressionVariation(
+  facet: string | undefined,
+): ProgressionShape['variation'] | null {
+  return PROGRESSION_SHAPES.find(s => s.facet === facet)?.variation ?? null;
 }
 
 /**

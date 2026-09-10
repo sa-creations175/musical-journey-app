@@ -186,3 +186,44 @@ describe('a target says the same thing as the card it grades', () => {
     expect(major.minor).toBe(false);
   });
 });
+
+describe('the other version rides on the progression, not on the card', () => {
+  const progressions = byKind('progression')
+    .map(x => ({ card: x.card, target: x.target as Extract<BuiltTarget, { kind: 'progression' }> }));
+
+  it('is carried by every 1 6 2 5 and by no other shape', () => {
+    const withVersion = progressions.filter(x => x.target.variation !== undefined);
+    expect(withVersion).toHaveLength(13);
+    for (const { card, target } of withVersion) {
+      expect(card.id, card.id).toContain('pr-prog-1-6-2-5-');
+      expect(target.variation!.index).toBe(1);
+      expect(target.variation!.quality).toBe('7');
+      // The label names the number, not a note, because one shape's
+      // variation is the same fact in all thirteen keys.
+      expect(target.variation!.label).toBe('6 as a dominant');
+    }
+    // 78 progression cards, 13 of them with a version.
+    expect(progressions).toHaveLength(78);
+  });
+
+  it('points at a chord the progression actually has', () => {
+    // A version whose index ran off the end, or whose quality this
+    // deck cannot build, would be silently unplayable — so it is
+    // refused at the target rather than at the keyboard.
+    for (const { card, target } of progressions) {
+      if (target.variation === undefined) continue;
+      expect(target.variation.index, card.id).toBeLessThan(target.chords.length);
+    }
+  });
+
+  it('leaves the graded answer alone', () => {
+    // The card still asks for the regular version: the 6 is the minor
+    // chord the key gives, in every one of the thirteen.
+    for (const { card, target } of progressions) {
+      if (target.variation === undefined) continue;
+      expect(target.chords[1].quality, card.id).toBe('m');
+      expect(card.correctAnswer, card.id)
+        .toBe(target.chords.map(c => c.name).join(' - '));
+    }
+  });
+});
