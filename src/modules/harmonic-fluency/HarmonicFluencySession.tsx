@@ -28,6 +28,7 @@ import CardPlayback from './CardPlayback';
 import DegreeNoteReveal from './DegreeNoteReveal';
 import ModalScaleReveal from './ModalScaleReveal';
 import DegreeKeyboardAnswer from './DegreeKeyboardAnswer';
+import BuiltAnswer from './builtAnswers/BuiltAnswer';
 import { degreeNoteOptionLabel, isPressedCard, parsePressedId } from './degreeNoteCards';
 import DegreeKeyboard, { degreeKeyboardSpec } from './DegreeKeyboard';
 import { qualityOfCardId } from './scaleDegreeQualityCards';
@@ -209,7 +210,11 @@ export default function HarmonicFluencySession({
               answer={answer}
             />
           )
-          : null
+          // SIX FAMILIES BUILD THEIR ANSWER INSTEAD OF PICKING IT.
+          // `builtTargetFor` returns null for every other card, which
+          // leaves the four buttons — see `renderAnswerSurface`'s own
+          // note on returning null.
+          : <BuiltAnswer card={card} answered={answered} answer={answer} />
       )}
       focusProtected={focusProtected}
     />

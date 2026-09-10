@@ -1,0 +1,532 @@
+<title>Built Answers</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{--paper:#F3F5F7;--ink:#1A1D21;--muted:#5E6B72;--line:#D5DBDF;--panel:#FFFFFF;--chip:#E7EBEE;--chip-on:#1A1D21;--good:#0F6E56;--good-soft:#DDEFE8;--bad:#E24B4A;--bad-soft:#FBE3E3;--accent:#378ADD;--white:#FFFFFF;--black:#23272B;--pressed:#378ADD;--lit:#C9E3F7;--lit-b:#5E93C4}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#15181B;--ink:#EEF1F3;--muted:#9AA6AD;--line:#2C3338;--panel:#1E2226;--chip:#262C31;--chip-on:#EEF1F3;--good-soft:#123B31;--bad-soft:#4A1F1F;--white:#E9ECEF;--black:#101315;--lit:#2B4C68;--lit-b:#5E93C4}}
+:root[data-theme="dark"]{--paper:#15181B;--ink:#EEF1F3;--muted:#9AA6AD;--line:#2C3338;--panel:#1E2226;--chip:#262C31;--chip-on:#EEF1F3;--good-soft:#123B31;--bad-soft:#4A1F1F;--white:#E9ECEF;--black:#101315;--lit:#2B4C68;--lit-b:#5E93C4}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;margin:0}
+main{max-width:640px;margin:0 auto;padding:28px 20px 60px}
+h1{font-size:22px;font-weight:600;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 20px;max-width:60ch}
+.tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:6px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--chip-on);color:var(--paper);border-color:var(--chip-on)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.fam{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.q{font-size:18px;font-weight:500;margin:0 0 14px}
+.label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:14px 0 8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:6px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer;min-width:38px}
+.chip[aria-pressed="true"]{background:var(--chip-on);color:var(--paper);border-color:var(--chip-on)}
+.chip:disabled{opacity:.4;cursor:default}
+.chip.acc{min-width:34px;font-size:15px;line-height:1}
+.chip.acc[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chips .sep{width:8px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:14px}
+.btn{background:var(--ink);color:var(--paper);border:0;border-radius:8px;padding:10px 16px;font:inherit;font-weight:600;cursor:pointer}
+.btn.secondary{background:var(--chip);color:var(--ink);border:1px solid var(--line);font-weight:500}
+.btn:disabled{opacity:.45;cursor:default}
+.built{font-family:"IBM Plex Mono",monospace;font-size:20px;min-width:90px}
+.built .dim{color:var(--muted)}
+.slots{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.slot{font-family:"IBM Plex Mono",monospace;font-size:18px;border:1px dashed var(--line);border-radius:8px;padding:6px 12px;min-width:64px;text-align:center;color:var(--muted);cursor:pointer}
+.slot.filled{border-style:solid;color:var(--ink)}
+.slot.cur{border-color:var(--accent);color:var(--ink)}
+.result{margin-top:14px;padding:10px 14px;border-radius:8px;font-weight:500;display:none}
+.result.good{display:block;background:var(--good-soft);color:var(--good)}
+.result.bad{display:block;background:var(--bad-soft);color:var(--bad)}
+.kbd{position:relative;height:120px;margin-top:8px;user-select:none}
+.k{position:absolute;top:0;border:1px solid var(--line);box-sizing:border-box;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;font-size:11px;font-family:"IBM Plex Mono",monospace;padding-bottom:6px}
+.kbd.three .k.w{width:4.5455%}.kbd.three .k.b{width:2.9%}
+.k.w{width:6.6667%;height:110px;background:var(--white);color:#333;border-radius:0 0 4px 4px}
+.k.b{width:4.2%;height:74px;background:var(--black);color:#ddd;z-index:2;border-radius:0 0 3px 3px}
+.k.on{background:var(--pressed)!important;color:#fff}
+.k.lit{background:var(--lit)!important;border-color:var(--lit-b);color:var(--ink)}
+.k.b.lit{background:var(--lit-b)!important;color:#fff}
+.k.rootlit{background:#0F6E56!important;color:#fff}
+.k.bassband{box-shadow:inset 0 -14px 0 #0F6E56}
+.k.b.bassband{box-shadow:inset 0 -10px 0 #0F6E56}
+.k.display{cursor:default}
+.foot{color:var(--muted);font-size:13px;margin-top:22px;max-width:62ch}
+.note{color:var(--muted);font-size:13px;margin-top:10px}
+[hidden]{display:none!important}
+</style>
+<main>
+<h1>Built Answers</h1>
+<p class="sub">Six card families that stop being multiple choice. Same shell every time: a letter row, a quality row where the card needs one, and one two-octave keyboard. What differs per family is written under each card.</p>
+<div class="row" style="margin:0 0 6px"><span class="label" style="margin:0">Scale colours</span><div class="chips" id="colourMode"></div></div>
+
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-t="prog">Progression</button>
+  <button class="tab" role="tab" aria-selected="false" data-t="pent">Pentatonic notes</button>
+  <button class="tab" role="tab" aria-selected="false" data-t="lick">Lick scale</button>
+  <button class="tab" role="tab" aria-selected="false" data-t="rel">Relative key</button>
+  <button class="tab" role="tab" aria-selected="false" data-t="sig">Key signature</button>
+  <button class="tab" role="tab" aria-selected="false" data-t="slash">Slash chord</button>
+</div>
+
+<!-- 1. Progression -->
+<section class="card" id="prog">
+  <p class="fam">Progression Vocabulary</p>
+  <div class="label">Try a card</div>
+  <div class="chips" id="progCards"></div>
+  <p class="q" id="progQ" style="margin-top:14px">The 2 5 1 in B♭ major is _____</p>
+  <div class="label">Your chords, in order</div>
+  <div class="slots" id="progSlots"></div>
+  <div class="label">Root</div>
+  <div class="chips" id="progRow"></div>
+  <div class="label">Quality</div>
+  <div class="chips" id="progQual"></div>
+  <div id="progVoicingWrap"><div class="label">Voicing</div>
+  <div class="chips" id="progVoicing"></div></div>
+  <div id="progInvWrap"><div class="label">First chord's shape (the rest follow by voice leading)</div>
+  <div class="chips" id="progInv"></div></div>
+  <div class="kbd three" id="kbdProg"></div>
+  <div class="row">
+    <button class="btn" id="progNext">Next chord</button>
+    <button class="btn secondary" id="progHear">Hear chord</button>
+    <button class="btn secondary" id="progHearAll">Hear all</button>
+    <button class="btn secondary" id="progClearChord">Clear chord</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="progCheck">Submit</button>
+    <button class="btn secondary" id="progClear">Start over</button>
+  </div>
+  <div class="result" id="progResult"></div>
+  <div id="progPlayer" hidden>
+    <div class="label">Play it</div>
+    <div class="label" style="margin-top:6px">Thickness</div><div class="chips" id="progThick"></div>
+    <div id="progRotWrap"><div class="label" style="margin-top:6px">Starting point</div><div class="chips" id="progRot"></div></div>
+    <div id="progDomWrap"><div class="label">The 6</div><div class="chips" id="progDom"></div></div>
+    <div class="label">Bass line (tap a move to flip it)</div><div class="chips" id="progBass"></div>
+    <div id="progPlayback"></div>
+    <div class="row"><div class="built" id="progPlayerNames"></div><button class="btn secondary" id="progPlayerHear">Hear it</button></div>
+    <p class="note">Every button here re-lights the keyboard; Hear it plays. Thickness is a ladder, each rung adding a note, and the chord names underneath change to match what is sounding. Bass only: just the root notes, low (C G A F). Triads: root in the bass, the plain triad in the hand (C G Am F). Guide tones: the seventh-chord names (Cmaj7 G7 Am7 Fmaj7), only the 3 and 7 in the hand. Seventh chords: same names, 3 5 7 in the hand. Full voicing: the ninth names (Cmaj9 G9 Am9 Fmaj9), 3 5 7 9 in the hand. The last three are the words the Shapes &amp; Patterns 2 5 1 drill already uses. Then a different starting point, the dominant variation, and the bass line: one button per move, up or down, so you can hear the 2 fall to the 5 and climb to the 1 as well as climb both times. This is the same player the ear training side will use.</p>
+  </div>
+  <p class="note">Set the root by tapping a key on the keyboard or a letter in the row (either one, they mirror each other), then a quality; the chord sits in the highlighted slot and the keyboard shows it voiced. Taps are silent; Hear chord plays the slot you are on, Hear all plays your chords in order once every slot is filled. Submit only grades; nothing plays unless you tap a Hear button. Change your mind as often as you like; nothing moves on until you tap Next chord or another slot. Clear chord empties only the slot you are on. Keys are coloured by each note's job in the chord. The bass note carries a green band along the foot of its key, so if the bass line climbs onto a key the hand is using you see both. Root deep green, 3rd light green (minor 3rd teal), 5th grey, 7th amber (maj7 pale amber), 9th pink, the app's own chord-tone colours. Before you submit, the keyboard shows exactly the chord you chose, nothing added: pick min7 and you see C E♭ G B♭. Voicing only changes how it is laid out. One hand: the chord in the hand, you pick the inversion. Both hands: root in the bass, the chord in the hand. Rootless: root in the bass, the hand plays the chord minus its root, A form or B form (greyed out on a triad, which has no 7 to build on). Chords after the first are voiced to move as little as possible from the one before. Tapping any octave of the keyboard sets the root. Three slots for a 2 5 1, four for a 1 5 6 4. This is the slash chord picker plus a quality row, so it is a sibling of that picker, not the same one.</p>
+</section>
+
+<!-- 2. Pentatonic notes -->
+<section class="card" id="pent" hidden>
+  <p class="fam">Pentatonic Scales</p>
+  <p class="q">In E♭ major pentatonic, the notes are _____</p>
+  <div class="label">Tap the five notes</div>
+  <div class="kbd" id="kbdPent"></div>
+  <div class="row">
+    <div class="built" id="pentBuilt"><span class="dim">nothing yet</span></div>
+    <button class="btn" id="pentCheck">Submit</button>
+    <button class="btn secondary" id="pentClear">Clear</button>
+  </div>
+  <div class="result" id="pentResult"></div>
+  <div id="pentPlayerSlot"></div>
+  <p class="note">No letter row on this card: the keyboard is the answer. Tap a key to choose it, tap again to remove it. Octave does not matter; E♭ in either octave counts once. Taps are silent; Submit only grades, and the Play it panel has the Hear it button. Same shell for the minor card ("In C minor pentatonic, the notes are _____").</p>
+</section>
+
+<!-- 3. Lick scale -->
+<section class="card" id="lick" hidden>
+  <p class="fam">Pentatonic Scales</p>
+  <p class="q">You're in the key of A♭ major. Which minor pentatonic fits for riffs and licks?</p>
+  <div class="label">Tap the five notes, root first</div>
+  <div class="kbd" id="kbdLick"></div>
+  <div class="row">
+    <div class="built" id="lickBuilt"><span class="dim">choose a root</span></div>
+    <button class="btn" id="lickCheck">Submit</button>
+    <button class="btn secondary" id="lickClear">Clear</button>
+  </div>
+  <div class="result" id="lickResult"></div>
+  <div id="lickPlayerSlot"></div>
+  <p class="note">No letter row. Tap the five notes on the keyboard; your first tap is the root you are claiming and shows in green, the rest in blue. Tap a note again to remove it. Right notes but the wrong first tap is marked wrong with the root named. Same five keys as the notes card; here the first one is the answer.</p>
+</section>
+
+<!-- 4. Relative key -->
+<section class="card" id="rel" hidden>
+  <p class="fam">Key Signatures &amp; Relationships</p>
+  <p class="q">The relative minor of the key of A♭ major is _____</p>
+  <div class="label">Its root</div>
+  <div class="chips" id="relRow"></div>
+  <div class="kbd" id="kbdRel"></div>
+  <div class="row">
+    <div class="built" id="relBuilt"><span class="dim">choose a root</span></div>
+    <button class="btn" id="relCheck">Submit</button>
+    <button class="btn secondary" id="relClear">Clear</button>
+  </div>
+  <div class="result" id="relResult"></div>
+  <div id="relPlayerSlot"></div>
+  <p class="note">Letter row or keyboard, either sets the root (tap A♭ on the keys instead of A then ♭); the tap is silent and lights only that note. On a correct Submit the whole natural minor scale lights, root in green, because the card is about the key. The reverse card ("The relative major of F minor is _____") lights the major scale.</p>
+</section>
+
+<!-- 5. Key signature -->
+<section class="card" id="sig" hidden>
+  <p class="fam">Key Signatures &amp; Relationships</p>
+  <p class="q">The major key with 3 flats is _____</p>
+  <div class="label">The key</div>
+  <div class="chips" id="sigRow"></div>
+  <div class="kbd" id="kbdSig"></div>
+  <div class="row">
+    <div class="built" id="sigBuilt"><span class="dim">choose a key</span></div>
+    <button class="btn" id="sigCheck">Submit</button>
+    <button class="btn secondary" id="sigClear">Clear</button>
+  </div>
+  <div class="result" id="sigResult"></div>
+  <div id="sigPlayerSlot"></div>
+  <p class="note">Letter row or keyboard, either sets the key; the tap is silent and lights only that note. On a correct Submit the major scale lights, and the flats in it are the black keys you can count. The minor twin ("The minor key with 3 flats is _____") lights the natural minor scale.</p>
+</section>
+
+
+<!-- 6. Slash chord -->
+<section class="card" id="slash" hidden>
+  <p class="fam">Slash Chords &amp; Inversions</p>
+  <div class="label">Try a card</div>
+  <div class="chips" id="slashCards"></div>
+  <p class="q" id="slashQ" style="margin-top:14px">What is 5/7 in the key of C major?</p>
+  <div class="label">Top chord (the letter row, or tap a key in the upper octaves)</div>
+  <div class="chips" id="slashRow"></div>
+  <div class="label">Quality (major unless you change it)</div>
+  <div class="chips" id="slashQual"></div>
+  <div id="slashBassWrap" hidden><div class="label">Bottom note (the letter row, or tap a key in the low octave)</div>
+  <div class="chips" id="slashBassRow"></div></div>
+  <div class="label">Hand shape</div>
+  <div class="chips" id="slashInv"></div>
+  <div class="kbd three" id="kbdSlash"></div>
+  <div class="row">
+    <div class="built"><span id="slashChord" class="dim">chord</span><span class="dim">/</span><span id="slashBass" class="dim">bass</span></div>
+    <button class="btn secondary" id="slashHear">Hear chord</button>
+    <button class="btn secondary" id="slashClearBass">Clear bottom note</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="slashCheck">Submit</button>
+    <button class="btn secondary" id="slashClear">Start over</button>
+  </div>
+  <div class="result" id="slashResult"></div>
+  <div id="slashPlayer" hidden>
+    <div class="label">Play it</div>
+    <div class="label" style="margin-top:6px">Thickness</div><div class="chips" id="slashThick"></div>
+    <div class="label">In context</div><div class="chips" id="slashOrient"></div>
+    <div id="slashPlayback"></div>
+    <div class="row"><button class="btn secondary" id="slashPlayerHear">Hear it</button></div>
+    <p class="note">A single low tonic note to orient (the same rule as the progression card), then the slash chord where it lives. Each shape carries its own contexts, written once for the shape: inversions (1/3, 5/7) walk, the sus (4/5) resolves, the cadential (1/5) leads to the 5, the pedals (5/1, 2m/1) sit over a held 1, and 1/4 settles home. The chords around the slash chord are voice-led to and from it; your hand shape is the anchor.</p>
+  </div>
+  <p class="note">Two steps, top then bottom, like a fraction. Top chord: a letter in the row or a key in the upper two octaves; quality starts on major, so the chord lights in the hand at once and you only touch the quality row for a minor or seventh chord. Bottom note: its own letter row appears once the top chord is set, or tap a key in the low octave (that octave is the bass, as on the progression card); it carries the green band. Hand shape is the inversion the right hand plays (3rd inversion greyed on a triad); root position by default, since the bottom note does the talking (1/3 is the 1 in first inversion either way). Grading: chord root, chord type, bottom note. Typing "G/B" is gone.</p>
+</section>
+
+<p class="foot">Sound on the progression card: a single low tonic note to orient, then the chords in order (Silas, 9 Sep: the home chord in front was confusing). The scale cards still play the key's home chord first, then the scale as a run, per the 8 Sep rule.</p>
+</main>
+<script>
+// ---------- shared ----------
+const LET_PC={C:0,D:2,E:4,F:5,G:7,A:9,B:11};
+const NAME_BY_PC=['C','D♭','D','E♭','E','F','G♭','G','A♭','A','B♭','B'];
+const ACC_GLYPH={'-1':'♭','0':'','1':'♯'};
+function pcOf(L,acc){return ((LET_PC[L]+acc)%12+12)%12;}
+let actx; function ac(){if(!actx)actx=new (window.AudioContext||window.webkitAudioContext)();return actx;}
+function tone(midi,at,dur,vol){const c=ac();const o=c.createOscillator(),g=c.createGain();o.type='triangle';o.frequency.value=440*Math.pow(2,(midi-69)/12);g.gain.setValueAtTime(0.0001,at);g.gain.exponentialRampToValueAtTime(vol||0.22,at+0.01);g.gain.setValueAtTime(vol||0.22,at+0.01);g.gain.exponentialRampToValueAtTime((vol||0.22)*0.5,at+dur*0.6);g.gain.exponentialRampToValueAtTime(0.0001,at+dur);o.connect(g);g.connect(c.destination);o.start(at);o.stop(at+dur+0.05);}
+function ping(midi){const c=ac();if(c.state==='suspended')c.resume();tone(midi,c.currentTime,0.6);}
+function chordAt(midis,at,dur){hi(midis).forEach(m=>tone(m,at,dur,0.16));}
+function playPhrase(homePcs,then){const c=ac();if(c.state==='suspended')c.resume();let t=c.currentTime+0.05;chordAt(homePcs.map(p=>48+p).concat(homePcs.map(p=>60+p)),t,1.7);t+=1.8;then(t);}
+function runAt(pcs,rootPc,t,step){const notes=[...pcs].sort((a,b)=>((a-rootPc+12)%12)-((b-rootPc+12)%12));notes.forEach((p,i)=>tone(60+((p-rootPc+12)%12)+rootPc,t+i*step,step*1.6,0.2));tone(72+rootPc,t+notes.length*step,step*2.5,0.2);tone(36+rootPc,t,notes.length*step+step*2.5,0.12);return t+(notes.length+2.5)*step;}
+
+let SCALE_COLOURS='plain';const PLAY={bpm:72,octUp:false,listeners:[]};
+function mountPlayback(host,onChange){const wrap=document.createElement('div');wrap.innerHTML='<div class="label">Tempo and register</div><div class="row" style="margin-top:0"><label style="font-size:13px;color:var(--muted)"><input type="range" min="40" max="140" value="'+PLAY.bpm+'" style="vertical-align:middle"> <span>'+PLAY.bpm+'</span> bpm</label><div class="chips"></div></div>';host.appendChild(wrap);const r=wrap.querySelector('input'),v=wrap.querySelector('span'),c=wrap.querySelector('.chips');
+  r.oninput=()=>{PLAY.bpm=+r.value;PLAY.listeners.forEach(f=>f());};const btns=[[false,'Hand as written'],[true,'Hand up an octave']].map(([o,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.onclick=()=>{PLAY.octUp=o;PLAY.listeners.forEach(f=>f());if(onChange)onChange();};c.appendChild(b);return [o,b];});
+  const sync=()=>{r.value=PLAY.bpm;v.textContent=PLAY.bpm;btns.forEach(([o,b])=>b.setAttribute('aria-pressed',String(o===PLAY.octUp)));};PLAY.listeners.push(sync);sync();}const beat=()=>60/PLAY.bpm;const hi=ms=>PLAY.octUp?ms.map(m=>m+12):ms;const hiFit=ms=>PLAY.octUp?ms.map(m=>m+12<=72?m+12:m):ms;const SCALE_INTERVAL_COLOR={0:'#0F6E56',1:'#E24B4A',2:'#D4537E',3:'#5DCAA5',4:'#97C459',5:'#534AB7',6:'#E24B4A',7:'#888780',8:'#185FA5',9:'#378ADD',10:'#BA7517',11:'#FAC775'};
+function makeKeyboard(el,onTap,octaves){octaves=octaves||2;const BASE=octaves===3?36:48;
+  const W=['C','D','E','F','G','A','B'];const BL={0:'D♭',1:'E♭',3:'G♭',4:'A♭',5:'B♭'};const NOTE_PC={C:0,'D♭':1,D:2,'E♭':3,E:4,F:5,'G♭':6,G:7,'A♭':8,A:9,'B♭':10,B:11};
+  const u=100/(octaves*7+1);const byMidi={};
+  const add=(cls,left,name,midi)=>{const k=document.createElement('div');k.className='k '+cls+(onTap?'':' display');k.style.left=left+'%';k.textContent=name;k.dataset.midi=midi;byMidi[midi]=k;if(onTap)k.onclick=()=>onTap(midi);el.appendChild(k);};
+  for(let o=0;o<octaves;o++)W.forEach((n,i)=>add('w',(o*7+i)*u,n,BASE+o*12+NOTE_PC[n]));
+  add('w',octaves*7*u,'C',BASE+octaves*12);
+  for(let o=0;o<octaves;o++)Object.entries(BL).forEach(([i,n])=>add('b',((o*7)+ +i+1)*u-(octaves===3?1.5:2.1),n,BASE+o*12+NOTE_PC[n]));
+  return {byMidi,clear(){Object.values(byMidi).forEach(k=>{k.classList.remove('on','lit','rootlit');});},
+    light(pcs,rootPc){el._relight=()=>this.light(pcs,rootPc);this.clear();Object.values(byMidi).forEach(k=>{k.style.background='';k.style.color='';const pc=+k.dataset.midi%12;if(pc===rootPc)k.classList.add('rootlit');else if(pcs.includes(pc)){if(SCALE_COLOURS==='interval'){const iv=(pc-rootPc+12)%12;k.style.background=SCALE_INTERVAL_COLOR[iv];k.style.color=iv===11?'#1A1D21':'#fff';}else k.classList.add('lit');}});},
+    press(midis){this.clear();midis.forEach(m=>byMidi[m]&&byMidi[m].classList.add('on'));}};
+}
+// letter row: single pick with ♭/♯. onPick(letter,acc) or onPick(null) when cleared
+function makeLetterRow(el,onPick){
+  let acc=0,pick=null;const chips={};
+  ['A','B','C','D','E','F','G'].forEach(L=>{const b=document.createElement('button');b.className='chip';b.textContent=L;b.onclick=()=>{
+    if(pick&&pick.letter===L&&acc===0){pick=null;}else{pick={letter:L,acc};}
+    acc=0;accBtns.forEach(x=>x.setAttribute('aria-pressed','false'));paint();onPick(pick);};el.appendChild(b);chips[L]=b;});
+  const sep=document.createElement('span');sep.className='sep';el.appendChild(sep);
+  const accBtns=[-1,1].map(v=>{const b=document.createElement('button');b.className='chip acc';b.textContent=v<0?'♭':'♯';b.setAttribute('aria-pressed','false');b.onclick=()=>{
+    if(pick){pick={letter:pick.letter,acc:pick.acc===v?0:v};paint();onPick(pick);return;}
+    acc=acc===v?0:v;accBtns.forEach(x=>x.setAttribute('aria-pressed',String(x===b&&acc!==0)));};el.appendChild(b);return b;});
+  function paint(){Object.entries(chips).forEach(([L,b])=>{const on=pick&&pick.letter===L;b.setAttribute('aria-pressed',String(!!on));b.textContent=L+(on?ACC_GLYPH[pick.acc]:'');});}
+  return {get(){return pick;},set(p){pick=p?{letter:p.letter,acc:p.acc}:null;acc=0;accBtns.forEach(x=>x.setAttribute('aria-pressed','false'));paint();},fire(p){onPick(pick);},reset(){this.set(null);}};
+}
+function label(p){return p?p.letter+ACC_GLYPH[p.acc]:'';}
+function result(id,ok,msg){const r=document.getElementById(id);r.className='result '+(ok?'good':'bad');r.textContent=msg;}
+function hideResult(id){document.getElementById(id).className='result';}
+const MAJOR=[0,2,4,5,7,9,11],NMINOR=[0,2,3,5,7,8,10],MAJPENT=[0,2,4,7,9],MINPENT=[0,3,5,7,10];
+const scale=(root,iv)=>iv.map(x=>(root+x)%12);
+
+
+// ---------- shared scale player (Play it panel for every scale card) ----------
+function makeScalePlayer(prefix,kbd,opts){opts=opts||{};const showStarts=opts.starts!==false;const auto=opts.autoplay===true;const toOctave=!!opts.octave;
+  let root=0,pcs=[],home=[],start=0,dir='both',visible=false;
+  const wrap=document.getElementById(prefix+'Player');
+  function order(){const i=pcs.indexOf(start);return pcs.slice(i).concat(pcs.slice(0,i));}
+  function line(){const ord=order();const base=48+start;const asc=[];ord.forEach((pc,i)=>{let m=base+((pc-base%12+12)%12);while(i>0&&m<=asc[i-1])m+=12;asc.push(m);});const withOct=asc.concat([asc[0]+12]);
+    if(dir==='up')return withOct;if(dir==='down')return withOct.slice().reverse();if(toOctave)return withOct.concat(withOct.slice(0,-1).reverse());return asc.concat(asc.slice(0,-1).reverse());}
+  function play(){const c=ac();if(c.state==='suspended')c.resume();const B=beat()*2,st=beat()/2;let t=c.currentTime+0.05;chordAt(home.map(p=>48+p).concat(home.map(p=>60+p)),t,B*0.9);t+=B;const ms=line();tone(36+home[0],t,ms.length*st+0.6,0.14);ms.forEach((m,i)=>{tone(hi([m])[0],t+i*st,st*1.7,0.2);setTimeout(()=>{kbd.press([m]);},(t+i*st-c.currentTime)*1000);});setTimeout(()=>kbd.light(pcs,root),(t+ms.length*st-c.currentTime)*1000+300);}
+  function paint(){wrap.hidden=!visible;if(!visible)return;const sEl=document.getElementById(prefix+'Start');sEl.innerHTML='';sEl.previousElementSibling.hidden=!showStarts;sEl.hidden=!showStarts;pcs.forEach((pc,i)=>{const b=document.createElement('button');b.className='chip';b.textContent=NAME_BY_PC[pc];b.setAttribute('aria-pressed',String(pc===start));b.onclick=()=>{start=pc;paint();if(auto)play();else kbd.light(pcs,root);};sEl.appendChild(b);});
+    const dEl=document.getElementById(prefix+'Dir');dEl.innerHTML='';[['up','Up'],['down','Down'],['both','Up and down']].forEach(([d,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.setAttribute('aria-pressed',String(d===dir));b.onclick=()=>{dir=d;paint();if(auto)play();else kbd.light(pcs,root);};dEl.appendChild(b);});}
+  document.getElementById(prefix+'PlayerHear').onclick=play;mountPlayback(document.getElementById(prefix+'Playback'),null);
+  return {show(r,scalePcs,homePcs){root=r;pcs=scalePcs;home=homePcs;start=r;dir='both';visible=true;paint();if(auto)play();else kbd.light(pcs,root);},hide(){visible=false;paint();}};
+}
+const PLAYER_HTML=(prefix,note)=>`<div id="${prefix}Player" hidden><div class="label">Play it</div><div class="label" style="margin-top:6px">Starting point</div><div class="chips" id="${prefix}Start"></div><div class="label">Direction</div><div class="chips" id="${prefix}Dir"></div><div id="${prefix}Playback"></div><div class="row"><button class="btn secondary" id="${prefix}PlayerHear">Hear it</button></div><p class="note">${note}</p></div>`;
+
+['pent','lick','rel','sig'].forEach(p=>{document.getElementById(p+'PlayerSlot').outerHTML=PLAYER_HTML(p,'The home chord of the key in the question, then the scale from the chosen starting note with the root of the key held low underneath (on the lick card that is A♭ under F minor pentatonic, the scale sitting on the key, never the root of the scale), keys lighting as each note sounds. Up and down is the default: up to the top note and straight back down to the start, landing on the downbeat. Up and Down alone run the full octave. Nothing plays on any card until you tap Hear it (Silas: no autoplay anywhere). On the key cards up and down runs to the octave and back; the pentatonic cards turn at the 6. Starting points appear on the pentatonic cards only (those are the hand shapes drilled in Shapes &amp; Patterns); a seven-note scale from another note is a mode, and the Modes family already plays those.');});
+{const el=document.getElementById('colourMode');[['plain','Plain'],['interval','By interval']].forEach(([m,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.setAttribute('aria-pressed',String(m===SCALE_COLOURS));b.onclick=()=>{SCALE_COLOURS=m;[...el.children].forEach(x=>x.setAttribute('aria-pressed',String(x===b)));document.querySelectorAll('.kbd').forEach(k=>{if(k._relight)k._relight();});};el.appendChild(b);});}
+// tabs
+const tabs=document.querySelectorAll('.tab');
+tabs.forEach(t=>t.onclick=()=>{tabs.forEach(x=>x.setAttribute('aria-selected',x===t));['prog','pent','lick','rel','sig','slash'].forEach(id=>document.getElementById(id).hidden=t.dataset.t!==id);});
+
+// ---------- 1. Progression ----------
+{
+  const QUALS=[['','major'],['maj7','maj7'],['maj9','maj9'],['m','minor'],['m7','min7'],['m9','min9'],['7','7'],['9','9']];
+  const CHORD_IV={'':[0,4,7],'m':[0,3,7],'7':[0,4,7,10],'m7':[0,3,7,10],'maj7':[0,4,7,11],'9':[0,4,7,10,14],'m9':[0,3,7,10,14],'maj9':[0,4,7,11,14]};
+  // the three thicknesses, same words as the Shapes & Patterns 2 5 1 drill
+  const THICK=[['bass','Bass only'],['triads','Triads'],['guide','Guide tones'],['seventh','Seventh chords'],['full','Full voicing']];
+  const VOICINGS=[['one','One hand'],['both','Both hands'],['rootless','Rootless, root in the bass']];
+  const INVS=[['0','Root position'],['1','1st inversion'],['2','2nd inversion'],['3','3rd inversion']];
+  const FORMS=[['0','A form (3 on the bottom)'],['2','B form (7 on the bottom)']];
+  const SHAPES={one:INVS,both:INVS,rootless:FORMS,bass:[],triads:INVS,seventh:FORMS,full:FORMS,guide:[]};
+  const TRIAD_OF={'maj7':'','m7':'m','7':'','maj9':'','m9':'m','9':''};
+  const FAMILY={'':'maj','maj7':'maj','maj9':'maj','m':'min','m7':'min','m9':'min','7':'dom','9':'dom'};
+  const ACCEPTS={maj:['maj'],min:['min'],dom:['dom','maj']};const NINTH_OF={'maj7':'maj9','m7':'m9','7':'9'};
+  // cards: degrees are semitones above the key; q is the quality the card's answer expects; q7 the seventh-chord version
+  const CARDS=[
+    {id:'251',label:'2 5 1 in B♭',key:10,keyName:'B♭',q:'The 2 5 1 in B♭ major is _____',deg:[{d:2,q:'m7',q7:'m7',n:'2'},{d:7,q:'7',q7:'7',n:'5'},{d:0,q:'maj7',q7:'maj7',n:'1'}],rotations:false,dom:null,show:'Cm7 - F7 - B♭maj7'},
+    {id:'1564',label:'1 5 6 4 in C',key:0,keyName:'C',q:'The 1 5 6 4 in C major is _____',deg:[{d:0,q:'',q7:'maj7',n:'1'},{d:7,q:'',q7:'7',n:'5'},{d:9,q:'m',q7:'m7',n:'6'},{d:5,q:'',q7:'maj7',n:'4'}],rotations:true,dom:null,show:'C - G - Am - F'},
+    {id:'1625',label:'1 6 2 5 in C',key:0,keyName:'C',q:'The 1 6 2 5 in C major is _____',deg:[{d:0,q:'maj7',q7:'maj7',n:'1'},{d:9,q:'m7',q7:'m7',n:'6'},{d:2,q:'m7',q7:'m7',n:'2'},{d:7,q:'7',q7:'7',n:'5'}],rotations:false,dom:{slot:1,q:'7',label:'6 as a dominant (A7)'},show:'Cmaj7 - Am7 - Dm7 - G7'},
+  ];
+  let card=CARDS[0];
+  const LO=48,HI=72,FLOOR=55;
+  let slots=[],cur=0,inv=0,thick='seventh',voicing='both',solved=false,rot=0,dom=false,bassDir=[];
+  const slotEl=document.getElementById('progSlots');
+  const text=s=>s.root?label(s.root)+(s.q===null?'':s.q):'';
+  const full=s=>s.root&&s.q!==null;
+  const rootPc=s=>pcOf(s.root.letter,s.root.acc);
+
+  // --- voicing engine: a chord = {pc, q}; returns {bass|null, hand[], root}
+  function tones(ch,t){const iv=CHORD_IV[ch.q];const has7=iv.length>=4;
+    if(t==='one'||t==='both')return iv.slice();
+    if(t==='rootless')return has7?iv.slice(1):iv.slice();
+    if(t==='bass')return [];
+    if(t==='triads')return iv.slice(0,3);
+    if(t==='guide'){return has7?[iv[1],iv[3]]:[iv[1],iv[2]];}
+    if(t==='seventh'){return has7?[iv[1],iv[2],iv[3]]:iv.slice(0,3);}
+    return has7?[iv[1],iv[2],iv[3],14]:[iv[1],iv[2],iv[0]+12];}
+  const withBass=t=>t!=='one';
+  function stack(order,bass){const out=[bass];let last=bass;for(let i=1;i<order.length;i++){let m=last+((order[i]-last%12+12)%12||12);out.push(m);last=m;}return out;}
+  function voicingsOf(pcs,invIdx){const i=Math.min(invIdx,pcs.length-1);const order=pcs.slice(i).concat(pcs.slice(0,i));const out=[];for(let b=FLOOR;b<=HI;b++){if(b%12!==order[0])continue;const v=stack(order,b);if(v[v.length-1]<=HI)out.push(v);}if(!out.length)for(let b=LO;b<=HI;b++){if(b%12!==order[0])continue;const v=stack(order,b);if(v[v.length-1]<=HI)out.push(v);}return out;}
+  function allVoicings(pcs){let out=[];for(let i=0;i<pcs.length;i++)out=out.concat(voicingsOf(pcs,i));return out;}
+  function nearest(pcs,prev){let best=null,bd=1e9;for(const v of allVoicings(pcs)){let d=0;for(const m of v)d+=Math.min(...prev.map(p=>Math.abs(p-m)));for(const p of prev)d+=Math.min(...v.map(m=>Math.abs(p-m)));if(d<bd){bd=d;best=v;}}return best||allVoicings(pcs)[0]||[];}
+  function bassLine(chords,dirs){const roots=chords.map(c=>c?c.pc:null);let line=[36+roots[0]];for(let i=1;i<roots.length;i++){if(roots[i]===null){line.push(null);continue;}const prev=line[i-1];const d=dirs[i-1]||'up';let m=d==='up'?prev+(((roots[i]-prev%12)+12)%12||12):prev-(((prev%12-roots[i])+12)%12||12);line.push(m);}const real=line.filter(x=>x!==null);let lo=Math.min(...real),hi=Math.max(...real);let shift=0;while(lo+shift<36)shift+=12;while(hi+shift>59&&lo+shift-12>=36)shift-=12;return line.map(m=>m===null?null:m+shift);}
+  function voiceAll(chords,t,firstInv){const out=[];let prev=null;const bl=bassLine(chords,solved?bassDir:[]);chords.forEach((ch,i)=>{if(!ch){out.push(null);return;}const pcs=tones(ch,t).map(x=>(ch.pc+x)%12);const v=pcs.length?(prev?nearest(pcs,prev):(voicingsOf(pcs,t==='guide'?0:firstInv)[0]||allVoicings(pcs)[0]||[])):[];out.push({hand:v,bass:withBass(t)?bl[i]:null,root:ch.pc});prev=v.length?v:prev;});return out;}
+
+  // --- what the player plays: the card's chords, rotated / dominant as chosen
+  function cardChords(){let list=card.deg.map(g=>{let q=g.q7;if(thick==='triads')q=TRIAD_OF[g.q7]??g.q7;if(thick==='full')q=NINTH_OF[g.q7]??g.q7;return {pc:(card.key+g.d)%12,q};});
+    if(card.dom&&dom){const g=card.deg[card.dom.slot];let q=card.dom.q;if(thick==='full')q=NINTH_OF[q]??q;if(thick==='triads')q=TRIAD_OF[q]??q;list[card.dom.slot]={pc:(card.key+g.d)%12,q};}
+    if(card.rotations&&rot)list=list.slice(rot).concat(list.slice(0,rot));
+    return list;}
+  function playerNames(){const chords=cardChords();return chords.map(c=>NAME_BY_PC[c.pc]+(thick==='bass'?'':c.q)).join(' - ');}
+
+  // --- your answer, voiced at the chosen thickness
+  function answerChords(){return slots.map(s=>full(s)?{pc:rootPc(s),q:s.q}:null);}
+
+  const INTERVAL_COLOR={0:'#0F6E56',1:'#E24B4A',2:'#D4537E',3:'#5DCAA5',4:'#97C459',5:'#534AB7',6:'#E24B4A',7:'#888780',8:'#185FA5',9:'#378ADD',10:'#BA7517',11:'#FAC775'};
+  const kbd=makeKeyboard(document.getElementById('kbdProg'),midi=>{if(solved)return;const pc=midi%12;const name=NAME_BY_PC[pc];const p={letter:name[0],acc:name.length>1?-1:0};slots[cur].root=p;slots[cur].tap=midi;row.set(p);paintSlots();showCurrent();hideResult('progResult');},3);
+  function paintKeys(n){kbd.clear();Object.values(kbd.byMidi).forEach(k=>{k.style.background='';k.style.color='';k.classList.remove('bassband');});if(!n)return;const tint=(m,iv)=>{const k=kbd.byMidi[m];if(!k)return;k.style.background=INTERVAL_COLOR[iv];k.style.color=iv===11?'#1A1D21':'#fff';};hiFit(n.hand).forEach(m=>tint(m,(m-n.root+120)%12));if(n.bass!==null){const k=kbd.byMidi[n.bass];if(k){k.classList.add('bassband');if(!n.hand.includes(n.bass))tint(n.bass,0);}}}
+  function paintSlots(){slotEl.innerHTML='';slots.forEach((s,i)=>{const d=document.createElement('div');d.className='slot'+(full(s)?' filled':'')+(i===cur?' cur':'');d.textContent=text(s)||'chord '+(i+1);d.onclick=()=>{if(solved)return;cur=i;syncControls();};slotEl.appendChild(d);});
+    document.getElementById('progInvWrap').hidden=solved?(thick==='guide'||thick==='bass'):cur!==0;document.getElementById('progHearAll').disabled=!slots.every(full);}
+  function showCurrent(){const s=slots[cur];const tri=s.q!==null&&CHORD_IV[s.q].length<4;voiceBtns.forEach(b=>{b.disabled=b.dataset.v==='rootless'&&tri;});if(tri&&voicing==='rootless'){voicing='both';voiceBtns.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.v==='both')));paintInv();}paintKeys(null);if(!s.root)return;if(s.q===null){const k=kbd.byMidi[s.tap||(48+rootPc(s))];if(k)k.classList.add('on');return;}paintKeys(voiceAll(answerChords(),voicing,inv)[cur]);}
+  function paintInv(){const iEl=document.getElementById('progInv');iEl.innerHTML='';const s0=slots[0];const n=solved?4:(s0&&s0.q!==null?Math.min(CHORD_IV[s0.q].length,4):4);if(!solved&&inv>=n)inv=0;SHAPES[solved?thick:voicing].forEach(([i,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.disabled=!solved&&+i>=n;b.setAttribute('aria-pressed',String(+i===inv));b.onclick=()=>{if(b.disabled)return;inv=+i;paintInv();showCurrent();};iEl.appendChild(b);});}
+  function syncControls(){const s=slots[cur];row.set(s.root);qualBtns.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.q===s.q)));paintInv();paintSlots();showCurrent();hideResult('progResult');}
+  function playNotes(n,at,dur){if(n.bass!==null)tone(n.bass,at,dur,0.22);chordAt(n.hand,at,dur);}
+  function hearCurrent(){const s=slots[cur];if(!s.root)return;const c=ac();if(c.state==='suspended')c.resume();if(s.q===null){tone(60+rootPc(s),c.currentTime,1.6);return;}playNotes(voiceAll(answerChords(),voicing,inv)[cur],c.currentTime,2.4);}
+  function hearSequence(chords,mode){const vs=voiceAll(chords,mode||(solved?thick:voicing),inv);if(vs.some(v=>!v))return;const c=ac();if(c.state==='suspended')c.resume();const B=beat()*2;let t=c.currentTime+0.05;tone(36+card.key,t,B*0.9,0.24);tone(48+card.key,t,B*0.9,0.12);t+=B;vs.forEach((v,i)=>playNotes(v,t+i*B,B*1.15));
+    // light each chord as it sounds
+    paintKeys(null);const tk=kbd.byMidi[36+card.key];if(tk){tk.style.background='#0F6E56';tk.style.color='#fff';}vs.forEach((v,i)=>setTimeout(()=>paintKeys(v),(B+i*B)*1000));}
+
+  const row=makeLetterRow(document.getElementById('progRow'),p=>{if(solved)return;slots[cur].root=p;slots[cur].tap=null;paintSlots();showCurrent();hideResult('progResult');});
+  const qEl=document.getElementById('progQual');
+  const qualBtns=QUALS.map(([q,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.dataset.q=q;b.setAttribute('aria-pressed','false');b.onclick=()=>{if(solved)return;const s=slots[cur];s.q=(s.q===q)?null:q;qualBtns.forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.q===s.q)));paintInv();paintSlots();showCurrent();hideResult('progResult');};qEl.appendChild(b);return b;});
+  const vEl=document.getElementById('progVoicing');
+  const voiceBtns=VOICINGS.map(([v,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.dataset.v=v;b.setAttribute('aria-pressed',String(v===voicing));b.onclick=()=>{if(b.disabled)return;voicing=v;inv=0;voiceBtns.forEach(x=>x.setAttribute('aria-pressed',String(x===b)));paintInv();paintSlots();showCurrent();};vEl.appendChild(b);return b;});
+  const tEl=document.getElementById('progThick');
+  const thickBtns=THICK.map(([t,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.dataset.t=t;b.setAttribute('aria-pressed',String(t===thick));b.onclick=()=>{thick=t;inv=0;thickBtns.forEach(x=>x.setAttribute('aria-pressed',String(x===b)));paintInv();paintSlots();paintPlayer();showPlayerChord();};tEl.appendChild(b);return b;});
+  // card picker
+  const cEl=document.getElementById('progCards');
+  const cardBtns=CARDS.map(c=>{const b=document.createElement('button');b.className='chip';b.textContent=c.label;b.setAttribute('aria-pressed',String(c===card));b.onclick=()=>{card=c;cardBtns.forEach(x=>x.setAttribute('aria-pressed',String(x===b)));reset();};cEl.appendChild(b);return b;});
+  // player panel (after a correct answer)
+  const playerEl=document.getElementById('progPlayer');
+  function showPlayerChord(){paintKeys(voiceAll(cardChords(),thick,inv)[0]);}
+  function paintPlayer(){playerEl.hidden=!solved;document.getElementById('progVoicingWrap').hidden=solved;if(!solved)return;
+    const rotEl=document.getElementById('progRot');rotEl.innerHTML='';document.getElementById('progRotWrap').hidden=!card.rotations;
+    if(card.rotations){card.deg.forEach((g,i)=>{const b=document.createElement('button');b.className='chip';const order=card.deg.slice(i).concat(card.deg.slice(0,i)).map(x=>x.n).join(' ');b.textContent=order;b.setAttribute('aria-pressed',String(i===rot));b.onclick=()=>{rot=i;paintPlayer();showPlayerChord();};rotEl.appendChild(b);});}
+    const domEl=document.getElementById('progDom');domEl.innerHTML='';document.getElementById('progDomWrap').hidden=!card.dom;
+    if(card.dom){[[false,'Plain (as in the key)'],[true,card.dom.label]].forEach(([v,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.setAttribute('aria-pressed',String(v===dom));b.onclick=()=>{dom=v;paintPlayer();showPlayerChord();};domEl.appendChild(b);});}
+    const chords=cardChords();const bEl=document.getElementById('progBass');bEl.innerHTML='';if(bassDir.length!==chords.length-1)bassDir=chords.slice(1).map(()=>'up');chords.slice(1).forEach((c,i)=>{const b=document.createElement('button');b.className='chip';b.textContent=NAME_BY_PC[chords[i].pc]+' '+(bassDir[i]==='up'?'↑':'↓')+' '+NAME_BY_PC[c.pc];b.setAttribute('aria-pressed','false');b.onclick=()=>{bassDir[i]=bassDir[i]==='up'?'down':'up';paintPlayer();showPlayerChord();};bEl.appendChild(b);});
+    document.getElementById('progPlayerNames').textContent=playerNames();}
+  document.getElementById('progPlayerHear').onclick=()=>hearSequence(cardChords());mountPlayback(document.getElementById('progPlayback'),()=>{if(solved)showPlayerChord();else showCurrent();});
+  document.getElementById('progNext').onclick=()=>{if(cur<slots.length-1){cur++;syncControls();}};
+  document.getElementById('progHear').onclick=hearCurrent;
+  document.getElementById('progHearAll').onclick=()=>{if(!slots.every(full))return;hearSequence(answerChords(),voicing);};
+  document.getElementById('progCheck').onclick=()=>{
+    const empty=slots.findIndex(s=>!full(s));
+    if(empty>=0){result('progResult',false,'Chord '+(empty+1)+' needs a root and a quality.');return;}
+    const ok=slots.every((s,i)=>rootPc(s)===(card.key+card.deg[i].d)%12&&ACCEPTS[FAMILY[card.deg[i].q7]].includes(FAMILY[s.q]));
+    const yours=slots.map(text).join(' - ');
+    if(ok){solved=true;result('progResult',true,(yours===card.show?'Correct: ':'Correct: '+yours+'. Same thing as ')+card.show+'.');paintPlayer();showPlayerChord();}
+    else{const bad=slots.findIndex((s,i)=>!(rootPc(s)===(card.key+card.deg[i].d)%12&&ACCEPTS[FAMILY[card.deg[i].q7]].includes(FAMILY[s.q])));const g=card.deg[bad];const want={maj:'a major chord',min:'a minor chord',dom:'a dominant (or major) chord'}[FAMILY[g.q7]];result('progResult',false,'Not quite. You built '+yours+'. Chord '+(bad+1)+', the '+g.n+', should be '+NAME_BY_PC[(card.key+g.d)%12]+', '+want+': '+card.show+'.');}
+  };
+  document.getElementById('progClearChord').onclick=()=>{if(solved)return;slots[cur]={root:null,q:null,tap:null};syncControls();};
+  document.getElementById('progClear').onclick=reset;
+  function reset(){slots=card.deg.map(()=>({root:null,q:null}));cur=0;inv=0;solved=false;rot=0;dom=false;bassDir=[];document.getElementById('progQ').textContent=card.q;paintPlayer();syncControls();}
+  reset();
+}
+
+// ---------- 2. Pentatonic notes ----------
+{
+  const ROOT=3; const WANT=scale(ROOT,MAJPENT); const chosen=new Set();let solved=false;
+  const built=document.getElementById('pentBuilt');
+  const kbd=makeKeyboard(document.getElementById('kbdPent'),midi=>{if(solved)return;const pc=midi%12;if(chosen.has(pc))chosen.delete(pc);else{chosen.add(pc);}paint();});
+  const player=makeScalePlayer('pent',kbd);
+  function paint(){if(SCALE_COLOURS==='interval'&&chosen.size){kbd.light([...chosen].filter(p=>p!==ROOT),chosen.has(ROOT)?ROOT:-1);}else kbd.press(Object.keys(kbd.byMidi).map(Number).filter(m=>chosen.has(m%12)));built.innerHTML=chosen.size?[...chosen].sort((a,b)=>((a-ROOT+12)%12)-((b-ROOT+12)%12)).map(p=>NAME_BY_PC[p]).join(' '):'<span class="dim">nothing yet</span>';hideResult('pentResult');}
+  document.getElementById('pentCheck').onclick=()=>{
+    if(chosen.size!==5){result('pentResult',false,'Choose five notes. You have '+chosen.size+'.');return;}
+    const ok=WANT.every(p=>chosen.has(p));
+    if(ok){solved=true;result('pentResult',true,'Correct: E♭ F G B♭ C. The 1, 2, 3, 5 and 6 of E♭.');player.show(ROOT,WANT,[3,7,10]);}
+    else{const extra=[...chosen].filter(p=>!WANT.includes(p)).map(p=>NAME_BY_PC[p]);const missing=WANT.filter(p=>!chosen.has(p)).map(p=>NAME_BY_PC[p]);result('pentResult',false,'Not quite. '+(extra.length?extra.join(', ')+' is not in it. ':'')+(missing.length?'Missing '+missing.join(', ')+'. ':'')+'E♭ major pentatonic is E♭ F G B♭ C.');}
+  };
+  document.getElementById('pentClear').onclick=()=>{chosen.clear();solved=false;player.hide();paint();};
+}
+
+// ---------- 3. Lick scale ----------
+{
+  const ROOT=5; const WANT=scale(ROOT,MINPENT); const taps=[]; // in order; first tap is the claimed root
+  const built=document.getElementById('lickBuilt');let solved=false;
+  const kbd=makeKeyboard(document.getElementById('kbdLick'),midi=>{if(solved)return;const pc=midi%12;const i=taps.indexOf(pc);if(i>=0)taps.splice(i,1);else taps.push(pc);paint();});const player=makeScalePlayer('lick',kbd);
+  function paint(){if(SCALE_COLOURS==='interval'&&taps.length){kbd.light(taps.slice(1),taps[0]);}else{kbd.clear();Object.values(kbd.byMidi).forEach(k=>{k.style.background='';k.style.color='';});Object.values(kbd.byMidi).forEach(k=>{const pc=+k.dataset.midi%12;if(taps[0]===pc){k.style.background='#0F6E56';k.style.color='#fff';}else if(taps.includes(pc))k.classList.add('on');});}
+    built.innerHTML=taps.length?taps.map((p,i)=>(i===0?'<b>'+NAME_BY_PC[p]+'</b>':NAME_BY_PC[p])).join(' '):'<span class="dim">tap the root first</span>';hideResult('lickResult');}
+  document.getElementById('lickCheck').onclick=()=>{
+    if(taps.length!==5){result('lickResult',false,'Tap five notes, root first. You have '+taps.length+'.');return;}
+    const setOk=WANT.every(p=>taps.includes(p));
+    if(setOk&&taps[0]===ROOT){solved=true;result('lickResult',true,'Correct: F minor pentatonic, F A♭ B♭ C E♭. Same five notes as A♭ major pentatonic, starting on the 6.');player.show(ROOT,WANT,[8,0,3]);}
+    else if(setOk)result('lickResult',false,'Those are the five notes, but you started on '+NAME_BY_PC[taps[0]]+'. The root is F: it is F minor pentatonic.');
+    else result('lickResult',false,'Not quite. The relative minor of A♭ is F, so F minor pentatonic: F A♭ B♭ C E♭.');
+  };
+  document.getElementById('lickClear').onclick=()=>{taps.length=0;solved=false;player.hide();paint();};
+  paint();
+}
+
+// ---------- 4. Relative key ----------
+{
+  let rowRef=null,relPlayer=null;const kbd=makeKeyboard(document.getElementById('kbdRel'),midi=>{const pc=midi%12;const nm=NAME_BY_PC[pc];const p={letter:nm[0],acc:nm.length>1?-1:0};rowRef.set(p);rowRef.fire(p);});const built=document.getElementById('relBuilt');let pick=null;
+  relPlayer=makeScalePlayer('rel',kbd,{starts:false,autoplay:false,octave:true});
+  rowRef=makeLetterRow(document.getElementById('relRow'),p=>{pick=p;hideResult('relResult');relPlayer.hide();if(!p){kbd.clear();built.innerHTML='<span class="dim">choose a root</span>';return;}const r=pcOf(p.letter,p.acc);kbd.light([],r);built.textContent=label(p)+' minor';});
+  document.getElementById('relCheck').onclick=()=>{
+    if(!pick){result('relResult',false,'Choose a root first.');return;}
+    const r=pcOf(pick.letter,pick.acc);
+    if(r===5){result('relResult',true,'Correct: F minor. Same four flats as A♭ major; F is its 6.');relPlayer.show(5,scale(5,NMINOR),[5,8,0]);}
+    else result('relResult',false,'Not quite. Go to the 6 of A♭ major: F. F minor shares A♭ major\'s four flats.');
+  };
+  document.getElementById('relClear').onclick=()=>{rowRef.reset();pick=null;relPlayer.hide();kbd.clear();built.innerHTML='<span class="dim">choose a root</span>';hideResult('relResult');};
+}
+
+// ---------- 5. Key signature ----------
+{
+  let rowRef=null,sigPlayer=null;const kbd=makeKeyboard(document.getElementById('kbdSig'),midi=>{const pc=midi%12;const nm=NAME_BY_PC[pc];const p={letter:nm[0],acc:nm.length>1?-1:0};rowRef.set(p);rowRef.fire(p);});const built=document.getElementById('sigBuilt');let pick=null;
+  sigPlayer=makeScalePlayer('sig',kbd,{starts:false,autoplay:false,octave:true});
+  rowRef=makeLetterRow(document.getElementById('sigRow'),p=>{pick=p;hideResult('sigResult');sigPlayer.hide();if(!p){kbd.clear();built.innerHTML='<span class="dim">choose a key</span>';return;}const r=pcOf(p.letter,p.acc);kbd.light([],r);built.textContent=label(p)+' major';});
+  document.getElementById('sigCheck').onclick=()=>{
+    if(!pick){result('sigResult',false,'Choose a key first.');return;}
+    const r=pcOf(pick.letter,pick.acc);
+    if(r===3){result('sigResult',true,'Correct: E♭ major. B♭, E♭, A♭.');sigPlayer.show(3,scale(3,MAJOR),[3,7,10]);}
+    else result('sigResult',false,'Not quite. Three flats is B♭ E♭ A♭, which is the key of E♭ major.');
+  };
+  document.getElementById('sigClear').onclick=()=>{rowRef.reset();pick=null;sigPlayer.hide();kbd.clear();built.innerHTML='<span class="dim">choose a key</span>';hideResult('sigResult');};
+}
+
+// ---------- 6. Slash chord ----------
+{
+  const KEY=0;
+  // each shape carries its own context phrases; a step is [bass midi, hand midis] or null for the slash chord itself
+  // context steps: {pcs:[chord pitch classes], bass:midi} or {slash:true,bass:midi}. Hands are voice-led around the slash chord.
+  const C_=(pcs,bass)=>({pcs,bass});const S=b=>({slash:true,bass:b});
+  const I=(b)=>C_([0,4,7],b),IV=(b)=>C_([5,9,0],b),V=(b)=>C_([7,11,2],b),VI=(b)=>C_([9,0,4],b),II=(b)=>C_([2,5,9],b);
+  const CARDS=[
+    {id:'1/3',q:'What is 1/3 in the key of C major?',root:0,fam:'maj',bass:4,show:'C/E',why:'The 1 of the key of C major with its 3 in the bass: the 1 in first inversion, a stepping stone in the bass line.',
+      ctx:[['alone','Just the chord',[null]],['up','Walking up (1 · 1/3 · 4)',[I(36),S(40),IV(41)]],['down','Walking down (4 · 1/3 · 2m)',[IV(41),S(40),II(38)]]]},
+    {id:'5/7',q:'What is 5/7 in the key of C major?',root:7,fam:'maj',bass:11,show:'G/B',why:'The 5 of the key of C major with the 7 of the key in the bass: the 5 in first inversion.',
+      ctx:[['alone','Just the chord',[null]],['down','Walking down (1 · 5/7 · 6m)',[I(48),S(47),VI(45)]],['up','Walking up (6m · 5/7 · 1)',[VI(45),S(47),I(48)]]]},
+    {id:'4/5',q:'What is 4/5 in the key of C major?',root:5,fam:'maj',bass:7,show:'F/G',why:'The 4 of the key of C major over the 5: the dominant sus sound (G9sus4), waiting to resolve to the 1.',
+      ctx:[['alone','Just the chord',[null]],['resolve','Resolving (4/5 · 1)',[S(43),I(36)]],['inout','Out and back (1 · 4/5 · 1)',[I(36),S(43),I(36)]]]},
+    {id:'1/5',q:'What is 1/5 in the key of C major?',root:0,fam:'maj',bass:7,show:'C/G',why:'The 1 of the key of C major over the 5: the cadential 6-4, the 1 sitting on the bass of the 5 before the real 5 arrives.',
+      ctx:[['alone','Just the chord',[null]],['cad','Cadence (1/5 · 5 · 1)',[S(43),V(43),I(36)]],['full','Full cadence (4 · 1/5 · 5 · 1)',[IV(41),S(43),V(43),I(36)]]]},
+    {id:'5/1',q:'What is 5/1 in the key of C major?',root:7,fam:'maj',bass:0,show:'G/C',why:'The 5 of the key of C major over the 1: the bass stays home while the 5 sounds above it, a pedal.',
+      ctx:[['alone','Just the chord',[null]],['pedal','Pedal (1 · 5/1 · 1)',[I(36),S(36),I(36)]]]},
+    {id:'2m/1',q:'What is 2m/1 in the key of C major?',root:2,fam:'min',bass:0,show:'Dm/C',why:'The 2 minor of the key of C major over the 1: the bass stays home while the 2m sounds above it, a pedal.',
+      ctx:[['alone','Just the chord',[null]],['pedal','Pedal (1 · 2m/1 · 1)',[I(36),S(36),I(36)]]]},
+    {id:'1/4',q:'What is 1/4 in the key of C major?',root:0,fam:'maj',bass:5,show:'C/F',why:'The 1 of the key of C major over the 4: the 1 chord hanging over the bass of the 4, a suspension that settles home.',
+      ctx:[['alone','Just the chord',[null]],['settle','Settling (4 · 1/4 · 1)',[IV(41),S(41),I(36)]]]},
+  ];
+  let card=CARDS[1];let ANSWER=card;
+  const QUALS=[['','major'],['maj7','maj7'],['m','minor'],['m7','min7'],['7','7']];
+  const CHORD_IV={'':[0,4,7],'m':[0,3,7],'7':[0,4,7,10],'m7':[0,3,7,10],'maj7':[0,4,7,11]};
+  const FAMILY={'':'maj','maj7':'maj','m':'min','m7':'min','7':'dom'};
+  const INVS=[['0','Root position'],['1','1st inversion'],['2','2nd inversion'],['3','3rd inversion']];
+  const INTERVAL_COLOR={0:'#0F6E56',1:'#E24B4A',2:'#D4537E',3:'#5DCAA5',4:'#97C459',5:'#534AB7',6:'#E24B4A',7:'#888780',8:'#185FA5',9:'#378ADD',10:'#BA7517',11:'#FAC775'};
+  
+  let root=null,q='',bassPc=null,tap=null,inv=0,solved=false,orient=null,bassOnly=false;
+  let topRow=null,bassRow=null;
+  const kbd=makeKeyboard(document.getElementById('kbdSlash'),midi=>{if(solved)return;const pc=midi%12;const nm=NAME_BY_PC[pc];const p={letter:nm[0],acc:nm.length>1?-1:0};
+    if(midi<48){if(root===null)return;bassPc=(bassPc===pc)?null:pc;bassRow.set(bassPc===null?null:p);paint();return;}
+    root=p;tap=midi;topRow.set(root);paint();},3);
+  topRow=makeLetterRow(document.getElementById('slashRow'),p=>{if(solved)return;root=p;tap=null;paint();});
+  bassRow=makeLetterRow(document.getElementById('slashBassRow'),p=>{if(solved)return;bassPc=p?pcOf(p.letter,p.acc):null;paint();});
+  const qEl=document.getElementById('slashQual');
+  const qualBtns=QUALS.map(([qq,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.dataset.q=qq;b.setAttribute('aria-pressed',String(qq===q));b.onclick=()=>{if(solved)return;q=qq;qualBtns.forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.q===q)));paintInv();paint();};qEl.appendChild(b);return b;});
+  const iEl=document.getElementById('slashInv');
+  function paintInv(){iEl.innerHTML='';const n=q!==null?Math.min(CHORD_IV[q].length,4):4;if(inv>=n)inv=0;INVS.forEach(([i,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.disabled=+i>=n;b.setAttribute('aria-pressed',String(+i===inv));b.onclick=()=>{if(b.disabled)return;inv=+i;paintInv();paint();};iEl.appendChild(b);});}
+  function stack(order,b0){const out=[b0];let last=b0;for(let i=1;i<order.length;i++){let m=last+((order[i]-last%12+12)%12||12);out.push(m);last=m;}return out;}
+  function handMidis(){if(root===null||q===null)return [];const r=pcOf(root.letter,root.acc);const pcs=CHORD_IV[q].map(x=>(r+x)%12);const i=Math.min(inv,pcs.length-1);const order=pcs.slice(i).concat(pcs.slice(0,i));for(let b0=55;b0<=72;b0++){if(b0%12!==order[0])continue;const v=stack(order,b0);if(v[v.length-1]<=72)return v;}for(let b0=48;b0<=72;b0++){if(b0%12!==order[0])continue;const v=stack(order,b0);if(v[v.length-1]<=72)return v;}return [];}
+  function paint(){kbd.clear();Object.values(kbd.byMidi).forEach(k=>{k.style.background='';k.style.color='';k.classList.remove('bassband');});
+    const r=root!==null?pcOf(root.letter,root.acc):null;const ready=r!==null&&q!==null;
+    document.getElementById('slashBassWrap').hidden=!ready;
+    if(r!==null&&q===null){const k=kbd.byMidi[tap||(48+r)];if(k)k.classList.add('on');}
+    hiFit(handMidis()).forEach(m=>{const k=kbd.byMidi[m];if(!k)return;const iv=(m-r+120)%12;k.style.background=INTERVAL_COLOR[iv];k.style.color=iv===11?'#1A1D21':'#fff';});
+    if(bassPc!==null){const k=kbd.byMidi[36+bassPc];if(k){k.classList.add('bassband');k.style.background='#0F6E56';k.style.color='#fff';}}
+    const c=document.getElementById('slashChord'),b=document.getElementById('slashBass');c.textContent=root?label(root)+(q===null?'':q):'chord';c.className=root?'':'dim';b.textContent=bassPc!==null?NAME_BY_PC[bassPc]:'bass';b.className=bassPc!==null?'':'dim';hideResult('slashResult');}
+  function playSlash(at,dur,bm){const hm=handMidis();const b=bm!==undefined?bm:(bassPc!==null?36+bassPc:null);if(b!==null)tone(b,at,dur,0.22);if(!bassOnly)chordAt(hm,at,dur);}
+  function paintSlashAt(bm){paint();if(bm===undefined||bassPc===null)return;const old=kbd.byMidi[36+bassPc];const nw=kbd.byMidi[bm];if(old&&nw&&old!==nw){nw.style.background=old.style.background;nw.style.color=old.style.color;nw.classList.add('bassband');old.style.background='';old.style.color='';old.classList.remove('bassband');}}
+  // orientation phrases in the key (C): each step = [bass midi, hand midis]
+  function ctxChords(){const c=card.ctx.find(x=>x[0]===orient)||card.ctx[0];return c[2];}
+  function stackFrom(order,b0){const out=[b0];let last=b0;for(let i=1;i<order.length;i++){let m=last+((order[i]-last%12+12)%12||12);out.push(m);last=m;}return out;}
+  function allV(pcs){let out=[];for(let i=0;i<pcs.length;i++){const order=pcs.slice(i).concat(pcs.slice(0,i));for(let b0=53;b0<=72;b0++){if(b0%12!==order[0])continue;const v=stackFrom(order,b0);if(v[v.length-1]<=72)out.push(v);}}return out;}
+  function nearestV(pcs,ref){let best=null,bd=1e9;for(const v of allV(pcs)){let d=0;for(const m of v)d+=Math.min(...ref.map(p=>Math.abs(p-m)));for(const p of ref)d+=Math.min(...v.map(m=>Math.abs(p-m)));if(d<bd){bd=d;best=v;}}return best||[];}
+  function voicedSteps(){const steps=ctxChords();const hands=new Array(steps.length).fill(null);const si=steps.findIndex(x=>x===null||(x&&x.slash));const anchor=handMidis();if(si>=0)hands[si]=anchor;
+    for(let i=si-1;i>=0;i--)hands[i]=nearestV(steps[i].pcs,hands[i+1]);for(let i=si+1;i<steps.length;i++)hands[i]=nearestV(steps[i].pcs,hands[i-1]);return steps.map((st,i)=>({st,hand:hands[i]}));}
+  function hearAll(){const c=ac();if(c.state==='suspended')c.resume();const B=beat()*2;let t=c.currentTime+0.05;tone(36+KEY,t,B*0.9,0.24);t+=B;const vs=voicedSteps();vs.forEach(({st,hand},i)=>{const last=i===vs.length-1;const dur=last?B*1.8:B*1.15;
+      if(st===null||st.slash){const bm=st&&st.slash?st.bass:undefined;playSlash(t,dur,bm);setTimeout(()=>{paintSlashAt(bm);},(t-c.currentTime)*1000);}
+      else{tone(st.bass,t,dur,0.22);if(!bassOnly)chordAt(hand,t,dur);const bm=st.bass,rp=st.pcs[0];setTimeout(()=>{kbd.clear();Object.values(kbd.byMidi).forEach(k=>{k.style.background='';k.style.color='';k.classList.remove('bassband');});hand.forEach(m=>{const k=kbd.byMidi[m];if(!k)return;const iv=(m-rp+120)%12;k.style.background=INTERVAL_COLOR[iv];k.style.color=iv===11?'#1A1D21':'#fff';});const kb=kbd.byMidi[bm];if(kb){kb.classList.add('bassband');kb.style.background='#0F6E56';kb.style.color='#fff';}},(t-c.currentTime)*1000);}
+      t+=last?0:B;});setTimeout(()=>paint(),(t-c.currentTime)*1000+B*1800);}
+  function paintPlayer(){const pe=document.getElementById('slashPlayer');pe.hidden=!solved;if(!solved)return;const tEl=document.getElementById('slashThick');tEl.innerHTML='';[[false,'Bass + chords'],[true,'Bass only']].forEach(([v,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.setAttribute('aria-pressed',String(v===bassOnly));b.onclick=()=>{bassOnly=v;paintPlayer();};tEl.appendChild(b);});const oEl=document.getElementById('slashOrient');oEl.innerHTML='';if(!card.ctx.some(x=>x[0]===orient))orient=card.ctx[1][0];card.ctx.forEach(([o,name])=>{const b=document.createElement('button');b.className='chip';b.textContent=name;b.setAttribute('aria-pressed',String(o===orient));b.onclick=()=>{orient=o;paintPlayer();};oEl.appendChild(b);});}
+  document.getElementById('slashPlayerHear').onclick=hearAll;mountPlayback(document.getElementById('slashPlayback'),()=>paint());
+  document.getElementById('slashHear').onclick=()=>{const hm=handMidis();if(!hm.length&&bassPc===null)return;const c=ac();if(c.state==='suspended')c.resume();playSlash(c.currentTime,2.2);};
+  document.getElementById('slashCheck').onclick=()=>{
+    if(root===null||q===null){result('slashResult',false,'Choose the top chord: a letter and a quality.');return;}
+    if(bassPc===null){result('slashResult',false,'Choose the bottom note.');return;}
+    const r=pcOf(root.letter,root.acc);const ok=r===ANSWER.root&&FAMILY[q]===ANSWER.fam&&bassPc===ANSWER.bass;
+    const yours=label(root)+q+'/'+NAME_BY_PC[bassPc];
+    if(ok){solved=true;result('slashResult',true,'Correct: '+yours+(yours===ANSWER.show?'':', that is '+ANSWER.show)+'. '+card.why);paintPlayer();}
+    else if(r!==ANSWER.root||FAMILY[q]!==ANSWER.fam)result('slashResult',false,'Not quite. You built '+yours+'. The top chord is '+NAME_BY_PC[ANSWER.root]+': '+ANSWER.show+'.');
+    else result('slashResult',false,'Not quite. You built '+yours+'. The top chord is right; the bottom note is '+NAME_BY_PC[ANSWER.bass]+': '+ANSWER.show+'.');
+  };
+  document.getElementById('slashClearBass').onclick=()=>{if(solved)return;bassPc=null;bassRow.reset();paint();};
+  document.getElementById('slashClear').onclick=()=>{root=null;q='';bassPc=null;tap=null;inv=0;solved=false;orient='down';topRow.reset();bassRow.reset();qualBtns.forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.q==='')));paintInv();paintPlayer();paint();};
+  const cEl=document.getElementById('slashCards');
+  const cardBtns=CARDS.map(cd=>{const b=document.createElement('button');b.className='chip';b.textContent=cd.id+' in C';b.setAttribute('aria-pressed',String(cd===card));b.onclick=()=>{card=cd;ANSWER=cd;cardBtns.forEach(x=>x.setAttribute('aria-pressed',String(x===b)));document.getElementById('slashQ').textContent=cd.q;document.getElementById('slashClear').click();};cEl.appendChild(b);return b;});
+  paintInv();paint();
+}
+</script>
