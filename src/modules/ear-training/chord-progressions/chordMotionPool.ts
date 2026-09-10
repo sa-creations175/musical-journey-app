@@ -59,7 +59,10 @@ export type DegreeLabel =
   | '1' | 'b2' | '2' | 'b3' | '3' | '4' | '#4' | '5' | 'b6' | '6' | 'b7' | '7'
   // The borrowed three: a degree the table already has, in a second
   // quality. The segment names both, because the bare degree is taken.
-  | '2m7b5' | '4m' | '5m';
+  | '2m7b5' | '4m' | '5m'
+  // The ♯4's second seventh chord, F♯dim7 in C, beside the F♯m7♭5 the
+  // bare `#4` has always meant.
+  | '#4dim7';
 
 export interface DegreeEntry {
   label: DegreeLabel;
@@ -79,22 +82,31 @@ export interface DegreeEntry {
  * Silas walked (1 · ♭2 · 2m · 2ø · ♭3 …) and also what makes a piano
  * tap — a pitch, with no quality — resolve to the diatonic one.
  */
+/*
+ * THE DIMINISHED FAMILY, IN THE CATALOG'S OWN WORDS. `half-dim` is the
+ * m7♭5 — the 7, the ♯4 and the borrowed 2 — and `diminished` is the
+ * fully diminished dim7, which only the ♯4's second chip carries. Until
+ * 10 Sep 2026 this table called the m7♭5 `diminished` because nothing
+ * here was a dim7; the ids never named a quality for these, so no
+ * stored row changes meaning.
+ */
 export const DEGREE_TABLE: DegreeEntry[] = [
   { label: '1',     degree: '1',  semi: 0,  diatonic: true,  quality: 'major' },
   { label: 'b2',    degree: 'b2', semi: 1,  diatonic: false, quality: 'major' },
   { label: '2',     degree: '2',  semi: 2,  diatonic: true,  quality: 'minor' },
-  { label: '2m7b5', degree: '2',  semi: 2,  diatonic: false, quality: 'diminished', borrowed: true },
+  { label: '2m7b5', degree: '2',  semi: 2,  diatonic: false, quality: 'half-dim', borrowed: true },
   { label: 'b3',    degree: 'b3', semi: 3,  diatonic: false, quality: 'major' },
   { label: '3',     degree: '3',  semi: 4,  diatonic: true,  quality: 'minor' },
   { label: '4',     degree: '4',  semi: 5,  diatonic: true,  quality: 'major' },
   { label: '4m',    degree: '4',  semi: 5,  diatonic: false, quality: 'minor', borrowed: true },
-  { label: '#4',    degree: '#4', semi: 6,  diatonic: false, quality: 'diminished' },
+  { label: '#4',    degree: '#4', semi: 6,  diatonic: false, quality: 'half-dim' },
+  { label: '#4dim7', degree: '#4', semi: 6,  diatonic: false, quality: 'diminished', borrowed: true },
   { label: '5',     degree: '5',  semi: 7,  diatonic: true,  quality: 'dominant' },
   { label: '5m',    degree: '5',  semi: 7,  diatonic: false, quality: 'minor', borrowed: true },
   { label: 'b6',    degree: 'b6', semi: 8,  diatonic: false, quality: 'major' },
   { label: '6',     degree: '6',  semi: 9,  diatonic: true,  quality: 'minor' },
   { label: 'b7',    degree: 'b7', semi: 10, diatonic: false, quality: 'major' },
-  { label: '7',     degree: '7',  semi: 11, diatonic: true,  quality: 'diminished' },
+  { label: '7',     degree: '7',  semi: 11, diatonic: true,  quality: 'half-dim' },
 ];
 
 const DEGREE_BY_LABEL = new Map<string, DegreeEntry>(DEGREE_TABLE.map(e => [e.label, e]));

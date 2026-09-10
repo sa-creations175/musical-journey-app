@@ -60,7 +60,9 @@ import {
   type DegreeLabel, type Direction, type Motion,
 } from './chordMotionPool';
 import { bassMove, motionChords } from './motionChords';
-import { chipText, degreeChips, degreeOfPc, degreePc, motionName } from './motionDegrees';
+import {
+  chipText, degreeChips, degreeOfPc, degreePc, motionName, sameChordAt,
+} from './motionDegrees';
 import { motionResult, type MotionResultTone } from './motionResult';
 import { spellKey } from '../../../lib/spelling';
 import { useSpelling } from '../../../lib/spellingPref';
@@ -463,9 +465,11 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     const r = round;
     if (r === null) return;
     handle.current?.stop();
+    // At the rung the chips were drawn at — see `sameChordAt` for why a
+    // Triads row answers both ♯4 sevenths with one chip.
     const same = (yours: DegreeLabel, asked: DegreeLabel) => (byPitch
       ? degreePc(r.keyPc, yours) === degreePc(r.keyPc, asked)
-      : yours === asked);
+      : sameChordAt(yours, asked, rung));
     // THE STARTING NOTE IS GIVEN OR IT IS ANSWERED. With the aid on the
     // reader was told it, so it cannot be wrong; the rating already
     // carries the cost of having been told.
@@ -617,6 +621,9 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   const chips = degreeChips(
     noteContext === 'chromatic' || activePool.some(m => !m.isDiatonic),
     rowSpelling,
+    // THE CARD'S RUNG, so a diminished chip spells as the chords sound
+    // — ø on a seventh-chord row. See `chipText`.
+    rung,
   );
   const feelWord = feel === null
     ? null
@@ -628,11 +635,11 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     : motionResult({
       startOk: answered.startOk,
       destOk: answered.destOk,
-      start: chipText(round.motion.startLabel, rowSpelling),
-      dest: chipText(round.motion.destLabel, rowSpelling),
+      start: chipText(round.motion.startLabel, rowSpelling, rung),
+      dest: chipText(round.motion.destLabel, rowSpelling, rung),
       yourStart: answered.yourStart === null
-        ? null : chipText(answered.yourStart, rowSpelling),
-      yourDest: chipText(answered.yourDest, rowSpelling),
+        ? null : chipText(answered.yourStart, rowSpelling, rung),
+      yourDest: chipText(answered.yourDest, rowSpelling, rung),
     });
 
   return (
@@ -871,11 +878,11 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
               <p className="text-sm" data-testid="motion-verdict">
                 <span className="font-mono">
                   <InKeyToken pc={round.startPc} keyPc={round.keyPc} testId="verdict-start">
-                    {chipText(round.motion.startLabel, rowSpelling)}
+                    {chipText(round.motion.startLabel, rowSpelling, rung)}
                   </InKeyToken>
                   {' → '}
                   <InKeyToken pc={round.destPc} keyPc={round.keyPc} testId="verdict-dest">
-                    {chipText(round.motion.destLabel, rowSpelling)}
+                    {chipText(round.motion.destLabel, rowSpelling, rung)}
                   </InKeyToken>
                 </span>
                 <span className="text-neutral-400"> · </span>

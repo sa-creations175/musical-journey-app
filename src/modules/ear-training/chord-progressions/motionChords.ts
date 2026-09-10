@@ -48,15 +48,19 @@ const SHAPE_OF_QUALITY: Readonly<Record<string, QualityId>> = {
   major: 'maj7',
   minor: 'm7',
   dominant: '7',
-  diminished: 'm7b5',
+  'half-dim': 'm7b5',
+  // THE DIM7 IS VOICED BY THE NORMAL RULES, like any other shape: the
+  // rung's tones from `handTones`, the bass rule underneath.
+  diminished: 'dim7',
 };
 
 /** What a chord of this quality is called, in a key. */
 function chordName(rootPc: number, quality: string, spelling: Spelling): string {
   const suffix = quality === 'minor' ? 'm7'
     : quality === 'dominant' ? '7'
-      : quality === 'diminished' ? 'm7♭5'
-        : 'maj7';
+      : quality === 'half-dim' ? 'm7♭5'
+        : quality === 'diminished' ? 'dim7'
+          : 'maj7';
   return `${spellNote(rootPc, spelling)}${suffix}`;
 }
 

@@ -136,12 +136,12 @@ describe('every catalog has a source wired', () => {
       // 199 vocabulary cards + 56 lessons.
       'production': 255,
       // 25 intervals + 51 chord recognition + 18 scales & modes +
-      // 367 chord progressions = 461. (Was 514: the chord-progressions
+      // 395 chord progressions = 489. (Was 514: the chord-progressions
       // catalog was cut from 69 named progressions to eight on
       // 9 Sep 2026, and the full-progression rows went 144 → 16. Then
       // 386 → 458 on 10 Sep, when the borrowed 4m, 2ø and 5m added 72
-      // motions, and 458 → 461 the same day for the three same-root
-      // moves.)
+      // motions, 458 → 461 for the three same-root moves, and 461 → 489
+      // for the ♯4's dim7 — all 10 Sep.)
       //   intervals: 12 with both directions plus the unison, which
       //     has one — zero semitones up and zero down are the same
       //     two notes. See ear-training/intervals/seed.ts.
@@ -152,12 +152,12 @@ describe('every catalog has a source wired', () => {
       //     triad has no audible inversion, a dim7's four are the same
       //     four pitches, and nothing above the sevenths is
       //     inversion-trained. See inversionUtils.reachableInversions.
-      //   chord progressions: 12 key-detection + 207 motion +
+      //   chord progressions: 12 key-detection + 235 motion +
       //     132 motion-first + 16 full-progression rows (8 chord +
       //     8 pattern + 0 inversion — inversion is graded only on
       //     slash progressions and the cut left none, though the row
       //     builder still adds one the day a slash progression returns).
-      'ear-training': 461,
+      'ear-training': 489,
     });
   });
 

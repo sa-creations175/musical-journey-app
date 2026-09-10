@@ -22,7 +22,10 @@
  * =====================================================================
  */
 import { qualitySuffix } from '../../../lib/progressionRow';
-import type { ProgressionSpelling } from '../../../lib/progressionSpellingShape';
+import {
+  DEFAULT_PROGRESSION_SPELLING, type ProgressionSpelling,
+} from '../../../lib/progressionSpellingShape';
+import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 import { DEGREE_TABLE, type DegreeLabel, type Motion } from './chordMotionPool';
 
 /** The chord-shape quality a degree's chord takes, for the suffix. */
@@ -30,8 +33,47 @@ const SUFFIX_QUALITY: Readonly<Record<string, string>> = {
   major: 'maj7',
   minor: 'm7',
   dominant: '7',
-  diminished: 'm7b5',
+  'half-dim': 'm7b5',
+  diminished: 'dim7',
 };
+
+/**
+ * The rung Chord Motion's chords are, unless a caller says otherwise.
+ *
+ * SEVENTH CHORDS, because that is what the card deals and what its
+ * ladder offers (guide tones, seventh chords, full voicing — every one a
+ * seventh-chord reading). The Focus panel, the tracker and the
+ * dashboard have no ladder of their own and name the motion as the card
+ * plays it.
+ */
+const CARD_RUNG: Thickness = 'seventh';
+
+/** What a triad chip stands for: the root and the triad under it. */
+function triadKey(label: DegreeLabel): string {
+  const e = DEGREE_TABLE.find(x => x.label === label);
+  if (e === undefined) return label;
+  const triad = e.quality === 'minor' ? 'min'
+    : e.quality === 'half-dim' || e.quality === 'diminished' ? 'dim'
+      : 'maj';
+  return `${e.semi}:${triad}`;
+}
+
+/**
+ * Whether an answered chip names the chord that was asked, at a rung.
+ *
+ * AT TRIADS THE ♯4'S TWO SEVENTHS ARE ONE CHORD. F♯m7♭5 and F♯dim7
+ * share their triad, F♯°, so a Triads row shows one ♯4° chip and it
+ * answers a card dealt from either entry. At every other rung a chip
+ * names its own chord and nothing else.
+ */
+export function sameChordAt(
+  yours: DegreeLabel,
+  asked: DegreeLabel,
+  rung: Thickness = CARD_RUNG,
+): boolean {
+  if (yours === asked) return true;
+  return rung === 'triads' && triadKey(yours) === triadKey(asked);
+}
 
 export interface DegreeChip {
   label: DegreeLabel;
@@ -54,12 +96,23 @@ export interface DegreeChip {
 export function degreeChips(
   chromatic: boolean,
   settings?: ProgressionSpelling,
+  rung: Thickness = CARD_RUNG,
 ): DegreeChip[] {
+  const seen = new Set<string>();
   return DEGREE_TABLE
     .filter(e => chromatic || e.diatonic)
+    // ONE CHIP PER TRIAD AT TRIADS — the ♯4's two sevenths collapse to
+    // the first of them, ♯4°. See `sameChordAt`.
+    .filter(e => {
+      if (rung !== 'triads') return true;
+      const k = triadKey(e.label);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    })
     .map(e => ({
       label: e.label,
-      text: chipText(e.label, settings),
+      text: chipText(e.label, settings, rung),
       diatonic: e.diatonic,
     }));
 }
@@ -74,20 +127,28 @@ export function degreeChips(
 export function chipText(
   label: DegreeLabel,
   settings?: ProgressionSpelling,
+  rung: Thickness = CARD_RUNG,
 ): string {
   const entry = DEGREE_TABLE.find(e => e.label === label);
-  // THE BORROWED 2 IS NAMED AS THE SEVENTH CHORD IT IS BORROWED AS —
-  // the ø of a minor 2 5 1 — while the 7 and the ♯4 keep their triad
-  // name, °. Both are the same m7♭5 shape; the chip row Silas walked
-  // spells them "2ø" and "7°", and the half-diminished setting decides
-  // the ø the way the diminished setting decides the °.
-  const rung = entry?.borrowed === true && entry.quality === 'diminished'
-    ? 'seventh' as const : undefined;
-  return (entry?.degree ?? label).replace(/b/g, '♭').replace(/#/g, '♯')
-    + qualitySuffix(SUFFIX_QUALITY[entry?.quality ?? 'major'] ?? 'maj7', {
-      ...(settings ? { settings } : {}),
-      ...(rung ? { rung } : {}),
-    });
+  const degree = (entry?.degree ?? label).replace(/b/g, '♭').replace(/#/g, '♯');
+  // =====================================================================
+  // THE DIMINISHED FAMILY SPELLS AS SETTINGS SAYS, BY RUNG. Silas's
+  // ruling of 10 Sep 2026. On a Triads row every diminished chord is
+  // the triad — ° (or dim). On a seventh-chord row — guide tones,
+  // seventh chords, full voicing — the m7♭5 is ø (or m7♭5) and the dim7
+  // is the triad's sign with a 7: °7 (or dim7). So the 7 reads 7ø on
+  // this card, where it read 7° when chips took no rung at all.
+  //
+  // THE DIM7 IS SPELLED HERE, not by `qualitySuffix`, which files a dim7
+  // with the half-diminished and would write it ø at a seventh rung.
+  // =====================================================================
+  if (entry?.quality === 'diminished' && rung !== 'triads') {
+    return `${degree}${(settings ?? DEFAULT_PROGRESSION_SPELLING).halfDimTriad}7`;
+  }
+  return degree + qualitySuffix(SUFFIX_QUALITY[entry?.quality ?? 'major'] ?? 'maj7', {
+    ...(settings ? { settings } : {}),
+    rung,
+  });
 }
 
 /**
@@ -103,7 +164,8 @@ export function chipText(
  * SAFE FOR THE READ LAYER. Nothing under this imports React or Dexie —
  * the spelling comes from `progressionSpellingShape`, not from the file
  * with the hooks — so the dashboard can call it. Without `settings` it
- * spells at the app's default (° and ø).
+ * spells at the app's default (° and ø), at the card's seventh-chord
+ * rung — the ♯4's two chords need their two names to be told apart.
  *
  * NO DIRECTION. A pair of chords has one motion in the pool, so "(Up)"
  * said nothing the two names do not, and the direction a reader cares
@@ -113,8 +175,9 @@ export function chipText(
 export function motionName(
   m: Pick<Motion, 'startLabel' | 'destLabel'>,
   settings?: ProgressionSpelling,
+  rung: Thickness = CARD_RUNG,
 ): string {
-  return `${chipText(m.startLabel, settings)} → ${chipText(m.destLabel, settings)}`;
+  return `${chipText(m.startLabel, settings, rung)} → ${chipText(m.destLabel, settings, rung)}`;
 }
 
 /** A degree's pitch class in a key. */

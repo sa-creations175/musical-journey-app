@@ -306,10 +306,11 @@ export const scalesModesCatalog: ModuleCatalog = {
  * Chord progressions is three sub-drills sharing one moduleId, split by
  * itemId prefix.
  *
- * CHORD MOTION'S DENOMINATOR IS 207 — every in-octave motion between
- * two chords on different roots, fifteen chords once the borrowed 4m,
- * 2ø and 5m joined the twelve degrees on 10 Sep 2026 (204), plus the
- * three same-root moves ruled the same day: 4 → 4m, 5 → 5m, 2m → 2ø. The `42` the app
+ * CHORD MOTION'S DENOMINATOR IS 235 — every in-octave motion between
+ * two chords on different roots, sixteen chords once the borrowed 4m,
+ * 2ø and 5m and the ♯4's dim7 joined the twelve degrees on 10 Sep 2026
+ * (232), plus the three same-root moves ruled the same day: 4 → 4m,
+ * 5 → 5m, 2m → 2ø. The `42` the app
  * shows is `activePool.length` after the diatonic-only filter, which is
  * the default scope, so it looks like the catalog and is not.
  *

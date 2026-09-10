@@ -17,7 +17,7 @@ import { setPref } from '../../../../lib/userPrefs';
 import { motionResult } from '../motionResult';
 import { degreePalette } from '../../../repertoire/chordColors';
 import { ALL_MOTIONS, motionId, parseMotionId } from '../chordMotionPool';
-import { degreeChips } from '../motionDegrees';
+import { degreeChips, sameChordAt } from '../motionDegrees';
 import { motionChords } from '../motionChords';
 
 // NOTHING SOUNDS. The card plays on arrival; the test is about what it
@@ -295,11 +295,13 @@ describe('the verdict line wears the in-the-key colours', () => {
 });
 
 describe('the borrowed qualities: 4m, 2ø and 5m', () => {
-  it('reads the chromatic chip row as ruled, and the diatonic one unchanged', () => {
+  it('reads the chromatic chip row as ruled, at the card’s seventh-chord rung', () => {
+    // 10 Sep: the diminished family spells by rung, so on this card —
+    // seventh chords — the 7 is 7ø, and the ♯4 has two sevenths.
     expect(degreeChips(true).map(c => c.text).join(' · '))
-      .toBe('1 · ♭2 · 2m · 2ø · ♭3 · 3m · 4 · 4m · ♯4° · 5 · 5m · ♭6 · 6m · ♭7 · 7°');
+      .toBe('1 · ♭2 · 2m · 2ø · ♭3 · 3m · 4 · 4m · ♯4ø · ♯4°7 · 5 · 5m · ♭6 · 6m · ♭7 · 7ø');
     expect(degreeChips(false).map(c => c.text).join(' · '))
-      .toBe('1 · 2m · 3m · 4 · 5 · 6m · 7°');
+      .toBe('1 · 2m · 3m · 4 · 5 · 6m · 7ø');
   });
 
   it('keeps every stored id meaning what it meant, and names both halves of a new one', () => {
@@ -307,7 +309,7 @@ describe('the borrowed qualities: 4m, 2ø and 5m', () => {
     expect([legacy.destDegree, legacy.destQuality]).toEqual(['4', 'major']);
     const borrowed = parseMotionId('motion:1-4m-asc')!;
     expect([borrowed.destDegree, borrowed.destQuality]).toEqual(['4', 'minor']);
-    expect(parseMotionId('motion:1-2m7b5-asc')!.destQuality).toBe('diminished');
+    expect(parseMotionId('motion:1-2m7b5-asc')!.destQuality).toBe('half-dim');
     expect(parseMotionId('motion:4m-b7-asc')).not.toBeNull();
     // Guard: a legacy id is not quietly read as the borrowed chord.
     expect(legacy.borrowed).toBe(false);
@@ -483,5 +485,65 @@ describe('same-root moves: 4 → 4m, 5 → 5m, 2m → 2ø', () => {
     expect(text).toContain('Same Root');
     expect(text).toContain('4 → 4m');
     expect(text).toContain('2m → 2ø');
+  });
+});
+
+describe('the diminished family spells as Settings says, and the ♯4 has two sevenths', () => {
+  const DIM_WORDS = {
+    separator: 'hyphen', qualities: 'all', halfDimTriad: 'dim', halfDimSeventh: 'm7♭5',
+  } as const;
+
+  it('spells ° / ø by rung, and dim / m7♭5 when Settings says so', () => {
+    const at = (s: typeof DIM_WORDS | undefined, rung: 'triads' | 'seventh') =>
+      Object.fromEntries(degreeChips(true, s, rung).map(c => [c.label, c.text]));
+    expect(at(undefined, 'seventh')).toMatchObject({ '7': '7ø', '2m7b5': '2ø', '#4': '♯4ø', '#4dim7': '♯4°7' });
+    expect(at(undefined, 'triads')).toMatchObject({ '7': '7°', '2m7b5': '2°', '#4': '♯4°' });
+    expect(at(DIM_WORDS, 'seventh')).toMatchObject({ '7': '7m7♭5', '#4': '♯4m7♭5', '#4dim7': '♯4dim7' });
+    expect(at(DIM_WORDS, 'triads')).toMatchObject({ '7': '7dim', '2m7b5': '2dim', '#4': '♯4dim' });
+  });
+
+  it('collapses the ♯4’s two sevenths to one chip at Triads, which answers either', () => {
+    const triads = degreeChips(true, undefined, 'triads').map(c => c.text);
+    expect(triads.filter(t => t.startsWith('♯4'))).toEqual(['♯4°']);
+    expect(triads).toHaveLength(15);
+    // Guard the guard: at seventh chords they really are two chips.
+    expect(degreeChips(true).filter(c => c.text.startsWith('♯4'))).toHaveLength(2);
+    expect(sameChordAt('#4', '#4dim7', 'triads')).toBe(true);
+    expect(sameChordAt('#4', '#4dim7', 'seventh')).toBe(false);
+    // Only the ♯4 collapses: 2m and 2ø stay two chords at Triads.
+    expect(sameChordAt('2', '2m7b5', 'triads')).toBe(false);
+  });
+
+  it('voices the ♯4°7 as a dim7 — in the key of C, F♯ A C E♭', () => {
+    const { chords } = motionChords(0, '1', '#4dim7', 'seventh');
+    const pcs = new Set([...chords[1].hand, chords[1].bass!].map(m => m % 12));
+    expect(pcs).toEqual(new Set([6, 9, 0, 3]));
+    expect(chords[1].name).toMatch(/dim7$/);
+    // And the ♯4ø still the m7♭5 it always was: F♯ A C E.
+    const half = motionChords(0, '1', '#4', 'seventh').chords[1];
+    expect(new Set([...half.hand, half.bass!].map(m => m % 12))).toEqual(new Set([6, 9, 0, 4]));
+  });
+
+  it('on the card: ♯4ø answered for a ♯4°7 is half right, and the verdict names the dim7', async () => {
+    const el = await deal('motion:1-#4dim7-asc');
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-#4');
+    await click(el, 'motion-submit');
+    expect(resultOf(el)).toEqual({
+      tone: 'half',
+      text: 'Starting chord right (1). It landed on the ♯4°7, not the ♯4ø.',
+    });
+    expect(token(el, 'verdict-dest').textContent).toBe('♯4°7');
+    expect(token(el, 'verdict-dest-chord').textContent).toMatch(/dim7$/);
+  });
+
+  it('on the card: follows the spelling setting', async () => {
+    await setPref('progressionSpelling', DIM_WORDS);
+    const el = await deal('motion:1-7-asc');
+    const chipTexts = [...el.querySelectorAll('[data-testid^="motion-dest-"]')]
+      .map(c => c.textContent);
+    expect(chipTexts).toContain('7m7♭5');
+    expect(chipTexts).not.toContain('7°');
+    await setPref('progressionSpelling', { ...DIM_WORDS, halfDimTriad: '°', halfDimSeventh: 'ø' });
   });
 });

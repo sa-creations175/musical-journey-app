@@ -157,18 +157,19 @@ describe('reading — 52 signature items over 52 rows', () => {
 describe('chord progressions — three sub-drills, one moduleId', () => {
   const refs = [...catalogRefSet(chordProgressionsCatalog)];
 
-  it('chord motion denominator is 207, not the 42 on screen', () => {
-    // Fifteen chords (twelve degrees + the borrowed 4m, 2ø, 5m), each
-    // to every chord on a different root: 15 × 14 − 6 = 204, plus the
-    // three same-root moves (4 → 4m, 5 → 5m, 2m → 2ø). The 42 is
+  it('chord motion denominator is 235, not the 42 on screen', () => {
+    // Sixteen chords (twelve degrees + the borrowed 4m, 2ø, 5m + the
+    // ♯4's dim7), each to every chord on a different root: 16 × 15 − 8
+    // = 232, plus the three same-root moves (4 → 4m, 5 → 5m, 2m → 2ø).
+    // The 42 is
     // activePool.length after the diatonic-only filter, which is the
     // default scope and so looks like the catalog.
-    expect(refs.filter(r => r.startsWith('motion:'))).toHaveLength(207);
+    expect(refs.filter(r => r.startsWith('motion:'))).toHaveLength(235);
   });
 
   it('keeps every id stored before the borrowed chords arrived, unchanged', () => {
     // 12 × 11 legacy ids, spelled exactly as they were.
-    const legacy = refs.filter(r => r.startsWith('motion:') && !/m7b5|4m|5m/.test(r));
+    const legacy = refs.filter(r => r.startsWith('motion:') && !/m7b5|4m|5m|dim7|same/.test(r));
     expect(legacy).toHaveLength(132);
     expect(legacy).toContain('motion:1-4-asc');
     expect(legacy).toContain('motion:2-5-asc');

@@ -31,7 +31,9 @@ describe('motionName', () => {
     expect(name('motion:1-2m7b5-asc')).toBe('1 → 2ø');
     expect(name('motion:b2-3-asc')).toBe('♭2 → 3m');
     expect(name('motion:4m-b7-asc')).toBe('4m → ♭7');
-    expect(name('motion:1-7-asc')).toBe('1 → 7°');
+    // At the card's seventh-chord rung the 7 is half-diminished: 7ø.
+    expect(name('motion:1-7-asc')).toBe('1 → 7ø');
+    expect(name('motion:1-#4dim7-asc')).toBe('1 → ♯4°7');
   });
 
   it('is what the dashboard rows say', () => {
