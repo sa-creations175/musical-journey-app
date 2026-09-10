@@ -126,14 +126,14 @@ describe('the stages are thin, and thin still works', () => {
   it('clears a one-item stage on that one item', () => {
     // Stage 3 is `2-5-1` alone. Clearing it must open stage 4, with no
     // special case for a stage too small to fill the fresh batch.
-    const cleared = new Map<string, { correct: number; total: number }>(
+    const cleared = new Map<string, { passes: number; total: number }>(
       [...itemsForStage(1), ...itemsForStage(2), ...itemsForStage(3)]
-        .map(id => [id, { correct: 10, total: 10 }]),
+        .map(id => [id, { passes: 10, total: 10 }]),
     );
     expect(computeUnlockedStage(cleared)).toBe(4);
     // And one unfinished item in that stage of one holds the gate.
     const notQuite = new Map(cleared);
-    notQuite.set('2-5-1', { correct: 5, total: 10 });
+    notQuite.set('2-5-1', { passes: 5, total: 10 });
     expect(computeUnlockedStage(notQuite)).toBe(3);
   });
 

@@ -7,6 +7,8 @@ import {
   toAttemptForm,
 } from './chordRecognitionTiers';
 import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
+import { feelOfAttempt } from '../../../lib/earTraining/heardFeel';
+import { CLEAN_FEEL } from '../../../lib/fluencyScale';
 
 /** Module ref string for chord-recognition spacingState rows. */
 const MODULE_REF = 'chord-recognition';
@@ -17,22 +19,49 @@ const MODULE_REF = 'chord-recognition';
  *  rather than leaving it as a threshold nobody can infer. */
 export const UNLOCK_MIN_ATTEMPTS = 10;
 
-/** Lifetime accuracy fraction required per item to count as cleared
- *  in the unlock check. correctAttempts / totalAttempts ≥ this. */
-export const UNLOCK_MIN_ACCURACY = 0.75;
+/**
+ * The bar a tier opens at, and what counts as clearing it.
+ *
+ * =====================================================================
+ * A PASS IS RIGHT WITHOUT AN AID, AND THE BAR IS FLUENT'S.
+ *
+ * Silas's ruling of 10 Sep 2026. An attempt passes for unlocking if it
+ * was right and no aid was taken — In flow (100) or Clean (75) on the
+ * four-step scale. Replays are allowed: needing to hear it again is
+ * slower, not wrong. Working on it (50) and Struggled (25) do not pass,
+ * so a card answered with the bass soloed, or the right progression
+ * from the wrong position, no longer opens anything.
+ *
+ * The threshold moves 75% → 80%, which is the same bar the Fluent
+ * rating is drawn at. One number for "good enough", across the app.
+ *
+ * ROWS WITH NO RATING READ AS THE TWO ENDS OF THE SCALE — In flow for a
+ * right answer, Struggled for a wrong one — so for a history written
+ * before today the rule is exactly what it always was, and only the
+ * threshold moved. Silas accepted that ladders may drop.
+ * =====================================================================
+ */
+export const UNLOCK_MIN_ACCURACY = 0.80;
 
 /** Cap on new items introduced per tier per practice session.
  *  Items beyond this stay locked until the user has at least
  *  attempted the current cohort. */
 const STAGED_INTRODUCTION_BATCH_SIZE = 3;
 
-interface ItemStats {
-  correct: number;
+/** The tally the unlock walk reads. Exported because the quiz builds
+ *  one of these itself and the suggestion line takes it as an argument —
+ *  written twice, the two would drift on the very question of what
+ *  counts as a pass. */
+export interface ItemStats {
+  /** How many of the window's attempts PASSED — right, and no aid
+   *  taken. Not the same as how many were right: an answer that needed
+   *  the bass soloed is right and does not pass. */
+  passes: number;
   total: number;
 }
 
 /** Walk lifetime attempts in db.attempts and produce a per-itemRef
- *  correct/total tally. `excludeFromFluency` rows are skipped — they
+ *  passes/total tally. `excludeFromFluency` rows are skipped — they
  *  are non-fluency signals (e.g. small-pool focus drills) and would
  *  inflate the count without representing genuine recognition
  *  ability. */
@@ -46,9 +75,9 @@ async function loadLifetimeStats(): Promise<Map<string, ItemStats>> {
     // toAttemptForm (`maj` → `maj:0`), so bucketing on the raw stored
     // id left every legacy bare-id attempt unable to satisfy a gate.
     const key = canonicalItemId(MODULE_REF, a.itemId);
-    const cur = stats.get(key) ?? { correct: 0, total: 0 };
+    const cur = stats.get(key) ?? { passes: 0, total: 0 };
     cur.total += 1;
-    if (a.correct) cur.correct += 1;
+    if (feelOfAttempt(a) >= CLEAN_FEEL) cur.passes += 1;
     stats.set(key, cur);
   }
   return stats;
@@ -65,7 +94,7 @@ async function loadLifetimeStats(): Promise<Map<string, ItemStats>> {
 function isCleared(s: ItemStats | undefined): boolean {
   if (!s) return false;
   if (s.total < UNLOCK_MIN_ATTEMPTS) return false;
-  return s.correct / s.total >= UNLOCK_MIN_ACCURACY;
+  return s.passes / s.total >= UNLOCK_MIN_ACCURACY;
 }
 
 /** Pure unlock walk. Public so tests can pass fixture stats without
@@ -102,7 +131,8 @@ export function tierProgress(
  * Highest tier the user has unlocked. Tier 1 is always unlocked.
  * Tier N+1 unlocks when every item in tier N meets BOTH:
  *   · totalAttempts >= UNLOCK_MIN_ATTEMPTS (10), AND
- *   · correctAttempts / totalAttempts >= UNLOCK_MIN_ACCURACY (0.75).
+ *   · passes / totalAttempts >= UNLOCK_MIN_ACCURACY (0.80), where a
+ *     pass is right with no aid taken — see UNLOCK_MIN_ACCURACY.
  *
  * The userId parameter is reserved for future multi-user contexts;
  * Dexie tables are per-installation today and the read filters by

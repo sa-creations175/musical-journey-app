@@ -19,7 +19,7 @@ import {
 } from '../tierUnlock';
 import { CHORD_RECOGNITION_TIERS } from '../chordRecognitionTiers';
 
-type Stats = Map<string, { correct: number; total: number }>;
+type Stats = Map<string, { passes: number; total: number }>;
 
 /** A tally in which every named item is cleared, on the real
  *  threshold rather than a number written down here. */
@@ -27,7 +27,7 @@ function cleared(...items: string[]): Stats {
   const m: Stats = new Map();
   for (const i of items) {
     m.set(i.includes(':') ? i : `${i}:0`, {
-      correct: UNLOCK_MIN_ATTEMPTS,
+      passes: UNLOCK_MIN_ATTEMPTS,
       total: UNLOCK_MIN_ATTEMPTS,
     });
   }

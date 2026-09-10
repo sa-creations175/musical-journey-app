@@ -14,19 +14,20 @@ import { CHORD_RECOGNITION_TIERS, toAttemptForm } from '../chordRecognitionTiers
 // -----------------------------------------------------------------
 
 /** Build a stats map covering every item in a tier with the same
- *  (correct, total) values. Saves repetition in the tier-completion
- *  fixtures. */
-function statsForEntireTier(tier: 1 | 2 | 3 | 4 | 5, correct: number, total: number) {
-  const map = new Map<string, { correct: number; total: number }>();
+ *  (passes, total) values. Saves repetition in the tier-completion
+ *  fixtures. A PASS is an attempt that was right with no aid taken —
+ *  see the ruling quoted in `tierUnlock.ts`. */
+function statsForEntireTier(tier: 1 | 2 | 3 | 4 | 5, passes: number, total: number) {
+  const map = new Map<string, { passes: number; total: number }>();
   for (const item of CHORD_RECOGNITION_TIERS[tier]) {
-    map.set(toAttemptForm(item), { correct, total });
+    map.set(toAttemptForm(item), { passes, total });
   }
   return map;
 }
 
 /** Merge several per-tier stats fixtures into one. */
-function mergeStats(...maps: Array<ReadonlyMap<string, { correct: number; total: number }>>) {
-  const out = new Map<string, { correct: number; total: number }>();
+function mergeStats(...maps: Array<ReadonlyMap<string, { passes: number; total: number }>>) {
+  const out = new Map<string, { passes: number; total: number }>();
   for (const m of maps) for (const [k, v] of m) out.set(k, v);
   return out;
 }
@@ -60,8 +61,8 @@ describe('computeUnlockedTier', () => {
   it('returns 1 when only some tier-1 items meet criteria', () => {
     // Two of six tier-1 items cleared — not enough.
     const partial = new Map([
-      ['maj:0', { correct: 9, total: 10 }],
-      ['min:0', { correct: 8, total: 10 }],
+      ['maj:0', { passes: 9, total: 10 }],
+      ['min:0', { passes: 8, total: 10 }],
     ]);
     expect(computeUnlockedTier(partial)).toBe(1);
   });
@@ -74,9 +75,9 @@ describe('computeUnlockedTier', () => {
   });
 
   it('returns 1 when tier-1 items have enough attempts but below accuracy threshold', () => {
-    // 74% < 0.75. One bad item is enough to block.
+    // 70% < 0.80. One bad item is enough to block.
     const map = statsForEntireTier(1, 10, 10);
-    map.set('maj:0', { correct: 7, total: 10 });
+    map.set('maj:0', { passes: 7, total: 10 });
     expect(computeUnlockedTier(map)).toBe(1);
   });
 
@@ -91,9 +92,9 @@ describe('computeUnlockedTier', () => {
       statsForEntireTier(1, 10, 10),
       // Half of tier 2 done — not enough.
       new Map([
-        ['maj7:0', { correct: 10, total: 10 }],
-        ['min7:0', { correct: 10, total: 10 }],
-        ['dom7:0', { correct: 10, total: 10 }],
+        ['maj7:0', { passes: 10, total: 10 }],
+        ['min7:0', { passes: 10, total: 10 }],
+        ['dom7:0', { passes: 10, total: 10 }],
       ]),
     );
     expect(computeUnlockedTier(map)).toBe(2);
@@ -119,11 +120,18 @@ describe('computeUnlockedTier', () => {
     expect(computeUnlockedTier(map)).toBe(5);
   });
 
-  it('exact threshold values pass — 10 attempts at exactly 75% clear', () => {
-    // 0.75 ≥ 0.75 — must clear (the comparison is inclusive).
-    const map = statsForEntireTier(1, 9, 12); // 75%
-    // 12 attempts ≥ 10, accuracy 0.75 ≥ 0.75 — all pass.
+  it('exact threshold values pass — 10 attempts at exactly 80% clear', () => {
+    // 0.80 ≥ 0.80 — must clear (the comparison is inclusive).
+    const map = statsForEntireTier(1, 8, 10);
     expect(computeUnlockedTier(map)).toBe(2);
+  });
+
+  it('holds the bar at 80, so the old 75 no longer opens a tier', () => {
+    // THE BAR MOVED ON 10 SEP 2026 and this is the case that shows it.
+    // Nine passes in twelve is 75% — what used to clear tier 1, and
+    // what a reader's stored history may already sit at. Silas
+    // accepted that ladders may drop; this test is where that shows.
+    expect(computeUnlockedTier(statsForEntireTier(1, 9, 12))).toBe(1);
   });
 
   it('does not advance when even one item in the current tier is short', () => {
@@ -132,7 +140,7 @@ describe('computeUnlockedTier', () => {
       statsForEntireTier(1, 10, 10),
       statsForEntireTier(2, 10, 10),
     );
-    map.set('m7b5:0', { correct: 5, total: 10 });
+    map.set('m7b5:0', { passes: 5, total: 10 });
     expect(computeUnlockedTier(map)).toBe(2);
   });
 });

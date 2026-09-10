@@ -39,7 +39,7 @@ describe('an empty stage', () => {
   });
 
   it('does not hold the reader at the stage below it', () => {
-    const stage1Done = new Map([['1-4-5', { correct: 10, total: 10 }]]);
+    const stage1Done = new Map([['1-4-5', { passes: 10, total: 10 }]]);
     // Stage 1 cleared, stage 2 empty, so the walk should carry through
     // it and stop at stage 3, which has an item and is not cleared.
     expect(computeUnlockedStage(stage1Done)).toBe(3);
@@ -51,8 +51,8 @@ describe('an empty stage', () => {
 
   it('opens the top when the only populated stages are cleared', () => {
     const all = new Map([
-      ['1-4-5', { correct: 10, total: 10 }],
-      ['2-5-1', { correct: 10, total: 10 }],
+      ['1-4-5', { passes: 10, total: 10 }],
+      ['2-5-1', { passes: 10, total: 10 }],
     ]);
     expect(computeUnlockedStage(all)).toBe(4);
   });

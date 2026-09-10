@@ -11,16 +11,19 @@ import type { ProgressionStage } from '../progressionStages';
 
 const MODULE_REF = 'chord-progressions';
 
-function statsForEntireStage(stage: ProgressionStage, correct: number, total: number) {
-  const map = new Map<string, { correct: number; total: number }>();
-  for (const id of itemsForStage(stage)) map.set(id, { correct, total });
+/** A PASS is an attempt that was right with no aid taken — Silas's
+ *  ruling of 10 Sep 2026, quoted in full in `progressionTierUnlock.ts`.
+ *  Not the same as a right answer. */
+function statsForEntireStage(stage: ProgressionStage, passes: number, total: number) {
+  const map = new Map<string, { passes: number; total: number }>();
+  for (const id of itemsForStage(stage)) map.set(id, { passes, total });
   return map;
 }
 
 function mergeStats(
-  ...maps: Array<ReadonlyMap<string, { correct: number; total: number }>>
+  ...maps: Array<ReadonlyMap<string, { passes: number; total: number }>>
 ) {
-  const out = new Map<string, { correct: number; total: number }>();
+  const out = new Map<string, { passes: number; total: number }>();
   for (const m of maps) for (const [k, v] of m) out.set(k, v);
   return out;
 }
@@ -53,18 +56,24 @@ describe('computeUnlockedStage', () => {
     // Two of N Stage 1 items hit the bar — not enough.
     const stage1 = itemsForStage(1);
     expect(stage1.length).toBeGreaterThan(0);
-    const partial = new Map<string, { correct: number; total: number }>();
-    partial.set(stage1[0], { correct: 10, total: 12 });
+    const partial = new Map<string, { passes: number; total: number }>();
+    partial.set(stage1[0], { passes: 10, total: 12 });
     expect(computeUnlockedStage(partial)).toBe(1);
   });
 
-  it('returns 1 when Stage 1 attempts exist but accuracy is below 75%', () => {
-    // Every Stage 1 item has 10 attempts but only 5 correct (50%).
+  it('returns 1 when Stage 1 attempts exist but accuracy is below 80%', () => {
+    // Every Stage 1 item has 10 attempts but only 5 pass (50%).
     expect(computeUnlockedStage(statsForEntireStage(1, 5, 10))).toBe(1);
   });
 
-  it('advances to Stage 2 when every Stage 1 item clears (≥10 attempts + ≥75%)', () => {
+  it('advances to Stage 2 when every Stage 1 item clears (≥10 attempts + ≥80%)', () => {
     expect(computeUnlockedStage(statsForEntireStage(1, 8, 10))).toBe(2);
+  });
+
+  it('holds the bar at 80, so the old 75 no longer opens a stage', () => {
+    // Nine passes in twelve is 75%, which used to clear. The bar moved
+    // to the Fluent rating's 80 on 10 Sep 2026.
+    expect(computeUnlockedStage(statsForEntireStage(1, 9, 12))).toBe(1);
   });
 
   it('advances to Stage 3 when both Stage 1 and Stage 2 clear', () => {

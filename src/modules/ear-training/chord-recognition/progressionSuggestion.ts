@@ -20,7 +20,7 @@
  * without an action is a status line wearing a suggestion's label. The
  * headline is the instruction; the count is support for it.
  *
- * IT DEFINES "CLEARED". Ten attempts at 75% is not inferable from the
+ * IT DEFINES "CLEARED". Ten attempts at 80% is not inferable from the
  * word, and an undefined threshold on a screen is the thing the
  * legibility layer exists to remove. The numbers are interpolated from
  * the constants the unlock walk actually gates on, so the sentence
@@ -52,6 +52,7 @@ import {
   UNLOCK_MIN_ACCURACY,
   UNLOCK_MIN_ATTEMPTS,
   tierProgress,
+  type ItemStats,
 } from './tierUnlock';
 import type { ChordRecognitionTier } from './chordRecognitionTiers';
 
@@ -144,7 +145,7 @@ export interface ProgressionSuggestion {
  */
 export function progressionSuggestionFor(
   tabs: SuggestionTab | ReadonlyArray<SuggestionTab>,
-  statsByItem: ReadonlyMap<string, { correct: number; total: number }>,
+  statsByItem: ReadonlyMap<string, ItemStats>,
 ): ProgressionSuggestion | null {
   // Multi-select: the ladder compares against the HIGHEST tier in the
   // pool, because that is how far ahead the reader has reached.
@@ -177,6 +178,17 @@ export function progressionSuggestionFor(
       cleared,
       total,
       headline: headlineFor(step.name),
+      // ===============================================================
+      // THIS SENTENCE IS NOW HALF TRUE, AND IT IS SILAS'S TO REWRITE.
+      //
+      // The number moves on its own — it interpolates the constant, so
+      // it reads 80% from 10 Sep 2026. The WORD does not: since that
+      // ruling an attempt only counts toward a tier if no aid was
+      // taken, so "80% correct" names a bar a reader can clear and
+      // still not open the tier. The fix is one clause of approved
+      // copy; inventing it here is not mine to do. Flagged in the
+      // 10 Sep report under "Needs Silas".
+      // ===============================================================
       progress: `You've cleared ${cleared} of ${total}; a chord clears at `
         + `${UNLOCK_MIN_ATTEMPTS} attempts with `
         + `${Math.round(UNLOCK_MIN_ACCURACY * 100)}% correct.`,

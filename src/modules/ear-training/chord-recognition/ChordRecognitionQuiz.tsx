@@ -35,7 +35,8 @@ import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
 import type { ChordAttack } from '../../../lib/player/settings';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 import { crChords, crQuizChord } from './crPlayer';
-import { heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
+import { feelOfAttempt, heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
+import { CLEAN_FEEL } from '../../../lib/fluencyScale';
 import AnswerVerdict from '../../../components/AnswerVerdict';
 import FilterStrip from '../../../components/FilterStrip';
 import { moduleMetaById } from '../../../lib/moduleMeta';
@@ -69,6 +70,7 @@ import {
 import {
   computeUnlockedTier,
   MIX_WEIGHT,
+  type ItemStats,
 } from './tierUnlock';
 import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
 import {
@@ -359,7 +361,7 @@ export default function ChordRecognitionQuiz({
    *  unlock walk gates on - two tallies would let the visible one
    *  drift from the one that decides. */
   const lifetimeStats = useMemo(() => {
-    const stats = new Map<string, { correct: number; total: number }>();
+    const stats = new Map<string, ItemStats>();
     for (const a of attempts) {
       if (a.moduleId !== MODULE_ID) continue;
       if (a.excludeFromFluency) continue;
@@ -367,9 +369,13 @@ export default function ChordRecognitionQuiz({
       // computeUnlockedTier looks items up in attempt form, so an
       // unfolded legacy row would silently never satisfy its gate.
       const key = canonicalItemId(MODULE_ID, a.itemId);
-      const cur = stats.get(key) ?? { correct: 0, total: 0 };
+      const cur = stats.get(key) ?? { passes: 0, total: 0 };
       cur.total += 1;
-      if (a.correct) cur.correct += 1;
+      // A PASS, not a right answer. Same rule as the walk in
+      // `tierUnlock.ts` — right with no aid taken, replays allowed.
+      // This tally feeds `computeUnlockedTier`, so counting plain
+      // `correct` here would open tiers the walk would not.
+      if (feelOfAttempt(a) >= CLEAN_FEEL) cur.passes += 1;
       stats.set(key, cur);
     }
     return stats;

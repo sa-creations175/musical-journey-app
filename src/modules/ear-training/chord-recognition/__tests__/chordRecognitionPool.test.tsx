@@ -352,7 +352,9 @@ describe('the suggestion sits where the tap was', () => {
     const text = suggestion(el)!.textContent ?? '';
     expect(text).toContain('Suggestion — Get solid on the foundational triads first.');
     expect(text).toContain("You've cleared 3 of 6");
-    expect(text).toContain('10 attempts with 75% correct');
+    // 80, not 75 — the bar moved to the Fluent rating's on 10 Sep 2026
+    // and this sentence interpolates the constant, so it moved with it.
+    expect(text).toContain('10 attempts with 80% correct');
     expect(text).toContain('triad with a note added');
     expect(text).toContain('Nothing is locked');
   });

@@ -34,20 +34,47 @@ import {
   loadEtSubmoduleStatus,
   maxAllowedProgressionStage,
 } from '../etStageGate';
+import { feelOfAttempt } from '../../../lib/earTraining/heardFeel';
+import { CLEAN_FEEL } from '../../../lib/fluencyScale';
 
 const MODULE_REF = 'chord-progressions';
 
 const UNLOCK_MIN_ATTEMPTS = 10;
-const UNLOCK_MIN_ACCURACY = 0.75;
+/**
+ * The bar a tier opens at, and what counts as clearing it.
+ *
+ * =====================================================================
+ * A PASS IS RIGHT WITHOUT AN AID, AND THE BAR IS FLUENT'S.
+ *
+ * Silas's ruling of 10 Sep 2026. An attempt passes for unlocking if it
+ * was right and no aid was taken — In flow (100) or Clean (75) on the
+ * four-step scale. Replays are allowed: needing to hear it again is
+ * slower, not wrong. Working on it (50) and Struggled (25) do not pass,
+ * so a card answered with the bass soloed, or the right progression
+ * from the wrong position, no longer opens anything.
+ *
+ * The threshold moves 75% → 80%, which is the same bar the Fluent
+ * rating is drawn at. One number for "good enough", across the app.
+ *
+ * ROWS WITH NO RATING READ AS THE TWO ENDS OF THE SCALE — In flow for a
+ * right answer, Struggled for a wrong one — so for a history written
+ * before today the rule is exactly what it always was, and only the
+ * threshold moved. Silas accepted that ladders may drop.
+ * =====================================================================
+ */
+const UNLOCK_MIN_ACCURACY = 0.80;
 const STAGED_INTRODUCTION_BATCH_SIZE = 3;
 
-interface ItemStats {
-  correct: number;
+export interface ItemStats {
+  /** How many of the window's attempts PASSED — right, and no aid
+   *  taken. Not the same as how many were right: an answer that needed
+   *  the bass soloed is right and does not pass. */
+  passes: number;
   total: number;
 }
 
 /** Walk lifetime attempts in db.attempts and produce a per-itemRef
- *  correct/total tally. Mirrors loadLifetimeStats in
+ *  passes/total tally. Mirrors loadLifetimeStats in
  *  chord-recognition's tierUnlock.ts — same `excludeFromFluency`
  *  skip rule (small-pool focus drills don't count toward unlock). */
 async function loadLifetimeStats(): Promise<Map<string, ItemStats>> {
@@ -55,9 +82,9 @@ async function loadLifetimeStats(): Promise<Map<string, ItemStats>> {
   const stats = new Map<string, ItemStats>();
   for (const a of attempts) {
     if (a.excludeFromFluency) continue;
-    const cur = stats.get(a.itemId) ?? { correct: 0, total: 0 };
+    const cur = stats.get(a.itemId) ?? { passes: 0, total: 0 };
     cur.total += 1;
-    if (a.correct) cur.correct += 1;
+    if (feelOfAttempt(a) >= CLEAN_FEEL) cur.passes += 1;
     stats.set(a.itemId, cur);
   }
   return stats;
@@ -100,7 +127,7 @@ export function computeUnlockedStage(
       const s = statsByItem.get(id);
       if (!s) return false;
       if (s.total < UNLOCK_MIN_ATTEMPTS) return false;
-      return s.correct / s.total >= UNLOCK_MIN_ACCURACY;
+      return s.passes / s.total >= UNLOCK_MIN_ACCURACY;
     });
     if (!allCleared) break;
     unlocked = (stage + 1) as ProgressionStage;

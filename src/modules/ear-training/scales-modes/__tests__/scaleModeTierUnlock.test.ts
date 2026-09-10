@@ -11,16 +11,18 @@ import type { ScaleModeStage } from '../catalog';
 
 const MODULE_REF = 'scales-modes';
 
-function statsForEntireStage(stage: ScaleModeStage, correct: number, total: number) {
-  const map = new Map<string, { correct: number; total: number }>();
-  for (const id of modesForStage(stage)) map.set(id, { correct, total });
+/** A PASS is an attempt that was right with no aid taken — Silas's
+ *  ruling of 10 Sep 2026. Not the same as a right answer. */
+function statsForEntireStage(stage: ScaleModeStage, passes: number, total: number) {
+  const map = new Map<string, { passes: number; total: number }>();
+  for (const id of modesForStage(stage)) map.set(id, { passes, total });
   return map;
 }
 
 function mergeStats(
-  ...maps: Array<ReadonlyMap<string, { correct: number; total: number }>>
+  ...maps: Array<ReadonlyMap<string, { passes: number; total: number }>>
 ) {
-  const out = new Map<string, { correct: number; total: number }>();
+  const out = new Map<string, { passes: number; total: number }>();
   for (const m of maps) for (const [k, v] of m) out.set(k, v);
   return out;
 }
@@ -69,20 +71,24 @@ describe('computeUnlockedScaleModesStage', () => {
   });
 
   it('returns 1 when only some Stage 1 items meet the threshold', () => {
-    const partial = new Map<string, { correct: number; total: number }>();
-    partial.set('ionian', { correct: 10, total: 12 });
-    partial.set('dorian', { correct: 9, total: 10 });
+    const partial = new Map<string, { passes: number; total: number }>();
+    partial.set('ionian', { passes: 10, total: 12 });
+    partial.set('dorian', { passes: 9, total: 10 });
     // 5 other Stage 1 modes untouched → stays at Stage 1.
     expect(computeUnlockedScaleModesStage(partial)).toBe(1);
   });
 
-  it('returns 1 when Stage 1 attempts exist but accuracy is below 75%', () => {
-    // Every Stage 1 mode has 10 attempts but only 5 correct (50%).
+  it('returns 1 when Stage 1 attempts exist but accuracy is below 80%', () => {
+    // Every Stage 1 mode has 10 attempts but only 5 pass (50%).
     expect(computeUnlockedScaleModesStage(statsForEntireStage(1, 5, 10))).toBe(1);
   });
 
-  it('advances to Stage 2 when every Stage 1 mode clears (≥10 attempts + ≥75%)', () => {
+  it('advances to Stage 2 when every Stage 1 mode clears (≥10 attempts + ≥80%)', () => {
     expect(computeUnlockedScaleModesStage(statsForEntireStage(1, 8, 10))).toBe(2);
+  });
+
+  it('holds the bar at 80, so the old 75 no longer opens a stage', () => {
+    expect(computeUnlockedScaleModesStage(statsForEntireStage(1, 9, 12))).toBe(1);
   });
 
   it('stops at MAX (2) even with stats for Stage 2', () => {
