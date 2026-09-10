@@ -6,7 +6,7 @@ import ModuleIntro from '../../../components/ModuleIntro';
 import DailyGoalBar from '../../../components/DailyGoalBar';
 import { getPref, setPref } from '../../../lib/userPrefs';
 import { useUrlTabSync } from '../../../lib/useUrlTabSync';
-import ChordProgressionsQuiz from './ChordProgressionsQuiz';
+import FullProgressionCard from './FullProgressionCard';
 import { isNarrowed, useDrillFilter } from '../../../lib/drillFilter';
 import KeyDetectionTab from './KeyDetectionTab';
 import ChordMotionTab from './ChordMotionTab';
@@ -35,7 +35,7 @@ const TABS: Array<{ id: TabId; label: string; hint: string }> = [
   {
     id: 'full-progression',
     label: 'Full Progression',
-    hint: 'the full tier-based progression catalogue',
+    hint: 'which progression, and from which position',
   },
 ];
 
@@ -141,11 +141,23 @@ export default function ChordProgressions() {
           {...(focusKeys ? { initialFocusKeys: focusKeys } : {})}
         />
       )}
+      {/* =================================================================
+          ONE CARD KIND FOR EVERYTHING ON THE SHARED LIST.
+
+          `ChordProgressionsQuiz` was here — the tier-based catalogue
+          quiz, which asked "which progression is this" over the eight
+          progressions the ear-training catalog kept. The new card asks
+          that AND from which position, over the whole Chord Movements &
+          Passes list with the passes in it, in the voicing the grid
+          drills. One question, one list, one place it is answered.
+
+          THE OLD QUIZ IS STILL IN THE TREE and nothing renders it. Its
+          tiers, its unlock ladder and its fluency tracker are read by
+          other things; retiring them is its own piece of work and is
+          raised in the report rather than done on the way past.
+          ================================================================= */}
       {tab === 'full-progression' && (
-        <ChordProgressionsQuiz
-          attempts={attempts}
-          {...(isNarrowed(filter) ? { initialFocusKeys: filter.keys } : {})}
-        />
+        <FullProgressionCard attempts={attempts} />
       )}
 
       <ProgressionFluencyTracker attempts={attempts} />

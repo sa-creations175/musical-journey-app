@@ -180,8 +180,11 @@ describe('the two fields never appear on one row', () => {
     const withText = Object.entries(ALL_WRITE_SITES)
       .filter(([, s]) => s.includes('chosenAnswerText:')).map(([p]) => p);
 
-    // Both halves are non-empty, or "disjoint" is vacuous.
-    expect(withItemId.length).toBe(3);
+    // Both halves are non-empty, or "disjoint" is vacuous. FOUR SINCE
+    // 10 SEP 2026: the Full Progression card joined intervals, key
+    // detection and chord motion — it records which progression and
+    // position the reader chose, which is an item and not a sentence.
+    expect(withItemId.length).toBe(4);
     expect(withText.length).toBe(2);
     expect(withItemId.filter(p => withText.includes(p))).toEqual([]);
   });
