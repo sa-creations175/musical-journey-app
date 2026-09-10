@@ -163,8 +163,15 @@ describe('a target says the same thing as the card it grades', () => {
     const sharp = cards.find(x => x.card.id === 'ks-count-F#')!.target;
     const flat = cards.find(x => x.card.id === 'ks-count-Gb')!.target;
     if (sharp.kind !== 'signature' || flat.kind !== 'signature') throw new Error();
-    expect(sharp).toEqual({ kind: 'signature', count: 6, direction: 'sharps' });
-    expect(flat).toEqual({ kind: 'signature', count: 6, direction: 'flats' });
+    expect(sharp.count).toBe(6);
+    expect(sharp.direction).toBe('sharps');
+    expect(flat.count).toBe(6);
+    expect(flat.direction).toBe('flats');
+    // One pitch class, two keys, two scales — F♯ major spells its 4 B
+    // and G♭ major spells its 4 C♭, which is the same key on a board.
+    expect(sharp.keyName).toBe('F♯');
+    expect(flat.keyName).toBe('G♭');
+    expect(sharp.pcs).toEqual(flat.pcs);
   });
 
   it('reads the scale of the key it answers, minor or major', () => {

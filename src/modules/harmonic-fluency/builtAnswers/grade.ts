@@ -187,7 +187,19 @@ export function gradeSignature(
   return {
     correct: count === target.count
       && (zeroAgrees || direction === target.direction),
-    built: count === null ? '—' : String(count),
+    /**
+     * THE DIRECTION IS IN THE STRING, AND IT HAS TO BE.
+     *
+     * The card's own answer is a bare count — "1" — so a reader who
+     * answers "1 flat" in the key of G major would hand the shell the
+     * string "1", which its one comparison marks RIGHT. Naming the
+     * direction is what keeps a wrong answer distinguishable from the
+     * right one; `noWrongAnswerReadsAsRight` asserts it across every
+     * built family.
+     */
+    built: count === null
+      ? '—'
+      : count === 0 ? '0' : `${count} ${direction ?? 'unsaid'}`,
     firstWrong: null,
   };
 }

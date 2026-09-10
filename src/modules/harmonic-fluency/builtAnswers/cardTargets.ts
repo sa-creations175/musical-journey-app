@@ -82,6 +82,19 @@ export type BuiltTarget =
     kind: 'signature';
     count: number;
     direction: 'sharps' | 'flats';
+    /**
+     * The key the question is about, and its scale.
+     *
+     * THE ANSWER IS A NUMBER AND THE REVEAL IS A KEY. "The key of G
+     * major has _____ sharps" is graded on the count, but what a
+     * reader should be looking at afterwards is the scale with its one
+     * sharp in it — the prototype's own rule for the sibling card, in
+     * its words: "the flats in it are the black keys you can count".
+     */
+    keyPc: number;
+    keyName: string;
+    pcs: number[];
+    homePcs: number[];
   }
   | {
     kind: 'slash';
@@ -234,8 +247,18 @@ export function builtTargetFor(card: Flashcard): BuiltTarget | null {
       if (ask === 'count') {
         const sharps = SHARP_COUNT[keyPc];
         const flats = FLAT_COUNT[key];
-        if (flats !== undefined) return { kind: 'signature', count: flats, direction: 'flats' };
-        if (sharps !== undefined) return { kind: 'signature', count: sharps, direction: 'sharps' };
+        const shown = {
+          keyPc,
+          keyName: noteLabel(key),
+          pcs: scaleOf(keyPc, MAJOR),
+          homePcs: triadOn(keyPc, false),
+        };
+        if (flats !== undefined) {
+          return { kind: 'signature', count: flats, direction: 'flats', ...shown };
+        }
+        if (sharps !== undefined) {
+          return { kind: 'signature', count: sharps, direction: 'sharps', ...shown };
+        }
         return null;
       }
 
