@@ -57,8 +57,8 @@ import { KEYS, keyToRootMidi } from './progressionTheory';
 // ear-training orphan sweep — and neither should import a screen to
 // find out. Re-exported below, unchanged, so no caller moved.
 import {
-  ALL_MOTIONS, distanceLabel, motionId,
-  type DegreeLabel, type Direction, type Motion,
+  ALL_MOTIONS, INTERVAL_NAME, distanceLabel, motionId,
+  type DegreeLabel, type Distance, type Motion,
 } from './chordMotionPool';
 import { bassMove, motionChords } from './motionChords';
 import {
@@ -84,8 +84,60 @@ const MODULE_ID = 'chord-progressions';
 // --- Types + tables ---------------------------------------------------
 
 /** 1 is Same Root, the first chip after All. */
-type DistanceFilter = 'all' | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-type DirectionFilter = 'both' | Direction;
+/**
+ * The Distance and Direction rows: which buckets are on.
+ *
+ * =====================================================================
+ * MANY-CHOICE, AS THE SIGNED PROTOTYPE HAS IT. Silas's ruling of 10 Sep
+ * 2026. The single-choice row — All, or one distance — was the shape of
+ * the dropdown it replaced, not of the chip row he clicked through: every
+ * chip its own on/off, all on by default, any subset, never none. So
+ * "3rds and 6ths" is a thing a reader can ask for, and there is no All
+ * chip because all-on IS all.
+ * =====================================================================
+ */
+type DistanceSet = ReadonlySet<Distance>;
+type DirectionSet = ReadonlySet<'asc' | 'desc'>;
+const ALL_DISTANCES: ReadonlyArray<Distance> = [1, 2, 3, 4, 5, 6, 7];
+const BOTH_DIRECTIONS: ReadonlyArray<'asc' | 'desc'> = ['asc', 'desc'];
+
+/**
+ * The saved rows, read from whichever shape is on disk.
+ *
+ * NEW KEYS, NOTHING REWRITTEN. The sets are saved under keys of their
+ * own; the old single-choice keys (`'all'`, a number, `'both'`,
+ * `'asc'`) are read once as the starting point when the new key has
+ * never been written, and are otherwise left alone.
+ */
+function distancesFrom(saved: unknown, legacy: unknown): Set<Distance> {
+  if (Array.isArray(saved)) {
+    const ok = saved.filter((d): d is Distance => ALL_DISTANCES.includes(d as Distance));
+    if (ok.length > 0) return new Set(ok);
+  }
+  if (typeof legacy === 'number' && ALL_DISTANCES.includes(legacy as Distance)) {
+    return new Set([legacy as Distance]);
+  }
+  return new Set(ALL_DISTANCES);
+}
+function directionsFrom(saved: unknown, legacy: unknown): Set<'asc' | 'desc'> {
+  if (Array.isArray(saved)) {
+    const ok = saved.filter((d): d is 'asc' | 'desc' => d === 'asc' || d === 'desc');
+    if (ok.length > 0) return new Set(ok);
+  }
+  if (legacy === 'asc' || legacy === 'desc') return new Set([legacy]);
+  return new Set(BOTH_DIRECTIONS);
+}
+
+/** Toggle one chip, keeping at least one on: the last one cannot go. */
+function toggled<T>(set: ReadonlySet<T>, item: T): Set<T> {
+  const next = new Set(set);
+  if (next.has(item)) {
+    if (next.size > 1) next.delete(item);
+  } else {
+    next.add(item);
+  }
+  return next;
+}
 type NoteContext = 'diatonic' | 'chromatic';
 /** How the reader answers. Degrees is the question the card asks. */
 type AnswerWith = 'degrees' | 'piano';
@@ -146,8 +198,12 @@ function starterAssociation(m: Motion): string {
 
 // --- Pref keys -------------------------------------------------------
 
-const PREF_DISTANCE = 'chordProgressionsMotionDistance';
-const PREF_DIRECTION = 'chordProgressionsMotionDirection';
+/** The single-choice rows' keys, read only as a starting point. */
+const PREF_DISTANCE_LEGACY = 'chordProgressionsMotionDistance';
+const PREF_DIRECTION_LEGACY = 'chordProgressionsMotionDirection';
+/** The many-choice rows, as arrays. */
+const PREF_DISTANCES = 'chordProgressionsMotionDistances';
+const PREF_DIRECTIONS = 'chordProgressionsMotionDirections';
 const PREF_NOTE_CONTEXT = 'chordProgressionsMotionNoteContext';
 const PREF_FOCUS = 'chordProgressionsMotionFocus';
 const PREF_ANSWER_WITH = 'chordProgressionsMotionAnswerWith';
@@ -166,18 +222,19 @@ const PREF_STARTING_NOTE = 'chordProgressionsMotionStartingNote';
  * than one that looks filtered.
  */
 function filterMotions(
-  distance: DistanceFilter,
-  direction: DirectionFilter,
+  distance: DistanceSet,
+  direction: DirectionSet,
   noteContext: NoteContext,
   focus: Set<string> | null,
 ): Motion[] {
   if (focus) return ALL_MOTIONS.filter(m => focus.has(motionId(m)));
   return ALL_MOTIONS.filter(m => {
     if (noteContext === 'diatonic' && !m.isDiatonic) return false;
-    if (distance !== 'all' && m.distance !== distance) return false;
+    if (!distance.has(m.distance)) return false;
     // A SAME-ROOT MOVE GOES NEITHER WAY, so neither Direction chip
-    // excludes it — Up does not mean "not same root".
-    if (direction !== 'both' && m.direction !== 'same' && m.direction !== direction) return false;
+    // excludes it — Up alone does not mean "not same root". Its own
+    // chip is Same Root, on the Distance row.
+    if (m.direction !== 'same' && !direction.has(m.direction)) return false;
     return true;
   });
 }
@@ -320,8 +377,8 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   const [rowSpelling] = useProgressionSpelling();
   const [settings, setSettings] = usePlayerSettings();
 
-  const [distance, setDistance] = useState<DistanceFilter>('all');
-  const [direction, setDirection] = useState<DirectionFilter>('both');
+  const [distance, setDistance] = useState<DistanceSet>(() => new Set(ALL_DISTANCES));
+  const [direction, setDirection] = useState<DirectionSet>(() => new Set(BOTH_DIRECTIONS));
   const [noteContext, setNoteContext] = useState<NoteContext>('diatonic');
   const [answerWith, setAnswerWith] = useState<AnswerWith>('degrees');
   const [startingNote, setStartingNote] = useState<StartingNote>('find');
@@ -351,8 +408,14 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   // --- Prefs ---------------------------------------------------------
   useEffect(() => {
     (async () => {
-      setDistance(await getPref<DistanceFilter>(PREF_DISTANCE, 'all'));
-      setDirection(await getPref<DirectionFilter>(PREF_DIRECTION, 'both'));
+      setDistance(distancesFrom(
+        await getPref<unknown>(PREF_DISTANCES, null),
+        await getPref<unknown>(PREF_DISTANCE_LEGACY, 'all'),
+      ));
+      setDirection(directionsFrom(
+        await getPref<unknown>(PREF_DIRECTIONS, null),
+        await getPref<unknown>(PREF_DIRECTION_LEGACY, 'both'),
+      ));
       const nc = await getPref<NoteContext>(PREF_NOTE_CONTEXT, 'diatonic');
       setNoteContext(nc === 'chromatic' ? 'chromatic' : 'diatonic');
       const aw = await getPref<AnswerWith>(PREF_ANSWER_WITH, 'degrees');
@@ -367,8 +430,12 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { if (prefsLoaded) void setPref(PREF_DISTANCE, distance); }, [distance, prefsLoaded]);
-  useEffect(() => { if (prefsLoaded) void setPref(PREF_DIRECTION, direction); }, [direction, prefsLoaded]);
+  useEffect(() => {
+    if (prefsLoaded) void setPref(PREF_DISTANCES, ALL_DISTANCES.filter(d => distance.has(d)));
+  }, [distance, prefsLoaded]);
+  useEffect(() => {
+    if (prefsLoaded) void setPref(PREF_DIRECTIONS, BOTH_DIRECTIONS.filter(d => direction.has(d)));
+  }, [direction, prefsLoaded]);
   useEffect(() => { if (prefsLoaded) void setPref(PREF_NOTE_CONTEXT, noteContext); }, [noteContext, prefsLoaded]);
   useEffect(() => { if (prefsLoaded) void setPref(PREF_ANSWER_WITH, answerWith); }, [answerWith, prefsLoaded]);
   useEffect(() => { if (prefsLoaded) void setPref(PREF_STARTING_NOTE, startingNote); }, [startingNote, prefsLoaded]);
@@ -681,24 +748,24 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
         </summary>
         <div className="space-y-3 pt-2">
           <Row label="Distance">
-            {(['all', 1, 2, 3, 4, 5, 6, 7] as const).map(d => (
+            {ALL_DISTANCES.map(d => (
               <Chip
-                key={String(d)}
-                on={distance === d}
+                key={d}
+                on={distance.has(d)}
                 testId={`motion-dist-${d}`}
-                onClick={() => setDistance(d)}
+                onClick={() => setDistance(toggled(distance, d))}
               >
-                {d === 'all' ? 'All' : distanceLabel(d)}
+                {d === 1 ? 'Same Root' : INTERVAL_NAME[d]}
               </Chip>
             ))}
           </Row>
           <Row label="Direction">
-            {([['both', 'Both'], ['asc', 'Up'], ['desc', 'Down']] as const).map(([d, t]) => (
+            {([['asc', 'Up'], ['desc', 'Down']] as const).map(([d, t]) => (
               <Chip
                 key={d}
-                on={direction === d}
+                on={direction.has(d)}
                 testId={`motion-dir-${d}`}
-                onClick={() => setDirection(d)}
+                onClick={() => setDirection(toggled(direction, d))}
               >
                 {t}
               </Chip>
@@ -994,7 +1061,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
           <span>
             {focusActive
               ? `focused practice — ${focusPoolSize} motion${focusPoolSize === 1 ? '' : 's'} selected`
-              : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction === 'both' ? 'both directions' : direction === 'asc' ? 'ascending' : 'descending'} · ${distance === 'all' ? 'all distances' : distanceLabel(distance).toLowerCase()} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
+              : `${noteContext === 'diatonic' ? 'diatonic' : 'all motions'} · ${direction.size === 2 ? 'both directions' : direction.has('asc') ? 'ascending' : 'descending'} · ${distance.size === ALL_DISTANCES.length ? 'all distances' : ALL_DISTANCES.filter(d => distance.has(d)).map(d => distanceLabel(d).toLowerCase()).join(', ')} · ${activePool.length} motion${activePool.length === 1 ? '' : 's'}`}
           </span>
           {focusActive && (
             <button

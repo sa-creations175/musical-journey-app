@@ -107,8 +107,8 @@ beforeEach(async () => {
   await setPref('chordProgressionsMotionAnswerWith', 'degrees');
   await setPref('chordProgressionsMotionStartingNote', 'find');
   await setPref('chordProgressionsMotionNoteContext', 'diatonic');
-  await setPref('chordProgressionsMotionDistance', 'all');
-  await setPref('chordProgressionsMotionDirection', 'both');
+  await setPref('chordProgressionsMotionDistances', [1, 2, 3, 4, 5, 6, 7]);
+  await setPref('chordProgressionsMotionDirections', ['asc', 'desc']);
 });
 
 afterEach(async () => {
@@ -457,8 +457,8 @@ describe('same-root moves: 4 → 4m, 5 → 5m, 2m → 2ø', () => {
 
   it('puts Same Root first on the Distance row, and neither Direction chip excludes it', async () => {
     await setPref('chordProgressionsMotionNoteContext', 'chromatic');
-    await setPref('chordProgressionsMotionDistance', 1);
-    await setPref('chordProgressionsMotionDirection', 'asc');
+    await setPref('chordProgressionsMotionDistances', [1]);
+    await setPref('chordProgressionsMotionDirections', ['asc']);
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -470,11 +470,9 @@ describe('same-root moves: 4 → 4m, 5 → 5m, 2m → 2ø', () => {
     await settle();
     const chips = [...container.querySelectorAll('[data-testid^="motion-dist-"]')]
       .map(c => c.textContent);
-    expect(chips.slice(0, 3)).toEqual(['All', 'Same Root', '2nds']);
+    expect(chips.slice(0, 3)).toEqual(['Same Root', '2nd', '3rd']);
     // Up, Same Root, Chromatic: all three same-root moves are in play.
     expect(container.textContent).toContain('ascending · same root · 3 motions');
-    await setPref('chordProgressionsMotionDirection', 'desc');
-    await setPref('chordProgressionsMotionDistance', 'all');
   });
 
   it('gives them a section of their own in the Focus panel', async () => {
@@ -551,9 +549,9 @@ describe('the diminished family spells as Settings says, and the ♯4 has two se
 });
 
 describe('Direction and Distance read the card’s own move', () => {
-  async function scope(dir: string, dist: number | 'all'): Promise<string> {
-    await setPref('chordProgressionsMotionDirection', dir);
-    await setPref('chordProgressionsMotionDistance', dist);
+  async function scope(dirs: string[], dists: number[]): Promise<string> {
+    await setPref('chordProgressionsMotionDirections', dirs);
+    await setPref('chordProgressionsMotionDistances', dists);
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -579,10 +577,15 @@ describe('Direction and Distance read the card’s own move', () => {
     const find = (id: string) => ALL_MOTIONS.find(m => motionId(m) === id)!;
     expect(find('motion:1-6-asc').distance).toBe(6);
     expect(find('motion:1-6-desc').distance).toBe(3);
-    expect(await scope('both', 'all')).toContain('84 motions');
-    expect(await scope('asc', 'all')).toContain('42 motions');
-    expect(await scope('asc', 6)).toContain(`${upSixths} motion`);
-    expect(await scope('desc', 6)).toContain(`${downSixths} motion`);
+    const all = [1, 2, 3, 4, 5, 6, 7];
+    expect(await scope(['asc', 'desc'], all)).toContain('84 motions');
+    expect(await scope(['asc'], all)).toContain('42 motions');
+    expect(await scope(['asc'], [6])).toContain(`${upSixths} motion`);
+    expect(await scope(['desc'], [6])).toContain(`${downSixths} motion`);
+    // Many-choice: any subset, and the count is the sum of its parts.
+    const thirds = diatonic.filter(m => m.distance === 3).length;
+    const sixths = diatonic.filter(m => m.distance === 6).length;
+    expect(await scope(['asc', 'desc'], [3, 6])).toContain(`${thirds + sixths} motions`);
   });
 });
 
@@ -635,5 +638,56 @@ describe('the verdict tokens are pills', () => {
     for (let semi = 0; semi < 12; semi++) {
       expect(inKeyFill(semi, 0), String(semi)).toMatch(/^#[0-9a-f]{6}$/i);
     }
+  });
+});
+
+describe('Distance and Direction are many-choice rows', () => {
+  async function tab(): Promise<HTMLDivElement> {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(
+        <InstrumentProvider><MemoryRouter><ChordMotionTab attempts={[]} /></MemoryRouter></InstrumentProvider>,
+      );
+    });
+    await settle();
+    return container;
+  }
+  const on = (el: HTMLElement, id: string) =>
+    el.querySelector(`[data-testid="${id}"]`)!.getAttribute('aria-pressed') === 'true';
+
+  it('opens with every chip on and no All chip', async () => {
+    const el = await tab();
+    for (const d of [1, 2, 3, 4, 5, 6, 7]) expect(on(el, `motion-dist-${d}`)).toBe(true);
+    expect(on(el, 'motion-dir-asc') && on(el, 'motion-dir-desc')).toBe(true);
+    expect(el.querySelector('[data-testid="motion-dist-all"]')).toBeNull();
+    expect(el.querySelector('[data-testid="motion-dir-both"]')).toBeNull();
+  });
+
+  it('turns chips off one at a time, and never the last one', async () => {
+    const el = await tab();
+    for (const d of [1, 2, 3, 4, 5, 6]) await click(el, `motion-dist-${d}`);
+    // Only 7ths left on; tapping it does nothing.
+    await click(el, 'motion-dist-7');
+    expect(on(el, 'motion-dist-7')).toBe(true);
+    expect([1, 2, 3, 4, 5, 6].some(d => on(el, `motion-dist-${d}`))).toBe(false);
+    await click(el, 'motion-dir-asc');
+    await click(el, 'motion-dir-desc');
+    expect(on(el, 'motion-dir-desc')).toBe(true);
+    expect(on(el, 'motion-dir-asc')).toBe(false);
+  });
+
+  it('starts from an old single-choice setting when the new one was never saved', async () => {
+    await setPref('chordProgressionsMotionDistances', null);
+    await setPref('chordProgressionsMotionDirections', null);
+    await setPref('chordProgressionsMotionDistance', 3);
+    await setPref('chordProgressionsMotionDirection', 'desc');
+    const el = await tab();
+    expect(on(el, 'motion-dist-3')).toBe(true);
+    expect(on(el, 'motion-dist-2')).toBe(false);
+    expect(on(el, 'motion-dir-desc') && !on(el, 'motion-dir-asc')).toBe(true);
+    await setPref('chordProgressionsMotionDistance', 'all');
+    await setPref('chordProgressionsMotionDirection', 'both');
   });
 });
