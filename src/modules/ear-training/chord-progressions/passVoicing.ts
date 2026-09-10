@@ -30,15 +30,15 @@
  * =====================================================================
  */
 import {
-  bassLine, nearest, voicingsOf, allVoicings,
+  bassLine, nearest, voicingsOf, allVoicings, voicingDistance,
   type Move,
 } from '../../../lib/builtAnswers/voiceLeading';
 import { handTones, type QualityId } from '../../../lib/builtAnswers/chordShapes';
 import type { PlayerChord } from '../../../lib/player/voices';
-import { voiceLeadingExtendedRun, type VLChord } from '../../shapes-and-patterns/catalog';
 import {
-  EXTENDED_QUALITY_OF, extendedShape, isDominantExtended,
-} from '../../../lib/extendedVoicings';
+  voiceLeadingExtendedRule, voiceLeadingExtendedRun, type VLChord,
+} from '../../shapes-and-patterns/catalog';
+import { EXTENDED_QUALITY_OF, extendedShape } from '../../../lib/extendedVoicings';
 import { spellNote, type Spelling } from '../../../lib/spelling';
 import {
   patternFor, type ListRung, type SharedProgression,
@@ -173,46 +173,95 @@ function passTones(quality: string, rung: ListRung): number[] {
  *   positions have always meant.
  * =====================================================================
  */
+/** One chord's placeable shape: the right hand, the left hand's extra
+ *  notes, and what the chip calls it. */
+interface ShapeOption {
+  right: number[];
+  extras: number[];
+  name: string;
+}
+
+/**
+ * What each chord of an Extended Voicings row may play.
+ *
+ * =====================================================================
+ * THE POSITION NAMES THE FIRST CHORD, AND THE REST FOLLOWS.
+ *
+ * Silas's ruling of 10 Sep 2026. Position 1 is the row's first chord in
+ * its A shape — the one that starts on the 3rd — and Position 2 the
+ * same chord in its B. After that a CADENCE alternates, because trading
+ * the two shapes off is what the ABA and BAB runs in his notes are; a
+ * LOOP takes whichever shape is the smaller move from the chord before,
+ * because that is what a hand does going round.
+ *
+ * `voiceLeadingExtendedRule` says which a row is, and the catalog hands
+ * back both shapes of every chord so the loop's choice can be made
+ * where the chords are actually placed — the distance is between
+ * placed hands, and nothing above `placeShapes` knows where they are.
+ * =====================================================================
+ */
 function shapesFor(
   entry: SharedProgression,
   chords: ReadonlyArray<VLChord>,
   rung: ListRung,
   position: number,
-): Array<{ right: number[]; extras: number[]; name: string }> | null {
+): Array<{ fixed: ShapeOption | null; options: ShapeOption[] }> | null {
   if (rung !== 'full') return null;
 
+  const asOption = (
+    shape: { right: ReadonlyArray<number>; left: ReadonlyArray<number> },
+    name: string,
+  ): ShapeOption => ({
+    right: lowestOctave(shape.right),
+    extras: [...shape.left].slice(1),
+    name,
+  });
+
   if (entry.patternId === 'minor-aba') {
-    const dominant = position === 1 ? 'A' : 'B';
-    const landing = position === 1 ? 'B' : 'A';
-    return chords.map(chord => {
+    // TWO CHORDS, AND THE FIRST IS THE ONE THE POSITION NAMES. The
+    // dominant starts the row, so Position 1 plays it in A and the
+    // minor ninth it lands on takes B; Position 2 is the reverse.
+    const first = position === 1 ? 'A' : 'B';
+    const second = position === 1 ? 'B' : 'A';
+    return chords.map((chord, i) => {
       const named = EXTENDED_QUALITY_OF[chord.quality];
       const shape = named === undefined
         ? null
-        : extendedShape(named, isDominantExtended(named) ? dominant : landing);
-      return shape === null
+        : extendedShape(named, i === 0 ? first : second);
+      const option = shape === null
         ? { right: [], extras: [], name: chord.quality }
-        : {
-          right: lowestOctave(shape.right),
-          extras: [...shape.left].slice(1),
-          name: EXTENDED_SUFFIX[named!] ?? chord.quality,
-        };
+        : asOption(shape, EXTENDED_SUFFIX[named!] ?? chord.quality);
+      return { fixed: option, options: [option] };
     });
   }
 
   const pattern = patternFor(entry);
   if (pattern.kind !== 'type-position') return null;
-  const run = voiceLeadingExtendedRun(pattern, position === 1 ? 'A' : 'B');
+  // THE CHORDS IN THE ORDER THIS ENTRY PLAYS THEM. A rotated loop is
+  // the row entered by a different door, and the position names its
+  // first chord rather than the row's.
+  const run = voiceLeadingExtendedRun(pattern, position === 1 ? 'A' : 'B', chords);
   if (run === null) return null;
-  const byDegree = new Map(run.map(c => [c.degree, c]));
-  return chords.map(chord => {
-    const shaped = byDegree.get(chord.degree);
-    return shaped === undefined
-      ? { right: [], extras: [], name: chord.quality }
-      : {
-        right: lowestOctave(shaped.shape.right),
-        extras: [...shaped.shape.left].slice(1),
-        name: EXTENDED_SUFFIX[shaped.quality] ?? chord.quality,
-      };
+  const nearest = voiceLeadingExtendedRule(pattern.id) === 'nearest';
+  return chords.map((chord, i) => {
+    const shaped = run[i];
+    if (shaped === undefined) {
+      const blank = { right: [], extras: [], name: chord.quality };
+      return { fixed: blank, options: [blank] };
+    }
+    const name = EXTENDED_SUFFIX[shaped.quality] ?? chord.quality;
+    const alternating = asOption(shaped.shape, name);
+    // FIXED WHERE THERE IS NOTHING TO CHOOSE: the chord the position
+    // names, a chord the notes give one shape, and every chord of a
+    // cadence — a cadence alternates, and that is the answer already.
+    if (!nearest || shaped.fixed) {
+      return { fixed: alternating, options: [alternating] };
+    }
+    const options = (['A', 'B'] as const)
+      .map(letter => shaped.alternatives[letter])
+      .filter((x): x is NonNullable<typeof x> => x !== undefined)
+      .map(shape => asOption(shape, name));
+    return { fixed: null, options: options.length > 0 ? options : [alternating] };
   });
 }
 
@@ -248,7 +297,7 @@ function lowestOctave(tones: ReadonlyArray<number>): number[] {
  * so the only choice is which octave to build it in.
  */
 function placeShapes(
-  shapes: ReadonlyArray<{ right: number[]; extras: number[]; name: string }>,
+  shapes: ReadonlyArray<{ fixed: ShapeOption | null; options: ShapeOption[] }>,
   chords: ReadonlyArray<VLChord>,
   rootPcs: ReadonlyArray<number>,
   line: ReadonlyArray<number>,
@@ -258,26 +307,47 @@ function placeShapes(
 ): PlayerChord[] {
   const out: PlayerChord[] = [];
   let previous: number[] | null = null;
-  shapes.forEach((shape, i) => {
+  shapes.forEach((slot, i) => {
     const rootPc = rootPcs[i];
     const bass = line[i] ?? null;
-    const candidates: number[][] = [];
-    for (let root = rootPc; root + (shape.right[0] ?? 0) <= EXT_CEILING; root += 12) {
-      const placed = shape.right.map(t => root + t);
-      if (placed.length > 0 && placed[0] >= EXT_FLOOR
-        && placed[placed.length - 1] <= EXT_CEILING) candidates.push(placed);
-    }
-    let hand = candidates.find(v => v[0] >= EXT_PREFERRED) ?? candidates[0] ?? [];
-    if (previous !== null && candidates.length > 0) {
-      const want = opts.handMoves?.[i - 1] ?? 'auto';
+    /** Every placement of one shape that fits the window. */
+    const placementsOf = (shape: ShapeOption): number[][] => {
+      const out2: number[][] = [];
+      for (let root = rootPc; root + (shape.right[0] ?? 0) <= EXT_CEILING; root += 12) {
+        const placed = shape.right.map(t => root + t);
+        if (placed.length > 0 && placed[0] >= EXT_FLOOR
+          && placed[placed.length - 1] <= EXT_CEILING) out2.push(placed);
+      }
+      return out2;
+    };
+    const want = opts.handMoves?.[i - 1] ?? 'auto';
+    let best: { shape: ShapeOption; hand: number[] } | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const shape of slot.fixed === null ? slot.options : [slot.fixed]) {
+      const candidates = placementsOf(shape);
+      if (candidates.length === 0) continue;
+      if (previous === null) {
+        // THE FIRST CHORD HAS NOTHING TO BE NEAR. It takes the lowest
+        // placement that sits in the hand's preferred register.
+        const hand = candidates.find(v => v[0] >= EXT_PREFERRED) ?? candidates[0];
+        best = { shape, hand };
+        break;
+      }
       const floor = Math.min(...previous);
       const pool = want === 'auto'
         ? candidates
         : candidates.filter(v => (want === 'up' ? v[0] > floor : v[0] < floor));
-      const usable = pool.length > 0 ? pool : candidates;
-      hand = usable.reduce((a, b) => (
-        Math.abs(b[0] - floor) < Math.abs(a[0] - floor) ? b : a));
+      for (const hand of (pool.length > 0 ? pool : candidates)) {
+        // THE SAME MEASURE `nearest` USES, so "nearest" means one thing
+        // in this app: every note's distance to the closest note of the
+        // chord before, counted both ways.
+        const d = voicingDistance(hand, previous);
+        if (d < bestDistance) { bestDistance = d; best = { shape, hand }; }
+      }
     }
+    const shape = best?.shape ?? slot.fixed ?? slot.options[0]
+      ?? { right: [], extras: [], name: '' };
+    const hand = best?.hand ?? [];
     if (hand.length > 0) previous = hand;
     // THE LEFT HAND'S EXTRA NOTES SIT ON THE BASS, where Silas writes
     // them. Only the half-diminished and the 7(♭9♯9♭13) have any.

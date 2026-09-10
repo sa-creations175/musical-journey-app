@@ -23,8 +23,6 @@ import type { InversionState } from '../../lib/db';
 import {
   EXTENDED_QUALITY_OF,
   extendedShape,
-  isDominantExtended,
-  shapeInRun,
   type ExtendedPosition,
   type ExtendedQuality,
   type ExtendedShape,
@@ -1227,10 +1225,56 @@ export interface VLExtendedChord {
   degree: string;
   /** The extended chord this degree becomes. */
   quality: ExtendedQuality;
-  /** Which of Silas's two shapes it takes in this run. */
+  /** Which of Silas's two shapes it takes under the alternating rule. */
   position: ExtendedPosition;
   /** The shape itself — left hand, right hand, and his degree names. */
   shape: ExtendedShape;
+  /**
+   * Both of this chord's shapes, where it has both.
+   *
+   * A LOOP CHOOSES BY EAR AND NOT BY ALTERNATION, so the placer needs
+   * the pair rather than the answer — see `voiceLeadingExtendedRule`.
+   * A chord written for one run has only one entry here.
+   */
+  alternatives: Partial<Record<ExtendedPosition, ExtendedShape>>;
+  /**
+   * True where the letter is FIXED and the placer may not re-choose:
+   * the first chord of the row, and any chord the notes give only one
+   * shape for.
+   */
+  fixed: boolean;
+}
+
+/**
+ * How a row picks each chord's shape after the first.
+ *
+ * =====================================================================
+ * A CADENCE ALTERNATES; A LOOP GOES WHEREVER IS NEAREST.
+ *
+ * Silas's ruling of 10 Sep 2026. On a 2 5 1 or a pass the two shapes
+ * trade off — that is what the ABA and BAB runs in his notes ARE, and
+ * the alternation is the exercise. A loop is not a cadence: it goes
+ * round, and what a hand actually does going round is take whichever
+ * shape is the smaller move from the chord before.
+ *
+ * THE LIST IS HIS, NOT A DERIVATION. "1 5 6 4, 1 6 4 5, 1 6 2 5, 1 4 5,
+ * 1 4 7 3 6 2 5 1" — named in the ruling. A rule inferred from the
+ * chord count would have swept up the backdoor, which he did not name
+ * and which is a cadence in his own words ("part of a larger backdoor
+ * 251").
+ *
+ * The diatonic cycle is on the list and has no Extended Voicings row to
+ * apply it to; it is here so the list is the ruling's list.
+ * =====================================================================
+ */
+const EXTENDED_RUN_NEAREST: ReadonlySet<string> = new Set([
+  '1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5', 'diatonic-cycle',
+]);
+
+export function voiceLeadingExtendedRule(
+  patternId: string,
+): 'alternate' | 'nearest' {
+  return EXTENDED_RUN_NEAREST.has(patternId) ? 'nearest' : 'alternate';
 }
 
 /**
@@ -1270,6 +1314,18 @@ function soleShapePosition(q: ExtendedQuality): ExtendedPosition | null {
 export function voiceLeadingExtendedRun(
   pattern: VoiceLeadingPattern,
   position: ExtendedPosition,
+  /**
+   * The chords in the order they are PLAYED, where that differs from
+   * the row's own order.
+   *
+   * A ROTATED LOOP IS THE ONLY CALLER. "6 4 1 5" is the 1 5 6 4 row
+   * entered by a different door, and the position names ITS first
+   * chord — the 6 — not the row's. Deriving from the row's order and
+   * looking the answer up by degree would give the 6 whatever letter
+   * it takes when the loop starts on the 1, which is a different
+   * question.
+   */
+  played?: ReadonlyArray<VLChord>,
 ): VLExtendedChord[] | null {
   if (pattern.kind !== 'type-position') return null;
   const row = pattern.types.find(
@@ -1278,7 +1334,14 @@ export function voiceLeadingExtendedRun(
   if (!row || !row.positions.includes(position)) return null;
 
   const out: VLExtendedChord[] = [];
-  for (const chord of pattern.chords) {
+  // THE FIRST CHORD IS WHAT THE POSITION NAMES, and everything else
+  // follows from it. Position 1 is the row's first chord in its A shape
+  // — the one that starts on the 3rd — and Position 2 the same chord in
+  // its B. Silas's ruling of 10 Sep 2026, replacing "the dominant takes
+  // B in Position 1", which was a derivation from the two 2 5 1 runs
+  // and got the plain 5 → 1 backwards.
+  let previous: ExtendedPosition | null = null;
+  for (const chord of played ?? pattern.chords) {
     const named = chord.extendedQuality?.[position] ?? chord.quality;
     const quality = EXTENDED_QUALITY_OF[named] as ExtendedQuality | undefined;
     if (quality === undefined) return null;
@@ -1286,16 +1349,30 @@ export function voiceLeadingExtendedRun(
     // The minor 2 5 1's 7♯5 exists only as the B of the ABA run and the
     // 7(♭9♯9♭13) only as the A of the BAB one — each is one chord in one
     // place, not a chord with two voicings — so a per-position quality
-    // takes the single shape the notes give it. `soleShapePosition`
-    // returns null the day one of them gains a second, which is the
-    // moment `shapeInRun` would have to decide instead.
-    const shapePosition = chord.extendedQuality?.[position] !== undefined
-      ? soleShapePosition(quality)
-      : shapeInRun(position, isDominantExtended(quality));
-    if (shapePosition === null) return null;
+    // takes the single shape the notes give it.
+    const sole = soleShapePosition(quality);
+    const alternating: ExtendedPosition = previous === null
+      ? position
+      : (previous === 'A' ? 'B' : 'A');
+    const shapePosition: ExtendedPosition = sole ?? alternating;
     const shape = extendedShape(quality, shapePosition);
     if (shape === null) return null;
-    out.push({ degree: chord.degree, quality, position: shapePosition, shape });
+    const alternatives: Partial<Record<ExtendedPosition, ExtendedShape>> = {};
+    for (const letter of ['A', 'B'] as const) {
+      const other = extendedShape(quality, letter);
+      if (other !== null) alternatives[letter] = other;
+    }
+    out.push({
+      degree: chord.degree,
+      quality,
+      position: shapePosition,
+      shape,
+      alternatives,
+      // FIXED where there is nothing to choose between: the chord that
+      // the position NAMES, and any chord the notes give one shape.
+      fixed: previous === null || sole !== null,
+    });
+    previous = shapePosition;
   }
   return out;
 }

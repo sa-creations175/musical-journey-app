@@ -18,6 +18,10 @@ import {
 } from '../sharedList';
 import { voiceEntry } from '../passVoicing';
 import { VOICE_LEADING_PATTERNS } from '../../../shapes-and-patterns/catalog';
+import {
+  EXTENDED_QUALITY_OF, extendedShape,
+} from '../../../../lib/extendedVoicings';
+import { voicingDistance } from '../../../../lib/builtAnswers/voiceLeading';
 
 const NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
 const spell = (m: number) => NAMES[((m % 12) + 12) % 12];
@@ -115,6 +119,27 @@ describe("the extended rung is Silas's own shapes", () => {
     ]);
   });
 
+  it('plays 5 → 1 from the first chord, both ways round', () => {
+    // =================================================================
+    // POSITION 1 IS THE FIRST CHORD IN ITS A SHAPE, WHICH ON THIS PASS
+    // IS THE DOMINANT.
+    //
+    // It used to be the other way round: the old rule made the dominant
+    // take B in Position 1, which is Position 2's shape. Silas ruled on
+    // 10 Sep 2026 that the position names the row's first chord.
+    //
+    // A of the dominant 9(13) is `3 13 ♭7 9`; B of the major 9 is
+    // `7 9 3 5`. In the key of C: G + [B, E, F, A], then C + [B, D, E, G].
+    // =================================================================
+    expect(played('five-one', 'full', 1, 0)).toEqual([
+      'G | B E F A', 'C | B D E G',
+    ]);
+    // Position 2 is the same two chords with the letters swapped.
+    expect(played('five-one', 'full', 2, 0)).toEqual([
+      'G | F A B E', 'C | E G B D',
+    ]);
+  });
+
   it("alternates the 7♯9♯5 pass's own two shapes", () => {
     // Stage 5: start with the A position, or start with the B. The
     // minor ninth it lands on takes the other letter so the two hands
@@ -132,6 +157,66 @@ describe("the extended rung is Silas's own shapes", () => {
     // for — the ruling `NINTH_OF` already states.
     const [dominant] = played('dom7b9', 'full', 1, 1);
     expect(dominant).toBe('A♭ | C E♭ G♭ A');
+  });
+});
+
+describe('a loop takes the nearer shape, not the alternating one', () => {
+  /**
+   * =====================================================================
+   * A CADENCE ALTERNATES; A LOOP GOES WHEREVER IS NEAREST.
+   *
+   * Silas's ruling of 10 Sep 2026. Going round a loop, a hand takes
+   * whichever of the two shapes is the smaller move from the chord
+   * before — which is not always the one alternation would pick.
+   * =====================================================================
+   */
+  it('gives every chord after the first the nearer of its two shapes', () => {
+    const entry = SHARED_PROGRESSION_BY_ID.get('1-5-6-4')!;
+    const chords = voiceEntry(entry, 0, 'full', 1);
+    expect(chords).toHaveLength(4);
+
+    // Rebuild each chord's two candidate hands from Silas's table and
+    // check the one that sounded is the nearer to the hand before it.
+    for (let i = 1; i < chords.length; i += 1) {
+      const previous = chords[i - 1].hand;
+      const quality = EXTENDED_QUALITY_OF[entry.chords[i].quality]!;
+      const rootPc = ((chords[i].rootPc % 12) + 12) % 12;
+      const candidates: number[][] = [];
+      for (const letter of ['A', 'B'] as const) {
+        const shape = extendedShape(quality, letter);
+        if (shape === null) continue;
+        // The same fold and window `passVoicing` places with.
+        const drop = Math.floor(shape.right[0] / 12) * 12;
+        const tones = shape.right.map(t => t - drop);
+        for (let root = rootPc; root + tones[0] <= 84; root += 12) {
+          const placed = tones.map(t => root + t);
+          if (placed[0] >= 50 && placed[placed.length - 1] <= 84) {
+            candidates.push(placed);
+          }
+        }
+      }
+      const distances = candidates.map(v => voicingDistance(v, previous));
+      const best = Math.min(...distances);
+      expect(voicingDistance(chords[i].hand, previous), `chord ${i}`).toBe(best);
+    }
+  });
+
+  it('still starts on the shape the position names', () => {
+    // Only the chords AFTER the first are chosen by ear. The first is
+    // what Position 1 and Position 2 mean.
+    const entry = SHARED_PROGRESSION_BY_ID.get('1-5-6-4')!;
+    const one = voiceEntry(entry, 0, 'full', 1)[0];
+    const two = voiceEntry(entry, 0, 'full', 2)[0];
+    // maj9 A is `3 5 7 9`; maj9 B is `7 9 3 5`.
+    expect(one.hand.map(spell)).toEqual(['E', 'G', 'B', 'D']);
+    expect(two.hand.map(spell)).toEqual(['B', 'D', 'E', 'G']);
+  });
+
+  it('names the first chord of a ROTATED loop, not the row\'s', () => {
+    // "6 4 1 5" is the same row entered by a different door, so
+    // Position 1 is the 6 minor in its A shape — `♭3 5 ♭7 9`.
+    const six = voiceEntry(SHARED_PROGRESSION_BY_ID.get('6-4-1-5')!, 0, 'full', 1);
+    expect(six[0].hand.map(spell)).toEqual(['C', 'E', 'G', 'B']);
   });
 });
 

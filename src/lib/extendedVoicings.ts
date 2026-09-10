@@ -181,35 +181,25 @@ export const EXTENDED_QUALITY_OF: Readonly<Record<string, ExtendedQuality>> = {
 };
 
 /**
- * The shape a chord takes in one RUN, given whether it is a dominant.
- *
  * =====================================================================
- * ABA AND BAB ARE RUNS, AND THE RULE BEHIND THEM IS ONE LINE.
+ * `shapeInRun` WAS HERE, AND IT WAS A DERIVATION THAT DID NOT HOLD.
  *
- * Stage 9 lays the major 2 5 1 out as A-B-A and B-A-B; stage 10 does
- * the same for the minor one. In both, and in both directions, the
- * DOMINANT takes the opposite letter to the chords either side of it.
- * So a run is named for what its outer chords take, and the dominant
- * flips:
+ * It read the two 2 5 1 runs — stage 9's A-B-A and stage 10's B-A-B —
+ * and concluded that the DOMINANT takes the opposite letter to the
+ * chords either side of it. True of both of those, and wrong on a pass
+ * that STARTS on the dominant: it made the plain 5 → 1 play its
+ * dominant in B under Position 1, which is Position 2's shape.
  *
- *    Position 1 (the ABA run) — dominant B, everything else A
- *    Position 2 (the BAB run) — dominant A, everything else B
- *
- * Written as a rule rather than as four lists, because the 5 → 1 and
- * the five named progressions have to be voiced the same way and the
- * notes do not spell those out. Silas's brief of 9 Sep says to derive
- * them exactly this way.
+ * Silas ruled on 10 Sep 2026 that the position names the row's FIRST
+ * chord — Position 1 is that chord in its A shape, Position 2 in its B
+ * — and everything after it follows, alternating on a cadence and by
+ * nearest move on a loop. That rule lives in
+ * `shapes-and-patterns/catalog.ts`, where the row is, because it needs
+ * to know which chord comes first.
  * =====================================================================
  */
-export function shapeInRun(
-  run: ExtendedPosition,
-  isDominant: boolean,
-): ExtendedPosition {
-  if (run === 'A') return isDominant ? 'B' : 'A';
-  return isDominant ? 'A' : 'B';
-}
 
-/** Whether a quality behaves as a dominant for `shapeInRun`. */
+/** Whether a quality behaves as a dominant. */
 export function isDominantExtended(q: ExtendedQuality): boolean {
   return q === 'dom9-13' || q === 'dom7#9#5'
     || q === 'dom7#5' || q === 'dom7b9#9b13';

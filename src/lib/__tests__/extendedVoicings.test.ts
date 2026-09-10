@@ -20,7 +20,6 @@ import {
   extendedShape,
   extendedTones,
   isDominantExtended,
-  shapeInRun,
   type ExtendedPosition,
   type ExtendedQuality,
 } from '../extendedVoicings';
@@ -29,6 +28,7 @@ import { handTones } from '../builtAnswers/chordShapes';
 import { voicingFor } from '../../modules/ear-training/chord-progressions/progressionTheory';
 import {
   VOICE_LEADING_PATTERN_BY_ID,
+  voiceLeadingExtendedRule,
   voiceLeadingExtendedRun,
 } from '../../modules/shapes-and-patterns/catalog';
 
@@ -123,11 +123,12 @@ describe("the voicings are Silas's, note for note", () => {
 });
 
 describe('the runs', () => {
-  it('flips the dominant and leaves everything else', () => {
-    expect(shapeInRun('A', false)).toBe('A');
-    expect(shapeInRun('A', true)).toBe('B');
-    expect(shapeInRun('B', false)).toBe('B');
-    expect(shapeInRun('B', true)).toBe('A');
+  it('knows which qualities behave as a dominant', () => {
+    // `shapeInRun` WAS TESTED HERE. It derived a chord's shape from
+    // whether it was a dominant, which held on the two 2 5 1 runs and
+    // failed on a pass that starts on the dominant. The rule is the
+    // row's FIRST chord now — Silas, 10 Sep 2026 — and it lives in the
+    // catalog, where the row is.
     expect(isDominantExtended('dom9-13')).toBe(true);
     expect(isDominantExtended('m9')).toBe(false);
   });
@@ -176,20 +177,46 @@ describe('the runs', () => {
       .toBe('dom7b9#9b13');
   });
 
-  it('derives the 5 → 1 and the five named progressions the same way', () => {
-    // Position 1 = the ABA run: the dominant takes B, the rest take A.
-    const five = voiceLeadingExtendedRun(
-      VOICE_LEADING_PATTERN_BY_ID.get('five-one')!, 'A',
-    )!;
-    expect(five.map(c => `${c.quality}:${c.position}`))
+  it('names the row\'s FIRST chord, and alternates from there', () => {
+    // =================================================================
+    // THE 5 → 1 WAS BACKWARDS, AND THIS IS THE CASE THAT SHOWED IT.
+    //
+    // The old rule read the two 2 5 1 runs and concluded that the
+    // DOMINANT takes B in Position 1. True where the dominant is in the
+    // middle; wrong on a pass that STARTS on it, which then played
+    // Position 2's shape under Position 1. Silas ruled on 10 Sep 2026
+    // that the position names the row's first chord.
+    // =================================================================
+    const five = VOICE_LEADING_PATTERN_BY_ID.get('five-one')!;
+    expect(voiceLeadingExtendedRun(five, 'A')!.map(c => `${c.quality}:${c.position}`))
+      .toEqual(['dom9-13:A', 'maj9:B']);
+    expect(voiceLeadingExtendedRun(five, 'B')!.map(c => `${c.quality}:${c.position}`))
       .toEqual(['dom9-13:B', 'maj9:A']);
-    const backdoor = voiceLeadingExtendedRun(
-      VOICE_LEADING_PATTERN_BY_ID.get('backdoor')!, 'B',
-    )!;
-    // Position 2 = the BAB run, the other way round.
-    expect(backdoor.map(c => c.position).every(p => p === 'B' || p === 'A'))
-      .toBe(true);
-    expect(new Set(backdoor.map(c => c.quality)).has('dom9-13')).toBe(true);
+  });
+
+  it('leaves the two 2 5 1 runs exactly where the notes put them', () => {
+    // The new rule has to give the same answer as the old one wherever
+    // the old one was right, and the two 2 5 1s are what it was read
+    // off: their first chord is the 2, so A-B-A and B-A-B fall out.
+    for (const [id, first] of [['major-251', 'm9'], ['minor-251', 'm7b5-11']] as const) {
+      const pattern = VOICE_LEADING_PATTERN_BY_ID.get(id)!;
+      expect(voiceLeadingExtendedRun(pattern, 'A')!.map(c => c.position), id)
+        .toEqual(['A', 'B', 'A']);
+      expect(voiceLeadingExtendedRun(pattern, 'B')!.map(c => c.position), id)
+        .toEqual(['B', 'A', 'B']);
+      expect(voiceLeadingExtendedRun(pattern, 'A')![0].quality, id).toBe(first);
+    }
+  });
+
+  it('says which rows alternate and which take the nearer move', () => {
+    // Silas's own list, not a derivation off the chord count — which
+    // would have swept up the backdoor, a cadence in his own words.
+    for (const id of ['1-5-6-4', '1-6-4-5', '1-6-2-5', '1-4-5', 'diatonic-cycle']) {
+      expect(voiceLeadingExtendedRule(id), id).toBe('nearest');
+    }
+    for (const id of ['five-one', 'major-251', 'minor-251', 'backdoor', 'minor-aba']) {
+      expect(voiceLeadingExtendedRule(id), id).toBe('alternate');
+    }
   });
 
   it('has no run where the page draws no Extended Voicings row', () => {
