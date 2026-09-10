@@ -17,9 +17,10 @@
  * =====================================================================
  * IT REPORTS. IT DELETES NOTHING, AND THAT CHANGED ON 10 SEP 2026.
  *
- * It used to delete, against a written-down list of the exact ids it
- * was authorised to remove — `REMOVED_WITHOUT_SUCCESSOR`, one entry per
- * card retired without a replacement. That list was the authorisation:
+ * The file was `orphanedCardCleanup.ts` and it used to delete, against
+ * a written-down list of the exact ids it was authorised to remove —
+ * `REMOVED_WITHOUT_SUCCESSOR`, one entry per card retired without a
+ * replacement. That list was the authorisation:
  * it could not widen on its own, and the pass refused outright if any
  * id on it was back in the deck.
  *
@@ -32,9 +33,10 @@
  * that would be deleting a reader's history because a module failed to
  * load.
  *
- * So it is read-only. Rows that should go are removed in the commit
- * that retires their card, where the exact set is known and can be
- * argued about; this is what notices when that did not happen.
+ * So it is read-only, and the file is named for what it does. Rows that
+ * should go are removed in the commit that retires their card, where
+ * the exact set is known and can be argued about; this is what notices
+ * when that did not happen.
  *
  * =====================================================================
  * WHAT A READER WROTE IS NAMED SEPARATELY.

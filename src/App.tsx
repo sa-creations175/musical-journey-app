@@ -8,7 +8,7 @@ import { describeWipe, wipeRetiredCellFields } from './modules/repertoire/wipeRe
 import {
   describeOrphans,
   reportOrphanedCards,
-} from './modules/harmonic-fluency/orphanedCardCleanup';
+} from './modules/harmonic-fluency/orphanedCardSweep';
 import {
   describeDedupe, removeDuplicateSpacingRows,
 } from './lib/spacing/dedupeSpacingRows';

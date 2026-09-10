@@ -31,7 +31,7 @@ import { canonicalSkillId } from '../../skills/registry';
 import { spacingRowId } from '../../../lib/spacingState';
 import {
   authoredOnAnnotation, authoredOnSpacing, describeOrphans, reportOrphanedCards,
-} from '../orphanedCardCleanup';
+} from '../orphanedCardSweep';
 
 const MODULE = 'harmonic-fluency';
 const T = Date.UTC(2026, 8, 1);
