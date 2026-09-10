@@ -15,6 +15,7 @@
 import type { Flashcard } from '../catalog';
 import { builtTargetFor } from './cardTargets';
 import ProgressionAnswer from './ProgressionAnswer';
+import SlashAnswer from './SlashAnswer';
 
 export default function BuiltAnswer({
   card, answered, answer,
@@ -46,9 +47,20 @@ export default function BuiltAnswer({
           answer={answer}
         />
       );
-    // THE OTHER FOUR LAND IN THEIR OWN COMMITS, and until they do their
-    // cards keep the buttons they have always had. A half-built family
-    // would be a reader meeting two answer surfaces for one question.
+    case 'slash':
+      return (
+        <SlashAnswer
+          key={card.id}
+          card={card}
+          target={target}
+          answered={answered}
+          answer={answer}
+        />
+      );
+    // THE REMAINING FAMILIES LAND IN THEIR OWN COMMITS, and until they
+    // do their cards keep the buttons they have always had. A
+    // half-built family would be a reader meeting two answer surfaces
+    // for one question shape.
     default:
       return null;
   }

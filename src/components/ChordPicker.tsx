@@ -70,6 +70,20 @@ export interface ChordPickerProps {
     label: string;
   };
 
+  /**
+   * A SECOND letter row, for the note under a slash chord.
+   *
+   * On the brief's allowed-difference list, and declared here rather
+   * than assembled by the caller so both rows behave the same way: a
+   * bottom note picked by tapping a letter and one picked by tapping a
+   * key in the bass octave are the same pick.
+   */
+  bass?: {
+    pick: RootPick | null;
+    onPick: (pick: RootPick | null) => void;
+    label: string;
+  };
+
   quality?: Row<Quality> & {
     value: QualityId | null;
     onChange: (q: QualityId | null) => void;
@@ -200,7 +214,8 @@ function LetterRow({
 }
 
 export default function ChordPicker({
-  marks, onTapKey, keyboardLabel, root, quality, layout, inversion, children,
+  marks, onTapKey, keyboardLabel, root, bass, quality, layout, inversion,
+  children,
 }: ChordPickerProps) {
   return (
     <div className="space-y-3" data-testid="chord-picker">
@@ -208,6 +223,13 @@ export default function ChordPicker({
         <div className="space-y-1.5">
           <RowLabel>{root.label}</RowLabel>
           <LetterRowHost pick={root.pick} onPick={root.onPick} />
+        </div>
+      )}
+
+      {bass !== undefined && (
+        <div className="space-y-1.5" data-testid="bass-row">
+          <RowLabel>{bass.label}</RowLabel>
+          <LetterRowHost pick={bass.pick} onPick={bass.onPick} />
         </div>
       )}
 

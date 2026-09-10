@@ -230,3 +230,52 @@ export function voiceAll(
   });
   return out;
 }
+
+/**
+ * A phrase voice-led outward from one chord that is already placed.
+ *
+ * =====================================================================
+ * THE READER'S HAND IS THE ANCHOR, AND THE PHRASE MOVES TO MEET IT.
+ *
+ * A slash chord's context is the chords around it, and the shape the
+ * reader chose for the slash chord is the one thing in the phrase that
+ * is not this engine's to decide. So the anchor is placed first and the
+ * phrase is voiced OUTWARD from it — backwards to the chord before,
+ * forwards to the chord after — rather than left to right from
+ * whichever end happens to come first.
+ *
+ * Left to right would voice the chord before the slash chord against
+ * nothing and then make the reader's own hand jump to it, which is the
+ * one movement the phrase must not have.
+ * =====================================================================
+ */
+export function voiceAround(
+  steps: ReadonlyArray<{ pcs: ReadonlyArray<number> } | null>,
+  anchor: ReadonlyArray<number>,
+): Array<number[]> {
+  const hands: Array<number[]> = steps.map(() => []);
+  const at = steps.findIndex(s => s === null);
+  if (at < 0) {
+    // No anchor in the phrase: voice it left to right, which is the
+    // progression rule.
+    let previous: number[] | null = null;
+    steps.forEach((s, i) => {
+      if (s === null) return;
+      hands[i] = previous === null
+        ? voicingsOf(s.pcs, 0)[0] ?? allVoicings(s.pcs)[0] ?? []
+        : nearest(s.pcs, previous);
+      previous = hands[i];
+    });
+    return hands;
+  }
+  hands[at] = [...anchor];
+  for (let i = at - 1; i >= 0; i -= 1) {
+    const step = steps[i];
+    hands[i] = step === null ? [...anchor] : nearest(step.pcs, hands[i + 1]);
+  }
+  for (let i = at + 1; i < steps.length; i += 1) {
+    const step = steps[i];
+    hands[i] = step === null ? [...anchor] : nearest(step.pcs, hands[i - 1]);
+  }
+  return hands;
+}
