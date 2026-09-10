@@ -14,6 +14,9 @@ import ModeReferenceSection from './ModeReferenceSection';
 import FluencyTracker from './FluencyTracker';
 import FocusPanel from './FocusPanel';
 import { MODES, type ModeSortOrder } from './catalog';
+import { getUnlockedScaleModesStage } from './scaleModeTierUnlock';
+import { useTierUnlockNotice } from '../useTierUnlockNotice';
+import { SCALE_MODE_ROWS } from '../tierContents';
 import {
   MODULE_ID,
   PREF_SCOPE,
@@ -104,6 +107,13 @@ export default function ScalesModes() {
     async () => getPref<string[]>(PREF_FOCUS, []),
     [],
   ) ?? [];
+
+  // "Tier 2 unlocked: Dorian, Mixolydian, Lydian, Phrygian, Locrian are
+  // in play." This ladder opened in SILENCE until 10 Sep 2026 — the
+  // modes simply started appearing — which is the same event chord
+  // recognition announces, so it gets the same announcement.
+  const unlockedTier = useLiveQuery(() => getUnlockedScaleModesStage(), []) ?? null;
+  useTierUnlockNotice(unlockedTier, SCALE_MODE_ROWS);
 
   // Active pool that both tabs draw from. Focus mode overrides scope —
   // an explicit user selection always wins.

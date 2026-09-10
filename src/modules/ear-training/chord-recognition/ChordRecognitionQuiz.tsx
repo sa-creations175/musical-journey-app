@@ -76,7 +76,8 @@ import {
   progressionSuggestionFor,
   type SuggestionTab,
 } from './progressionSuggestion';
-import { useToast } from '../../../components/Toaster';
+import { useTierUnlockNotice } from '../useTierUnlockNotice';
+import { CHORD_RECOGNITION_ROWS } from '../tierContents';
 import { chordIdentityText as buildChordIdentityText, rootNoteName } from './chordIdentity';
 import { useSpelling } from '../../../lib/spellingPref';
 
@@ -427,20 +428,10 @@ export default function ChordRecognitionQuiz({
   const unlockedTierRef = useRef(unlockedTier); unlockedTierRef.current = unlockedTier;
   const introducedItemsRef = useRef(introducedItems); introducedItemsRef.current = introducedItems;
 
-  // Toast on tier advancement. The previous-tier ref baselines on
-  // first paint so we don't fire a phantom toast for the user's
-  // existing unlock state — only NEW crossings trigger.
-  const { toast } = useToast();
-  const previousTierRef = useRef<ChordRecognitionTier | null>(null);
-  useEffect(() => {
-    if (previousTierRef.current !== null && unlockedTier > previousTierRef.current) {
-      toast({
-        message: `Tier ${unlockedTier} unlocked — new chord types available!`,
-        variant: 'success',
-      });
-    }
-    previousTierRef.current = unlockedTier;
-  }, [unlockedTier, toast]);
+  // "Tier 2 unlocked: maj7, m7, 7, dim7, m7♭5, mMaj7 are in play."
+  // Shared with Scales & Modes — see `useTierUnlockNotice`, which also
+  // holds the baseline-on-first-paint rule this used to keep itself.
+  useTierUnlockNotice(unlockedTier, CHORD_RECOGNITION_ROWS);
 
   // Per-(chord, inversion) tier. Each (chord, inversion) pair has its
   // own rolling-window accuracy now that AttemptRecord.itemId carries

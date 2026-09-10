@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { taglineForPath, titleForPath } from '../lib/pageTitle';
 import SettingsPanel from './SettingsPanel';
+import { OPEN_SETTINGS_EVENT } from './settings/openSettings';
 import MobileBottomNav from './MobileBottomNav';
 import SidebarNav, { NAV_LABELS } from './SidebarNav';
 import SyncIndicator from './SyncIndicator';
@@ -39,6 +40,14 @@ const SIDEBAR_PREF = 'sidebarCollapsed';
 
 export default function Layout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // "See all Tiers", and anything else deep in the tree that wants the
+  // Settings page open at a named section. See `openSettings.ts`.
+  useEffect(() => {
+    const show = () => setSettingsOpen(true);
+    window.addEventListener(OPEN_SETTINGS_EVENT, show);
+    return () => { window.removeEventListener(OPEN_SETTINGS_EVENT, show); };
+  }, []);
   const [creativeOpen, setCreativeOpen] = useState(false);
   // Dev Mode badge in the header — impossible to miss while practice
   // writes are being suppressed. Resets to off on refresh.

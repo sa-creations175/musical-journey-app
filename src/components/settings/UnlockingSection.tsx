@@ -49,21 +49,13 @@ import {
 import {
   modesForStage,
 } from '../../modules/ear-training/scales-modes/scaleModeTierUnlock';
+// THE ROWS ARE SHARED WITH THE UNLOCK MESSAGE. "Tier 2 unlocked: maj7,
+// m7, 7, dim7, m7♭5, mMaj7 are in play" and this table's Tier 2 row are
+// one sentence about one fact; written twice they would drift.
+import {
+  CHORD_RECOGNITION_ROWS, SCALE_MODE_ROWS,
+} from '../../modules/ear-training/tierContents';
 import { Example, NumberField, PartHeading, RatingWord, RuleTable } from './ratingsCopy';
-
-/** What is in each Tier, for a person. See the header. */
-const CHORD_RECOGNITION_ROWS: ReadonlyArray<string> = [
-  'major, minor, diminished, augmented, sus2, sus4',
-  'maj7, m7, 7, dim7, m7♭5, mMaj7',
-  'inversions of the triads and sevenths',
-  'extended chords: 9ths, 11ths, 13ths, 6ths',
-  'altered dominants: 7♭9, 7♯9, 7♯9♯5, 9(13), 13, 7sus4',
-];
-
-const SCALE_MODE_ROWS: ReadonlyArray<string> = [
-  'Ionian (major), Aeolian (natural minor), harmonic minor, melodic minor',
-  'Dorian, Mixolydian, Lydian, Phrygian, Locrian',
-];
 
 /** A ladder's heading, with how many Tiers it has. */
 function LadderHeading({ name, tiers }: { name: string; tiers: number }) {
