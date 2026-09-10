@@ -140,8 +140,8 @@ export default function SyncDiagnosticsSection() {
         <div className="mb-4">
           {attemptsPush && (
             <p className="text-sm mb-2">
-              <span className="font-medium">Attempts</span>{' '}
-              — <span className="font-mono tabular-nums">{attemptsPush.localCount}</span> here,{' '}
+              <span className="font-medium">Attempts</span>:{' '}
+              <span className="font-mono tabular-nums">{attemptsPush.localCount}</span> here,{' '}
               <span className="font-mono tabular-nums">{attemptsPush.cloudCount}</span> in cloud,{' '}
               <span className="font-mono tabular-nums">{attemptsPush.pushed}</span> pushed
             </p>
@@ -187,13 +187,13 @@ export default function SyncDiagnosticsSection() {
           <div className="text-xs text-neutral-600 dark:text-neutral-300 mb-2 space-y-0.5">
             <p>
               queue depth <span className="font-mono tabular-nums">{status.queueDepth}</span>
-              {status.queueDepth === 0 ? ' — everything uploaded' : ' — waiting to upload'}
+              {status.queueDepth === 0 ? ', everything uploaded' : ', waiting to upload'}
               {status.maxAttempts > 0 && (
                 <> · <span className="font-mono tabular-nums">{status.maxAttempts}</span> Retries</>
               )}
             </p>
-            {!status.signedIn && <p className="text-needswork">not signed in — cloud counts unavailable</p>}
-            {status.offline && <p className="text-needswork">offline — cloud counts unavailable</p>}
+            {!status.signedIn && <p className="text-needswork">not signed in, so cloud counts are unavailable</p>}
+            {status.offline && <p className="text-needswork">offline, so cloud counts are unavailable</p>}
             {status.lastError && (
               <p className="text-needswork break-words">
                 last error ({status.lastErrorTable}): {status.lastError}
@@ -201,8 +201,8 @@ export default function SyncDiagnosticsSection() {
             )}
             {attemptsStatus && (
               <p>
-                <span className="font-medium">Attempts</span>{' '}
-                — <span className="font-mono tabular-nums">{attemptsStatus.local}</span> here,{' '}
+                <span className="font-medium">Attempts</span>:{' '}
+                <span className="font-mono tabular-nums">{attemptsStatus.local}</span> here,{' '}
                 <span className="font-mono tabular-nums">
                   {attemptsStatus.cloud ?? '?'}
                 </span>{' '}
@@ -256,7 +256,7 @@ export default function SyncDiagnosticsSection() {
       {rebuild && (
         <p className="text-sm text-neutral-600 dark:text-neutral-300">
           calendar rebuilt from{' '}
-          <span className="font-mono tabular-nums">{rebuild.attemptsScanned}</span> attempts —{' '}
+          <span className="font-mono tabular-nums">{rebuild.attemptsScanned}</span> attempts,{' '}
           <span className="font-mono tabular-nums">{rebuild.created}</span> days added,{' '}
           <span className="font-mono tabular-nums">{rebuild.updated}</span> corrected,{' '}
           <span className="font-mono tabular-nums">{rebuild.unchanged}</span> already right.

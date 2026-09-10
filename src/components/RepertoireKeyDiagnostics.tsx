@@ -87,7 +87,7 @@ export default function RepertoireKeyDiagnostics() {
     setNote(null);
     try {
       await fn();
-      setNote({ ok: true, text: `${label} — done` });
+      setNote({ ok: true, text: `${label}: done` });
       setRows(await collectSongKeyDiagnostics());
       setCheckedAt(Date.now());
     } catch (err) {
@@ -125,7 +125,7 @@ export default function RepertoireKeyDiagnostics() {
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
         compares each song&rsquo;s key against the original-key row its matrix
-        is anchored to. read-only — this changes nothing.
+        is anchored to. read-only, and it changes nothing.
       </p>
 
       <button
@@ -154,10 +154,10 @@ export default function RepertoireKeyDiagnostics() {
               mismatch
             </span>
             {distinctProblems.length === 1 && problems.length > 1 && (
-              <> — all the same kind, so one cause</>
+              <>, all the same kind, so one cause</>
             )}
             {distinctProblems.length > 1 && (
-              <> — <span className="font-mono tabular-nums">{distinctProblems.length}</span> different kinds</>
+              <>, <span className="font-mono tabular-nums">{distinctProblems.length}</span> different kinds</>
             )}
           </p>
 
@@ -248,11 +248,11 @@ export default function RepertoireKeyDiagnostics() {
           </div>
 
           <p className="text-[11px] text-neutral-500">
-            &ldquo;state from migration&rdquo; is expected on old rows — their state
+            &ldquo;state from migration&rdquo; is expected on old rows: their state
             came from the song&rsquo;s legacy stage before cells existed, so it is
             history rather than damage. The other flags are real
             disagreements. ★ marks the row the matrix anchors to. if song.key and the ★ row
-            disagree, the key edit reached the song record but not the matrix —
+            disagree, the key edit reached the song record but not the matrix.
             the timestamps say whether the matrix row was never written or was
             written and then overwritten.
           </p>
@@ -423,7 +423,7 @@ function RowActions({
       {showRecompute && needsConfirm && isConfirming && (
         <span className="inline-flex flex-wrap items-center gap-1">
           <span className="text-[10px] text-needswork">
-            nothing here has been played — setting {row.keyState} → {row.derivedState}{' '}
+            nothing here has been played, so setting {row.keyState} → {row.derivedState}{' '}
             erases the only record you worked this key.
           </span>
           <button

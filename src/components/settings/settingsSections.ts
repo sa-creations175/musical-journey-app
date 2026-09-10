@@ -66,3 +66,27 @@ export function sectionNumber(id: SettingsSectionId): number {
 export function sectionTitle(id: SettingsSectionId): string {
   return SETTINGS_SECTIONS.find(s => s.id === id)?.title ?? '';
 }
+
+/**
+ * A module's name, as the Settings page writes it.
+ *
+ * =====================================================================
+ * TITLE CASE HERE, NOT IN `moduleMeta`.
+ *
+ * The stored labels are lowercase ("ear training", "shapes & patterns")
+ * and every other surface in the app renders them that way. Silas's
+ * ruling of 10 Sep 2026 is about THIS PAGE: a settings screen naming
+ * "ear training" beside a section called "Understanding App Ratings"
+ * reads as two different products. Casing the labels globally is a
+ * change to every screen and was not asked for.
+ *
+ * A CASE CHANGE AND NOTHING ELSE. Words are capitalised and everything
+ * between them — the ampersand in "Shapes & Patterns" — is left alone.
+ * =====================================================================
+ */
+export function titleCaseModule(label: string): string {
+  // THE FIRST LETTER OF EACH WORD, and only that. A bare `[a-z]+`
+  // matches "ar" inside "Ear" and produces "EAr Training" on a label
+  // that was already cased.
+  return label.replace(/\b[a-z]/g, c => c.toUpperCase());
+}

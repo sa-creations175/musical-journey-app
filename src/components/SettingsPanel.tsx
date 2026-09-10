@@ -29,7 +29,7 @@ import SettingsSection from './settings/SettingsSection';
 import SpellingSection from './settings/SpellingSection';
 import {
   SETTINGS_SECTIONS, readOpenSection, sectionNumber, sectionTitle,
-  writeOpenSection, type SettingsSectionId,
+  titleCaseModule, writeOpenSection, type SettingsSectionId,
 } from './settings/settingsSections';
 import RatingsSection from './settings/RatingsSection';
 import UnlockingSection from './settings/UnlockingSection';
@@ -74,7 +74,7 @@ function AccountSection() {
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-        account
+        Account & Sync
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
         signed in as <span className="font-medium">{user.email}</span>
@@ -100,7 +100,7 @@ function AccountSection() {
         </button>
       </div>
       <p className="text-[11px] text-neutral-500 mt-2">
-        signing out clears this device's local cache. your cloud data is untouched — sign back in to restore.
+        signing out clears this device's local cache. your cloud data is untouched. sign back in to restore.
       </p>
     </section>
   );
@@ -118,7 +118,7 @@ function DeveloperSection() {
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-        developer
+        Developer
       </h4>
       <button
         type="button"
@@ -129,7 +129,7 @@ function DeveloperSection() {
       >
         <span className="min-w-0">
           <span className="block text-sm text-neutral-700 dark:text-neutral-200">
-            Dev Mode — Suppress Practice Data Writes
+            Dev Mode: Suppress Practice Data Writes
           </span>
           <span className="block text-[11px] text-neutral-500 mt-0.5">
             skips attempts, spacing, and drill-session writes. resets to off
@@ -222,7 +222,10 @@ function ModuleGoalRow({ module }: { module: ModuleMeta }) {
 
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="text-sm min-w-[9rem]">{module.label}</span>
+      {/* TITLE CASE ON THIS PAGE ONLY — see `titleCaseModule`. A
+          settings screen naming "ear training" beside a section called
+          "Understanding App Ratings" reads as two different products. */}
+      <span className="text-sm min-w-[9rem]">{titleCaseModule(module.label)}</span>
       <select
         value={unit}
         onChange={e => pickUnit(e.target.value as DailyGoalUnit)}
@@ -258,7 +261,7 @@ function DailyGoalsSection() {
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-        daily goals per module
+        Daily Goals Per Module
       </h4>
       <div className="space-y-2" data-testid="daily-goals">
         {MODULE_ORDER.map(m => <ModuleGoalRow key={m.id} module={m} />)}
@@ -406,7 +409,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
           <SettingsSection {...sectionProps('you')}>
             <section>
               <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-                your name
+                Your Name
               </h4>
               <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-2">
                 used in the dashboard greeting. leave blank to reset to the default.
@@ -435,7 +438,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
             <section>
               <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-                harmonic diary
+                Harmonic Diary
               </h4>
               <p className="text-sm text-neutral-500">
                 the diary currently uses a single earthy botanical palette. dynamic
@@ -495,7 +498,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
           <SettingsSection {...sectionProps('data')}>
             <section>
               <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-                data backup &amp; restore
+                Data Backup &amp; Restore
               </h4>
               <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
                 your practice data is stored in this browser. export regularly to back it up,

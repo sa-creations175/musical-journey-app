@@ -89,8 +89,8 @@ export default function SeededKeyRowsPanel() {
             ))}
           </ul>
           <p className="text-[11px] text-neutral-500 mb-2">
-            clearing resets them to “not started”. the rows stay — all twelve keys
-            are always present — and the song’s original key is not moved.
+            clearing resets them to “not started”. the rows stay (all twelve keys
+            are always present) and the song’s original key is not moved.
           </p>
           <button
             type="button"
