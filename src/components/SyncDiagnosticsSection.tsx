@@ -97,7 +97,7 @@ export default function SyncDiagnosticsSection() {
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-        sync diagnostics
+        Sync Diagnostics
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
         Push anything this device hasn&rsquo;t uploaded, check what&rsquo;s here

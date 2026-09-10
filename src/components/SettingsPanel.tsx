@@ -531,7 +531,7 @@ export default function SettingsPanel({ open, onClose }: Props) {
 
               {status.kind === 'exported' && (
                 <div className="mt-3 rounded-lg border border-fluent/30 bg-fluent/10 px-3 py-2 text-xs text-neutral-700 dark:text-neutral-200">
-                  Backup downloaded. Save it somewhere safe (google drive, icloud, your documents folder).
+                  Backup downloaded. Save it somewhere safe (Google Drive, iCloud, your Documents folder).
                 </div>
               )}
               {status.kind === 'restoring' && (

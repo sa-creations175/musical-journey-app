@@ -121,11 +121,11 @@ export default function RepertoireKeyDiagnostics() {
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-        song keys
+        Song Keys
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
-        compares each song&rsquo;s key against the original-key row its matrix
-        is anchored to. read-only, and it changes nothing.
+        Compares each song&rsquo;s key against the original-key row its matrix
+        is anchored to. Read-only, and it changes nothing.
       </p>
 
       <button

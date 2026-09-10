@@ -43,7 +43,7 @@ export default function PracticeWindowSettingsSection() {
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-        how long before a song goes cold
+        How Long Before a Song Goes Cold
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
         Past this, the song&apos;s card says when you last played it in amber. This

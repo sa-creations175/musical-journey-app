@@ -60,7 +60,7 @@ export default function SeededKeyRowsPanel() {
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-        phantom key rows
+        Phantom Key Rows
       </h4>
 
       {findings.length === 0 ? (

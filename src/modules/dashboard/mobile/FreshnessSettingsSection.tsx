@@ -36,7 +36,7 @@ export default function FreshnessSettingsSection() {
   return (
     <section>
       <h4 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">
-        how long before a skill looks stale
+        How Long Before a Skill Looks Stale
       </h4>
       <p className="text-sm text-neutral-600 dark:text-neutral-300 mb-3">
         The dashboard&apos;s freshness bar moves down a rung each step. This is

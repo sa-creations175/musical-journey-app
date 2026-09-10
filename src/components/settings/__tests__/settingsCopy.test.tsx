@@ -59,6 +59,42 @@ async function wholePage(): Promise<string> {
   return document.body.textContent ?? '';
 }
 
+/**
+ * The small-caps sub-heading that titles a panel inside a section —
+ * the class every one of them shares.
+ */
+const PANEL_HEADING = 'h4.uppercase';
+
+/** Every heading on the page, gathered one open section at a time. */
+async function everyHeading(selector = 'h1, h2, h3, h4, h5, h6'): Promise<string[]> {
+  host = document.createElement('div');
+  document.body.appendChild(host);
+  root = createRoot(host);
+  await act(async () => {
+    root!.render(
+      <MemoryRouter><SettingsPanel open onClose={() => {}} /></MemoryRouter>,
+    );
+  });
+  await settle();
+  const seen = new Set<string>();
+  const gather = () => {
+    for (const h of document.querySelectorAll(selector)) {
+      const t = (h.textContent ?? '').trim();
+      if (t !== '') seen.add(t);
+    }
+  };
+  gather();
+  for (const s of SETTINGS_SECTIONS) {
+    await act(async () => {
+      document.querySelector(`[data-testid="settings-toggle-${s.id}"]`)
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    });
+    await settle();
+    gather();
+  }
+  return [...seen];
+}
+
 /** Every section's text, gathered one open section at a time. */
 async function everySectionText(): Promise<string> {
   host = document.createElement('div');
@@ -171,8 +207,44 @@ describe('one voice', () => {
     const text = await everySectionText();
     // A sentence end, then a space, then a lower-case letter. The
     // exceptions are real: an abbreviation, a decimal, a version.
-    const offenders = [...text.matchAll(/[.!?]\s+([a-z][a-z']{2,}\s[a-z])/g)]
+    // HYPHENS COUNT AS LETTERS: "read-only, and it changes nothing"
+    // slipped the first sweep because the word after the full stop had
+    // a hyphen in it.
+    const offenders = [...text.matchAll(/[.!?]\s+([a-z][a-z'-]{2,}[\s,][a-z\s])/g)]
       .map(m => m[1]);
+    expect(offenders).toEqual([]);
+  });
+
+  /**
+   * THE HEADINGS TOO. The sentence sweep above left five sub-headings
+   * in lower case — "sync diagnostics", "song keys" — beside eight
+   * section titles in Title Case, which is the same two-voices problem
+   * one level up. Swept 10 Sep 2026.
+   *
+   * TWO KINDS OF HEADING, AND THE RULE IS NOT THE SAME FOR BOTH. The
+   * small-caps sub-headings that title a panel ("Sync Diagnostics")
+   * are Title Case, like the section titles. The part headings inside
+   * the Ratings, Spelling and Unlocking copy ("Note names", "The rule,
+   * for both ladders") are written as sentences, all of them, and that
+   * is copy rather than a sweep's to recase. Every heading of either
+   * kind opens with a capital.
+   * =====================================================================
+   */
+  it('writes every panel sub-heading in Title Case', async () => {
+    const MINOR = new Set(['a', 'an', 'the', 'and', 'or', 'of', 'to', 'in', 'on', 'at', 'by', 'for', 'vs']);
+    const headings = await everyHeading(PANEL_HEADING);
+    // Guard the guard: the five that were lower case are the kind read.
+    for (const h of ['Sync Diagnostics', 'Phantom Key Rows', 'Song Keys',
+      'How Long Before a Song Goes Cold', 'How Long Before a Skill Looks Stale']) {
+      expect(headings, h).toContain(h);
+    }
+    const offenders = headings.filter(h => h.split(/\s+/).some((w, i) =>
+      /^[a-z]/.test(w) && (i === 0 || !MINOR.has(w))));
+    expect(offenders).toEqual([]);
+  });
+
+  it('opens every heading with a capital, of either kind', async () => {
+    const offenders = (await everyHeading()).filter(h => /^[a-z]/.test(h));
     expect(offenders).toEqual([]);
   });
 
