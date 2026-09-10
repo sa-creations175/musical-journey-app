@@ -135,7 +135,7 @@ import {
   getEligibleItems as getChordRecognitionEligibleItems,
   getUnlockedTier as getChordRecognitionUnlockedTier,
 } from '../ear-training/chord-recognition/tierUnlock';
-import { loadProgressionsEligibleSet } from '../ear-training/chord-progressions/progressionTierUnlock';
+import { loadFullProgressionEligibleSet } from '../ear-training/chord-progressions/fullProgressionPool';
 import { loadHiddenItemRefs } from '../ear-training/etCuration';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { loadScaleModesEligibleSet } from '../ear-training/scales-modes/scaleModeTierUnlock';
@@ -198,8 +198,10 @@ import { getPref } from '../../lib/userPrefs';
  *
  * Today this covers:
  *   · 'chord-recognition' — T1-T5 tier progression
- *   · 'chord-progressions' — Stage 1-4 progression, cross-gated by
- *     chord-recognition Tier 1 (see progressionTierUnlock.ts)
+ *   · 'chord-progressions' — NO Tiers since 10 Sep 2026. The whole
+ *     shared list, narrowed by the Full Progression card's own "What
+ *     is in play" filter (see `fullProgressionPool.ts`), spaced like
+ *     flashcards.
  *
  * Submodules without a tier system (intervals, scales-modes today)
  * are omitted from the map and stay ungated. They'll land here as
@@ -210,7 +212,7 @@ async function loadEtEligibleByModule(
 ): Promise<ReadonlyMap<string, ReadonlySet<string>>> {
   const [crTier, progressions, scalesModes, hidden] = await Promise.all([
     getChordRecognitionUnlockedTier(),
-    loadProgressionsEligibleSet(spacingRows),
+    loadFullProgressionEligibleSet(),
     loadScaleModesEligibleSet(spacingRows),
     loadHiddenItemRefs(),
   ]);

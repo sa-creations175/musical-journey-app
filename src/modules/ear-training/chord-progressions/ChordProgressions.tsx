@@ -151,12 +151,14 @@ export default function ChordProgressions() {
           Passes list with the passes in it, in the voicing the grid
           drills. One question, one list, one place it is answered.
 
-          THE OLD QUIZ IS GONE from the tree as of 10 Sep 2026. Its
-          tiers and its unlock ladder are NOT: `progressionStages` and
-          `progressionTierUnlock` are read by the session generator, by
-          the cross-submodule stage gate and by the catalog itself, so
-          they outlived the screen that introduced them. Retiring those
-          is a separate decision with live readers behind it.
+          THE OLD QUIZ IS GONE from the tree as of 10 Sep 2026, and so
+          is its unlock ladder. `progressionStages` and
+          `progressionTierUnlock` gated the eight-entry catalog that
+          quiz asked about, and no shared-list entry was ever in one of
+          their Tiers — the ladder was holding back material the card
+          did not use. Retired the same day; a generated session draws
+          the whole shared list as narrowed by this card's own filter,
+          spaced like flashcards. See `fullProgressionPool.ts`.
           ================================================================= */}
       {tab === 'full-progression' && (
         <FullProgressionCard attempts={attempts} />

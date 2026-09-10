@@ -1,132 +1,80 @@
 // @vitest-environment jsdom
+/**
+ * The cross-submodule Ear Training gate, after the progressions ladder
+ * was retired.
+ *
+ * =====================================================================
+ * ONE LADDER GATES EVERYTHING NOW, AND IT IS CHORD RECOGNITION'S.
+ *
+ * Stages 3 and 4 used to require a progressions stage as well, which
+ * held a reader at Scales & Modes Tier 1 on the strength of a ladder
+ * over the old eight-entry catalog — a catalog the card they were
+ * actually opening no longer used. Silas retired it on 10 Sep 2026.
+ *
+ * What these assert is that the gate that STAYED still bites: you name
+ * the six triads by ear before the app asks you to hear them move.
+ * =====================================================================
+ */
 import { describe, expect, it } from 'vitest';
 import {
   computeGlobalEtStage,
   isSubmoduleGated,
-  maxAllowedProgressionStage,
   maxAllowedScaleModesStage,
   meetsEtStage,
   type EtSubmoduleStatus,
 } from '../etStageGate';
 
-const status = (cr: number, prog: number): EtSubmoduleStatus => ({
-  crTier: cr, progressionStage: prog,
-});
-
-// -----------------------------------------------------------------
-// meetsEtStage — per-gate predicates
-// -----------------------------------------------------------------
+const status = (cr: number): EtSubmoduleStatus => ({ crTier: cr });
 
 describe('meetsEtStage', () => {
   it('Stage 1 is always met', () => {
-    expect(meetsEtStage(1, status(1, 1))).toBe(true);
+    expect(meetsEtStage(1, status(1))).toBe(true);
   });
 
-  it('Stage 2 requires CR Tier 1 cleared (CR ≥ 2)', () => {
-    expect(meetsEtStage(2, status(1, 1))).toBe(false);
-    expect(meetsEtStage(2, status(2, 1))).toBe(true);
+  it('Stage 2 requires Chord Recognition Tier 1 cleared', () => {
+    expect(meetsEtStage(2, status(1))).toBe(false);
+    expect(meetsEtStage(2, status(2))).toBe(true);
   });
 
-  it('Stage 3 requires CR T2 cleared AND progressions Stage 1 cleared', () => {
-    expect(meetsEtStage(3, status(3, 1))).toBe(false); // missing progression
-    expect(meetsEtStage(3, status(2, 2))).toBe(false); // missing CR
-    expect(meetsEtStage(3, status(3, 2))).toBe(true);
+  it('each stage above it wants one more Chord Recognition Tier', () => {
+    for (const stage of [3, 4, 5] as const) {
+      expect(meetsEtStage(stage, status(stage - 1)), String(stage)).toBe(false);
+      expect(meetsEtStage(stage, status(stage)), String(stage)).toBe(true);
+    }
   });
 
-  it('Stage 4 requires CR T3 cleared AND progressions Stage 2 cleared', () => {
-    expect(meetsEtStage(4, status(4, 2))).toBe(false); // missing progression
-    expect(meetsEtStage(4, status(3, 3))).toBe(false); // missing CR
-    expect(meetsEtStage(4, status(4, 3))).toBe(true);
-  });
-
-  it('Stage 5 requires CR T4 cleared', () => {
-    expect(meetsEtStage(5, status(4, 4))).toBe(false); // CR still at T4 unlocked
-    expect(meetsEtStage(5, status(5, 4))).toBe(true);
+  it('asks nothing of a progressions ladder, because there is none', () => {
+    // The whole point of the retirement: a reader whose chord ear has
+    // run ahead is not held back by a progressions stage.
+    expect(meetsEtStage(5, status(5))).toBe(true);
   });
 });
-
-// -----------------------------------------------------------------
-// computeGlobalEtStage
-// -----------------------------------------------------------------
 
 describe('computeGlobalEtStage', () => {
-  it('cold start (CR T1 only, no progressions) → ET Stage 1', () => {
-    expect(computeGlobalEtStage(status(1, 1))).toBe(1);
-  });
-
-  it('CR T1 cleared, no progressions yet → ET Stage 2', () => {
-    expect(computeGlobalEtStage(status(2, 1))).toBe(2);
-  });
-
-  it('CR T2 cleared + progressions Stage 1 cleared → ET Stage 3', () => {
-    expect(computeGlobalEtStage(status(3, 2))).toBe(3);
-  });
-
-  it('CR T3 cleared + progressions Stage 2 cleared → ET Stage 4', () => {
-    expect(computeGlobalEtStage(status(4, 3))).toBe(4);
-  });
-
-  it('CR T4 cleared (full requirement for Stage 5) → ET Stage 5', () => {
-    expect(computeGlobalEtStage(status(5, 4))).toBe(5);
-  });
-
-  it('stops at the first failed gate (CR T2 cleared but no progression) → Stage 2', () => {
-    // crTier=3 means CR T2 cleared. progressionStage=1 means Stage 1 not
-    // cleared. Stage 3 requires both → gate fails → caps at Stage 2.
-    expect(computeGlobalEtStage(status(3, 1))).toBe(2);
+  it('walks up with the Chord Recognition Tier', () => {
+    expect(computeGlobalEtStage(status(1))).toBe(1);
+    expect(computeGlobalEtStage(status(2))).toBe(2);
+    expect(computeGlobalEtStage(status(3))).toBe(3);
+    expect(computeGlobalEtStage(status(4))).toBe(4);
+    expect(computeGlobalEtStage(status(5))).toBe(5);
   });
 });
 
-// -----------------------------------------------------------------
-// max-allowed clamps
-// -----------------------------------------------------------------
-
-describe('maxAllowedProgressionStage', () => {
-  it('returns 1 when below ET Stage 2 (submodule fully gated)', () => {
-    expect(maxAllowedProgressionStage(status(1, 1))).toBe(1);
-  });
-
-  it('ET Stage 2 → progressions Stage 1 max', () => {
-    expect(maxAllowedProgressionStage(status(2, 1))).toBe(1);
-  });
-
-  it('ET Stage 3 → progressions Stage 2 max', () => {
-    expect(maxAllowedProgressionStage(status(3, 2))).toBe(2);
-  });
-
-  it('ET Stage 4 → progressions Stage 3 max', () => {
-    expect(maxAllowedProgressionStage(status(4, 3))).toBe(3);
-  });
-
-  it('ET Stage 5 → progressions Stage 4 max (catalog cap)', () => {
-    expect(maxAllowedProgressionStage(status(5, 4))).toBe(4);
+describe('isSubmoduleGated', () => {
+  it('holds everything shut until Chord Recognition Tier 1 clears', () => {
+    expect(isSubmoduleGated(status(1))).toBe(true);
+    expect(isSubmoduleGated(status(2))).toBe(false);
   });
 });
 
 describe('maxAllowedScaleModesStage', () => {
-  it('ET Stage 2 → scales-modes Stage 1 max', () => {
-    expect(maxAllowedScaleModesStage(status(2, 1))).toBe(1);
+  it('opens Tier 1 at CR Tier 1 cleared and Tier 2 one Tier later', () => {
+    expect(maxAllowedScaleModesStage(status(1))).toBe(1);
+    expect(maxAllowedScaleModesStage(status(2))).toBe(1);
+    expect(maxAllowedScaleModesStage(status(3))).toBe(2);
   });
 
-  it('ET Stage 3 → scales-modes Stage 2 max (catalog cap)', () => {
-    expect(maxAllowedScaleModesStage(status(3, 2))).toBe(2);
-  });
-
-  it('ET Stage 5 → still caps at scales-modes Stage 2 (catalog cap)', () => {
-    expect(maxAllowedScaleModesStage(status(5, 4))).toBe(2);
-  });
-});
-
-// -----------------------------------------------------------------
-// isSubmoduleGated
-// -----------------------------------------------------------------
-
-describe('isSubmoduleGated', () => {
-  it('true when CR T1 not yet cleared (below ET Stage 2)', () => {
-    expect(isSubmoduleGated(status(1, 1))).toBe(true);
-  });
-
-  it('false once ET Stage 2 is met', () => {
-    expect(isSubmoduleGated(status(2, 1))).toBe(false);
+  it('never goes past the last Tier the catalog has', () => {
+    expect(maxAllowedScaleModesStage(status(5))).toBe(2);
   });
 });

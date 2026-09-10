@@ -122,15 +122,24 @@ describe('the worked example', () => {
   });
 });
 
-describe('the three ladders', () => {
+describe('the two ladders', () => {
   it('names each with its Tier count, in Title Case', async () => {
     await render();
     for (const [name, tiers] of [
-      ['Chord Recognition', 5], ['Progressions', 4], ['Scales & Modes', 2],
+      ['Chord Recognition', 5], ['Scales & Modes', 2],
     ] as const) {
       expect(host!.textContent, name).toContain(name);
       expect(host!.textContent, name).toContain(`${tiers} Tiers`);
     }
+  });
+
+  it('shows no Progressions ladder, because there is none', async () => {
+    // Retired 10 Sep 2026. Its four Tiers described the old eight-entry
+    // catalog, and the card a reader opens draws the fourteen
+    // shared-list entries — none of which was ever in a Tier.
+    await render();
+    expect(host!.textContent).not.toContain('4 Tiers');
+    expect(host!.textContent).not.toContain('bare diatonic loops');
   });
 
   it('derives the totals from the catalogs rather than typing them', async () => {
@@ -147,24 +156,15 @@ describe('the three ladders', () => {
       .toEqual([String(modesForStage(2).length)]);
   });
 
-  it('gives the Progressions ladder no Total column', async () => {
-    // The prototype's own shape, and the counts behind it are 4/2/1/1 —
-    // which do not match the descriptions beside them. Raised in the
-    // report rather than printed at a reader.
-    await render();
-    const progRow = [...host!.querySelectorAll('tbody tr')]
-      .find(r => r.textContent!.includes('bare diatonic loops'))!;
-    expect(progRow.querySelectorAll('td')).toHaveLength(2);
-  });
 });
 
 describe('the two sentences under the ladders', () => {
   it('states the cross-ladder gate and who has no Tiers', async () => {
     await render();
     expect(host!.textContent).toContain(
-      "Progressions and Scales & Modes open only once Chord Recognition's Tier 1 has cleared");
+      "Scales & Modes opens only once Chord Recognition's Tier 1 has cleared");
     expect(host!.textContent).toContain(
-      'Harmonic Fluency, Reading and Intervals have no Tiers');
+      'Harmonic Fluency, Progressions, Reading and Intervals have no Tiers');
   });
 
   it('says nothing about Shapes & Patterns, whose gate is a separate ruling', async () => {

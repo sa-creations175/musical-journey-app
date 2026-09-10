@@ -6,10 +6,20 @@
  * LOCKS.
  *
  * Ear Training holds harder material back until the easier material is
- * solid, across three ladders with 5, 4 and 2 Tiers. Nothing on any
- * screen said what was in a Tier, what opened it, or that opening a
- * drill by hand was never gated at all. Silas's walked page of 10 Sep
- * 2026 says all three, and makes the two numbers editable.
+ * solid, across two ladders with 5 and 2 Tiers. Nothing on any screen
+ * said what was in a Tier, what opened it, or that opening a drill by
+ * hand was never gated at all. Silas's walked page of 10 Sep 2026 says
+ * both, and makes the two numbers editable.
+ *
+ * =====================================================================
+ * THERE WERE THREE LADDERS, AND THE PROGRESSIONS ONE IS RETIRED.
+ *
+ * Its four Tiers described the OLD eight-entry progression catalog, and
+ * the card a reader opens — Full Progression — draws from the fourteen
+ * shared-list entries, none of which was ever in a Tier. The table was
+ * naming material the reader could not find. Retired 10 Sep 2026; a
+ * generated session now draws the whole shared list as narrowed by the
+ * card's own filter, spaced like flashcards.
  *
  * =====================================================================
  * THE PASS BAR IS NOT EDITABLE HERE, AND THE SENTENCE SAYS WHY.
@@ -50,32 +60,6 @@ const CHORD_RECOGNITION_ROWS: ReadonlyArray<string> = [
   'altered dominants: 7♭9, 7♯9, 7♯9♯5, 9(13), 13, 7sus4',
 ];
 
-/**
- * =====================================================================
- * TIERS 3 AND 4 NAME MATERIAL THIS LADDER DOES NOT HOLD, AND IT IS
- * SILAS'S COPY AS WALKED.
- *
- * The ear-training progression catalog is eight entries: Tier 1 is the
- * four bare loops, Tier 2 is two turnarounds, Tier 3 is the major 2 5 1
- * alone and Tier 4 is the backdoor alone. The passes — 5(7♯9♯5) → 1m,
- * 5(7♭9) → 1m — are Shapes & Patterns voice-leading rows and have never
- * been in this ladder at all.
- *
- * Shipped as written because the prototype is the spec and this is
- * approved copy; raised in the 10 Sep report with the counts, because a
- * table naming a progression a reader cannot find is the page telling
- * them something checkable and wrong. It is also why this ladder has no
- * Total column.
- * =====================================================================
- */
-const PROGRESSION_ROWS: ReadonlyArray<string> = [
-  'bare diatonic loops, the ones Key Detection uses',
-  'chord motion within a key, short diatonic sequences',
-  'the named patterns: the 2 5 1s, the passes, the loops',
-  'borrowed chords and altered dominants: the backdoor, '
-    + '5(7♯9♯5) → 1m, 5(7♭9) → 1m',
-];
-
 const SCALE_MODE_ROWS: ReadonlyArray<string> = [
   'Ionian (major), Aeolian (natural minor), harmonic minor, melodic minor',
   'Dorian, Mixolydian, Lydian, Phrygian, Locrian',
@@ -96,19 +80,15 @@ function LadderHeading({ name, tiers }: { name: string; tiers: number }) {
   );
 }
 
-/** A ladder table. `totals` is omitted where a Tier's size is not a
- *  number the reader can act on — the progression Tiers describe
- *  kinds of material rather than a fixed count of items. */
+/** A ladder table. */
 function Ladder({ rows, totals }: {
   rows: ReadonlyArray<string>;
-  totals?: ReadonlyArray<number>;
+  totals: ReadonlyArray<number>;
 }) {
   return (
     <RuleTable
-      head={totals ? ['Tier', 'What is in it', 'Total'] : ['Tier', 'What is in it']}
-      rows={rows.map((what, i) => (
-        totals ? [String(i + 1), what, String(totals[i])] : [String(i + 1), what]
-      ))}
+      head={['Tier', 'What is in it', 'Total']}
+      rows={rows.map((what, i) => [String(i + 1), what, String(totals[i])])}
     />
   );
 }
@@ -133,14 +113,14 @@ export default function UnlockingSection() {
       <p className="text-sm text-neutral-600 dark:text-neutral-300">
         In the Ear Training module, harder material is held back until the
         easier material is solid. Nothing is ever locked when you open a drill
-        by hand; the Tiers only decide which chords, progressions and modes a
-        practice session (or the quiz&apos;s own Next card) will serve you next.
+        by hand; the Tiers only decide which chords and modes a practice
+        session (or the quiz&apos;s own Next card) will serve you next.
       </p>
 
       <div className="space-y-2.5">
-        <PartHeading>The rule, for all three ladders</PartHeading>
+        <PartHeading>The rule, for both ladders</PartHeading>
         <p className="text-sm text-neutral-500">
-          A chord, progression or mode clears at{' '}
+          A chord or mode clears at{' '}
           <NumberField
             id="unlock-floor"
             label="Attempts before an item can clear"
@@ -190,17 +170,6 @@ export default function UnlockingSection() {
       </div>
 
       <div className="space-y-2">
-        <LadderHeading name="Progressions" tiers={4} />
-        {/* NO TOTAL COLUMN, which is the prototype's own shape for this
-            ladder. The counts are 4 / 2 / 1 / 1 today and they do not
-            match the descriptions beside them — see the report. Printing
-            "1" next to "the named patterns: the 2 5 1s, the passes, the
-            loops" would put a number the reader cannot act on beside a
-            sentence that is about to be re-ruled. */}
-        <Ladder rows={PROGRESSION_ROWS} />
-      </div>
-
-      <div className="space-y-2">
         <LadderHeading name="Scales & Modes" tiers={2} />
         <Ladder
           rows={SCALE_MODE_ROWS}
@@ -209,13 +178,13 @@ export default function UnlockingSection() {
       </div>
 
       <p className="text-sm text-neutral-500">
-        Progressions and Scales &amp; Modes open only once Chord
-        Recognition&apos;s Tier 1 has cleared: you name the six triads by ear
-        before the app asks you to hear them move.
+        Scales &amp; Modes opens only once Chord Recognition&apos;s Tier 1 has
+        cleared: you name the six triads by ear before the app asks you to hear
+        them move.
       </p>
       <p className="text-sm text-neutral-500">
-        Harmonic Fluency, Reading and Intervals have no Tiers: every card is
-        available from the start.
+        Harmonic Fluency, Progressions, Reading and Intervals have no Tiers:
+        every card is available from the start.
       </p>
     </div>
   );

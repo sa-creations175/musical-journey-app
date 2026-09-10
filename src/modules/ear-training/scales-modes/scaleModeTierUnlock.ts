@@ -1,10 +1,10 @@
 /**
  * Tier unlock for ear-training scales/modes. Mirrors the
- * chord-recognition tierUnlock.ts architecture and the
- * chord-progressions progressionTierUnlock.ts implementation — same
- * thresholds (see `lib/ratingRules`), same staged-introduction batch
- * (3 fresh items per tier per session), same `'introduced' = has a
- * spacingState row` signal.
+ * chord-recognition tierUnlock.ts architecture — same thresholds (see
+ * `lib/ratingRules`), same staged-introduction batch (3 fresh items
+ * per tier per session), same `'introduced' = has a spacingState row`
+ * signal. Chord progressions had a third implementation of it until
+ * 10 Sep 2026, when that ladder was retired.
  *
  * =====================================================================
  * TIER LAYOUT (catalog-tagged via `Mode.stage`), RULED 10 SEP 2026.
@@ -22,8 +22,7 @@
  * =====================================================================
  *
  * Cross-submodule gate: Tier 1 is locked behind chord-recognition
- * Tier 1 being CLEARED (CR's `unlockedTier >= 2`). Unchanged, and
- * mirrors the gate in progressionTierUnlock.ts.
+ * Tier 1 being CLEARED (CR's `unlockedTier >= 2`).
  *
  * itemRef format quirk: scales-modes records attempts AND
  * spacingState rows against `${mode.id}-tab1` (HearScaleTab) and
@@ -212,10 +211,10 @@ export function getEligibleScaleModeItems(
 
 /**
  * Cross-submodule gate. Delegates to `etStageGate.ts` so the gate
- * rules live in one place. Scales-modes Stage 2 (harmonic /
- * melodic minor) is gated behind ET Stage 3 — meaning CR T2
- * cleared AND progressions Stage 1 cleared — even after scales-
- * modes Stage 1 is earned within the submodule.
+ * rules live in one place. Scales-modes Stage 2 is gated behind ET
+ * Stage 3 — chord-recognition Tier 2 cleared — even after scales-modes
+ * Stage 1 is earned within the submodule. It used to require a
+ * progressions stage as well; that ladder retired on 10 Sep 2026.
  */
 export async function loadScaleModesEligibleSet(
   spacingRows: ReadonlyArray<SpacingState>,

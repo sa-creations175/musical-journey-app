@@ -26,8 +26,6 @@
  * Data-only: quiz/playback/tracker code derives everything from here.
  */
 
-import { stageForProgression, type ProgressionStage } from './progressionStages';
-
 /**
  * The chord qualities a progression's chords can be.
  *
@@ -66,13 +64,6 @@ export interface Progression {
   chordQualities: ChordQuality[];
   tier: number;
   tierName: string;
-  /** ET tier-progression stage (1–4). Drives the cross-submodule
-   *  ET unlock gate via `progressionTierUnlock.ts`. The legacy
-   *  `tier` field above is a curriculum bucket (1–8, genre-grouped);
-   *  `stage` is the unlock progression. Stamped at catalog build
-   *  time from `PROGRESSION_STAGE` so the data lives in one place
-   *  (see `progressionStages.ts`). */
-  stage: ProgressionStage;
   isMustKnow: boolean;
   loopDefault: boolean;
   durationPattern: number[];
@@ -103,14 +94,18 @@ export const TIER_NAMES: Record<number, string> = {
 };
 
 // Quick helper to keep catalog entries short. Defaults durationPattern to
-// all-1s when not specified. Stamps `stage` from PROGRESSION_STAGE so
-// individual entries don't need to repeat the ET-tier classification.
-function mk(p: Omit<Progression, 'tierName' | 'durationPattern' | 'stage'> & { durationPattern?: number[] }): Progression {
+// all-1s when not specified.
+//
+// THE `stage` FIELD IS GONE. It stamped each entry with its rung on the
+// progressions unlock ladder, and that ladder was retired on 10 Sep
+// 2026 — see `fullProgressionPool.ts` for what a generated session
+// draws instead. The `tier` field below is unrelated: a curriculum
+// bucket (1–8, genre-grouped) the trackers group by.
+function mk(p: Omit<Progression, 'tierName' | 'durationPattern'> & { durationPattern?: number[] }): Progression {
   return {
     ...p,
     tierName: TIER_NAMES[p.tier],
     durationPattern: p.durationPattern ?? p.numerals.map(() => 1),
-    stage: stageForProgression(p.id),
   };
 }
 

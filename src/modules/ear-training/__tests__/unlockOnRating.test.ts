@@ -17,6 +17,11 @@
  *   · twenty attempts, all Clean (75)                → unlocks
  *   · twenty, six of them Working on it (50) → 70%   → does not
  *
+ * TWO LADDERS, NOT THREE. Chord progressions had one until 10 Sep 2026,
+ * when it was retired — the Full Progression card has no Tiers and a
+ * generated session draws the whole shared list, narrowed by the card's
+ * own filter.
+ *
  * Fourteen of twenty is 70%, which is under the bar even though every
  * one of the twenty was a right answer. That is the point of the
  * ruling: a card answered with the bass soloed is right, and does not
@@ -35,9 +40,6 @@ import { getUnlockedTier } from '../chord-recognition/tierUnlock';
 import {
   CHORD_RECOGNITION_TIERS, toAttemptForm,
 } from '../chord-recognition/chordRecognitionTiers';
-import {
-  getUnlockedProgressionStage, itemsForStage,
-} from '../chord-progressions/progressionTierUnlock';
 import {
   getUnlockedScaleModesStage, modesForStage,
 } from '../scales-modes/scaleModeTierUnlock';
@@ -110,20 +112,6 @@ describe('chord recognition', () => {
     // Right and unrated is In flow, so twenty right answers clear.
     await seed(TIER_1.map(id => unratedFor('chord-recognition', id)));
     expect(await getUnlockedTier()).toBe(2);
-  });
-});
-
-describe('chord progressions', () => {
-  const STAGE_1 = itemsForStage(1);
-
-  it('unlocks stage 2 on twenty attempts all rated Clean', async () => {
-    await seed(STAGE_1.map(id => attemptsFor('chord-progressions', id, 0)));
-    expect(await getUnlockedProgressionStage()).toBe(2);
-  });
-
-  it('does not unlock when six of the twenty are Working on it', async () => {
-    await seed(STAGE_1.map(id => attemptsFor('chord-progressions', id, 6)));
-    expect(await getUnlockedProgressionStage()).toBe(1);
   });
 });
 

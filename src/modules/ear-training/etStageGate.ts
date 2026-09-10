@@ -1,35 +1,33 @@
 /**
- * Cross-submodule ET stage gate. Single source of truth for the
- * five-stage ET progression that spans chord-recognition,
- * chord-progressions, and scales-modes:
+ * The cross-submodule Ear Training gate.
  *
- *   Stage 1 — Always available (intervals + CR T1).
- *   Stage 2 — Requires CR T1 cleared.
- *             Unlocks: chord-progressions Stage 1 (key detection),
- *                      scales-modes Tier 1 (Ionian, Aeolian and the
- *                      two minors).
- *   Stage 3 — Requires CR T2 cleared AND progressions Stage 1 cleared.
- *             Unlocks: chord-progressions Stage 2 (chord motion +
- *                      short diatonic), scales-modes Stage 2
- *                      (harmonic / melodic minor).
- *   Stage 4 — Requires CR T3 cleared AND progressions Stage 2 cleared.
- *             Unlocks: chord-progressions Stage 3 (named patterns +
- *                      modal).
- *   Stage 5 — Requires CR T4 cleared.
- *             Unlocks: chord-progressions Stage 4 (complex / borrowed).
+ * =====================================================================
+ * ONE GATE, AND IT IS CHORD RECOGNITION'S.
  *
- * Each submodule's tier-unlock file delegates its cross-submodule
- * gate check here instead of duplicating the chord-recognition
- * tier read. A submodule's per-stage `loadXEligibleSet` returns
- * the items for `min(within-submodule earned stage, max allowed by
- * etStageGate)`.
+ *   Stage 1 — Always available (intervals + chord recognition Tier 1).
+ *   Stage 2 — Requires CR Tier 1 cleared. Opens Scales & Modes Tier 1
+ *             (Ionian, Aeolian and the two minors).
+ *   Stage 3 — Requires CR Tier 2 cleared. Opens Scales & Modes Tier 2.
+ *   Stage 4 — Requires CR Tier 3 cleared.
+ *   Stage 5 — Requires CR Tier 4 cleared.
+ *
+ * You name the six triads by ear before the app asks you to hear them
+ * move — that is the whole of the gate, and it is what the Settings
+ * page says.
+ *
+ * =====================================================================
+ * THE PROGRESSIONS HALF OF THIS GATE IS GONE, WITH THE LADDER.
+ *
+ * Stages 3 and 4 used to ALSO require a progressions stage, so a reader
+ * whose chord-recognition ear had run ahead was held at Scales & Modes
+ * Tier 1 by a progressions ladder that gated the old eight-entry
+ * catalog — a catalog the Full Progression card had already stopped
+ * using. Silas retired the ladder on 10 Sep 2026 and the requirement
+ * went with it: what remains is the chord-recognition ladder, read
+ * once, by everyone downstream of it.
+ * =====================================================================
  */
-import {
-  MAX_PROGRESSION_STAGE,
-  type ProgressionStage,
-} from './chord-progressions/progressionStages';
 import { getUnlockedTier as getChordRecognitionUnlockedTier } from './chord-recognition/tierUnlock';
-import { getUnlockedProgressionStage } from './chord-progressions/progressionTierUnlock';
 import {
   MAX_SCALE_MODE_STAGE,
   type ScaleModeStage,
@@ -45,30 +43,21 @@ export interface EtSubmoduleStatus {
   /** Chord-recognition's `getUnlockedTier` value (1-5). Tier 1 is
    *  always unlocked; ≥2 means CR T1 is cleared. */
   crTier: number;
-  /** Chord-progressions' `getUnlockedProgressionStage` value (1-4).
-   *  Stage 1 is the floor; ≥2 means progressions Stage 1 cleared. */
-  progressionStage: number;
 }
 
 /** Pure: does the user's submodule state qualify them for ET stage
- *  `stage`? Encodes the gate rules from the spec exactly. */
+ *  `stage`? */
 export function meetsEtStage(stage: EtStage, status: EtSubmoduleStatus): boolean {
   switch (stage) {
     case 1: return true;
     case 2: return status.crTier >= 2;
-    case 3: return status.crTier >= 3 && status.progressionStage >= 2;
-    case 4: return status.crTier >= 4 && status.progressionStage >= 3;
+    case 3: return status.crTier >= 3;
+    case 4: return status.crTier >= 4;
     case 5: return status.crTier >= 5;
   }
 }
 
-/** Walk Stages 1→5 and return the highest the user qualifies for.
- *  Stops at the first failed gate (gates aren't strictly nested —
- *  Stage 5 requires CR T4 cleared but NOT additional progression
- *  state, so a user could meet Stage 5 without meeting Stage 4 in
- *  edge cases. Today the catalog content + practice flow make this
- *  case unreachable; if it ever becomes reachable we'd switch to
- *  per-stage independent checks). */
+/** Walk Stages 1→5 and return the highest the user qualifies for. */
 export function computeGlobalEtStage(status: EtSubmoduleStatus): EtStage {
   let highest: EtStage = 1;
   for (let s = 2; s <= MAX_ET_STAGE; s++) {
@@ -76,17 +65,6 @@ export function computeGlobalEtStage(status: EtSubmoduleStatus): EtStage {
     else break;
   }
   return highest;
-}
-
-/** Per-submodule stage S surfaces iff the user has met ET Stage
- *  S+1. Returns the highest submodule stage the gate permits;
- *  call sites clamp their earned stage to this ceiling. */
-export function maxAllowedProgressionStage(status: EtSubmoduleStatus): ProgressionStage {
-  const et = computeGlobalEtStage(status);
-  // Progressions Stage S maps to ET Stage S+1.
-  const max = et - 1;
-  if (max < 1) return 1; // Stage 1 only when ET >= 2; below that the loader returns the empty set.
-  return Math.min(max, MAX_PROGRESSION_STAGE) as ProgressionStage;
 }
 
 export function maxAllowedScaleModesStage(status: EtSubmoduleStatus): ScaleModeStage {
@@ -108,11 +86,7 @@ export function isSubmoduleGated(status: EtSubmoduleStatus): boolean {
 // ---------------------------------------------------------------------
 
 export async function loadEtSubmoduleStatus(): Promise<EtSubmoduleStatus> {
-  const [crTier, progressionStage] = await Promise.all([
-    getChordRecognitionUnlockedTier(),
-    getUnlockedProgressionStage(),
-  ]);
-  return { crTier, progressionStage };
+  return { crTier: await getChordRecognitionUnlockedTier() };
 }
 
 export async function getGlobalEtStage(): Promise<EtStage> {

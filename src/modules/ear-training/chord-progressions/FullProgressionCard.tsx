@@ -53,11 +53,18 @@ import {
   SHARED_PROGRESSION_BY_ID, fullProgressionItemId, positionLabel, positionsOf,
   type ListRung, type SharedProgression,
 } from './sharedList';
+// THE FILTER LIVES BESIDE THE POOL IT NARROWS, because a generated
+// practice session reads the same pref this fold writes — see
+// `fullProgressionPool.ts`. Two copies of "what is in play" would let
+// the session and the card disagree about it.
+import {
+  ALL_POSITIONS, EVERYTHING, PREF_FULL_PROGRESSION_FILTER, sanitizeInPlay,
+  type InPlay,
+} from './fullProgressionPool';
 import { voiceEntry } from './passVoicing';
 import { heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
 
 const MODULE_ID = 'chord-progressions';
-const PREF_FILTER = 'fullProgressionInPlay';
 const DRILL_TAB = 'full-progression';
 
 const CHIP = 'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors';
@@ -65,24 +72,6 @@ const CHIP_OFF = 'border-black/10 dark:border-white/20 bg-black/[0.03] '
   + 'dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/10';
 const CHIP_ON = 'border-neutral-900 dark:border-neutral-100 bg-neutral-900 '
   + 'text-white dark:bg-neutral-100 dark:text-neutral-900';
-
-/** What is in play, as the fold holds it. */
-interface InPlay {
-  progressions: string[];
-  positions: number[];
-  rungs: ListRung[];
-  hands: Array<'both' | 'one'>;
-}
-
-/** The widest possible position number on the list. */
-const ALL_POSITIONS = [1, 2, 3, 4];
-
-const EVERYTHING: InPlay = {
-  progressions: SHARED_PROGRESSIONS.map(p => p.id),
-  positions: ALL_POSITIONS,
-  rungs: [...LIST_RUNGS],
-  hands: ['both', 'one'],
-};
 
 /** One card: what was asked, and how it sounded. */
 interface Card {
@@ -93,20 +82,6 @@ interface Card {
   /** The bass's FIRST move, a coin flip per card. Everything after it
    *  takes the rule. */
   bassMoves: Move[];
-}
-
-function sanitize(raw: unknown): InPlay {
-  const v = raw as Partial<InPlay> | null;
-  const known = new Set(SHARED_PROGRESSIONS.map(p => p.id));
-  const progressions = Array.isArray(v?.progressions)
-    ? v!.progressions.filter(id => known.has(id)) : EVERYTHING.progressions;
-  const positions = Array.isArray(v?.positions)
-    ? v!.positions.filter(n => ALL_POSITIONS.includes(n)) : EVERYTHING.positions;
-  const rungs = Array.isArray(v?.rungs)
-    ? v!.rungs.filter(r => LIST_RUNGS.includes(r)) : EVERYTHING.rungs;
-  const hands = Array.isArray(v?.hands)
-    ? v!.hands.filter(h => h === 'both' || h === 'one') : EVERYTHING.hands;
-  return { progressions, positions, rungs, hands };
 }
 
 /** Every card the filter allows, as (entry, rung, position). */
@@ -153,7 +128,7 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
 
   useEffect(() => {
     (async () => {
-      setInPlay(sanitize(await getPref<unknown>(PREF_FILTER, EVERYTHING)));
+      setInPlay(sanitizeInPlay(await getPref<unknown>(PREF_FULL_PROGRESSION_FILTER, EVERYTHING)));
     })();
   }, []);
 
@@ -161,7 +136,7 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
 
   const saveInPlay = (next: InPlay) => {
     setInPlay(next);
-    void setPref(PREF_FILTER, next);
+    void setPref(PREF_FULL_PROGRESSION_FILTER, next);
   };
 
   const cards = useMemo(() => pool(inPlay), [inPlay]);

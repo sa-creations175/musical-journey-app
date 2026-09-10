@@ -26,9 +26,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { MUST_KNOW_IDS, PROGRESSIONS, TIER_NAMES } from '../catalog';
-import { PROGRESSION_STAGE, stageForProgression } from '../progressionStages';
 import { catalogTiers, chordProgressionFacets } from '../facets';
-import { computeUnlockedStage, itemsForStage } from '../progressionTierUnlock';
 import { PATTERN_DECOY_COUNT, patternDecoyPool } from '../patternRound';
 
 /** The eight Silas named on 9 Sep 2026. */
@@ -84,12 +82,6 @@ describe('the eight survivors', () => {
 });
 
 describe('nothing is named that no longer exists', () => {
-  it('the stage map has one line per progression and no more', () => {
-    // A stale line here is invisible: `stageForProgression` reads it
-    // for an id nothing asks about, and the drill carries on.
-    expect(Object.keys(PROGRESSION_STAGE).sort()).toEqual([...SURVIVORS].sort());
-  });
-
   it('the tier names cover the tiers in use and no empty ones', () => {
     // The quiz's focus panel and the tracker's grouped view both walk
     // `TIER_NAMES`, so a name for an empty tier draws a heading over
@@ -107,40 +99,6 @@ describe('nothing is named that no longer exists', () => {
     for (const v of tierFacet.values) {
       expect(v.keys.length, v.id).toBeGreaterThan(0);
       for (const id of v.keys) expect(SURVIVORS).toContain(id);
-    }
-  });
-});
-
-describe('the stages are thin, and thin still works', () => {
-  it('puts something in every stage', () => {
-    for (const stage of [1, 2, 3, 4] as const) {
-      expect(itemsForStage(stage).length, `stage ${stage}`).toBeGreaterThan(0);
-    }
-  });
-
-  it('leaves stage 3 and stage 4 with one progression each', () => {
-    expect(itemsForStage(3)).toEqual(['2-5-1']);
-    expect(itemsForStage(4)).toEqual(['backdoor']);
-  });
-
-  it('clears a one-item stage on that one item', () => {
-    // Stage 3 is `2-5-1` alone. Clearing it must open stage 4, with no
-    // special case for a stage too small to fill the fresh batch.
-    const cleared = new Map<string, { passes: number; total: number }>(
-      [...itemsForStage(1), ...itemsForStage(2), ...itemsForStage(3)]
-        .map(id => [id, { passes: 10, total: 10 }]),
-    );
-    expect(computeUnlockedStage(cleared)).toBe(4);
-    // And one unfinished item in that stage of one holds the gate.
-    const notQuite = new Map(cleared);
-    notQuite.set('2-5-1', { passes: 5, total: 10 });
-    expect(computeUnlockedStage(notQuite)).toBe(3);
-  });
-
-  it('agrees with the catalog about which stage each progression is in', () => {
-    for (const p of PROGRESSIONS) {
-      expect(p.stage, p.id).toBe(stageForProgression(p.id));
-      expect(itemsForStage(p.stage), p.id).toContain(p.id);
     }
   });
 });
@@ -187,14 +145,13 @@ describe('key detection draws from the survivors, and the pool is thin', () => {
   const curatedPool = PROGRESSIONS.filter(p => p.tier <= 3);
 
   it('has all eight, because no survivor sits above tier 3', () => {
-    // Worth stating plainly: `backdoor` is STAGE 4 and TIER 2. The two
-    // numbers are different things — stage is the unlock ladder, tier
-    // is the genre bucket — and it is the tier the key-detection pool
-    // reads, so the backdoor is in it.
+    // `backdoor` is TIER 2 — a genre bucket, not a difficulty ladder —
+    // and it is the tier the key-detection pool reads, so the backdoor
+    // is in it. (It used also to carry a `stage`; that ladder retired
+    // on 10 Sep 2026 and the field went with it.)
     expect(curatedPool).toHaveLength(8);
     expect(curatedPool.map(p => p.id)).toEqual(PROGRESSIONS.map(p => p.id));
     expect(PROGRESSIONS.find(p => p.id === 'backdoor')!.tier).toBe(2);
-    expect(stageForProgression('backdoor')).toBe(4);
   });
 
   it('is not empty, which is the only thing that would break the tab', () => {
