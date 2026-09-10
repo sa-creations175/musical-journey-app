@@ -142,6 +142,8 @@ import { supabase } from '../../lib/supabase';
 import { getCurrentUserId } from '../../lib/sync/currentUser';
 import { beginPull, endPull } from '../../lib/sync/pullLock';
 import { drain } from '../../lib/sync/engine';
+import { goalDescription } from './goalDescription';
+import { useProgressionSpelling } from '../../lib/progressionSpelling';
 
 // DEV-only: dynamically register the browser-console wipe helpers
 // (`__wipeLastWeekActivity`, `__wipeAllActivity`, `__wipeMayGoals`,
@@ -1819,6 +1821,7 @@ function GoalRow({
    *  Goals page accent when not provided. */
   dimensionAccentHex?: string;
 } & RowCollapseAccess) {
+  const [rowSpelling] = useProgressionSpelling();
   const expanded = isRowExpanded(goal.id, false);
   const setExpanded = () => onToggleRow(goal.id, false);
   // Select mode — when active, the row tap toggles the checkbox
@@ -1875,7 +1878,12 @@ function GoalRow({
           )}
           <div className="flex-1 min-w-0">
             <div className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100">
-              {goal.description || <span className="italic text-neutral-500">(Untitled Goal)</span>}
+              {/* DERIVED ON READ, not the string that was stored when
+                  the goal was saved — see `goalDescription`. A coverage
+                  goal names a progression row, and the row's spelling
+                  is a setting. */}
+              {goalDescription(goal, rowSpelling)
+                || <span className="italic text-neutral-500">(Untitled Goal)</span>}
             </div>
             {metaLine && (
               <div className="text-[10px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -3075,6 +3083,7 @@ function WeeklyGoalRow({
   availableDays: number;
   onEdit: () => void;
 }) {
+  const [rowSpelling] = useProgressionSpelling();
   // Select mode — row tap toggles the checkbox instead of opening edit.
   const select = useGoalSelect();
   const typeLabel = goalTypeLabel(goal, moduleId);
@@ -3123,7 +3132,7 @@ function WeeklyGoalRow({
         )}
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-normal text-neutral-900 dark:text-neutral-100 truncate">
-            {goal.description || (
+            {goalDescription(goal, rowSpelling) || (
               <span className="italic text-neutral-500">(Untitled Goal)</span>
             )}
           </div>

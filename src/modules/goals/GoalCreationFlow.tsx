@@ -62,6 +62,7 @@ import {
   shapesCoverageGroupLabel,
 } from './shapesCoverageGroups';
 import { useProgressionSpelling } from '../../lib/progressionSpelling';
+import { shapesCoverageDescription } from './goalDescription';
 
 /**
  * A coverage group's label, spelled the way the reader has asked for.
@@ -3855,7 +3856,13 @@ export function encodeShapesPatterns(
         if (!group) continue;
         const denominator = live.get(group.id) ?? group.denominator;
         records.push({
-          description: `Cover all ${denominator} items in ${group.label} (acquired)`,
+          // THE SAME TEMPLATE THE READER SEES IT THROUGH. `Goals`
+          // re-derives this on every read so the row's spelling follows
+          // the setting; two copies of the sentence is exactly how the
+          // saved one and the rendered one would stop agreeing.
+          description: shapesCoverageDescription(
+            group.id, denominator, group.label,
+          ),
           targetMetric: COVERAGE_SPECIFIC_METRIC.SHAPES,
           targetValue: denominator,
           targetUnit: group.id,

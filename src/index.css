@@ -319,3 +319,27 @@ h1, h2, h3, h4 {
   background: #e8e0c9;
   border: 1px solid var(--diary-card-border);
 }
+
+/* -------------------------------------------------------------------
+   THE SETTINGS PAGE'S PREVIEW FLASH.
+
+   A cell whose text just changed lights for about a second, so a tap
+   that moved one row of six is visible without hunting for it. Silas's
+   walked Settings page, 10 Sep 2026.
+
+   REDUCED MOTION TURNS IT OFF RATHER THAN SHORTENING IT. The flash is
+   decoration; the text underneath has already changed, and a reader who
+   has asked for less movement has not asked for a faster flash.
+   ------------------------------------------------------------------- */
+@keyframes settings-flash {
+  0% { background-color: rgb(93 202 165 / 0.45); }
+  100% { background-color: transparent; }
+}
+
+.settings-flash {
+  animation: settings-flash 1.1s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-flash { animation: none; }
+}
