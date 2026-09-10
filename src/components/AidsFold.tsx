@@ -131,6 +131,15 @@ export default function AidsFold({
           </Row>
         )}
 
+        <Row label="Bass">
+          <Chip on={settings.bass === 'forward'} testId="aid-bass-forward" onClick={() => set({ bass: 'forward' })}>
+            Forward
+          </Chip>
+          <Chip on={settings.bass === 'blended'} testId="aid-bass-blended" onClick={() => set({ bass: 'blended' })}>
+            Blended
+          </Chip>
+        </Row>
+
         {attack === true && (
           <Row label="Chord sounds">
             {([

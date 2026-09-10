@@ -12,7 +12,9 @@
 import { describe, expect, it } from 'vitest';
 import { bassLine, nearest, voiceAll } from '../../builtAnswers/voiceLeading';
 import { handTones } from '../../builtAnswers/chordShapes';
-import { chordStep, liftHand, playerMarks, soundingNotes, stepBeats } from '../voices';
+import {
+  bassDrop, chordStep, liftHand, playerMarks, soundingNotes, stepBeats,
+} from '../voices';
 import { panelBeats } from '../../builtAnswers/play';
 import { BROKEN_STEP_BEATS } from '../../audio';
 import { DEFAULT_PLAYER_SETTINGS, LADDER_RUNGS } from '../settings';
@@ -262,5 +264,84 @@ describe('broken rolls the chord and changes nothing else', () => {
       .reduce((n, c) => n + stepBeats(c, broken, 2), 0);
     expect(panelBeats(chords, { settings: broken })).toBe(summed);
     expect(panelBeats(chords, { settings: blocked })).toBe(4);
+  });
+});
+
+/**
+ * The Bass row, and the law underneath it.
+ *
+ * =====================================================================
+ * FORWARD MOVES THE WHOLE LINE OR NONE OF IT.
+ *
+ * Silas's ruling of 10 Sep 2026, and the "whole line" is the
+ * load-bearing half. The bass rule chooses where each root goes
+ * RELATIVE to the one before it — up a fourth here, down a fifth there.
+ * Drop one note of that line and not another and you have replaced the
+ * move it chose with a different one, which is the one thing a
+ * loudness control must not do.
+ *
+ * AND THE LIT KEYS ARE THE SOUNDING KEYS. A bass that drops an octave
+ * lights an octave lower, or the board is teaching the wrong note.
+ * =====================================================================
+ */
+describe('the bass level', () => {
+  const forward = DEFAULT_PLAYER_SETTINGS;
+  const blended = { ...DEFAULT_PLAYER_SETTINGS, bass: 'blended' as const };
+
+  /** A line whose lowest bass has room to fall. */
+  const roomy = [
+    { name: 'F', rootPc: 5, bass: 53, hand: [60, 64, 69] },
+    { name: 'C', rootPc: 0, bass: 48, hand: [60, 64, 67] },
+  ];
+  /** A line whose lowest bass is already on the board's floor. */
+  const low = [
+    { name: 'C', rootPc: 0, bass: 48, hand: [60, 64, 67] },
+    { name: 'F', rootPc: 5, bass: 41, hand: [60, 65, 69] },
+  ];
+
+  it('opens on Forward, because the bass is what a progression is doing', () => {
+    expect(DEFAULT_PLAYER_SETTINGS.bass).toBe('forward');
+  });
+
+  it('drops the whole line an octave where there is room', () => {
+    expect(bassDrop(roomy, forward)).toBe(-12);
+    expect(soundingNotes(roomy[0], forward, -12).notes[0]).toBe(41);
+    expect(soundingNotes(roomy[1], forward, -12).notes[0]).toBe(36);
+  });
+
+  it('drops none of it when one note of the line would fall off the board', () => {
+    // THE WHOLE POINT. 41 - 12 is 29, below the four-octave board, so
+    // the line stays where it is rather than moving the notes that can
+    // and leaving the one that cannot.
+    expect(bassDrop(low, forward)).toBe(0);
+  });
+
+  it('does not move a blended line at all', () => {
+    expect(bassDrop(roomy, blended)).toBe(0);
+    expect(soundingNotes(roomy[0], blended).notes[0]).toBe(53);
+  });
+
+  it('moves the bass and nothing else', () => {
+    // A bass control that lifted the hand would be a second octave
+    // control wearing this one's clothes.
+    const dropped = soundingNotes(roomy[0], forward, -12);
+    const level = soundingNotes(roomy[0], blended);
+    expect(dropped.notes.slice(1)).toEqual(level.notes.slice(1));
+  });
+
+  it('has nothing to move under One hand, where the root is in the chord', () => {
+    const oneHand = { ...forward, hands: 'one' as const };
+    expect(soundingNotes(roomy[0], oneHand, -12).notes)
+      .toEqual(soundingNotes(roomy[0], { ...blended, hands: 'one' }, 0).notes);
+  });
+
+  it('lights the key it actually sounds', () => {
+    // THE LAW, and the reason `playerMarks` takes the drop at all: the
+    // board would otherwise paint the bass an octave above where it is
+    // heard, and teach the wrong note.
+    const lit = [...playerMarks(roomy[0], forward, -12).keys()];
+    expect(lit).toContain(41);
+    expect(lit).not.toContain(53);
+    expect([...playerMarks(roomy[0], blended, 0).keys()]).toContain(53);
   });
 });

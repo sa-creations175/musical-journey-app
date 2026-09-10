@@ -57,6 +57,27 @@ export type Colours = 'plain' | 'interval';
  */
 export type ChordAttack = 'blocked' | 'broken';
 
+/**
+ * How much room the bass line gets.
+ *
+ * =====================================================================
+ * FORWARD MOVES THE WHOLE LINE OR NONE OF IT.
+ *
+ * Silas's ruling of 10 Sep 2026, and the "whole line" is the load-
+ * bearing half. The bass rule chooses where each root goes RELATIVE to
+ * the one before it — up a fourth here, down a fifth there — and
+ * dropping one note of that line by an octave would replace the move it
+ * chose with a different one. So Forward drops every bass of the
+ * sequence together, and only when every one of them still fits above
+ * the board's floor.
+ *
+ * FREE, NOT AN AID. It changes how much of the bass you hear, not how
+ * much of the question is given away — the same reasoning tempo and the
+ * octave lift already follow.
+ * =====================================================================
+ */
+export type BassLevel = 'forward' | 'blended';
+
 /** How many times through. */
 export type LoopCount = 1 | 2 | 4 | 'untilStopped';
 
@@ -71,6 +92,8 @@ export interface PlayerSettings {
   loop: LoopCount;
   /** Chord recognition only; ignored where the row is not shown. */
   attack: ChordAttack;
+  /** How much room the bass gets — see `BassLevel`. */
+  bass: BassLevel;
 }
 
 /**
@@ -92,6 +115,9 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   colours: 'interval',
   loop: 1,
   attack: 'blocked',
+  // FORWARD BY DEFAULT. The bass is what a progression is doing, and
+  // the reader arrives at a card to hear it move.
+  bass: 'forward',
 };
 
 /** The Loop row, in the prototype's order. */

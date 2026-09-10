@@ -71,31 +71,73 @@ function rootInHand(bass: number, hand: ReadonlyArray<number>): number {
   return m;
 }
 
+/**
+ * The board's lowest key. A bass dropped below it would be inaudible
+ * and unlightable, which is what makes it the floor of the drop.
+ */
+const BOARD_FLOOR = 36;
+
+/**
+ * How far the whole bass line moves under "Bass: Forward".
+ *
+ * =====================================================================
+ * AN OCTAVE, OR NOTHING, FOR THE WHOLE SEQUENCE.
+ *
+ * Silas's ruling of 10 Sep 2026. The bass rule chooses where each root
+ * goes RELATIVE to the one before it, so dropping one note of that line
+ * and not another would replace the move it chose with a different one:
+ * a fourth up becomes a fifth down. So every bass drops together, and
+ * only when the LOWEST of them still clears the board's floor.
+ *
+ * Taken over the chords the sequence will actually play, which is why
+ * this is a function of the list rather than of a chord.
+ * =====================================================================
+ */
+export function bassDrop(
+  chords: ReadonlyArray<PlayerChord>,
+  settings: PlayerSettings,
+): number {
+  if (settings.bass !== 'forward') return 0;
+  const basses = chords
+    .map(c => c.bass)
+    .filter((b): b is number => b !== null);
+  if (basses.length === 0) return 0;
+  return Math.min(...basses) - 12 >= BOARD_FLOOR ? -12 : 0;
+}
+
 /** What a chord sounds, as absolute MIDI with a hand per note. */
 export function soundingNotes(
   chord: PlayerChord,
   settings: PlayerSettings,
+  /** How far this sequence's bass line has been moved — see `bassDrop`.
+   *  Zero unless the caller knows the whole line. */
+  drop = 0,
 ): { notes: number[]; hands: Array<'L' | 'R'> } {
   // BASS ONLY MEANS THE LOWEST NOTE AND NOTHING ELSE. On a chord with
   // no bass of its own — a single quiz chord — that is the bottom of
   // the hand, which is what the brief says in terms.
+  // THE DROP APPLIES TO THE BASS AND TO NOTHING ELSE. It is a bass
+  // control; moving the hand with it would be a second octave lift.
+  const bass = chord.bass === null ? null : chord.bass + drop;
   if (settings.listen === 'bass') {
-    const low = chord.bass ?? (chord.hand.length > 0 ? chord.hand[0] : null);
+    const low = bass ?? (chord.hand.length > 0 ? chord.hand[0] : null);
     return low === null
       ? { notes: [], hands: [] }
       : { notes: [low], hands: ['L'] };
   }
   const hand = liftHand(chord.hand, settings.octaveUp);
-  if (chord.bass === null) {
+  if (bass === null) {
     return { notes: hand, hands: hand.map((): 'R' => 'R') };
   }
   if (settings.hands === 'one') {
-    const root = rootInHand(chord.bass, hand);
+    // ONE HAND PUTS THE ROOT INSIDE THE CHORD, so there is no bass line
+    // to move and the drop has nothing to act on.
+    const root = rootInHand(bass, hand);
     const notes = [root, ...hand];
     return { notes, hands: notes.map((): 'R' => 'R') };
   }
   return {
-    notes: [chord.bass, ...hand],
+    notes: [bass, ...hand],
     hands: ['L', ...hand.map((): 'R' => 'R')],
   };
 }
@@ -139,8 +181,9 @@ export function chordStep(
   chord: PlayerChord,
   settings: PlayerSettings,
   beats: number,
+  drop = 0,
 ): SeqChord {
-  const { notes, hands } = soundingNotes(chord, settings);
+  const { notes, hands } = soundingNotes(chord, settings, drop);
   return {
     intervals: notes,
     beats: stepBeats(chord, settings, beats),
@@ -162,10 +205,13 @@ export function chordStep(
 export function playerMarks(
   chord: PlayerChord | null,
   settings: PlayerSettings,
+  /** The sequence's bass drop — see `bassDrop`. THE LIT KEYS ARE THE
+   *  SOUNDING KEYS, so a dropped bass lights where it sounds. */
+  drop = 0,
 ): Map<number, KeyMark> {
   const marks = new Map<number, KeyMark>();
   if (chord === null) return marks;
-  const { notes, hands } = soundingNotes(chord, settings);
+  const { notes, hands } = soundingNotes(chord, settings, drop);
   notes.forEach((midi, i) => {
     if (!onBoard(midi)) return;
     if (hands[i] === 'L' && settings.hands === 'both') return;

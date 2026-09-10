@@ -216,6 +216,17 @@ describe('the rows a surface may drop', () => {
     expect(byTestId('attack-blocked')).not.toBeNull();
   });
 
+  it('puts Bass directly under Listen to, on every surface with a bass', () => {
+    // FREE, NOT AN AID, and it sits with the other "how do I want to
+    // hear this" rows rather than in the aids fold.
+    mount();
+    expect(byTestId('bass-forward')).not.toBeNull();
+    expect(byTestId('bass-blended')).not.toBeNull();
+    const listen = byTestId('listen-both')!.closest('.space-y-1\\.5');
+    const bass = byTestId('bass-forward')!.closest('.space-y-1\\.5');
+    expect(listen!.nextElementSibling).toBe(bass);
+  });
+
   it('offers one broken mode, not three', () => {
     // SILAS'S RULING OF 10 SEP 2026. The row was Blocked / Broken, up /
     // Broken, down, and the harmonic diary had its own ascending and

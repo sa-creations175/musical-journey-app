@@ -57,7 +57,7 @@ import {
   BPM_MAX, BPM_MIN, LADDER_RUNGS, LOOP_OPTIONS, clampBpm, readSettingsOpen,
   writeSettingsOpen, type ChordAttack, type PlayerSettings,
 } from '../lib/player/settings';
-import { playerMarks, type PlayerChord } from '../lib/player/voices';
+import { bassDrop, playerMarks, type PlayerChord } from '../lib/player/voices';
 import { useInstrument } from '../lib/instrumentContext';
 import type { Instrument } from '../lib/audio';
 
@@ -288,9 +288,14 @@ export default function SharedPlayer({
   const hasBass = chords.some(c => c.bass !== null);
   const handsRow = showHands ?? hasBass;
   const listenRow = showListen ?? hasBass;
+  // THE LIT KEYS ARE THE SOUNDING KEYS. With Bass on Forward the line
+  // drops an octave, and the board follows it down — Silas's law of
+  // 10 Sep 2026, for every surface.
+  const drop = bassDrop(chords, settings);
   const marks: ReadonlyMap<number, KeyMark> = playerMarks(
     lit === null ? (chords[0] ?? null) : (chords[lit] ?? null),
     settings,
+    drop,
   );
 
   const directionRow = (
@@ -430,6 +435,17 @@ export default function SharedPlayer({
                 </Chip>
                 <Chip on={settings.listen === 'bass'} testId="listen-bass" onClick={() => set({ listen: 'bass' })}>
                   Bass only
+                </Chip>
+              </Row>
+            )}
+
+            {listenRow && (
+              <Row label="Bass">
+                <Chip on={settings.bass === 'forward'} testId="bass-forward" onClick={() => set({ bass: 'forward' })}>
+                  Forward
+                </Chip>
+                <Chip on={settings.bass === 'blended'} testId="bass-blended" onClick={() => set({ bass: 'blended' })}>
+                  Blended
                 </Chip>
               </Row>
             )}

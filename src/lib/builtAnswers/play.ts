@@ -31,7 +31,7 @@ import { raise } from './marks';
 import {
   DEFAULT_BPM as PANEL_BPM, type PlayerSettings,
 } from '../player/settings';
-import { chordStep, stepBeats, type PlayerChord } from '../player/voices';
+import { bassDrop, chordStep, stepBeats, type PlayerChord } from '../player/voices';
 
 /**
  * The tempo the panel opens at.
@@ -131,11 +131,15 @@ export async function playPanel(
   } = {},
 ): Promise<PlaybackHandle> {
   const beats = opts.beats ?? CHORD_BEATS;
-  const steps = chords.map(c => chordStep(c, settings, beats));
+  // ONE DROP FOR THE WHOLE SEQUENCE — see `bassDrop`. Computed here
+  // because this is the only place that holds every chord the line is
+  // made of, and the rule is "the whole line or none of it".
+  const drop = bassDrop(chords, settings);
+  const steps = chords.map(c => chordStep(c, settings, beats, drop));
   const lead = opts.orientPc === undefined ? [] : [tonicStep(opts.orientPc)];
   const offset = lead.length;
   return playSeqChords([...lead, ...steps], 0, settings.bpm, {
-    bassBalance: 'forward',
+    bassBalance: settings.bass === 'forward' ? 'bassForward' : 'forward',
     loop: opts.loop ?? settings.loop,
     ...(opts.startAtBeat === undefined ? {} : { startAtBeat: opts.startAtBeat }),
     ...(opts.onStep

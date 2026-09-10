@@ -486,8 +486,13 @@ export type SeqChord = {
   roll?: number;
 };
 
-/** Which hand is louder, if either. */
-export type BassBalance = 'forward' | 'even';
+/**
+ * Which hand is louder, if either.
+ *
+ * `bassForward` is the panel's Bass row on top of the hand balance: it
+ * lifts the left hand a further touch. See `HAND_GAIN`.
+ */
+export type BassBalance = 'forward' | 'even' | 'bassForward';
 
 /**
  * How much of the chord's own volume each hand gets.
@@ -511,6 +516,20 @@ export type BassBalance = 'forward' | 'even';
 const HAND_GAIN: Readonly<Record<BassBalance, Readonly<Record<'L' | 'R', number>>>> = {
   forward: { L: 2.08, R: 0.46 },
   even: { L: 1, R: 1 },
+  // =====================================================================
+  // THE PANEL'S "BASS: FORWARD", AND IT IS A TOUCH RATHER THAN A LEAP.
+  //
+  // The prototype doubles its bass gain between Blended and Forward
+  // (0.17 to 0.34) — but it has no hand balance underneath, and this app
+  // already plays the left hand four and a half times the right. On top
+  // of that, doubling puts the bass over the chord rather than under it.
+  //
+  // A HALF-STEP OF THE PROTOTYPE'S LIFT, 2.08 to 2.9, and the OCTAVE
+  // DROP carries the rest of the weight — which is the move the ear test
+  // was really about. Silas's brief left the numbers to me and asked for
+  // them to be said out loud; they are in the 10 Sep report.
+  // =====================================================================
+  bassForward: { L: 2.9, R: 0.46 },
 };
 
 export interface SeqChordsOptions {
