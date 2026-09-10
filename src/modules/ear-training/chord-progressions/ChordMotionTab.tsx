@@ -251,10 +251,20 @@ function InKeyToken({ pc, keyPc, testId, children }: {
   children: React.ReactNode;
 }) {
   const colour = inKeyFill(pc, keyPc);
+  // A PILL, THE RESULT BOX'S BADGE TREATMENT: the degree's colour as the
+  // text, on a pale tint of itself, with a faint edge — 10% and 30%, the
+  // status palette's own `bg-x/10` and `border-x/30`. Silas's ruling of
+  // 10 Sep 2026: the palette does not change, the pill is what makes the
+  // 5's gold readable on white. All four tokens the same.
   return (
     <b
       data-testid={testId}
-      style={colour === null ? undefined : { color: colour }}
+      className="inline-block rounded-md border px-1.5 py-px"
+      style={colour === null ? undefined : {
+        color: colour,
+        backgroundColor: `${colour}1A`,
+        borderColor: `${colour}4D`,
+      }}
     >
       {children}
     </b>

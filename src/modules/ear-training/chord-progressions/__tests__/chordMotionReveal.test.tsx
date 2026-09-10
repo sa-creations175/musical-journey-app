@@ -15,6 +15,7 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { setPref } from '../../../../lib/userPrefs';
 import { motionResult } from '../motionResult';
+import { inKeyFill } from '../../../../lib/player/inKeyColour';
 import { degreePalette } from '../../../repertoire/chordColors';
 import { ALL_MOTIONS, motionId, parseMotionId } from '../chordMotionPool';
 import { degreeChips, sameChordAt } from '../motionDegrees';
@@ -604,6 +605,35 @@ describe('the starter-association line names the move as the verdict does', () =
       container!.remove();
       root = null;
       container = null;
+    }
+  });
+});
+
+describe('the verdict tokens are pills', () => {
+  it('draws all four as one pill: the degree colour on a pale tint of itself', async () => {
+    const el = await deal('motion:1-5-asc');
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-5');
+    await click(el, 'motion-submit');
+    const ids = ['verdict-start', 'verdict-dest', 'verdict-start-chord', 'verdict-dest-chord'];
+    const pills = ids.map(id => token(el, id));
+    // All four the same treatment.
+    expect(new Set(pills.map(p => p.className)).size).toBe(1);
+    expect(pills[0].className).toMatch(/rounded/);
+    // The 5 keeps its gold; the pill is a tint of that same gold.
+    const gold = '#f59e0b';
+    for (const p of [pills[1], pills[3]]) {
+      expect(p.style.color).toBe(asDom(gold));
+      expect(p.style.backgroundColor).toBe(asDom(`${gold}1A`));
+      expect(p.style.borderColor).toBe(asDom(`${gold}4D`));
+    }
+    // Guard: the tint really is pale, not the colour itself.
+    expect(asDom(`${gold}1A`)).not.toBe(asDom(gold));
+  });
+
+  it('every degree colour is a six-digit hex, so the tint can be appended', () => {
+    for (let semi = 0; semi < 12; semi++) {
+      expect(inKeyFill(semi, 0), String(semi)).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
 });
