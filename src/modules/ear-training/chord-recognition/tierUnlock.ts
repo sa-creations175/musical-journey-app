@@ -8,6 +8,9 @@ import {
 } from './chordRecognitionTiers';
 import { canonicalItemId } from '../../dashboard/read/canonicalItemId';
 import { feelOfAttempt } from '../../../lib/earTraining/heardFeel';
+import {
+  ITEM_CLEAR_MIN_ACCURACY, ITEM_CLEAR_MIN_ATTEMPTS, itemsToClear,
+} from '../../../lib/ratingRules';
 import { CLEAN_FEEL } from '../../../lib/fluencyScale';
 
 /** Module ref string for chord-recognition spacingState rows. */
@@ -17,7 +20,7 @@ const MODULE_REF = 'chord-recognition';
  *  even considers it. Below this floor an item can't gate a tier.
  *  Exported so the surface that SAYS "cleared" can state the number
  *  rather than leaving it as a threshold nobody can infer. */
-export const UNLOCK_MIN_ATTEMPTS = 10;
+export const UNLOCK_MIN_ATTEMPTS = ITEM_CLEAR_MIN_ATTEMPTS;
 
 /**
  * The bar a tier opens at, and what counts as clearing it.
@@ -41,7 +44,7 @@ export const UNLOCK_MIN_ATTEMPTS = 10;
  * threshold moved. Silas accepted that ladders may drop.
  * =====================================================================
  */
-export const UNLOCK_MIN_ACCURACY = 0.80;
+export const UNLOCK_MIN_ACCURACY = ITEM_CLEAR_MIN_ACCURACY;
 
 /** Cap on new items introduced per tier per practice session.
  *  Items beyond this stay locked until the user has at least
@@ -97,18 +100,33 @@ function isCleared(s: ItemStats | undefined): boolean {
   return s.passes / s.total >= UNLOCK_MIN_ACCURACY;
 }
 
-/** Pure unlock walk. Public so tests can pass fixture stats without
- *  hitting the DB. */
+/**
+ * Pure unlock walk. Public so tests can pass fixture stats without
+ * hitting the DB.
+ *
+ * =====================================================================
+ * EIGHTY PER CENT OF THE ITEMS, NOT ALL OF THEM. Ruled 10 Sep 2026.
+ *
+ * `items.every(isCleared)` was the rule, and it made one stubborn chord
+ * a wall: five of six cleared left the tier shut, with the suggestion
+ * line beneath it pointing at work the reader had already done. A tier
+ * is a body of material rather than a checklist.
+ *
+ * The share and its rounding are `ratingRules`' — see `itemsToClear`,
+ * which rounds UP so the bar can never be met by clearing less than the
+ * share names.
+ * =====================================================================
+ */
 export function computeUnlockedTier(
   statsByItem: ReadonlyMap<string, ItemStats>,
 ): ChordRecognitionTier {
   let unlocked: ChordRecognitionTier = 1;
   for (let tier = 1; tier < MAX_TIER; tier++) {
     const items = itemsForTier(tier as ChordRecognitionTier);
-    const allCleared = items.every(
+    const cleared = items.filter(
       item => isCleared(statsByItem.get(toAttemptForm(item))),
-    );
-    if (!allCleared) break;
+    ).length;
+    if (cleared < itemsToClear(items.length)) break;
     unlocked = (tier + 1) as ChordRecognitionTier;
   }
   return unlocked;
@@ -133,6 +151,9 @@ export function tierProgress(
  *   · totalAttempts >= UNLOCK_MIN_ATTEMPTS (10), AND
  *   · passes / totalAttempts >= UNLOCK_MIN_ACCURACY (0.80), where a
  *     pass is right with no aid taken — see UNLOCK_MIN_ACCURACY.
+ *
+ * Tier N+1 opens when EIGHTY PER CENT of tier N's items have cleared,
+ * rounded up — not when every one of them has. Ruled 10 Sep 2026.
  *
  * The userId parameter is reserved for future multi-user contexts;
  * Dexie tables are per-installation today and the read filters by

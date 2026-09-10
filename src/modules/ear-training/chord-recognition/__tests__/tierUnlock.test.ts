@@ -8,6 +8,7 @@ import {
   MIX_WEIGHT,
 } from '../tierUnlock';
 import { CHORD_RECOGNITION_TIERS, toAttemptForm } from '../chordRecognitionTiers';
+import { itemsToClear } from '../../../../lib/ratingRules';
 
 // -----------------------------------------------------------------
 // Helpers
@@ -75,9 +76,11 @@ describe('computeUnlockedTier', () => {
   });
 
   it('returns 1 when tier-1 items have enough attempts but below accuracy threshold', () => {
-    // 70% < 0.80. One bad item is enough to block.
+    // 70% < 0.80 on TWO items. One is no longer enough to block — see
+    // the eighty-per-cent tests below.
     const map = statsForEntireTier(1, 10, 10);
     map.set('maj:0', { passes: 7, total: 10 });
+    map.set('min:0', { passes: 7, total: 10 });
     expect(computeUnlockedTier(map)).toBe(1);
   });
 
@@ -134,14 +137,79 @@ describe('computeUnlockedTier', () => {
     expect(computeUnlockedTier(statsForEntireTier(1, 9, 12))).toBe(1);
   });
 
-  it('does not advance when even one item in the current tier is short', () => {
-    // All tier-2 items cleared except m7b5 which sits at 5/10 — under threshold.
+  it('does not advance when too many of the current tier are short', () => {
+    // Tier 2 holds six items, so five must clear. Two short of the bar
+    // leaves four, and the tier stays shut.
     const map = mergeStats(
       statsForEntireTier(1, 10, 10),
       statsForEntireTier(2, 10, 10),
     );
     map.set('m7b5:0', { passes: 5, total: 10 });
+    map.set('dim7:0', { passes: 5, total: 10 });
     expect(computeUnlockedTier(map)).toBe(2);
+  });
+});
+
+describe('a tier opens at eighty per cent of its items', () => {
+  /**
+   * =====================================================================
+   * FIVE OF SIX OPENS TIER 2. FOUR OF SIX DOES NOT.
+   *
+   * Silas's ruling of 10 Sep 2026, in his own numbers. `items.every`
+   * was the rule, and it made one stubborn chord a wall: the reader
+   * could clear five of six and see the tier stay shut, with the
+   * suggestion line beneath it pointing at work already done.
+   *
+   * A tier is a body of material rather than a checklist, and the share
+   * rounds UP so it can never be met by clearing less than it names.
+   * =====================================================================
+   */
+  const TIER_1 = CHORD_RECOGNITION_TIERS[1].map(toAttemptForm);
+
+  /** Tier 1 with exactly `n` of its items cleared. */
+  const withCleared = (n: number) => {
+    const map = new Map<string, { passes: number; total: number }>();
+    TIER_1.forEach((item, i) => {
+      map.set(item, i < n ? { passes: 10, total: 10 } : { passes: 5, total: 10 });
+    });
+    return map;
+  };
+
+  it('holds Silas\'s worked example: six items need five', () => {
+    expect(TIER_1).toHaveLength(6);
+    expect(itemsToClear(6)).toBe(5);
+    expect(computeUnlockedTier(withCleared(5))).toBe(2);
+    expect(computeUnlockedTier(withCleared(4))).toBe(1);
+  });
+
+  it('opens on the exact count and not one below it, whatever the tier holds', () => {
+    // Every tier that HAS a tier above it, both edges, so the rule
+    // cannot hold for six and fail for fifteen — which is what a single
+    // worked example would miss. Tier 5 is the cap and opens nothing.
+    for (const tier of [1, 2, 3, 4] as const) {
+      const items = CHORD_RECOGNITION_TIERS[tier].map(toAttemptForm);
+      const needed = itemsToClear(items.length);
+      const at = new Map<string, { passes: number; total: number }>();
+      items.forEach((item, i) => {
+        at.set(item, i < needed ? { passes: 10, total: 10 } : { passes: 5, total: 10 });
+      });
+      const below = new Map(at);
+      below.set(items[needed - 1], { passes: 5, total: 10 });
+      // Tiers below this one are cleared outright so the walk reaches it.
+      const under = mergeStats(...([1, 2, 3, 4, 5] as const)
+        .filter(t => t < tier).map(t => statsForEntireTier(t, 10, 10)));
+      expect(computeUnlockedTier(mergeStats(under, at)), `tier ${tier} at ${needed}`)
+        .toBeGreaterThan(tier);
+      expect(computeUnlockedTier(mergeStats(under, below)), `tier ${tier} at ${needed - 1}`)
+        .toBe(tier);
+    }
+  });
+
+  it('still needs every item of a two-item tier', () => {
+    // 80% of 2 rounds up to 2, so the share does not quietly let a
+    // small tier open on half of itself.
+    expect(itemsToClear(2)).toBe(2);
+    expect(itemsToClear(4)).toBe(4);
   });
 });
 

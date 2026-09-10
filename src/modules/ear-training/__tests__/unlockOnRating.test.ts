@@ -90,9 +90,19 @@ describe('chord recognition', () => {
     expect(await getUnlockedTier()).toBe(1);
   });
 
-  it('one item short of the bar holds the whole tier', async () => {
-    await seed(TIER_1.map((id, i) =>
-      attemptsFor('chord-recognition', id, i === TIER_1.length - 1 ? 6 : 0)));
+  it('lets one item short through, and holds on two', async () => {
+    // A TIER OPENS AT EIGHTY PER CENT OF ITS ITEMS since 10 Sep 2026.
+    // Six items need five, so the last one falling short no longer
+    // walls the tier — and two falling short still does. This test read
+    // "one item short of the bar holds the whole tier" until the rule
+    // changed, and that is the behaviour the ruling was about.
+    const short = (n: number) => TIER_1.map((id, i) =>
+      attemptsFor('chord-recognition', id, i >= TIER_1.length - n ? 6 : 0));
+    await seed(short(1));
+    expect(await getUnlockedTier()).toBe(2);
+
+    await db.attempts.clear();
+    await seed(short(2));
     expect(await getUnlockedTier()).toBe(1);
   });
 

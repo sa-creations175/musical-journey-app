@@ -10,8 +10,9 @@
  * least Tier 2 on chord-recognition). Stage 1 stays locked until
  * the basic chord-quality ear is in place.
  *
- * Stage N+1 within chord-progressions unlocks when every item in
- * Stage N meets the per-item threshold. The check walks the
+ * Stage N+1 within chord-progressions unlocks when EIGHTY PER CENT of
+ * Stage N's items meet the per-item threshold — not every one of them.
+ * Ruled 10 Sep 2026; the share lives in `lib/ratingRules`. The check walks the
  * catalog's stage-tagged progressions, not the bare PROGRESSIONS
  * array, so a future re-classification flows through automatically.
  *
@@ -36,10 +37,13 @@ import {
 } from '../etStageGate';
 import { feelOfAttempt } from '../../../lib/earTraining/heardFeel';
 import { CLEAN_FEEL } from '../../../lib/fluencyScale';
+import {
+  ITEM_CLEAR_MIN_ACCURACY, ITEM_CLEAR_MIN_ATTEMPTS, itemsToClear,
+} from '../../../lib/ratingRules';
 
 const MODULE_REF = 'chord-progressions';
 
-const UNLOCK_MIN_ATTEMPTS = 10;
+const UNLOCK_MIN_ATTEMPTS = ITEM_CLEAR_MIN_ATTEMPTS;
 /**
  * The bar a tier opens at, and what counts as clearing it.
  *
@@ -62,7 +66,7 @@ const UNLOCK_MIN_ATTEMPTS = 10;
  * threshold moved. Silas accepted that ladders may drop.
  * =====================================================================
  */
-const UNLOCK_MIN_ACCURACY = 0.80;
+const UNLOCK_MIN_ACCURACY = ITEM_CLEAR_MIN_ACCURACY;
 const STAGED_INTRODUCTION_BATCH_SIZE = 3;
 
 export interface ItemStats {
@@ -123,13 +127,16 @@ export function computeUnlockedStage(
       unlocked = (stage + 1) as ProgressionStage;
       continue;
     }
-    const allCleared = items.every(id => {
+    // EIGHTY PER CENT OF THE ITEMS, NOT ALL OF THEM. Ruled 10 Sep
+    // 2026, and the share is `ratingRules`' — see `itemsToClear`,
+    // which rounds up.
+    const cleared = items.filter(id => {
       const s = statsByItem.get(id);
       if (!s) return false;
       if (s.total < UNLOCK_MIN_ATTEMPTS) return false;
       return s.passes / s.total >= UNLOCK_MIN_ACCURACY;
-    });
-    if (!allCleared) break;
+    }).length;
+    if (cleared < itemsToClear(items.length)) break;
     unlocked = (stage + 1) as ProgressionStage;
   }
   return unlocked;

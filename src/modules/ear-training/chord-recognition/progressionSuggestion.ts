@@ -20,11 +20,14 @@
  * without an action is a status line wearing a suggestion's label. The
  * headline is the instruction; the count is support for it.
  *
- * IT DEFINES "CLEARED". Ten attempts at 80% is not inferable from the
- * word, and an undefined threshold on a screen is the thing the
- * legibility layer exists to remove. The numbers are interpolated from
- * the constants the unlock walk actually gates on, so the sentence
- * cannot describe a rule the code no longer follows.
+ * IT DEFINES "CLEARED" AND IT DEFINES "PASSED". Ten attempts at 80% is
+ * not inferable from the word, and neither is the fact that an answer
+ * given with a listening aid does not count toward it — an undefined
+ * threshold on a screen is the thing the legibility layer exists to
+ * remove, and an undefined word the app has just invented is worse.
+ * The numbers are interpolated from the constants the unlock walk
+ * actually gates on, so the sentence cannot describe a rule the code
+ * no longer follows.
  *
  * ─── And what it may NOT say ─────────────────────────────────────────
  *
@@ -54,6 +57,7 @@ import {
   tierProgress,
   type ItemStats,
 } from './tierUnlock';
+import { itemsToClear } from '../../../lib/ratingRules';
 import type { ChordRecognitionTier } from './chordRecognitionTiers';
 
 /** The scope tabs, as the quiz's `TierFilter` names them. */
@@ -158,7 +162,12 @@ export function progressionSuggestionFor(
 
   for (const step of SUGGESTABLE) {
     const { cleared, total } = tierProgress(step.tier, statsByItem);
-    if (cleared >= total) continue;
+    // IT GOES QUIET WHEN THE TIER OPENS, not when every item in it has
+    // cleared. Those were the same thing until 10 Sep 2026; a tier now
+    // opens at eighty per cent of its items, and a suggestion still
+    // firing on the last uncleared chord would be pointing at a wall
+    // that is no longer there.
+    if (cleared >= itemsToClear(total)) continue;
     // =================================================================
     // WHETHER THE PREREQUISITE TIER IS ITSELF SELECTED DOES NOT MATTER.
     //
@@ -179,19 +188,23 @@ export function progressionSuggestionFor(
       total,
       headline: headlineFor(step.name),
       // ===============================================================
-      // THIS SENTENCE IS NOW HALF TRUE, AND IT IS SILAS'S TO REWRITE.
+      // SILAS'S OWN SENTENCE, 10 Sep 2026, and it replaces one that was
+      // half true.
       //
-      // The number moves on its own — it interpolates the constant, so
-      // it reads 80% from 10 Sep 2026. The WORD does not: since that
-      // ruling an attempt only counts toward a tier if no aid was
-      // taken, so "80% correct" names a bar a reader can clear and
-      // still not open the tier. The fix is one clause of approved
-      // copy; inventing it here is not mine to do. Flagged in the
-      // 10 Sep report under "Needs Silas".
+      // It read "80% correct", and correct is not the bar: an attempt
+      // only counts toward a tier if no listening aid was taken, so a
+      // reader could be at 80% correct and watch the tier stay shut.
+      // "Passed" is the word, and the clause after it says what a pass
+      // is — because a word the app has just invented needs defining
+      // where it is first used.
+      //
+      // THE NUMBERS ARE INTERPOLATED, not typed, so the Settings page
+      // moving them moves this sentence in the same edit.
       // ===============================================================
       progress: `You've cleared ${cleared} of ${total}; a chord clears at `
         + `${UNLOCK_MIN_ATTEMPTS} attempts with `
-        + `${Math.round(UNLOCK_MIN_ACCURACY * 100)}% correct.`,
+        + `${Math.round(UNLOCK_MIN_ACCURACY * 100)}% passed. `
+        + 'A pass is a right answer with no listening aid used.',
       why: step.why,
       disclaimer: 'Nothing is locked — every tab plays whatever you pick.',
     };

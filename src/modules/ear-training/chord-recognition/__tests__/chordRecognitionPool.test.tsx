@@ -359,7 +359,10 @@ describe('the suggestion sits where the tap was', () => {
     expect(text).toContain("You've cleared 3 of 6");
     // 80, not 75 — the bar moved to the Fluent rating's on 10 Sep 2026
     // and this sentence interpolates the constant, so it moved with it.
-    expect(text).toContain('10 attempts with 80% correct');
+    // PASSED, not correct: an answer given with a listening aid does
+    // not count toward a tier, and the sentence now says so.
+    expect(text).toContain('10 attempts with 80% passed');
+    expect(text).toContain('A pass is a right answer with no listening aid used.');
     expect(text).toContain('triad with a note added');
     expect(text).toContain('Nothing is locked');
   });

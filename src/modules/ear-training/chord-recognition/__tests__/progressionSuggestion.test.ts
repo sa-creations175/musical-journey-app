@@ -18,6 +18,7 @@ import {
   tierProgress,
 } from '../tierUnlock';
 import { CHORD_RECOGNITION_TIERS } from '../chordRecognitionTiers';
+import { itemsToClear } from '../../../../lib/ratingRules';
 
 type Stats = Map<string, { passes: number; total: number }>;
 
@@ -144,12 +145,28 @@ describe('what it says', () => {
 
   it('moves as the count does', () => {
     // Guard against a hard-coded 3 of 6: a different tally must
-    // produce a different sentence.
+    // produce a different sentence. FOUR rather than five, because
+    // five of six now OPENS the tier and the suggestion goes quiet.
     const one = progressionSuggestionFor('seventh', cleared(TIER_1[0]))!;
-    const five = progressionSuggestionFor('seventh', cleared(...TIER_1.slice(0, 5)))!;
+    const four = progressionSuggestionFor('seventh', cleared(...TIER_1.slice(0, 4)))!;
     expect(one.cleared).toBe(1);
-    expect(five.cleared).toBe(5);
-    expect(one.progress).not.toBe(five.progress);
+    expect(four.cleared).toBe(4);
+    expect(one.progress).not.toBe(four.progress);
+  });
+
+  it('goes quiet once the tier is open, not once every item has cleared', () => {
+    // =================================================================
+    // THE TWO WERE THE SAME THING UNTIL 10 SEP 2026.
+    //
+    // A tier opens at eighty per cent of its items, so five of six is
+    // an open tier — and a suggestion still saying "get solid on the
+    // triads first" would be pointing at a wall that is not there.
+    // =================================================================
+    expect(itemsToClear(TIER_1.length)).toBe(5);
+    expect(progressionSuggestionFor('seventh', cleared(...TIER_1.slice(0, 5))))
+      .toBeNull();
+    expect(progressionSuggestionFor('seventh', cleared(...TIER_1.slice(0, 4))))
+      .not.toBeNull();
   });
 
   it('DEFINES cleared rather than leaving it to be inferred', () => {
@@ -159,7 +176,18 @@ describe('what it says', () => {
     // longer follows.
     const s = progressionSuggestionFor('seventh', partial)!;
     expect(s.progress).toContain(`${UNLOCK_MIN_ATTEMPTS} attempts`);
-    expect(s.progress).toContain(`${Math.round(UNLOCK_MIN_ACCURACY * 100)}% correct`);
+    expect(s.progress).toContain(`${Math.round(UNLOCK_MIN_ACCURACY * 100)}% passed`);
+  });
+
+  it('DEFINES passed too, because the app has just invented the word', () => {
+    // "80% correct" is what this said until 10 Sep 2026, and correct is
+    // not the bar: an answer given with a listening aid does not count
+    // toward a tier, so a reader could be at 80% correct and watch the
+    // tier stay shut. Silas's own sentence.
+    const s = progressionSuggestionFor('seventh', partial)!;
+    expect(s.progress)
+      .toContain('A pass is a right answer with no listening aid used.');
+    expect(s.progress).not.toContain('% correct');
   });
 
   it('says why in musical terms rather than procedural ones', () => {
