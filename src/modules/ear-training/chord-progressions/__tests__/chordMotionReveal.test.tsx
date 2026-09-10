@@ -15,6 +15,7 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { setPref } from '../../../../lib/userPrefs';
 import { motionResult } from '../motionResult';
+import { degreePalette } from '../../../repertoire/chordColors';
 
 // NOTHING SOUNDS. The card plays on arrival; the test is about what it
 // says afterwards.
@@ -215,5 +216,69 @@ describe('the result line, on the card', () => {
       tone: 'half',
       text: 'Starting chord right (1). It landed on the 4, not the 6m.',
     });
+  });
+});
+
+/** A hex as the DOM reports it back, so the two can be compared. */
+function asDom(hex: string): string {
+  const probe = document.createElement('b');
+  probe.style.color = hex;
+  return probe.style.color;
+}
+
+function token(el: HTMLElement, testId: string): HTMLElement {
+  const t = el.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+  if (!t) throw new Error(`no ${testId}`);
+  return t;
+}
+
+describe('the verdict line wears the in-the-key colours', () => {
+  it('colours the 1 and its chord green, the 4 and its chord purple', async () => {
+    const el = await deal();
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-4');
+    await click(el, 'motion-submit');
+    const green = asDom('#22c55e');
+    const purple = asDom('#9333ea');
+    // GUARD THE GUARD: the two colours are genuinely different, so a
+    // line painted all one colour cannot pass.
+    expect(green).not.toBe(purple);
+
+    expect(token(el, 'verdict-start').textContent).toBe('1');
+    expect(token(el, 'verdict-start').style.color).toBe(green);
+    expect(token(el, 'verdict-start-chord').textContent).toBe('Cmaj7');
+    expect(token(el, 'verdict-start-chord').style.color).toBe(green);
+
+    expect(token(el, 'verdict-dest').textContent).toBe('4');
+    expect(token(el, 'verdict-dest').style.color).toBe(purple);
+    expect(token(el, 'verdict-dest-chord').textContent).toBe('Fmaj7');
+    expect(token(el, 'verdict-dest-chord').style.color).toBe(purple);
+  });
+
+  it('bolds the four chord tokens and nothing else on the line', async () => {
+    const el = await deal();
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-4');
+    await click(el, 'motion-submit');
+    const verdict = token(el, 'motion-verdict');
+    const coloured = [...verdict.querySelectorAll<HTMLElement>('[style*="color"]')];
+    expect(coloured.map(b => b.tagName)).toEqual(['B', 'B', 'B', 'B']);
+    expect(coloured.map(b => b.textContent)).toEqual(['1', '4', 'Cmaj7', 'Fmaj7']);
+    // The arrows, the distance and the dots are in none of them.
+    for (const b of coloured) expect(b.textContent).not.toMatch(/→|·|up|down/);
+    expect(verdict.textContent).toContain('up a 4th');
+  });
+
+  it('gives a flattened degree the darker twin, as the lead sheet does', async () => {
+    const el = await deal('motion:1-b7-asc');
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-4');
+    await click(el, 'motion-submit');
+    const twin = asDom(degreePalette('♭7', false)!.border);
+    // Guard: the twin is not the 7's own red.
+    expect(twin).not.toBe(asDom('#ef4444'));
+    expect(token(el, 'verdict-dest').textContent).toBe('♭7');
+    expect(token(el, 'verdict-dest').style.color).toBe(twin);
+    expect(token(el, 'verdict-dest-chord').style.color).toBe(twin);
   });
 });

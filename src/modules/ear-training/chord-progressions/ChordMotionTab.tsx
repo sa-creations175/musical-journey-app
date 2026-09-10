@@ -221,6 +221,37 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+/**
+ * A chord on the verdict line, in its degree-of-the-key colour.
+ *
+ * THE SAME COLOUR THE REVEAL'S RING USES, from the lead sheet's degree
+ * palette — the 1 green, the 4 purple, a flattened degree the darker
+ * twin of its family. Silas's reason: "I just like to reemphasize the
+ * color as I start to get to know these." So the degree and the chord
+ * name that sit on the line both wear it, and nothing else on the line
+ * does.
+ *
+ * THE FILL, NOT THE RING. The 1 has no ring on the board — a green ring
+ * beside the root's green fill reads as a second fill — but on a line
+ * of text there is no fill to confuse it with, so the 1 is green here.
+ */
+function InKeyToken({ pc, keyPc, testId, children }: {
+  pc: number;
+  keyPc: number;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  const colour = inKeyFill(pc, keyPc);
+  return (
+    <b
+      data-testid={testId}
+      style={colour === null ? undefined : { color: colour }}
+    >
+      {children}
+    </b>
+  );
+}
+
 // --- Component -------------------------------------------------------
 
 interface Props {
@@ -795,17 +826,31 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
               {/* THE VERDICT, with the rating word in its own status
                   colour — the same colour that word wears on every grid
-                  in the app. */}
+                  in the app. The four chord tokens wear their degree's
+                  in-the-key colour; the arrows, the distance and the
+                  dots stay plain. */}
               <p className="text-sm" data-testid="motion-verdict">
                 <span className="font-mono">
-                  {round.motion.startLabel} → {round.motion.destLabel}
+                  <InKeyToken pc={round.startPc} keyPc={round.keyPc} testId="verdict-start">
+                    {chipText(round.motion.startLabel, rowSpelling)}
+                  </InKeyToken>
+                  {' → '}
+                  <InKeyToken pc={round.destPc} keyPc={round.keyPc} testId="verdict-dest">
+                    {chipText(round.motion.destLabel, rowSpelling)}
+                  </InKeyToken>
                 </span>
                 <span className="text-neutral-400"> · </span>
                 {round.motion.direction === 'asc' ? 'up' : 'down'} a{' '}
                 {INTERVAL_NAME[round.motion.distance]}
                 <span className="text-neutral-400"> · </span>
                 <span className="font-mono">
-                  {round.chords[0].name} → {round.chords[1].name}
+                  <InKeyToken pc={round.startPc} keyPc={round.keyPc} testId="verdict-start-chord">
+                    {round.chords[0].name}
+                  </InKeyToken>
+                  {' → '}
+                  <InKeyToken pc={round.destPc} keyPc={round.keyPc} testId="verdict-dest-chord">
+                    {round.chords[1].name}
+                  </InKeyToken>
                 </span>
                 {feelWord !== null && (
                   <span className={`ml-2 font-semibold ${feelClass}`} data-testid="motion-feel">
