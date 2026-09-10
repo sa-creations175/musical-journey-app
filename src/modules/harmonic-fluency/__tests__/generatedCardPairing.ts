@@ -87,11 +87,27 @@
  *
  * Numbers lead, names follow: "The backdoor progression I-IV-bVII-I in
  * F major is _____" now reads "The 1 4 ♭7 1 (backdoor) in F major is
- * _____". THE IDS DID NOT MOVE — the same id addresses the same card
+ * _____" (retired later the same day — see above). THE IDS DID NOT MOVE — the same id addresses the same card
  * asking the same thing in better words, which is the one kind of
  * change this fixture is meant to allow through. `pr-7`'s history,
  * which pairs on TEXT, could not follow that; it takes the ruled
  * answer-side route in `progressionFoldIn` instead.
+ * ---------------------------------------------------------------
+ * 9 SEPTEMBER 2026 (LATE) — THIRTEEN `pr-prog-backdoor-` LINES GONE,
+ * AND THIRTEEN `pr-prog-backdoor-4m-` LINES IN THEIR PLACE. THIS IS A
+ * RETIREMENT, NOT THE "ALMOST NEVER" ABOVE.
+ *
+ * The re-pin earlier the same day was a rewording: the same
+ * progression, in better words, under the same ids. This is not. The
+ * backdoor is 4 minor → ♭7(7) → 1 — verified with Silas, "4m and ♭7(7)
+ * are both part of the parallel minor chords" — so the 1 4 ♭7 1 these
+ * cards asked is a DIFFERENT progression and these are different
+ * cards. The old ids are retired and never minted again; the new ones
+ * carry a prefix that has never existed. No mover and no migration,
+ * because history on a card that asked a different question is history
+ * of a different card, and the orphan reporter names the thirteen old
+ * rows on the next boot. Thirteen out, thirteen in: the deck stays at
+ * 1,611.
  * ---------------------------------------------------------------
  * 9 SEPTEMBER 2026 — FIFTY-TWO `pr-prog-` LINES REMOVED, AND NOTHING
  * TAKES THEIR PLACE.
@@ -1574,79 +1590,79 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pr-prog-1-6-4-5-C|The 1-6-4-5 in the key of C major is _____',
   'pr-prog-1-6-2-5-C|The 1-6-2-5 in the key of C major is _____',
   'pr-prog-1-4-5-C|The 1-4-5 in the key of C major is _____',
-  'pr-prog-backdoor-C|The 1 4 ♭7 1 (backdoor) in the key of C major is _____',
+  'pr-prog-backdoor-4m-C|The 4m ♭7 1 (backdoor) in the key of C major is _____',
   'pr-prog-1-5-6-4-Db|The 1-5-6-4 progression in the key of D♭ major is _____',
   'pr-prog-2-5-1-Db|The 2-5-1 in the key of D♭ major is _____',
   'pr-prog-1-6-4-5-Db|The 1-6-4-5 in the key of D♭ major is _____',
   'pr-prog-1-6-2-5-Db|The 1-6-2-5 in the key of D♭ major is _____',
   'pr-prog-1-4-5-Db|The 1-4-5 in the key of D♭ major is _____',
-  'pr-prog-backdoor-Db|The 1 4 ♭7 1 (backdoor) in the key of D♭ major is _____',
+  'pr-prog-backdoor-4m-Db|The 4m ♭7 1 (backdoor) in the key of D♭ major is _____',
   'pr-prog-1-5-6-4-D|The 1-5-6-4 progression in the key of D major is _____',
   'pr-prog-2-5-1-D|The 2-5-1 in the key of D major is _____',
   'pr-prog-1-6-4-5-D|The 1-6-4-5 in the key of D major is _____',
   'pr-prog-1-6-2-5-D|The 1-6-2-5 in the key of D major is _____',
   'pr-prog-1-4-5-D|The 1-4-5 in the key of D major is _____',
-  'pr-prog-backdoor-D|The 1 4 ♭7 1 (backdoor) in the key of D major is _____',
+  'pr-prog-backdoor-4m-D|The 4m ♭7 1 (backdoor) in the key of D major is _____',
   'pr-prog-1-5-6-4-Eb|The 1-5-6-4 progression in the key of E♭ major is _____',
   'pr-prog-2-5-1-Eb|The 2-5-1 in the key of E♭ major is _____',
   'pr-prog-1-6-4-5-Eb|The 1-6-4-5 in the key of E♭ major is _____',
   'pr-prog-1-6-2-5-Eb|The 1-6-2-5 in the key of E♭ major is _____',
   'pr-prog-1-4-5-Eb|The 1-4-5 in the key of E♭ major is _____',
-  'pr-prog-backdoor-Eb|The 1 4 ♭7 1 (backdoor) in the key of E♭ major is _____',
+  'pr-prog-backdoor-4m-Eb|The 4m ♭7 1 (backdoor) in the key of E♭ major is _____',
   'pr-prog-1-5-6-4-E|The 1-5-6-4 progression in the key of E major is _____',
   'pr-prog-2-5-1-E|The 2-5-1 in the key of E major is _____',
   'pr-prog-1-6-4-5-E|The 1-6-4-5 in the key of E major is _____',
   'pr-prog-1-6-2-5-E|The 1-6-2-5 in the key of E major is _____',
   'pr-prog-1-4-5-E|The 1-4-5 in the key of E major is _____',
-  'pr-prog-backdoor-E|The 1 4 ♭7 1 (backdoor) in the key of E major is _____',
+  'pr-prog-backdoor-4m-E|The 4m ♭7 1 (backdoor) in the key of E major is _____',
   'pr-prog-1-5-6-4-F|The 1-5-6-4 progression in the key of F major is _____',
   'pr-prog-2-5-1-F|The 2-5-1 in the key of F major is _____',
   'pr-prog-1-6-4-5-F|The 1-6-4-5 in the key of F major is _____',
   'pr-prog-1-6-2-5-F|The 1-6-2-5 in the key of F major is _____',
   'pr-prog-1-4-5-F|The 1-4-5 in the key of F major is _____',
-  'pr-prog-backdoor-F|The 1 4 ♭7 1 (backdoor) in the key of F major is _____',
+  'pr-prog-backdoor-4m-F|The 4m ♭7 1 (backdoor) in the key of F major is _____',
   'pr-prog-1-5-6-4-F#|The 1-5-6-4 progression in the key of F♯ major is _____',
   'pr-prog-2-5-1-F#|The 2-5-1 in the key of F♯ major is _____',
   'pr-prog-1-6-4-5-F#|The 1-6-4-5 in the key of F♯ major is _____',
   'pr-prog-1-6-2-5-F#|The 1-6-2-5 in the key of F♯ major is _____',
   'pr-prog-1-4-5-F#|The 1-4-5 in the key of F♯ major is _____',
-  'pr-prog-backdoor-F#|The 1 4 ♭7 1 (backdoor) in the key of F♯ major is _____',
+  'pr-prog-backdoor-4m-F#|The 4m ♭7 1 (backdoor) in the key of F♯ major is _____',
   'pr-prog-1-5-6-4-Gb|The 1-5-6-4 progression in the key of G♭ major is _____',
   'pr-prog-2-5-1-Gb|The 2-5-1 in the key of G♭ major is _____',
   'pr-prog-1-6-4-5-Gb|The 1-6-4-5 in the key of G♭ major is _____',
   'pr-prog-1-6-2-5-Gb|The 1-6-2-5 in the key of G♭ major is _____',
   'pr-prog-1-4-5-Gb|The 1-4-5 in the key of G♭ major is _____',
-  'pr-prog-backdoor-Gb|The 1 4 ♭7 1 (backdoor) in the key of G♭ major is _____',
+  'pr-prog-backdoor-4m-Gb|The 4m ♭7 1 (backdoor) in the key of G♭ major is _____',
   'pr-prog-1-5-6-4-G|The 1-5-6-4 progression in the key of G major is _____',
   'pr-prog-2-5-1-G|The 2-5-1 in the key of G major is _____',
   'pr-prog-1-6-4-5-G|The 1-6-4-5 in the key of G major is _____',
   'pr-prog-1-6-2-5-G|The 1-6-2-5 in the key of G major is _____',
   'pr-prog-1-4-5-G|The 1-4-5 in the key of G major is _____',
-  'pr-prog-backdoor-G|The 1 4 ♭7 1 (backdoor) in the key of G major is _____',
+  'pr-prog-backdoor-4m-G|The 4m ♭7 1 (backdoor) in the key of G major is _____',
   'pr-prog-1-5-6-4-Ab|The 1-5-6-4 progression in the key of A♭ major is _____',
   'pr-prog-2-5-1-Ab|The 2-5-1 in the key of A♭ major is _____',
   'pr-prog-1-6-4-5-Ab|The 1-6-4-5 in the key of A♭ major is _____',
   'pr-prog-1-6-2-5-Ab|The 1-6-2-5 in the key of A♭ major is _____',
   'pr-prog-1-4-5-Ab|The 1-4-5 in the key of A♭ major is _____',
-  'pr-prog-backdoor-Ab|The 1 4 ♭7 1 (backdoor) in the key of A♭ major is _____',
+  'pr-prog-backdoor-4m-Ab|The 4m ♭7 1 (backdoor) in the key of A♭ major is _____',
   'pr-prog-1-5-6-4-A|The 1-5-6-4 progression in the key of A major is _____',
   'pr-prog-2-5-1-A|The 2-5-1 in the key of A major is _____',
   'pr-prog-1-6-4-5-A|The 1-6-4-5 in the key of A major is _____',
   'pr-prog-1-6-2-5-A|The 1-6-2-5 in the key of A major is _____',
   'pr-prog-1-4-5-A|The 1-4-5 in the key of A major is _____',
-  'pr-prog-backdoor-A|The 1 4 ♭7 1 (backdoor) in the key of A major is _____',
+  'pr-prog-backdoor-4m-A|The 4m ♭7 1 (backdoor) in the key of A major is _____',
   'pr-prog-1-5-6-4-Bb|The 1-5-6-4 progression in the key of B♭ major is _____',
   'pr-prog-2-5-1-Bb|The 2-5-1 in the key of B♭ major is _____',
   'pr-prog-1-6-4-5-Bb|The 1-6-4-5 in the key of B♭ major is _____',
   'pr-prog-1-6-2-5-Bb|The 1-6-2-5 in the key of B♭ major is _____',
   'pr-prog-1-4-5-Bb|The 1-4-5 in the key of B♭ major is _____',
-  'pr-prog-backdoor-Bb|The 1 4 ♭7 1 (backdoor) in the key of B♭ major is _____',
+  'pr-prog-backdoor-4m-Bb|The 4m ♭7 1 (backdoor) in the key of B♭ major is _____',
   'pr-prog-1-5-6-4-B|The 1-5-6-4 progression in the key of B major is _____',
   'pr-prog-2-5-1-B|The 2-5-1 in the key of B major is _____',
   'pr-prog-1-6-4-5-B|The 1-6-4-5 in the key of B major is _____',
   'pr-prog-1-6-2-5-B|The 1-6-2-5 in the key of B major is _____',
   'pr-prog-1-4-5-B|The 1-4-5 in the key of B major is _____',
-  'pr-prog-backdoor-B|The 1 4 ♭7 1 (backdoor) in the key of B major is _____',
+  'pr-prog-backdoor-4m-B|The 4m ♭7 1 (backdoor) in the key of B major is _____',
   // --- key-signatures ---
   'ks-17|The parallel minor of the key of D major is _____',
   'ks-18|The parallel minor of the key of F major is _____',

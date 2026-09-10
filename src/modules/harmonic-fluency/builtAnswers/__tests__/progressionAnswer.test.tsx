@@ -357,8 +357,10 @@ describe('rotate — the same chords, entered by a different door', () => {
       ['pr-prog-1-5-6-4-G', '1 5 6 4'],
       ['pr-prog-1-6-4-5-Eb', '1 6 4 5'],
       // A degree with an accidental is written the way the deck writes
-      // it everywhere else.
-      ['pr-prog-backdoor-F', '1 4 ♭7 1'],
+      // it everywhere else. THE BUTTON IS NUMBERS ONLY, so the
+      // backdoor's borrowed 4 minor reads as a bare 4 here while the
+      // question says "4m" — raised with Silas rather than changed.
+      ['pr-prog-backdoor-4m-F', '4 ♭7 1'],
     ] as const) {
       act(() => { root.unmount(); });
       host.remove();

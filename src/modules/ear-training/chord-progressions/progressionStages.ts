@@ -67,7 +67,7 @@ export const PROGRESSION_STAGE: Readonly<Record<string, ProgressionStage>> = {
   '2-5-1':   3,  // THE named ii-V-I
 
   // ===== Stage 4 — complex / borrowed / secondary / altered =====
-  'backdoor': 4,  // backdoor cadence (bVII-I borrowed)
+  'backdoor': 4,  // 4m → ♭7(7) → 1, both chords borrowed
 };
 
 /** True iff `id` is in the stage map. Useful for the catalog's

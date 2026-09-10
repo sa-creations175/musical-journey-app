@@ -410,3 +410,58 @@ describe('coverage reaches twelve', () => {
       .toBe(12);
   });
 });
+
+describe('the backdoor is 4 minor → ♭7(7) → 1', () => {
+  /**
+   * =====================================================================
+   * A DIFFERENT QUESTION IS A DIFFERENT CARD.
+   *
+   * Verified with Silas 9 Sep 2026: "4m and ♭7(7) are both part of the
+   * parallel minor chords". The 1 4 ♭7 1 the thirteen `pr-prog-backdoor-`
+   * cards asked is a different progression, so those ids are retired
+   * and never minted again, and thirteen new ones take their place. No
+   * mover, no migration; the orphan reporter names the old rows.
+   * =====================================================================
+   */
+  const backdoors = FLASHCARDS.filter(c => c.facets?.progression === 'backdoor');
+
+  it('retires the thirteen old ids and mints thirteen new ones', () => {
+    expect(backdoors).toHaveLength(13);
+    expect(backdoors.every(c => c.id.startsWith('pr-prog-backdoor-4m-'))).toBe(true);
+    // AND NOTHING IN THE DECK STILL CARRIES A RETIRED ONE. `-4m-` is a
+    // longer prefix than the old one, so this is checked on the key
+    // suffix rather than on `startsWith`.
+    const retired = new Set(FLAT_TWELVE.map(k => `pr-prog-backdoor-${k}`));
+    expect(FLASHCARDS.filter(c => retired.has(c.id))).toEqual([]);
+  });
+
+  it('asks for the two borrowed chords and the landing', () => {
+    const c = FLASHCARDS.find(f => f.id === 'pr-prog-backdoor-4m-C')!;
+    expect(c.question).toBe('The 4m ♭7 1 (backdoor) in the key of C major is _____');
+    expect(c.correctAnswer).toBe('Fm - B♭7 - C');
+  });
+
+  it('offers the 4 major and the natural 7 as near misses', () => {
+    // THE 4 MAJOR IS THE WHOLE QUESTION and the decoy swap loop cannot
+    // reach it — it leaves the first chord and the landing alone, which
+    // on three chords is everything but the middle. So it comes from
+    // the shape's own `extra`.
+    //
+    // ACROSS THE THIRTEEN, NOT ON ONE CARD. `chooseDecoys` rotates the
+    // pool by the card's own id before it takes three, deliberately, so
+    // no one card is guaranteed a given member of it.
+    const all = new Set(backdoors.flatMap(c => c.decoys));
+    // The 4 played major: the first chord loses its `m` and nothing
+    // else moves.
+    expect([...all].some(d => /^[A-G][♭♯]? - [A-G][♭♯]?7 - [A-G][♭♯]?$/.test(d)))
+      .toBe(true);
+    // The ♭7 played as the natural 7, in the key of C: B7, not B♭7.
+    expect(all.has('Fm - B7 - C')).toBe(true);
+  });
+
+  it('keeps the deck at thirteen cards for the chip', () => {
+    // Thirteen out, thirteen in — which is why the deck total does not
+    // move. `moduleItemCounts` is what asserts the 1,611.
+    expect(new Set(backdoors.map(c => c.facets?.key)).size).toBe(13);
+  });
+});

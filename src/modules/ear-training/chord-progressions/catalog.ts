@@ -185,12 +185,23 @@ export const PROGRESSIONS: Progression[] = [
   // ============================================================
   // Tier 2 — Gospel & R&B
   // ============================================================
+  // THE BACKDOOR IS 4 MINOR → ♭7(7) → 1. Verified with Silas on
+  // 9 Sep 2026, replacing the I-IV-bVII-I this entry shipped with:
+  // "4m and ♭7(7) are both part of the parallel minor chords", so the
+  // progression is the two borrowed chords resolving home.
+  //
+  // THE THEORY NOTE IS SILAS'S OWN SENTENCES, from his modal-interchange
+  // notes of the same night, joined and not reworded.
+  //
+  // THE SONG EXAMPLES ARE THE OLD PROGRESSION'S and are left as they
+  // were: they were chosen for the I-IV-bVII-I and choosing new ones
+  // is Silas's to do, not this file's to guess. Raised in the report.
   mk({
     id: 'backdoor', name: 'The backdoor',
-    numerals: ['I', 'IV', 'bVII', 'I'], scaleDegrees: [0, 3, 6, 0],
-    chordQualities: ['major', 'major', 'major', 'major'],
+    numerals: ['iv', 'bVII', 'I'], scaleDegrees: [3, 6, 0],
+    chordQualities: ['minor', 'dominant', 'major'],
     tier: 2, isMustKnow: false, loopDefault: false,
-    theoryNote: 'The bVII is borrowed from the parallel minor — specifically Mixolydian mode. This substitution creates a warm, gospel-infused lift that feels resolved but not predictable.',
+    theoryNote: 'b7(7) — typically wants to resolve to the 1. Also can be a part of a larger backdoor 251 (4minor → b7(7) → 1). 4m and b7(7) are both part of the parallel minor chords.',
     songExamples: [
       { title: 'I Wish', artist: 'Stevie Wonder', year: 1976 },
       { title: "Isn't She Lovely (bridge)", artist: 'Stevie Wonder', year: 1976 },

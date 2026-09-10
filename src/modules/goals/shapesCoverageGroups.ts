@@ -538,7 +538,7 @@ const GROUP_SHAPES: ReadonlyArray<GroupShape> = [
   ...vlPatternGroupDef('voice_leading_1_6_4_5',        '1-6-4-5',        '1 6 4 5'),
   ...vlPatternGroupDef('voice_leading_1_6_2_5',        '1-6-2-5',        '1 6 2 5'),
   ...vlPatternGroupDef('voice_leading_1_4_5',          '1-4-5',          '1 4 5'),
-  ...vlPatternGroupDef('voice_leading_backdoor',       'backdoor',       '1 4 ♭7 1 (backdoor)'),
+  ...vlPatternGroupDef('voice_leading_backdoor',       'backdoor',       '4m ♭7 1 (backdoor)'),
 ];
 
 /**

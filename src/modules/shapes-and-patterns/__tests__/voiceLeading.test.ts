@@ -95,7 +95,11 @@ describe('VOICE_LEADING_PATTERNS catalog', () => {
     expect(chordsOf('1-6-4-5')).toEqual(['1maj7', '6m7', '4maj7', '57']);
     expect(chordsOf('1-6-2-5')).toEqual(['1maj7', '6m7', '2m7', '57']);
     expect(chordsOf('1-4-5')).toEqual(['1maj7', '4maj7', '57', '1maj7']);
-    expect(chordsOf('backdoor')).toEqual(['1maj7', '4maj7', 'b77', '1maj7']);
+    // THE BACKDOOR IS THE TWO BORROWED CHORDS RESOLVING HOME —
+    // 4 minor → ♭7(7) → 1, verified with Silas 9 Sep 2026. The row,
+    // its cells and its itemRefs are unchanged; only what it says the
+    // chords are moved.
+    expect(chordsOf('backdoor')).toEqual(['4m7', 'b77', '1maj7']);
   });
 
   it('labels the five numbers-first, the way the deck writes them', () => {
@@ -104,7 +108,7 @@ describe('VOICE_LEADING_PATTERNS catalog', () => {
     // The name comes after the numbers it names, and the flat is a
     // glyph rather than a letter b.
     expect(VOICE_LEADING_PATTERN_BY_ID.get('backdoor')!.label)
-      .toBe('1 4 ♭7 1 (backdoor)');
+      .toBe('4m ♭7 1 (backdoor)');
   });
 
   it('shapes the five exactly like Major 2-5-1', () => {

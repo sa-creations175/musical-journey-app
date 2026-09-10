@@ -730,11 +730,24 @@ export const VOICE_LEADING_PATTERNS: ReadonlyArray<VoiceLeadingPattern> = [
   {
     id: 'backdoor',
     kind: 'type-position',
-    label: '1 4 ♭7 1 (backdoor)',
-    description: 'The 1, the 4, the flat 7 and the 1.',
+    /**
+     * THE BACKDOOR IS 4 MINOR → ♭7(7) → 1. Verified with Silas on
+     * 9 Sep 2026, replacing the 1 4 ♭7 1 this row shipped with.
+     *
+     * "4m and ♭7(7) are both part of the parallel minor chords" — the
+     * progression is the two borrowed chords resolving home, and a 4
+     * MAJOR in front of the ♭7 is the diatonic chord rather than the
+     * borrowed one. The leading 1 went with it: what the row teaches
+     * starts on the 4 minor.
+     *
+     * THE ROW, THE CELLS AND THE itemRefs DID NOT MOVE. `backdoor` is
+     * the same pattern id across the same three types and the same
+     * positions, so every rep logged against it still reads.
+     */
+    label: '4m ♭7 1 (backdoor)',
+    description: 'The 4 minor, the flat 7 and the 1.',
     chords: [
-      { degree: '1', quality: 'maj7' },
-      { degree: '4', quality: 'maj7' },
+      { degree: '4', quality: 'm7' },
       { degree: 'b7', quality: '7' },
       { degree: '1', quality: 'maj7' },
     ],

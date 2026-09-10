@@ -168,8 +168,9 @@ const PROGRESSION_WORDS: Readonly<Record<string, string>> = {
   '1-4-5': '1 4 5',
   // NUMBERS LEAD, NAMES FOLLOW — the same rule the card's own question
   // takes. The stored value stays `backdoor`, so every link that named
-  // it still resolves; only the chip changes.
-  backdoor: '1 4 ♭7 1 (backdoor)',
+  // it still resolves; only the chip changes. The numbers themselves
+  // changed on 9 Sep 2026: the backdoor is 4 minor → ♭7(7) → 1.
+  backdoor: '4m ♭7 1 (backdoor)',
   'gospel walk-up': 'gospel walk-up',
   'rhythm changes': 'rhythm changes',
   'neo-soul': 'neo-soul',

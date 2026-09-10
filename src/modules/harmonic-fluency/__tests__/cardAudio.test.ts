@@ -116,13 +116,14 @@ describe('the little progressions', () => {
     ]);
   });
 
-  it('takes the backdoor out of the key, on the ♭7', () => {
-    // The one generated progression with a chord the major scale does
-    // not contain. If the sound came from the scale rather than from
-    // the card's own degrees it would play a B♭ here and be a
-    // different progression.
-    expect(steps(soundOf('pr-prog-backdoor-F'))).toEqual([
-      MAJ, [5, 9, 12], [10, 14, 17], MAJ,
+  it('takes the backdoor out of the key, on both borrowed chords', () => {
+    // The one generated progression whose chords the major scale does
+    // not contain — the 4 MINOR and the ♭7, both borrowed from the
+    // parallel minor. If the sound came from the scale rather than
+    // from the card's own degrees it would play a plain 4 major and a
+    // B♭ here, and be a different progression.
+    expect(steps(soundOf('pr-prog-backdoor-4m-F'))).toEqual([
+      [5, 8, 12], [10, 14, 17, 20], MAJ,
     ]);
   });
 

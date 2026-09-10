@@ -1705,29 +1705,57 @@ const PROGRESSION_SHAPES: ReadonlyArray<ProgressionShape> = [
       + 'soul, gospel, and hip-hop still use it as the underlying '
       + 'scaffolding.',
   },
+  /**
+   * =================================================================
+   * THE BACKDOOR IS 4 MINOR → ♭7(7) → 1, AND THESE ARE NEW CARDS.
+   *
+   * Verified with Silas on 9 Sep 2026: "4m and ♭7(7) are both part of
+   * the parallel minor chords", so the progression is the two borrowed
+   * chords resolving home. The 1 4 ♭7 1 these cards used to ask is a
+   * different progression, which makes this a different QUESTION under
+   * the same name — not a rewording.
+   *
+   * SO THE SHAPE ID MOVED AND THE OLD IDS ARE RETIRED. `backdoor`
+   * minted `pr-prog-backdoor-<key>`; `backdoor-4m` mints
+   * `pr-prog-backdoor-4m-<key>`, a prefix that has never existed. No
+   * mover and no migration: history on a card that asked a different
+   * question is history of a different card, and the orphan reporter
+   * names the thirteen old rows on the next boot. Thirteen out,
+   * thirteen in, so the deck stays at 1,611.
+   *
+   * THE FACET DID NOT MOVE. The stored value is still `backdoor` — it
+   * is the same progression by name, and every link that named it
+   * resolves.
+   *
+   * NUMBERS LEAD, NAMES FOLLOW, as before: the numbers first and the
+   * name in brackets after the thing it names.
+   * =================================================================
+   */
   {
-    id: 'backdoor',
+    id: 'backdoor-4m',
     facet: 'backdoor',
-    // NUMBERS LEAD, NAMES FOLLOW. The question was "The backdoor
-    // progression I-IV-bVII-I in F major is _____", which put a name
-    // and a roman-numeral spelling in front of the numbers this deck
-    // teaches in. The name is what a player calls it, so it keeps its
-    // place — in brackets, after the thing it names. Same pattern for
-    // any named progression added later.
-    ask: k => `The 1 4 ♭7 1 (backdoor) in the key of ${k} major is _____`,
-    chords: [['1', ''], ['4', ''], ['b7', ''], ['1', '']],
-    explain: (k, c) => `The backdoor progression in the key of ${k} major is `
-      + `${c.join(' → ')} — `
-      + `the bVII (${c[2]}) sneaks in instead of a V. It's a gospel/soul `
-      + 'favorite: less expected than a V-I, more melodic, and gives that '
-      + 'broad, modal landing.',
-    // The natural 7 in place of the ♭7 — `pr-7`'s own first decoy, and
-    // the only wrong answer that tests whether the reader knows which
-    // seventh the progression means.
-    extra: root => [[
-      degreeLabel(root, '1'), degreeLabel(root, '4'),
-      degreeLabel(root, '7'), degreeLabel(root, '1'),
-    ].join(' - ')],
+    ask: k => `The 4m ♭7 1 (backdoor) in the key of ${k} major is _____`,
+    chords: [['4', 'm'], ['b7', '7'], ['1', '']],
+    // SILAS'S OWN SENTENCES, from his modal-interchange notes of
+    // 9 Sep 2026 and from the ruling that changed this card. Nothing
+    // here is written for him.
+    explain: (k, c) => `The backdoor in the key of ${k} major is `
+      + `${c.join(' → ')} — 4m and ♭7(7) are both part of the parallel `
+      + 'minor chords, and the ♭7(7) typically wants to resolve to the 1.',
+    extra: root => [
+      // THE ♭7 PLAYED AS THE NATURAL 7 — the wrong answer that tests
+      // which seventh the progression means, kept from the card this
+      // replaces.
+      [`${degreeLabel(root, '4')}m`,
+        `${degreeLabel(root, '7')}7`, degreeLabel(root, '1')].join(' - '),
+      // AND THE 4 PLAYED MAJOR, which the swap loop cannot reach: it
+      // leaves the first chord and the landing alone, and on a
+      // three-chord progression that is everything but the middle.
+      // A borrowed 4 minor against the 4 the key gives is the whole
+      // question this card now asks.
+      [degreeLabel(root, '4'),
+        `${degreeLabel(root, 'b7')}7`, degreeLabel(root, '1')].join(' - '),
+    ],
   },
 ];
 
