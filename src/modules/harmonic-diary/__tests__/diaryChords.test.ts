@@ -15,8 +15,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CHORD_SEEDS } from '../../ear-training/chord-recognition/seed';
 import { CHORD_QUALITIES, QUALITY_INTERVALS } from '../../shapes-and-patterns/catalog';
-import { soundingNotes, type PlayerChord } from '../../../lib/player/voices';
-import { DEFAULT_PLAYER_SETTINGS } from '../../../lib/player/settings';
+import { bassDrop, soundingNotes, type PlayerChord } from '../../../lib/player/voices';
+import type { PlayerSettings } from '../../../lib/player/settings';
 import type { SkillRecord } from '../../skills/registry';
 
 /** Every note the diary asked a player to sound, per call. */
@@ -27,8 +27,9 @@ vi.mock('../../../lib/musicalPlayback', () => ({
 }));
 vi.mock('../../../lib/builtAnswers/play', () => ({
   playRolled: async (ivs: number[], o: { rootMidi: number }) => { sounded.push(ivs.map(i => o.rootMidi + i)); },
-  playPanel: async (chords: PlayerChord[]) => {
-    sounded.push(soundingNotes(chords[0], DEFAULT_PLAYER_SETTINGS).notes);
+  // WHAT THE SHARED PLAYER WOULD SOUND, Forward bass and all.
+  playPanel: async (chords: PlayerChord[], settings: PlayerSettings) => {
+    sounded.push(soundingNotes(chords[0], settings, bassDrop(chords, settings)).notes);
     return { stop() {} };
   },
 }));
@@ -106,5 +107,27 @@ describe('shapes-and-patterns chord-shape entries read the id, not the name', ()
     await playSkillAudio(skill('shapes-and-patterns:chord-shape:min7:F', 'my favourite'));
     expect(sounded).toHaveLength(1);
     expect(pcs(sounded[0])).toEqual(pcs([5, 8, 12, 15]));
+  });
+});
+
+describe('every diary chord through the shared player, in one register', () => {
+  it('a shaped and a stacked entry on the same root share their bass note', async () => {
+    // maj9 is voiced by Silas's shape, maj13 by the seed's stack.
+    const shaped = await playCR('maj9');
+    const stacked = await playCR('maj13');
+    expect(shaped[0]).toBe(stacked[0]);
+    // And the bass is the root: C.
+    expect(shaped[0] % 12).toBe(0);
+    // Every stacked entry takes that same bass, whatever its thickness.
+    for (const id of ['maj', 'dom7sus4', 'add2', 'dom13', 'min9_11']) {
+      expect((await playCR(id))[0], id).toBe(shaped[0]);
+    }
+  });
+
+  it('the bass sits under the hand on every item', async () => {
+    for (const seed of CHORD_SEEDS) {
+      const [bass, ...hand] = await playCR(seed.id);
+      expect(Math.min(...hand), seed.id).toBeGreaterThan(bass);
+    }
   });
 });

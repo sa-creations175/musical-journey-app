@@ -8,6 +8,7 @@ import {
 } from '../../lib/extendedVoicings';
 import { DEFAULT_PLAYER_SETTINGS } from '../../lib/player/settings';
 import type { PlayerChord } from '../../lib/player/voices';
+import { bassLine, voicingsOf } from '../../lib/builtAnswers/voiceLeading';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { modeById } from '../ear-training/scales-modes/catalog';
 import {
@@ -146,8 +147,10 @@ export async function playSkillAudio(
         console.warn('[diary-audio] no chord shape for', parsed.itemId);
         return;
       }
-      const rootMidi = diaryRegisterRoot(shape.intervals, shape.pitchClass);
-      await playChord(rootMidi, shape.intervals, mode);
+      await playVoicing(
+        diaryPlayerChord(shape.pitchClass, shape.intervals, null, parsed.itemId),
+        mode,
+      );
       return;
     }
 
@@ -311,41 +314,60 @@ const SHAPE_FOR_ITEM: Readonly<Record<string, ExtendedQuality>> = {
   min6_9: 'm6-9',
 };
 
-/** How the diary sounds one chord: Silas's shape, or the seed's stack. */
-export type DiaryChordVoicing =
-  | { kind: 'shape'; chord: PlayerChord }
-  | { kind: 'stack'; rootMidi: number; intervals: number[] };
+/**
+ * One chord as the shared player takes it: the root in the bass by the
+ * app's own bass rule, and the hand above it.
+ *
+ * =====================================================================
+ * EVERY DIARY CHORD THROUGH THE SHARED PLAYER, IN ONE REGISTER. Silas's
+ * ruling of 10 Sep 2026. A shaped chord used to go through the player
+ * and a stacked one through the diary's own middle-register stack, so
+ * the two sat in different places — a maj9 and a maj13 on the same C
+ * with their roots an octave apart. Now both take the bass `bassLine`
+ * gives any first chord, and the hand is either Silas's shape above it
+ * or the seed's other notes, stacked in their own order inside the
+ * hand's window (`voicingsOf`). The player's Forward bass applies as
+ * everywhere else.
+ * =====================================================================
+ */
+function diaryPlayerChord(
+  rootPc: number,
+  intervals: ReadonlyArray<number>,
+  shape: ExtendedShape | null,
+  name: string,
+): PlayerChord {
+  const bass = (bassLine([rootPc], [])[0] as number);
+  if (shape !== null) {
+    // The shape as written, from the root an octave over the bass; any
+    // second left-hand note sits with the bass.
+    const handRoot = bass - shape.left[0] + 12;
+    return {
+      bass: bass + shape.left[0],
+      hand: [
+        ...shape.left.slice(1).map(iv => bass + iv),
+        ...shape.right.map(iv => handRoot + iv),
+      ].sort((a, b) => a - b),
+      rootPc,
+      name,
+    };
+  }
+  // THE SEED'S NOTES IN THEIR OWN ORDER, the root left to the bass: an
+  // add2 stacks D E G and an add9 E G D, so the two stay two sounds.
+  const tones = intervals.filter(iv => iv % 12 !== 0).map(iv => (rootPc + iv) % 12);
+  const hand = tones.length === 0 ? [] : (voicingsOf(tones, 0)[0] ?? []);
+  return { bass, hand, rootPc, name };
+}
 
 /**
- * A chord-recognition entry's voicing, C-rooted by the diary's
- * convention. Null for an id the seed does not have.
+ * A chord-recognition entry as the shared player plays it, C-rooted by
+ * the diary's convention. Null for an id the seed does not have.
  */
-export function diaryChordRecognitionVoicing(itemId: string): DiaryChordVoicing | null {
+export function diaryChordRecognitionVoicing(itemId: string): PlayerChord | null {
   const seed = CHORD_SEEDS.find(c => c.id === itemId);
   if (seed === undefined) return null;
   const named = SHAPE_FOR_ITEM[itemId];
   const shape: ExtendedShape | null = named === undefined ? null : extendedShape(named, 'A');
-  if (shape !== null) {
-    // THE HAND IN THE WARM MIDDLE, THE ROOT AN OCTAVE UNDER IT — the
-    // register the progression surfaces voice these shapes in.
-    const handRoot = diaryRegisterRoot([...shape.right], 0);
-    const bassRoot = handRoot - 12;
-    return {
-      kind: 'shape',
-      chord: {
-        bass: bassRoot + shape.left[0],
-        // Any second left-hand note sits with the bass; the right hand
-        // is the shape as written, from the hand's root.
-        hand: [
-          ...shape.left.slice(1).map(iv => bassRoot + iv),
-          ...shape.right.map(iv => handRoot + iv),
-        ].sort((a, b) => a - b),
-        rootPc: 0,
-        name: seed.name,
-      },
-    };
-  }
-  return { kind: 'stack', rootMidi: diaryRegisterRoot(seed.intervals, 0), intervals: [...seed.intervals] };
+  return diaryPlayerChord(0, seed.intervals, shape, seed.name);
 }
 
 /**
@@ -362,14 +384,10 @@ export function diaryChordShape(itemId: string): { intervals: number[]; pitchCla
   return { intervals: [...intervals], pitchClass: base % 12 };
 }
 
-/** Sound a voicing: a shape through the shared player, a stack as the
- *  diary always has. Blocked or rolled, as the entry's button says. */
-async function playVoicing(voicing: DiaryChordVoicing, mode: DiaryPlayMode): Promise<void> {
-  if (voicing.kind === 'stack') {
-    await playChord(voicing.rootMidi, voicing.intervals, mode);
-    return;
-  }
-  await playPanel([voicing.chord], {
+/** Sound one chord through the shared player, blocked or rolled as the
+ *  entry's button says. */
+async function playVoicing(chord: PlayerChord, mode: DiaryPlayMode): Promise<void> {
+  await playPanel([chord], {
     ...DEFAULT_PLAYER_SETTINGS, bpm: DIARY_BPM, attack: mode,
   }, { loop: 1, beats: SINGLE_CHORD_BEATS });
 }
