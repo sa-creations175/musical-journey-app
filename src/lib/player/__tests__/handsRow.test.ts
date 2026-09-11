@@ -119,3 +119,27 @@ describe('the Hands row', () => {
     expect(Math.min(...options.map(distance))).toBe(distance(g));
   });
 });
+
+describe('the root joins the rung’s chord, never displacing a tone', () => {
+  // Key of C, the 1 → 4 card: Cmaj7 first, so its hand is the first chord.
+  const cmaj7 = (rung: 'seventh' | 'full') =>
+    motionChords(0, '1', '4', rung, 'flat', 'asc').chords;
+
+  it('at Seventh Chords: C E G B', () => {
+    const [rootless] = cmaj7('seventh');
+    const [rooted] = handsForSetting(cmaj7('seventh'), ROOT);
+    expect(rootless.hand.map(m => m % 12).sort((a, b) => a - b)).toEqual([4, 7, 11]);
+    expect(rooted.hand.map(m => m % 12).sort((a, b) => a - b)).toEqual([0, 4, 7, 11]);
+  });
+
+  it('at Full Voicing: C E G B D — five notes, the 9th kept', () => {
+    const [rootless] = cmaj7('full');
+    const [rooted] = handsForSetting(cmaj7('full'), ROOT);
+    // Guard: the Full rung really is the maj9, E G B D.
+    expect(rootless.hand.map(m => m % 12).sort((a, b) => a - b)).toEqual([2, 4, 7, 11]);
+    expect(rooted.hand).toHaveLength(5);
+    expect(rooted.hand.map(m => m % 12).sort((a, b) => a - b)).toEqual([0, 2, 4, 7, 11]);
+    // Every tone of the rootless hand is still there, at its own pitch.
+    for (const m of rootless.hand) expect(rooted.hand).toContain(m);
+  });
+});

@@ -115,6 +115,11 @@ export function bassDrop(
  * 3rd and the 7th by definition), and a hand that already has its root
  * (a triad) has nothing to gain.
  *
+ * THE ROOT JOINS; IT NEVER DISPLACES. The rung decides the chord: at
+ * Full Voicing Cmaj7 is a maj9, so the hand plays C E G B D — five notes,
+ * the 9th kept — and at Seventh Chords C E G B. Silas's ruling of 10 Sep
+ * 2026, answering whether the root should take the 9th's place: no.
+ *
  * INVERTED AS VOICE LEADING NEEDS. The first chord takes the root just
  * under its hand — root position, C E G B. Every chord after takes the
  * placement of its root nearest the hand before it, measured the way
