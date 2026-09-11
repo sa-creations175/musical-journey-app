@@ -24,7 +24,7 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_MOTIONS, motionId } from '../chordMotionPool';
 import { motionChords, motionMarks } from '../motionChords';
-import { bassDrop, chordStep } from '../../../../lib/player/voices';
+import { bassDrop, chordStep, handsForSetting } from '../../../../lib/player/voices';
 import { DEFAULT_PLAYER_SETTINGS } from '../../../../lib/player/settings';
 import { onBoard } from '../../../../lib/builtAnswers/board';
 import { keyToRootMidi } from '../progressionTheory';
@@ -34,9 +34,9 @@ import { LIST_RUNGS } from '../sharedList';
 const KEYS = ['C', 'F', 'B♭'] as const;
 
 const VARIANTS = [
-  { name: 'bass forward, two hands', patch: { bass: 'forward' as const, hands: 'both' as const } },
-  { name: 'bass blended, two hands', patch: { bass: 'blended' as const, hands: 'both' as const } },
-  { name: 'bass forward, one hand', patch: { bass: 'forward' as const, hands: 'one' as const } },
+  { name: 'bass forward, rootless', patch: { bass: 'forward' as const, hands: 'rootless' as const } },
+  { name: 'bass blended, rootless', patch: { bass: 'blended' as const, hands: 'rootless' as const } },
+  { name: 'bass forward, root in the right hand', patch: { bass: 'forward' as const, hands: 'root' as const } },
   { name: 'bass only', patch: { listen: 'bass' as const } },
   { name: 'up an octave', patch: { octaveUp: true } },
 ];
@@ -53,7 +53,9 @@ describe('the lit keys are the sounding keys', () => {
               keyPc, motion.startLabel, motion.destLabel, rung,
             );
             const drop = bassDrop(chords, settings);
-            chords.forEach((chord, i) => {
+            // What the sequencer plays: the Hands row applied to the list.
+            const played = handsForSetting(chords, settings);
+            played.forEach((chord, i) => {
               const scheduled = chordStep(chord, settings, 2, drop).intervals
                 .filter(onBoard)
                 .sort((a, b) => a - b);

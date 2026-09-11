@@ -13,11 +13,11 @@ import { describe, expect, it } from 'vitest';
 import { bassLine, nearest, voiceAll } from '../../builtAnswers/voiceLeading';
 import { handTones } from '../../builtAnswers/chordShapes';
 import {
-  bassDrop, chordStep, liftHand, playerMarks, soundingNotes, stepBeats,
+  bassDrop, chordStep, handsForSetting, liftHand, playerMarks, soundingNotes, stepBeats,
 } from '../voices';
 import { panelBeats } from '../../builtAnswers/play';
 import { BROKEN_STEP_BEATS } from '../../audio';
-import { DEFAULT_PLAYER_SETTINGS, LADDER_RUNGS } from '../settings';
+import { DEFAULT_PLAYER_SETTINGS, LADDER_RUNGS, handsFrom } from '../settings';
 
 describe('the bass walks by the rule', () => {
   /**
@@ -157,13 +157,33 @@ describe('what sounds is what lights', () => {
     expect(hands).toEqual(['L', 'R', 'R', 'R']);
   });
 
-  it('brings the root into the chord for one hand, under the hand', () => {
-    const { notes, hands } = soundingNotes(
-      chord, { ...DEFAULT_PLAYER_SETTINGS, hands: 'one' },
-    );
-    expect(notes[0]).toBe(55);
-    expect(notes.slice(1)).toEqual([59, 62, 65]);
-    expect(new Set(hands)).toEqual(new Set(['R']));
+  it('brings the root into the right hand, under it, and leaves the bass in the left', () => {
+    // G7 rootless B D F over G: Root in the right hand gives G B D F,
+    // the root just under the hand on a first chord — and the left hand
+    // still plays the same G.
+    const [withRoot] = handsForSetting([chord], { ...DEFAULT_PLAYER_SETTINGS, hands: 'root' });
+    expect(withRoot.hand).toEqual([55, 59, 62, 65]);
+    expect(withRoot.bass).toBe(43);
+    const { notes, hands } = soundingNotes(withRoot, DEFAULT_PLAYER_SETTINGS);
+    expect(notes).toEqual([43, 55, 59, 62, 65]);
+    expect(hands).toEqual(['L', 'R', 'R', 'R', 'R']);
+  });
+
+  it('leaves the rootless hand alone, and a hand that already has its root', () => {
+    expect(handsForSetting([chord], DEFAULT_PLAYER_SETTINGS)[0].hand).toEqual([59, 62, 65]);
+    const triad = { hand: [55, 59, 62], bass: 43, rootPc: 7, name: 'G' };
+    expect(handsForSetting([triad], { ...DEFAULT_PLAYER_SETTINGS, hands: 'root' })[0].hand)
+      .toEqual([55, 59, 62]);
+    // Guide tones are two notes by definition; nothing is added.
+    const guide = { hand: [59, 65], bass: 43, rootPc: 7, name: 'G7' };
+    expect(handsForSetting([guide], { ...DEFAULT_PLAYER_SETTINGS, hands: 'root' })[0].hand)
+      .toEqual([59, 65]);
+  });
+
+  it('reads the retired "one" as Root in the right hand', () => {
+    expect(handsFrom('one')).toBe('root');
+    expect(handsFrom('both')).toBe('rootless');
+    expect(handsFrom(undefined)).toBe('rootless');
   });
 
   it('plays the bass alone for bass only', () => {
@@ -329,10 +349,12 @@ describe('the bass level', () => {
     expect(dropped.notes.slice(1)).toEqual(level.notes.slice(1));
   });
 
-  it('has nothing to move under One hand, where the root is in the chord', () => {
-    const oneHand = { ...forward, hands: 'one' as const };
-    expect(soundingNotes(roomy[0], oneHand, -12).notes)
-      .toEqual(soundingNotes(roomy[0], { ...blended, hands: 'one' }, 0).notes);
+  it('drops only the bass under Root in the right hand too', () => {
+    const rooted = handsForSetting(roomy, { ...forward, hands: 'root' });
+    const dropped = soundingNotes(rooted[0], forward, -12);
+    const level = soundingNotes(rooted[0], blended, 0);
+    expect(dropped.notes.slice(1)).toEqual(level.notes.slice(1));
+    expect(dropped.notes[0]).toBe(level.notes[0] - 12);
   });
 
   it('lights the key it actually sounds', () => {

@@ -338,7 +338,9 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
             ))}
           </FilterRow>
           <FilterRow label="Hands">
-            {([['both', 'Both hands, root in the left'], ['one', 'One hand, root in the chord']] as const)
+            {/* The shared player's Hands row, in its words: two right-hand
+                voicings over the same bass. */}
+            {([['rootless', 'Rootless right hand'], ['root', 'Root in the right hand']] as const)
               .map(([h, label]) => (
                 <button
                   key={h}

@@ -28,9 +28,37 @@ import type { Thickness } from '../builtAnswers/chordShapes';
 /** Bass and chords, or the bass line alone. */
 export type ListenTo = 'both' | 'bass';
 
-/** Both hands with the root underneath, or one hand with it in the
- *  chord. */
-export type Hands = 'both' | 'one';
+/**
+ * What the right hand plays over the bass.
+ *
+ * =====================================================================
+ * TWO RIGHT-HAND VOICINGS, NEVER ONE HAND ALONE. Silas's ruling of 10
+ * Sep 2026. The left hand always plays the bass and always carries the
+ * bass line's movement; this row only chooses whether the right hand's
+ * voicing carries the root too.
+ *
+ *   rootless   the rung's voicing as written — in the key of C, Cmaj7
+ *              at Seventh Chords is C under E G B
+ *   root       the same voicing with the root in it — C under C E G B,
+ *              inverted as voice leading needs
+ *
+ * "One, root in the chord" — no left hand — is retired. Triads and
+ * Guide Tones are what they are: a triad already has its root, and
+ * guide tones are the 3rd and the 7th by definition.
+ * =====================================================================
+ */
+export type Hands = 'rootless' | 'root';
+
+/**
+ * A Hands value from anywhere, including the retired one.
+ *
+ * `'one'` — "One, root in the chord" — reads as Root in the right hand,
+ * the setting nearest to what it asked for: the root inside the chord.
+ * `'both'` was the rootless right hand. Anything else is the default.
+ */
+export function handsFrom(value: unknown): Hands {
+  return value === 'root' || value === 'one' ? 'root' : 'rootless';
+}
 
 /** Plain highlight, or coloured by each note's interval from the
  *  sounding chord's root. */
@@ -110,7 +138,7 @@ export const DEFAULT_BPM = 50;
 export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   bpm: DEFAULT_BPM,
   octaveUp: false,
-  hands: 'both',
+  hands: 'rootless',
   listen: 'both',
   colours: 'interval',
   loop: 1,

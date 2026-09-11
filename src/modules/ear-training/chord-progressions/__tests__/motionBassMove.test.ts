@@ -72,24 +72,6 @@ describe('the verdict follows the bass', () => {
     expect(directions).toEqual(new Set(['up', 'down', 'same']));
   });
 
-  it('in one-hand mode, the lowest voice makes the card’s move wherever it is pinned', () => {
-    const oneHand: PlayerSettings = { ...DEFAULT_PLAYER_SETTINGS, hands: 'one' };
-    let pinned = 0;
-    for (const key of KEYS) {
-      for (const m of ALL_MOTIONS) {
-        const { chords } = motionChords(key, m.startLabel, m.destLabel, 'seventh', 'flat', m.direction);
-        if (chords[0].oneHandRoot === undefined) continue;
-        const [from, to] = scheduledBass(chords, oneHand);
-        expect(to - from, `${key} ${motionId(m)}`).toBe(m.semitones);
-        // The root is the lowest note it plays, under its own hand.
-        chords.forEach((c, i) => expect([from, to][i]).toBeLessThanOrEqual(Math.min(...c.hand)));
-        pinned += 1;
-      }
-    }
-    // Guard: the rule is actually in force on the cards, not skipped.
-    expect(pinned).toBeGreaterThan(ALL_MOTIONS.length * KEYS.length * 0.9);
-  });
-
   it('reads the Forward bass where it sounds, an octave down, and names the same move', () => {
     // A motion high enough for Forward to drop the line — not every one
     // is: the drop waits until every bass fits above the board's floor.

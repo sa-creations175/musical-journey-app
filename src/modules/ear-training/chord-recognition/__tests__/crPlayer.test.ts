@@ -47,7 +47,7 @@ describe('the chord sounds exactly as stored', () => {
       const bottomPc = asked[0] % 12;
       for (const settings of [
         { ...S, octaveUp: true },
-        { ...S, hands: 'one' as const },
+        { ...S, hands: 'root' as const },
         { ...S, colours: 'plain' as const },
         // BROKEN IS ON THE LIST since 10 Sep 2026. It is a schedule and
         // not a voicing — the notes go out in the order given, three

@@ -27,9 +27,6 @@
  *     keys mode, and unlit until the reader taps
  *   · chord motion adds "Starting note", the one aid no other surface
  *     has, and shows no Compare row
- *   · chord motion pins the one-hand root line (`oneHandRoot`), so in
- *     "One, root in the chord" the lowest voice makes the move its card
- *     names; every other surface places the root under each hand
  *
  * Anything else that differs is a bug. A surface chooses which ROWS it
  * shows and never what a row means — the tempo, the lift, the hands and
@@ -57,7 +54,7 @@
  * one allowed difference — everything else waits for a tap.
  * =====================================================================
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import BuiltAnswerKeyboard from './BuiltAnswerKeyboard';
 import { THICKNESSES, type Thickness } from '../lib/builtAnswers/chordShapes';
 import type { KeyMark } from '../lib/builtAnswers/board';
@@ -68,7 +65,9 @@ import {
   BPM_MAX, BPM_MIN, LADDER_RUNGS, LOOP_OPTIONS, clampBpm, readSettingsOpen,
   writeSettingsOpen, type ChordAttack, type PlayerSettings,
 } from '../lib/player/settings';
-import { bassDrop, playerMarks, type PlayerChord } from '../lib/player/voices';
+import {
+  bassDrop, handsForSetting, playerMarks, type PlayerChord,
+} from '../lib/player/voices';
 import { useInstrument } from '../lib/instrumentContext';
 import { useSpelling } from '../lib/spellingPref';
 import ChordColorLegend from './ChordColorLegend';
@@ -299,13 +298,18 @@ export default function SharedPlayer({
     ...(beats === undefined ? {} : { beats }),
   });
 
+  // THE HANDS ROW, APPLIED ONCE FOR THE WHOLE LIST — see
+  // `handsForSetting`. What plays, what lights and what the legend names
+  // all read this, so "Root in the right hand" is one voicing everywhere.
+  const voiced = useMemo(() => handsForSetting(chords, settings), [chords, settings]);
+
   const run = (startAtBeat: number) => {
     handle?.stop();
     clock.current = { at: Date.now(), beat: startAtBeat };
     setTransport('playing');
     const started = play !== undefined
       ? play({ startAtBeat })
-      : playPanel(chords, settings, {
+      : playPanel(voiced, settings, {
         ...(orientPc === undefined ? {} : { orientPc }),
         ...(beats === undefined ? {} : { beats }),
         ...(startAtBeat > 0 ? { startAtBeat } : {}),
@@ -348,7 +352,7 @@ export default function SharedPlayer({
    * follows the chip too.
    */
   const hearOne = (i: number) => {
-    const chord = chords[i];
+    const chord = voiced[i];
     if (chord === undefined) return;
     handle?.stop();
     setTransport('playing');
@@ -371,7 +375,7 @@ export default function SharedPlayer({
   // drops an octave, and the board follows it down — Silas's law of
   // 10 Sep 2026, for every surface.
   const drop = bassDrop(chords, settings);
-  const sounding = chords[lit ?? startLit] ?? chords[0] ?? null;
+  const sounding = voiced[lit ?? startLit] ?? voiced[0] ?? null;
   const marks: ReadonlyMap<number, KeyMark> = ringed(
     playerMarks(sounding, settings, drop), sounding, ring,
   );
@@ -421,7 +425,7 @@ export default function SharedPlayer({
           `ChordColorLegend`. */}
       {board !== false && (
         <ChordColorLegend
-          chord={lit === null ? (chords[0] ?? null) : (chords[lit] ?? null)}
+          chord={lit === null ? (voiced[0] ?? null) : (voiced[lit] ?? null)}
           settings={settings}
           drop={drop}
           spelling={spelling}
@@ -544,11 +548,13 @@ export default function SharedPlayer({
 
             {handsRow && (
               <Row label="Hands">
-                <Chip on={settings.hands === 'both'} testId="hands-both" onClick={() => set({ hands: 'both' })}>
-                  Both, root in the left
+                {/* TWO RIGHT-HAND VOICINGS over the same bass — see
+                    `Hands`. The left hand always plays the bass. */}
+                <Chip on={settings.hands === 'rootless'} testId="hands-rootless" onClick={() => set({ hands: 'rootless' })}>
+                  Rootless right hand
                 </Chip>
-                <Chip on={settings.hands === 'one'} testId="hands-one" onClick={() => set({ hands: 'one' })}>
-                  One, root in the chord
+                <Chip on={settings.hands === 'root'} testId="hands-root" onClick={() => set({ hands: 'root' })}>
+                  Root in the right hand
                 </Chip>
               </Row>
             )}

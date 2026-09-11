@@ -197,13 +197,17 @@ describe('the caller can take every control away', () => {
 describe('the rows a surface may drop', () => {
   it('hides Hands and Listen to where there is no bass to separate', () => {
     mount({ chords: [{ hand: [60, 64, 67], bass: null, rootPc: 0, name: 'C' }] });
-    expect(byTestId('hands-both')).toBeNull();
+    expect(byTestId('hands-rootless')).toBeNull();
     expect(byTestId('listen-both')).toBeNull();
   });
 
   it('shows them where there is', () => {
     mount();
-    expect(byTestId('hands-both')).not.toBeNull();
+    expect(byTestId('hands-rootless')).not.toBeNull();
+    // TWO RIGHT-HAND VOICINGS, never one hand alone.
+    expect(byTestId('hands-rootless')!.textContent).toBe('Rootless right hand');
+    expect(byTestId('hands-root')!.textContent).toBe('Root in the right hand');
+    expect(host.textContent).not.toContain('One, root in the chord');
     expect(byTestId('listen-bass')).not.toBeNull();
   });
 

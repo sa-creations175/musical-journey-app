@@ -23,6 +23,7 @@
  * HALF of the old cross-submodule gate went.
  * =====================================================================
  */
+import { handsFrom, type Hands } from '../../../lib/player/settings';
 import { getPref } from '../../../lib/userPrefs';
 import {
   LIST_RUNGS, SHARED_PROGRESSIONS, fullProgressionItemId, positionsOf,
@@ -37,7 +38,7 @@ export interface InPlay {
   progressions: string[];
   positions: number[];
   rungs: ListRung[];
-  hands: Array<'both' | 'one'>;
+  hands: Hands[];
 }
 
 /** The widest possible position number on the list. */
@@ -47,7 +48,7 @@ export const EVERYTHING: InPlay = {
   progressions: SHARED_PROGRESSIONS.map(p => p.id),
   positions: ALL_POSITIONS,
   rungs: [...LIST_RUNGS],
-  hands: ['both', 'one'],
+  hands: ['rootless', 'root'],
 };
 
 /**
@@ -66,8 +67,15 @@ export function sanitizeInPlay(raw: unknown): InPlay {
     ? v!.positions.filter(n => ALL_POSITIONS.includes(n)) : EVERYTHING.positions;
   const rungs = Array.isArray(v?.rungs)
     ? v!.rungs.filter(r => LIST_RUNGS.includes(r)) : EVERYTHING.rungs;
+  // THE RETIRED VALUES READ AS THEIR SUCCESSORS, and are not dropped:
+  // a filter saved with "One hand, root in the chord" is a filter for
+  // Root in the right hand — `handsFrom`. Nothing is rewritten; the
+  // next save writes the new names.
   const hands = Array.isArray(v?.hands)
-    ? v!.hands.filter(h => h === 'both' || h === 'one') : EVERYTHING.hands;
+    ? [...new Set((v!.hands as unknown[])
+      .filter(h => h === 'both' || h === 'one' || h === 'rootless' || h === 'root')
+      .map(handsFrom))]
+    : EVERYTHING.hands;
   return { progressions, positions, rungs, hands };
 }
 

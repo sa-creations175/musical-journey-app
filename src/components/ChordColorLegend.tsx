@@ -131,7 +131,6 @@ export default function ChordColorLegend({
   // the reader has already been told about.
   const bandOnlyMark = chord !== null
     && chord.bass !== null
-    && settings.hands === 'both'
     && (((chord.bass - chord.rootPc) % 12) + 12) % 12 !== 0;
 
   return (
@@ -158,7 +157,8 @@ export default function ChordColorLegend({
             // played in the bass is both, and a chip saying only "bass"
             // would leave the reader to work out which note of the
             // chord it is.
-            const isBass = hand === 'L' && settings.hands === 'both';
+            // THE LEFT HAND IS ALWAYS THE BASS since one-hand mode retired.
+            const isBass = hand === 'L';
             return (
               <Chip key={midi} colour={intervalColor(iv)}>
                 {chord !== null && chord.rootLetter !== undefined

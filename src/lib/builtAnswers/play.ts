@@ -31,7 +31,9 @@ import { raise } from './marks';
 import {
   DEFAULT_BPM as PANEL_BPM, type PlayerSettings,
 } from '../player/settings';
-import { bassDrop, chordStep, stepBeats, type PlayerChord } from '../player/voices';
+import {
+  bassDrop, chordStep, handsForSetting, stepBeats, type PlayerChord,
+} from '../player/voices';
 
 /**
  * The tempo the panel opens at.
@@ -95,7 +97,7 @@ export interface SequenceOptions {
  *
  * `playChords` below takes a bpm and an octave flag because that is all
  * the Built Answers panel had. This takes the whole settings object, so
- * "bass only", "one hand", the loop count and the resume point arrive
+ * "bass only", the Hands row, the loop count and the resume point arrive
  * the same way on every surface rather than as four more arguments per
  * caller. It is the same `playSeqChords` underneath — there is one
  * sequencer in this app and this does not add another.
@@ -135,7 +137,11 @@ export async function playPanel(
   // because this is the only place that holds every chord the line is
   // made of, and the rule is "the whole line or none of it".
   const drop = bassDrop(chords, settings);
-  const steps = chords.map(c => chordStep(c, settings, beats, drop));
+  // THE HANDS ROW — the root joins the right hand or it does not, the
+  // bass untouched. Idempotent, so a panel that already applied it is
+  // not applied twice. See `handsForSetting`.
+  const steps = handsForSetting(chords, settings)
+    .map(c => chordStep(c, settings, beats, drop));
   const lead = opts.orientPc === undefined ? [] : [tonicStep(opts.orientPc)];
   const offset = lead.length;
   return playSeqChords([...lead, ...steps], 0, settings.bpm, {

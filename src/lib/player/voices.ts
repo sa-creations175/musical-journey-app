@@ -19,7 +19,7 @@
 import { BROKEN_STEP_BEATS, type SeqChord } from '../audio';
 import { onBoard } from '../builtAnswers/board';
 import type { KeyMark } from '../builtAnswers/board';
-import type { VoicedChord } from '../builtAnswers/voiceLeading';
+import { voicingDistance, type VoicedChord } from '../builtAnswers/voiceLeading';
 import { intervalColor } from '../voicingColors';
 import type { PlayerSettings } from './settings';
 
@@ -37,16 +37,6 @@ export interface PlayerChord extends VoicedChord {
    * played, so it sets this per chord.
    */
   beats?: number;
-  /**
-   * Where the root sits in one-hand mode, when the surface pins it.
-   *
-   * ABSENT ON EVERY SURFACE BUT ONE, and then the root goes just under
-   * each hand, chord by chord (`rootInHand`). Chord Motion pins it: its
-   * card names a move, and the lowest voice has to make that move in
-   * one-hand mode too — see `oneHandRoots` in `motionChords`. Written
-   * into the shared player's allowed differences.
-   */
-  oneHandRoot?: number;
   /**
    * How the chord's own name spells its root, where that is not the
    * note-name setting's spelling.
@@ -77,20 +67,6 @@ export function liftHand(
 ): number[] {
   if (!up || hand.length === 0) return [...hand];
   return hand.every(m => onBoard(m + 12)) ? hand.map(m => m + 12) : [...hand];
-}
-
-/**
- * The root brought up into the hand, for "One hand".
- *
- * IT GOES UNDER THE HAND, NOT INTO THE MIDDLE OF IT — the nearest
- * octave of the root at or below the hand's bottom note, so the chord
- * keeps its shape and simply gains its root. The prototype's own rule.
- */
-function rootInHand(bass: number, hand: ReadonlyArray<number>): number {
-  const floor = hand.length > 0 ? hand[0] : bass + 12;
-  let m = bass;
-  while (m + 12 <= floor) m += 12;
-  return m;
 }
 
 /**
@@ -127,6 +103,65 @@ export function bassDrop(
   return Math.min(...basses) - 12 >= BOARD_FLOOR ? -12 : 0;
 }
 
+/**
+ * The right hand under the Hands row: as written, or with its root.
+ *
+ * =====================================================================
+ * THE ROOT JOINS THE HAND; THE BASS DOES NOT MOVE. Silas's ruling of
+ * 10 Sep 2026. On "Root in the right hand" a chord whose right hand has
+ * no root — a rootless seventh, a rootless full voicing — gains one,
+ * and nothing else changes: the left hand keeps the bass line exactly.
+ * A hand of fewer than three notes is left alone (Guide Tones are the
+ * 3rd and the 7th by definition), and a hand that already has its root
+ * (a triad) has nothing to gain.
+ *
+ * INVERTED AS VOICE LEADING NEEDS. The first chord takes the root just
+ * under its hand — root position, C E G B. Every chord after takes the
+ * placement of its root nearest the hand before it, measured the way
+ * the rest of the app measures voice leading (`voicingDistance`). The
+ * root always sits above the bass.
+ *
+ * A LIST, NOT A CHORD, for the same reason `bassDrop` is: voice leading
+ * is a fact about the sequence. Idempotent — a hand that has its root
+ * is left alone — so the panel and the sequencer may both apply it.
+ * =====================================================================
+ */
+export function handsForSetting(
+  chords: ReadonlyArray<PlayerChord>,
+  settings: PlayerSettings,
+): PlayerChord[] {
+  if (settings.hands !== 'root') return [...chords];
+  let previous: number[] | null = null;
+  return chords.map(chord => {
+    const pc = (m: number) => (((m - chord.rootPc) % 12) + 12) % 12;
+    const hand = chord.hand;
+    if (hand.length < 3 || hand.some(m => pc(m) === 0)) {
+      if (hand.length > 0) previous = [...hand];
+      return chord;
+    }
+    const low = Math.min(...hand);
+    const high = Math.max(...hand);
+    const floor = chord.bass === null ? BOARD_FLOOR - 1 : chord.bass;
+    const candidates: number[] = [];
+    for (let m = low - 11; m <= high + 11; m += 1) {
+      if (pc(m) === 0 && m > floor && onBoard(m)) candidates.push(m);
+    }
+    if (candidates.length === 0) {
+      previous = [...hand];
+      return chord;
+    }
+    const under = candidates.filter(m => m < low);
+    const pick = previous === null
+      ? (under.length > 0 ? Math.max(...under) : Math.min(...candidates))
+      : candidates.reduce((best, m) => (
+        voicingDistance([...hand, m], previous!) < voicingDistance([...hand, best], previous!)
+          ? m : best));
+    const withRoot = [...hand, pick].sort((a, b) => a - b);
+    previous = withRoot;
+    return { ...chord, hand: withRoot };
+  });
+}
+
 /** What a chord sounds, as absolute MIDI with a hand per note. */
 export function soundingNotes(
   chord: PlayerChord,
@@ -150,18 +185,6 @@ export function soundingNotes(
   const hand = liftHand(chord.hand, settings.octaveUp);
   if (bass === null) {
     return { notes: hand, hands: hand.map((): 'R' => 'R') };
-  }
-  if (settings.hands === 'one') {
-    // ONE HAND PUTS THE ROOT INSIDE THE CHORD, so there is no bass line
-    // to move and the drop has nothing to act on. A PINNED ROOT rides
-    // the lift with the hand, so "Up an octave" keeps it the same
-    // distance under the chord.
-    const lifted = hand.length > 0 && chord.hand.length > 0 && hand[0] !== chord.hand[0];
-    const root = chord.oneHandRoot !== undefined
-      ? chord.oneHandRoot + (lifted ? 12 : 0)
-      : rootInHand(bass, hand);
-    const notes = [root, ...hand];
-    return { notes, hands: notes.map((): 'R' => 'R') };
   }
   return {
     notes: [bass, ...hand],
@@ -241,15 +264,15 @@ export function playerMarks(
   const { notes, hands } = soundingNotes(chord, settings, drop);
   notes.forEach((midi, i) => {
     if (!onBoard(midi)) return;
-    if (hands[i] === 'L' && settings.hands === 'both') return;
+    if (hands[i] === 'L') return;
     marks.set(midi, settings.colours === 'plain'
       ? { plain: true }
       : { fill: intervalColor(midi - chord.rootPc) });
   });
   // THE BASS IS DRAWN LAST so its band goes over whatever the hand put
-  // there. Under "One hand" there is no bass to band — the root is in
-  // the chord and is coloured as a root like any other note.
-  if (settings.hands === 'both') {
+  // there. The left hand always plays it, whichever voicing the right
+  // hand has — see `Hands`.
+  {
     const bass = notes.find((_, i) => hands[i] === 'L');
     if (bass !== undefined && onBoard(bass)) {
       const existing = marks.get(bass);

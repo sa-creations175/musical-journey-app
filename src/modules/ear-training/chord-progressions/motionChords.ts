@@ -27,7 +27,7 @@
  * =====================================================================
  */
 import { bassLine, nearest, allVoicings } from '../../../lib/builtAnswers/voiceLeading';
-import { bassDrop, chordStep, playerMarks } from '../../../lib/player/voices';
+import { bassDrop, chordStep, handsForSetting, playerMarks } from '../../../lib/player/voices';
 import { intervalFromSemitones, moveWords } from './intervalQuality';
 import type { PlayerSettings } from '../../../lib/player/settings';
 import type { KeyMark } from '../../../lib/builtAnswers/board';
@@ -87,38 +87,6 @@ export interface MotionVoicing {
   chords: PlayerChord[];
   /** Each chord's root pitch class, for the ring and for grading. */
   rootPcs: number[];
-}
-
-/**
- * Where the root sits in each chord in one-hand mode, so the lowest
- * voice makes the card's move too.
- *
- * =====================================================================
- * THE BASS LINE, MOVED UP AS A BLOCK. "One, root in the chord" puts the
- * root just under each hand, chord by chord — which, with the hands
- * voice-led and the bass jumping, can send the lowest voice the other
- * way from the card. So the line is lifted by the largest whole number
- * of octaves that keeps every root at or under its own hand, and the
- * jump survives. Where even the lowest octave would sit above a hand,
- * or below the board, there is no such lift and this returns null: the
- * shared player's own per-chord rule takes over, and the card's report
- * says which ones.
- * =====================================================================
- */
-export function oneHandRoots(
-  line: ReadonlyArray<number>,
-  hands: ReadonlyArray<ReadonlyArray<number>>,
-): number[] | null {
-  if (hands.some(h => h.length === 0)) return null;
-  let lift: number | null = null;
-  for (let k = 48; k >= 0; k -= 12) {
-    const roots = line.map(m => m + k);
-    if (roots.every((r, i) => r <= Math.min(...hands[i]) && r >= BOARD_LOW)) {
-      lift = k;
-      break;
-    }
-  }
-  return lift === null ? null : line.map(m => m + lift!);
 }
 
 /** The board's lowest key, and its highest. */
@@ -213,13 +181,11 @@ export function motionChords(
     hands.forEach((h, i) => { hands[i] = h.map(m => m + 12); });
   }
 
-  const roots = oneHandRoots(line, hands);
   const chords: PlayerChord[] = [];
   steps.forEach((step, i) => {
     chords.push({
       hand: hands[i],
       bass: line[i] ?? null,
-      ...(roots === null ? {} : { oneHandRoot: roots[i] }),
       rootPc: step.rootPc,
       name: chordName(step.rootPc, step.quality, step.letters, rung, diminished),
       rootLetter: spellNote(step.rootPc, step.letters),
@@ -243,7 +209,9 @@ export function motionMarks(
   index: number,
   settings: PlayerSettings,
 ): ReadonlyMap<number, KeyMark> {
-  return playerMarks(chords[index] ?? null, settings, bassDrop(chords, settings));
+  // THE HANDS ROW APPLIED TO THE LIST, as the sequencer applies it.
+  const played = handsForSetting(chords, settings);
+  return playerMarks(played[index] ?? null, settings, bassDrop(chords, settings));
 }
 
 /** What the bass did between the two chords, as it was heard. */
@@ -278,8 +246,8 @@ export interface BassMove {
  * is what the sequencer is handed, so the Forward bass (dropped an
  * octave with the whole line) and the Blended one are both read as
  * they sound. The first note of a step is its bass in every mode —
- * the left hand's root, the root placed in the chord for one hand,
- * the bass alone for Bass only.
+ * the left hand's root, or the bass alone for Bass only. The Hands row
+ * never moves it.
  *
  * THE FILTERS DO NOT MOVE. Distance and Direction still describe the
  * pool, which is what they narrow; this describes one voicing of it.

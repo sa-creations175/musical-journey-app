@@ -14,13 +14,19 @@
  * `userPrefs` key here, in one place, rather than five.
  */
 import { useState } from 'react';
-import { DEFAULT_PLAYER_SETTINGS, type PlayerSettings } from './settings';
+import { DEFAULT_PLAYER_SETTINGS, handsFrom, type PlayerSettings } from './settings';
 
 export function usePlayerSettings(
   initial: Partial<PlayerSettings> = {},
 ): [PlayerSettings, (next: PlayerSettings) => void] {
   const [settings, setSettings] = useState<PlayerSettings>(
-    () => ({ ...DEFAULT_PLAYER_SETTINGS, ...initial }),
+    // THE HANDS VALUE IS READ THROUGH `handsFrom`, so a caller holding
+    // the retired `'one'` gets Root in the right hand, not a mode that
+    // no longer exists.
+    () => ({
+      ...DEFAULT_PLAYER_SETTINGS, ...initial,
+      hands: handsFrom(initial.hands ?? DEFAULT_PLAYER_SETTINGS.hands),
+    }),
   );
   return [settings, setSettings];
 }

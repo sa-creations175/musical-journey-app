@@ -15,7 +15,7 @@ import { motionChords } from '../motionChords';
 
 const SETTINGS: PlayerSettings[] = [];
 for (const bass of ['forward', 'blended'] as const) {
-  for (const hands of ['both', 'one'] as const) {
+  for (const hands of ['rootless', 'root'] as const) {
     for (const octaveUp of [false, true]) {
       SETTINGS.push({ ...DEFAULT_PLAYER_SETTINGS, bass, hands, octaveUp });
     }
