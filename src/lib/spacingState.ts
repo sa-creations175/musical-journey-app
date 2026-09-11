@@ -209,6 +209,18 @@ export interface RecordEngagementInput {
   /** Defaults to `Date.now()`. Exposed for deterministic tests and for
    *  the Phase 1h backfill pass which replays historical timestamps. */
   timestamp?: number;
+  /**
+   * False for an engagement that is recorded but must NOT move the
+   * schedule: the history entry is written, the stage moves, the row's
+   * last-engaged time is now — and its interval and due date stay
+   * exactly where they were (none, on a first engagement).
+   *
+   * THE SONG KEY'S RETEST CLOCK is why it exists. SONG_PAGE_REDESIGN_SPEC
+   * (23 Aug 2026): the whole-song test is the only thing that moves it;
+   * a single run and a cell test are rated, and never move it. Absent is
+   * true — every other caller schedules, as before.
+   */
+  schedules?: boolean;
 }
 
 // ===================================================================
@@ -692,6 +704,11 @@ export async function recordEngagement(
       currentIntervalDays: 0,
       nextDueAt: null,
     });
+    // RECORDED, NOT SCHEDULED: the row starts with no due date at all.
+    if (input.schedules === false) {
+      await db.spacingState.add(row);
+      return row;
+    }
     const scheduled = engineAnswer({
       state: newCardState(),
       settings,
@@ -711,6 +728,18 @@ export async function recordEngagement(
     ...(existing.performanceHistory as PerformanceEntry[]),
     entry,
   ].slice(-PERFORMANCE_HISTORY_MAX);
+  // RECORDED, NOT SCHEDULED: the rating lands and the stage moves; the
+  // interval and the due date do not.
+  if (input.schedules === false) {
+    const recorded: SpacingState = {
+      ...existing,
+      acquisitionStage: computeNextStage(memoryType, existing.acquisitionStage, history),
+      performanceHistory: history as Array<Record<string, unknown>>,
+      lastEngagedAt: t,
+    };
+    await putSpacingState(recorded);
+    return recorded;
+  }
   const scheduled = engineAnswer({
     state: cardStateFromRow(existing),
     settings,

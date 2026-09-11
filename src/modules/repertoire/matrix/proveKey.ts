@@ -178,9 +178,12 @@ export async function ratedKeyIds(
  * for the whole-song test — one ref minter, two callers, rather than
  * a second namespace that would have to be kept in step.
  *
- * WHAT IT IS NOT: this does not move a key's status. It records that
- * the song was played in this key and how it felt, and lets the
- * scheduler decide when to ask again.
+ * WHAT IT IS NOT: this does not move a key's status, AND IT DOES NOT
+ * MOVE THE RETEST CLOCK. It records that the song was played in this
+ * key and how it felt. Until 10 Sep 2026 it let the scheduler move the
+ * due date on every rated run — against this file's own header and
+ * SONG_PAGE_REDESIGN_SPEC, which make the whole-song test the only
+ * writer of the clock.
  * =====================================================================
  */
 export async function recordSongKeyRun(args: {
@@ -206,6 +209,11 @@ export async function recordSongKeyRun(args: {
         fromTest: args.fromTest,
         sessionId: args.sessionId,
       },
+      // A RUN IS RATED AND DOES NOT MOVE THE CLOCK — see the header.
+      // A single run, a cell test's run, a whole-song test's own runs:
+      // the rating lands on the row, the due date stays. Only the passed
+      // whole-song test, through `recordKeyProving`, moves it.
+      schedules: false,
       ...(args.timestamp !== undefined ? { timestamp: args.timestamp } : {}),
     });
   } catch (err) {

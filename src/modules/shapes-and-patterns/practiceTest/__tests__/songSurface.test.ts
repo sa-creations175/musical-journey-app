@@ -12,6 +12,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../../../../lib/db';
 import { bandVerdictForRow } from '../../../../lib/spacing/row';
 import { songSurface } from '../makeSurfaces';
+import { dueByKeyId } from '../../../repertoire/matrix/proveKey';
+import { writeWholeSongTestPass } from '../../../repertoire/songRunWriter';
+import type { SongKey } from '../../../../lib/db';
 import { isAtTarget, setupHasSomethingToSet, type DrillRecord } from '../surfaces';
 
 const CELL = 'cell-verse-Ab';
@@ -529,4 +532,56 @@ describe('the tempo allowance, where a run is judged', () => {
       expect(isAtTarget(s, 120, 1)).toBe(true);
     });
   }
+});
+
+describe('only the whole-song test moves the retest clock', () => {
+  /**
+   * SONG_PAGE_REDESIGN_SPEC, 23 Aug 2026: the whole-song test is the only
+   * writer of a song key's retest clock; a cell test and a single run
+   * never move it. Every rated run used to move it — `recordSongKeyRun`
+   * let the scheduler reschedule — against `proveKey.ts`'s own header.
+   */
+  const DAY = 24 * 60 * 60 * 1000;
+  const T0 = Date.UTC(2026, 8, 1);
+
+  async function seedPassedKey(): Promise<number> {
+    await db.songKeys.put({
+      id: KEY, songId: 's1', keyName: 'Ab', isOriginalKey: true,
+      createdAt: T0, updatedAt: T0,
+    } as unknown as SongKey);
+    await writeWholeSongTestPass({ songKeyId: KEY, now: T0 });
+    const due = (await dueByKeyId([KEY])).get(KEY);
+    // Guard the guard: a pass really does set a clock to compare with.
+    expect(due).not.toBeNull();
+    return due!;
+  }
+
+  beforeEach(async () => { await db.songKeys.clear(); });
+
+  it('a single run leaves the due date where it was', async () => {
+    const due = await seedPassedKey();
+    await surface(90, 'section').write(run({ feel: 4, fromTest: false, bpm: 90 }));
+    expect((await dueByKeyId([KEY])).get(KEY)).toBe(due);
+  });
+
+  it('a cell test leaves it where it was, even three clean runs', async () => {
+    const due = await seedPassedKey();
+    const s = surface(90, 'section');
+    for (let i = 0; i < 3; i++) await s.write(run({ feel: 4, fromTest: true, bpm: 90 }));
+    expect((await dueByKeyId([KEY])).get(KEY)).toBe(due);
+  });
+
+  it('the runs are still rated — the band moves, the clock does not', async () => {
+    await seedPassedKey();
+    await surface(90, 'section').write(run({ feel: 2, fromTest: false, bpm: 90 }));
+    const row = (await db.spacingState.toArray()).find(r => r.itemRef === `songKey:${KEY}`)!;
+    expect(row.performanceHistory.some(e => (e as { feel?: number }).feel === 2)).toBe(true);
+  });
+
+  it('a passed whole-song test moves it', async () => {
+    const due = await seedPassedKey();
+    await writeWholeSongTestPass({ songKeyId: KEY, now: T0 + 5 * DAY });
+    const moved = (await dueByKeyId([KEY])).get(KEY)!;
+    expect(moved).toBeGreaterThan(due);
+  });
 });
