@@ -1,0 +1,110 @@
+/**
+ * The Harmonic Diary plays the right chord for every entry.
+ *
+ * =====================================================================
+ * ELEVEN CHORDS USED TO SOUND AS C E G. The diary looked chord
+ * recognition's ids up in a different table and fell back to a major
+ * triad on every miss. Silas: "the major 9(13), the dom7sus4, the
+ * dom9(13) all sound the exact same." 10 Sep 2026.
+ *
+ * So every chord-recognition item is played through `playSkillAudio`
+ * with the players captured, and what would sound is compared with the
+ * seed Chord Recognition itself plays from.
+ * =====================================================================
+ */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CHORD_SEEDS } from '../../ear-training/chord-recognition/seed';
+import { CHORD_QUALITIES, QUALITY_INTERVALS } from '../../shapes-and-patterns/catalog';
+import { soundingNotes, type PlayerChord } from '../../../lib/player/voices';
+import { DEFAULT_PLAYER_SETTINGS } from '../../../lib/player/settings';
+import type { SkillRecord } from '../../skills/registry';
+
+/** Every note the diary asked a player to sound, per call. */
+const sounded: number[][] = [];
+vi.mock('../../../lib/musicalPlayback', () => ({
+  playBlocked: async (root: number, ivs: number[]) => { sounded.push(ivs.map(i => root + i)); },
+  playNoteSequence: async () => {},
+}));
+vi.mock('../../../lib/builtAnswers/play', () => ({
+  playRolled: async (ivs: number[], o: { rootMidi: number }) => { sounded.push(ivs.map(i => o.rootMidi + i)); },
+  playPanel: async (chords: PlayerChord[]) => {
+    sounded.push(soundingNotes(chords[0], DEFAULT_PLAYER_SETTINGS).notes);
+    return { stop() {} };
+  },
+}));
+
+const { playSkillAudio, diaryChordShape } = await import('../audio');
+
+const pcs = (notes: readonly number[]) =>
+  [...new Set(notes.map(n => ((n % 12) + 12) % 12))].sort((a, b) => a - b);
+const skill = (skillId: string, name = skillId) => ({ skillId, name } as SkillRecord);
+
+async function playCR(id: string): Promise<number[]> {
+  sounded.length = 0;
+  await playSkillAudio(skill(`chord-recognition:item:${id}`));
+  expect(sounded, id).toHaveLength(1);
+  return sounded[0];
+}
+
+beforeEach(() => { sounded.length = 0; });
+
+describe('chord-recognition entries play their own chord', () => {
+  it('every item sounds the seed’s notes — or, where Silas’s shape voices it, the shape’s', async () => {
+    const SHAPED: Record<string, number[] | 'exact'> = {
+      dim7: 'exact', 'dom7#9#5': 'exact', maj9: 'exact', min9: 'exact', min6_9: 'exact',
+      // His dom9(13): 1 3 ♭7 9 13, the 5th left out as the chord is played.
+      dom9_13: [0, 4, 10, 14, 21],
+    };
+    for (const seed of CHORD_SEEDS) {
+      const notes = await playCR(seed.id);
+      const shaped = SHAPED[seed.id];
+      const want = shaped === undefined || shaped === 'exact' ? seed.intervals : shaped;
+      expect(pcs(notes), seed.id).toEqual(pcs(want));
+      // Never more than the chord: every sounding note is one of the seed's.
+      for (const pc of pcs(notes)) expect(pcs(seed.intervals), seed.id).toContain(pc);
+    }
+  });
+
+  it('no two items with different intervals sound the same', async () => {
+    const byItem = new Map<string, string>();
+    // THE NOTES AS PLAYED, not their pitch classes: an add2 and an add9
+    // share theirs and still sound different — the 2 is inside the
+    // chord, the 9 an octave up.
+    for (const seed of CHORD_SEEDS) {
+      byItem.set(seed.id, [...await playCR(seed.id)].sort((a, b) => a - b).join(','));
+    }
+    for (const a of CHORD_SEEDS) {
+      for (const b of CHORD_SEEDS) {
+        if (a.id >= b.id || a.intervals.join() === b.intervals.join()) continue;
+        expect(byItem.get(a.id), `${a.id} vs ${b.id}`).not.toBe(byItem.get(b.id));
+      }
+    }
+    // Guard: the three Silas named are three different sounds.
+    const named = ['maj9_13', 'dom7sus4', 'dom9_13'].map(id => byItem.get(id));
+    expect(new Set(named).size).toBe(3);
+    expect(pcs((byItem.get('dom7sus4') ?? '').split(',').map(Number)))
+      .not.toEqual(pcs(QUALITY_INTERVALS.maj));
+  });
+
+  it('an id the seed does not have plays nothing, not a major triad', async () => {
+    await playSkillAudio(skill('chord-recognition:item:not-a-chord'));
+    expect(sounded).toHaveLength(0);
+  });
+});
+
+describe('shapes-and-patterns chord-shape entries read the id, not the name', () => {
+  it('every catalog quality resolves — an unknown one is a failure here, never a major triad', () => {
+    for (const q of CHORD_QUALITIES) {
+      const shape = diaryChordShape(`${q.id}:C`);
+      expect(shape, q.id).not.toBeNull();
+      expect(shape!.intervals, q.id).toEqual(QUALITY_INTERVALS[q.id]);
+    }
+    expect(diaryChordShape('not-a-quality:C')).toBeNull();
+  });
+
+  it('a renamed entry still plays its own chord, in its own key', async () => {
+    await playSkillAudio(skill('shapes-and-patterns:chord-shape:min7:F', 'my favourite'));
+    expect(sounded).toHaveLength(1);
+    expect(pcs(sounded[0])).toEqual(pcs([5, 8, 12, 15]));
+  });
+});

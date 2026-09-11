@@ -1,7 +1,13 @@
 import { playNoteSequence, playBlocked, type NoteEvent } from '../../lib/musicalPlayback';
-import { playRolled } from '../../lib/builtAnswers/play';
+import { playPanel, playRolled } from '../../lib/builtAnswers/play';
 import { parseSkillId, type SkillRecord } from '../skills/registry';
 import { QUALITY_INTERVALS } from '../shapes-and-patterns/catalog';
+import { CHORD_SEEDS } from '../ear-training/chord-recognition/seed';
+import {
+  extendedShape, type ExtendedQuality, type ExtendedShape,
+} from '../../lib/extendedVoicings';
+import { DEFAULT_PLAYER_SETTINGS } from '../../lib/player/settings';
+import type { PlayerChord } from '../../lib/player/voices';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { modeById } from '../ear-training/scales-modes/catalog';
 import {
@@ -119,9 +125,15 @@ export async function playSkillAudio(
     // chord with the diary's register anchor + tempo. Two modes:
     // blocked, and the app's one broken — rolled up.
     if (parsed.moduleId === 'chord-recognition') {
-      const intervals = QUALITY_INTERVALS[parsed.itemId] ?? QUALITY_INTERVALS.maj;
-      const rootMidi = diaryRegisterRoot(intervals, 0); // C-rooted by convention
-      await playChord(rootMidi, intervals, mode);
+      const voicing = diaryChordRecognitionVoicing(parsed.itemId);
+      if (voicing === null) {
+        // AN ITEM THE SEED DOES NOT HAVE PLAYS NOTHING, never a major
+        // triad standing in for it — which is what every extended chord
+        // used to sound like. See `diaryChordRecognitionVoicing`.
+        console.warn('[diary-audio] no chord-recognition item', parsed.itemId);
+        return;
+      }
+      await playVoicing(voicing, mode);
       return;
     }
 
@@ -129,14 +141,13 @@ export async function playSkillAudio(
     // chord's actual root letter (Cmaj7, Fmaj7, etc.) so the user
     // hears the voicing in a comparable warm zone regardless of key.
     if (parsed.moduleId === 'shapes-and-patterns' && parsed.subtype === 'chord-shape') {
-      const root = /^([A-G][b#]?)/.exec(skill.name)?.[1];
-      const quality = /\(([^)]+)\)/.exec(skill.name)?.[1] ?? 'maj';
-      const baseMidi = root ? NOTE_BASES[root] ?? 60 : 60;
-      const pitchClass = ((baseMidi % 12) + 12) % 12;
-      const qualityId = qualityIdFromLabel(quality);
-      const intervals = QUALITY_INTERVALS[qualityId] ?? QUALITY_INTERVALS.maj;
-      const rootMidi = diaryRegisterRoot(intervals, pitchClass);
-      await playChord(rootMidi, intervals, mode);
+      const shape = diaryChordShape(parsed.itemId);
+      if (shape === null) {
+        console.warn('[diary-audio] no chord shape for', parsed.itemId);
+        return;
+      }
+      const rootMidi = diaryRegisterRoot(shape.intervals, shape.pitchClass);
+      await playChord(rootMidi, shape.intervals, mode);
       return;
     }
 
@@ -267,19 +278,98 @@ async function playChord(
   await playRolled(intervals, { bpm: DIARY_BPM, beats, rootMidi });
 }
 
-function qualityIdFromLabel(label: string): string {
-  const normalised = label.toLowerCase().trim();
-  if (normalised.includes('major 7') || normalised === 'maj7') return 'maj7';
-  if (normalised.includes('minor 7') && !normalised.includes('b5')) return 'min7';
-  if (normalised.includes('dominant 7')) return 'dom7';
-  if (normalised.includes('half-diminished') || normalised === 'm7b5') return 'm7b5';
-  if (normalised.includes('diminished 7')) return 'dim7';
-  if (normalised.includes('minor-major 7')) return 'mmaj7';
-  if (normalised === 'major' || normalised.trim() === '') return 'maj';
-  if (normalised === 'minor') return 'min';
-  if (normalised === 'diminished') return 'dim';
-  if (normalised === 'augmented') return 'aug';
-  if (normalised === 'sus2') return 'sus2';
-  if (normalised === 'sus4') return 'sus4';
-  return 'maj';
+// =====================================================================
+// ONE SOURCE FOR A CHORD'S NOTES. Silas's ruling of 10 Sep 2026.
+//
+// The diary played a chord-recognition entry from the shapes catalog's
+// QUALITY_INTERVALS, keyed by the entry's id — and chord recognition's
+// ids (`maj9_13`, `dom7sus4`, `dom9_13`, `dom7b9`, …) are not that
+// table's keys. Every miss fell back to a major triad, so eleven
+// different chords sounded as C E G: "the major 9(13), the dom7sus4,
+// the dom9(13) all sound the exact same."
+//
+// Now a chord-recognition entry reads the list Chord Recognition itself
+// plays from — the seed's `intervals` — and a miss plays nothing.
+// =====================================================================
+
+/**
+ * Silas's own shapes, for the entries whose chord they voice.
+ *
+ * A SHAPE IS USED ONLY WHERE IT IS THAT CHORD. His dom9(13) is the
+ * dominant 9 with its 13 and no 5th, which is how the chord is played;
+ * the maj9, m9, 7♯9♯5, m6/9 and dim7 shapes carry exactly the seed's
+ * notes. His m7♭5 shape adds an 11 the plain m7♭5 does not have, so
+ * the m7♭5 entry keeps the seed's stack rather than sounding a chord it
+ * is not. Every other entry has no shape and plays the seed's stack.
+ */
+const SHAPE_FOR_ITEM: Readonly<Record<string, ExtendedQuality>> = {
+  dim7: 'dim7',
+  'dom7#9#5': 'dom7#9#5',
+  dom9_13: 'dom9-13',
+  maj9: 'maj9',
+  min9: 'm9',
+  min6_9: 'm6-9',
+};
+
+/** How the diary sounds one chord: Silas's shape, or the seed's stack. */
+export type DiaryChordVoicing =
+  | { kind: 'shape'; chord: PlayerChord }
+  | { kind: 'stack'; rootMidi: number; intervals: number[] };
+
+/**
+ * A chord-recognition entry's voicing, C-rooted by the diary's
+ * convention. Null for an id the seed does not have.
+ */
+export function diaryChordRecognitionVoicing(itemId: string): DiaryChordVoicing | null {
+  const seed = CHORD_SEEDS.find(c => c.id === itemId);
+  if (seed === undefined) return null;
+  const named = SHAPE_FOR_ITEM[itemId];
+  const shape: ExtendedShape | null = named === undefined ? null : extendedShape(named, 'A');
+  if (shape !== null) {
+    // THE HAND IN THE WARM MIDDLE, THE ROOT AN OCTAVE UNDER IT — the
+    // register the progression surfaces voice these shapes in.
+    const handRoot = diaryRegisterRoot([...shape.right], 0);
+    const bassRoot = handRoot - 12;
+    return {
+      kind: 'shape',
+      chord: {
+        bass: bassRoot + shape.left[0],
+        // Any second left-hand note sits with the bass; the right hand
+        // is the shape as written, from the hand's root.
+        hand: [
+          ...shape.left.slice(1).map(iv => bassRoot + iv),
+          ...shape.right.map(iv => handRoot + iv),
+        ].sort((a, b) => a - b),
+        rootPc: 0,
+        name: seed.name,
+      },
+    };
+  }
+  return { kind: 'stack', rootMidi: diaryRegisterRoot(seed.intervals, 0), intervals: [...seed.intervals] };
+}
+
+/**
+ * A shapes-and-patterns chord-shape entry: its quality and root, read
+ * from the entry's id (`maj7:F`) — never from its display name, which a
+ * reader can rename. Null for a quality the shapes catalog does not
+ * have: no silent major triad.
+ */
+export function diaryChordShape(itemId: string): { intervals: number[]; pitchClass: number } | null {
+  const [quality, key] = itemId.split(':');
+  const intervals = QUALITY_INTERVALS[quality];
+  const base = key === undefined ? undefined : NOTE_BASES[key];
+  if (intervals === undefined || base === undefined) return null;
+  return { intervals: [...intervals], pitchClass: base % 12 };
+}
+
+/** Sound a voicing: a shape through the shared player, a stack as the
+ *  diary always has. Blocked or rolled, as the entry's button says. */
+async function playVoicing(voicing: DiaryChordVoicing, mode: DiaryPlayMode): Promise<void> {
+  if (voicing.kind === 'stack') {
+    await playChord(voicing.rootMidi, voicing.intervals, mode);
+    return;
+  }
+  await playPanel([voicing.chord], {
+    ...DEFAULT_PLAYER_SETTINGS, bpm: DIARY_BPM, attack: mode,
+  }, { loop: 1, beats: SINGLE_CHORD_BEATS });
 }
