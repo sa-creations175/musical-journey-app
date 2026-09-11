@@ -790,3 +790,42 @@ describe('the arrow on the card', () => {
     expect(el.textContent).not.toMatch(/[↗↘]/);
   });
 });
+
+describe('a filtered pool under four is protected, like a focused one', () => {
+  it('Same Root alone (three motions): the notice shows and the attempt is practice', async () => {
+    const { db } = await import('../../../../lib/db');
+    await db.attempts.clear();
+    await setPref('chordProgressionsMotionNoteContext', 'chromatic');
+    await setPref('chordProgressionsMotionDistances', [1]);
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(<InstrumentProvider><MemoryRouter><ChordMotionTab attempts={[]} /></MemoryRouter></InstrumentProvider>);
+    });
+    await settle();
+    expect(container.querySelector('[data-testid="fluency-protection-notice"]')).not.toBeNull();
+    await click(container, 'play-motion');
+    await click(container, 'motion-start-4');
+    await click(container, 'motion-dest-4m');
+    await click(container, 'motion-submit');
+    const rows = await db.attempts.where('moduleId').equals('chord-progressions').toArray();
+    expect(rows.at(-1)?.excludeFromFluency).toBe(true);
+  });
+
+  it('the whole diatonic pool is not', async () => {
+    const el = await deal();
+    // A single motion in focus is protected (the old rule, unchanged);
+    // guard that the unfocused default is not.
+    await act(async () => root!.unmount());
+    el.remove();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(<InstrumentProvider><MemoryRouter><ChordMotionTab attempts={[]} /></MemoryRouter></InstrumentProvider>);
+    });
+    await settle();
+    expect(container.querySelector('[data-testid="fluency-protection-notice"]')).toBeNull();
+  });
+});

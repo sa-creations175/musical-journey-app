@@ -34,6 +34,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AttemptRecord } from '../../../lib/db';
+import { poolCountsTowardAccuracy } from '../../../lib/fluencyPool';
+import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 import { addAttempt } from '../../../lib/practiceWrites';
 import { recordEngagement } from '../../../lib/spacingState';
 import { updateDailySummary } from '../../../lib/dailySummaries';
@@ -140,6 +142,19 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
   };
 
   const cards = useMemo(() => pool(inPlay), [inPlay]);
+  // =====================================================================
+  // FOCUS PROTECTION, BROUGHT BACK. The quiz this card replaced marked a
+  // too-small pool's attempts as practice; the card did not, so
+  // narrowing What is in play to two progressions made a percentage out
+  // of a coin toss. Silas: "if the pool is so small, you're only
+  // choosing out of a group of four, and those odds are just too easy."
+  // Counted over DISTINCT progressions — a progression is the answer,
+  // however many positions and rungs of it are in play. Below the
+  // shared minimum the card shows the shared notice and logs the flag,
+  // exactly as Chord Recognition and Intervals do.
+  // =====================================================================
+  const poolSize = useMemo(() => new Set(cards.map(c => c.entry.id)).size, [cards]);
+  const poolProtected = cards.length > 0 && !poolCountsTowardAccuracy(poolSize);
 
   /** The chords as they sound now: the asked position while the card is
    *  open, whatever the Compare row is showing once it is answered. */
@@ -233,6 +248,7 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
       feelRating: feel,
       replays,
       ...(aided ? { aided: true } : {}),
+      ...(poolProtected ? { excludeFromFluency: true } : {}),
       ...answerTimingFields(asked.current, Date.now()),
     });
     await recordEngagement({
@@ -398,6 +414,8 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
           Next card
         </button>
       </div>
+
+      {poolProtected && <FluencyProtectionNotice />}
 
       {cards.length === 0 && (
         <p className="text-xs text-needswork" data-testid="empty-pool">

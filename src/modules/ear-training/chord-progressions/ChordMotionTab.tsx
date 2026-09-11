@@ -465,7 +465,16 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   // Counted over DISTINCT keys, because that is what the pool is built
   // from — see `drillFilter`'s own note on why a raw length lies.
   const focusPoolSize = new Set(focusKeys).size;
-  const focusProtected = focusActive && focusPoolSize < FLUENCY_POOL_MINIMUM;
+  // THE FILTERS CAN NARROW THE POOL TOO, not only a Focus set: Same Root
+  // alone is three motions. The rule is about how few cards you were
+  // choosing between, not about who chose them (`lib/fluencyPool`), so
+  // a filtered pool under the minimum is protected like a focused one.
+  // Found on 10 Sep 2026 when the same gap was closed on Full
+  // Progression.
+  const poolSize = focusActive
+    ? focusPoolSize
+    : new Set(activePool.map(motionId)).size;
+  const focusProtected = poolSize > 0 && poolSize < FLUENCY_POOL_MINIMUM;
 
   // --- Playback ------------------------------------------------------
 
