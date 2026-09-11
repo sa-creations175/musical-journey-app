@@ -127,6 +127,22 @@ function directionsFrom(saved: unknown, legacy: unknown): Set<'asc' | 'desc'> {
   return new Set(BOTH_DIRECTIONS);
 }
 
+/** How long "Keep at least one." stays under its row. */
+const KEEP_ONE_MS = 2500;
+
+/** Silas's line, the same on both rows. */
+function KeepOneLine({ row }: { row: 'distance' | 'direction' }) {
+  return (
+    <p
+      role="status"
+      data-testid={`motion-keep-one-${row}`}
+      className="-mt-1.5 text-[11px] text-neutral-500 dark:text-neutral-400"
+    >
+      Keep at least one.
+    </p>
+  );
+}
+
 /** Toggle one chip, keeping at least one on: the last one cannot go. */
 function toggled<T>(set: ReadonlySet<T>, item: T): Set<T> {
   const next = new Set(set);
@@ -358,6 +374,24 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
   const [distance, setDistance] = useState<DistanceSet>(() => new Set(ALL_DISTANCES));
   const [direction, setDirection] = useState<DirectionSet>(() => new Set(BOTH_DIRECTIONS));
+  // =====================================================================
+  // THE LAST CHIP SAYS WHY IT STAYS ON. Silas's ruling of 10 Sep 2026.
+  // A tap that does nothing reads as a broken control, so the row that
+  // refused shows his line under it for a moment: "Keep at least one."
+  // =====================================================================
+  const [keepOne, setKeepOne] = useState<'distance' | 'direction' | null>(null);
+  useEffect(() => {
+    if (keepOne === null) return;
+    const id = window.setTimeout(() => setKeepOne(null), KEEP_ONE_MS);
+    return () => window.clearTimeout(id);
+  }, [keepOne]);
+  /** Toggle a chip — or, where it is the only one on, say so. */
+  const toggleRow = <T,>(
+    row: 'distance' | 'direction', set: ReadonlySet<T>, item: T, save: (next: Set<T>) => void,
+  ) => {
+    if (set.size === 1 && set.has(item)) { setKeepOne(row); return; }
+    save(toggled(set, item));
+  };
   const [noteContext, setNoteContext] = useState<NoteContext>('diatonic');
   const [answerWith, setAnswerWith] = useState<AnswerWith>('degrees');
   const [startingNote, setStartingNote] = useState<StartingNote>('find');
@@ -733,24 +767,26 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 key={d}
                 on={distance.has(d)}
                 testId={`motion-dist-${d}`}
-                onClick={() => setDistance(toggled(distance, d))}
+                onClick={() => toggleRow('distance', distance, d, setDistance)}
               >
                 {d === 1 ? 'Same Root' : INTERVAL_NAME[d]}
               </Chip>
             ))}
           </Row>
+          {keepOne === 'distance' && <KeepOneLine row="distance" />}
           <Row label="Direction">
             {([['asc', 'Up'], ['desc', 'Down']] as const).map(([d, t]) => (
               <Chip
                 key={d}
                 on={direction.has(d)}
                 testId={`motion-dir-${d}`}
-                onClick={() => setDirection(toggled(direction, d))}
+                onClick={() => toggleRow('direction', direction, d, setDirection)}
               >
                 {t}
               </Chip>
             ))}
           </Row>
+          {keepOne === 'direction' && <KeepOneLine row="direction" />}
           <Row label="Note context">
             {([['diatonic', 'Diatonic only'], ['chromatic', 'Chromatic too']] as const)
               .map(([c, t]) => (

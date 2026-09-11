@@ -680,6 +680,24 @@ describe('Distance and Direction are many-choice rows', () => {
     expect(on(el, 'motion-dir-asc')).toBe(false);
   });
 
+  it('says "Keep at least one." under the row when the last chip is tapped, for a moment', async () => {
+    const el = await tab();
+    for (const d of [1, 2, 3, 4, 5, 6]) await click(el, `motion-dist-${d}`);
+    // Guard: nothing has been refused yet, so nothing is said.
+    expect(el.querySelector('[data-testid="motion-keep-one-distance"]')).toBeNull();
+    await click(el, 'motion-dist-7');
+    expect(on(el, 'motion-dist-7')).toBe(true);
+    expect(el.querySelector('[data-testid="motion-keep-one-distance"]')?.textContent).toBe('Keep at least one.');
+    // The same words on the Direction row, and only under the row tapped.
+    await click(el, 'motion-dir-asc');
+    await click(el, 'motion-dir-desc');
+    expect(el.querySelector('[data-testid="motion-keep-one-direction"]')?.textContent).toBe('Keep at least one.');
+    expect(el.querySelector('[data-testid="motion-keep-one-distance"]')).toBeNull();
+    // For a moment: it goes on its own.
+    await act(async () => { await new Promise(r => setTimeout(r, 2700)); });
+    expect(el.querySelector('[data-testid="motion-keep-one-direction"]')).toBeNull();
+  }, 10_000);
+
   it('starts from an old single-choice setting when the new one was never saved', async () => {
     await setPref('chordProgressionsMotionDistances', null);
     await setPref('chordProgressionsMotionDirections', null);
