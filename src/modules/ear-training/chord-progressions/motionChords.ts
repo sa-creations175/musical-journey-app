@@ -34,6 +34,7 @@ import type { KeyMark } from '../../../lib/builtAnswers/board';
 import { handTones, type QualityId } from '../../../lib/builtAnswers/chordShapes';
 import type { PlayerChord } from '../../../lib/player/voices';
 import { spellNote, type Spelling } from '../../../lib/spelling';
+import { glossTheoreticalSpellings } from '../../../lib/theoreticalSpellings';
 import type { ProgressionSpelling } from '../../../lib/progressionSpellingShape';
 import type { ChordQuality } from './catalog';
 import { qualityText } from './motionDegrees';
@@ -81,6 +82,47 @@ export interface MotionVoicing {
   rootPcs: number[];
 }
 
+const LETTERS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'] as const;
+const NATURAL_PC = [0, 2, 4, 5, 7, 9, 11] as const;
+
+/**
+ * The root's name, as the question's degree spells it in this key.
+ *
+ * =====================================================================
+ * A RAISED OR LOWERED DEGREE IS SPELLED BY LETTER, NOT BY PITCH. The ♯4
+ * of the key of F♯ is a B with a sharp on it — B♯ — though the key it
+ * sounds is C; the ♭3 of D♭ is F♭, which sounds E. Counted from the key
+ * as it is displayed (the note-name setting names the key), the degree's
+ * number picks the letter and the accidental is whatever it takes to
+ * reach the pitch.
+ *
+ * THE FOUR WHITE-KEY SPELLINGS CARRY THEIR GLOSS — B♯(C), E♯(F), F♭(E),
+ * C♭(B) — from `lib/theoreticalSpellings.ts`, the app's one table for
+ * it, so a reader sees the letter the question means and the key they
+ * press. Display only, as that file requires; nothing stored changes.
+ * Silas's ruling of 10 Sep 2026.
+ *
+ * A DOUBLE ACCIDENTAL IS NOT ONE OF THE FOUR: the ♭6 of D♭ would be B𝄫.
+ * That file's gloss covers single accidentals only, so such a degree
+ * keeps the spelling it had — its accidental's side of the pitch, A.
+ * A diatonic degree follows the note-name setting, as it always has.
+ * =====================================================================
+ */
+function rootName(
+  rootPc: number, degree: string, keyPc: number, spelling: Spelling, letters: Spelling,
+): string {
+  if (!/^[b#]/.test(degree)) return spellNote(rootPc, spelling);
+  const keyLetter = spellNote(keyPc, spelling)[0] as typeof LETTERS[number];
+  const number = Number(degree.replace(/[b#]/g, ''));
+  const index = (LETTERS.indexOf(keyLetter) + number - 1) % 7;
+  const offset = ((((rootPc - NATURAL_PC[index]) % 12) + 18) % 12) - 6;
+  const name = offset === 0 ? LETTERS[index]
+    : offset === 1 ? `${LETTERS[index]}♯`
+      : offset === -1 ? `${LETTERS[index]}♭`
+        : spellNote(rootPc, letters);
+  return glossTheoreticalSpellings(name);
+}
+
 /** The board's lowest key, and its highest. */
 const BOARD_LOW = 36;
 const BOARD_HIGH = 84;
@@ -121,7 +163,8 @@ export function motionChords(
     const degree = entry?.degree ?? label;
     const letters: Spelling = degree.startsWith('b') ? 'flat'
       : degree.startsWith('#') ? 'sharp' : spelling;
-    return { rootPc: (((keyPc + semi) % 12) + 12) % 12, quality, letters };
+    const rootPc = (((keyPc + semi) % 12) + 12) % 12;
+    return { rootPc, quality, letters, root: rootName(rootPc, degree, keyPc, spelling, letters) };
   });
 
   const rootPcs = steps.map(s => s.rootPc);
@@ -180,8 +223,8 @@ export function motionChords(
       hand: hands[i],
       bass: line[i] ?? null,
       rootPc: step.rootPc,
-      name: chordName(spellNote(step.rootPc, step.letters), step.quality, rung, rowSpelling),
-      rootLetter: spellNote(step.rootPc, step.letters),
+      name: chordName(step.root, step.quality, rung, rowSpelling),
+      rootLetter: step.root,
     });
   });
 

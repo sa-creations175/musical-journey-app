@@ -95,3 +95,49 @@ describe('the chord symbol follows the spelling setting, as the chip does', () =
     expect(symbol('#4dim7', 'seventh', w)).toBe('F♯dim7');
   });
 });
+
+describe('the four theoretical spellings carry their gloss', () => {
+  const root = (keyPc: number, to: Parameters<typeof motionChords>[2], spelling: Spelling) =>
+    motionChords(keyPc, '1', to, 'seventh', spelling).chords[1];
+
+  it('the ♯4 of F♯ is B♯(C)', () => {
+    const c = root(6, '#4', 'sharp');
+    expect(c.rootLetter).toBe('B♯(C)');
+    expect(c.name).toBe('B♯(C)ø7');
+  });
+  it('the ♯4 of B is E♯(F)', () => {
+    expect(root(11, '#4', 'sharp').rootLetter).toBe('E♯(F)');
+  });
+  it('the ♭3 of D♭ is F♭(E)', () => {
+    const c = root(1, 'b3', 'flat');
+    expect(c.rootLetter).toBe('F♭(E)');
+    expect(c.name).toBe('F♭(E)maj7');
+  });
+  it('the ♭2 of B♭ is C♭(B)', () => {
+    expect(root(10, 'b2', 'flat').rootLetter).toBe('C♭(B)');
+  });
+
+  it('leaves every ordinary spelling bare, and a double accidental as it was', () => {
+    // Guard: the ♯4 of C is still plain F♯ — the gloss is for the four.
+    expect(root(0, '#4', 'flat').rootLetter).toBe('F♯');
+    // The key of G♭ (flats): its ♯4 is C natural, by letter.
+    expect(root(6, '#4', 'flat').rootLetter).toBe('C');
+    // The ♭6 of D♭ would be B𝄫; it keeps its old name, A.
+    expect(root(1, 'b6', 'flat').rootLetter).toBe('A');
+  });
+
+  it('shows the gloss on the legend’s root chip', async () => {
+    window.localStorage.setItem('chordColorLegendOpen', 'open');
+    const chord = root(6, '#4', 'sharp');
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const r = createRoot(host);
+    await act(async () => {
+      r.render(<ChordColorLegend chord={chord} settings={DEFAULT_PLAYER_SETTINGS} spelling="sharp" />);
+    });
+    const chips = [...host.querySelectorAll('[data-testid="legend-chips"] > *')].map(c => c.textContent ?? '');
+    expect(chips.some(c => c.startsWith('B♯(C) root'))).toBe(true);
+    await act(async () => r.unmount());
+    host.remove();
+  });
+});
