@@ -519,7 +519,8 @@ describe('the diminished family spells as Settings says, and the ♯4 has two se
     const { chords } = motionChords(0, '1', '#4dim7', 'seventh');
     const pcs = new Set([...chords[1].hand, chords[1].bass!].map(m => m % 12));
     expect(pcs).toEqual(new Set([6, 9, 0, 3]));
-    expect(chords[1].name).toMatch(/dim7$/);
+    // Named by the setting: °7 by default (dim7 with "dim" on).
+    expect(chords[1].name).toBe('F♯°7');
     // And the ♯4ø still the m7♭5 it always was: F♯ A C E.
     const half = motionChords(0, '1', '#4', 'seventh').chords[1];
     expect(new Set([...half.hand, half.bass!].map(m => m % 12))).toEqual(new Set([6, 9, 0, 4]));
@@ -535,7 +536,7 @@ describe('the diminished family spells as Settings says, and the ♯4 has two se
       text: 'Starting chord right (1). It landed on the ♯4°7, not the ♯4ø.',
     });
     expect(token(el, 'verdict-dest').textContent).toBe('♯4°7');
-    expect(token(el, 'verdict-dest-chord').textContent).toMatch(/dim7$/);
+    expect(token(el, 'verdict-dest-chord').textContent).toBe('F♯°7');
   });
 
   it('on the card: follows the spelling setting', async () => {
@@ -726,7 +727,9 @@ describe('the ladder gains Triads', () => {
     const pcs = new Set([...chords[1].hand, chords[1].bass!].map(m => m % 12));
     expect(pcs).toEqual(new Set([6, 9, 0]));
     expect(chords[1].name).toBe('F♯°');
-    expect(motionChords(0, '1', '#4dim7', 'triads', 'flat', 'asc', 'dim').chords[1].name).toBe('F♯dim');
+    expect(motionChords(0, '1', '#4dim7', 'triads', 'flat', 'asc',
+      { separator: 'hyphen', qualities: 'all', halfDimTriad: 'dim', halfDimSeventh: 'm7♭5' },
+    ).chords[1].name).toBe('F♯dim');
   });
 });
 

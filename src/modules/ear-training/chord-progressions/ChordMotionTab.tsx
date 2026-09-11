@@ -464,7 +464,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     const keyPc = ((keyToRootMidi(key) % 12) + 12) % 12;
     const { chords, rootPcs } = motionChords(
       keyPc, motion.startLabel, motion.destLabel, DEFAULT_RUNG, spelling,
-      motion.direction, rowSpelling.halfDimTriad,
+      motion.direction, rowSpelling,
     );
     const next: Round = {
       motion,
@@ -499,7 +499,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     if (round === null) return;
     const { chords, rootPcs } = motionChords(
       round.keyPc, round.motion.startLabel, round.motion.destLabel, next, spelling,
-      round.motion.direction, rowSpelling.halfDimTriad,
+      round.motion.direction, rowSpelling,
     );
     setRound({ ...round, chords, rootPcs });
   };

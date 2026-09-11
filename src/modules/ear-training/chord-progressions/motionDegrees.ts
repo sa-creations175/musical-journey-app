@@ -27,6 +27,7 @@ import {
 } from '../../../lib/progressionSpellingShape';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 import { DEGREE_TABLE, type DegreeLabel, type Motion } from './chordMotionPool';
+import type { ChordQuality } from './catalog';
 
 /** The chord-shape quality a degree's chord takes, for the suffix. */
 const SUFFIX_QUALITY: Readonly<Record<string, string>> = {
@@ -131,24 +132,53 @@ export function chipText(
 ): string {
   const entry = DEGREE_TABLE.find(e => e.label === label);
   const degree = (entry?.degree ?? label).replace(/b/g, '♭').replace(/#/g, '♯');
-  // =====================================================================
-  // THE DIMINISHED FAMILY SPELLS AS SETTINGS SAYS, BY RUNG. Silas's
-  // ruling of 10 Sep 2026. On a Triads row every diminished chord is
-  // the triad — ° (or dim). On a seventh-chord row — guide tones,
-  // seventh chords, full voicing — the m7♭5 is ø (or m7♭5) and the dim7
-  // is the triad's sign with a 7: °7 (or dim7). So the 7 reads 7ø on
-  // this card, where it read 7° when chips took no rung at all.
-  //
-  // THE DIM7 IS SPELLED HERE, not by `qualitySuffix`, which files a dim7
-  // with the half-diminished and would write it ø at a seventh rung.
-  // =====================================================================
-  if (entry?.quality === 'diminished' && rung !== 'triads') {
-    return `${degree}${(settings ?? DEFAULT_PROGRESSION_SPELLING).halfDimTriad}7`;
+  return degree + qualityText(entry?.quality ?? 'major', rung, settings, 'chip');
+}
+
+/**
+ * A chord's quality as written: after a degree on a chip ("4m", "7ø"),
+ * or after a letter in a chord symbol ("Fm7", "F♯ø7").
+ *
+ * =====================================================================
+ * ONE FORMATTER FOR CHIP AND SYMBOL. Silas's rulings of 10 Sep 2026.
+ *
+ * THE DIMINISHED FAMILY SPELLS AS SETTINGS SAYS, BY RUNG. On a Triads
+ * row every diminished chord is the triad — ° (or dim). On a seventh-
+ * chord row — guide tones, seventh chords, full voicing — the m7♭5 is ø
+ * (or m7♭5) and the dim7 is the triad's sign with a 7: °7 (or dim7).
+ * A chip writes the half-diminished ø alone, "7ø", as the chip row Silas
+ * walked has it; a symbol writes it with its 7, "F♯ø7", the way a chart
+ * does. With the m7♭5 setting both write m7♭5. The dim7 is spelled here,
+ * not by `qualitySuffix`, which files it with the half-diminished and
+ * would write it ø.
+ *
+ * EVERYTHING ELSE: a chip names the degree's quality the way a grid row
+ * does (bare major and dominant, "m" minor); a symbol names the chord
+ * the rung plays — maj7, m7, 7 — or, at Triads, the triad.
+ * =====================================================================
+ */
+export function qualityText(
+  quality: ChordQuality,
+  rung: Thickness,
+  settings: ProgressionSpelling | undefined,
+  form: 'chip' | 'symbol',
+): string {
+  const words = settings ?? DEFAULT_PROGRESSION_SPELLING;
+  const triads = rung === 'triads';
+  if (quality === 'half-dim' || quality === 'diminished') {
+    if (triads) return words.halfDimTriad;
+    if (quality === 'diminished') return `${words.halfDimTriad}7`;
+    if (words.halfDimSeventh === 'ø') return form === 'symbol' ? 'ø7' : 'ø';
+    return words.halfDimSeventh;
   }
-  return degree + qualitySuffix(SUFFIX_QUALITY[entry?.quality ?? 'major'] ?? 'maj7', {
-    ...(settings ? { settings } : {}),
-    rung,
-  });
+  if (form === 'chip') {
+    return qualitySuffix(SUFFIX_QUALITY[quality] ?? 'maj7', {
+      ...(settings ? { settings } : {}),
+      rung,
+    });
+  }
+  if (triads) return quality === 'minor' ? 'm' : '';
+  return quality === 'minor' ? 'm7' : quality === 'dominant' ? '7' : 'maj7';
 }
 
 /**

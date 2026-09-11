@@ -31,8 +31,9 @@ describe('the two chords', () => {
     // half-diminished — the motion pool's own table.
     expect(motionChords(0, '2', '5', 'seventh').chords.map(c => c.name))
       .toEqual(['Dm7', 'G7']);
+    // At the app's default spelling the half-diminished is ø7.
     expect(motionChords(0, '7', '1', 'seventh').chords.map(c => c.name))
-      .toEqual(['Bm7♭5', 'Cmaj7']);
+      .toEqual(['Bø7', 'Cmaj7']);
   });
 
   it('takes its bass line from the app\'s bass rule, not its own', () => {

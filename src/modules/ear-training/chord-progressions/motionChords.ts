@@ -34,7 +34,9 @@ import type { KeyMark } from '../../../lib/builtAnswers/board';
 import { handTones, type QualityId } from '../../../lib/builtAnswers/chordShapes';
 import type { PlayerChord } from '../../../lib/player/voices';
 import { spellNote, type Spelling } from '../../../lib/spelling';
-import { DEFAULT_PROGRESSION_SPELLING } from '../../../lib/progressionSpellingShape';
+import type { ProgressionSpelling } from '../../../lib/progressionSpellingShape';
+import type { ChordQuality } from './catalog';
+import { qualityText } from './motionDegrees';
 import { degreeEntry, type DegreeLabel, type Direction } from './chordMotionPool';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 
@@ -61,26 +63,16 @@ export type MotionRung = Extract<Thickness, 'triads' | 'guide' | 'seventh' | 'fu
 /**
  * What a chord of this quality is called, in a key, at a rung.
  *
- * AT TRIADS IT IS THE TRIAD THAT SOUNDS, so it is the triad that is
- * named: F, Fm, G (a dominant's triad is major), F♯° — or F♯dim, when
- * the diminished setting says so. Every other rung is a seventh chord.
+ * THE SYMBOL READS THE SAME FORMATTER AS THE CHIP (`qualityText`), so a
+ * card that writes ♯4ø on its chip writes F♯ø7 in its verdict, and the
+ * m7♭5 setting changes both at once. At Triads it is the triad that
+ * sounds, so it is the triad that is named: F, Fm, G, F♯°.
  */
 function chordName(
-  rootPc: number, quality: string, spelling: Spelling, rung: MotionRung,
-  diminished: string,
+  root: string, quality: ChordQuality, rung: MotionRung,
+  settings: ProgressionSpelling | undefined,
 ): string {
-  if (rung === 'triads') {
-    const triad = quality === 'minor' ? 'm'
-      : quality === 'half-dim' || quality === 'diminished' ? diminished
-        : '';
-    return `${spellNote(rootPc, spelling)}${triad}`;
-  }
-  const suffix = quality === 'minor' ? 'm7'
-    : quality === 'dominant' ? '7'
-      : quality === 'half-dim' ? 'm7♭5'
-        : quality === 'diminished' ? 'dim7'
-          : 'maj7';
-  return `${spellNote(rootPc, spelling)}${suffix}`;
+  return `${root}${qualityText(quality, rung, settings, 'symbol')}`;
 }
 
 export interface MotionVoicing {
@@ -109,8 +101,9 @@ export function motionChords(
   rung: MotionRung,
   spelling: Spelling = 'flat',
   direction?: Direction,
-  /** The diminished setting's word for a triad — ° or dim. */
-  diminished: string = DEFAULT_PROGRESSION_SPELLING.halfDimTriad,
+  /** Settings' Note & Progression Spelling — how the diminished family
+   *  is written. Absent, the app's defaults (° and ø). */
+  rowSpelling?: ProgressionSpelling,
 ): MotionVoicing {
   const steps = [from, to].map(label => {
     const entry = degreeEntry(label);
@@ -187,7 +180,7 @@ export function motionChords(
       hand: hands[i],
       bass: line[i] ?? null,
       rootPc: step.rootPc,
-      name: chordName(step.rootPc, step.quality, step.letters, rung, diminished),
+      name: chordName(spellNote(step.rootPc, step.letters), step.quality, rung, rowSpelling),
       rootLetter: spellNote(step.rootPc, step.letters),
     });
   });
