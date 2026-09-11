@@ -143,56 +143,26 @@ type AnswerWith = 'degrees' | 'piano';
 /** The one aid this surface has of its own. */
 type StartingNote = 'find' | 'given';
 
-// --- Pre-populated "starter" associations ----------------------------
+// --- The starter line -----------------------------------------------
 
-// Tuned to gospel / R&B / soul / jazz / neo-soul / hip-hop vocabulary.
-// Keyed by motion id. Missing entries fall back to a generic tag line.
-const STARTER_ASSOCIATIONS: Record<string, string> = {
-  'motion:1-4-asc':
-    'the plagal lift — gospel amen, worship-key brightening, sunset opens into a porch. hits every Sunday service ever.',
-  'motion:1-5-asc':
-    'the question posed — V pulls forward without yet resolving. the tension that makes half the hooks in pop work.',
-  'motion:1-6-asc':
-    'the soft pivot into relative minor — that bittersweet "I\'m happy but…" colour behind neo-soul verses.',
-  'motion:2-5-asc':
-    'the ii–V setup. if your ear hears this, you\'re already hearing jazz. also backbone of motown and lite-funk.',
-  'motion:5-1-asc':
-    'the authentic cadence, but leaping up — feels triumphant and slightly unusual. the quasi-V-I in R&B hymns.',
-  'motion:5-1-desc':
-    'the classic V → I resolution — deliberate, churchy, final. every Stevie outro, every John Legend bridge.',
-  'motion:4-1-desc':
-    'plagal resolution falling into home — like "Let It Be" dissolves back to the tonic. very singable, very soul.',
-  'motion:6-4-desc':
-    'the vi → IV drop — Adele-level "here comes the chorus" feeling. one of the most heart-tugging motions in pop.',
-  'motion:6-5-desc':
-    'the subtle step down from relative minor to dominant — hip-hop loop tension, neo-soul verse swells.',
-  'motion:2-1-desc':
-    'supertonic letting go — a softer resolution than V–I. shows up in gospel outros and slow R&B fadeouts.',
-  'motion:7-1-asc':
-    'the leading-tone pull — half-step into home. biggest gravity of any motion in tonal music.',
-  'motion:3-6-asc':
-    'iii → vi — the jazzy side-step inside "3-6-2-5-1" cycles. the colour that makes turnarounds feel sophisticated.',
-  'motion:6-2-desc':
-    'part of the 6-2-5-1 turnaround. neo-soul ballads live on this motion — think Erykah Badu extended outros.',
-  'motion:1-3-asc':
-    'tonic stretching into mediant — warm, conversational lift. very common in soul verse openings.',
-  'motion:1-7-desc':
-    'stepping down from home to the leading tone — ominous, slightly unresolved. backdoor cadence territory.',
-  'motion:4-5-asc':
-    'IV → V — the "about to resolve" lift. this is what your ear is waiting for before every big hook.',
-  'motion:5-4-desc':
-    'reverse cadence — V falling into IV. blues territory; "Hey Joe," "All Along the Watchtower."',
-};
-
+/**
+ * The line a card shows before the reader has written their own.
+ *
+ * =====================================================================
+ * THE SAME PLAIN LINE ON EVERY CARD. Silas's ruling of 10 Sep 2026.
+ * Seventeen cards carried a hint written in code — "the authentic
+ * cadence, but leaping up", "stepping down from home to the leading
+ * tone" — words nobody had asked for, sitting where his own would go.
+ * They are gone. Every card says what the bass does and invites him to
+ * write the rest; an association he has saved is his, in its own table,
+ * and is untouched.
+ * =====================================================================
+ */
 function starterAssociation(m: Motion): string {
-  const id = motionId(m);
-  return (
-    STARTER_ASSOCIATIONS[id] ??
-    // THE MOVE IN THE VERDICT'S WORDS, from the same formatter: "up a
-    // major 2nd", never "a 2th up". A SAME-ROOT MOVE HAS NO MOVE to put
-    // in front, so its line starts at "from".
-    `${m.direction === 'same' ? '' : `${moveWords(m.semitones)} `}from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`
-  );
+  // THE MOVE IN THE VERDICT'S WORDS, from the same formatter: "up a
+  // major 2nd", never "a 2th up". A SAME-ROOT MOVE HAS NO MOVE to put
+  // in front, so its line starts at "from".
+  return `${m.direction === 'same' ? '' : `${moveWords(m.semitones)} `}from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`;
 }
 
 // --- Pref keys -------------------------------------------------------

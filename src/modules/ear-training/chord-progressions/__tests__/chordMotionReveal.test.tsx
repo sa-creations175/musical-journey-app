@@ -728,3 +728,30 @@ describe('the ladder gains Triads', () => {
     expect(motionChords(0, '1', '#4dim7', 'triads', 'flat', 'asc', 'dim').chords[1].name).toBe('F♯dim');
   });
 });
+
+describe('the hand-written starter hints are gone', () => {
+  it('shows the plain line where a hint used to be, and keeps what the reader saved', async () => {
+    const { db } = await import('../../../../lib/db');
+    // A card that carried "the authentic cadence, but leaping up".
+    let el = await deal('motion:5-1-asc');
+    await click(el, 'motion-start-5');
+    await click(el, 'motion-dest-1');
+    await click(el, 'motion-submit');
+    expect(el.textContent).toContain('up a perfect 4th from the 5 to the 1');
+    expect(el.textContent).not.toMatch(/authentic cadence|leaping up|leading tone|plagal/);
+    await act(async () => root!.unmount());
+    container!.remove();
+
+    // An association the reader has saved on it stays, word for word.
+    await db.progressionAssociations.put({
+      progressionId: 'motion:5-1-asc', text: 'my own words', updatedAt: Date.now(),
+    });
+    el = await deal('motion:5-1-asc');
+    await click(el, 'motion-start-5');
+    await click(el, 'motion-dest-1');
+    await click(el, 'motion-submit');
+    const saved = [...el.querySelectorAll('textarea')].map(t => (t as HTMLTextAreaElement).value);
+    expect(saved).toContain('my own words');
+    await db.progressionAssociations.delete('motion:5-1-asc');
+  });
+});
