@@ -593,9 +593,9 @@ describe('Direction and Distance read the card’s own move', () => {
 
 describe('the starter-association line names the move as the verdict does', () => {
   it('says "up a major 2nd", not "a 2th up", and the twin "down a minor 7th"', async () => {
-    for (const [id, words] of [
-      ['motion:1-2-asc', 'up a major 2nd from the 1 to the 2m'],
-      ['motion:1-2-desc', 'down a minor 7th from the 1 to the 2m'],
+    for (const [id, words, line] of [
+      ['motion:1-2-asc', 'up a major 2nd', '1 ↑ 2m · up a major 2nd — sit inside'],
+      ['motion:1-2-desc', 'down a minor 7th', '1 ↓ 2m · down a minor 7th — sit inside'],
     ] as const) {
       const el = await deal(id);
       await click(el, 'motion-start-1');
@@ -603,8 +603,10 @@ describe('the starter-association line names the move as the verdict does', () =
       await click(el, 'motion-submit');
       const text = el.textContent ?? '';
       // And the verdict says the same words for the same move.
-      expect(token(el, 'verdict-bass-move').textContent).toBe(words.split(' from')[0]);
-      expect(text).toContain(words);
+      expect(token(el, 'verdict-bass-move').textContent).toBe(words);
+      // The motion and its move, and nothing repeating them.
+      expect(text).toContain(line);
+      expect(text).not.toContain('from the 1 to the 2m');
       expect(text).not.toMatch(/\d(th|nd|rd) (up|down)/);
       await act(async () => root!.unmount());
       container!.remove();
@@ -759,7 +761,7 @@ describe('the hand-written starter hints are gone', () => {
     await click(el, 'motion-start-5');
     await click(el, 'motion-dest-1');
     await click(el, 'motion-submit');
-    expect(el.textContent).toContain('up a perfect 4th from the 5 to the 1');
+    expect(el.textContent).toContain('5 ↑ 1 · up a perfect 4th — sit inside');
     expect(el.textContent).not.toMatch(/authentic cadence|leaping up|leading tone|plagal/);
     await act(async () => root!.unmount());
     container!.remove();
@@ -786,7 +788,7 @@ describe('the arrow on the card', () => {
     await click(el, 'motion-submit');
     expect(resultOf(el).text).toBe('Not quite. 1 ↑ 5.');
     expect(token(el, 'motion-verdict').textContent).toContain('1 ↑ 5 · up a perfect 5th · Cmaj7 ↑ G7');
-    expect(el.textContent).toContain('1 ↑ 5 · up a perfect 5th from the 1 to the 5');
+    expect(el.textContent).toContain('1 ↑ 5 · up a perfect 5th — sit inside');
     expect(el.textContent).not.toMatch(/[↗↘]/);
   });
 });
@@ -827,5 +829,16 @@ describe('a filtered pool under four is protected, like a focused one', () => {
     });
     await settle();
     expect(container.querySelector('[data-testid="fluency-protection-notice"]')).toBeNull();
+  });
+});
+
+describe('the starter line on a same-root card', () => {
+  it('reads "4 → 4m · same root"', async () => {
+    const el = await deal('motion:4-4m-same');
+    await click(el, 'motion-start-4');
+    await click(el, 'motion-dest-4m');
+    await click(el, 'motion-submit');
+    expect(el.textContent).toContain('4 → 4m · same root — sit inside');
+    expect(el.textContent).not.toContain('from the 4');
   });
 });

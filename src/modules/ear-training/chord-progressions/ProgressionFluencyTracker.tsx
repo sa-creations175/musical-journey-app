@@ -393,13 +393,31 @@ const GROUP_BY_OPTIONS: ReadonlyArray<readonly [MotionGroupBy, string]> = [
 ];
 
 /**
- * The rating groups, in the order the brief names them and then the two
- * it does not: Stale and Not Started are ratings a row can have, and a
- * row with no group would vanish from the panel.
+ * The rating groups, in Silas's order (10 Sep 2026): Stale first — the
+ * ones to restore, together — then the ladder from the bottom, Not
+ * Started up to Mastered.
  */
 const ACCURACY_ORDER: ReadonlyArray<Tier> = [
-  'needsWork', 'developing', 'fluent', 'mastered', 'started', 'stale', 'untouched',
+  'stale', 'untouched', 'started', 'needsWork', 'developing', 'fluent', 'mastered',
 ];
+
+/**
+ * A stale row's own rating, for its badge under the Stale group.
+ *
+ * STALE IS WHERE IT IS FILED, NOT WHAT IT IS. A row goes stale by
+ * resting — Fluent or Mastered and untouched for a month — and under
+ * Accuracy it sits in the Stale group so the ones to restore are
+ * together. Its badge still says what it earned, from the same window
+ * with the idle days left out.
+ */
+function ratedTier(stats: RollingStats): Tier {
+  if (stats.tier !== 'stale') return stats.tier;
+  return computeTier({
+    windowCorrect: stats.correct,
+    windowTotal: stats.total,
+    daysSinceLastAttempt: null,
+  });
+}
 
 function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
   // THE CHIPS' SPELLING, so a row reads "1 → 2ø" where the card does.
@@ -486,7 +504,8 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
         <div key={g.key} data-testid="motion-group">
           <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{g.title}</h3>
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-            {g.rows.map(({ m, id, stats }) => {
+            {g.rows.map(({ m, id, stats: raw }) => {
+              const stats = groupBy === 'accuracy' ? { ...raw, tier: ratedTier(raw) } : raw;
               const label = motionName(m, rowSpelling);
               // WHAT THE BASS DOES, as the verdict says it — a pair is two
               // rows now, and "up a major 6th" is what tells them apart.

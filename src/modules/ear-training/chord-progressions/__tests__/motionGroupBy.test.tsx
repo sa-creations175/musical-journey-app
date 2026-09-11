@@ -100,14 +100,30 @@ describe('Group by', () => {
     const el = await panel(attempts);
     await choose(el, 'accuracy');
     const h = headings(el);
-    // In the ruled order; Not Started last, for the rows never answered.
-    expect(h.slice(0, 3)).toEqual(['Needs Work — 1 motions', 'Developing — 2 motions', 'Fluent — 1 motions']);
-    expect(h[h.length - 1]).toMatch(/^Not Started — \d+ motions$/);
+    // In the ruled order: Stale (none here), then the ladder from the
+    // bottom — Not Started, Started (none here), Needs Work, Developing,
+    // Fluent, Mastered.
+    expect(h[0]).toMatch(/^Not Started — \d+ motions$/);
+    expect(h.slice(1)).toEqual(['Needs Work — 1 motions', 'Developing — 2 motions', 'Fluent — 1 motions']);
     // Within Developing: 60% (1 → 5) before 70% (1 → 4).
-    const developing = [...el.querySelectorAll('[data-testid="motion-group"]')][1];
+    const developing = [...el.querySelectorAll('[data-testid="motion-group"]')][2];
     const labels = [...developing.querySelectorAll('[role="progressbar"]')].map(b => b.getAttribute('aria-label') ?? '');
     expect(labels[0]).toMatch(/^1 \S 5\b/);
     expect(labels[1]).toMatch(/^1 \S 4\b/);
+  });
+
+  it('files a stale row first, and its badge still says what it earned', async () => {
+    // Fluent (9 of 10) and untouched for forty days: stale.
+    const long = Array.from({ length: 10 }, (_, i) => ({
+      ...att('motion:2-5-asc', i < 9), timestamp: NOW - 40 * 24 * 60 * 60 * 1000,
+    }));
+    const el = await panel(long);
+    await choose(el, 'accuracy');
+    expect(headings(el)[0]).toBe('Stale — 1 motions');
+    const stale = [...el.querySelectorAll('[data-testid="motion-group"]')][0];
+    // The rating word, not "Stale".
+    expect(stale.textContent).toContain('Fluent');
+    expect(stale.textContent?.replace('Stale — 1 motions', '')).not.toContain('Stale');
   });
 
   it('is remembered', async () => {

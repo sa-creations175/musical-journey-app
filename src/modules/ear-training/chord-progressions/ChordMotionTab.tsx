@@ -178,9 +178,10 @@ function starterAssociation(m: Motion): string {
   // THE MOVE IN THE VERDICT'S WORDS, from the same formatter: "up a
   // major 2nd", never "a 2th up". A SAME-ROOT MOVE HAS NO MOVE to put
   // in front, so its line starts at "from".
-  // THE MOTION IN FRONT, WITH ITS ARROW, from the one formatter; the
-  // words after it are the line as ruled.
-  return `${motionName(m)} · ${m.direction === 'same' ? '' : `${moveWords(m.semitones)} `}from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`;
+  // THE MOTION AND ITS MOVE, and nothing that repeats them: "1 ↑ 5 · up a
+  // perfect 5th", "4 → 4m · same root". "From the 1 to the 5" said what
+  // the arrow already says. Silas's ruling of 10 Sep 2026.
+  return `${motionName(m)} · ${moveWords(m.semitones)} — sit inside this motion and see what feeling it leaves.`;
 }
 
 // --- Pref keys -------------------------------------------------------
