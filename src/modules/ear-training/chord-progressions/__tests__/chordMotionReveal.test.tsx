@@ -691,3 +691,40 @@ describe('Distance and Direction are many-choice rows', () => {
     await setPref('chordProgressionsMotionDirection', 'both');
   });
 });
+
+describe('the ladder gains Triads', () => {
+  it('offers Triads / Guide Tones / Seventh Chords / Full Voicing, opening on Seventh Chords', async () => {
+    const el = await deal();
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-4');
+    await click(el, 'motion-submit');
+    const rungs = [...el.querySelectorAll('[data-testid^="thickness-"]')];
+    expect(rungs.map(r => r.getAttribute('data-testid'))).toEqual([
+      'thickness-triads', 'thickness-guide', 'thickness-seventh', 'thickness-full',
+    ]);
+    expect(el.querySelector('[data-testid="thickness-seventh"]')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('at Triads names the triad, spells the diminished family °, and keeps the result line as answered', async () => {
+    const el = await deal('motion:1-#4dim7-asc');
+    await click(el, 'motion-start-1');
+    await click(el, 'motion-dest-#4');
+    await click(el, 'motion-submit');
+    const line = 'Starting chord right (1). It landed on the ♯4°7, not the ♯4ø.';
+    expect(resultOf(el).text).toBe(line);
+    await click(el, 'thickness-triads');
+    expect(token(el, 'verdict-dest').textContent).toBe('♯4°');
+    expect(token(el, 'verdict-dest-chord').textContent).toBe('F♯°');
+    expect(token(el, 'verdict-start-chord').textContent).toBe('C');
+    // The answer was given at Seventh Chords, so its line stands.
+    expect(resultOf(el).text).toBe(line);
+  });
+
+  it('voices a triad at Triads: three chord tones over the bass', () => {
+    const { chords } = motionChords(0, '1', '#4dim7', 'triads');
+    const pcs = new Set([...chords[1].hand, chords[1].bass!].map(m => m % 12));
+    expect(pcs).toEqual(new Set([6, 9, 0]));
+    expect(chords[1].name).toBe('F♯°');
+    expect(motionChords(0, '1', '#4dim7', 'triads', 'flat', 'asc', 'dim').chords[1].name).toBe('F♯dim');
+  });
+});

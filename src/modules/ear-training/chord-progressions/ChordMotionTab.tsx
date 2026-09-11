@@ -60,7 +60,7 @@ import {
   ALL_MOTIONS, INTERVAL_NAME, distanceLabel, motionId,
   type DegreeLabel, type Distance, type Motion,
 } from './chordMotionPool';
-import { bassMove, motionChords } from './motionChords';
+import { bassMove, motionChords, type MotionRung } from './motionChords';
 import {
   chipText, degreeChips, degreeOfPc, degreePc, motionName, sameChordAt,
 } from './motionDegrees';
@@ -77,7 +77,6 @@ import { heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
 import { FEEL_OPTIONS } from '../../../lib/fluencyScale';
 import { statusColour, STATUS_FOR_FEEL } from '../../../lib/spacing/statusColour';
 import type { KeyMark } from '../../../lib/builtAnswers/board';
-import type { ListRung } from './sharedList';
 
 const MODULE_ID = 'chord-progressions';
 
@@ -245,7 +244,7 @@ function randomKey(): string {
 
 /** The rung the reveal's ladder opens on. Seventh chords, like the
  *  Full Progression card — a motion is heard as two seventh chords. */
-const DEFAULT_RUNG: ListRung = 'seventh';
+const DEFAULT_RUNG: MotionRung = 'seventh';
 
 // --- Small pieces ----------------------------------------------------
 
@@ -347,6 +346,14 @@ interface Answered {
   /** Null when the start was given rather than answered. */
   yourStart: DegreeLabel | null;
   yourDest: DegreeLabel;
+  /**
+   * The rung the chips were drawn at when the answer was given.
+   *
+   * THE RESULT LINE STAYS WITH THE ANSWER. Moving the ladder to Triads
+   * afterwards collapses ♯4ø and ♯4°7 into one ♯4°, and a line re-spelled
+   * at the new rung would read "landed on the ♯4°, not the ♯4°".
+   */
+  rung: MotionRung;
 }
 
 /**
@@ -393,7 +400,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [round, setRound] = useState<Round | null>(null);
-  const [rung, setRung] = useState<ListRung>(DEFAULT_RUNG);
+  const [rung, setRung] = useState<MotionRung>(DEFAULT_RUNG);
   const [pickedStart, setPickedStart] = useState<DegreeLabel | null>(null);
   const [pickedDest, setPickedDest] = useState<DegreeLabel | null>(null);
   const [tappedStart, setTappedStart] = useState<number | null>(null);
@@ -485,7 +492,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     const keyPc = ((keyToRootMidi(key) % 12) + 12) % 12;
     const { chords, rootPcs } = motionChords(
       keyPc, motion.startLabel, motion.destLabel, DEFAULT_RUNG, spelling,
-      motion.direction,
+      motion.direction, rowSpelling.halfDimTriad,
     );
     const next: Round = {
       motion,
@@ -515,12 +522,12 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   };
 
   /** Re-voice at a new thickness. Silently — the panel's Hear it plays. */
-  const setThickness = (next: ListRung) => {
+  const setThickness = (next: MotionRung) => {
     setRung(next);
     if (round === null) return;
     const { chords, rootPcs } = motionChords(
       round.keyPc, round.motion.startLabel, round.motion.destLabel, next, spelling,
-      round.motion.direction,
+      round.motion.direction, rowSpelling.halfDimTriad,
     );
     setRound({ ...round, chords, rootPcs });
   };
@@ -567,7 +574,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
       aided,
     });
     setFeel(f);
-    setAnswered({ startOk, destOk, yourStart, yourDest });
+    setAnswered({ startOk, destOk, yourStart, yourDest, rung });
     setPhase('reveal');
     // NOTHING PLAYS ON THE REVEAL. The shared panel owns the transport
     // from here — its Hear it, its Pause, its Resume — and a second
@@ -718,11 +725,11 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     : motionResult({
       startOk: answered.startOk,
       destOk: answered.destOk,
-      start: chipText(round.motion.startLabel, rowSpelling, rung),
-      dest: chipText(round.motion.destLabel, rowSpelling, rung),
+      start: chipText(round.motion.startLabel, rowSpelling, answered.rung),
+      dest: chipText(round.motion.destLabel, rowSpelling, answered.rung),
       yourStart: answered.yourStart === null
-        ? null : chipText(answered.yourStart, rowSpelling, rung),
-      yourDest: chipText(answered.yourDest, rowSpelling, rung),
+        ? null : chipText(answered.yourStart, rowSpelling, answered.rung),
+      yourDest: chipText(answered.yourDest, rowSpelling, answered.rung),
     });
 
   return (
@@ -1001,8 +1008,11 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 ring={ring}
                 thickness={{
                   value: rung,
-                  onChange: r => { setThickness(r as ListRung); },
-                  rungs: ['guide', 'seventh', 'full'],
+                  onChange: r => { setThickness(r as MotionRung); },
+                  // THE SHARED LADDER, Triads first — the rung every other
+                  // surface with a Triads row offers. Seventh chords is
+                  // still where a card opens.
+                  rungs: ['triads', 'guide', 'seventh', 'full'],
                 }}
                 onStep={i => setLit(i < 0 ? null : i)}
               />

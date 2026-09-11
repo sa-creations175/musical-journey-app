@@ -34,8 +34,9 @@ import type { KeyMark } from '../../../lib/builtAnswers/board';
 import { handTones, type QualityId } from '../../../lib/builtAnswers/chordShapes';
 import type { PlayerChord } from '../../../lib/player/voices';
 import { spellNote, type Spelling } from '../../../lib/spelling';
+import { DEFAULT_PROGRESSION_SPELLING } from '../../../lib/progressionSpellingShape';
 import { degreeEntry, type DegreeLabel, type Direction } from './chordMotionPool';
-import type { ListRung } from './sharedList';
+import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 
 /**
  * The chord-shape id for a motion degree's quality.
@@ -54,8 +55,26 @@ const SHAPE_OF_QUALITY: Readonly<Record<string, QualityId>> = {
   diminished: 'dim7',
 };
 
-/** What a chord of this quality is called, in a key. */
-function chordName(rootPc: number, quality: string, spelling: Spelling): string {
+/** The rungs Chord Motion's ladder offers. */
+export type MotionRung = Extract<Thickness, 'triads' | 'guide' | 'seventh' | 'full'>;
+
+/**
+ * What a chord of this quality is called, in a key, at a rung.
+ *
+ * AT TRIADS IT IS THE TRIAD THAT SOUNDS, so it is the triad that is
+ * named: F, Fm, G (a dominant's triad is major), F♯° — or F♯dim, when
+ * the diminished setting says so. Every other rung is a seventh chord.
+ */
+function chordName(
+  rootPc: number, quality: string, spelling: Spelling, rung: MotionRung,
+  diminished: string,
+): string {
+  if (rung === 'triads') {
+    const triad = quality === 'minor' ? 'm'
+      : quality === 'half-dim' || quality === 'diminished' ? diminished
+        : '';
+    return `${spellNote(rootPc, spelling)}${triad}`;
+  }
   const suffix = quality === 'minor' ? 'm7'
     : quality === 'dominant' ? '7'
       : quality === 'half-dim' ? 'm7♭5'
@@ -119,9 +138,11 @@ export function motionChords(
   keyPc: number,
   from: DegreeLabel,
   to: DegreeLabel,
-  rung: ListRung,
+  rung: MotionRung,
   spelling: Spelling = 'flat',
   direction?: Direction,
+  /** The diminished setting's word for a triad — ° or dim. */
+  diminished: string = DEFAULT_PROGRESSION_SPELLING.halfDimTriad,
 ): MotionVoicing {
   const steps = [from, to].map(label => {
     const entry = degreeEntry(label);
@@ -200,7 +221,7 @@ export function motionChords(
       bass: line[i] ?? null,
       ...(roots === null ? {} : { oneHandRoot: roots[i] }),
       rootPc: step.rootPc,
-      name: chordName(step.rootPc, step.quality, step.letters),
+      name: chordName(step.rootPc, step.quality, step.letters, rung, diminished),
       rootLetter: spellNote(step.rootPc, step.letters),
     });
   });
