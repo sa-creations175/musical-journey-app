@@ -1,4 +1,5 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { getPref, setPref } from '../../../lib/userPrefs';
 import { type AttemptRecord } from '../../../lib/db';
 import { ROLLING_WINDOW_SIZE } from '../../../lib/adaptiveSelection';
 import ProgressBar from '../../../components/ProgressBar';
@@ -384,27 +385,78 @@ function KeyDetectionView({ attempts }: { attempts: AttemptRecord[] }) {
 
 // --- Chord Motion view ----------------------------------------------
 
+/** How the Chord Motion rows are grouped. */
+type MotionGroupBy = 'distance' | 'direction' | 'accuracy';
+const PREF_MOTION_GROUP_BY = 'chordProgressionsMotionGroupBy';
+const GROUP_BY_OPTIONS: ReadonlyArray<readonly [MotionGroupBy, string]> = [
+  ['distance', 'Distance'], ['direction', 'Direction'], ['accuracy', 'Accuracy'],
+];
+
+/**
+ * The rating groups, in the order the brief names them and then the two
+ * it does not: Stale and Not Started are ratings a row can have, and a
+ * row with no group would vanish from the panel.
+ */
+const ACCURACY_ORDER: ReadonlyArray<Tier> = [
+  'needsWork', 'developing', 'fluent', 'mastered', 'started', 'stale', 'untouched',
+];
+
 function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
   // THE CHIPS' SPELLING, so a row reads "1 → 2ø" where the card does.
   const [rowSpelling] = useProgressionSpelling();
-  // Group motions by distance (2nds, 3rds, …) and show each as a
-  // "startDeg → destDeg (dir)" row. Each attempt row reuses the same
-  // rolling-window tier logic as the full-progression rows.
+  // =====================================================================
+  // GROUP BY: DISTANCE, DIRECTION OR ACCURACY. Silas's ruling of 10 Sep
+  // 2026. The rows are the same rows whichever is chosen; only the
+  // headings they sit under move. Remembered like the card's own prefs.
+  // =====================================================================
+  const [groupBy, setGroupBy] = useState<MotionGroupBy>('distance');
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    // A STORE THAT WILL NOT ANSWER leaves the default, not an error:
+    // the panel still groups by Distance, and a choice still works.
+    void getPref<unknown>(PREF_MOTION_GROUP_BY, 'distance')
+      .then(v => { if (v === 'direction' || v === 'accuracy') setGroupBy(v); })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+  const choose = (next: MotionGroupBy) => {
+    setGroupBy(next);
+    if (loaded) void setPref(PREF_MOTION_GROUP_BY, next).catch(() => {});
+  };
+
+  const rows = useMemo(() => ALL_MOTIONS.map(m => ({
+    m, id: motionId(m), stats: rollingFor(attempts, motionId(m)),
+  })), [attempts]);
+
   const groups = useMemo(() => {
-    const byDistance = new Map<number, Array<typeof ALL_MOTIONS[number]>>();
-    for (const m of ALL_MOTIONS) {
-      const list = byDistance.get(m.distance) ?? [];
-      list.push(m);
-      byDistance.set(m.distance, list);
+    const titled = (title: string, list: typeof rows) => ({
+      key: title, title: `${title} — ${list.length} motions`, rows: list,
+    });
+    if (groupBy === 'direction') {
+      // UP AND DOWN ARE THE BASS'S; a same-root move goes neither way.
+      return ([['asc', 'Up'], ['desc', 'Down'], ['same', 'Same Root']] as const)
+        .map(([d, t]) => titled(t, rows.filter(r => r.m.direction === d)))
+        .filter(g => g.rows.length > 0);
+    }
+    if (groupBy === 'accuracy') {
+      // BY RATING WORD, LOW TO HIGH WITHIN EACH — the row most in need
+      // of work at the top of its group.
+      return ACCURACY_ORDER
+        .map(t => titled(TIER_LABEL[t], rows
+          .filter(r => r.stats.tier === t)
+          .sort((a, b) => a.stats.percent - b.stats.percent)))
+        .filter(g => g.rows.length > 0);
+    }
+    const byDistance = new Map<number, typeof rows>();
+    for (const r of rows) {
+      const list = byDistance.get(r.m.distance) ?? [];
+      list.push(r);
+      byDistance.set(r.m.distance, list);
     }
     return Array.from(byDistance.entries())
       .sort((a, b) => a[0] - b[0])
-      .map(([dist, motions]) => ({
-        key: String(dist),
-        title: `${distanceLabel(dist as Distance)} — ${motions.length} motions`,
-        motions,
-      }));
-  }, []);
+      .map(([dist, list]) => titled(distanceLabel(dist as Distance), list));
+  }, [rows, groupBy]);
 
   // NO BREAKDOWN BY SCAFFOLDING. There was one — Full / Partial /
   // Minimal — read from `motion-mode:*` rows, and scaffolding retired as
@@ -413,13 +465,28 @@ function ChordMotionView({ attempts }: { attempts: AttemptRecord[] }) {
   // only ever show a frozen split. The stored rows are untouched.
   return (
     <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-1.5" data-testid="motion-group-by">
+        <span className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 mr-1">Group by</span>
+        {GROUP_BY_OPTIONS.map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={groupBy === id}
+            data-testid={`motion-group-${id}`}
+            onClick={() => choose(id)}
+            className={`rounded-md border px-2.5 py-1 text-xs font-medium ${groupBy === id
+              ? 'border-neutral-900 bg-neutral-900 text-white'
+              : 'border-black/10 bg-black/[0.03] hover:bg-black/[0.06]'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {groups.map(g => (
-        <div key={g.key}>
+        <div key={g.key} data-testid="motion-group">
           <h3 className="text-xs uppercase tracking-wide text-neutral-500 mb-2">{g.title}</h3>
           <div className="divide-y divide-neutral-200 dark:divide-neutral-800">
-            {g.motions.map(m => {
-              const id = motionId(m);
-              const stats = rollingFor(attempts, id);
+            {g.rows.map(({ m, id, stats }) => {
               const label = motionName(m, rowSpelling);
               // WHAT THE BASS DOES, as the verdict says it — a pair is two
               // rows now, and "up a major 6th" is what tells them apart.
