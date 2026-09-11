@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../../../../lib/db';
 import { bandVerdictForRow } from '../../../../lib/spacing/row';
 import { songSurface } from '../makeSurfaces';
-import { setupHasSomethingToSet, type DrillRecord } from '../surfaces';
+import { isAtTarget, setupHasSomethingToSet, type DrillRecord } from '../surfaces';
 
 const CELL = 'cell-verse-Ab';
 const KEY = 'songkey-s1-Ab';
@@ -512,4 +512,21 @@ describe('a song has nothing to set up', () => {
     expect(s.rateOptions).toHaveLength(1);
     expect(setupHasSomethingToSet(s)).toBe(false);
   });
+});
+
+describe('the tempo allowance, where a run is judged', () => {
+  /**
+   * THE WRITTEN RULE: a test run counts from ten below the song's tempo.
+   * `isAtTarget` is what the panel reads to tag a run BELOW and leave it
+   * out of the streak, and it read the target alone — so on a 120 song
+   * a whole-song run at 115 was BELOW. 10 Sep 2026.
+   */
+  for (const entry of ['whole-song', 'section'] as const) {
+    it(`${entry}: target − 10 counts, target − 11 does not, target counts`, () => {
+      const s = surface(120, entry);
+      expect(isAtTarget(s, 110, 1)).toBe(true);
+      expect(isAtTarget(s, 109, 1)).toBe(false);
+      expect(isAtTarget(s, 120, 1)).toBe(true);
+    });
+  }
 });

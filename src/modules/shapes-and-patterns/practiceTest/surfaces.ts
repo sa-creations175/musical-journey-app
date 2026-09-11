@@ -219,6 +219,18 @@ export interface DrillSurface {
   rateLabel: string;
   /** The rate the target is expressed at. */
   targetRate: number;
+  /**
+   * The slowest rate that still counts toward a test, where that is
+   * not the target itself.
+   *
+   * A SONG'S IS TEN BELOW ITS TEMPO — the written rule, `testFloorBpm`
+   * — so a whole-song or section test run at 110 on a 120 song counts.
+   * Absent on the shapes surfaces, whose floor is the target exactly.
+   * `isAtTarget` reads it; before 10 Sep 2026 it read the target alone,
+   * and a song run inside the allowance was tagged BELOW and dropped
+   * from the streak.
+   */
+  floorRate?: number;
   rateOptions: ReadonlyArray<RateOption>;
   /**
    * The rate this surface runs at, from the click and the option.
@@ -471,7 +483,7 @@ export function rateFor(surface: DrillSurface, bpm: number, per: number): number
  * caller.
  */
 export function isAtTarget(surface: DrillSurface, bpm: number, per: number): boolean {
-  return meetsFloor(rateFor(surface, bpm, per), surface.targetRate);
+  return meetsFloor(rateFor(surface, bpm, per), surface.floorRate ?? surface.targetRate);
 }
 
 // ---------------------------------------------------------------------

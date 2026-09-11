@@ -10,6 +10,7 @@
  * dimensions.
  */
 
+import { testFloorBpm } from '../../repertoire/tempoGate';
 import { createElement } from 'react';
 import type { DrillHand, DrillSkill, DrillType } from '../../../lib/db';
 import CellPlayer from '../CellPlayer';
@@ -475,6 +476,9 @@ export function songSurface(args: {
     hasStyle: false,
     rateLabel: 'BPM',
     targetRate: args.songTempo ?? 0,
+    // THE ALLOWANCE, WHERE THE RUN IS JUDGED: ten below the tempo, the
+    // same number the metronome's floor and the cell roll-up use.
+    floorRate: testFloorBpm(args.songTempo) ?? 0,
     rateOptions: SONG_RATE_OPTIONS,
     // The rate IS the tempo. No arithmetic: a song is not some number
     // of anything per beat, it is played at a speed.
