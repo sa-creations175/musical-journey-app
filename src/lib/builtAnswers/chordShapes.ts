@@ -31,6 +31,7 @@
  * =====================================================================
  */
 
+import { HANDS_LABEL } from '../player/settings';
 import { EXTENDED_QUALITY_OF, extendedShape } from '../extendedVoicings';
 
 /**
@@ -287,10 +288,20 @@ export type Voicing = 'one' | 'both' | 'rootless';
 
 export interface VoicingOption { id: Voicing; label: string }
 
+/**
+ * Harmonic Fluency's answer-builder layout row.
+ *
+ * THE SHARED PLAYER'S TWO NAMES, PLUS ITS OWN THIRD. Silas's ruling of
+ * 10 Sep 2026: the row reads as the player's Hands row does — Rootless
+ * right hand, Root in the right hand — and then One hand, the one layout
+ * the player does not have (everything in the right hand, no bass).
+ * Labels and order only: the ids, and every stored value, are unchanged,
+ * and 'both' is still where a card opens.
+ */
 export const VOICINGS: ReadonlyArray<VoicingOption> = [
+  { id: 'rootless', label: HANDS_LABEL.rootless },
+  { id: 'both', label: HANDS_LABEL.root },
   { id: 'one', label: 'One hand' },
-  { id: 'both', label: 'Both hands' },
-  { id: 'rootless', label: 'Rootless, root in the bass' },
 ];
 
 /** Whether a layout puts the root in the bass rather than the hand. */

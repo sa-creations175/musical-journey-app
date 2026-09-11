@@ -56,6 +56,16 @@ export type Hands = 'rootless' | 'root';
  * the setting nearest to what it asked for: the root inside the chord.
  * `'both'` was the rootless right hand. Anything else is the default.
  */
+/**
+ * The Hands row's two names — one table, read by the shared player and
+ * by Harmonic Fluency's answer-builder layout row, so the two rows cannot
+ * come to call the same voicing two things.
+ */
+export const HANDS_LABEL: Readonly<Record<Hands, string>> = {
+  rootless: 'Rootless right hand',
+  root: 'Root in the right hand',
+};
+
 export function handsFrom(value: unknown): Hands {
   return value === 'root' || value === 'one' ? 'root' : 'rootless';
 }

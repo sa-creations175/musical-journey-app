@@ -62,7 +62,7 @@ import type { Move } from '../lib/builtAnswers/voiceLeading';
 import type { PlaybackHandle } from '../lib/musicalPlayback';
 import { panelBeats, playPanel } from '../lib/builtAnswers/play';
 import {
-  BPM_MAX, BPM_MIN, LADDER_RUNGS, LOOP_OPTIONS, clampBpm, readSettingsOpen,
+  BPM_MAX, BPM_MIN, HANDS_LABEL, LADDER_RUNGS, LOOP_OPTIONS, clampBpm, readSettingsOpen,
   writeSettingsOpen, type ChordAttack, type PlayerSettings,
 } from '../lib/player/settings';
 import {
@@ -551,10 +551,10 @@ export default function SharedPlayer({
                 {/* TWO RIGHT-HAND VOICINGS over the same bass — see
                     `Hands`. The left hand always plays the bass. */}
                 <Chip on={settings.hands === 'rootless'} testId="hands-rootless" onClick={() => set({ hands: 'rootless' })}>
-                  Rootless right hand
+                  {HANDS_LABEL.rootless}
                 </Chip>
                 <Chip on={settings.hands === 'root'} testId="hands-root" onClick={() => set({ hands: 'root' })}>
-                  Root in the right hand
+                  {HANDS_LABEL.root}
                 </Chip>
               </Row>
             )}
