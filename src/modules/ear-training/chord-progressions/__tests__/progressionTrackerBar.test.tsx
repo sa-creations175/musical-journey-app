@@ -188,8 +188,8 @@ describe('the Chord Motion view', () => {
     expect(t.text()).toMatch(/2nds — \d+ motions/);
     expect(t.text()).not.toMatch(/Scaffolding|scaffolding/);
     // THE ROWS ARE NAMED AS THE CHIPS SPELL THEM, never by their ids.
-    expect(t.text()).toContain('1 → 2ø');
-    expect(t.text()).toContain('♭2 → 3m');
+    expect(t.text()).toContain('1 ↑ 2ø');
+    expect(t.text()).toContain('♭2 ↑ 3m');
     expect(t.text()).not.toMatch(/b\d|m7b5/);
     // Same-root moves are a group of their own, named as the chip is.
     expect(t.text()).toContain('Same Root — 3 motions');

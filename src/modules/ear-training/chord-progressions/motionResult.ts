@@ -12,7 +12,7 @@
  *   both right          "Right."
  *   start right only    "Starting chord right (1). It landed on the 4, not the 5."
  *   landing right only  "Landing right (4). It started on the 1, not the 3m."
- *   neither             "Not quite. 1 → 4."
+ *   neither             "Not quite. 1 ↑ 4." (the arrow is the bass's — `motionArrow`)
  *
  * The words are Silas's, from `reveal(right, half, d)` in the walked
  * prototype. Every degree is written as its CHIP says it — "the 3m",
@@ -34,12 +34,14 @@ export function motionResult(answer: {
   /** The chip text of the chord the move started on, and landed on. */
   start: string;
   dest: string;
+  /** The arrow the move is written with: ↑, ↓ or → (`motionArrow`). */
+  arrow: string;
   /** What the reader answered, as chip text. Null for a start that was
    *  given rather than answered — which is always right. */
   yourStart: string | null;
   yourDest: string;
 }): MotionResult {
-  const { startOk, destOk, start, dest, yourStart, yourDest } = answer;
+  const { startOk, destOk, start, dest, yourStart, yourDest, arrow } = answer;
   if (startOk && destOk) return { tone: 'right', text: 'Right.' };
   if (startOk) {
     return {
@@ -53,5 +55,5 @@ export function motionResult(answer: {
       text: `Landing right (${dest}). It started on the ${start}, not the ${yourStart ?? start}.`,
     };
   }
-  return { tone: 'wrong', text: `Not quite. ${start} → ${dest}.` };
+  return { tone: 'wrong', text: `Not quite. ${start} ${arrow} ${dest}.` };
 }

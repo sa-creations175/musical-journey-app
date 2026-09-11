@@ -22,18 +22,19 @@ describe('motionName', () => {
       expect(name, id).not.toMatch(/b\d/);
       expect(name, id).not.toContain('m7b5');
       expect(name, id).not.toMatch(/#|\(|Up|Down|Ascending|Descending/);
-      expect(name, id).toMatch(/^\S+ → \S+$/);
+      expect(name, id).toMatch(/^\S+ [↑↓→] \S+$/);
     }
   });
 
   it('writes the ruled examples', () => {
     const name = (id: string) => motionName(parseMotionId(id)!);
-    expect(name('motion:1-2m7b5-asc')).toBe('1 → 2ø');
-    expect(name('motion:b2-3-asc')).toBe('♭2 → 3m');
-    expect(name('motion:4m-b7-asc')).toBe('4m → ♭7');
+    expect(name('motion:1-2m7b5-asc')).toBe('1 ↑ 2ø');
+    expect(name('motion:b2-3-asc')).toBe('♭2 ↑ 3m');
+    expect(name('motion:4m-b7-asc')).toBe('4m ↑ ♭7');
+    expect(name('motion:4-4m-same')).toBe('4 → 4m');
     // At the card's seventh-chord rung the 7 is half-diminished: 7ø.
-    expect(name('motion:1-7-asc')).toBe('1 → 7ø');
-    expect(name('motion:1-#4dim7-asc')).toBe('1 → ♯4°7');
+    expect(name('motion:1-7-asc')).toBe('1 ↑ 7ø');
+    expect(name('motion:1-#4dim7-asc')).toBe('1 ↑ ♯4°7');
   });
 
   it('is what the dashboard rows say', () => {
@@ -43,8 +44,8 @@ describe('motionName', () => {
     // Guard: the rows are there to read.
     expect(labels.length).toBe(ALL_MOTIONS.length);
     // A pair is two rows, told apart by the move.
-    expect(labels).toContain('1 → 2ø · up a major 2nd');
-    expect(labels).toContain('1 → 2ø · down a minor 7th');
+    expect(labels).toContain('1 ↑ 2ø · up a major 2nd');
+    expect(labels).toContain('1 ↓ 2ø · down a minor 7th');
     expect(new Set(labels).size).toBe(labels.length);
     for (const l of labels) {
       expect(l).not.toMatch(/b\d/);
@@ -101,5 +102,20 @@ describe('the formatter’s imports', () => {
     expect([...seen].some(f => f.endsWith('progressionSpellingShape.ts'))).toBe(true);
     expect(external.has('react')).toBe(false);
     expect(external.has('dexie-react-hooks')).toBe(false);
+  });
+});
+
+describe('the arrow is the bass’s direction, on every card', () => {
+  it('↑ when the bass goes up, ↓ when it goes down, → on a same root — and never ↗ ↘', () => {
+    const seen = new Set<string>();
+    for (const m of ALL_MOTIONS) {
+      const name = motionName(m);
+      const arrow = m.semitones > 0 ? '↑' : m.semitones < 0 ? '↓' : '→';
+      expect(name, motionId(m)).toContain(` ${arrow} `);
+      expect(name).not.toMatch(/[↗↘]/);
+      seen.add(arrow);
+    }
+    // Guard: all three occur.
+    expect(seen).toEqual(new Set(['↑', '↓', '→']));
   });
 });

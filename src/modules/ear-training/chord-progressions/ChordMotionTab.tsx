@@ -62,7 +62,7 @@ import {
 } from './chordMotionPool';
 import { bassMove, motionChords, type MotionRung } from './motionChords';
 import {
-  chipText, degreeChips, degreeOfPc, degreePc, motionName, sameChordAt,
+  chipText, degreeChips, degreeOfPc, degreePc, motionArrow, motionName, sameChordAt,
 } from './motionDegrees';
 import { motionResult, type MotionResultTone } from './motionResult';
 import { spellKey } from '../../../lib/spelling';
@@ -162,7 +162,9 @@ function starterAssociation(m: Motion): string {
   // THE MOVE IN THE VERDICT'S WORDS, from the same formatter: "up a
   // major 2nd", never "a 2th up". A SAME-ROOT MOVE HAS NO MOVE to put
   // in front, so its line starts at "from".
-  return `${m.direction === 'same' ? '' : `${moveWords(m.semitones)} `}from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`;
+  // THE MOTION IN FRONT, WITH ITS ARROW, from the one formatter; the
+  // words after it are the line as ruled.
+  return `${motionName(m)} · ${m.direction === 'same' ? '' : `${moveWords(m.semitones)} `}from the ${chipText(m.startLabel)} to the ${chipText(m.destLabel)} — sit inside this motion and see what feeling it leaves.`;
 }
 
 // --- Pref keys -------------------------------------------------------
@@ -693,6 +695,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   const result = round === null || answered === null
     ? null
     : motionResult({
+      arrow: motionArrow(round.motion),
       startOk: answered.startOk,
       destOk: answered.destOk,
       start: chipText(round.motion.startLabel, rowSpelling, answered.rung),
@@ -940,7 +943,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                   <InKeyToken pc={round.startPc} keyPc={round.keyPc} testId="verdict-start">
                     {chipText(round.motion.startLabel, rowSpelling, rung)}
                   </InKeyToken>
-                  {' → '}
+                  {` ${motionArrow(round.motion)} `}
                   <InKeyToken pc={round.destPc} keyPc={round.keyPc} testId="verdict-dest">
                     {chipText(round.motion.destLabel, rowSpelling, rung)}
                   </InKeyToken>
@@ -956,7 +959,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                   <InKeyToken pc={round.startPc} keyPc={round.keyPc} testId="verdict-start-chord">
                     {round.chords[0].name}
                   </InKeyToken>
-                  {' → '}
+                  {` ${motionArrow(round.motion)} `}
                   <InKeyToken pc={round.destPc} keyPc={round.keyPc} testId="verdict-dest-chord">
                     {round.chords[1].name}
                   </InKeyToken>

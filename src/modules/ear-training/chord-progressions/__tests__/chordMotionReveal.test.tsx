@@ -120,7 +120,7 @@ afterEach(async () => {
 });
 
 describe('the result line, on its own', () => {
-  const base = { start: '1', dest: '4' };
+  const base = { start: '1', dest: '4', arrow: '↑' };
 
   it('says Right. when both halves are', () => {
     expect(motionResult({ ...base, startOk: true, destOk: true, yourStart: '1', yourDest: '4' }))
@@ -145,7 +145,7 @@ describe('the result line, on its own', () => {
 
   it('gives the whole move when neither was', () => {
     expect(motionResult({ ...base, startOk: false, destOk: false, yourStart: '2m', yourDest: '5' }))
-      .toEqual({ tone: 'wrong', text: 'Not quite. 1 → 4.' });
+      .toEqual({ tone: 'wrong', text: 'Not quite. 1 ↑ 4.' });
   });
 });
 
@@ -191,7 +191,7 @@ describe('the result line, on the card', () => {
     await click(el, 'motion-start-2');
     await click(el, 'motion-dest-5');
     await click(el, 'motion-submit');
-    expect(resultOf(el)).toEqual({ tone: 'wrong', text: 'Not quite. 1 → 4.' });
+    expect(resultOf(el)).toEqual({ tone: 'wrong', text: 'Not quite. 1 ↑ 4.' });
     expect(el.querySelector('[data-testid="motion-feel"]')?.textContent)
       .toBe('Struggled');
     expect(resultColour(el)).toBe('needswork');
@@ -276,7 +276,7 @@ describe('the verdict line wears the in-the-key colours', () => {
     expect(coloured.map(b => b.tagName)).toEqual(['B', 'B', 'B', 'B']);
     expect(coloured.map(b => b.textContent)).toEqual(['1', '4', 'Cmaj7', 'Fmaj7']);
     // The arrows, the distance and the dots are in none of them.
-    for (const b of coloured) expect(b.textContent).not.toMatch(/→|·|up|down|perfect/);
+    for (const b of coloured) expect(b.textContent).not.toMatch(/[→↑↓]|·|up|down|perfect/);
     // The bass climbs C to F: the interval with its quality.
     expect(verdict.textContent).toContain('up a perfect 4th');
   });
@@ -407,7 +407,8 @@ describe('the verdict names what the bass did', () => {
     await click(el, 'motion-submit');
     const verdict = token(el, 'motion-verdict').textContent ?? '';
     expect(token(el, 'verdict-bass-move').textContent).toBe('down a minor 3rd');
-    expect(verdict).toContain('1 → 6m · down a minor 3rd · Cmaj7 → Am7');
+    // THE ARROW IS THE BASS'S: down, so ↓ — on the degrees and the chords.
+    expect(verdict).toContain('1 ↓ 6m · down a minor 3rd · Cmaj7 ↓ Am7');
     expect(verdict).not.toContain('up a 6th');
   });
 });
@@ -423,9 +424,9 @@ describe('the Focus panel names motions as the chips do', () => {
     const text = document.body.textContent ?? '';
     // Guard: the panel is open and listing motions.
     expect(text).toContain('Up');
-    expect(text).toContain('1 → 2ø');
-    expect(text).toContain('♭2 → 3m');
-    expect(text).not.toMatch(/→ \S*m7b5|b\d →|→ b\d/);
+    expect(text).toContain('1 ↑ 2ø');
+    expect(text).toContain('♭2 ↑ 3m');
+    expect(text).not.toMatch(/[→↑↓] \S*m7b5|b\d [→↑↓]|[→↑↓] b\d/);
   });
 });
 
@@ -753,5 +754,18 @@ describe('the hand-written starter hints are gone', () => {
     const saved = [...el.querySelectorAll('textarea')].map(t => (t as HTMLTextAreaElement).value);
     expect(saved).toContain('my own words');
     await db.progressionAssociations.delete('motion:5-1-asc');
+  });
+});
+
+describe('the arrow on the card', () => {
+  it('writes 1 ↑ 5 on the verdict, the starter line and a wrong answer’s line when the bass went up', async () => {
+    const el = await deal('motion:1-5-asc');
+    await click(el, 'motion-start-2');
+    await click(el, 'motion-dest-3');
+    await click(el, 'motion-submit');
+    expect(resultOf(el).text).toBe('Not quite. 1 ↑ 5.');
+    expect(token(el, 'motion-verdict').textContent).toContain('1 ↑ 5 · up a perfect 5th · Cmaj7 ↑ G7');
+    expect(el.textContent).toContain('1 ↑ 5 · up a perfect 5th from the 1 to the 5');
+    expect(el.textContent).not.toMatch(/[↗↘]/);
   });
 });

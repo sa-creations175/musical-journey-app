@@ -45,7 +45,7 @@ import { containsSlashChords } from '../../ear-training/chord-progressions/progr
 // THE POOL, NOT THE SCREEN. This used to import the drill component,
 // which is the thing this file's own comments say the read layer must
 // not do; the pool moved into a module of its own on 9 Sep 2026.
-import { ALL_MOTIONS, type DegreeLabel } from '../../ear-training/chord-progressions/chordMotionPool';
+import { ALL_MOTIONS, type DegreeLabel, type Direction } from '../../ear-training/chord-progressions/chordMotionPool';
 // The motion's NAME, the way its chips spell it. Pure — see its note.
 import { motionName } from '../../ear-training/chord-progressions/motionDegrees';
 import { moveWords } from '../../ear-training/chord-progressions/intervalQuality';
@@ -360,7 +360,7 @@ export const chordProgressionsCatalog: ModuleCatalog = {
 };
 
 /**
- * `♭2 → 3m`, as the chips spell it.
+ * `♭2 ↑ 3m · up a major 2nd`, as the chips spell it and the bass moves.
  *
  * IT WAS THE STORED ID, `b2 → 3 (Ascending)` — and for a borrowed chord
  * `1 → 2m7b5 (Ascending)`. The id is a key; `motionName` is the one
@@ -368,7 +368,7 @@ export const chordProgressionsCatalog: ModuleCatalog = {
  * default spelling, since the read layer holds no settings.
  */
 function motionLabel(
-  m: { startLabel: DegreeLabel; destLabel: DegreeLabel; semitones: number },
+  m: { startLabel: DegreeLabel; destLabel: DegreeLabel; semitones: number; direction: Direction },
 ): string {
   // EVERY PAIR IS TWO ROWS since 10 Sep 2026, so the name alone would
   // appear twice: the move says which — "1 → 6m · up a major 6th".

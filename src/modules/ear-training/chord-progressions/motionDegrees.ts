@@ -152,8 +152,25 @@ export function chipText(
 }
 
 /**
- * A motion by name, the way its chips spell it: "1 → 2ø", "♭2 → 3m",
- * "4m → ♭7".
+ * The arrow between a motion's two chords: the bass's direction.
+ *
+ * =====================================================================
+ * ↑ WHEN THE BASS WENT UP, ↓ WHEN IT WENT DOWN, → ON A SAME ROOT.
+ * Silas's ruling of 10 Sep 2026. Every pair is two cards now, and
+ * "1 → 6m" could be either of them; "1 ↑ 6m" and "1 ↓ 6m" cannot. The
+ * same straight arrows the Bass level row and the octave buttons use,
+ * never ↗ ↘. Written here and nowhere else, so the verdict, the result
+ * line, the Focus panel, the stats panel, the dashboard and the starter
+ * line all draw the same one.
+ * =====================================================================
+ */
+export function motionArrow(m: Pick<Motion, 'direction'>): '↑' | '↓' | '→' {
+  return m.direction === 'asc' ? '↑' : m.direction === 'desc' ? '↓' : '→';
+}
+
+/**
+ * A motion by name, the way its chips spell it and the bass moves it:
+ * "1 ↑ 2ø", "♭2 ↓ 3m", "4 → 4m".
  *
  * =====================================================================
  * THE ONE FORMATTER. Three places named a motion — the Focus panel, the
@@ -173,11 +190,11 @@ export function chipText(
  * =====================================================================
  */
 export function motionName(
-  m: Pick<Motion, 'startLabel' | 'destLabel'>,
+  m: Pick<Motion, 'startLabel' | 'destLabel' | 'direction'>,
   settings?: ProgressionSpelling,
   rung: Thickness = CARD_RUNG,
 ): string {
-  return `${chipText(m.startLabel, settings, rung)} → ${chipText(m.destLabel, settings, rung)}`;
+  return `${chipText(m.startLabel, settings, rung)} ${motionArrow(m)} ${chipText(m.destLabel, settings, rung)}`;
 }
 
 /** A degree's pitch class in a key. */
