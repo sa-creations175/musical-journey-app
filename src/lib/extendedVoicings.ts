@@ -2,6 +2,18 @@
  * Silas's extended voicings, as data. One table, read by everything.
  *
  * =====================================================================
+ * ONE ROW IS A RULE, NOT A TRANSCRIPTION: THE DIM7.
+ *
+ * Every other row below is transcribed from his notes. The dim7 is not
+ * in them; it is here by his ruling of 10 Sep 2026
+ * (`~/cc-scratch/NEXT_TAB1_TIDY.md`, item 8): "It's F♯ A C E♭. You
+ * can't add anything to it." So at Full Voicing a dim7's right hand is
+ * some combination of the chord's own four notes — any of them doubled,
+ * or none — over the root in the bass, and never a 9th or any other
+ * extension. The shape given is the four notes stacked from the ♭3 with
+ * the root doubled on top, the prototype's own full dim7.
+ * =====================================================================
+ * =====================================================================
  * THE NOTES ARE THE SOURCE OF TRUTH, AND THIS FILE IS THEM.
  *
  * `~/cc-scratch/SILAS_NOTES_VOICINGS_AND_MODAL_INTERCHANGE.md`, recorded
@@ -63,7 +75,9 @@ export type ExtendedQuality =
   | 'm7b5-11'
   | 'dom7#5'
   | 'dom7b9#9b13'
-  | 'm6-9';
+  | 'm6-9'
+  // A RULE, NOT A TRANSCRIPTION — see the header.
+  | 'dim7';
 
 /** One hand-shape: what the left holds and what the right plays. */
 export interface ExtendedShape {
@@ -153,6 +167,14 @@ Readonly<Record<ExtendedQuality, ExtendedVoicing>> = {
   // "I wonder if a circle of 4ths exercise could be good. maybe?" — so
   // it is here for the player to voice where a chord asks for it, and
   // no row on Shapes & Patterns drills it.
+  // The dim7: its four notes and nothing else (Silas, 10 Sep 2026 —
+  // see the header). F♯ + [A, C, E♭, F♯]. ONE POSITION, like the two
+  // single-run rows above: the rule allows any combination of the four
+  // notes, and this is the one the prototype plays.
+  dim7: {
+    A: { left: [0], leftDegrees: ['1'],
+      right: [3, 6, 9, 12], rightDegrees: ['b3', 'b5', 'bb7', '1'] },
+  },
   'm6-9': {
     A: { left: [0], leftDegrees: ['1'],
       right: [3, 7, 9, 14], rightDegrees: ['b3', '5', '6', '9'] },
@@ -177,6 +199,7 @@ export const EXTENDED_QUALITY_OF: Readonly<Record<string, ExtendedQuality>> = {
   '7#5': 'dom7#5',
   '7b9#9b13': 'dom7b9#9b13',
   m7b5: 'm7b5-11',
+  dim7: 'dim7',
   'm6/9': 'm6-9',
 };
 

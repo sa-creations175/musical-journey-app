@@ -273,9 +273,10 @@ describe('one table, and the players read it', () => {
     expect(EXTENDED_QUALITY_OF.maj7).toBe('maj9');
     expect(EXTENDED_QUALITY_OF['7']).toBe('dom9-13');
     expect(EXTENDED_QUALITY_OF.m7b5).toBe('m7b5-11');
-    // A quality with no extended voicing in the notes has no entry, and
-    // its callers keep their own rule.
-    expect(EXTENDED_QUALITY_OF.dim7).toBeUndefined();
+    // A quality with no extended voicing has no entry, and its callers
+    // keep their own rule. The dim7 has one since 10 Sep 2026 — a rule
+    // rather than a transcription (see the table's header).
+    expect(EXTENDED_QUALITY_OF.dim7).toBe('dim7');
     expect(EXTENDED_QUALITY_OF['7b9']).toBeUndefined();
   });
 });
