@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { db, type HarmonicDiaryEntry } from '../../lib/db';
 import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import Modal from '../../components/Modal';
+import ChordNamingInfo from './ChordNamingInfo';
 import DiaryEntryCard from './DiaryEntryCard';
 import DiaryEntryEditor from './DiaryEntryEditor';
 import { loadAllDiaryEntries, migrateLegacyAssociationsIfNeeded, seedStartersIfNeeded } from './data';
@@ -169,6 +170,7 @@ export default function HarmonicDiary() {
             Harmonic Diary
           </h1>
           <div className="flex items-center gap-2">
+            <ChordNamingInfo />
             <ViewToggle mode={mode} onChange={setMode} />
             <button
               onClick={() => setPicking(true)}
