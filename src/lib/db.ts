@@ -3,6 +3,7 @@ import Dexie, { type Table } from 'dexie';
 import type { Feel } from './fluencyScale';
 import type { PracticeActivity } from './practiceActivities';
 import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
+import { foldRetiredChordCards } from './migrations/retire913';
 
 export interface IntervalData {
   id: string;
@@ -4779,6 +4780,43 @@ export class AppDB extends Dexie {
         `[shapes] voice-leading patterns: ${stored.length - kept.length} `
         + 'empty custom row(s) deleted (ruling 32); '
         + `${kept.length} rename override(s) kept.`,
+      );
+    });
+
+    /**
+     * Nothing answered is lost: the three retired chord cards fold into
+     * the three they duplicated (Silas, 11 Sep 2026).
+     *
+     * =================================================================
+     * THE CARDS WENT IN THE COMMIT BEFORE THIS ONE. `maj9_13`,
+     * `dom9_13` and `min9_11` left `CHORD_SEEDS` because each sounded
+     * as a chord the ladder already held. The seeder only ever adds and
+     * updates, so their `chordQualities` rows would otherwise SURVIVE
+     * the cut and keep being quizzed — as questions whose tier the
+     * table no longer has, which `getTierForItem` throws on. Deleting
+     * those rows is part of the fold, not housekeeping after it.
+     *
+     * `chordQualities` is deliberately outside the sync config (Phase A
+     * omits counter tables, see sync/tables.ts), so that delete is
+     * local and cannot race a pull.
+     *
+     * NO SCHEMA CHANGE — `stores({})` repeats v42's shape because Dexie
+     * needs a version to hang an upgrade on, not because an index moved.
+     *
+     * The rules live in `migrations/retire913.ts` and are called from
+     * here AND from their test, so the fold that ships is the fold that
+     * is tested. See that file's header for why it is not inline.
+     * =================================================================
+     */
+    this.version(43).stores({}).upgrade(async tx => {
+      const n = await foldRetiredChordCards(tx);
+      console.info(
+        `[ear-training] retired 9(13) cards folded: ${n.attempts} attempt(s), `
+        + `${n.spacingMoved} spacing row(s) moved and ${n.spacingMerged} merged, `
+        + `${n.diaryMoved} diary entr(ies) moved and ${n.diaryMerged} merged, `
+        + `${n.annotations} annotation(s), ${n.curations} curation(s), `
+        + `${n.chordRows} catalog row(s) deleted, ${n.goals} goal(s), `
+        + `${n.blocks} practice block(s), ${n.focusKeys} focus selection(s).`,
       );
     });
   }
