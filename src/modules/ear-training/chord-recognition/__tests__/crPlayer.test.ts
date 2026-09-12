@@ -12,6 +12,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { crChords, crQuizChord } from '../crPlayer';
+import { CHORD_SEEDS } from '../seed';
 import { DEFAULT_PLAYER_SETTINGS } from '../../../../lib/player/settings';
 import type { ChordData } from '../../../../lib/db';
 
@@ -106,5 +107,70 @@ describe('the panel is handed one chord and no bass line', () => {
     expect(chord.hand).toEqual([64, 67, 71, 72]);
     expect(chord.rootPc).toBe(0);
     expect(chord.name).toBe('Cmaj7 · 1st inversion');
+  });
+});
+
+// ── The two 13 chords, in Silas's own hand ───────────────────────────
+
+/** The chord as the catalog stores it, so these follow the catalog
+ *  rather than a copy of it written out here. */
+const seedFor = (id: string) => {
+  const seed = CHORD_SEEDS.find(c => c.id === id)!;
+  return { ...seed, correct: 0, total: 0 } as ChordData;
+};
+const MAJ13 = seedFor('maj13');
+const DOM13 = seedFor('dom13');
+
+describe('the two 13 chords sound the way Silas plays them', () => {
+  /**
+   * THE 5TH IS LEFT OUT, AND THE CARD STILL NAMES THE WHOLE CHORD.
+   * Ruled 11 Sep 2026, when the 9(13) cards were retired: the 9(13) is
+   * not a second chord, it is how these two are played.
+   */
+  it('plays the shape rather than the stack, and never the 5th', () => {
+    // C + [E, A, B, D] on the major; C + [E, A, B♭, D] on the dominant.
+    expect(crQuizChord(MAJ13, ROOT, 0, S)).toEqual([60, 64, 69, 71, 74]);
+    expect(crQuizChord(DOM13, ROOT, 0, S)).toEqual([60, 64, 69, 70, 74]);
+    for (const chord of [MAJ13, DOM13]) {
+      expect(crQuizChord(chord, ROOT, 0, S).map(n => n - ROOT), chord.id)
+        .not.toContain(7);
+      // And the stack it was rejected in favour of DOES have one, so
+      // this cannot pass by the seed quietly losing its 5th.
+      expect(chord.intervals, chord.id).toContain(7);
+    }
+  });
+
+  it('sounds only notes the chord itself has', () => {
+    // A shape may leave a note out. It may never add one — which is
+    // what fails the day a shape is pointed at the wrong chord.
+    for (const chord of [MAJ13, DOM13]) {
+      const own = new Set(chord.intervals.map(iv => iv % 12));
+      for (const note of crQuizChord(chord, ROOT, 0, S)) {
+        expect([...own], `${chord.id} ${note}`).toContain((note - ROOT) % 12);
+      }
+    }
+  });
+
+  it('leaves the thin rungs on the chord’s own degrees', () => {
+    // "Just the 1 3 5" is a question about the CHORD, and a hand with
+    // no 5th in it cannot answer it. So the ladder still reads the
+    // stack, and the shape sounds only at the rung that keeps
+    // everything.
+    expect(crQuizChord(MAJ13, ROOT, 0, S, 'triads')).toEqual([60, 64, 67]);
+    expect(crQuizChord(MAJ13, ROOT, 0, S, 'guide')).toEqual([64, 71]);
+    expect(crQuizChord(DOM13, ROOT, 0, S, 'guide')).toEqual([64, 70]);
+  });
+
+  it('leaves every other chord on its stored stack', () => {
+    // The routing is two chords wide, not "anything with a shape".
+    expect(crQuizChord(seedFor('maj9'), ROOT, 0, S)).toEqual([60, 64, 67, 71, 74]);
+    expect(crQuizChord(MAJ7, ROOT, 0, S)).toEqual([60, 64, 67, 71]);
+  });
+
+  it('still takes Bass only and the lift', () => {
+    expect(crQuizChord(MAJ13, ROOT, 0, { ...S, listen: 'bass' })).toEqual([60]);
+    // The lift moves the whole shape or none of it. From C3 it fits.
+    expect(crQuizChord(MAJ13, 48, 0, { ...S, octaveUp: true }))
+      .toEqual([60, 64, 69, 71, 74]);
   });
 });

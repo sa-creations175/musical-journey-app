@@ -53,8 +53,11 @@ describe('chord-recognition entries play their own chord', () => {
   it('every item sounds the seed’s notes — or, where Silas’s shape voices it, the shape’s', async () => {
     const SHAPED: Record<string, number[] | 'exact'> = {
       dim7: 'exact', 'dom7#9#5': 'exact', maj9: 'exact', min9: 'exact', min6_9: 'exact',
-      // His dom9(13): 1 3 ♭7 9 13, the 5th left out as the chord is played.
-      dom9_13: [0, 4, 10, 14, 21],
+      // The two 13 chords are played with the 5th left out (11 Sep
+      // 2026), so what sounds is his hand rather than the seed's stack:
+      // 1 3 13 ♭7 9 on the dominant, 1 3 13 7 9 on the major.
+      dom13: [0, 4, 9, 10, 14],
+      maj13: [0, 4, 9, 11, 14],
     };
     for (const seed of CHORD_SEEDS) {
       const notes = await playCR(seed.id);
@@ -80,8 +83,10 @@ describe('chord-recognition entries play their own chord', () => {
         expect(byItem.get(a.id), `${a.id} vs ${b.id}`).not.toBe(byItem.get(b.id));
       }
     }
-    // Guard: the three Silas named are three different sounds.
-    const named = ['maj9_13', 'dom7sus4', 'dom9_13'].map(id => byItem.get(id));
+    // Guard: the three Silas named are three different sounds. Two of
+    // those cards were retired on 11 Sep 2026, so this is the chord
+    // each of them folded into.
+    const named = ['maj13', 'dom7sus4', 'dom13'].map(id => byItem.get(id));
     expect(new Set(named).size).toBe(3);
     expect(pcs((byItem.get('dom7sus4') ?? '').split(',').map(Number)))
       .not.toEqual(pcs(QUALITY_INTERVALS.maj));
@@ -112,14 +117,14 @@ describe('shapes-and-patterns chord-shape entries read the id, not the name', ()
 
 describe('every diary chord through the shared player, in one register', () => {
   it('a shaped and a stacked entry on the same root share their bass note', async () => {
-    // maj9 is voiced by Silas's shape, maj13 by the seed's stack.
+    // maj9 is voiced by Silas's shape, min11 by the seed's stack.
     const shaped = await playCR('maj9');
-    const stacked = await playCR('maj13');
+    const stacked = await playCR('min11');
     expect(shaped[0]).toBe(stacked[0]);
     // And the bass is the root: C.
     expect(shaped[0] % 12).toBe(0);
     // Every stacked entry takes that same bass, whatever its thickness.
-    for (const id of ['maj', 'dom7sus4', 'add2', 'dom13', 'min9_11']) {
+    for (const id of ['maj', 'dom7sus4', 'add2', 'min11', 'dom7b9']) {
       expect((await playCR(id))[0], id).toBe(shaped[0]);
     }
   });

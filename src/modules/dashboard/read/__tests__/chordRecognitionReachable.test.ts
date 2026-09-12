@@ -45,23 +45,23 @@ describe('the denominator is the reachable count', () => {
     expect(chordRecognitionCatalog.items.length).toBe(reachable);
   });
 
-  it('is 51, and 63 fewer than enumerating every size-valid inversion', () => {
+  it('is 48, and 54 fewer than enumerating every size-valid inversion', () => {
     // The arithmetic stated once, so a reader can check the claim — but
     // the assertion above is the one that follows the rule.
     const everySizeValid = CHORD_SEEDS
       .reduce((n, c) => n + inversionsForIntervalCount(c.intervals.length).length, 0);
-    expect(everySizeValid).toBe(114);
-    expect(chordRecognitionCatalog.items.length).toBe(51);
-    expect(everySizeValid - chordRecognitionCatalog.items.length).toBe(63);
+    expect(everySizeValid).toBe(102);
+    expect(chordRecognitionCatalog.items.length).toBe(48);
+    expect(everySizeValid - chordRecognitionCatalog.items.length).toBe(54);
   });
 
-  it('splits 12 / 21 / 6 / 12 across the tiers', () => {
+  it('splits 12 / 21 / 5 / 10 across the tiers', () => {
     const byTier = new Map<string, number>();
     for (const c of CHORD_SEEDS) {
       byTier.set(c.tier, (byTier.get(c.tier) ?? 0) + reachableInversions(c).length);
     }
     expect(Object.fromEntries(byTier)).toEqual({
-      foundational: 12, seventh: 21, dominant: 6, extensions: 12,
+      foundational: 12, seventh: 21, dominant: 5, extensions: 10,
     });
   });
 });
@@ -105,7 +105,7 @@ describe('the denominator does not move when a setting does', () => {
   it('is unchanged by the inversion PREFERENCE', () => {
     // THE DISTINCTION THIS TEST EXISTS TO STOP ERODING. The drill's
     // full gate includes `positions.length >= 2`, which reads a live
-    // preference. A denominator built on that would fall from 51 to 30
+    // preference. A denominator built on that would fall from 48 to 27
     // the moment someone narrowed the drawer to one position, and the
     // dashboard would report progress nobody made.
     const before = chordRecognitionCatalog.items.length;
@@ -127,8 +127,8 @@ describe('the denominator does not move when a setting does', () => {
     }
     // And the preference really does change what is served, or the
     // assertion above would hold for the wrong reason.
-    // One position enabled means every chord serves root only — 30
-    // rows, not 51. So the preference genuinely moves what is served,
+    // One position enabled means every chord serves root only — 27
+    // rows, not 48. So the preference genuinely moves what is served,
     // and the catalog's steadiness above is not steadiness by accident.
     const rootOnly = CHORD_SEEDS.length;
     expect(rootOnly).not.toBe(before);

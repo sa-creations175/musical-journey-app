@@ -135,20 +135,22 @@ describe('every catalog has a source wired', () => {
       'shapes-and-patterns': 1572,
       // 199 vocabulary cards + 56 lessons.
       'production': 255,
-      // 25 intervals + 51 chord recognition + 18 scales & modes +
-      // 495 chord progressions = 589. (Was 514: the chord-progressions
+      // 25 intervals + 48 chord recognition + 18 scales & modes +
+      // 495 chord progressions = 586. (Was 514: the chord-progressions
       // catalog was cut from 69 named progressions to eight on
       // 9 Sep 2026, and the full-progression rows went 144 → 16. Then
       // 386 → 458 on 10 Sep, when the borrowed 4m, 2ø and 5m added 72
       // motions, 458 → 461 for the three same-root moves, and 461 → 489
       // for the ♯4's dim7, 489 → 721 when every pair became two cards,
-      // and 721 → 589 when the First Chord row went — all 10 Sep.)
+      // and 721 → 589 when the First Chord row went — all 10 Sep. Then
+      // 589 → 586 on 11 Sep, when the three duplicate chord cards were
+      // retired.)
       //   intervals: 12 with both directions plus the unison, which
       //     has one — zero semitones up and zero down are the same
       //     two notes. See ear-training/intervals/seed.ts.
       //   chord recognition: REACHABLE chord x inversion, not every
       //     combination the chord sizes allow. 12 foundational + 21
-      //     seventh + 6 dominant + 12 extensions. Was 114, of which 63
+      //     seventh + 5 dominant + 10 extensions. Was 114, of which 63
       //     named combinations no path could attempt — an augmented
       //     triad has no audible inversion, a dim7's four are the same
       //     four pitches, and nothing above the sevenths is
@@ -158,7 +160,7 @@ describe('every catalog has a source wired', () => {
       //     8 pattern + 0 inversion — inversion is graded only on
       //     slash progressions and the cut left none, though the row
       //     builder still adds one the day a slash progression returns).
-      'ear-training': 589,
+      'ear-training': 586,
     });
   });
 

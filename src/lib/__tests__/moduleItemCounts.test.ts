@@ -25,7 +25,9 @@ import {
 } from '../../modules/shapes-and-patterns/cellTargets';
 
 // -------------------------------------------------------------------
-// Ear Training — 25 + 51 + 8 + 18 = 102 (spacingState-row counts)
+// Ear Training — 25 + 48 + 8 + 18 = 99 (spacingState-row counts)
+// (11 Sep 2026: 102 → 99. Three chord-recognition cards were retired
+//  for sounding as chords the catalog already held.)
 // (9 Sep 2026: 163 → 102. The chord-progressions catalog was cut from
 //  69 named progressions to the eight survivors Silas named.)
 // -------------------------------------------------------------------
@@ -44,13 +46,13 @@ describe('earTrainingCounts', () => {
     expect(intervalItemRefs()).not.toContain('P1:desc');
   });
 
-  it('chordRecognition = 30 roots + 21 reachable inversions = 51', () => {
+  it('chordRecognition = 27 roots + 21 reachable inversions = 48', () => {
     // Was 30 — a seed count, which ignored the dimension the drill's
     // own attempts carry: it writes `attemptItemId(chordId, inversion)`.
     // Derived, so widening an inversion exclusion moves this and the
     // dashboard denominator together.
     expect(c.chordRecognition).toBe(reachableChordRefs(CHORD_SEEDS).length);
-    expect(c.chordRecognition).toBe(51);
+    expect(c.chordRecognition).toBe(48);
   });
 
   it('chordProgressions = 8 (the whole PROGRESSIONS catalog)', () => {
@@ -65,11 +67,12 @@ describe('earTrainingCounts', () => {
     expect(c.scalesModes).toBe(18);
   });
 
-  it('total = 102 (sum of sub-areas)', () => {
+  it('total = 99 (sum of sub-areas)', () => {
     // 143 before the unison merge, 142 after it, 163 once chord
-    // recognition started counting inversions rather than seeds, and
-    // 102 after the chord-progressions cut of 9 Sep 2026.
-    expect(c.total).toBe(102);
+    // recognition started counting inversions rather than seeds, 102
+    // after the chord-progressions cut of 9 Sep 2026, and 99 once the
+    // three duplicate chord cards were retired on 11 Sep 2026.
+    expect(c.total).toBe(99);
     expect(c.total).toBe(
       c.intervals + c.chordRecognition + c.chordProgressions + c.scalesModes,
     );

@@ -19,9 +19,9 @@
  *     directions — the unison has one case, since zero semitones up and
  *     zero down are the same two notes. Modes are 9 × 2 tabs = 18
  *     because Hear-Scale and Sit-Inside log separate spacingState rows.
- *     Chord recognition is 51 rather than 30 for the same reason once
+ *     Chord recognition is 48 rather than 27 for the same reason once
  *     removed: the drill writes `attemptItemId(chordId, inversion)`, so
- *     an inversion is part of the row's identity. It is not 30 x 4 —
+ *     an inversion is part of the row's identity. It is not 27 x 4 —
  *     most of those combinations are unreachable, and the number comes
  *     from `reachableChordRefs`, the same enumeration the dashboard
  *     denominator uses. THIS NOTE RECONCILES ALL THREE now; it used to
@@ -79,7 +79,7 @@ export interface EarTrainingCounts {
    */
   intervals: number;
   /**
-   * Chord x REACHABLE inversion — 51, not 30.
+   * Chord x REACHABLE inversion — 48, not 27.
    *
    * A chord seed is not one spacingState row: the drill writes
    * `attemptItemId(chordId, inversion)`, so a maj7 answered in second
@@ -105,7 +105,7 @@ const SCALE_MODE_TABS = 2;
 
 export function earTrainingCounts(): EarTrainingCounts {
   const intervals = intervalItemRefs().length;
-  // 51, DERIVED — root positions plus the inversions that can actually
+  // 48, DERIVED — root positions plus the inversions that can actually
   // be asked. The same function the dashboard's denominator calls, so
   // widening or narrowing an inversion exclusion moves both or neither.
   const chordRecognition = reachableChordRefs(CHORD_SEEDS).length;

@@ -131,7 +131,7 @@ const INTERVALS: IntervalLine[] = [
   },
 ];
 
-// --- Chord qualities (29 entries) ---------------------------------
+// --- Chord qualities (one per chord-recognition seed) --------------
 // Keys match the chord-recognition catalog (ids in CHORD_SEEDS). The
 // diary entry skillId follows `chord-recognition:item:<id>` so the
 // Skills Catalogue shows these associations when the user opens a
@@ -172,16 +172,12 @@ const QUALITIES: QualityLine[] = [
     emotional: ['funky', 'soulful', 'stormy'], genre: ['funk', 'blues', 'r&b'] },
   { id: 'dom7#9#5', text: "Altered dominant — dark, pulling to minor 9, the chord that lights the path into the shadow.",
     emotional: ['dark', 'tense', 'soulful'], genre: ['jazz'] },
-  { id: 'dom9_13',  text: "Bright tension dominant — the AB voicing, Stevie's signature, the chord that sparkles before it moves.",
-    emotional: ['bright', 'soulful'], genre: ['r&b', 'gospel'] },
   { id: 'dom13',    text: "The full funk voicing — rich, warm, soulful. Every D'Angelo tune has this chord somewhere.",
     emotional: ['funky', 'warm', 'soulful'], genre: ['neo-soul', 'funk'] },
   { id: 'maj9',     text: "Expansive, lush — the neo-soul ballad color. Space and light in a single chord.",
     emotional: ['dreamy', 'warm'], genre: ['neo-soul', 'jazz'] },
   { id: 'maj13',    text: "The full neo-soul chord — every Robert Glasper tune lives here. Warm, complete, expansive.",
     emotional: ['warm', 'dreamy', 'soulful'], genre: ['neo-soul', 'jazz'] },
-  { id: 'maj9_13',  text: "The AB voicing major — often shaped as a Maj7b5. A jazz I chord with shimmer around its edges.",
-    emotional: ['dreamy', 'soulful'], genre: ['jazz'] },
   { id: 'maj6',     text: "Warm and complete without the leading-tone tension — bossa nova warmth, gospel sweetness.",
     emotional: ['warm', 'tender'], genre: ['gospel'] },
   { id: 'maj6_9',   text: "The fullest major color — 6 and 9 together. Gospel's and jazz's sweetest voicing, everything included.",
@@ -194,8 +190,6 @@ const QUALITIES: QualityLine[] = [
     emotional: ['soulful', 'melancholy', 'warm'], genre: ['r&b', 'soul'] },
   { id: 'min11',    text: "The floating neo-soul chord — Badu, D'Angelo, Dilla territory. Suspended longing, the groove that breathes.",
     emotional: ['dreamy', 'soulful'], genre: ['neo-soul', 'r&b'] },
-  { id: 'min9_11',  text: "Polychord minor — b7 major over the minor. Works on any non-3 minor chord. Wide, open, R&B sophistication.",
-    emotional: ['soulful', 'dreamy'], genre: ['r&b'] },
   { id: 'min6',     text: "Bittersweet, cinematic — Latin and jazz color. The chord that holds shadow and light at the same time.",
     emotional: ['melancholy', 'warm'], genre: ['jazz'] },
   { id: 'min6_9',   text: "AB voicing minor — rich minor color, the chord that lets a tonic minor feel arrived instead of sad.",

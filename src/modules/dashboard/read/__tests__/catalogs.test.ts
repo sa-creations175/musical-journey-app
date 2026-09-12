@@ -53,20 +53,21 @@ describe('catalog sizes — the denominators', () => {
     expect(scalesModesCatalog.items.filter(i => i.label === 'Hear Mode In Context')).toHaveLength(9);
   });
 
-  it('chord recognition: 51 — chord x REACHABLE inversion', () => {
-    // 114 before: every seed against every inversion its size allows,
-    // including 63 combinations no path can attempt. An augmented triad
-    // has no audible inversion, a dim7's four are the same four
-    // pitches, and nothing above the sevenths is inversion-trained at
-    // all. Those rows sat permanently uncovered in the denominator.
+  it('chord recognition: 48 — chord x REACHABLE inversion', () => {
+    // 102 size-valid combinations, of which 54 no path can attempt: an
+    // augmented triad has no audible inversion, a dim7's four are the
+    // same four pitches, and nothing above the sevenths is
+    // inversion-trained at all. Those rows sat permanently uncovered in
+    // the denominator until the rule was written once. (It was 114 and
+    // 63 until 11 Sep 2026, when three duplicate chord cards went.)
     //
-    // 12 foundational + 21 seventh + 6 dominant + 12 extensions.
+    // 12 foundational + 21 seventh + 5 dominant + 10 extensions.
     // DERIVED below rather than pinned, so widening the exclusions
     // moves this test with the rule instead of breaking it.
     const reachable = CHORD_SEEDS
       .reduce((n, c) => n + reachableInversions(c).length, 0);
     expect(catalogItemCount(chordRecognitionCatalog)).toBe(reachable);
-    expect(reachable).toBe(51);
+    expect(reachable).toBe(48);
   });
 
   it('harmonic fluency: 1611 cards', () => {

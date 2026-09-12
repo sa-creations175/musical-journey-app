@@ -157,7 +157,7 @@ describe('the strip count and the coverage total are different numbers', () => {
   });
 
   it('counts chord x inversion, never chord qualities', () => {
-    // The label this replaced said "30 in pool" over a pool of 51.
+    // The label this replaced said "30 in pool" over a pool of 48.
     const facets = chordRecognitionFacets(chords, wide);
     const lit = resolveFacets(facets, allSelected(facets));
     expect(lit.keys.length).toBeGreaterThan(chords.length);

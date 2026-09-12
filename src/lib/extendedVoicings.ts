@@ -2,7 +2,7 @@
  * Silas's extended voicings, as data. One table, read by everything.
  *
  * =====================================================================
- * ONE ROW IS A RULE, NOT A TRANSCRIPTION: THE DIM7.
+ * TWO ROWS ARE RULES, NOT TRANSCRIPTIONS: THE DIM7 AND THE MAJ13.
  *
  * Every other row below is transcribed from his notes. The dim7 is not
  * in them; it is here by his ruling of 10 Sep 2026
@@ -12,6 +12,16 @@
  * or none — over the root in the bass, and never a 9th or any other
  * extension. The shape given is the four notes stacked from the ♭3 with
  * the root doubled on top, the prototype's own full dim7.
+ *
+ * THE MAJ13 is here by his ruling of 11 Sep 2026
+ * (`~/cc-scratch/NEXT_TAB1_RETIRE_913.md`): "maj13 and dom13 sound as
+ * Silas plays them: the 5th left out." The notes give no major 13 of
+ * its own, but they give the chord he was describing when he wrote the
+ * card this replaces — the retired `maj9_13`, 1 3 7 9 13, "the AB
+ * voicing major chord". So the shape is his dominant 9(13) with the
+ * major 7 in place of the ♭7, which sounds exactly those five notes.
+ * The chord that NAMES itself a major 13 still has a 5th in its
+ * formula; this is the hand that plays it.
  * =====================================================================
  * =====================================================================
  * THE NOTES ARE THE SOURCE OF TRUTH, AND THIS FILE IS THEM.
@@ -76,8 +86,9 @@ export type ExtendedQuality =
   | 'dom7#5'
   | 'dom7b9#9b13'
   | 'm6-9'
-  // A RULE, NOT A TRANSCRIPTION — see the header.
-  | 'dim7';
+  // RULES, NOT TRANSCRIPTIONS — see the header.
+  | 'dim7'
+  | 'maj13';
 
 /** One hand-shape: what the left holds and what the right plays. */
 export interface ExtendedShape {
@@ -180,6 +191,15 @@ Readonly<Record<ExtendedQuality, ExtendedVoicing>> = {
       right: [3, 7, 9, 14], rightDegrees: ['b3', '5', '6', '9'] },
     B: { left: [0], leftDegrees: ['1'],
       right: [9, 14, 15, 19], rightDegrees: ['6', '9', 'b3', '5'] },
+  },
+  // The major 13 (Silas, 11 Sep 2026 — see the header): the dominant
+  // 9(13) with the major 7 for the ♭7, so the 13 sits as the 6th under
+  // it and no 5th is played. A: C + [E, A, B, D] · B: C + [B, D, E, A].
+  maj13: {
+    A: { left: [0], leftDegrees: ['1'],
+      right: [4, 9, 11, 14], rightDegrees: ['3', '13', '7', '9'] },
+    B: { left: [0], leftDegrees: ['1'],
+      right: [11, 14, 16, 21], rightDegrees: ['7', '9', '3', '13'] },
   },
 };
 

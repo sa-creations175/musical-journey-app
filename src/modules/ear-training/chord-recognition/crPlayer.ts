@@ -28,6 +28,9 @@
  * =====================================================================
  */
 import type { ChordData } from '../../../lib/db';
+import {
+  extendedShape, extendedTones, type ExtendedQuality,
+} from '../../../lib/extendedVoicings';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 import type { PlayerSettings } from '../../../lib/player/settings';
 import type { PlayerChord } from '../../../lib/player/voices';
@@ -65,6 +68,50 @@ function rungTones(
   }
 }
 
+/** The chords Silas plays as a shape rather than as a stack. */
+const SHAPE_FOR_CHORD: Readonly<Record<string, ExtendedQuality>> = {
+  maj13: 'maj13',
+  dom13: 'dom9-13',
+};
+
+/**
+ * Silas's own hand for this chord, or null to sound the stack.
+ *
+ * =====================================================================
+ * THE 13 CHORDS SOUND THE WAY HE PLAYS THEM: NO 5TH. Ruled 11 Sep 2026
+ * (`~/cc-scratch/NEXT_TAB1_RETIRE_913.md`). The seed keeps the full
+ * stack because that is what the card NAMES; the SOUND comes from the
+ * voicings table, which is where what he actually plays is written
+ * down. Both chords used to have a second card for the voicing — the
+ * retired `maj9_13` and `dom9_13` — and this is where that went.
+ *
+ * ONLY AT THE RUNG THAT KEEPS EVERY NOTE. A shape is the whole chord in
+ * one hand. The thinner rungs ask about the chord's OWN degrees — "just
+ * the 1 3 5", "just the 3 and the 7" — and a hand with no 5th in it
+ * cannot answer the first of those. So triads and guide tones still
+ * come off the stack, and the shape sounds where the rung would
+ * otherwise sound everything.
+ *
+ * ROOT POSITION ONLY, for this file's own reason: a shape is a fixed
+ * arrangement of notes, so it cannot answer a question about which note
+ * is in the bass. Neither chord is inversion-trained, so neither is
+ * ever asked at anything but 0 — the guard is here so that stays true
+ * if one ever is.
+ * =====================================================================
+ */
+function shapedNotes(
+  chord: ChordData,
+  rootMidi: number,
+  inversion: Inversion,
+  rung: Thickness,
+): number[] | null {
+  const named = SHAPE_FOR_CHORD[chord.id];
+  if (named === undefined || inversion !== 0) return null;
+  if (rungTones(chord.intervals, rung) !== null) return null;
+  const shape = extendedShape(named, 'A');
+  return shape === null ? null : extendedTones(shape).map(iv => rootMidi + iv);
+}
+
 /**
  * The exact notes to sound, as semitones above `rootMidi`.
  *
@@ -78,8 +125,8 @@ export function crQuizChord(
   settings: PlayerSettings,
   rung: Thickness = 'seventh',
 ): number[] {
-  const placed = rotateForInversion(chord.intervals, inversion)
-    .map(iv => rootMidi + iv);
+  const placed = shapedNotes(chord, rootMidi, inversion, rung)
+    ?? rotateForInversion(chord.intervals, inversion).map(iv => rootMidi + iv);
   // BASS ONLY IS THE BOTTOM NOTE, which on an inverted chord is the
   // note the inversion is named for — so it is an aid that gives some
   // of the answer away, which is why taking it is on the attempt.

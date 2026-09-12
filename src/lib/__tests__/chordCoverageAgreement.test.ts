@@ -34,15 +34,15 @@ describe('the two counts agree', () => {
   });
 
   it('counts root positions plus reachable inversions', () => {
-    // The arithmetic stated once so a reader can check it — 30 roots
+    // The arithmetic stated once so a reader can check it — 27 roots
     // plus 21 non-root, all of them triads and sevenths.
     const refs = reachableChordRefs(CHORD_SEEDS);
     const roots = refs.filter(r => r.endsWith(':0'));
     const nonRoot = refs.filter(r => !r.endsWith(':0'));
     expect(roots).toHaveLength(CHORD_SEEDS.length);
-    expect(roots).toHaveLength(30);
+    expect(roots).toHaveLength(27);
     expect(nonRoot).toHaveLength(21);
-    expect(earTrainingCounts().chordRecognition).toBe(51);
+    expect(earTrainingCounts().chordRecognition).toBe(48);
   });
 
   it('draws no non-root row from dominant or extension tiers', () => {
@@ -83,7 +83,7 @@ describe('widening an exclusion moves both numbers', () => {
     const refs = reachableChordRefs(CHORD_SEEDS).length;
     expect(goals).toBe(refs);
     // dim7 is a four-note seventh: three non-root rows return.
-    expect(goals).toBe(51 + 3);
+    expect(goals).toBe(48 + 3);
   });
 
   it('is the same function the dashboard catalog is built from', () => {

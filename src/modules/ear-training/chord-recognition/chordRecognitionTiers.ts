@@ -52,13 +52,20 @@ const TIER_3_ITEMS = [
   'dom7:1', 'dom7:2', 'dom7:3',
 ] as const;
 
+/**
+ * Ten, not twelve, and five, not six: `maj9_13`, `min9_11` and
+ * `dom9_13` were retired on 11 Sep 2026 for sounding as chords the
+ * ladder already held. See the head of `seed.ts` for the ruling. The
+ * 80% thresholds these tiers open at are computed from the lengths, so
+ * they follow on their own.
+ */
 const TIER_4_ITEMS = [
-  'maj9', 'maj13', 'maj9_13', 'maj6', 'maj6_9', 'add9', 'add2',
-  'min9', 'min11', 'min9_11', 'min6', 'min6_9',
+  'maj9', 'maj13', 'maj6', 'maj6_9', 'add9', 'add2',
+  'min9', 'min11', 'min6', 'min6_9',
 ] as const;
 
 const TIER_5_ITEMS = [
-  'dom7sus4', 'dom7b9', 'dom7#9', 'dom7#9#5', 'dom9_13', 'dom13',
+  'dom7sus4', 'dom7b9', 'dom7#9', 'dom7#9#5', 'dom13',
 ] as const;
 
 /** Items belonging to each tier, keyed by canonical form. Tier 1, 2,

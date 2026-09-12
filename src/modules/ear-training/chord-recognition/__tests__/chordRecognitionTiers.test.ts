@@ -53,16 +53,16 @@ describe('chordRecognitionTiers', () => {
       ]);
     });
 
-    it('tier 4 holds the 12 extended maj/min items', () => {
+    it('tier 4 holds the 10 extended maj/min items', () => {
       expect(CHORD_RECOGNITION_TIERS[4]).toEqual([
-        'maj9', 'maj13', 'maj9_13', 'maj6', 'maj6_9', 'add9', 'add2',
-        'min9', 'min11', 'min9_11', 'min6', 'min6_9',
+        'maj9', 'maj13', 'maj6', 'maj6_9', 'add9', 'add2',
+        'min9', 'min11', 'min6', 'min6_9',
       ]);
     });
 
-    it('tier 5 holds the six altered-dominant items', () => {
+    it('tier 5 holds the five altered-dominant items', () => {
       expect(CHORD_RECOGNITION_TIERS[5]).toEqual([
-        'dom7sus4', 'dom7b9', 'dom7#9', 'dom7#9#5', 'dom9_13', 'dom13',
+        'dom7sus4', 'dom7b9', 'dom7#9', 'dom7#9#5', 'dom13',
       ]);
     });
 
@@ -122,7 +122,6 @@ describe('chordRecognitionTiers', () => {
     it('classifies tier 4 extension chords correctly', () => {
       expect(getTierForItem('maj9')).toBe(4);
       expect(getTierForItem('maj13')).toBe(4);
-      expect(getTierForItem('maj9_13')).toBe(4);
       expect(getTierForItem('maj6_9')).toBe(4);
       expect(getTierForItem('add9')).toBe(4);
       expect(getTierForItem('min11')).toBe(4);
@@ -134,7 +133,6 @@ describe('chordRecognitionTiers', () => {
       expect(getTierForItem('dom7b9')).toBe(5);
       expect(getTierForItem('dom7#9')).toBe(5);
       expect(getTierForItem('dom7#9#5')).toBe(5);
-      expect(getTierForItem('dom9_13')).toBe(5);
       expect(getTierForItem('dom13')).toBe(5);
     });
 
@@ -147,6 +145,12 @@ describe('chordRecognitionTiers', () => {
       expect(() => getTierForItem('minMaj7:1')).toThrow(/not part of the tier system/);
       expect(() => getTierForItem('sus2:1')).toThrow(/not part of the tier system/);
       expect(() => getTierForItem('bogus')).toThrow(/not part of the tier system/);
+      // Retired on 11 Sep 2026 for sounding as chords the ladder
+      // already held. A tier that still listed one would be a tier
+      // that can never clear, and every tier above it going dark.
+      expect(() => getTierForItem('maj9_13')).toThrow(/not part of the tier system/);
+      expect(() => getTierForItem('dom9_13')).toThrow(/not part of the tier system/);
+      expect(() => getTierForItem('min9_11')).toThrow(/not part of the tier system/);
     });
   });
 

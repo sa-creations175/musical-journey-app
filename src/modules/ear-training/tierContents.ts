@@ -25,7 +25,7 @@ export const CHORD_RECOGNITION_ROWS: ReadonlyArray<string> = [
   'maj7, m7, 7, dim7, m7♭5, mMaj7',
   'inversions of the triads and sevenths',
   'extended chords: 9ths, 11ths, 13ths, 6ths',
-  'altered dominants: 7♭9, 7♯9, 7♯9♯5, 9(13), 13, 7sus4',
+  'altered dominants: 7♭9, 7♯9, 7♯9♯5, 13, 7sus4',
 ];
 
 /** Scales & Modes, Tiers 1 and 2. */

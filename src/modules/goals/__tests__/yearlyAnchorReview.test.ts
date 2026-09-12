@@ -135,7 +135,7 @@ describe('dimensionRowsFor — Ear Training', () => {
   it('Breadth = all surfaces "All N items" with the live total', () => {
     const rows = dimensionRowsFor(draftFor('ear-training', { earTraining: baseEt }));
     expect(rows[0].value).toMatch(/^All \d+ items$/);
-    expect(rows[0].value).toContain('102');  // live count from earTrainingCounts
+    expect(rows[0].value).toContain('99');  // live count from earTrainingCounts
   });
 
   it('Breadth = subset surfaces the joined group labels', () => {
@@ -334,7 +334,7 @@ describe('summarizeAnchor — Ear Training', () => {
     const draft = draftFor('ear-training', { earTraining: et });
     const summary = summarizeAnchor(draft, 2026, 'Ear Training 2026');
     expect(summary).toMatch(/^By Dec 31, 2026, you want to /);
-    expect(summary).toContain('cover all 102 ear training items');
+    expect(summary).toContain('cover all 99 ear training items');
     expect(summary).toContain('master the chord recognition and chord progressions groups');
     expect(summary).toContain('hit 85% overall accuracy');
     expect(summary).toContain('practice 4× per week');

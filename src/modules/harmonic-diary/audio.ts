@@ -286,10 +286,12 @@ async function playChord(
 //
 // The diary played a chord-recognition entry from the shapes catalog's
 // QUALITY_INTERVALS, keyed by the entry's id — and chord recognition's
-// ids (`maj9_13`, `dom7sus4`, `dom9_13`, `dom7b9`, …) are not that
+// ids (`maj13`, `dom7sus4`, `dom7b9`, `min6_9`, …) are not that
 // table's keys. Every miss fell back to a major triad, so eleven
 // different chords sounded as C E G: "the major 9(13), the dom7sus4,
-// the dom9(13) all sound the exact same."
+// the dom9(13) all sound the exact same." (Two of those three cards
+// were retired on 11 Sep 2026 — see the head of chord recognition's
+// `seed.ts` — so the quote is a record of the bug, not of the catalog.)
 //
 // Now a chord-recognition entry reads the list Chord Recognition itself
 // plays from — the seed's `intervals` — and a miss plays nothing.
@@ -298,18 +300,21 @@ async function playChord(
 /**
  * Silas's own shapes, for the entries whose chord they voice.
  *
- * A SHAPE IS USED ONLY WHERE IT IS THAT CHORD. His dom9(13) is the
- * dominant 9 with its 13 and no 5th, which is how the chord is played;
- * the maj9, m9, 7♯9♯5, m6/9 and dim7 shapes carry exactly the seed's
- * notes. His m7♭5 shape adds an 11 the plain m7♭5 does not have, so
- * the m7♭5 entry keeps the seed's stack rather than sounding a chord it
- * is not. Every other entry has no shape and plays the seed's stack.
+ * A SHAPE IS USED ONLY WHERE IT IS THAT CHORD. The maj9, m9, 7♯9♯5,
+ * m6/9 and dim7 shapes carry exactly the seed's notes. The two 13
+ * chords are played with the 5th left out (Silas, 11 Sep 2026), and
+ * they take the SAME routing Chord Recognition gives them, so a 13
+ * sounds the same in the diary as it does in the quiz. His m7♭5 shape
+ * adds an 11 the plain m7♭5 does not have, so the m7♭5 entry keeps the
+ * seed's stack rather than sounding a chord it is not. Every other
+ * entry has no shape and plays the seed's stack.
  */
 const SHAPE_FOR_ITEM: Readonly<Record<string, ExtendedQuality>> = {
   dim7: 'dim7',
   'dom7#9#5': 'dom7#9#5',
-  dom9_13: 'dom9-13',
+  dom13: 'dom9-13',
   maj9: 'maj9',
+  maj13: 'maj13',
   min9: 'm9',
   min6_9: 'm6-9',
 };
