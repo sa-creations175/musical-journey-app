@@ -211,13 +211,32 @@ describe('the rows a surface may drop', () => {
     expect(byTestId('listen-bass')).not.toBeNull();
   });
 
-  it('adds Chord sounds only where a surface asks for it', () => {
+  it('ends Settings with Play as, on every surface', () => {
+    // SILAS'S RULING OF 12 SEP 2026, placed on 13 Sep: one row, every
+    // surface, in the spot Chord sounds had.
     mount();
-    expect(byTestId('attack-blocked')).toBeNull();
+    expect([...byTestId('play-as-chips')!.children].map(c => c.textContent))
+      .toEqual(['Together', 'Up', 'Down', 'Up and Down']);
+    const fold = byTestId('player-settings')!.querySelector('.space-y-3')!;
+    expect(fold.lastElementChild).toBe(byTestId('play-as-row'));
+    expect(host.textContent).not.toContain('Chord sounds');
+    expect(byTestId('play-as-together')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('says a run is an aid only where the surface says so', () => {
+    mount();
+    expect(byTestId('play-as-aid-note')).toBeNull();
     act(() => { root.unmount(); });
     host.remove();
-    mount({ attack: { value: 'blocked', onChange: () => {} } });
-    expect(byTestId('attack-blocked')).not.toBeNull();
+    mount({ playAsIsAid: true });
+    expect(byTestId('play-as-aid-note')!.textContent).toBe(
+      'Listening modes matter: Up, Down, and Up and Down are an aid, with a lower rating.',
+    );
+  });
+
+  it('leaves the row out where the surface draws it in a place of its own', () => {
+    mount({ playAsRow: false });
+    expect(byTestId('play-as-row')).toBeNull();
   });
 
   it('puts Bass directly under Listen to, on every surface with a bass', () => {
@@ -231,15 +250,13 @@ describe('the rows a surface may drop', () => {
     expect(listen!.nextElementSibling).toBe(bass);
   });
 
-  it('offers one broken mode, not three', () => {
-    // SILAS'S RULING OF 10 SEP 2026. The row was Blocked / Broken, up /
-    // Broken, down, and the harmonic diary had its own ascending and
-    // descending pair beside it. Rolling downwards is a different sound
-    // rather than a different skill.
-    mount({ attack: { value: 'blocked', onChange: () => {} } });
-    expect(byTestId('attack-broken')).not.toBeNull();
-    expect(byTestId('attack-up')).toBeNull();
-    expect(byTestId('attack-down')).toBeNull();
+  it('hands a run to the player when Up is chosen', async () => {
+    // THE ROW DOES SOMETHING, not only draws. A progression's chords
+    // each carry their run inside their own bar.
+    let settings = DEFAULT_PLAYER_SETTINGS;
+    mount({ onSettings: (next: typeof settings) => { settings = next; } });
+    tap(byTestId('play-as-up'));
+    expect(settings.playAs).toBe('up');
   });
 
   it('locks the ladder to one rung beside a drill', () => {

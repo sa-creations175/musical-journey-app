@@ -41,8 +41,8 @@ import {
 //
 // THE OVERLAP IS THE INTERVALS' NOW, AND ONLY THEIRS. It used to shape
 // the diary's chord and progression arpeggios too; those retired on
-// 10 Sep 2026 into the shared player's one broken mode, which rings
-// each note its full length from its own onset.
+// 10 Sep 2026 into the shared player, whose runs (Play as, 12 Sep)
+// release each note just after the next one sounds.
 
 const DIARY_BPM = 50;
 const DIARY_OVERLAP = 0.25;
@@ -389,10 +389,12 @@ export function diaryChordShape(itemId: string): { intervals: number[]; pitchCla
   return { intervals: [...intervals], pitchClass: base % 12 };
 }
 
-/** Sound one chord through the shared player, blocked or rolled as the
- *  entry's button says. */
+/** Sound one chord through the shared player, struck together or run
+ *  upward as the entry's button says. */
 async function playVoicing(chord: PlayerChord, mode: DiaryPlayMode): Promise<void> {
   await playPanel([chord], {
-    ...DEFAULT_PLAYER_SETTINGS, bpm: DIARY_BPM, attack: mode,
+    ...DEFAULT_PLAYER_SETTINGS,
+    bpm: DIARY_BPM,
+    playAs: mode === 'blocked' ? 'together' : 'up',
   }, { loop: 1, beats: SINGLE_CHORD_BEATS });
 }

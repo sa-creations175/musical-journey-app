@@ -20,6 +20,9 @@
  * TURNS AT ITS TOP NOTE. `scaleLine` decides that and says why; this
  * only says which kind of scale it has.
  *
+ * UP AND BACK IS WHERE IT OPENS, and Play as (at the end of Settings
+ * since 13 Sep 2026) changes it: Up, Down, or every note at once.
+ *
  * =====================================================================
  * THE STARTING POINT IS THE CELL'S, NOT THE KEY'S.
  *
@@ -32,7 +35,7 @@ import { useMemo, useState } from 'react';
 import SharedPlayer from '../../components/SharedPlayer';
 import { usePlayerSettings } from '../../lib/player/usePlayerSettings';
 import { playScale, scaleBeats } from '../../lib/builtAnswers/play';
-import { scaleLine } from '../../lib/builtAnswers/scaleLine';
+import { directionOf, scaleLine } from '../../lib/builtAnswers/scaleLine';
 import { scaleMarks } from '../../lib/builtAnswers/marks';
 import BuiltAnswerKeyboard from '../../components/BuiltAnswerKeyboard';
 import { spellNote } from '../../lib/spelling';
@@ -65,7 +68,7 @@ const TO_OCTAVE: ReadonlyArray<string> = ['major', 'natural-minor'];
 
 export default function ScaleCellPlayer({ cell }: { cell: ScaleCell }) {
   const [spelling] = useSpelling();
-  const [settings, setSettings] = usePlayerSettings();
+  const [settings, setSettings] = usePlayerSettings({ playAs: 'upDown' });
   const [sounding, setSounding] = useState<number | null>(null);
 
   const keyPc = KEYS.indexOf(cell.keyName as never);
@@ -80,9 +83,9 @@ export default function ScaleCellPlayer({ cell }: { cell: ScaleCell }) {
     : scaleLine(
       pcs.map(p => (keyPc + p) % 12),
       startPc,
-      'both',
+      directionOf(settings.playAs),
       { toOctave: TO_OCTAVE.includes(cell.kind) },
-    )), [pcs, keyPc, startPc, cell.kind]);
+    )), [pcs, keyPc, startPc, cell.kind, settings.playAs]);
 
   const marks = useMemo(() => (pcs === undefined || keyPc < 0
     ? new Map()
@@ -94,12 +97,15 @@ export default function ScaleCellPlayer({ cell }: { cell: ScaleCell }) {
 
   if (pcs === undefined || keyPc < 0 || line.length === 0) return null;
 
+  const together = settings.playAs === 'together';
+
   const hear = (startAtBeat = 0) => playScale(line, {
     bpm: settings.bpm,
     octaveUp: settings.octaveUp,
     // THE HOME CHORD OF THE KEY, then the scale over its root held low.
     home: [0, 4, 7].map(t => 48 + ((keyPc + t) % 12)),
     dronePc: keyPc,
+    together,
     onNote: i => setSounding(line[i] ?? null),
     ...(startAtBeat > 0 ? { startAtBeat } : {}),
   });
@@ -117,7 +123,7 @@ export default function ScaleCellPlayer({ cell }: { cell: ScaleCell }) {
         caption={line.slice(0, pcs.length)
           .map(m => spellNote(((m % 12) + 12) % 12, spelling)).join(' ')}
         play={({ startAtBeat }) => hear(startAtBeat)}
-        totalBeats={scaleBeats(line.length)}
+        totalBeats={scaleBeats(line.length, together)}
       >
         <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
           A reference, not a quiz — nothing here is rated. The home chord of the

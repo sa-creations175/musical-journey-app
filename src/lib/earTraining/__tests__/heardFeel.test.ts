@@ -50,12 +50,20 @@ describe('where an answer lands', () => {
 });
 
 describe('which controls count as an aid', () => {
-  it('counts the bass on its own, and a broken chord', () => {
+  it('counts the bass on its own, everywhere', () => {
     expect(isAided({ ...DEFAULT_PLAYER_SETTINGS, listen: 'bass' })).toBe(true);
-    // ONE BROKEN MODE since 10 Sep 2026, and it is still an aid: the
-    // notes arriving one at a time is a different question from the
-    // chord arriving at once.
-    expect(isAided({ ...DEFAULT_PLAYER_SETTINGS, attack: 'broken' })).toBe(true);
+  });
+
+  it('counts a run only where the surface says Play as is an aid', () => {
+    // SILAS'S SPEC OF 13 SEP 2026: on the Chord Recognition quiz Up,
+    // Down and Up and Down are an aid and only Together is free. No
+    // other surface makes that claim.
+    for (const playAs of ['up', 'down', 'upDown'] as const) {
+      const run = { ...DEFAULT_PLAYER_SETTINGS, playAs };
+      expect(isAided(run, { playAsIsAid: true })).toBe(true);
+      expect(isAided(run)).toBe(false);
+    }
+    expect(isAided(DEFAULT_PLAYER_SETTINGS, { playAsIsAid: true })).toBe(false);
   });
 
   it('leaves tempo and octave free', () => {
@@ -69,7 +77,7 @@ describe('which controls count as an aid', () => {
     expect(isAided(DEFAULT_PLAYER_SETTINGS)).toBe(false);
   });
 
-  it('is not an aid on a surface with no Chord sounds row', () => {
+  it('is not an aid on a surface with no Play as setting', () => {
     expect(isAided({ listen: 'both' })).toBe(false);
   });
 });

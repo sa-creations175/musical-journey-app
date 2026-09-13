@@ -29,10 +29,11 @@ import { playBlocked, type PlaybackHandle } from '../musicalPlayback';
 import type { VoicedChord } from './voiceLeading';
 import { raise } from './marks';
 import {
-  DEFAULT_BPM as PANEL_BPM, type PlayerSettings,
+  DEFAULT_BPM as PANEL_BPM, type PlayAs, type PlayerSettings,
 } from '../player/settings';
 import {
-  bassDrop, chordStep, handsForSetting, stepBeats, type PlayerChord,
+  RUN_RELEASE, bassDrop, chordStep, handsForSetting, stepBeats, strikeOrder,
+  type PlayerChord,
 } from '../player/voices';
 
 /**
@@ -47,6 +48,9 @@ export const DEFAULT_BPM = PANEL_BPM;
 
 /** Two beats a chord, which is the prototype's `beat()*2`. */
 const CHORD_BEATS = 2;
+
+/** Half a beat a scale note. */
+const SCALE_NOTE_BEATS = 0.5;
 
 /** How loud the drone sits under a scale — quieter than the notes over
  *  it, the same reasoning `playCardSound`'s pedal gives. */
@@ -90,6 +94,19 @@ export interface SequenceOptions {
 }
 
 /**
+ * Whether a list of chords is a progression, whose runs fit their bars.
+ *
+ * MORE THAN ONE CHORD. Silas's answer of 13 Sep 2026 rolls each chord of
+ * a progression inside its own bar, on every surface; a chord heard on
+ * its own has no bar to keep and its slot grows to fit the run instead.
+ * `playPanel` and `panelBeats` both ask this, so what plays and what
+ * Pause measures cannot disagree.
+ */
+function inBars(chords: ReadonlyArray<PlayerChord>): boolean {
+  return chords.length > 1;
+}
+
+/**
  * A whole progression, as the shared panel plays it.
  *
  * =====================================================================
@@ -97,10 +114,10 @@ export interface SequenceOptions {
  *
  * `playChords` below takes a bpm and an octave flag because that is all
  * the Built Answers panel had. This takes the whole settings object, so
- * "bass only", the Hands row, the loop count and the resume point arrive
- * the same way on every surface rather than as four more arguments per
- * caller. It is the same `playSeqChords` underneath — there is one
- * sequencer in this app and this does not add another.
+ * "bass only", the Hands row, Play as, the loop count and the resume
+ * point arrive the same way on every surface rather than as more
+ * arguments per caller. It is the same `playSeqChords` underneath —
+ * there is one sequencer in this app and this does not add another.
  *
  * THE TONIC LEAD-IN IS ONE LOW NOTE AND IT IS NOT REPEATED. It orients
  * the ear at the top and a loop that sounded it every pass would turn
@@ -137,11 +154,12 @@ export async function playPanel(
   // because this is the only place that holds every chord the line is
   // made of, and the rule is "the whole line or none of it".
   const drop = bassDrop(chords, settings);
+  const bars = inBars(chords);
   // THE HANDS ROW — the root joins the right hand or it does not, the
   // bass untouched. Idempotent, so a panel that already applied it is
   // not applied twice. See `handsForSetting`.
   const steps = handsForSetting(chords, settings)
-    .map(c => chordStep(c, settings, beats, drop));
+    .map(c => chordStep(c, settings, beats, drop, bars));
   const lead = opts.orientPc === undefined ? [] : [tonicStep(opts.orientPc)];
   const offset = lead.length;
   return playSeqChords([...lead, ...steps], 0, settings.bpm, {
@@ -155,63 +173,72 @@ export async function playPanel(
 }
 
 /**
- * One shape, rolled — the app's only broken chord.
+ * One shape, as a run.
  *
  * =====================================================================
  * ONE FUNCTION, BECAUSE THERE USED TO BE TWO AND THEY DISAGREED.
  *
- * Chord recognition rolled a chord through `playChordBroken`: notes
- * three quarters of a beat apart, each ringing two beats, up or down.
- * The harmonic diary spread a chord's tones across its beat budget
- * through `playNoteSequence`: single voices, no bass, spacing derived
- * from the chord's length rather than from the tempo. Same words on two
- * screens, two different sounds.
+ * Chord recognition rolled a chord through `playChordBroken` and the
+ * harmonic diary spread a chord's tones across its beat budget through
+ * `playNoteSequence`: same words on two screens, two different sounds.
+ * Both callers come here, and the run itself is `SeqChord.roll` — the
+ * same sequencer, the same volumes and the same stop handle as
+ * everything else this file plays.
  *
- * Silas's ruling of 10 Sep 2026 leaves one: rolled UP, at the panel's
- * tempo, three quarters of a beat between onsets. Both callers come
- * here, and the roll itself is `SeqChord.roll` — so it is the same
- * sequencer, the same volumes and the same stop handle as everything
- * else this file plays.
+ * UP, DOWN, OR UP AND DOWN — Silas's Play as row, 12 Sep 2026 — three
+ * quarters of a beat between onsets, each note released just after the
+ * next one sounds.
  *
- * THE NOTES ARE PLAYED IN THE ORDER GIVEN. Chord recognition's card is
- * about an inversion, so a roll that sorted its notes would be
- * re-voicing the question; it does not sort.
+ * THE NOTES ARE PLAYED IN THE ORDER GIVEN, or that order reversed.
+ * Chord recognition's card is about an inversion, so a run that sorted
+ * its notes would be re-voicing the question; it does not sort.
  *
- * THE SLOT GROWS TO FIT THE ROLL, never shrinks below it — a four-note
+ * THE SLOT GROWS TO FIT THE RUN, never shrinks below it — a four-note
  * chord takes two and a quarter beats to state, so it is given three.
  * =====================================================================
  */
 export async function playRolled(
   notes: ReadonlyArray<number>,
-  opts: { bpm: number; beats?: number; rootMidi?: number },
+  opts: {
+    bpm: number;
+    beats?: number;
+    rootMidi?: number;
+    /** Which run. Up unless the caller says otherwise. */
+    playAs?: Exclude<PlayAs, 'together'>;
+  },
 ): Promise<PlaybackHandle> {
   const ring = opts.beats ?? CHORD_RING_BEATS;
+  const order = strikeOrder(notes, opts.playAs ?? 'up');
   return playSeqChords(
     [{
-      intervals: [...notes],
-      beats: Math.max(ring, notes.length * BROKEN_STEP_BEATS),
+      intervals: order,
+      beats: Math.max(ring, order.length * BROKEN_STEP_BEATS),
       roll: BROKEN_STEP_BEATS,
+      release: BROKEN_STEP_BEATS * RUN_RELEASE,
     }],
     opts.rootMidi ?? 0,
     opts.bpm,
   );
 }
 
-/** How many beats a scale runs for — the home chord, then half a beat
- *  a note. What Pause measures a scale card against. */
-export function scaleBeats(noteCount: number): number {
-  return CHORD_BEATS + noteCount * 0.5;
+/**
+ * How many beats a scale runs for — the home chord, then half a beat a
+ * note, or the whole scale held as long as the home chord on Together.
+ * What Pause measures a scale card against.
+ */
+export function scaleBeats(noteCount: number, together = false): number {
+  return CHORD_BEATS + (together ? CHORD_BEATS : noteCount * SCALE_NOTE_BEATS);
 }
 
 /**
  * How many beats a panel sequence runs for, so Pause can say where it
  * got to and Resume can be told.
  *
- * PASS THE CHORDS AND THE SETTINGS WHERE BROKEN IS POSSIBLE. A rolled
- * chord's slot grows to fit its roll (`stepBeats`), so a count alone
- * cannot answer this once "Chord sounds" is on the surface — it does
- * not know how many notes each chord has. A bare count is still right
- * for every surface with no broken row, which is most of them.
+ * PASS THE CHORDS AND THE SETTINGS WHERE A RUN IS POSSIBLE. A chord
+ * heard on its own grows its slot to fit its run (`stepBeats`), so a
+ * count alone cannot answer this once Play as is on the surface — it
+ * does not know how many notes each chord has. A bare count is still
+ * right for a pass, where every chord is one bar.
  */
 export function panelBeats(
   chords: number | ReadonlyArray<PlayerChord>,
@@ -227,7 +254,8 @@ export function panelBeats(
   if (settings === undefined) {
     return lead + chords.reduce((n, c) => n + (c.beats ?? each), 0);
   }
-  return lead + chords.reduce((n, c) => n + stepBeats(c, settings, each), 0);
+  const bars = inBars(chords);
+  return lead + chords.reduce((n, c) => n + stepBeats(c, settings, each, bars), 0);
 }
 
 /** A progression, or a slash chord in its context. */
@@ -266,6 +294,11 @@ export async function playOneChord(
  * that is A♭ under F minor pentatonic — the prototype says so in terms,
  * "the scale sitting on the key, never the root of the scale", because
  * what the card teaches is which scale fits over which key.
+ *
+ * TOGETHER IS EVERY NOTE AT ONCE. Silas's ruling of 12 Sep 2026: on a
+ * scale the other three ways of Play as are the line in that direction,
+ * which the caller has already built, and Together holds the scale's
+ * notes as one sound for as long as the home chord was held.
  */
 export async function playScale(
   line: ReadonlyArray<number>,
@@ -276,6 +309,8 @@ export async function playScale(
     home: ReadonlyArray<number>;
     /** The note held underneath, as absolute MIDI. */
     dronePc: number;
+    /** Every note at once, instead of the line one note at a time. */
+    together?: boolean;
     onNote?: (index: number) => void;
     /** Where to pick up, in beats from the top — the panel's Resume. */
     startAtBeat?: number;
@@ -283,17 +318,29 @@ export async function playScale(
 ): Promise<PlaybackHandle> {
   const handles: PlaybackHandle[] = [];
   const notes = raise(line, opts.octaveUp === true);
-  // Half a beat a note, so a five-note scale and its octave fill the
-  // bar the home chord was held for.
+  const together = opts.together === true;
+  const scale: SeqChord[] = together
+    ? [{
+      intervals: [...new Set(notes)].sort((a, b) => a - b),
+      beats: CHORD_BEATS,
+      hands: [...new Set(notes)].map((): 'R' => 'R'),
+    }]
+    // Half a beat a note, each released just after the next one sounds.
+    : notes.map((m): SeqChord => ({
+      intervals: [m],
+      beats: SCALE_NOTE_BEATS,
+      hands: ['R'],
+      release: SCALE_NOTE_BEATS * RUN_RELEASE,
+    }));
   const steps: SeqChord[] = [
     { intervals: [...opts.home], beats: CHORD_BEATS, hands: opts.home.map(() => 'R') },
-    ...notes.map((m): SeqChord => ({ intervals: [m], beats: 0.5, hands: ['R'] })),
+    ...scale,
   ];
   // THE DRONE IS SHORTENED BY WHAT WAS SKIPPED, not restarted at full
   // length: resuming three beats in should leave three beats of key
   // under the rest of the run, not a drone outlasting the scale.
   const skip = Math.max(0, opts.startAtBeat ?? 0);
-  const runBeats = Math.max(0.5, CHORD_BEATS + notes.length * 0.5 - skip);
+  const runBeats = Math.max(0.5, scaleBeats(notes.length, together) - skip);
   handles.push(await playBlocked(
     36 + opts.dronePc,
     [0],

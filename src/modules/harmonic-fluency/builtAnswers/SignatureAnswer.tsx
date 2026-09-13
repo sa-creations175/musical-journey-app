@@ -34,7 +34,7 @@ import { useMemo, useState } from 'react';
 import BuiltAnswerKeyboard from '../../../components/BuiltAnswerKeyboard';
 import SharedPlayer from '../../../components/SharedPlayer';
 import { scaleMarks } from '../../../lib/builtAnswers/marks';
-import { scaleLine } from '../../../lib/builtAnswers/scaleLine';
+import { directionOf, scaleLine } from '../../../lib/builtAnswers/scaleLine';
 import { playScale, scaleBeats } from '../../../lib/builtAnswers/play';
 import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
 import type { Flashcard } from '../catalog';
@@ -70,7 +70,10 @@ export default function SignatureAnswer({
   const [colour, setColour] = useColourMode();
   /** The shared panel's settings — one set of words for tempo, the
    *  lift, the loop and the colours on every screen that sounds. */
-  const [settings, setSettings] = usePlayerSettings();
+  //
+  // OPENS ON UP AND DOWN, which is what this card has always played.
+  // Play as is at the end of its Settings since 13 Sep 2026.
+  const [settings, setSettings] = usePlayerSettings({ playAs: 'upDown' });
   const [sounding, setSounding] = useState<number | null>(null);
 
   const marks = useMemo(() => {
@@ -90,13 +93,17 @@ export default function SignatureAnswer({
    * holds what is sounding. `startAtBeat` is how far in Resume asks
    * for.
    */
-  const line = scaleLine(target.pcs, target.keyPc, 'both', { toOctave: true });
+  const line = scaleLine(
+    target.pcs, target.keyPc, directionOf(settings.playAs), { toOctave: true },
+  );
+  const together = settings.playAs === 'together';
 
   const hear = (startAtBeat = 0) => playScale(line, {
     bpm: settings.bpm,
     octaveUp: settings.octaveUp,
     home: target.homePcs.map(pc => 48 + pc),
     dronePc: target.keyPc,
+    together,
     onNote: i => setSounding(line[i] ?? null),
     ...(startAtBeat > 0 ? { startAtBeat } : {}),
   });
@@ -196,7 +203,7 @@ export default function SignatureAnswer({
             onSettings={setSettings}
             board={false}
             play={({ startAtBeat }) => hear(startAtBeat)}
-            totalBeats={scaleBeats(line.length)}
+            totalBeats={scaleBeats(line.length, together)}
             caption={`${target.keyName} major — ${target.count === 0
               ? 'no sharps and no flats'
               : `${target.count} ${target.count === 1

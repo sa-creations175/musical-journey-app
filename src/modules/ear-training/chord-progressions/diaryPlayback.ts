@@ -1,9 +1,7 @@
 import { progressionById, type ChordQuality } from './catalog';
 import { keyToRootMidi, numeralOffset } from './progressionTheory';
 import { playPanel } from '../../../lib/builtAnswers/play';
-import {
-  DEFAULT_PLAYER_SETTINGS, type ChordAttack,
-} from '../../../lib/player/settings';
+import { DEFAULT_PLAYER_SETTINGS } from '../../../lib/player/settings';
 import { progressionChords } from './progressionChords';
 
 // Shared defaults for diary-triggered playback. Single-shot (no loop),
@@ -27,38 +25,42 @@ const DEFAULT_COMPLEXITY = 'seventh' as const;
 // `orientPc` plays — so the two constants had nothing left to say.
 
 /**
- * Struck together, or rolled.
+ * Struck together, or run upward: the diary card's two buttons.
  *
  * =====================================================================
- * THE DIARY'S OWN ARPEGGIO IS GONE, AND THIS IS THE PLAYER'S BROKEN.
+ * THE DIARY'S OWN ARPEGGIO IS GONE, AND THIS IS THE PLAYER'S PLAY AS.
  *
  * It used to be `'blocked' | 'asc' | 'desc'`, and the two arpeggio
- * values ran a sequencer of their own — `buildArpeggioSequence` fed
- * `playNoteSequence`, spreading each chord's tones across its allotted
- * beats as single voices, with no bass, no hand balance and no relation
- * to the tempo the rest of the app plays at. That is a second broken
- * mode, and Silas's ruling of 10 Sep 2026 leaves the app one.
+ * values ran a sequencer of their own, spreading each chord's tones
+ * across its beats with no bass, no hand balance and no relation to the
+ * tempo the rest of the app plays at.
  *
- * So a mode is now which ATTACK the shared player is handed. Both
- * values go down the same path, so a progression sounds here exactly as
- * it does everywhere else and only its chords' onsets differ.
+ * So a mode is which Play as the shared player is handed: blocked is
+ * Together, broken is Up — the direction the card's ↑ has always meant.
+ * Both go down the same path, so a progression sounds here exactly as
+ * it does everywhere else. The card's buttons give way to the diary's
+ * player panel, which carries the whole Play as row, in a later commit.
  * =====================================================================
  */
-export type DiaryPlaybackMode = ChordAttack;
+export type DiaryPlaybackMode = 'blocked' | 'broken';
 
 export interface DiaryPlaybackOpts {
   key?: string;
   bpm?: number;
-  /** Per-chord rendering: struck together, or rolled up three quarters
-   *  of a beat at a time. Defaults to blocked. */
+  /** Per-chord rendering: struck together, or run upward. Defaults to
+   *  blocked. */
   mode?: DiaryPlaybackMode;
 }
 
 /** The player's settings for a diary preview, at the diary's tempo and
- *  with the chosen attack. Everything else is the panel's default,
+ *  with the chosen Play as. Everything else is the panel's default,
  *  which is the point of there being a panel. */
 function diarySettings(bpm: number, mode: DiaryPlaybackMode) {
-  return { ...DEFAULT_PLAYER_SETTINGS, bpm, attack: mode };
+  return {
+    ...DEFAULT_PLAYER_SETTINGS,
+    bpm,
+    playAs: mode === 'blocked' ? 'together' as const : 'up' as const,
+  };
 }
 
 /**

@@ -14,7 +14,10 @@
  *
  *   · a quiz hides the board before the answer and may play on arrival;
  *     every other surface waits for a tap
- *   · chord recognition never re-voices, and adds "Chord sounds"
+ *   · chord recognition never re-voices, and says under Play as that a
+ *     run is an aid there
+ *   · a scale card that had a Direction row shows Play as in its place
+ *     rather than at the end of Settings
  *   · beside a drill the ladder is locked to the row and nothing is
  *     rated
  *   · the melody ring appears only where a surface has a melody line
@@ -63,8 +66,9 @@ import type { PlaybackHandle } from '../lib/musicalPlayback';
 import { panelBeats, playPanel } from '../lib/builtAnswers/play';
 import {
   BPM_MAX, BPM_MIN, HANDS_LABEL, LADDER_RUNGS, LOOP_OPTIONS, clampBpm, readSettingsOpen,
-  writeSettingsOpen, type ChordAttack, type PlayerSettings,
+  writeSettingsOpen, type PlayerSettings,
 } from '../lib/player/settings';
+import PlayAsRow from './PlayAsRow';
 import {
   bassDrop, handsForSetting, playerMarks, type PlayerChord,
 } from '../lib/player/voices';
@@ -167,8 +171,16 @@ interface SharedPlayerProps {
    */
   showHands?: boolean;
   showListen?: boolean;
-  /** Show "Chord sounds". Chord recognition only. */
-  attack?: { value: ChordAttack; onChange: (a: ChordAttack) => void };
+  /**
+   * Draw Play as at the end of Settings. On by default: the row is on
+   * every surface (Silas, 12 Sep 2026). A scale card whose Direction row
+   * it replaced draws it in that row's place and turns this off, so the
+   * row is never on a screen twice.
+   */
+  playAsRow?: boolean;
+  /** Chord Recognition only: a run is an aid there, and a line under the
+   *  row says so. */
+  playAsIsAid?: boolean;
   /**
    * The ring this surface draws on the sounding chord's root, in its
    * degree-of-the-key colour.
@@ -268,7 +280,7 @@ type Transport = 'stopped' | 'playing' | 'paused';
 
 export default function SharedPlayer({
   chords, orientPc, settings, onSettings, thickness,
-  bassDirection, handDirection, showHands, showListen, attack,
+  bassDirection, handDirection, showHands, showListen, playAsRow = true, playAsIsAid,
   board, boardLabel = 'What is sounding', caption, compare, children,
   controls = true, onStep, beats, play, totalBeats, ring, startLit = 0,
 }: SharedPlayerProps) {
@@ -661,15 +673,16 @@ export default function SharedPlayer({
               If the keys light up before you hear the chord, slide left until they match. If they light up after, slide right.
             </p>
 
-            {attack !== undefined && (
-              <Row label="Chord sounds">
-                <Chip on={attack.value === 'blocked'} testId="attack-blocked" onClick={() => attack.onChange('blocked')}>
-                  Blocked
-                </Chip>
-                <Chip on={attack.value === 'broken'} testId="attack-broken" onClick={() => attack.onChange('broken')}>
-                  Broken
-                </Chip>
-              </Row>
+            {/* PLAY AS, IN THE SPOT CHORD SOUNDS HAD: last in the fold,
+                on every surface (Silas, 12 and 13 Sep 2026). A scale
+                card whose Direction row it replaced draws it there and
+                turns this one off. */}
+            {playAsRow && (
+              <PlayAsRow
+                value={settings.playAs}
+                onChange={p => set({ playAs: p })}
+                aidNote={playAsIsAid === true}
+              />
             )}
           </div>
         </details>

@@ -22,12 +22,12 @@
  * Slowing a chord down or moving it an octave does not tell you what it
  * is; you still have to name it, and a reader who needs it slow is
  * hearing the same question at a speed they can follow. Hearing the
- * BASS ALONE, or hearing a chord rolled note by note, does part of the
- * naming: the bass of an inverted chord is the note the inversion is
- * named for, and a broken chord hands you its notes one at a time.
+ * BASS ALONE, or hearing a chord played one note at a time, does part
+ * of the naming: the bass of an inverted chord is the note the inversion
+ * is named for, and a run hands you its notes one at a time.
  *
- * So those two count and the other two are free. Silas's rule, and the
- * aids fold says it in one line above the controls.
+ * So those count and the other two are free. Silas's rule, and the aids
+ * fold says it in one line above the controls.
  *
  * =====================================================================
  * THE STEPS, AND THE ONE THAT IS NOT ABOUT THE ANSWER.
@@ -44,6 +44,7 @@
  * =====================================================================
  */
 import { type Feel } from '../fluencyScale';
+import type { PlayAs } from '../player/settings';
 
 export interface HeardOutcome {
   /** The FIRST question: which chord, or which progression. */
@@ -52,7 +53,7 @@ export interface HeardOutcome {
   secondRight: boolean;
   /** How many times Play again was pressed before answering. */
   replays: number;
-  /** Whether Bass only or a broken chord was in force. */
+  /** Whether Bass only, or a run where a run counts, was in force. */
   aided: boolean;
 }
 
@@ -96,11 +97,18 @@ export function feelOfAttempt(
  *
  * IT READS THE TWO FIELDS THAT MATTER and ignores the rest, so a caller
  * hands over its whole settings object and the decision about which
- * controls count lives here and only here. A surface with no Chord
- * sounds row simply has no `attack`, which is not an aid.
+ * controls count lives here and only here.
+ *
+ * PLAY AS COUNTS ONLY WHERE THE SURFACE SAYS SO. Silas's spec of 13 Sep
+ * 2026 makes Up, Down and Up and Down a listening aid on the Chord
+ * Recognition quiz, where only Together is free, so that quiz passes
+ * `playAsIsAid` and every other surface leaves it off. Bass only is an
+ * aid everywhere.
  */
 export function isAided(
-  settings: { listen: 'both' | 'bass'; attack?: 'blocked' | 'broken' },
+  settings: { listen: 'both' | 'bass'; playAs?: PlayAs },
+  opts: { playAsIsAid?: boolean } = {},
 ): boolean {
-  return settings.listen === 'bass' || (settings.attack ?? 'blocked') !== 'blocked';
+  if (settings.listen === 'bass') return true;
+  return opts.playAsIsAid === true && (settings.playAs ?? 'together') !== 'together';
 }

@@ -22,8 +22,9 @@
  */
 import type { ReactNode } from 'react';
 import {
-  BPM_MAX, BPM_MIN, clampBpm, type ChordAttack, type PlayerSettings,
+  BPM_MAX, BPM_MIN, clampBpm, type PlayerSettings,
 } from '../lib/player/settings';
+import PlayAsRow from './PlayAsRow';
 
 const CHIP = 'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors';
 const CHIP_OFF = 'border-black/10 dark:border-white/20 bg-black/[0.03] '
@@ -61,12 +62,13 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export default function AidsFold({
-  settings, onSettings, attack, showListen = true, extra,
+  settings, onSettings, playAs, showListen = true, extra,
 }: {
   settings: PlayerSettings;
   onSettings: (next: PlayerSettings) => void;
-  /** Chord recognition's own row. Omit where the surface has none. */
-  attack?: boolean;
+  /** Play as, in the spot Chord sounds had. Chord Recognition only: a
+   *  run is an aid there. Omit where the surface has no such row. */
+  playAs?: boolean;
   /**
    * A row this surface adds of its own.
    *
@@ -149,22 +151,16 @@ export default function AidsFold({
           </Chip>
         </Row>
 
-        {attack === true && (
-          <Row label="Chord sounds">
-            {([
-              ['blocked', 'Blocked'],
-              ['broken', 'Broken (lower rating)'],
-            ] as ReadonlyArray<[ChordAttack, string]>).map(([id, label]) => (
-              <Chip
-                key={id}
-                on={settings.attack === id}
-                testId={`aid-attack-${id}`}
-                onClick={() => set({ attack: id })}
-              >
-                {label}
-              </Chip>
-            ))}
-          </Row>
+        {/* PLAY AS, IN THE SPOT CHORD SOUNDS HAD. Chord Recognition
+            only, where a run is an aid and the row says so in Silas's
+            words of 13 Sep 2026. */}
+        {playAs === true && (
+          <PlayAsRow
+            value={settings.playAs}
+            onChange={p => set({ playAs: p })}
+            testIdPrefix="aid-play-as"
+            aidNote
+          />
         )}
 
         {extra}

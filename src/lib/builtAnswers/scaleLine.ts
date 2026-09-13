@@ -19,9 +19,24 @@
  * one-direction run has nowhere to land otherwise.
  * =====================================================================
  */
+import type { PlayAs } from '../player/settings';
 
 /** Which way the line runs. */
 export type Direction = 'up' | 'down' | 'both';
+
+/**
+ * The line Play as asks a scale for.
+ *
+ * Up, Down and Up and Down are the scale in that direction — Silas's
+ * ruling of 12 Sep 2026. Together is every note at once, and the notes
+ * of a scale held at once are the notes of its upward line, octave
+ * included, so it asks for that.
+ */
+export function directionOf(playAs: PlayAs): Direction {
+  if (playAs === 'down') return 'down';
+  if (playAs === 'upDown') return 'both';
+  return 'up';
+}
 
 /** The register the line starts in — the octave above the bass. */
 const BASE = 48;

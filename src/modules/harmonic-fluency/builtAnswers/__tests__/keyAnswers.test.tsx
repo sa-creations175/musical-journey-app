@@ -185,7 +185,9 @@ describe('the relative key reveals its scale', () => {
   it('runs to the octave and back, with no starting points', () => {
     mountRoot(relMinor, true);
     expect(byTestId('start-row')).toBeNull();
-    expect(byTestId('direction-row')).not.toBeNull();
+    // PLAY AS, WHERE DIRECTION WAS, since 13 Sep 2026.
+    expect(byTestId('play-as-row')).not.toBeNull();
+    expect(byTestId('direction-row')).toBeNull();
   });
 
   it('plays the home chord, then the scale over its own root', async () => {

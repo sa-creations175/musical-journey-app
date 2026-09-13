@@ -188,10 +188,25 @@ describe('the reveal lights the scale and plays it over a drone', () => {
     expect(lit.length).toBeGreaterThanOrEqual(15);
   });
 
-  it('offers a starting point per note, and three directions', () => {
+  it('offers a starting point per note, and Play as where Direction was', () => {
     mount(notes, true);
     expect(byTestId('start-row')!.children).toHaveLength(5);
-    expect(byTestId('direction-row')!.children).toHaveLength(3);
+    expect([...byTestId('play-as-chips')!.children].map(c => c.textContent))
+      .toEqual(['Together', 'Up', 'Down', 'Up and Down']);
+    // ONE ROW, not a second one at the end of Settings.
+    expect(host.querySelectorAll('[data-testid="play-as-row"]')).toHaveLength(1);
+    expect(byTestId('direction-row')).toBeNull();
+  });
+
+  it('plays every note at once on Together', async () => {
+    mount(notes, true);
+    tap(byTestId('play-as-together'));
+    tap(byTestId('player-hear'));
+    await settle();
+    const steps = played.seq[0] as Array<{ intervals: number[] }>;
+    // The home chord, then one step holding the scale and its octave.
+    expect(steps).toHaveLength(2);
+    expect(steps[1].intervals).toHaveLength(6);
   });
 
   it('drones on the KEY and not on the scale, on the lick card', async () => {
@@ -214,7 +229,7 @@ describe('the reveal lights the scale and plays it over a drone', () => {
 
   it('runs the full octave when one direction is chosen', async () => {
     mount(notes, true);
-    tap(byTestId('direction-up'));
+    tap(byTestId('play-as-up'));
     tap(byTestId('player-hear'));
     await settle();
     expect(played.seq[0]).toHaveLength(1 + 6);

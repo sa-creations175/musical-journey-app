@@ -198,21 +198,62 @@ export function soundingNotes(
 }
 
 /**
- * How long a chord's slot is, once the roll is allowed for.
+ * The order the notes of a run strike in.
+ *
+ * UP IS THE ORDER GIVEN, which is low to high everywhere this is
+ * called, and it does not sort: chord recognition's card is about an
+ * inversion, and a run that sorted would be re-voicing the question.
+ * Down is that order reversed. Up and Down goes up and comes back
+ * without striking the top note twice. Together has no order and hands
+ * the notes back as they are.
+ */
+export function strikeOrder<T>(
+  notes: ReadonlyArray<T>,
+  playAs: PlayerSettings['playAs'],
+): T[] {
+  if (playAs === 'down') return [...notes].reverse();
+  if (playAs === 'upDown') return [...notes, ...[...notes].reverse().slice(1)];
+  return [...notes];
+}
+
+/**
+ * How long a note in a run rings, as a share of the gap to the next.
+ *
+ * JUST PAST THE NEXT ONE. Silas's spec of 12 Sep 2026: "Notes in a run
+ * release just after the next one sounds; no long bleed." The walked
+ * prototype holds each note for 1.2 of the gap, and so does this.
+ */
+export const RUN_RELEASE = 1.2;
+
+/**
+ * The gap between the notes of a run, in beats.
+ *
+ * THREE QUARTERS OF A BEAT FOR A CHORD ON ITS OWN, the spacing ruled on
+ * 10 Sep 2026 and unchanged. INSIDE ITS OWN BAR IN A PROGRESSION: the
+ * 13 Sep answer has each chord's run fit the chord's length, so the next
+ * chord still arrives on its beat. Nine tenths of the bar is shared
+ * between the strikes, which leaves the last one room to ring.
+ */
+export function runGapBeats(strikes: number, beats: number, inBar: boolean): number {
+  if (!inBar || strikes < 2) return BROKEN_STEP_BEATS;
+  return Math.min(BROKEN_STEP_BEATS, (beats * 0.9) / strikes);
+}
+
+/**
+ * How long a chord's slot is, once its run is allowed for.
  *
  * =====================================================================
- * A ROLLED CHORD NEEDS ROOM TO FINISH ROLLING.
+ * A CHORD ON ITS OWN GROWS TO FIT ITS RUN; A CHORD IN A BAR DOES NOT.
  *
- * Broken strikes the notes three quarters of a beat apart, so a
+ * On its own, a run strikes three quarters of a beat apart, so a
  * four-note chord takes two and a quarter beats to state — more than
- * the two a panel chord gets. Left at two, the next chord would start
- * before this one had finished arriving, and a progression would smear
- * into itself.
+ * the two a panel chord gets — and its slot grows to fit, no further.
+ * Together, and a chord short enough to run inside its slot, keep the
+ * length they had.
  *
- * So a broken chord's slot grows to fit its own roll and no further:
- * `noteCount × 0.75`, which leaves three quarters of a beat of the last
- * note ringing alone before the next chord. A blocked chord, and a
- * chord short enough to roll inside its slot, keep the length they had.
+ * In a progression the bar is the bar. The run is fitted into it
+ * (`runGapBeats`) and the slot keeps its length, so the chords land
+ * where the progression puts them.
  *
  * `panelBeats` and `chordStep` both read this, which is what keeps
  * Pause honest — the panel measures against the same number it plays.
@@ -222,13 +263,15 @@ export function stepBeats(
   chord: PlayerChord,
   settings: PlayerSettings,
   beats: number,
+  /** Whether this chord is one bar of a progression. */
+  inBar = false,
 ): number {
   // THE CHORD'S OWN LENGTH WINS. A movement's rhythm is part of what
   // was played and the sequence's default would flatten it.
   const own = chord.beats ?? beats;
-  if (settings.attack !== 'broken') return own;
+  if (settings.playAs === 'together' || inBar) return own;
   const { notes } = soundingNotes(chord, settings);
-  return Math.max(own, notes.length * BROKEN_STEP_BEATS);
+  return Math.max(own, strikeOrder(notes, settings.playAs).length * BROKEN_STEP_BEATS);
 }
 
 /** One chord as a step of the sequence. */
@@ -237,16 +280,23 @@ export function chordStep(
   settings: PlayerSettings,
   beats: number,
   drop = 0,
+  /** Whether this chord is one bar of a progression. */
+  inBar = false,
 ): SeqChord {
   const { notes, hands } = soundingNotes(chord, settings, drop);
+  const length = stepBeats(chord, settings, beats, inBar);
+  if (settings.playAs === 'together') return { intervals: notes, beats: length, hands };
+  // A RUN IS A ROLL ON THE STEP, and the sequencer does the rest —
+  // through the one player, so Pause and Resume land on a run exactly
+  // as they do on a struck chord.
+  const order = strikeOrder(notes.map((_, i) => i), settings.playAs);
+  const gap = runGapBeats(order.length, chord.beats ?? beats, inBar);
   return {
-    intervals: notes,
-    beats: stepBeats(chord, settings, beats),
-    hands,
-    // BROKEN IS A ROLL ON THE STEP, and the sequencer does the rest —
-    // one broken mode, through the one player, so Pause and Resume land
-    // on a rolled chord exactly as they do on a struck one.
-    ...(settings.attack === 'broken' ? { roll: BROKEN_STEP_BEATS } : {}),
+    intervals: order.map(i => notes[i]),
+    hands: order.map(i => hands[i]),
+    beats: length,
+    roll: gap,
+    release: gap * RUN_RELEASE,
   };
 }
 

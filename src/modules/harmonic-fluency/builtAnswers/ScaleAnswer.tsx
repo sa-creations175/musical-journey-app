@@ -35,9 +35,10 @@
  */
 import { useMemo, useState } from 'react';
 import BuiltAnswerKeyboard from '../../../components/BuiltAnswerKeyboard';
+import PlayAsRow from '../../../components/PlayAsRow';
 import SharedPlayer from '../../../components/SharedPlayer';
 import { scaleMarks, tapMarks } from '../../../lib/builtAnswers/marks';
-import { scaleLine, type Direction } from '../../../lib/builtAnswers/scaleLine';
+import { directionOf, scaleLine } from '../../../lib/builtAnswers/scaleLine';
 import { playScale, scaleBeats } from '../../../lib/builtAnswers/play';
 import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
 import type { Flashcard } from '../catalog';
@@ -53,12 +54,6 @@ const BTN_PRIMARY = `${BTN} border-neutral-900 bg-neutral-900 text-white `
 const BTN_PLAIN = `${BTN} border-black/10 dark:border-white/20 `
   + 'hover:bg-black/[0.04] dark:hover:bg-white/10';
 
-const DIRECTIONS: ReadonlyArray<{ id: Direction; label: string }> = [
-  { id: 'up', label: 'Up' },
-  { id: 'down', label: 'Down' },
-  { id: 'both', label: 'Up and down' },
-];
-
 export default function ScaleAnswer({
   card, target, answered, answer,
 }: {
@@ -72,10 +67,13 @@ export default function ScaleAnswer({
   const [message, setMessage] = useState<string | null>(null);
   const [colour, setColour] = useColourMode();
   /** The shared panel's settings — one set of words for tempo, the
-   *  lift, the loop and the colours on every screen that sounds. */
-  const [settings, setSettings] = usePlayerSettings();
+   *  lift, the loop and the colours on every screen that sounds.
+   *
+   *  OPENS ON UP AND DOWN, which is what this card played when its row
+   *  was Direction. Play as took that row's place on 13 Sep 2026 and
+   *  the card sounds the same until the reader changes it. */
+  const [settings, setSettings] = usePlayerSettings({ playAs: 'upDown' });
   const [start, setStart] = useState<number | null>(null);
-  const [direction, setDirection] = useState<Direction>('both');
   /** Which note is sounding, so the board follows the run. */
   const [sounding, setSounding] = useState<number | null>(null);
 
@@ -100,13 +98,17 @@ export default function ScaleAnswer({
    * holds what is sounding. `startAtBeat` is how far in Resume asks
    * for.
    */
-  const line = scaleLine(target.pcs, start ?? target.rootPc, direction, { toOctave: false });
+  const line = scaleLine(
+    target.pcs, start ?? target.rootPc, directionOf(settings.playAs), { toOctave: false },
+  );
+  const together = settings.playAs === 'together';
 
   const hear = (startAtBeat = 0) => playScale(line, {
     bpm: settings.bpm,
     octaveUp: settings.octaveUp,
     home: target.homePcs.map(pc => 48 + pc),
     dronePc: target.dronePc,
+    together,
     onNote: i => setSounding(line[i] ?? null),
     ...(startAtBeat > 0 ? { startAtBeat } : {}),
   });
@@ -184,8 +186,9 @@ export default function ScaleAnswer({
             onSettings={setSettings}
             board={false}
             play={({ startAtBeat }) => hear(startAtBeat)}
-            totalBeats={scaleBeats(line.length)}
+            totalBeats={scaleBeats(line.length, together)}
             caption={target.pcs.map(pc => spellInKey(pc, target.rootName)).join(' ')}
+            playAsRow={false}
           >
             {/* STARTING POINTS ARE THE PENTATONIC CARDS' OWN. Those are
                 the hand shapes Shapes & Patterns drills; a seven-note
@@ -211,25 +214,12 @@ export default function ScaleAnswer({
                   </button>
                 ))}
               </div>
-              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
-                Direction
-              </div>
-              <div className="flex flex-wrap gap-1.5" data-testid="direction-row">
-                {DIRECTIONS.map(d => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    aria-pressed={direction === d.id}
-                    data-testid={`direction-${d.id}`}
-                    onClick={() => setDirection(d.id)}
-                    className={`${BTN} ${direction === d.id
-                      ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                      : 'border-black/10 dark:border-white/20'}`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
+              {/* PLAY AS, WHERE DIRECTION WAS. Up, Down and Up and Down
+                  are the three directions it had; Together is new. */}
+              <PlayAsRow
+                value={settings.playAs}
+                onChange={p => setSettings({ ...settings, playAs: p })}
+              />
             </div>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
               {`The home chord of the key, then the scale with ${

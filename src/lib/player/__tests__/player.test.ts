@@ -223,67 +223,86 @@ describe('the ladder', () => {
 });
 
 /**
- * The app's one broken mode.
+ * Play as, on a chord.
  *
  * =====================================================================
- * BROKEN IS A SCHEDULE, NOT A DIFFERENT CHORD.
+ * A RUN IS A SCHEDULE, NOT A DIFFERENT CHORD.
  *
- * Silas's ruling of 10 Sep 2026 collapsed three broken modes into one —
- * chord recognition's up and down, and the harmonic diary's ascending
- * and descending arpeggio. What is left rolls UP, three quarters of a
- * beat between onsets, and that is the whole of the difference: the
- * same notes, in the same order, at the same volumes, through the same
- * sequencer.
- *
- * The thing worth pinning is that the roll does not RE-ORDER anything,
- * because the surface that most needs broken is the one where the
- * bottom note is the answer.
+ * Silas's ruling of 12 Sep 2026: Together, Up, Down, Up and Down. A run
+ * plays the chord's own notes one at a time, and Up keeps the order
+ * given — the thing worth pinning, because the surface that most needs
+ * a run is the one where the bottom note is the answer.
  * =====================================================================
  */
-describe('broken rolls the chord and changes nothing else', () => {
+describe('Play as runs the chord and changes nothing else', () => {
   const chord = {
     name: 'Cmaj7', rootPc: 0, bass: 36, hand: [60, 64, 67, 71],
   };
-  const blocked = DEFAULT_PLAYER_SETTINGS;
-  const broken = { ...DEFAULT_PLAYER_SETTINGS, attack: 'broken' as const };
+  const together = DEFAULT_PLAYER_SETTINGS;
+  const up = { ...DEFAULT_PLAYER_SETTINGS, playAs: 'up' as const };
+  const down = { ...DEFAULT_PLAYER_SETTINGS, playAs: 'down' as const };
+  const upDown = { ...DEFAULT_PLAYER_SETTINGS, playAs: 'upDown' as const };
 
-  it('carries a roll only when broken is chosen', () => {
-    expect(chordStep(chord, blocked, 2).roll).toBeUndefined();
-    expect(chordStep(chord, broken, 2).roll).toBe(BROKEN_STEP_BEATS);
+  it('carries a roll only on a run', () => {
+    expect(chordStep(chord, together, 2).roll).toBeUndefined();
+    expect(chordStep(chord, up, 2).roll).toBe(BROKEN_STEP_BEATS);
   });
 
-  it('plays the same notes in the same order either way', () => {
+  it('plays Up in the order given, Down reversed, and Up and Down both ways', () => {
     // THE POINT, for chord recognition: the inversion is the question,
-    // so a roll that sorted or reversed would be re-voicing it.
-    expect(chordStep(chord, broken, 2).intervals)
-      .toEqual(chordStep(chord, blocked, 2).intervals);
-    expect(chordStep(chord, broken, 2).hands)
-      .toEqual(chordStep(chord, blocked, 2).hands);
+    // so a run that sorted would be re-voicing it.
+    const struck = chordStep(chord, together, 2);
+    expect(chordStep(chord, up, 2).intervals).toEqual(struck.intervals);
+    expect(chordStep(chord, up, 2).hands).toEqual(struck.hands);
+    expect(chordStep(chord, down, 2).intervals).toEqual([...struck.intervals].reverse());
+    // UP AND BACK, THE TOP NOTE STRUCK ONCE, the bass in the left hand
+    // at both ends.
+    expect(chordStep(chord, upDown, 2).intervals)
+      .toEqual([36, 60, 64, 67, 71, 67, 64, 60, 36]);
+    expect(chordStep(chord, upDown, 2).hands)
+      .toEqual(['L', 'R', 'R', 'R', 'R', 'R', 'R', 'R', 'L']);
   });
 
-  it('gives the roll room to finish, and leaves a blocked chord alone', () => {
-    // Five sounding notes — the bass and four in the hand — is 3.75
-    // beats of rolling, which will not fit in the two a panel chord
-    // gets. A blocked chord keeps its two.
-    expect(stepBeats(chord, blocked, 2)).toBe(2);
-    expect(stepBeats(chord, broken, 2)).toBeCloseTo(5 * BROKEN_STEP_BEATS, 10);
+  it('releases each note just after the next one sounds', () => {
+    // No long bleed: the spec of 12 Sep 2026, at the prototype's 1.2.
+    const step = chordStep(chord, up, 2);
+    expect(step.release).toBeCloseTo(step.roll! * 1.2, 10);
+    expect(chordStep(chord, together, 2).release).toBeUndefined();
+  });
+
+  it('gives a chord on its own room to finish, and leaves Together alone', () => {
+    // Five sounding notes is 3.75 beats of run, nine on Up and Down,
+    // neither of which fits in the two a panel chord gets.
+    expect(stepBeats(chord, together, 2)).toBe(2);
+    expect(stepBeats(chord, up, 2)).toBeCloseTo(5 * BROKEN_STEP_BEATS, 10);
+    expect(stepBeats(chord, upDown, 2)).toBeCloseTo(9 * BROKEN_STEP_BEATS, 10);
   });
 
   it('never shortens a chord that was already long enough', () => {
-    // A two-note shape rolls in 1.5 beats and still gets its two.
+    // A two-note shape runs in 1.5 beats and still gets its two.
     const two = { name: 'C5', rootPc: 0, bass: null, hand: [60, 67] };
-    expect(stepBeats(two, broken, 2)).toBe(2);
+    expect(stepBeats(two, up, 2)).toBe(2);
+  });
+
+  it('runs each chord of a progression inside its own bar', () => {
+    // SILAS'S ANSWER OF 13 SEP 2026. The bar keeps its length and the
+    // run is fitted into it, so the next chord lands on its beat.
+    expect(stepBeats(chord, upDown, 2, true)).toBe(2);
+    const step = chordStep(chord, upDown, 2, 0, true);
+    expect(step.beats).toBe(2);
+    const lastStrike = (step.intervals.length - 1) * step.roll!;
+    expect(lastStrike + step.release!).toBeLessThanOrEqual(2);
   });
 
   it('lets Pause measure the sequence it actually plays', () => {
-    // THE BUG THIS PREVENTS: `panelBeats` counted two beats a chord
-    // while the player gave a rolled one nearly four, so Resume would
-    // pick up from a point the sequence had not reached.
+    // THE BUG THIS PREVENTS: `panelBeats` counting two beats a chord
+    // while the player gave a run nearly four, so Resume picked up from
+    // a point the sequence had not reached.
     const chords = [chord, chord];
-    const summed = chords
-      .reduce((n, c) => n + stepBeats(c, broken, 2), 0);
-    expect(panelBeats(chords, { settings: broken })).toBe(summed);
-    expect(panelBeats(chords, { settings: blocked })).toBe(4);
+    expect(panelBeats(chords, { settings: up }))
+      .toBe(chords.reduce((n, c) => n + stepBeats(c, up, 2, true), 0));
+    expect(panelBeats(chords, { settings: together })).toBe(4);
+    expect(panelBeats([chord], { settings: up })).toBe(stepBeats(chord, up, 2));
   });
 });
 

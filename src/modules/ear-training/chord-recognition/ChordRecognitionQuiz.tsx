@@ -31,6 +31,7 @@ import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice
 import AidsFold from '../../../components/AidsFold';
 import SharedPlayer from '../../../components/SharedPlayer';
 import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
+import { playAsFrom, playStyleOf } from '../../../lib/player/settings';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 import { crChords, crQuizChord } from './crPlayer';
 import { feelOfAttempt, heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
@@ -88,20 +89,19 @@ const ACCENT = moduleMetaById(MODULE_ID)?.accentHex ?? '#5a8752';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
 const PREF_BROKEN_DIRECTION = 'chordRecognitionBrokenDirection';
 /**
- * Blocked, broken up, broken down — one setting where there were two.
+ * Play as, the one listening setting this surface remembers.
  *
  * =====================================================================
- * A NEW KEY, AND THE OLD ONE IS READ ONCE AS A FALLBACK.
+ * ONE KEY THAT HAS HELD THREE SHAPES, AND AN OLDER ONE READ AS FALLBACK.
  *
  * The surface had a blocked/broken toggle that was never stored and a
- * direction (`asc` / `desc` / `both`) that was. The shared player's
- * "Chord sounds" row is one control with three settings, so the two
- * become one — and "both" (up then back down without re-striking the
- * apex) has no place on that row and retires with it.
+ * direction (`asc` / `desc` / `both`) that was. That became "Chord
+ * sounds" under this key; since 13 Sep 2026 it holds Play as —
+ * `together`, `up`, `down` or `upDown` — and whatever it held before
+ * reads into those through `playAsFrom` (an old "broken" is Up).
  *
- * The old key is READ so a reader who chose descending still gets
- * descending, and is never WRITTEN again: nothing migrates, and the old
- * value stays where it is in case this is ever reversed.
+ * The old direction key is READ and never WRITTEN: nothing migrates,
+ * and the old value stays where it is.
  * =====================================================================
  */
 const PREF_CHORD_SOUNDS = 'chordRecognitionChordSounds';
@@ -184,9 +184,9 @@ export default function ChordRecognitionQuiz({
    */
   const [selection, setSelection] = useState<FacetSelection>(NO_SELECTION);
   /**
-   * The shared player's settings — tempo, the lift, Listen to, and this
-   * surface's own Chord sounds. One object where there were a speed
-   * preference, a blocked/broken toggle and a direction.
+   * The shared player's settings — tempo, the lift, Listen to, and Play
+   * as, the one of them a run is an aid on here. One object where there
+   * were a speed preference, a blocked/broken toggle and a direction.
    */
   const [settings, setSettings] = usePlayerSettings();
   /**
@@ -263,26 +263,23 @@ export default function ChordRecognitionQuiz({
     [],
   ) ?? [];
 
-  // Hydrate broken-chord direction + inversion positions from userPrefs.
+  // Hydrate Play as + inversion positions from userPrefs.
   useEffect(() => {
     (async () => {
       // THE NEW KEY FIRST, THEN THE OLD DIRECTION AS A FALLBACK.
       //
-      // THREE STORED VALUES, TWO LIVE ONES. Since Silas's ruling of
-      // 10 Sep 2026 there is one broken mode, so a reader who had
-      // chosen "Broken, up" or "Broken, down" reads as Broken — what
-      // they asked for was to hear the notes in turn, and that is still
-      // on offer. Only "Blocked" means blocked. The older direction key
-      // says the same thing a step further back: a stored direction at
-      // all meant broken.
+      // FOUR LIVE VALUES, AND WHAT WAS STORED BEFORE READS INTO THEM.
+      // Silas's answer of 13 Sep 2026: an old "broken" reads as Up, the
+      // one direction the app played from 10 Sep until the Play as row
+      // — see `playAsFrom`. The older direction key says the same thing
+      // a step further back: a stored descending direction meant broken,
+      // so it is Up too.
       const sounds = await getPref<string | null>(PREF_CHORD_SOUNDS, null);
-      if (sounds === 'blocked') {
-        setSettings({ ...settingsRef.current, attack: 'blocked' });
-      } else if (sounds === 'broken' || sounds === 'up' || sounds === 'down') {
-        setSettings({ ...settingsRef.current, attack: 'broken' });
+      if (sounds !== null) {
+        setSettings({ ...settingsRef.current, playAs: playAsFrom(sounds) });
       } else {
         const old = await getPref<string>(PREF_BROKEN_DIRECTION, 'asc');
-        if (old === 'desc') setSettings({ ...settingsRef.current, attack: 'broken' });
+        if (old === 'desc') setSettings({ ...settingsRef.current, playAs: 'up' });
       }
 
       // ACCEPTS THE OLD SHAPE. The preference used to be one list for
@@ -310,15 +307,15 @@ export default function ChordRecognitionQuiz({
   /**
    * The panel's settings, and the one of them this surface remembers.
    *
-   * CHORD SOUNDS IS STORED; the tempo, the lift and Listen to are not.
+   * PLAY AS IS STORED; the tempo, the lift and Listen to are not.
    * That matches what the surface stored before — a direction, and
    * nothing else — and the shared player's own rule that a setting
    * starts where it starts unless Silas has asked for it to persist.
    */
   const applySettings = (next: typeof settings) => {
     setSettings(next);
-    if (next.attack !== settingsRef.current.attack) {
-      void setPref(PREF_CHORD_SOUNDS, next.attack);
+    if (next.playAs !== settingsRef.current.playAs) {
+      void setPref(PREF_CHORD_SOUNDS, next.playAs);
     }
   };
 
@@ -537,12 +534,12 @@ export default function ChordRecognitionQuiz({
    * the measurement and the sound cannot drift apart.
    */
   const answerableInMs = (chord: ChordData, inversion: Inversion): number => {
-    const { attack, bpm } = settingsRef.current;
-    if (attack === 'blocked') return chordBlockedAnswerableMs();
-    // UNCHANGED BY THE COLLAPSE TO ONE BROKEN MODE. The formula was
-    // always the ascending one — the direction only ever mattered for
-    // "both", which never reached this quiz — so a reader's stored
-    // times stay comparable across the change.
+    const { playAs, bpm } = settingsRef.current;
+    if (playAs === 'together') return chordBlockedAnswerableMs();
+    // ONE FORMULA FOR ALL THREE RUNS. Up and Down each strike every note
+    // once; Up and Down has struck every note by its top one, which is
+    // the same count, and what follows repeats what was already heard.
+    // So a reader's stored times stay comparable across the change.
     return chordBrokenAnswerableMs(
       crQuizChord(chord, 0, inversion, settingsRef.current).length,
       bpm,
@@ -574,15 +571,15 @@ export default function ChordRecognitionQuiz({
     // ABSOLUTE MIDI, so the lift can tell whether the chord still fits
     // on the board. The players add a root and this passes zero.
     const notes = crQuizChord(chord, rootMidi, inversion, live);
-    if (live.attack === 'blocked') {
+    if (live.playAs === 'together') {
       await playChordBlocked(0, notes, live.bpm);
       return;
     }
-    // THE PLAYER'S OWN BROKEN MODE, not a second one. `playChordBroken`
-    // is gone; this passes the SAME notes in the SAME order the blocked
-    // branch does — the roll is a schedule, not a re-voicing, so the
-    // inversion the card asks about survives it untouched.
-    await playRolled(notes, { bpm: live.bpm });
+    // THE PLAYER'S OWN RUN, not a second one. This passes the SAME notes
+    // in the SAME order the Together branch does, and the player strikes
+    // them up, down, or up and down — a schedule, not a re-voicing, so
+    // the inversion the card asks about survives it untouched.
+    await playRolled(notes, { bpm: live.bpm, playAs: live.playAs });
   };
 
   const startNew = async () => {
@@ -613,7 +610,7 @@ export default function ChordRecognitionQuiz({
     asked.current = {
       playbackEndsAt: Date.now() + answerableInMs(picked.chord, picked.inversion),
       playbackBpm: settingsRef.current.bpm,
-      playStyle: settingsRef.current.attack === 'blocked' ? 'blocked' : 'broken',
+      playStyle: playStyleOf(settingsRef.current.playAs),
     };
     await playChord(picked.chord, rootMidi, picked.inversion);
   };
@@ -656,7 +653,7 @@ export default function ChordRecognitionQuiz({
     // NO SECOND QUESTION WAS ASKED ON THIS PATH, so the quality answer
     // is the whole of it: right on the first listen with no aid is In
     // flow, right after replays is Clean, wrong is Struggled.
-    const aidedQuality = isAided(settingsRef.current);
+    const aidedQuality = isAided(settingsRef.current, { playAsIsAid: true });
     const feelQuality = heardFeel({
       firstRight: isCorrect,
       secondRight: isCorrect,
@@ -703,7 +700,7 @@ export default function ChordRecognitionQuiz({
     // THE QUALITY WAS RIGHT ON THIS PATH — that is what made step two
     // fire — so a wrong inversion is half right, which is Working on
     // it and not Struggled. You heard the chord and not the voicing.
-    const aidedInv = isAided(settingsRef.current);
+    const aidedInv = isAided(settingsRef.current, { playAsIsAid: true });
     const feelInv = heardFeel({
       firstRight: true,
       secondRight: isCorrect,
@@ -1118,12 +1115,12 @@ export default function ChordRecognitionQuiz({
       <div className="flex flex-col items-center gap-3">
         {/* THE BLOCKED/BROKEN TOGGLE AND THE DIRECTION ROW WERE HERE,
             with the speed control under them. All three are the shared
-            player's now: Chord sounds is one row with three settings,
-            and the tempo is beats per minute. Before the answer they
+            player's now: Play as is one row with four settings, and
+            the tempo is beats per minute. Before the answer they
             live in the aids fold, because the panel itself would BE the
             answer — its board lights the notes. */}
         <div className="w-full max-w-sm">
-          <AidsFold settings={settings} onSettings={applySettings} attack />
+          <AidsFold settings={settings} onSettings={applySettings} playAs />
         </div>
 
         <div className="text-center">
@@ -1205,10 +1202,7 @@ export default function ChordRecognitionQuiz({
                   onSettings={applySettings}
                   showHands={false}
                   showListen
-                  attack={{
-                    value: settings.attack,
-                    onChange: a => applySettings({ ...settings, attack: a }),
-                  }}
+                  playAsIsAid
                   thickness={{
                     value: rung,
                     onChange: setRung,

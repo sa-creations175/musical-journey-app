@@ -431,12 +431,12 @@ export function chordBrokenAnswerableMs(
   return (0.05 + (noteCount - 1) * stepBeats * (60 / bpm)) * 1000;
 }
 
-// `playChordBroken` WAS HERE, and it is gone. A broken chord is now a
-// step with a `roll` on it — see `SeqChord.roll` above and `stepBeats`
-// in `lib/player/voices.ts`. Silas's ruling of 10 Sep 2026 left one
-// broken mode in the app and it goes through the one sequencer, so
-// Pause, Resume and Loop work on a rolled chord for free. Its
-// DIRECTION went with it: broken rolls up, and only up.
+// `playChordBroken` WAS HERE, and it is gone. A run is now a step with
+// a `roll` on it — see `SeqChord.roll` below and `stepBeats` in
+// `lib/player/voices.ts` — through the one sequencer, so Pause, Resume
+// and Loop work on it for free. Its direction is Play as (Silas, 12 Sep
+// 2026): the step's notes arrive already in Up, Down or Up and Down
+// order.
 
 // playBassNote is scheduled by the caller at an explicit absolute time,
 // so it doesn't own a tempo itself. Sequencers that emit bass lines apply
@@ -462,29 +462,26 @@ export type SeqChord = {
    * together.
    *
    * =====================================================================
-   * THE APP'S ONE BROKEN MODE, AND IT LIVES ON THE STEP.
+   * EVERY RUN IN THE APP, AND IT LIVES ON THE STEP.
    *
-   * There used to be three of them: chord recognition rolled a chord up
-   * or down through `playChordBroken`, and the harmonic diary spread a
-   * chord's tones across its beats through `playNoteSequence`. Three
-   * pieces of code for one musical idea, and a reader who learned
-   * "broken" on the quiz met a different sound in the diary.
-   *
-   * Silas's ruling of 10 Sep 2026 collapses them to one: rolled UP, at
-   * the panel's tempo, three quarters of a beat between onsets. Putting
-   * it on the step rather than in a player of its own means the roll
-   * goes through the same sequencer as everything else — so Pause,
-   * Resume, Loop and the moving highlight all work on a rolled chord
-   * without any of them being told about rolling.
-   *
-   * EACH NOTE RINGS ITS FULL LENGTH FROM ITS OWN ONSET, which is what
-   * the old broken player did and what a hand does on a keyboard. The
-   * chord's tail therefore runs slightly past its slot; the slot is
-   * grown to fit the roll by `stepBeats` in `player/voices.ts`, so the
-   * overlap is a tail rather than a collision.
+   * Up, Down and Up and Down — Silas's Play as row, 12 Sep 2026 — are
+   * all this: the step's notes, already in the order they strike, a gap
+   * apart. There used to be three players for this idea (chord
+   * recognition's, the diary's arpeggio, and this); putting it on the
+   * step means a run goes through the same sequencer as everything else,
+   * so Pause, Resume, Loop and the moving highlight all work on it
+   * without any of them being told about runs.
    * =====================================================================
    */
   roll?: number;
+  /**
+   * How long each note rings, in beats. Absent: the step's own length.
+   *
+   * A RUN RELEASES JUST AFTER THE NEXT NOTE. The spec of 12 Sep 2026
+   * ruled out the long bleed of every note ringing its full length from
+   * its own onset, so a run sets this a touch longer than its gap.
+   */
+  release?: number;
 };
 
 /**
@@ -653,11 +650,14 @@ export function seqSchedule(
     const skipped = beatCursor < skipBeats;
     beatCursor += beats;
     if (skipped) return;
-    // A ROLL IS THE SAME NOTES, LATER. Nothing else about the step
-    // changes: same volume, same hands, same length of ring, same moment
-    // for the board — a rolled chord lights when its first note strikes,
-    // which is when it starts.
+    // A ROLL IS THE STEP'S NOTES, LATER. Same volume, same hands, same
+    // moment for the board — a run lights when its first note strikes,
+    // which is when it starts. What changes is how long each note rings:
+    // a run's `release`, so it lets go just after the next note sounds.
     const roll = (chord.roll ?? 0) * secPerBeat;
+    const ring = chord.release === undefined
+      ? duration * 0.95
+      : chord.release * secPerBeat;
     const at = cursor;
     steps.push({
       index,
@@ -665,7 +665,7 @@ export function seqSchedule(
       notes: chord.intervals.map((iv, note) => ({
         midi: rootMidi + iv,
         at: at + note * roll,
-        duration: duration * 0.95,
+        duration: ring,
         hand: chord.hands?.[note] ?? 'R',
       })),
     });
@@ -765,7 +765,10 @@ export async function playSeqChords(
       chords, rootMidi, secPerBeat, startAt, skipBeats,
     );
     for (const step of steps) {
-      const vol = chordVolume(step.notes.length);
+      // AS LOUD AS THE CHORD IT SPELLS. Up and Down strikes most notes
+      // twice; counting the strikes would make it quieter than Up for
+      // being longer, so the volume counts the notes.
+      const vol = chordVolume(new Set(step.notes.map(n => n.midi)).size);
       for (const note of step.notes) {
         voices.push(playNote(
           midiToFreq(note.midi), note.at, note.duration, context,

@@ -27,12 +27,13 @@
  */
 import { useMemo, useState } from 'react';
 import ChordPicker from '../../../components/ChordPicker';
+import PlayAsRow from '../../../components/PlayAsRow';
 import SharedPlayer from '../../../components/SharedPlayer';
 import {
   type RootPick, pickFromPitchClass, rootLabel, rootPitchClass,
 } from '../../../lib/builtAnswers/rootPick';
 import { scaleMarks, singleMark } from '../../../lib/builtAnswers/marks';
-import { scaleLine, type Direction } from '../../../lib/builtAnswers/scaleLine';
+import { directionOf, scaleLine } from '../../../lib/builtAnswers/scaleLine';
 import { playScale, scaleBeats } from '../../../lib/builtAnswers/play';
 import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
 import type { Flashcard } from '../catalog';
@@ -47,12 +48,6 @@ const BTN_PRIMARY = `${BTN} border-neutral-900 bg-neutral-900 text-white `
   + 'dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900';
 const BTN_PLAIN = `${BTN} border-black/10 dark:border-white/20 `
   + 'hover:bg-black/[0.04] dark:hover:bg-white/10';
-
-const DIRECTIONS: ReadonlyArray<{ id: Direction; label: string }> = [
-  { id: 'up', label: 'Up' },
-  { id: 'down', label: 'Down' },
-  { id: 'both', label: 'Up and down' },
-];
 
 export default function RootAnswer({
   card, target, answered, answer,
@@ -69,9 +64,11 @@ export default function RootAnswer({
   const [message, setMessage] = useState<string | null>(null);
   const [colour, setColour] = useColourMode();
   /** The shared panel's settings — one set of words for tempo, the
-   *  lift, the loop and the colours on every screen that sounds. */
-  const [settings, setSettings] = usePlayerSettings();
-  const [direction, setDirection] = useState<Direction>('both');
+   *  lift, the loop and the colours on every screen that sounds.
+   *
+   *  OPENS ON UP AND DOWN, which is what this card played when its row
+   *  was Direction. Play as took that row's place on 13 Sep 2026. */
+  const [settings, setSettings] = usePlayerSettings({ playAs: 'upDown' });
   const [sounding, setSounding] = useState<number | null>(null);
 
   const marks = useMemo(() => {
@@ -98,13 +95,17 @@ export default function RootAnswer({
    */
   // THE KEY CARDS RUN TO THE OCTAVE AND BACK, which is what a
   // seven-note scale does; the pentatonic cards turn earlier.
-  const line = scaleLine(target.pcs, target.rootPc, direction, { toOctave: true });
+  const line = scaleLine(
+    target.pcs, target.rootPc, directionOf(settings.playAs), { toOctave: true },
+  );
+  const together = settings.playAs === 'together';
 
   const hear = (startAtBeat = 0) => playScale(line, {
     bpm: settings.bpm,
     octaveUp: settings.octaveUp,
     home: target.homePcs.map(pc => 48 + pc),
     dronePc: target.rootPc,
+    together,
     onNote: i => setSounding(line[i] ?? null),
     ...(startAtBeat > 0 ? { startAtBeat } : {}),
   });
@@ -179,33 +180,20 @@ export default function RootAnswer({
             onSettings={setSettings}
             board={false}
             play={({ startAtBeat }) => hear(startAtBeat)}
-            totalBeats={scaleBeats(line.length)}
+            totalBeats={scaleBeats(line.length, together)}
             caption={`${target.rootName} ${mode}`}
+            playAsRow={false}
           >
             {/* NO STARTING POINTS ON A KEY CARD. A seven-note scale
                 from another note is a mode, and the Modes family
-                already plays those — the prototype's own note. */}
-            <div className="space-y-1.5">
-              <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
-                Direction
-              </div>
-              <div className="flex flex-wrap gap-1.5" data-testid="direction-row">
-                {DIRECTIONS.map(d => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    aria-pressed={direction === d.id}
-                    data-testid={`direction-${d.id}`}
-                    onClick={() => setDirection(d.id)}
-                    className={`${BTN} ${direction === d.id
-                      ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                      : 'border-black/10 dark:border-white/20'}`}
-                  >
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                already plays those — the prototype's own note.
+
+                PLAY AS, WHERE DIRECTION WAS. Up, Down and Up and Down
+                are the three directions it had; Together is new. */}
+            <PlayAsRow
+              value={settings.playAs}
+              onChange={p => setSettings({ ...settings, playAs: p })}
+            />
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
               {`The home chord of the key of ${target.rootName} ${mode}, then its `
                 + 'scale to the octave and back, with the root held low underneath.'}

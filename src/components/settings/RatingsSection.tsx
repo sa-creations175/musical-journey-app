@@ -291,17 +291,20 @@ export default function RatingsSection() {
           head={['How you answered', 'Word']}
           rows={[
             ['Wrong', <RatingWord status="needs-work">Struggled</RatingWord>],
+            // SILAS'S WORDS, 13 Sep 2026: "Correct" where "Right" meant
+            // correct, and a listening aid is "played one note at a
+            // time" now that there are three ways of doing that.
             [
-              'Right, but with a listening aid on (bass only, broken chord), '
+              'Correct, but with a listening aid on (bass only, or played one note at a time), '
                 + 'or half right (right chord, wrong inversion)',
               <RatingWord status="developing">Working on it</RatingWord>,
             ],
             [
-              'Right after replaying the sound',
+              'Correct after replaying the sound',
               <RatingWord status="fluent">Clean</RatingWord>,
             ],
             [
-              'Right on the first listen',
+              'Correct on the first listen',
               <RatingWord status="mastered">In flow</RatingWord>,
             ],
           ]}

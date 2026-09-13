@@ -75,25 +75,64 @@ export function handsFrom(value: unknown): Hands {
 export type Colours = 'plain' | 'interval';
 
 /**
- * Struck together, or rolled.
+ * How the notes are sounded: struck at once, or one at a time.
  *
  * =====================================================================
- * ONE BROKEN MODE, NOT THREE. Silas's ruling of 10 Sep 2026.
+ * FOUR WAYS, ONE ROW, EVERY SURFACE. Silas's ruling of 12 Sep 2026,
+ * confirmed 13 Sep.
  *
- * This was `'blocked' | 'up' | 'down'` and the harmonic diary had its
- * own ascending / descending pair beside it. Rolling a chord downwards
- * is a different sound, not a different skill, and a reader choosing
- * between three of them on a quiz was choosing how hard to make the
- * question rather than what to hear. Broken rolls UP, at the panel's
- * tempo, three quarters of a beat between onsets.
+ * Together strikes the notes at once. Up plays them one at a time from
+ * the bottom; Down from the top; Up and Down goes up and comes back
+ * without striking the top note twice. On a scale, Together is every
+ * note at once and the other three are the scale in that direction; in
+ * a progression each chord plays its run inside its own bar.
  *
- * A reader who had chosen "Broken, down" now hears "Broken" — the
- * hydration in `ChordRecognitionQuiz` reads both old values as broken
- * rather than dropping them to blocked, because what they had asked
- * for was to hear the notes in turn.
+ * This reopens the 10 Sep ruling that left the app one broken mode
+ * (up). The row replaces "Chord sounds: Blocked / Broken" wherever that
+ * stood.
  * =====================================================================
  */
-export type ChordAttack = 'blocked' | 'broken';
+export type PlayAs = 'together' | 'up' | 'down' | 'upDown';
+
+/** The row, in its order and in Silas's words. */
+export const PLAY_AS_OPTIONS: ReadonlyArray<{ id: PlayAs; label: string }> = [
+  { id: 'together', label: 'Together' },
+  { id: 'up', label: 'Up' },
+  { id: 'down', label: 'Down' },
+  { id: 'upDown', label: 'Up and Down' },
+];
+
+/** The line under the row on the Chord Recognition quiz. Silas's
+ *  words, 13 Sep 2026. */
+export const PLAY_AS_AID_NOTE =
+  'Listening modes matter: Up, Down, and Up and Down are an aid, with a lower rating.';
+
+/**
+ * A Play as value from anywhere, including what was stored before it.
+ *
+ * AN OLD "BROKEN" READS AS UP. Silas's answer of 13 Sep 2026: up is the
+ * one direction the app played from 10 Sep until this row. `'up'` and
+ * `'down'`, stored before 10 Sep, are the row's own words and read as
+ * themselves. `'blocked'` is Together, and so is anything unknown.
+ */
+export function playAsFrom(value: unknown): PlayAs {
+  if (value === 'up' || value === 'broken') return 'up';
+  if (value === 'down') return 'down';
+  if (value === 'upDown') return 'upDown';
+  return 'together';
+}
+
+/**
+ * What an attempt records, which has not changed.
+ *
+ * NO NEW STORED VALUE. `playStyle` stays `blocked | broken`, Silas's
+ * answer of 13 Sep 2026: it exists to keep answer times from being
+ * pooled across a chord heard at once and a chord heard in turn, and
+ * every run is the second kind.
+ */
+export function playStyleOf(playAs: PlayAs): 'blocked' | 'broken' {
+  return playAs === 'together' ? 'blocked' : 'broken';
+}
 
 /**
  * How much room the bass line gets.
@@ -128,8 +167,8 @@ export interface PlayerSettings {
   listen: ListenTo;
   colours: Colours;
   loop: LoopCount;
-  /** Chord recognition only; ignored where the row is not shown. */
-  attack: ChordAttack;
+  /** How the notes are sounded — see `PlayAs`. On every surface. */
+  playAs: PlayAs;
   /** How much room the bass gets — see `BassLevel`. */
   bass: BassLevel;
 }
@@ -152,7 +191,7 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   listen: 'both',
   colours: 'interval',
   loop: 1,
-  attack: 'blocked',
+  playAs: 'together',
   // FORWARD BY DEFAULT. The bass is what a progression is doing, and
   // the reader arrives at a card to hear it move.
   bass: 'forward',
