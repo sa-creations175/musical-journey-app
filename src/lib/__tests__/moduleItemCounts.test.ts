@@ -80,7 +80,13 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 152 + 254 + 250 = 1605
+// Harmonic Fluency — 949 + 152 + 252 + 244 = 1597
+// (14 Sep 2026, later still: 1605 → 1597. Mode Identification's
+//  `mo-1` to `mo-6` fold into the generated mode cards in the key of
+//  C; Functional Harmony's `fh-11` and `fh-12` fold into generated C
+//  cards that arrive in their place, and `fh-16` and `fh-19` retire.
+//  Modes 107 → 101, earRecognition 250 → 244; functional-harmony
+//  40 → 38, functionalApplied 254 → 252.)
 // (14 Sep 2026, later: 1620 → 1605. Ear-Theory Crossover retired. Ten
 //  of its fifteen cards asked a fact another deck asks and their
 //  history folded onto that card; five had nothing to fold into.
@@ -201,16 +207,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.chordKnowledge).toBe(152);
   });
 
-  it('functionalApplied = fh 40 + pr 84 + mi 130 = 254', () => {
-    expect(c.byGroup.functionalApplied).toBe(254);
+  it('functionalApplied = fh 38 + pr 84 + mi 130 = 252', () => {
+    expect(c.byGroup.functionalApplied).toBe(252);
   });
 
-  it('earRecognition = mo 107 + iv 143 = 250', () => {
-    expect(c.byGroup.earRecognition).toBe(250);
+  it('earRecognition = mo 101 + iv 143 = 244', () => {
+    expect(c.byGroup.earRecognition).toBe(244);
   });
 
-  it('total = 1605 across all 13 categories', () => {
-    expect(c.total).toBe(1605);
+  it('total = 1597 across all 13 categories', () => {
+    expect(c.total).toBe(1597);
   });
 
   it('total equals sum of group totals', () => {

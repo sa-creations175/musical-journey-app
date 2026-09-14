@@ -308,6 +308,15 @@
  * the latter asks which minor pentatonic to play over a major key,
  * which is a different question with a different answer.
  * ---------------------------------------------------------------
+ * 14 SEPTEMBER 2026 — TEN HAND-WRITTEN LINES LEAVE, TWO GENERATED ARRIVE.
+ *
+ * `mo-1` to `mo-6` asked which degree a mode starts on, which the mode
+ * family asks in every key; `fh-11` and `fh-12` were the key of C's
+ * secondary dominants, which the generators skipped for them. All eight
+ * folded (`hfDeckCleanup.ts`), and `fh-16` and `fh-19` retired with
+ * nothing to fold into. `fh-v-of-v-C` and `fh-v-of-vi-C` are ids that
+ * never existed, asking `fh-11`'s and `fh-12`'s questions word for word.
+ * ---------------------------------------------------------------
  */
 export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   // --- scale-degree-math ---
@@ -1363,15 +1372,12 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'fh-8|The tonic function is served by which chord(s)?',
   'fh-9|The "lead-up" function (chords that set up the V) is served by _____',
   'fh-10|The dominant function (chords that pull back to I) is served by _____',
-  'fh-11|A secondary dominant V/V in the key of C major is which chord?',
-  'fh-12|V/vi in the key of C major resolves to _____',
   'fh-13|In jazz, the "tritone substitution" of G7 is _____',
   'fh-14|bVII in a major key is borrowed from _____',
   'fh-15|iv minor in a major key is borrowed from _____',
-  'fh-16|Ending a minor-key song on a major I chord (instead of minor i) creates _____',
   'fh-17|The circle of fifths describes motion by _____',
   'fh-18|In a 1-5-6-4 progression, swapping the plain V for a fuller version typically means using _____',
-  'fh-19|A chord that has both tonic and dominant function qualities is _____',
+  'fh-v-of-v-C|A secondary dominant V/V in the key of C major is which chord?',
   'fh-v-of-v-Db|A secondary dominant V/V in the key of D♭ major is which chord?',
   'fh-v-of-v-D|A secondary dominant V/V in the key of D major is which chord?',
   'fh-v-of-v-Eb|A secondary dominant V/V in the key of E♭ major is which chord?',
@@ -1383,6 +1389,7 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'fh-v-of-v-A|A secondary dominant V/V in the key of A major is which chord?',
   'fh-v-of-v-Bb|A secondary dominant V/V in the key of B♭ major is which chord?',
   'fh-v-of-v-B|A secondary dominant V/V in the key of B major is which chord?',
+  'fh-v-of-vi-C|V/vi in the key of C major resolves to _____',
   'fh-v-of-vi-Db|V/vi in the key of D♭ major resolves to _____',
   'fh-v-of-vi-D|V/vi in the key of D major resolves to _____',
   'fh-v-of-vi-Eb|V/vi in the key of E♭ major resolves to _____',
@@ -1395,12 +1402,6 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'fh-v-of-vi-Bb|V/vi in the key of B♭ major resolves to _____',
   'fh-v-of-vi-B|V/vi in the key of B major resolves to _____',
   // --- modes ---
-  'mo-1|Dorian mode starts on which scale degree of the major scale?',
-  'mo-2|Phrygian mode starts on which scale degree?',
-  'mo-3|Lydian mode starts on which scale degree?',
-  'mo-4|Mixolydian mode starts on which scale degree?',
-  'mo-5|Aeolian mode (natural minor) starts on which scale degree?',
-  'mo-6|Locrian mode starts on which scale degree?',
   'mo-7|Mixolydian mode\'s signature altered note is _____',
   'mo-8|Lydian mode\'s signature altered note is _____',
   'mo-9|Dorian mode\'s signature altered note is _____',

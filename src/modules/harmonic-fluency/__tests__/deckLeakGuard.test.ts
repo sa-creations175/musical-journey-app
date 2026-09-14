@@ -64,7 +64,8 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // come from the other three-way groups: real pairs, correctly
   // written, wrong for this question.
   { category: 'functional-harmony', rule: 'only-accidental', cards: 1 },
-  { category: 'functional-harmony', rule: 'only-comma', cards: 1 },
+  // functional-harmony / only-comma stood at 1: `fh-16`, whose answer was
+  // "a bright, hopeful resolution". It retired on 14 Sep 2026.
   // key-signatures / middle-of-3 stood at 6, and the four tell entries
   // at 4 apiece — both came from the same twelve hand-written
   // "how many sharps" cards, whose decoys were counted by hand. They
@@ -84,7 +85,9 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // major is B minor, and a fixed 6/2/5 decoy list gave it G♯, C♯ and
   // F♯ for company — the answer was the only plain name on screen. Both
   // minor generators now choose from a wider degree list per key.
-  { category: 'modes', rule: 'middle-of-3', cards: 4 },
+  // modes / middle-of-3 stood at 4: `mo-1` to `mo-6` answered with a
+  // degree number between two neighbours. They folded into the generated
+  // mode cards on 14 Sep 2026.
   { category: 'modes', rule: 'only-accidental', cards: 1 },
   { category: 'modes', rule: 'only-natural', cards: 1 },
   { category: 'modes', rule: 'only-prose', cards: 1 },
@@ -389,9 +392,10 @@ describe('no decoy pins its answer', () => {
     const both = new Set([...leaky, ...told]);
     // 23 blind, 28 in all, until Ear-Theory Crossover retired on 14 Sep
     // 2026: eight of its cards were picked out by the longest option, and
-    // they went with the category.
+    // they went with the category. 15 and 20 until the duplicates went the
+    // same day, taking five more with them.
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 15, tell: 5, distinct: 20 });
+      .toEqual({ blind: 10, tell: 5, distinct: 15 });
   });
 
   it('keeps the tell allowlist honest', () => {

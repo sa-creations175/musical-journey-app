@@ -13,8 +13,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import {
-  CATEGORY_LABELS, ENHARMONIC_INTERVAL_GROUPS, ENHARMONIC_NOTE_PAIRS,
-  ENHARMONIC_SPELLINGS, FLASHCARDS, HF_MAJOR_KEYS, type FlashcardCategory,
+  CATEGORY_LABELS, ENHARMONIC_INTERVAL_GROUPS, ENHARMONIC_NOTE_PAIRS, ENHARMONIC_SPELLINGS, FLASHCARDS, INTERVAL_SEMITONES, type FlashcardCategory,
 } from '../catalog';
 
 const inCategory = (c: FlashcardCategory) => FLASHCARDS.filter(f => f.category === c);
@@ -122,9 +121,9 @@ describe('absent means flat list, not broken', () => {
     // THIRTEEN OF SIXTEEN CATEGORIES. Scale degree math joined them: it
     // is generated from a triple loop and always held its coordinates
     // in `facts`, so the axis was one line rather than new structure.
-    // The three with none — diatonic qualities, chord construction,
-    // ear theory — are hand-written and vary by nothing a grid could
-    // show. They render as the flat list, which is the answer for them
+    // The ones with none — diatonic qualities and chord construction,
+    // and ear theory until it retired on 14 Sep 2026 — are hand-written
+    // and vary by nothing a grid could show. They render as the flat list, which is the answer for them
     // rather than a gap.
     const withAxis = FLASHCARDS.filter(c => Object.hasOwn(c, 'axis'));
     const byCategory = new Map<string, number>();
@@ -135,8 +134,10 @@ describe('absent means flat list, not broken', () => {
       'enharmonic-equivalents': 35,
       'scale-degree-math': 168,
       // 33 before the 2-5-1 moved to Progression Vocabulary — eleven
-      // cards each for ii-V-I, V/V and V/vi. Two generators now.
-      'functional-harmony': 22,
+      // cards each for ii-V-I, V/V and V/vi. Two generators now, and
+      // twelve keys each since `fh-11` and `fh-12` folded into the key of
+      // C's generated cards on 14 Sep 2026.
+      'functional-harmony': 24,
       // 156 for a day: thirteen notes by twelve distances. The octave
       // went for asking nothing — "the interval from D♭ to D♭" — so it
       // is eleven distances now.
@@ -234,23 +235,24 @@ describe('scale degree math is 7 degrees x 24 movements', () => {
 });
 
 describe('the grid reads the passed list, not the coordinates present', () => {
-  it('offers columns for keys no card in the category uses', async () => {
+  it('offers columns for values no card in the category uses', async () => {
     const { HARMONIC_FLUENCY_GRIDS } = await import('../progressGrids');
-    // FUNCTIONAL HARMONY, since Progression Vocabulary was regenerated
-    // in commit 8: it reaches eleven of the twelve keys — C has no
-    // generated cadence card — and the axis still offers all twelve,
-    // which is the asymmetry this needs.
-    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS['functional-harmony']];
+    // INTERVALS, since 14 Sep 2026. Functional Harmony was the example
+    // while the key of C had no generated secondary dominant; `fh-11` and
+    // `fh-12` folded into generated C cards and it reaches all twelve
+    // keys now. Intervals offer thirteen distances and use eleven: the
+    // unison and octave cards went on 9 Sep for answering themselves.
+    const grid = HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS.intervals];
     const used = new Set(
-      inCategory('functional-harmony')
-        .filter(c => c.axis?.key !== undefined)
-        .map(c => String(c.axis!.key)),
+      inCategory('intervals')
+        .filter(c => c.axis?.semitones !== undefined)
+        .map(c => String(c.axis!.semitones)),
     );
     const offered = grid.columns.views[0].values.map(String);
-    // ASYMMETRIC: the cadences use fewer keys than the axis offers,
+    // ASYMMETRIC: the cards use fewer distances than the axis offers,
     // so a column list collected off the cards would be SHORTER.
     expect(offered.length).toBeGreaterThan(used.size);
-    for (const k of HF_MAJOR_KEYS) expect(offered).toContain(k);
+    for (const s of INTERVAL_SEMITONES) expect(offered).toContain(String(s));
   });
 
   it('keeps both key views over the same twelve', async () => {

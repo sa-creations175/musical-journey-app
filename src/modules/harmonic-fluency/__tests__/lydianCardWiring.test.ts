@@ -79,52 +79,30 @@ describe('the rows render through renderFooter, not renderVisualAid', () => {
 });
 
 describe('which cards carry them', () => {
-  it('is the two Lydian cards, opening on the key each is about', () => {
+  it('is the Lydian signature-chord card, opening on the first of each quadrant', () => {
     const src = codeOf(read('HarmonicFluencySession.tsx'));
     const from = src.indexOf('LYDIAN_CHORD_CARDS');
     const table = src.slice(from, src.indexOf('}', from));
     expect(table).toContain("'mo-15': undefined");
-    expect(table).toContain("'mo-3': 'F'");
+    // `mo-3` opened them on F until it retired into the generated F Lydian
+    // card on 14 Sep 2026. That card does not carry them.
+    expect(table).not.toContain("'mo-3'");
   });
 
   it('names cards that actually exist', () => {
     // A footer keyed on an id no card has is a feature that renders
     // nowhere and fails no test.
+    const src = codeOf(read('HarmonicFluencySession.tsx'));
+    const from = src.indexOf('LYDIAN_CHORD_CARDS');
+    const table = src.slice(from, src.indexOf('}', from));
     const ids = new Set(FLASHCARDS.map(c => c.id));
-    expect(ids.has('mo-15')).toBe(true);
-    expect(ids.has('mo-3')).toBe(true);
+    const named = [...table.matchAll(/'([^']+)':/g)].map(m => m[1]);
+    expect(named.length).toBeGreaterThan(0);
+    for (const id of named) expect(ids.has(id), id).toBe(true);
   });
 
   it('still asks what it asked', () => {
     const byId = new Map(FLASHCARDS.map(c => [c.id, c]));
     expect(byId.get('mo-15')!.correctAnswer).toBe('I maj7#11');
-    expect(byId.get('mo-3')!.correctAnswer).toBe('4');
-  });
-});
-
-describe('the mo-3 explanation names the ♯11', () => {
-  const mo3 = () => FLASHCARDS.find(c => c.id === 'mo-3')!;
-
-  it('says which note the raised 4th IS', () => {
-    // It used to say "the raised 4th (B natural over an F chord)" and
-    // stop — never connecting that B natural to the ♯11 the signature
-    // chord is named after. That is the riddle this removes.
-    const text = mo3().explanation ?? '';
-    expect(text).toContain('♯11');
-    expect(text).toContain('Fmaj7♯11');
-  });
-
-  it('names both notes it contrasts', () => {
-    // F major's 4th is B♭; F Lydian's is B natural. Naming only the
-    // second describes a relationship without giving a key to find.
-    const text = mo3().explanation ?? '';
-    expect(text).toContain('B♭');
-    expect(text).toContain('B natural');
-  });
-
-  it('uses the app’s glyphs, not ASCII', () => {
-    const text = mo3().explanation ?? '';
-    expect(text).not.toContain('#11');
-    expect(text).not.toContain('Bb');
   });
 });

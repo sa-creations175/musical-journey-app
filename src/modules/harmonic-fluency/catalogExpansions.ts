@@ -290,11 +290,16 @@ const SECONDARY_DOMINANT_CONTEXT =
   + 'bridges, Stevie Wonder verses and jazz tunes use them to tour through '
   + 'keys without ever leaving home.';
 
-/** V/V — the dominant of the dominant, which is the 2 made major. */
+/**
+ * V/V — the dominant of the dominant, which is the 2 made major.
+ *
+ * EVERY KEY, THE KEY OF C INCLUDED, since 14 Sep 2026. C was skipped here
+ * and in the V/vi generator below while the hand-written `fh-11` and
+ * `fh-12` asked it; both retired into the generated C cards.
+ */
 export function generateVofVCards(): Flashcard[] {
   const out: Flashcard[] = [];
   for (const root of FLAT_TWELVE) {
-    if (root === 'C') continue;
     const two = degreeLabel(root, '2');
     const five = degreeLabel(root, '5');
     const six = degreeLabel(root, '6');
@@ -325,7 +330,6 @@ export function generateVofVCards(): Flashcard[] {
 export function generateVofViCards(): Flashcard[] {
   const out: Flashcard[] = [];
   for (const root of FLAT_TWELVE) {
-    if (root === 'C') continue;
     const six = degreeLabel(root, '6');
     const three = degreeLabel(root, '3');
     const two = degreeLabel(root, '2');

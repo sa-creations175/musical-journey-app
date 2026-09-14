@@ -362,10 +362,10 @@ const LYDIAN_CHORD_CARDS: Readonly<Record<string, string | undefined>> = {
   // "The signature chord that says 'Lydian'" — no key of its own, so
   // it opens on the first of each quadrant.
   'mo-15': undefined,
-  // "Lydian mode starts on which scale degree?" — the explanation is
-  // about F Lydian, so row one opens on F. That single parameter is
-  // the only difference between the two cards.
-  'mo-3': 'F',
+  // `mo-3`, "Lydian mode starts on which scale degree?", opened these on
+  // F. It retired on 14 Sep 2026 into the generated F Lydian card, which
+  // does not carry them: putting a reference on a card that has never
+  // shown one is a screen change, and that one is Silas's to make.
 };
 
 function CardReference({ card, answered }: { card: Flashcard; answered: boolean }) {

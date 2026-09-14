@@ -17,7 +17,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { CATEGORY_ORDER, FLASHCARDS, cardById } from '../catalog';
+import { MODE_BY_DEGREE } from '../catalogExpansions';
 import {
+  DUPLICATE_FOLDS, DUPLICATES_WITHOUT_DESTINATION,
   EAR_THEORY_FOLDS, EAR_THEORY_WITHOUT_DESTINATION,
 } from '../../../lib/migrations/hfDeckCleanup';
 
@@ -70,4 +72,83 @@ describe('each Ear-Theory card folds onto the card that asks its fact', () => {
       expect(target!.correctAnswer).toBe(pair.answers);
     });
   }
+});
+
+/**
+ * THE MODE CARDS ARE COMPARED ON WHAT THEY ARE ABOUT. `mo-1` asked
+ * "Dorian mode starts on which scale degree?" and answered 2; the live
+ * card asks for the mode of the key of C major starting on its 2 and
+ * answers D Dorian. The pair holds when the live card sits on that degree
+ * of the key of C and names that mode.
+ */
+const MODE_PAIRS: ReadonlyArray<{ from: string; mode: string; answered: string }> = [
+  { from: 'mo-1', mode: 'Dorian', answered: '2' },
+  { from: 'mo-2', mode: 'Phrygian', answered: '3' },
+  { from: 'mo-3', mode: 'Lydian', answered: '4' },
+  { from: 'mo-4', mode: 'Mixolydian', answered: '5' },
+  { from: 'mo-5', mode: 'Aeolian', answered: '6' },
+  { from: 'mo-6', mode: 'Locrian', answered: '7' },
+];
+
+/**
+ * THE SECONDARY DOMINANTS ARE COMPARED WORD FOR WORD: the question, the
+ * answer and all three decoys, as the retired cards had them.
+ */
+const SECONDARY_DOMINANT_PAIRS = [
+  { from: 'fh-11', to: 'fh-v-of-v-C',
+    question: 'A secondary dominant V/V in the key of C major is which chord?',
+    correctAnswer: 'D7', decoys: ['G7', 'A7', 'E7'] },
+  { from: 'fh-12', to: 'fh-v-of-vi-C',
+    question: 'V/vi in the key of C major resolves to _____',
+    correctAnswer: 'Am', decoys: ['Em', 'Dm', 'Fmaj7'] },
+] as const;
+
+describe('the duplicates are gone', () => {
+  it('leaves none of them in the deck, and neither of the two with nowhere to go', () => {
+    for (const id of [...Object.keys(DUPLICATE_FOLDS), ...DUPLICATES_WITHOUT_DESTINATION]) {
+      expect(FLASHCARDS.some(c => c.id === id), id).toBe(false);
+    }
+  });
+
+  it('folds exactly the pairs written here', () => {
+    expect(DUPLICATE_FOLDS).toEqual({
+      ...Object.fromEntries(MODE_PAIRS.map(p => [p.from, `mo-mode-C-${p.answered}`])),
+      ...Object.fromEntries(SECONDARY_DOMINANT_PAIRS.map(p => [p.from, p.to])),
+    });
+  });
+});
+
+describe('each mode card folds onto the key of C\'s card for its degree', () => {
+  for (const pair of MODE_PAIRS) {
+    it(`${pair.from} (${pair.mode} starts on ${pair.answered}) → ${DUPLICATE_FOLDS[pair.from]}`, () => {
+      expect(MODE_BY_DEGREE.find(m => m.degree === pair.answered)?.mode).toBe(pair.mode);
+      const target = cardById(DUPLICATE_FOLDS[pair.from]);
+      expect(target, 'in the deck').toBeDefined();
+      expect(target!.axis).toMatchObject({ key: 'C', degree: Number(pair.answered) });
+      expect(target!.correctAnswer.endsWith(` ${pair.mode}`), target!.correctAnswer).toBe(true);
+    });
+  }
+});
+
+describe('each secondary dominant folds onto the generated card that asks it word for word', () => {
+  for (const pair of SECONDARY_DOMINANT_PAIRS) {
+    it(`${pair.from} → ${pair.to}`, () => {
+      expect(DUPLICATE_FOLDS[pair.from]).toBe(pair.to);
+      const target = cardById(pair.to);
+      expect(target, 'in the deck').toBeDefined();
+      expect(target!.question).toBe(pair.question);
+      expect(target!.correctAnswer).toBe(pair.correctAnswer);
+      expect(target!.decoys).toEqual(pair.decoys);
+    });
+  }
+});
+
+describe('cc-18 has one right answer', () => {
+  it('offers no second chord without a perfect 5th', () => {
+    // A half-diminished 7 has a flat 5th too, so as a decoy it was right.
+    const card = cardById('cc-18')!;
+    expect(card.correctAnswer).toBe('diminished 7');
+    expect(card.decoys).not.toContain('half-diminished 7');
+    expect(card.decoys).toContain('minor 7');
+  });
 });

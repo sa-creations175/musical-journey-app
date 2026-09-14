@@ -17,7 +17,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from '../db';
 import type { MigrationTable, MigrationTx } from '../migrations/retire913';
 import {
-  EAR_THEORY_FOLDS, EAR_THEORY_WITHOUT_DESTINATION, foldEarTheoryCrossover,
+  DUPLICATES_WITHOUT_DESTINATION, EAR_THEORY_FOLDS, EAR_THEORY_WITHOUT_DESTINATION,
+  foldDuplicateCards, foldEarTheoryCrossover,
 } from '../migrations/hfDeckCleanup';
 
 const NOW = 1_700_000_000_000;
@@ -164,6 +165,40 @@ describe('either device, either order', () => {
     expect((await db.goals.get('g1'))?.relatedItems).toEqual(['fh-15']);
     expect((await db.practiceBlocks.get('b1'))?.itemRefs).toEqual(['cc-13']);
     const again = await foldEarTheoryCrossover(tx);
+    expect(Object.values(again).every(v => v === 0)).toBe(true);
+  });
+});
+
+describe('v46 — the duplicates', () => {
+  it('moves a mode card onto the key of C\'s card for its degree, and a secondary dominant onto its generated twin', async () => {
+    await db.attempts.bulkPut([
+      { id: 'a1', moduleId: HF, itemId: 'mo-3', timestamp: NOW },
+      { id: 'a2', moduleId: HF, itemId: 'fh-12', timestamp: NOW },
+    ] as never);
+    await db.spacingState.put(spacingRow({ itemRef: 'fh-11' }) as never);
+    const n = await foldDuplicateCards(tx);
+    expect(n).toMatchObject({ attempts: 2, spacingMoved: 1 });
+    expect((await db.attempts.get('a1'))?.itemId).toBe('mo-mode-C-4');
+    expect((await db.attempts.get('a2'))?.itemId).toBe('fh-v-of-vi-C');
+    expect((await db.spacingState.get('sp-fh-11-both'))?.itemRef).toBe('fh-v-of-v-C');
+  });
+
+  it('leaves fh-16 and fh-19 where they are', async () => {
+    await db.attempts.bulkPut([
+      { id: 'a1', moduleId: HF, itemId: 'fh-16', timestamp: NOW },
+      { id: 'a2', moduleId: HF, itemId: 'fh-19', timestamp: NOW },
+    ] as never);
+    const n = await foldDuplicateCards(tx);
+    expect(n.attempts).toBe(0);
+    expect((await db.attempts.get('a1'))?.itemId).toBe('fh-16');
+    expect((await db.attempts.get('a2'))?.itemId).toBe('fh-19');
+    expect(DUPLICATES_WITHOUT_DESTINATION).toEqual(['fh-16', 'fh-19']);
+  });
+
+  it('a second run finds nothing left to move', async () => {
+    await db.attempts.put({ id: 'a1', moduleId: HF, itemId: 'mo-1', timestamp: NOW } as never);
+    await foldDuplicateCards(tx);
+    const again = await foldDuplicateCards(tx);
     expect(Object.values(again).every(v => v === 0)).toBe(true);
   });
 });

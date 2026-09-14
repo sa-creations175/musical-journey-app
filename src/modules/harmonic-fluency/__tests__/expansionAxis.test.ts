@@ -24,8 +24,8 @@ const GENERATORS: ReadonlyArray<[string, RegExp, number, string[]]> = [
   // `ii-V-I` WAS HERE, at eleven cards. The 2-5-1 lives once, in
   // Progression Vocabulary, and in thirteen keys — see
   // `progressionFoldIn`.
-  ['V/V',              /^fh-v-of-v-/,   11, ['key', 'shape']],
-  ['V/vi',             /^fh-v-of-vi-/,  11, ['key', 'shape']],
+  ['V/V',              /^fh-v-of-v-/,   12, ['key', 'shape']],
+  ['V/vi',             /^fh-v-of-vi-/,  12, ['key', 'shape']],
   // 33 before ruling 42 — three modes in eleven keys. Thirteen keys by
   // seven modes now, under an id shape that has never existed, because
   // the old one could not tell F♯ major from G♭ major.

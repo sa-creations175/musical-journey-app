@@ -84,7 +84,7 @@ describe('which cards it colours', () => {
   });
 
   it('leaves every other explanation to the linkifier, unchanged', () => {
-    for (const id of ['ks-sig-major-Eb', 'ks-relminor-Ab', 'mo-1', 'pr-9']) {
+    for (const id of ['ks-sig-major-Eb', 'ks-relminor-Ab', 'mo-7', 'pr-9']) {
       const card = draw(id);
       expect(coloured(), id).toHaveLength(0);
       expect(host!.textContent, id).toBe(card.explanation);

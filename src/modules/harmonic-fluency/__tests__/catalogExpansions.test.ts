@@ -331,17 +331,17 @@ describe('ids are root-suffixed, never positional', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('leaves every hand-written C card exactly where it was', () => {
-    // The originals keep their ids AND their hand-written decoys; only
-    // the other eleven keys are generated.
-    // ONLY FUNCTIONAL HARMONY IS LEFT, AND ONLY THE TWO SECONDARY
-    // DOMINANTS. Every slash card went (rulings 30 and 37) and `mo-11`
-    // to `mo-13` went with ruling 42, which generates every key
-    // including C. `fh-3` was the third here until the 2-5-1 moved to
-    // Progression Vocabulary, which asks it in all thirteen keys and
-    // needs no hand-written C.
+  it('generates the key of C too, now that no hand-written C card is left', () => {
+    // The two secondary dominants were the last. `fh-11` and `fh-12` held
+    // the key of C and the generators skipped it for them, until they
+    // retired into the generated C cards on 14 Sep 2026. Every slash card
+    // went before them (rulings 30 and 37), `mo-11` to `mo-13` with ruling
+    // 42, and `fh-3` when the 2-5-1 moved to Progression Vocabulary.
     for (const id of ['fh-11', 'fh-12']) {
-      expect(FLASHCARDS.find(c => c.id === id)?.question).toContain('C');
+      expect(FLASHCARDS.some(c => c.id === id), id).toBe(false);
+    }
+    for (const id of ['fh-v-of-v-C', 'fh-v-of-vi-C']) {
+      expect(FLASHCARDS.find(c => c.id === id)?.question, id).toContain('the key of C major');
     }
   });
 });

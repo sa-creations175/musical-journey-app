@@ -574,16 +574,10 @@ const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
     decoys: ['I and vi', 'ii and IV', 'iii and vi'],
     explanation: "V and vii° both contain the leading tone, which creates the pull back to I. Practically you'll almost always reach for V (or V7) — but knowing vii° shares the dominant function helps with reharm and substitution.",
     skillTag: 'dominant-function' },
-  { id: 'fh-11', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
-    question: 'A secondary dominant V/V in the key of C major is which chord?',
-    correctAnswer: 'D7', decoys: ['G7', 'A7', 'E7'],
-    explanation: "A secondary dominant is the V-of-a-non-tonic chord. V/V (five of five) points to V: in the key of C major, that's D7 → G7. Gospel bridges, Stevie Wonder verses, and jazz tunes use secondary dominants to tour through the key without fully modulating.",
-    skillTag: 'secondary-dominant-V-of-V' },
-  { id: 'fh-12', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
-    question: 'V/vi in the key of C major resolves to _____',
-    correctAnswer: 'Am', decoys: ['Em', 'Dm', 'Fmaj7'],
-    explanation: "V/vi is the V chord pointing at vi — in the key of C major, that's E7 → Am. You hear this constantly in gospel and soul when a song pivots into its relative minor for a bridge or emotional lift before drifting back home.",
-    skillTag: 'secondary-dominant-V-of-vi' },
+  // `fh-11` (V/V in the key of C) AND `fh-12` (V/vi in the key of C) WERE
+  // HERE. The generators skipped the key of C while these asked it; the
+  // generated C cards now ask it word for word, and the practice moved
+  // there on 14 Sep 2026.
   { id: 'fh-13', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
     question: 'In jazz, the "tritone substitution" of G7 is _____',
     correctAnswer: 'Db7', decoys: ['C7', 'F7', 'B7'],
@@ -601,12 +595,9 @@ const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
     decoys: ['relative minor', 'Lydian', 'Phrygian'],
     explanation: "The iv minor is the minor version of IV, borrowed from the parallel minor key. It's one of the most emotionally loaded chords in gospel, R&B, and soul — PJ Morton, Madison Ryan Ward, and countless church bridges use it for that bittersweet pull before resolving home. Theory books call this 'modal interchange' or 'parallel minor borrowing.'",
     skillTag: 'borrowed-iv-minor' },
-  { id: 'fh-16', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
-    question: 'Ending a minor-key song on a major I chord (instead of minor i) creates _____',
-    correctAnswer: 'a bright, hopeful resolution',
-    decoys: ['a deceptive cadence', 'a dissonant modal shift', 'a suspended ending'],
-    explanation: "Ending a minor-key section on a major I chord instead of the expected minor i creates a bright, hopeful lift. You hear this in traditional hymns that end triumphantly and in gospel arrangements where a minor verse resolves to major at the very end. Classical theory calls this a 'Picardy third' (named after the Picardy region of France), but working musicians would just say 'ending on the major 1.'",
-    skillTag: 'major-ending-in-minor-key' },
+  // `fh-16` (ending a minor-key song on a major 1) retired on 14 Sep 2026:
+  // its answer was an adjective. Nothing else asks what it asked, so its
+  // rows stay where they are for the orphan sweep to name.
   { id: 'fh-17', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
     question: 'The circle of fifths describes motion by _____',
     correctAnswer: 'descending perfect 5ths',
@@ -618,12 +609,9 @@ const FUNCTIONAL_HARMONY_CARDS: Flashcard[] = [
     correctAnswer: 'V7', decoys: ['vi', 'iii', 'ii'],
     explanation: "Swapping the plain V for V7 in a 1-5-6-4 adds the dominant pull and a bluesy/gospel lean. V7 is V's fuller, more active cousin — and it's almost always the right move when you want the chord to push, not just sit there.",
     skillTag: 'progression-substitution-V' },
-  { id: 'fh-19', category: 'functional-harmony', categoryName: CATEGORY_LABELS['functional-harmony'],
-    question: 'A chord that has both tonic and dominant function qualities is _____',
-    correctAnswer: 'iii',
-    decoys: ['IV', 'ii', 'vi'],
-    explanation: "The iii — the chord built on the 3rd number — is a kind of harmonic chameleon — it shares two notes with I (tonic function) and two with V (dominant function). That's why iii can substitute for either in the right context, and why it shows up in slick reharm moves.",
-    skillTag: 'mediant-function' },
+  // `fh-19` (the 3m as tonic and dominant at once) retired on 14 Sep 2026:
+  // two shared notes are true of several chords. Its rows stay, as
+  // `fh-16`'s do.
 ];
 
 /**
@@ -713,36 +701,11 @@ const KEY_SIG_CARDS_ALL: Flashcard[] = [
 const KEY_SIG_CARDS: Flashcard[] = KEY_SIG_CARDS_ALL;
 
 const MODE_CARDS: Flashcard[] = [
-  { id: 'mo-1', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'Dorian mode starts on which scale degree of the major scale?',
-    correctAnswer: '2', decoys: ['3', '4', '6'],
-    explanation: "Dorian is what you get by playing a major scale starting on the 2nd number. In the key of C major, that's D Dorian: D-E-F-G-A-B-C — the sound of cool, hopeful-minor vamps (think Miles Davis's 'So What' or any D'Angelo groove that sits on a minor chord without ever resolving).",
-    skillTag: 'mode-dorian-degree' },
-  { id: 'mo-2', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'Phrygian mode starts on which scale degree?',
-    correctAnswer: '3', decoys: ['2', '4', '6'],
-    explanation: "Phrygian starts on the 3rd of the major scale — E Phrygian from C major. The flat-2 on top of a minor tonic gives it a dark, Spanish/flamenco color; you hear hints of it in metal and in some hip-hop sample loops.",
-    skillTag: 'mode-phrygian-degree' },
-  { id: 'mo-3', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'Lydian mode starts on which scale degree?',
-    correctAnswer: '4', decoys: ['3', '5', '7'],
-    explanation: "Lydian starts on the 4th of the major scale — F Lydian from the key of C major. The key of F major's 4th is B♭. F Lydian's is B natural. Play F A C E and add B on top: that's Fmaj7♯11, and the B is the ♯11.",
-    skillTag: 'mode-lydian-degree' },
-  { id: 'mo-4', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'Mixolydian mode starts on which scale degree?',
-    correctAnswer: '5', decoys: ['4', '6', '7'],
-    explanation: "Mixolydian starts on the 5th of the major scale — G Mixolydian from C major. The flat-7 instead of the leading tone gives it a bluesy, gospel, Hendrix color; it's the scale of rock, R&B, and gospel vamps that never quite resolve.",
-    skillTag: 'mode-mixolydian-degree' },
-  { id: 'mo-5', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'Aeolian mode (natural minor) starts on which scale degree?',
-    correctAnswer: '6', decoys: ['5', '7', '3'],
-    explanation: "Aeolian is just natural minor — it starts on the 6th of the major scale. A Aeolian from C major is A-B-C-D-E-F-G. Every 'pure' minor-key song that doesn't raise the 7th is in Aeolian.",
-    skillTag: 'mode-aeolian-degree' },
-  { id: 'mo-6', category: 'modes', categoryName: CATEGORY_LABELS.modes,
-    question: 'Locrian mode starts on which scale degree?',
-    correctAnswer: '7', decoys: ['6', '5', '1'],
-    explanation: "Locrian starts on the 7th number — unstable and almost never used as a home mode. Jazz players improvise Locrian over m7b5 chords, but you won't find a straight-ahead Locrian song.",
-    skillTag: 'mode-locrian-degree' },
+  // `mo-1` TO `mo-6` WERE HERE: "Dorian mode starts on which scale
+  // degree?" and its five siblings. The generated "the mode of the key of
+  // C major starting on D" cards ask the same thing in every key, so they
+  // retired on 14 Sep 2026 and their practice moved onto the key of C's
+  // card for that degree. See `lib/migrations/hfDeckCleanup.ts`.
   { id: 'mo-7', category: 'modes', categoryName: CATEGORY_LABELS.modes,
     question: "Mixolydian mode's signature altered note is _____",
     correctAnswer: 'b7', decoys: ['#4', 'b3', 'b6'],
@@ -904,7 +867,9 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
     skillTag: 'chord-notes-C9' },
   { id: 'cc-18', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
     question: 'Which chord has no perfect 5th?', correctAnswer: 'diminished 7',
-    decoys: ['dominant 7', 'major 7', 'half-diminished 7'],
+    // NOT HALF-DIMINISHED 7, which has no perfect 5th either and so was
+    // a second right answer (14 Sep 2026).
+    decoys: ['dominant 7', 'major 7', 'minor 7'],
     explanation: "The diminished 7 chord has no perfect 5th — its 5th is flattened. All its intervals are stacked minor 3rds, so nothing inside it is stable; that's why it's used as a passing/transition chord rather than a resting one.",
     skillTag: 'chord-no-perfect-5th' },
   { id: 'cc-19', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],

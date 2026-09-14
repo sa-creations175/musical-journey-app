@@ -5,7 +5,7 @@ import type { PracticeActivity } from './practiceActivities';
 import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
 import { foldRetiredChordCards } from './migrations/retire913';
 import { foldRetiredDiatonicCard } from './migrations/retireDqExtra1';
-import { foldEarTheoryCrossover } from './migrations/hfDeckCleanup';
+import { foldDuplicateCards, foldEarTheoryCrossover } from './migrations/hfDeckCleanup';
 import { describeCardFold } from './migrations/foldHarmonicFluencyCards';
 
 export interface IntervalData {
@@ -4850,6 +4850,20 @@ export class AppDB extends Dexie {
     this.version(45).stores({}).upgrade(async tx => {
       const n = await foldEarTheoryCrossover(tx);
       console.info(describeCardFold('Ear-Theory Crossover folded', n));
+    });
+
+    /**
+     * =================================================================
+     * v46 — THE DUPLICATES GO (Silas, 13 Sep 2026). `mo-1` to `mo-6`
+     * fold into the generated mode cards in the key of C, and `fh-11`
+     * and `fh-12` into the generated secondary dominants in the key of
+     * C. `fh-16` and `fh-19` keep their rows. No index moves; the rules
+     * live in `migrations/hfDeckCleanup.ts`.
+     * =================================================================
+     */
+    this.version(46).stores({}).upgrade(async tx => {
+      const n = await foldDuplicateCards(tx);
+      console.info(describeCardFold('duplicate cards folded', n));
     });
   }
 }

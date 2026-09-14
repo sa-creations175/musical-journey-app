@@ -48,3 +48,36 @@ export const EAR_THEORY_WITHOUT_DESTINATION: readonly string[] = [
 export function foldEarTheoryCrossover(tx: MigrationTx): Promise<CardFoldCounts> {
   return foldHarmonicFluencyCards(tx, EAR_THEORY_FOLDS);
 }
+
+/**
+ * =====================================================================
+ * THE DUPLICATES (v46).
+ *
+ * `mo-1` to `mo-6` asked which degree a mode starts on. The generated mode
+ * cards ask the same in every key, and the key of C's card for each degree
+ * takes the history. `fh-11` and `fh-12` were the key of C's secondary
+ * dominants, which the generators skipped while they existed; the
+ * generated C cards now ask them word for word.
+ *
+ * `fh-16` answered with an adjective and `fh-19` with a claim true of
+ * several chords. Nothing else asks what they asked, so, like the five
+ * Ear-Theory cards above, their rows stay where they are.
+ * =====================================================================
+ */
+export const DUPLICATE_FOLDS: CardFolds = {
+  'mo-1': 'mo-mode-C-2',   // Dorian starts on the 2
+  'mo-2': 'mo-mode-C-3',   // Phrygian on the 3
+  'mo-3': 'mo-mode-C-4',   // Lydian on the 4
+  'mo-4': 'mo-mode-C-5',   // Mixolydian on the 5
+  'mo-5': 'mo-mode-C-6',   // Aeolian on the 6
+  'mo-6': 'mo-mode-C-7',   // Locrian on the 7
+  'fh-11': 'fh-v-of-v-C',  // V/V in the key of C, word for word
+  'fh-12': 'fh-v-of-vi-C', // V/vi in the key of C, word for word
+};
+
+/** Retired with nothing to fold into. Their rows are left alone. */
+export const DUPLICATES_WITHOUT_DESTINATION: readonly string[] = ['fh-16', 'fh-19'];
+
+export function foldDuplicateCards(tx: MigrationTx): Promise<CardFoldCounts> {
+  return foldHarmonicFluencyCards(tx, DUPLICATE_FOLDS);
+}
