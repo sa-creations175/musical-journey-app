@@ -90,7 +90,9 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // mode cards on 14 Sep 2026.
   { category: 'modes', rule: 'only-accidental', cards: 1 },
   { category: 'modes', rule: 'only-natural', cards: 1 },
-  { category: 'modes', rule: 'only-prose', cards: 1 },
+  // modes / only-prose stood at 1: `mo-15` answered "I maj7#11" against
+  // three options with no space. It and `mo-16` were written as matching
+  // prose on 14 Sep 2026, "the 1 as a maj7♯11 chord".
   // named-notes stood at 1 and 1: a key's scale can hold a single
   // accidental (F major has only B♭), so an answer of B♭ was alone on
   // screen. The pool now falls through to notes just outside the key,

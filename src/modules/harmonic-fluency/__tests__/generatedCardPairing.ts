@@ -317,6 +317,14 @@
  * nothing to fold into. `fh-v-of-v-C` and `fh-v-of-vi-C` are ids that
  * never existed, asking `fh-11`'s and `fh-12`'s questions word for word.
  * ---------------------------------------------------------------
+ * 14 SEPTEMBER 2026, LATER — ELEVEN `fh-` QUESTIONS RE-PINNED, AND THIS
+ * IS THE "ALMOST NEVER" AGAIN.
+ *
+ * The hand-written cards took the app's conventions: numbers where they
+ * said Roman numerals, ♭ where they said b, a middle dot between chords
+ * in a row, and the Circle of 4ths. THE IDS DID NOT MOVE, and each card
+ * asks what it asked in the words the rest of the app uses.
+ * ---------------------------------------------------------------
  */
 export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   // --- scale-degree-math ---
@@ -1363,20 +1371,20 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'pent-lick-Bb|You\'re in the key of B♭ major. Which minor pentatonic fits for riffs and licks?',
   'pent-lick-B|You\'re in the key of B major. Which minor pentatonic fits for riffs and licks?',
   // --- functional-harmony ---
-  'fh-1|The V chord most strongly resolves to _____',
+  'fh-1|The 5 chord most strongly resolves to _____',
   'fh-2|The leading tone (7th scale degree) resolves to _____',
-  'fh-4|The IV → I move (the "Amen" cadence) is also called the _____',
-  'fh-5|The strongest "going home" cadence — V → I — is also called the _____',
-  'fh-6|When V goes to vi instead of I (the "fake-out" resolution), the cadence is called _____',
-  'fh-7|A phrase that ends "hanging" on the V chord (waiting for resolution) uses a _____',
+  'fh-4|The 4 → 1 move (the "Amen" cadence) is also called the _____',
+  'fh-5|The strongest "going home" cadence, 5 → 1, is also called the _____',
+  'fh-6|When the 5 goes to the 6m instead of the 1 (the "fake-out" resolution), the cadence is called _____',
+  'fh-7|A phrase that ends "hanging" on the 5 chord (waiting for resolution) uses a _____',
   'fh-8|The tonic function is served by which chord(s)?',
-  'fh-9|The "lead-up" function (chords that set up the V) is served by _____',
-  'fh-10|The dominant function (chords that pull back to I) is served by _____',
+  'fh-9|The "lead-up" function (chords that set up the 5) is served by _____',
+  'fh-10|The dominant function (chords that pull back to the 1) is served by _____',
   'fh-13|In jazz, the "tritone substitution" of G7 is _____',
-  'fh-14|bVII in a major key is borrowed from _____',
-  'fh-15|iv minor in a major key is borrowed from _____',
-  'fh-17|The circle of fifths describes motion by _____',
-  'fh-18|In a 1-5-6-4 progression, swapping the plain V for a fuller version typically means using _____',
+  'fh-14|The ♭7 chord in a major key is borrowed from _____',
+  'fh-15|The 4m chord in a major key is borrowed from _____',
+  'fh-17|The Circle of 4ths moves each chord by _____',
+  'fh-18|In a 1 · 5 · 6m · 4 progression, swapping the plain 5 for a fuller version typically means using _____',
   'fh-v-of-v-C|A secondary dominant V/V in the key of C major is which chord?',
   'fh-v-of-v-Db|A secondary dominant V/V in the key of D♭ major is which chord?',
   'fh-v-of-v-D|A secondary dominant V/V in the key of D major is which chord?',

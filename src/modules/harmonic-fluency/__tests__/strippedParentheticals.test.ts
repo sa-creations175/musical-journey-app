@@ -82,6 +82,16 @@ const card = (id: string) => {
 // and `fh-19` retired the same day.
 const RETIRED_SINCE = new Set(['pent-1', 'pent-9', 'et-1', 'et-8', 'et-11', 'fh-19']);
 
+/**
+ * Rewritten since the strip, by a ruling that changed the words the
+ * teaching is written in. `fh-17` became "The Circle of 4ths moves each
+ * chord by _____" on 14 Sep 2026: its answer was given its own bracket,
+ * "(down a 5th)", with a bracket on every decoy to match, and ii-V-I is
+ * written 2 · 5 · 1 in the app's numbers. What it must still teach is
+ * named here instead of the stripped words.
+ */
+const REWRITTEN_SINCE: ReadonlyMap<string, string> = new Map([['fh-17', '2 · 5 · 1']]);
+
 describe('the fourteen stripped answers', () => {
   it('covers every card that had a lone bracket', () => {
     // Twelve distinct cards, from the fourteen strips: `ksc-16` was
@@ -91,8 +101,14 @@ describe('the fourteen stripped answers', () => {
     expect(new Set(REMOVED.map(r => r.id)).size).toBe(12);
   });
 
+  for (const [id, teaching] of REWRITTEN_SINCE) {
+    it(`${id}: rewritten, and still teaches "${teaching}"`, () => {
+      expect(card(id).explanation ?? '').toContain(teaching);
+    });
+  }
+
   for (const { id, parenthetical } of REMOVED) {
-    if (RETIRED_SINCE.has(id)) continue;
+    if (RETIRED_SINCE.has(id) || REWRITTEN_SINCE.has(id)) continue;
     it(`${id}: "${parenthetical}" survives in the explanation`, () => {
       const explanation = card(id).explanation ?? '';
       for (const word of contentWords(parenthetical)) {
@@ -105,7 +121,7 @@ describe('the fourteen stripped answers', () => {
   }
 
   for (const { id } of REMOVED) {
-    if (RETIRED_SINCE.has(id)) continue;
+    if (RETIRED_SINCE.has(id) || REWRITTEN_SINCE.has(id)) continue;
     it(`${id}: the answer carries no bracket`, () => {
       expect(card(id).correctAnswer).not.toMatch(/[()]/);
     });

@@ -400,7 +400,7 @@ describe('the capitalisation convention, across every catalog', () => {
     }
   });
 
-  it('starts every row label with a capital, bar two stated exceptions', () => {
+  it('starts every row label with a capital, bar one stated exception', () => {
     const lower = new Map<string, string[]>();
     for (const catalog of STATIC_CATALOGS) {
       for (const item of catalog.items) {
@@ -431,19 +431,16 @@ describe('the capitalisation convention, across every catalog', () => {
     // rows here, and 41 of them open on a letter.
     expect(lower.get('shapes-and-patterns')).toHaveLength(629);
 
-    // EXCEPTION TWO, and it is correct as it stands. Harmonic fluency's
-    // leaf label is the card's whole QUESTION, left as written — and two
-    // of them open on a lowercase chord symbol, because in roman-numeral
-    // notation the case IS the quality. `bVII` is a flat-seven major and
-    // `iv` a minor four; capitalising either names a different chord.
-    //
-    // `bVII` is skipped above as an accidental, so `iv` is the one that
-    // reaches here. Pinned by count and by content so the exemption
-    // stays this row rather than becoming a blanket pass for the module.
-    expect(lower.get('harmonic-fluency')).toHaveLength(1);
-    expect(lower.get('harmonic-fluency')![0]).toMatch(/^iv /);
+    // EXCEPTION TWO IS CLOSED. Harmonic fluency's leaf label is the
+    // card's whole QUESTION, left as written, and two of them opened on a
+    // lowercase roman-numeral chord, where the case IS the quality: `bVII`
+    // (skipped above as an accidental) and `iv`. On 14 Sep 2026 the
+    // hand-written cards took the app's numbers, and they read "The ♭7
+    // chord" and "The 4m chord" now. Pinned at none, so a lowercase
+    // question coming back has to be argued for again.
+    expect(lower.get('harmonic-fluency')).toBeUndefined();
 
-    expect([...lower.keys()].sort()).toEqual(['harmonic-fluency', 'shapes-and-patterns']);
+    expect([...lower.keys()].sort()).toEqual(['shapes-and-patterns']);
   });
 });
 

@@ -103,6 +103,7 @@ describe('which cards carry them', () => {
 
   it('still asks what it asked', () => {
     const byId = new Map(FLASHCARDS.map(c => [c.id, c]));
-    expect(byId.get('mo-15')!.correctAnswer).toBe('I maj7#11');
+    // In the app's numbers since 14 Sep 2026; it was 'I maj7#11'.
+    expect(byId.get('mo-15')!.correctAnswer).toBe('the 1 as a maj7♯11 chord');
   });
 });

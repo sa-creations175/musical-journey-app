@@ -35,15 +35,15 @@ interface Pair {
 }
 
 const EAR_THEORY_PAIRS: readonly Pair[] = [
-  { from: 'et-1', answered: 'iv minor', to: 'fh-15', asks: /iv minor/, answers: 'parallel minor' },
-  { from: 'et-3', answered: 'bVII borrowed from Mixolydian', to: 'fh-14', asks: /bVII/, answers: 'Mixolydian / parallel minor' },
-  { from: 'et-4', answered: 'bVII', to: 'fh-14', asks: /bVII/, answers: 'Mixolydian / parallel minor' },
-  { from: 'et-6', answered: 'deceptive cadences (V - vi)', to: 'fh-6', asks: /V goes to vi/, answers: 'deceptive cadence' },
+  { from: 'et-1', answered: 'iv minor', to: 'fh-15', asks: /4m chord/, answers: 'parallel minor' },
+  { from: 'et-3', answered: 'bVII borrowed from Mixolydian', to: 'fh-14', asks: /♭7 chord/, answers: 'Mixolydian / parallel minor' },
+  { from: 'et-4', answered: 'bVII', to: 'fh-14', asks: /♭7 chord/, answers: 'Mixolydian / parallel minor' },
+  { from: 'et-6', answered: 'deceptive cadences (V - vi)', to: 'fh-6', asks: /5 goes to the 6m/, answers: 'deceptive cadence' },
   { from: 'et-7', answered: 'sus4', to: 'cc-13', asks: /sus4/, answers: 'the 4th' },
-  { from: 'et-8', answered: 'IV maj7#11', to: 'mo-15', asks: /Lydian/, answers: 'I maj7#11' },
-  { from: 'et-9', answered: 'minor-major 7', to: 'cc-15', asks: /Am\(maj7\)/, answers: 'A C E G#' },
-  { from: 'et-11', answered: 'major 3rd and minor 3rd', to: 'cc-9', asks: /7#9/, answers: 'raised 9' },
-  { from: 'et-14', answered: 'Mixolydian', to: 'mo-16', asks: /Mixolydian/, answers: 'I7 as a tonic' },
+  { from: 'et-8', answered: 'IV maj7#11', to: 'mo-15', asks: /Lydian/, answers: 'the 1 as a maj7♯11 chord' },
+  { from: 'et-9', answered: 'minor-major 7', to: 'cc-15', asks: /AmMaj7/, answers: 'A C E G♯' },
+  { from: 'et-11', answered: 'major 3rd and minor 3rd', to: 'cc-9', asks: /7♯9/, answers: 'raised 9' },
+  { from: 'et-14', answered: 'Mixolydian', to: 'mo-16', asks: /Mixolydian/, answers: 'the 1 as a 7 chord' },
   { from: 'et-15', answered: 'the Amen cadence', to: 'fh-4', asks: /Amen/, answers: 'plagal cadence' },
 ];
 
