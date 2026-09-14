@@ -344,6 +344,8 @@ export default function HarmonicDiary() {
 
       {heardEntry !== null && heardSound !== null && heard !== null && (
         <DiaryPlayerPanel
+          // ONE PANEL PER CARD, so its rows start from the card each time.
+          key={heardEntry.entryId}
           sound={heardSound}
           skill={skillsById.get(heardEntry.skillId)}
           cardTitle={diaryCardTitle(heardEntry.skillId, skillsById.get(heardEntry.skillId))}

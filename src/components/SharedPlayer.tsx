@@ -90,46 +90,8 @@ import {
 import type { InKeyRing } from '../lib/player/inKeyColour';
 import type { Instrument } from '../lib/audio';
 
-const CHIP = 'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors';
-const CHIP_OFF = 'border-black/10 dark:border-white/20 bg-black/[0.03] '
-  + 'dark:bg-white/[0.06] hover:bg-black/[0.06] dark:hover:bg-white/10';
-const CHIP_ON = 'border-neutral-900 dark:border-neutral-100 bg-neutral-900 '
-  + 'text-white dark:bg-neutral-100 dark:text-neutral-900';
-
-function Chip({
-  on, onClick, children, testId, disabled,
-}: {
-  on: boolean;
-  onClick: () => void;
-  children: ReactNode;
-  testId?: string;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      aria-pressed={on}
-      data-testid={testId}
-      disabled={disabled === true}
-      onClick={onClick}
-      className={`${CHIP} ${on ? CHIP_ON : CHIP_OFF} `
-        + 'disabled:opacity-40 disabled:cursor-default'}
-    >
-      {children}
-    </button>
-  );
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
-        {label}
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5">{children}</div>
-    </div>
-  );
-}
+import { CHIP, CHIP_OFF, CHIP_ON } from './playerChipStyles';
+import { PlayerChip as Chip, PlayerRow as Row } from './PlayerRow';
 
 /** A direction row: the chord names with a tappable arrow between. */
 interface DirectionRow {
@@ -156,6 +118,14 @@ export interface SharedPlayerHandle {
 export interface LabLayout {
   /** What the status line says has played: the panel's title. */
   playedName: string;
+  /**
+   * The card's own rows — Root, Colour, Inversion, Back to the card —
+   * under the Chord Color Legend (spec §4). Handed the panel's Hands row,
+   * so a card that puts Hands beside Inversion can draw it there.
+   */
+  rows?: (hands: ReactNode) => ReactNode;
+  /** The rows draw Hands themselves, so it is not drawn above Play as. */
+  handsInRows?: boolean;
 }
 
 /** The status line's word for each way of playing. The prototype's. */
@@ -617,13 +587,16 @@ export default function SharedPlayer({
       ) : (
         // THE LAB, top to bottom (spec §4): keyboard · transport · Hands
         // · Play as · Chord Color Legend · the card's own rows · Settings.
+        // A chord card draws Hands beside Inversion instead, as the walked
+        // prototype does.
         <>
           {boardEl}
           {transportEl}
-          {controls && handsEl}
+          {controls && lab.handsInRows !== true && handsEl}
           {controls && playAsEl}
           {legendEl}
           {compare !== undefined && compare}
+          {lab.rows?.(controls && lab.handsInRows === true ? handsEl : null)}
         </>
       )}
 

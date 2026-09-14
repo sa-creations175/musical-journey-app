@@ -155,14 +155,23 @@ describe('the page stays live under it', () => {
 });
 
 describe('the panel, top to bottom (spec §4)', () => {
-  it('keyboard · transport · Hands · Play as · Chord Color Legend · Settings', () => {
-    mount('chord-recognition:item:maj7');
-    const order = ['built-answer-keyboard', 'player-hear', 'hands-rootless', 'play-as-row',
-      'chord-color-legend', 'player-settings'];
+  const inOrder = (order: string[]) => {
     const all = [...document.body.querySelectorAll('[data-testid]')].map(e => e.getAttribute('data-testid'));
     const at = order.map(id => all.indexOf(id));
     expect(at.every(i => i >= 0), JSON.stringify(at)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
+  };
+
+  it('keyboard · transport · Hands · Play as · Chord Color Legend · Settings', () => {
+    mount('chord-progressions:motion:2-to-5-asc');
+    inOrder(['built-answer-keyboard', 'player-hear', 'hands-rootless', 'play-as-row',
+      'chord-color-legend', 'player-settings']);
+  });
+
+  it('on a chord card Hands stands beside Inversion, under Root and Colour', () => {
+    mount('chord-recognition:item:maj7');
+    inOrder(['built-answer-keyboard', 'player-hear', 'play-as-row', 'chord-color-legend',
+      'row-root', 'row-colour', 'row-inversion', 'hands-rootless', 'player-settings']);
     // Hands and Play as came out of the fold, so they are not in it twice.
     const fold = q('player-settings')!;
     expect(fold.querySelector('[data-testid="hands-rootless"]')).toBeNull();
@@ -177,6 +186,74 @@ describe('the panel, top to bottom (spec §4)', () => {
     expect(board.querySelectorAll('rect[data-midi="28"]')).toHaveLength(0);
     expect(board.querySelectorAll('rect[data-midi="84"]')).toHaveLength(1);
     expect(board.querySelectorAll('rect[data-midi="85"]')).toHaveLength(0);
+  });
+});
+
+describe('the card\'s own rows (spec §4)', () => {
+  const title = () => q('diary-sheet-title')!.textContent;
+  const subtitle = () => q('diary-sheet-subtitle')?.textContent ?? '';
+
+  it('Root transposes the chord, says it came from the card, and plays it', () => {
+    mount('chord-recognition:item:maj7', { name: 'Major 7', moduleLabel: 'Chord Recognition' });
+    expect(q('back-to-card')).toBeNull();
+    const before = calls.length;
+    click(q('root-3')!);
+    expect(title()).toBe('E♭ Major 7');
+    expect(subtitle()).toBe('from the card Major 7 · Chord Recognition');
+    expect(calls.length).toBe(before + 1);
+    expect(q('back-to-card')).not.toBeNull();
+  });
+
+  it('Back to the card resets all of it', () => {
+    mount('chord-recognition:item:maj7', { name: 'Major 7' });
+    click(q('root-3')!);
+    click(q('colour-maj9')!);
+    click(q('inversion-1')!);
+    expect(title()).toBe('E♭ Major 9 · 1st inversion');
+    click(q('back-to-card')!);
+    expect(title()).toBe('C Major 7');
+    expect(q('back-to-card')).toBeNull();
+    expect(q('inversion-0')!.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('Colour shows the chord\'s family, and Hands sits beside Inversion', () => {
+    mount('chord-recognition:item:dom7');
+    expect(q('row-colour')!.textContent).toContain('Colour · Dominant');
+    expect(document.body.querySelectorAll('[data-testid="colour-separator"]')).toHaveLength(2);
+    const pair = q('inversion-and-hands')!;
+    expect(pair.querySelector('[data-testid="row-inversion"]')).not.toBeNull();
+    expect(pair.querySelector('[data-testid="hands-rootless"]')).not.toBeNull();
+    // Once, not twice.
+    expect(document.body.querySelectorAll('[data-testid="hands-rootless"]')).toHaveLength(1);
+  });
+
+  it('as many Inversion chips as the hand has notes', () => {
+    mount('chord-recognition:item:maj');
+    expect(document.body.querySelectorAll('[data-testid^="inversion-"]:not([data-testid="inversion-and-hands"])'))
+      .toHaveLength(3);
+  });
+
+  it('a scale card has Root and Mode, and no Colour or Inversion', () => {
+    mount('scales-modes:mode:dorian', { name: 'Dorian' });
+    expect(q('row-colour')).toBeNull();
+    expect(q('row-inversion')).toBeNull();
+    click(q('mode-lydian')!);
+    expect(title()).toBe('D Lydian');
+    click(q('root-0')!);
+    expect(title()).toBe('C Lydian');
+  });
+
+  it('an interval card has Root and Interval, named as the reader names two notes', () => {
+    mount('intervals:asc:m3', { name: 'Minor 3rd' });
+    expect(title()).toBe('Minor 3rd');
+    click(q('interval-4')!);
+    expect(title()).toBe('C E · major 3rd');
+  });
+
+  it('a progression card has none of them yet', () => {
+    mount('chord-progressions:motion:2-to-5-asc');
+    expect(q('row-root')).toBeNull();
+    expect(q('back-to-card')).toBeNull();
   });
 });
 

@@ -1,5 +1,6 @@
 /**
- * What a diary card sounds: its notes, for the player panel.
+ * What a diary card sounds: its notes, for the player panel, and the
+ * notes the panel's rows turn them into.
  *
  * =====================================================================
  * THE PANEL PLAYS; THIS ONLY SAYS WHAT.
@@ -8,11 +9,13 @@
  * 2026, §1), and the panel is the shared player: its transport, its Play
  * as, its keyboard. So the diary no longer sounds anything itself. What
  * it still owns is the answer to "what is this card": a chord, a scale,
- * an interval, or a progression, as notes the panel can play and light.
+ * an interval, or a progression, as notes the panel can play and light —
+ * and, since the panel's Root, Colour, Mode, Interval and Inversion rows
+ * (§4), what those notes become when a row is tapped.
  *
- * THE NOTES ARE THE ONES THE CARD ALWAYS PLAYED. Every register rule
- * below came from the card buttons' own playback and moved here
- * unchanged, so a card sounds in the panel where it sounded before.
+ * ONE BUILDER FOR BOTH. The card's own chord is the lab's chord at the
+ * card's root, quality and root position, so the rows start exactly
+ * where the card is and Back to the card is a return, not a rebuild.
  * =====================================================================
  *
  * Cards with nothing to hear (songs, drills, Harmonic Fluency cards,
@@ -24,8 +27,8 @@ import { CHORD_SEEDS } from '../ear-training/chord-recognition/seed';
 import {
   extendedShape, type ExtendedQuality, type ExtendedShape,
 } from '../../lib/extendedVoicings';
-import type { PlayAs } from '../../lib/player/settings';
-import type { PlayerChord } from '../../lib/player/voices';
+import { DEFAULT_PLAYER_SETTINGS, type Hands, type PlayAs } from '../../lib/player/settings';
+import { handsForSetting, type PlayerChord } from '../../lib/player/voices';
 import { bassLine, voicingsOf } from '../../lib/builtAnswers/voiceLeading';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { modeById } from '../ear-training/scales-modes/catalog';
@@ -48,6 +51,15 @@ const DIARY_REGISTER_CEILING_MIDI = 72; // C5
 // the warm middle and lets the upper note rise naturally into the
 // brightest emotional zone.
 const DIARY_INTERVAL_FLOOR_MIDI = 57; // A3
+
+/**
+ * The top of the hand when Root or Inversion moves it: A5.
+ *
+ * THE WALKED PROTOTYPE'S NUMBER. The spec describes chord hands as
+ * sitting "from about F3 to F5"; the prototype drops the whole hand an
+ * octave once its top note passes A5, and this is that line.
+ */
+export const LAB_HAND_CEILING = 81;
 
 const NOTE_BASES: Record<string, number> = {
   C: 60, 'C#': 61, Db: 61, D: 62, 'D#': 63, Eb: 63, E: 64,
@@ -87,6 +99,10 @@ export type CardSound =
     qualityId: string;
     /** What the chord is called, without its root: "Major 9". */
     qualityName: string;
+    /** Whether the chord takes Silas's shape where he has one — a Chord
+     *  Recognition card does; a Shapes & Patterns card is the catalog's
+     *  own stack. */
+    shaped: boolean;
   }
   | { kind: 'scale'; notes: number[]; rootPc: number; modeId: string }
   | {
@@ -144,6 +160,9 @@ function diaryRegisterRoot(
  * they take the SAME routing Chord Recognition gives them. His m7♭5
  * shape adds an 11 the plain m7♭5 does not have, so the m7♭5 entry
  * keeps the seed's stack rather than sounding a chord it is not.
+ *
+ * Every one of these has the root alone in the left hand, so the hand
+ * the panel's Inversion row turns is exactly his right hand.
  */
 const SHAPE_FOR_ITEM: Readonly<Record<string, ExtendedQuality>> = {
   dim7: 'dim7',
@@ -166,6 +185,9 @@ const SHAPE_FOR_ITEM: Readonly<Record<string, ExtendedQuality>> = {
  * above it or the seed's other notes, stacked in their own order inside
  * the hand's window (`voicingsOf`). The player's Forward bass applies as
  * everywhere else.
+ *
+ * A TRIAD KEEPS ITS ROOT IN THE HAND (spec §4, 12 Sep 2026): C E G over
+ * C, not E G over C, on either Hands setting.
  * =====================================================================
  */
 export function diaryPlayerChord(
@@ -191,7 +213,10 @@ export function diaryPlayerChord(
   }
   // THE SEED'S NOTES IN THEIR OWN ORDER, the root left to the bass: an
   // add2 stacks D E G and an add9 E G D, so the two stay two sounds.
-  const tones = intervals.filter(iv => iv % 12 !== 0).map(iv => (rootPc + iv) % 12);
+  const triad = intervals.length <= 3;
+  const tones = intervals
+    .filter(iv => triad || iv % 12 !== 0)
+    .map(iv => (rootPc + iv) % 12);
   const hand = tones.length === 0 ? [] : (voicingsOf(tones, 0)[0] ?? []);
   return { bass, hand, rootPc, name };
 }
@@ -201,11 +226,7 @@ export function diaryPlayerChord(
  * the diary's convention. Null for an id the seed does not have.
  */
 export function diaryChordRecognitionVoicing(itemId: string): PlayerChord | null {
-  const seed = CHORD_SEEDS.find(c => c.id === itemId);
-  if (seed === undefined) return null;
-  const named = SHAPE_FOR_ITEM[itemId];
-  const shape: ExtendedShape | null = named === undefined ? null : extendedShape(named, 'A');
-  return diaryPlayerChord(0, seed.intervals, shape, seed.name);
+  return labChord(0, itemId, 0, 'rootless', true)?.chord ?? null;
 }
 
 /**
@@ -225,6 +246,92 @@ export function diaryChordShape(itemId: string): { intervals: number[]; pitchCla
 /** The shapes catalog's one id that Chord Recognition spells otherwise. */
 const SEED_ID_FOR_SHAPE: Readonly<Record<string, string>> = { mmaj7: 'minMaj7' };
 
+/** What a quality is called, without its root: the seed's name. */
+export function qualityNameOf(qualityId: string): string {
+  return CHORD_SEEDS.find(s => s.id === qualityId)?.name
+    ?? CHORD_QUALITY_BY_ID.get(qualityId)?.label
+    ?? qualityId;
+}
+
+/**
+ * A chord the panel's rows have moved: a root, a quality, an inversion,
+ * under the Hands setting.
+ *
+ * =====================================================================
+ * ROOT TRANSPOSES, AND THE HAND KEEPS ITS SHAPE (spec §4). The chord is
+ * built once, at `homePc` — the card's own root — exactly as the card's
+ * chord is built, and then the whole hand is moved up to the new root.
+ * Built afresh in every key, the app's register rules would put the
+ * notes in a different order on some keys; moved, they stand at the same
+ * distances everywhere. The bass takes the new root by the bass rule.
+ * Where the hand would sit on or under the bass it goes up an octave,
+ * and where it would run above `LAB_HAND_CEILING` the WHOLE HAND drops
+ * an octave together — never one note, and never down onto the bass.
+ *
+ * INVERSIONS TURN THE NOTES ACTUALLY IN THE HAND, which is why Hands is
+ * applied first: "Root in the right hand" puts the root in the hand and
+ * the inversions then turn it with the rest. On a rootless Major 9 the
+ * four positions are E G B D · G B D E · B D E G · D E G B.
+ * =====================================================================
+ *
+ * `handSize` is how many notes the hand holds under this setting, which
+ * is how many Inversion chips there are (four at most). Null for a
+ * quality neither the seed nor the shapes catalog has.
+ */
+export function labChord(
+  rootPc: number,
+  qualityId: string,
+  inversion: number,
+  hands: Hands,
+  shaped: boolean,
+  /** The root the chord is built at before it is moved — the card's. */
+  homePc: number = rootPc,
+): { chord: PlayerChord; handSize: number } | null {
+  const seed = CHORD_SEEDS.find(s => s.id === qualityId);
+  const intervals = shaped || QUALITY_INTERVALS[qualityId] === undefined
+    ? seed?.intervals
+    : QUALITY_INTERVALS[qualityId];
+  if (intervals === undefined) return null;
+  const named = shaped ? SHAPE_FOR_ITEM[qualityId] : undefined;
+  const shape = named === undefined ? null : extendedShape(named, 'A');
+  const built = diaryPlayerChord(homePc, intervals, shape, qualityNameOf(qualityId));
+  const [held] = handsForSetting([built], { ...DEFAULT_PLAYER_SETTINGS, hands });
+  const handSize = held.hand.length;
+  const turns = Math.max(0, Math.min(inversion, handSize - 1, 3));
+  const up = (((rootPc - homePc) % 12) + 12) % 12;
+  let hand = [...held.hand.slice(turns), ...held.hand.slice(0, turns).map(m => m + 12)]
+    .map(m => m + up);
+  const homeBass = bassLine([homePc], [])[0] as number;
+  const bass = held.bass === null
+    ? null
+    : held.bass - homeBass + (bassLine([rootPc], [])[0] as number);
+  const floor = bass ?? Number.NEGATIVE_INFINITY;
+  // THE HAND STAYS OVER THE BASS. A root kept in a triad's hand, on the
+  // keys where the hand's window runs out (G♭, G), would otherwise land
+  // on the bass's own key; the whole hand goes up an octave instead.
+  while (hand.length > 0 && Math.min(...hand) <= floor) {
+    hand = hand.map(m => m + 12);
+  }
+  while (hand.length > 0 && Math.max(...hand) > LAB_HAND_CEILING && Math.min(...hand) - 12 > floor) {
+    hand = hand.map(m => m - 12);
+  }
+  return { chord: { ...held, hand, bass, rootPc }, handSize };
+}
+
+/** A mode on a root, in the diary's scale register. */
+export function labScaleNotes(rootPc: number, modeId: string): number[] {
+  const mode = modeById(modeId);
+  if (mode === undefined) return [];
+  const root = diaryRegisterRoot(mode.scaleIntervals, rootPc);
+  return mode.scaleIntervals.map(iv => root + iv);
+}
+
+/** An interval on a root, in the diary's interval register. */
+export function labIntervalNotes(rootPc: number, semitones: number): number[] {
+  const root = diaryRegisterRoot([0, semitones], rootPc, DIARY_INTERVAL_FLOOR_MIDI);
+  return [root, root + semitones];
+}
+
 /** What a card sounds, or null where it has nothing to hear. */
 export function cardSound(skillId: string): CardSound | null {
   const parsed = parseSkillId(skillId);
@@ -232,23 +339,27 @@ export function cardSound(skillId: string): CardSound | null {
   const { moduleId, subtype, itemId } = parsed;
 
   if (moduleId === 'chord-recognition') {
-    const seed = CHORD_SEEDS.find(s => s.id === itemId);
-    const chord = diaryChordRecognitionVoicing(itemId);
-    if (seed === undefined || chord === null) return null;
-    return { kind: 'chord', chord, rootPc: 0, qualityId: seed.id, qualityName: seed.name };
+    const built = labChord(0, itemId, 0, 'rootless', true);
+    if (built === null || !CHORD_SEEDS.some(s => s.id === itemId)) return null;
+    return {
+      kind: 'chord', chord: built.chord, rootPc: 0,
+      qualityId: itemId, qualityName: qualityNameOf(itemId), shaped: true,
+    };
   }
 
   if (moduleId === 'shapes-and-patterns' && subtype === 'chord-shape') {
     const shape = diaryChordShape(itemId);
     if (shape === null) return null;
     const [quality] = itemId.split(':');
-    const seed = CHORD_SEEDS.find(s => s.id === (SEED_ID_FOR_SHAPE[quality] ?? quality));
+    const seedId = SEED_ID_FOR_SHAPE[quality] ?? quality;
+    const qualityId = CHORD_SEEDS.some(s => s.id === seedId) ? seedId : quality;
+    // THE CATALOG'S OWN STACK, not a shape: a Shapes & Patterns card is
+    // the shape the grid drills.
+    const built = labChord(shape.pitchClass, qualityId, 0, 'rootless', false)
+      ?? { chord: diaryPlayerChord(shape.pitchClass, shape.intervals, null, itemId) };
     return {
-      kind: 'chord',
-      chord: diaryPlayerChord(shape.pitchClass, shape.intervals, null, itemId),
-      rootPc: shape.pitchClass,
-      qualityId: seed?.id ?? quality,
-      qualityName: seed?.name ?? CHORD_QUALITY_BY_ID.get(quality)?.label ?? quality,
+      kind: 'chord', chord: built.chord, rootPc: shape.pitchClass,
+      qualityId, qualityName: qualityNameOf(qualityId), shaped: false,
     };
   }
 
@@ -259,11 +370,11 @@ export function cardSound(skillId: string): CardSound | null {
     const seed = INTERVAL_SEEDS.find(s => s.id === itemId)
       ?? INTERVAL_SEEDS.find(s => s.semitones > 0);
     if (seed === undefined) return null;
-    const root = diaryRegisterRoot([0, seed.semitones], 0, DIARY_INTERVAL_FLOOR_MIDI);
+    const notes = labIntervalNotes(0, seed.semitones);
     return {
       kind: 'interval',
-      notes: [root, root + seed.semitones],
-      rootPc: root % 12,
+      notes,
+      rootPc: notes[0] % 12,
       semitones: seed.semitones,
       direction: subtype === 'desc' ? 'desc' : subtype === 'harmonic' ? 'harmonic' : 'asc',
     };
@@ -275,10 +386,9 @@ export function cardSound(skillId: string): CardSound | null {
     const mode = modeById(itemId);
     if (mode === undefined) return null;
     const pitchClass = (PARENT_POSITION_MIDI[mode.parentScalePosition] ?? 60) % 12;
-    const root = diaryRegisterRoot(mode.scaleIntervals, pitchClass);
     return {
       kind: 'scale',
-      notes: mode.scaleIntervals.map(iv => root + iv),
+      notes: labScaleNotes(pitchClass, mode.id),
       rootPc: pitchClass,
       modeId: mode.id,
     };
@@ -310,3 +420,96 @@ export function diaryCardTitle(skillId: string, skill: SkillRecord | undefined):
   const parsed = parseSkillId(skillId);
   return parsed === null ? skillId : parsed.itemId.replace(/[-_]/g, ' ');
 }
+
+// =====================================================================
+// THE ROWS' CHIPS, IN SILAS'S ORDER AND WORDS (spec §4).
+// =====================================================================
+
+export interface LabChip<Id> {
+  id: Id;
+  label: string;
+}
+
+/** The Colour row's families: the stack ladder, then the colours, each
+ *  run of chips a group with a thin separator between. */
+const COLOUR_ROWS: Readonly<Record<string, ReadonlyArray<ReadonlyArray<LabChip<string>>>>> = {
+  major: [
+    [{ id: 'maj', label: 'Major' }, { id: 'maj7', label: 'Major 7' },
+      { id: 'maj9', label: 'Major 9' }, { id: 'maj13', label: 'Major 13' }],
+    [{ id: 'maj6', label: 'Major 6' }, { id: 'maj6_9', label: '6/9' },
+      { id: 'add9', label: 'add9' }, { id: 'add2', label: 'add2' }],
+  ],
+  minor: [
+    [{ id: 'min', label: 'Minor' }, { id: 'min7', label: 'Minor 7' },
+      { id: 'min9', label: 'Minor 9' }, { id: 'min11', label: 'Minor 11' }],
+    [{ id: 'min6', label: 'Minor 6' }, { id: 'min6_9', label: '6/9' },
+      { id: 'minMaj7', label: 'Minor(Maj7)' }],
+  ],
+  dom: [
+    [{ id: 'dom7', label: 'Dominant 7' }, { id: 'dom13', label: '13' }],
+    [{ id: 'dom7sus4', label: '7sus4' }],
+    [{ id: 'dom7b9', label: '7♭9' }, { id: 'dom7#9', label: '7♯9' },
+      { id: 'dom7#9#5', label: '7♯9♯5' }],
+  ],
+  dim: [
+    [{ id: 'dim', label: 'Diminished' }, { id: 'm7b5', label: 'Half-dim 7' },
+      { id: 'dim7', label: 'Diminished 7' }],
+  ],
+  sus: [[{ id: 'sus2', label: 'Sus2' }, { id: 'sus4', label: 'Sus4' }]],
+  aug: [[{ id: 'aug', label: 'Augmented' }]],
+};
+
+/** What the Colour row's label calls each family. */
+export const FAMILY_NAME: Readonly<Record<string, string>> = {
+  major: 'Major', minor: 'Minor', dom: 'Dominant', dim: 'Diminished', sus: 'Sus', aug: 'Augmented',
+};
+
+/**
+ * The Colour row for a quality's family.
+ *
+ * ONLY WHAT CHORD RECOGNITION HAS: a chip whose chord the seed does not
+ * carry is not drawn, so a chord added there is added here.
+ */
+export function colourRow(qualityId: string): {
+  family: string;
+  groups: ReadonlyArray<ReadonlyArray<LabChip<string>>>;
+} {
+  const family = CHORD_SEEDS.find(s => s.id === qualityId)?.family ?? 'major';
+  const has = new Set(CHORD_SEEDS.map(s => s.id));
+  const groups = (COLOUR_ROWS[family] ?? [])
+    .map(group => group.filter(chip => has.has(chip.id)))
+    .filter(group => group.length > 0);
+  return { family, groups };
+}
+
+/** The Mode row. */
+export const MODE_CHIPS: ReadonlyArray<LabChip<string>> = [
+  { id: 'ionian', label: 'Ionian' },
+  { id: 'dorian', label: 'Dorian' },
+  { id: 'phrygian', label: 'Phrygian' },
+  { id: 'lydian', label: 'Lydian' },
+  { id: 'mixolydian', label: 'Mixolydian' },
+  { id: 'aeolian', label: 'Aeolian' },
+  { id: 'locrian', label: 'Locrian' },
+  { id: 'harmonic-minor', label: 'harmonic minor' },
+  { id: 'melodic-minor', label: 'melodic minor' },
+];
+
+/** The Interval row, by semitones. */
+export const INTERVAL_CHIPS: ReadonlyArray<LabChip<number>> = [
+  { id: 1, label: 'minor 2nd' },
+  { id: 2, label: 'major 2nd' },
+  { id: 3, label: 'minor 3rd' },
+  { id: 4, label: 'major 3rd' },
+  { id: 5, label: 'perfect 4th' },
+  { id: 6, label: 'tritone' },
+  { id: 7, label: 'perfect 5th' },
+  { id: 8, label: 'minor 6th' },
+  { id: 9, label: 'major 6th' },
+  { id: 10, label: 'minor 7th' },
+  { id: 11, label: 'major 7th' },
+  { id: 12, label: 'octave' },
+];
+
+/** The Inversion row's chips, by how many turns. */
+export const INVERSION_LABELS: ReadonlyArray<string> = ['Root', '1st', '2nd', '3rd'];
