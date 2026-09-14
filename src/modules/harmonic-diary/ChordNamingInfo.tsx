@@ -14,21 +14,38 @@ import {
  * `chordNamingReference.ts`, the button's label included: it is the
  * document's own title. Nothing here is copy.
  */
-export default function ChordNamingInfo() {
+export default function ChordNamingInfo({
+  variant = 'icon',
+}: {
+  /** The ⓘ beside the view toggle, or the visible link at the top of the
+   *  diary (ruled 13 Sep 2026). Same sheet either way. */
+  variant?: 'icon' | 'link';
+} = {}) {
   const [open, setOpen] = useState(false);
   const label = CHORD_NAMING_REFERENCE.title;
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label={label}
-        title={label}
-        className="inline-flex items-center justify-center w-7 h-7 rounded-full text-base leading-none transition"
-        style={{ border: '1px solid var(--diary-card-border)', color: 'var(--diary-text-muted)' }}
-      >
-        ⓘ
-      </button>
+      {variant === 'icon' ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={label}
+          title={label}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-full text-base leading-none transition"
+          style={{ border: '1px solid var(--diary-card-border)', color: 'var(--diary-text-muted)' }}
+        >
+          ⓘ
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="text-xs underline underline-offset-4 decoration-dotted"
+          style={{ color: 'var(--diary-text-muted)' }}
+        >
+          {label}
+        </button>
+      )}
       {open && (
         <DiarySheet title={label} onClose={() => setOpen(false)}>
           <ReferenceBody reference={CHORD_NAMING_REFERENCE} />

@@ -5,6 +5,7 @@ import { db, type HarmonicDiaryEntry } from '../../lib/db';
 import { buildSkillRegistry, type SkillRecord } from '../skills/registry';
 import Modal from '../../components/Modal';
 import ChordNamingInfo from './ChordNamingInfo';
+import ChordQualitiesLink from './ChordQualitiesLink';
 import DiaryEntryCard from './DiaryEntryCard';
 import DiaryEntryEditor from './DiaryEntryEditor';
 import { loadAllDiaryEntries, migrateLegacyAssociationsIfNeeded, seedStartersIfNeeded } from './data';
@@ -185,6 +186,14 @@ export default function HarmonicDiary() {
               + Add Association
             </button>
           </div>
+        </div>
+
+        {/* THE TWO REFERENCES, AS LINKS YOU CAN SEE. "How a chord gets its
+            name" was only the ⓘ until 13 Sep 2026; the chord-qualities
+            chart is its neighbour. Both open the dimmed sheet. */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <ChordNamingInfo variant="link" />
+          <ChordQualitiesLink />
         </div>
 
         {/* Daily lineage quote — full-strength primary text so it

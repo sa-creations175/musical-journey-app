@@ -35,6 +35,8 @@ import CardExplanation from './CardExplanation';
 import { degreeNoteOptionLabel, isPressedCard, parsePressedId } from './degreeNoteCards';
 import DegreeKeyboard, { degreeKeyboardSpec } from './DegreeKeyboard';
 import { qualityOfCardId } from './scaleDegreeQualityCards';
+import ChordQualitiesChart from '../../components/ChordQualitiesChart';
+import { diatonicCell } from './diatonicCell';
 import FlashcardSession, {
   type CardAnsweredArgs,
   type FlashcardSessionStats,
@@ -387,6 +389,16 @@ function CardReference({ card, answered }: { card: Flashcard; answered: boolean 
   // ♯11 the card is asking about — and, for a degree card, would spell
   // the answer out in four keys.
   if (!answered) return null;
+  /**
+   * DIATONIC CHORD QUALITIES REVEALS THE CHART, on every card (Silas,
+   * 13 Sep 2026): opened on the card's own cell, so the card at the top
+   * already reads the chord just answered, with the other modes folded.
+   * A REFERENCE, so it sits in this ungated footer and stays on a streak.
+   */
+  const cell = diatonicCell(card);
+  if (cell !== null) {
+    return <ChordQualitiesChart select={cell} modesFolded framed />;
+  }
   if (card.id in LYDIAN_CHORD_CARDS) {
     const openWith = LYDIAN_CHORD_CARDS[card.id];
     return <LydianChordRows {...(openWith ? { openWith } : {})} />;
