@@ -133,8 +133,6 @@ interface Props {
   runLive: boolean;
   /** End the run. It does not rate it — that is the next thing. */
   onEndRun: () => void;
-  /** Which run is next, for `Start Test Run {n}`. Testing only. */
-  nextRunNumber: number;
   paused: boolean;
   onPauseToggle: () => void;
   /**
@@ -161,7 +159,7 @@ export default function SessionStrip({
   kind, metronomeOn, blockReason, awaitingVerdict, onDiscardRun,
   onMetronomeStopped,
   discardedMessage, sessionSeconds, runSeconds, runLive, onEndRun,
-  nextRunNumber, paused,
+  paused,
   onPauseToggle, streak, streakBroken, onRate, onStartRun, onFinishRun,
   onSave, onBack,
 }: Props) {
@@ -248,7 +246,9 @@ export default function SessionStrip({
               onClick={onEndRun}
               className="px-2.5 py-1 text-xs rounded-md bg-fluent text-white font-medium hover:opacity-90"
             >
-              {kind === 'testing' ? 'End Test Run' : 'End Practice Run'}
+              {/* THE PANEL'S WORDS (Silas, 14 Sep 2026), so a run ends
+                  the same way on the lead sheet as in the panel. */}
+              End Drill
             </button>
           )}
           {/* The same component the panel uses — one rendering of the
@@ -275,9 +275,9 @@ export default function SessionStrip({
           disabled={paused || blockReason !== null}
           className="px-2.5 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {kind === 'testing'
-            ? `Start Test Run ${nextRunNumber}`
-            : 'Start A Practice Run'}
+          {/* The panel's words too. The run's number went with them: the
+              streak circles beside this already say where the test is. */}
+          {kind === 'testing' ? 'Start A Test Drill' : 'Start A Practice Drill'}
         </button>
       )}
 

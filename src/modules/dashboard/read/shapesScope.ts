@@ -16,6 +16,7 @@
  */
 import {
   CHORD_QUALITIES,
+  CIRCLE_KEY,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
   VOICE_LEADING_PATTERNS,
@@ -26,7 +27,10 @@ import { SCALE_CELLS } from '../../shapes-and-patterns/scaleSkills';
 export function enumerateChordShapeRefs(): string[] {
   const out: string[] = [];
   for (const q of CHORD_QUALITIES) {
-    for (const key of KEYS) {
+    // The twelve keys and the Circle of 4ths cell, as the grid counts
+    // (Silas, 14 Sep 2026). The dashboard reads today's catalog, so the
+    // Circle is in it outright.
+    for (const key of [...KEYS, CIRCLE_KEY]) {
       for (const state of INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind]) {
         if (state === 'supplementary') continue;
         out.push(state

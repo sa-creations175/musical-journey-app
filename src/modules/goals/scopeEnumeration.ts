@@ -28,6 +28,7 @@ import { itemRefMatcherForCoverageGroup } from './shapesCoverageGroups';
 import { FLASHCARDS } from '../harmonic-fluency/catalog';
 import {
   CHORD_QUALITIES,
+  CIRCLE_KEY,
   enumerateVoiceLeadingCells,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
@@ -60,11 +61,36 @@ function enumerateHFByCategorySubArea(subArea: string): string[] {
   return FLASHCARDS.filter(c => set.has(c.category)).map(c => c.id);
 }
 
-function enumerateAllChordShapes(): string[] {
+/**
+ * The first day a goal's scope can hold the Circle of 4ths cell: 1
+ * September 2026, the month it joined the chord-shape grid.
+ *
+ * =====================================================================
+ * FROM THIS MONTH ON, NEVER BACKWARDS. Silas's answer of 14 Sep 2026:
+ * coverage goals, carryover and the dashboard all count the Circle, but
+ * a past month's carryover must not list it — the cell did not exist.
+ *
+ * So a goal's scope holds the Circle when the goal's window reaches
+ * this month: its target date is on or after 1 September 2026. An
+ * August monthly ends on 31 August and never lists a Circle cell, in
+ * last month's banner or in the running backlog; September's does.
+ * =====================================================================
+ */
+export const CIRCLE_OF_FOURTHS_FROM = new Date(2026, 8, 1).getTime();
+
+/** Whether a goal's window reaches the month the Circle arrived. */
+function circleInScope(goal: Goal): boolean {
+  return goal.targetDate >= CIRCLE_OF_FOURTHS_FROM;
+}
+
+function enumerateAllChordShapes(withCircle: boolean): string[] {
   const out: string[] = [];
+  // The twelve keys, and the Circle of 4ths cell where the goal's
+  // window reaches it — see `CIRCLE_OF_FOURTHS_FROM`.
+  const cells = withCircle ? [...KEYS, CIRCLE_KEY] : [...KEYS];
   for (const q of CHORD_QUALITIES) {
     const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind];
-    for (const key of KEYS) {
+    for (const key of cells) {
       for (const state of states) {
         // OUT OF THE SCORE since 31 Aug 2026 — the left-hand root under
         // a right-hand triad is a combination of two things already
@@ -98,9 +124,9 @@ function enumerateAllVoiceLeading(): string[] {
   return out;
 }
 
-function enumerateAllShapes(): string[] {
+function enumerateAllShapes(withCircle: boolean): string[] {
   return [
-    ...enumerateAllChordShapes(),
+    ...enumerateAllChordShapes(withCircle),
     ...enumerateAllScales(),
     ...enumerateAllVoiceLeading(),
   ];
@@ -166,7 +192,7 @@ export function enumerateScopeForGoal(goal: Goal): string[] {
   if (isCoverageOverallMetric(metric)) {
     if (metric === COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY) return enumerateHF();
     if (metric === COVERAGE_OVERALL_METRIC.EAR_TRAINING)     return enumerateAllET();
-    if (metric === COVERAGE_OVERALL_METRIC.SHAPES)           return enumerateAllShapes();
+    if (metric === COVERAGE_OVERALL_METRIC.SHAPES)           return enumerateAllShapes(circleInScope(goal));
     if (metric === COVERAGE_OVERALL_METRIC.PRODUCTION)       return enumerateAllProduction();
   }
 
@@ -183,7 +209,7 @@ export function enumerateScopeForGoal(goal: Goal): string[] {
     if (metric === COVERAGE_SPECIFIC_METRIC.SHAPES) {
       const matcher = itemRefMatcherForCoverageGroup(subArea);
       if (!matcher) return [];
-      return enumerateAllShapes().filter(matcher);
+      return enumerateAllShapes(circleInScope(goal)).filter(matcher);
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.PRODUCTION) {
       return lessonsByPath(subArea).map(l => l.id);

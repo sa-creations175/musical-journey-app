@@ -62,7 +62,9 @@ import { PRODUCTION_LESSONS } from '../../production/content/lessons';
 import { PRODUCTION_PATHS } from '../../production/content/paths';
 import { enumerateScopeForShapes } from './shapesScope';
 import { parseShapesItemRef } from '../../shapes-and-patterns/drillModel';
-import { CHORD_QUALITY_BY_ID, inversionStateLabel } from '../../shapes-and-patterns/catalog';
+import {
+  CHORD_QUALITY_BY_ID, CIRCLE_KEY, CIRCLE_LABEL, inversionStateLabel,
+} from '../../shapes-and-patterns/catalog';
 import { SCALE_CELLS } from '../../shapes-and-patterns/scaleSkills';
 import { MENTAL_VIZ_ITEMS } from '../../shapes-and-patterns/mentalVizLibrary';
 import type { AccuracyKind, CoverageRule } from './itemStats';
@@ -577,7 +579,8 @@ function shapeLabel(itemRef: string): { label: string; path: string[] } {
   const quality = CHORD_QUALITY_BY_ID.get(desc.quality);
   const inversion = titleCase(inversionStateLabel(desc.inversionState));
   return {
-    label: titleCase(`${desc.keyName}${inversion ? ` — ${inversion}` : ''}`),
+    label: titleCase(`${desc.keyName === CIRCLE_KEY ? CIRCLE_LABEL : desc.keyName}${
+      inversion ? ` — ${inversion}` : ''}`),
     path: [
       'shapes & patterns', 'Chord Shapes',
       titleCase(quality?.label ?? desc.quality),

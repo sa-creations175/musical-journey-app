@@ -738,9 +738,9 @@ describe('Open Lead Sheet reveals the chart without ending the session', () => {
     await r.run('Clean');
     await r.run('Clean');
     await r.press('Open Lead Sheet');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('End Test Run');
+    await r.pressStartingWith('End Drill');
     await r.pressStartingWith('Clean');
     expect(passes).toHaveBeenCalledTimes(1);
     r.unmount();
@@ -782,7 +782,7 @@ describe('stopping the metronome ends the run and asks — in both views', () =>
     const r = render(withSheet());
     await r.pressStartingWith('Test');
     await r.press('Open Lead Sheet');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     await stopMetronome();
     expect(r.text()).toContain('Did you finish that run?');
@@ -896,9 +896,9 @@ describe('one rendering of the four ratings', () => {
     const inStrip = render(withSheet());
     await inStrip.pressStartingWith('Test');
     await inStrip.press('Open Lead Sheet');
-    await inStrip.pressStartingWith('Start Test Run');
+    await inStrip.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await inStrip.pressStartingWith('End Test Run');
+    await inStrip.pressStartingWith('End Drill');
     await inStrip.pressStartingWith('Clean');
 
     expect(written).toHaveLength(1);
@@ -924,9 +924,9 @@ describe('one rendering of the four ratings', () => {
     await r.run('Clean');
     await r.run('Clean');
     await r.press('Open Lead Sheet');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('End Test Run');
+    await r.pressStartingWith('End Drill');
     await r.pressStartingWith('Clean');
     expect(passes).toHaveBeenCalledTimes(1);
     r.unmount();
@@ -1194,6 +1194,7 @@ describe('a run ends explicitly, then is rated', () => {
     await r.pressStartingWith('Start A Practice');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(r.labels().some(l => l === 'End Drill')).toBe(true);
+    // And never a test's words, on the panel or the strip.
     expect(r.labels().some(l => l.startsWith('End Test Run'))).toBe(false);
     r.unmount();
   });
@@ -1224,12 +1225,12 @@ describe('a run ends explicitly, then is rated', () => {
     const r = render(withSheet());
     await r.pressStartingWith('Test');
     await r.press('Open Lead Sheet');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
 
     expect(chips()).toHaveLength(4);
     expect(chips().every(b => b.hasAttribute('disabled'))).toBe(true);
-    await r.pressStartingWith('End Test Run');
+    await r.pressStartingWith('End Drill');
     expect(chips().every(b => !b.hasAttribute('disabled'))).toBe(true);
     await r.pressStartingWith('Clean');
     expect(written).toHaveLength(1);

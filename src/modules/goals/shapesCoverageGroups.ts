@@ -1,6 +1,7 @@
 import {
   CHORD_QUALITIES,
   CHORD_QUALITY_BY_ID,
+  CIRCLE_KEY,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS_CIRCLE_OF_FOURTHS,
   parseVoiceLeadingItemRef,
@@ -893,7 +894,9 @@ export function itemRefMatcherForCoverageGroup(
  */
 export function enumerateChordShapeItemRefs(): readonly string[] {
   const out: string[] = [];
-  for (const keyName of KEYS_CIRCLE_OF_FOURTHS) {
+  // The Circle of 4ths cell LAST, after G (Silas, 14 Sep 2026): a capped
+  // cold start still spreads across the keys first.
+  for (const keyName of [...KEYS_CIRCLE_OF_FOURTHS, CIRCLE_KEY]) {
     for (const q of CHORD_QUALITIES) {
       const states = INVERSION_STATES_FOR_CHORD_SHAPE_KIND[q.kind];
       for (const state of states) {

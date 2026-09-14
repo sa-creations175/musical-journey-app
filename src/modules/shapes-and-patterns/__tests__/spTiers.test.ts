@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { SpacingState } from '../../../lib/db';
-import { CHORD_QUALITIES, CIRCLE_KEY } from '../catalog';
+import { CHORD_QUALITIES } from '../catalog';
 import { sectionTargetCount, sectionTargets, type CellTarget } from '../cellTargets';
 import {
   CIRCLE_OF_FOURTHS,
@@ -137,30 +137,29 @@ describe('tierTotalCells', () => {
    * Counted off `sectionTargets` now, like everything else.
    * =====================================================================
    */
-  it('tier 1 = 6 triads × 4 inversion states × 12 keys × 3 hands = 864', () => {
-    expect(tierTotalCells(1)).toBe(6 * 4 * 12 * 3);
+  // THIRTEEN CELLS, not twelve: the twelve keys and the Circle of 4ths
+  // cell, which counts in the gate (Silas, 14 Sep 2026).
+  it('tier 1 = 6 triads × 4 inversion states × 13 cells × 3 hands = 936', () => {
+    expect(tierTotalCells(1)).toBe(6 * 4 * 13 * 3);
   });
 
-  it('tier 2 = 6 sevenths × 5 inversion states × 12 keys × 3 hands = 1080', () => {
+  it('tier 2 = 6 sevenths × 5 inversion states × 13 cells × 3 hands = 1170', () => {
     // FIVE, not six: `supplementary` left the score on 31 Aug 2026.
     // The 20 Aug ruling that put it in is reversed — see catalog.ts.
-    expect(tierTotalCells(2)).toBe(6 * 5 * 12 * 3);
+    expect(tierTotalCells(2)).toBe(6 * 5 * 13 * 3);
   });
 
-  it('the two tiers sum to the catalog\'s 1944 key targets', () => {
-    expect(tierTotalCells(1) + tierTotalCells(2)).toBe(1944);
-    // THE CIRCLE OF 4THS CELL IS NOT IN THE GATE (14 Sep 2026). Its
-    // 162 targets are in the grid's total; counting them here would
-    // raise the bar under anyone already past it and shut Tier 2 again.
+  it('the two tiers sum to the 2106 catalog', () => {
+    expect(tierTotalCells(1) + tierTotalCells(2)).toBe(2106);
     expect(tierTotalCells(1) + tierTotalCells(2))
-      .toBe(sectionTargetCount('chord-shapes') - 162);
+      .toBe(sectionTargetCount('chord-shapes'));
   });
 
   it('the tier-2 unlock bar is half the tier, in drills', () => {
     // Unlock is 50% of the tier, and the tier is now counted in the
     // same unit the numerator counts. 216 was half of 432 cells against
     // a row count that could reach 1296.
-    expect(tierTotalCells(2) * spTierUnlockThreshold()).toBe(540);
+    expect(tierTotalCells(2) * spTierUnlockThreshold()).toBe(585);
   });
 });
 
@@ -199,14 +198,10 @@ function ratedRow(
   } as unknown as SpacingState;
 }
 
-/** The first `count` drills of a tier, from the catalog. The Circle of
- *  4ths cell's are not in the gate, so they are not handed to it. */
+/** The first `count` drills of a tier, from the catalog. */
 function tierDrills(tier: SPTier, count: number): CellTarget[] {
   const inTier = new Set(SP_TIERS[tier]);
-  const all = sectionTargets('chord-shapes').filter(t => {
-    const [, quality, keyName] = t.itemRef.split(':');
-    return inTier.has(quality) && keyName !== CIRCLE_KEY;
-  });
+  const all = sectionTargets('chord-shapes').filter(t => inTier.has(t.itemRef.split(':')[1]));
   expect(all.length).toBeGreaterThanOrEqual(count);
   return all.slice(0, count);
 }
@@ -221,26 +216,32 @@ describe('computeSPUnlockedTier', () => {
   });
 
   it('returns 1 when tier 1 is below the 50% threshold', () => {
-    // Tier 1 has 864 drills; 50% = 432. 100 Fluent isn't enough.
+    // Tier 1 has 936 drills with the Circle of 4ths cell; 50% = 468.
+    // 100 Fluent isn't enough.
     expect(computeSPUnlockedTier(rated(1, 100, 3))).toBe(1);
   });
 
   it('returns 2 when tier 1 crosses the threshold', () => {
-    // 432 / 864 = exactly 0.5 ≥ threshold (inclusive).
-    expect(computeSPUnlockedTier(rated(1, 432, 3))).toBe(2);
+    // 468 / 936 = exactly 0.5 ≥ threshold (inclusive).
+    expect(computeSPUnlockedTier(rated(1, 468, 3))).toBe(2);
+  });
+
+  it('stays shut one drill short of the bar', () => {
+    // 432 was the bar before the Circle of 4ths cell counted.
+    expect(computeSPUnlockedTier(rated(1, 467, 3))).toBe(1);
   });
 
   it('counts Mastered alongside Fluent', () => {
-    const rows = [...rated(1, 432, 4)];
+    const rows = [...rated(1, 468, 4)];
     expect(computeSPUnlockedTier(rows)).toBe(2);
   });
 
   it('does not count Developing, however many', () => {
-    expect(computeSPUnlockedTier(rated(1, 864, 2))).toBe(1);
+    expect(computeSPUnlockedTier(rated(1, 936, 2))).toBe(1);
   });
 
   it('returns MAX_TIER (2) when every tier is fully cleared', () => {
-    expect(computeSPUnlockedTier([...rated(1, 864, 3), ...rated(2, 1080, 3)]))
+    expect(computeSPUnlockedTier([...rated(1, 936, 3), ...rated(2, 1170, 3)]))
       .toBe(SP_MAX_TIER);
   });
 
@@ -255,11 +256,11 @@ describe('computeSPUnlockedTier', () => {
    * =====================================================================
    */
   it('opens on drills that read Fluent while their stage is still acquiring', () => {
-    expect(computeSPUnlockedTier(rated(1, 432, 3, 'acquiring'))).toBe(2);
+    expect(computeSPUnlockedTier(rated(1, 468, 3, 'acquiring'))).toBe(2);
   });
 
   it('stays shut on drills whose stage is mastered but read Developing', () => {
-    expect(computeSPUnlockedTier(rated(1, 864, 2, 'mastered'))).toBe(1);
+    expect(computeSPUnlockedTier(rated(1, 936, 2, 'mastered'))).toBe(1);
   });
 
   it('ignores rows the catalog does not hold', () => {

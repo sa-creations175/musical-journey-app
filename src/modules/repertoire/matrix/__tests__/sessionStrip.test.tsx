@@ -46,7 +46,6 @@ function render(over: Partial<React.ComponentProps<typeof SessionStrip>> = {}) {
     onEndRun: () => {},
     sessionSeconds: 1361,       // 22:41
     runSeconds: null,
-    nextRunNumber: 1,
     paused: false,
     onPauseToggle: () => {},
     streak: 0,
@@ -170,13 +169,13 @@ describe('how a run ends differs by mode', () => {
 });
 
 describe('starting a run', () => {
-  it('a test names which run is next', () => {
-    expect(render({ nextRunNumber: 2 }).labels()).toContain('Start Test Run 2');
+  it('a test starts with the panel\'s words (Silas, 14 Sep 2026)', () => {
+    expect(render().labels()).toContain('Start A Test Drill');
   });
 
-  it('practice does not number them', () => {
+  it('practice starts with the panel\'s words too', () => {
     expect(render({ kind: 'practice', streak: null }).labels())
-      .toContain('Start A Practice Run');
+      .toContain('Start A Practice Drill');
   });
 });
 
@@ -227,7 +226,7 @@ describe('Pause', () => {
     // theirs and pass on a button that was never paused.
     const r = render({ paused: true });
     const btn = [...r.host.querySelectorAll('button')]
-      .find(b => (b.textContent ?? '').startsWith('Start Test Run'));
+      .find(b => (b.textContent ?? '').startsWith('Start A Test Drill'));
     expect(btn).toBeDefined();
     expect(btn?.hasAttribute('disabled')).toBe(true);
     r.unmount();
@@ -278,7 +277,7 @@ describe('why a test run cannot start', () => {
   it('disables the button while it stands', () => {
     const r = render({ blockReason: 'Start the metronome to begin a test run.' });
     const btn = [...r.host.querySelectorAll('button')]
-      .find(b => (b.textContent ?? '').startsWith('Start Test Run'));
+      .find(b => (b.textContent ?? '').startsWith('Start A Test Drill'));
     expect(btn?.hasAttribute('disabled')).toBe(true);
     r.unmount();
   });

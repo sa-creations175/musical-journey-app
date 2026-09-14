@@ -36,7 +36,6 @@ import { ratingRules } from '../../lib/ratingRules';
 import {
   countFluentPlusTargets, rowsByRefHand, sectionTargets, type CellTarget,
 } from './cellTargets';
-import { CIRCLE_KEY } from './catalog';
 
 export type SPTier = 1 | 2;
 
@@ -156,18 +155,15 @@ export function tierTotalCells(tier: SPTier): number {
 /**
  * Every drill the grid scores in a tier, from the catalog.
  *
- * NOT THE CIRCLE OF 4THS CELL (14 Sep 2026). Its targets are in the
- * grid's total, but the unlock is recomputed on every read: counting
- * them here would raise the bar under anyone already past it and shut
- * Tier 2 again. So the gate stays the twelve keys, on both sides.
+ * THE CIRCLE OF 4THS CELL COUNTS (Silas, 14 Sep 2026). Its targets are
+ * in the grid's total, and in the gate too: Tier 1 is 936 drills and
+ * the bar 468. He has nothing Fluent yet, so nobody is locked out by
+ * the higher bar.
  */
 function tierTargets(tier: SPTier): CellTarget[] {
   const inTier = new Set(SP_TIERS[tier]);
   return sectionTargets('chord-shapes')
-    .filter(t => {
-      const [, quality, keyName] = t.itemRef.split(':');
-      return inTier.has(quality) && keyName !== CIRCLE_KEY;
-    });
+    .filter(t => inTier.has(t.itemRef.split(':')[1]));
 }
 
 /**

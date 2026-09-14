@@ -106,6 +106,18 @@ describe('the row', () => {
     expect(tiles()[2].className).not.toContain('bg-fluent');
   });
 
+  it('says, above the twelve, in Silas\'s words, what the drill counts toward', async () => {
+    await mount('min7', 'root', 1);
+    expect(read('circle-note')).toBe(
+      'Drill chord shapes around the Circle of 4ths. This exercise counts toward the Circle of 4ths cell in the matrix.',
+    );
+  });
+
+  it('on all inversions fluid, shows root position and says any inversion', async () => {
+    await mount('min7', 'fluid', 1);
+    expect(read('circle-notes')).toBe('Cm7 · C E♭ G B♭ (any inversion)');
+  });
+
   it('loops until the drill is ended, and says which lap', async () => {
     await mount('maj', 'root', 1);
     await beats(12);

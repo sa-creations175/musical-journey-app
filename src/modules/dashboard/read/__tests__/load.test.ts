@@ -131,8 +131,9 @@ describe('every catalog has a source wired', () => {
       // visualisation's 504 are a submodule of this row and are
       // deliberately NOT in the total — see the exclusion test below.
       // (9 Sep 2026: 1152 → 1572, five named progressions added to the
-      // passes.)
-      'shapes-and-patterns': 1572,
+      // passes. 14 Sep 2026: 1572 → 1626, the Circle of 4ths cell's 54
+      // chord-shape rows.)
+      'shapes-and-patterns': 1626,
       // 199 vocabulary cards + 56 lessons.
       'production': 255,
       // 25 intervals + 48 chord recognition + 18 scales & modes +
@@ -261,8 +262,8 @@ describe('routing sources to catalogs', () => {
     expect(mv.totalItems).toBe(504);
 
     // And none of them reach the module row, whose own chord-shape
-    // branch scored 25 and covered one of 1572.
-    expect(sp.root.totalItems).toBe(1572);
+    // branch scored 25 and covered one of 1626.
+    expect(sp.root.totalItems).toBe(1626);
     expect(sp.root.coveredItems).toBe(1);
     expect(sp.root.score).toBe(25);
 

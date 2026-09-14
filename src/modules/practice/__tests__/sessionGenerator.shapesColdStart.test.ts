@@ -90,9 +90,10 @@ describe('enumerateChordShapeItemRefs — key ordering', () => {
       if (!seen.includes(key)) seen.push(key);
     }
     // Circle of fourths, but with the catalog's F# spelling (not Gb) so
-    // refs still match real spacingState rows.
+    // refs still match real spacingState rows — and the Circle of 4ths
+    // cell last (14 Sep 2026).
     expect(seen).toEqual([
-      'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D', 'G',
+      'C', 'F', 'Bb', 'Eb', 'Ab', 'Db', 'F#', 'B', 'E', 'A', 'D', 'G', 'circle',
     ]);
   });
 });

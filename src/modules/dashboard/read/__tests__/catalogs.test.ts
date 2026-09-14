@@ -89,14 +89,18 @@ describe('catalog sizes — the denominators', () => {
     expect(productionLessonsCatalog.accuracyKind).toBe('self-rated');
   });
 
-  it('shapes & patterns: 648 chord shapes + 96 scales + 828 VL = 1572', () => {
+  it('shapes & patterns: 702 chord shapes + 96 scales + 828 VL = 1626', () => {
     // THE TREE IS ITEMREFS, NOT DRILLS. It is a browsable list of the
     // things in the module, one row each; the hand axis that the
     // COUNTING unit gained on 31 Aug 2026 would triple the rows without
     // telling the reader anything the row does not already say.
-    expect(catalogItemCount(shapesCatalog)).toBe(1572);
+    //
+    // 702 = 648 in the twelve keys + 54 for the Circle of 4ths cell,
+    // counted on the dashboard since 14 Sep 2026.
+    expect(catalogItemCount(shapesCatalog)).toBe(1626);
     const refs = catalogRefSet(shapesCatalog);
-    expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(648);
+    expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(702);
+    expect([...refs].filter(r => r.includes(':circle:'))).toHaveLength(54);
     expect([...refs].filter(r => r.startsWith('scale:'))).toHaveLength(96);
     expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(828);
   });

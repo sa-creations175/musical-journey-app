@@ -713,7 +713,6 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           runSeconds={runStartedAt !== null || awaitingRating ? currentRunSeconds : null}
           runLive={runStartedAt !== null}
           onEndRun={() => endRun(runSeconds)}
-          nextRunNumber={drills.length + 1}
           paused={paused}
           onPauseToggle={togglePause}
           streak={mode === 'test' ? projectTestStreak(drills.map(streakRun)) : null}
