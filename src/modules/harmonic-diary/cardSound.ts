@@ -112,7 +112,16 @@ export type CardSound =
     semitones: number;
     direction: IntervalDirection;
   }
-  | { kind: 'progression'; chords: PlayerChord[]; keyPc: number; names: string[] };
+  | {
+    kind: 'progression';
+    chords: PlayerChord[];
+    keyPc: number;
+    names: string[];
+    /** The card as the loop builder's slots (spec §7). */
+    slots: string[];
+    /** The direction a motion card names, where it names one. */
+    bassDirection?: 'up' | 'down';
+  };
 
 /**
  * Pick the lowest octave for `pitchClass` such that the resulting root

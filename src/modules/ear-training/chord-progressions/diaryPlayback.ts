@@ -29,6 +29,41 @@ export interface DiaryPassage {
    *  title, which is the chords. `progressionChords` names the root and
    *  any slash bass only. */
   names: string[];
+  /**
+   * The passage as the loop builder's slots: a degree and the seventh
+   * chord the card sounds on it — "2m7", "57", "1maj7" (spec §7).
+   *
+   * SEVENTH CHORDS BECAUSE THAT IS WHAT THE CARD PLAYS: this file builds
+   * every passage at seventh complexity, and a slot naming a triad would
+   * sound thinner than the card did.
+   */
+  slots: string[];
+  /** The direction a motion card names, where it names one. */
+  bassDirection?: 'up' | 'down';
+}
+
+/** The seventh chord each catalog quality sounds as, as a slot writes it. */
+const SLOT_SUFFIX: Readonly<Record<ChordQuality, string>> = {
+  major: 'maj7',
+  minor: 'm7',
+  dominant: '7',
+  dom7b9: '7♭9',
+  'dom7#9#5': '7♯9♯5',
+  diminished: '°7',
+  'half-dim': 'ø7',
+  augmented: '+',
+};
+
+const ROMAN_DEGREE: Readonly<Record<string, number>> = {
+  I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7,
+};
+
+/** A numeral and its quality as a slot: "bVII" major is "b7maj7". */
+export function slotOf(numeral: string, quality: ChordQuality): string {
+  const [chord] = numeral.split('/');
+  const m = chord.match(/^([b#]*)([IVXivx]+)/);
+  const degree = m === null ? 1 : ROMAN_DEGREE[m[2].toUpperCase()] ?? 1;
+  return `${m?.[1] ?? ''}${degree}${SLOT_SUFFIX[quality]}`;
 }
 
 export interface DiaryPassageOpts {
@@ -84,7 +119,12 @@ export function progressionChordsById(
       requiresDominant: prog.requiresDominant ?? false,
     },
   );
-  return { chords, keyPc: ((rootMidi % 12) + 12) % 12, names: namesOf(chords, qualities) };
+  return {
+    chords,
+    keyPc: ((rootMidi % 12) + 12) % 12,
+    names: namesOf(chords, qualities),
+    slots: prog.numerals.map((numeral, i) => slotOf(numeral, qualities[i])),
+  };
 }
 
 // --- Chord motion starters -----------------------------------------
@@ -172,5 +212,12 @@ export function motionChordsById(
       ...named,
     },
   ];
-  return { chords: shifted, keyPc: ((rootMidi % 12) + 12) % 12, names: namesOf(shifted, def.qualities) };
+  return {
+    chords: shifted,
+    keyPc: ((rootMidi % 12) + 12) % 12,
+    names: namesOf(shifted, def.qualities),
+    slots: def.numerals.map((numeral, i) => slotOf(numeral, def.qualities[i])),
+    ...(def.direction === 'asc' ? { bassDirection: 'up' as const }
+      : def.direction === 'desc' ? { bassDirection: 'down' as const } : {}),
+  };
 }

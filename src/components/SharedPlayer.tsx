@@ -123,6 +123,9 @@ interface DirectionRow {
 export interface SharedPlayerHandle {
   /** The panel's own Hear it: starts over from the top. */
   hear: () => void;
+  /** One chord alone, which the board then shows and a key tap edits —
+   *  the loop builder's chord-name strip. */
+  hearOne: (index: number) => void;
 }
 
 /** A board built by hand, held by the surface rather than the panel. */
@@ -149,6 +152,12 @@ export interface LabLayout {
   rows?: (hands: ReactNode) => ReactNode;
   /** The rows draw Hands themselves, so it is not drawn above Play as. */
   handsInRows?: boolean;
+  /**
+   * The rows come straight after the transport, above Play as — the loop
+   * builder's order (spec §7): Key, Chords, Starting position, Bass
+   * direction beside Hands, then Play as.
+   */
+  rowsFirst?: boolean;
 }
 
 /** The status line's word for each way of playing. The prototype's. */
@@ -408,6 +417,8 @@ export default function SharedPlayer({
 
   /** A list as it sounds: the bass in its register, then the Hands row. */
   const voice = (list: ReadonlyArray<PlayerChord>) => handsForSetting(placeBass(list, settings), settings);
+  /** Which pass of a loop is sounding — "pass 2 of 4" (spec §7). */
+  const [pass, setPass] = useState(1);
 
   /**
    * Play from a beat.
@@ -428,13 +439,24 @@ export default function SharedPlayer({
       ...(orientPc === undefined ? {} : { orientPc }),
       ...(beats === undefined ? {} : { beats }),
     });
+    // A LOOP'S PASS COUNTS UP each time the chords come back round.
+    let last = -1;
+    let passes = 1;
+    setPass(1);
     const started = play !== undefined
       ? play({ startAtBeat })
       : playPanel(list, settings, {
         ...(orientPc === undefined ? {} : { orientPc }),
         ...(beats === undefined ? {} : { beats }),
         ...(startAtBeat > 0 ? { startAtBeat } : {}),
-        onStep: (i: number) => { setLit(i); onStep?.(i); },
+        onStep: (i: number) => {
+          if (i >= 0) {
+            if (i < last) { passes += 1; setPass(passes); }
+            last = i;
+          }
+          setLit(i);
+          onStep?.(i);
+        },
       });
     void started.then(setHandle).catch(() => { setTransport('stopped'); });
     // THE LAB SAYS WHEN IT HAS FINISHED — "played · C Major 9". The
@@ -459,9 +481,16 @@ export default function SharedPlayer({
     return total > 0 ? beat % total : 0;
   };
 
-  const hearIt = () => run(0);
+  /**
+   * The chord a tap on its name picked, until Hear it plays them all.
+   *
+   * A KEY TAP EDITS THE CHORD SELECTED (Silas, 14 Sep 2026), and a name
+   * tapped is selected at once — the keys still light through the paint
+   * loop, when the chord is heard.
+   */
+  const [picked, setPicked] = useState<number | null>(null);
 
-  useImperativeHandle(ref, () => ({ hear: hearIt }));
+  const hearIt = () => { setPicked(null); run(0); };
 
   const pauseOrResume = () => {
     if (transport === 'paused') { run(clock.current.beat); return; }
@@ -500,6 +529,14 @@ export default function SharedPlayer({
       .catch(() => { setTransport('stopped'); });
   };
 
+  /** A chord's name tapped: it is selected, and heard alone. */
+  const pick = (i: number) => {
+    setPicked(i);
+    hearOne(i);
+  };
+
+  useImperativeHandle(ref, () => ({ hear: hearIt, hearOne: pick }));
+
   // =====================================================================
   // THE TAPS THAT BUILD BY HAND. A tap edits the chord the board shows —
   // on a surface with more than one chord, the selected one — and stops
@@ -507,7 +544,7 @@ export default function SharedPlayer({
   // change to what is lit plays it, as the prototype does; with more, the
   // tap waits for Hear it, so a loop is not restarted under the finger.
   // =====================================================================
-  const selected = Math.min(Math.max(lit ?? startLit, 0), Math.max(chords.length - 1, 0));
+  const selected = Math.min(Math.max(picked ?? lit ?? startLit, 0), Math.max(chords.length - 1, 0));
   const rings = ringsOf(boardEdit, selected);
   /** Every note the selected chord has lit, bass and hand, as drawn. */
   const litNow = (): number[] => {
@@ -626,8 +663,14 @@ export default function SharedPlayer({
     />
   );
 
+  // A LOOP SAYS WHICH CHORD AND WHICH PASS — "playing · G7 · pass 2 of 4"
+  // (spec §7). One chord says how it is being played, as it always has.
+  const loopWord = settings.loop === 1 ? ''
+    : settings.loop === 'untilStopped' ? ` · pass ${pass}` : ` · pass ${pass} of ${settings.loop}`;
   const status = transport === 'playing'
-    ? `playing · ${PLAY_AS_WORD[settings.playAs]}`
+    ? chords.length > 1
+      ? `playing · ${sounding?.name ?? ''}${loopWord}`
+      : `playing · ${PLAY_AS_WORD[settings.playAs]}`
     : played && lab !== undefined ? `played · ${lab.playedName}` : null;
 
   const transportEl = controls && (
@@ -763,7 +806,7 @@ export default function SharedPlayer({
                   key={`${c.name}-${i}`}
                   on={(lit ?? startLit) === i}
                   testId={`hear-one-${i}`}
-                  onClick={() => hearOne(i)}
+                  onClick={() => pick(i)}
                 >
                   <span className="font-mono">{c.name}</span>
                 </Chip>
@@ -807,11 +850,13 @@ export default function SharedPlayer({
         <>
           {boardEl}
           {transportEl}
+          {/* THE LOOP BUILDER'S ROWS COME FIRST (spec §7). */}
+          {lab.rowsFirst === true && lab.rows?.(controls && lab.handsInRows === true ? handsEl : null)}
           {controls && lab.handsInRows !== true && handsEl}
           {controls && playAsEl}
           {legendEl}
           {compare !== undefined && compare}
-          {lab.rows?.(controls && lab.handsInRows === true ? handsEl : null)}
+          {lab.rowsFirst !== true && lab.rows?.(controls && lab.handsInRows === true ? handsEl : null)}
         </>
       )}
 

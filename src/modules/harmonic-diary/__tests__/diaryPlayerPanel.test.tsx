@@ -108,7 +108,8 @@ describe('it opens on the card and plays it at once', () => {
     const sound = cardSound('chord-progressions:motion:2-to-5-asc')!;
     expect(sound.kind).toBe('progression');
     mount('chord-progressions:motion:2-to-5-asc', { moduleLabel: 'Chord Progressions', category: 'Motion' });
-    expect(q('diary-sheet-title')!.textContent).toBe('Dm · G7');
+    // THE SEVENTH CHORDS THE CARD SOUNDS, from its loop-builder slots.
+    expect(q('diary-sheet-title')!.textContent).toBe('Dm7 · G7');
     expect(q('diary-sheet-subtitle')!.textContent).toBe('in the key of C · Chord Progressions · Motion');
   });
 });
@@ -356,5 +357,93 @@ describe('the rows read from the keyboard (spec §4, §5)', () => {
     expect(q('hands-rootless')).not.toBeNull();
     click(q('back-to-card')!);
     expect(title()).toBe('Dorian');
+  });
+});
+
+describe('a progression card is the loop builder (spec §7)', () => {
+  const title = () => q('diary-sheet-title')!.textContent;
+  const pressed = (id: string) => q(id)?.getAttribute('aria-pressed') === 'true';
+  const slot = (i: number) => q(`slot-input-${i}`) as HTMLInputElement | null;
+  /** Type into a slot as a reader does: React hears the input event. */
+  const typeInto = (i: number, text: string) => act(() => {
+    const input = slot(i)!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  const TWO_FIVE = 'chord-progressions:motion:2-to-5-asc';
+
+  it('opens on the card\'s slots, in its key, on the rows it starts with', () => {
+    mount(TWO_FIVE);
+    expect(slot(0)!.value).toBe('2m7');
+    expect(slot(1)!.value).toBe('57');
+    expect(q('slot-name-1')!.textContent).toBe('G7');
+    expect(pressed('key-0')).toBe(true);
+    expect(pressed('starting-0')).toBe(true);
+    expect(pressed('loop-thickness-seventh')).toBe(true);
+    // An ascending motion card opens on the direction it names.
+    expect(pressed('loop-bass-up')).toBe(true);
+    expect(pressed('loop-name-0')).toBe(true);
+  });
+
+  it('a slot takes a name or a degree, and turns red where it cannot parse', () => {
+    mount(TWO_FIVE);
+    typeInto(1, 'Cmaj9');
+    expect(q('slot-name-1')!.textContent).toBe('Cmaj9');
+    expect(title()).toBe('Dm7 · Cmaj9');
+    typeInto(1, 'H7');
+    expect(q('slot-1')!.getAttribute('data-parses')).toBe('no');
+    expect(q('slot-name-1')!.textContent).toBe('?');
+    // A red slot waits to be fixed; it is not a silence in the loop.
+    expect(title()).toBe('Dm7');
+  });
+
+  it('Key moves the loop and plays it, and the line under the title follows', () => {
+    mount(TWO_FIVE);
+    const before = calls.length;
+    click(q('key-5')!);
+    expect(title()).toBe('Gm7 · C7');
+    expect(q('diary-sheet-subtitle')!.textContent).toContain('in the key of F');
+    expect(calls.length).toBe(before + 1);
+  });
+
+  it('+ Add a chord, ↻ Rotate and ✕, and Back to the card undoes all of it', () => {
+    mount(TWO_FIVE);
+    click(q('add-chord')!);
+    expect(slot(2)!.value).toBe('');
+    typeInto(2, '1maj7');
+    expect(title()).toBe('Dm7 · G7 · Cmaj7');
+    click(q('rotate-loop')!);
+    expect(title()).toBe('G7 · Cmaj7 · Dm7');
+    click(q('slot-remove-0')!);
+    expect(title()).toBe('Cmaj7 · Dm7');
+    click(q('back-to-card')!);
+    expect(title()).toBe('Dm7 · G7');
+  });
+
+  it('a name tapped plays that chord alone, and a key tap then edits that chord', () => {
+    mount(TWO_FIVE);
+    click(q('loop-name-1')!);
+    expect(pressed('loop-name-1')).toBe(true);
+    expect(calls.at(-1)!.chords).toHaveLength(1);
+    const played = calls.length;
+    click(document.body.querySelector('rect[data-midi="81"]')!);
+    expect(q('loop-name-1')!.textContent).not.toBe('G7');
+    expect(q('loop-name-0')!.textContent).toBe('Dm7');
+    // More than one chord: the tap waits for Hear it.
+    expect(calls.length).toBe(played);
+  });
+
+  it('the status names the chord that is sounding', () => {
+    mount(TWO_FIVE);
+    expect(q('player-status')!.textContent).toBe('playing · Dm7');
+  });
+
+  it('Enter in a slot plays the loop', () => {
+    mount(TWO_FIVE);
+    const before = calls.length;
+    act(() => {
+      slot(0)!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    expect(calls.length).toBe(before + 1);
   });
 });

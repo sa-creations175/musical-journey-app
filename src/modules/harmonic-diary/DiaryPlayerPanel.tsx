@@ -33,8 +33,16 @@
  * the Inversion row; a tap on it turns the panel into a chord, with the
  * rest of the chord tools (Silas, 14 Sep 2026).
  *
+ * A PROGRESSION CARD IS THE LOOP BUILDER (spec §7): Key, the chord slots
+ * (a name or a degree), + Add a chord, ↻ Rotate, the chord names with the
+ * one sounding marked, Starting position beside Thickness, Bass
+ * direction beside Hands. A tap on a name plays that chord, and a key
+ * tap then edits it. The card's chords are its slots, voiced by the
+ * loop builder, so the card and the builder are one sound.
+ *
  * ONE UNDO. The rows and the keys are one history here, so Undo steps
  * back through Root, Colour and Inversion taps as well as keys (§5).
+ * Letters typed into a slot are not steps; the slot's chips are.
  *
  * The panel is mounted per card, so the rows and the history start from
  * the card every time it opens.
@@ -52,6 +60,11 @@ import {
   MIDDLE_C, NO_EDIT, builtChord, historyOf, isEdited, record, undo,
   type BoardEdit, type History,
 } from '../../lib/player/boardEdit';
+import { parseSlot } from '../../lib/player/slotChord';
+import {
+  BASS_DIRECTION_OPTIONS, LOOP_THICKNESS_OPTIONS, STARTING_POSITION_LABELS, loopChords, slotName,
+  type BassDirection, type LoopThickness,
+} from '../../lib/player/loopBuilder';
 import { spellNote } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 import { useProgressionSpelling } from '../../lib/progressionSpelling';
@@ -70,12 +83,19 @@ const BEATS: Readonly<Record<CardSound['kind'], number>> = {
   chord: 2, interval: 2, scale: 4, progression: 2,
 };
 
-/** Where the rows are. A progression has none (spec §8). */
+/** Where the rows are. */
 type Lab =
   | { kind: 'chord'; rootPc: number; qualityId: string; inversion: number; shaped: boolean }
   | { kind: 'scale'; rootPc: number; modeId: string }
   | { kind: 'interval'; rootPc: number; semitones: number }
-  | { kind: 'progression' };
+  | {
+    kind: 'progression';
+    keyPc: number;
+    slots: string[];
+    startingPosition: number;
+    thickness: LoopThickness;
+    bassDirection: BassDirection;
+  };
 
 function labOf(sound: CardSound): Lab {
   switch (sound.kind) {
@@ -85,13 +105,24 @@ function labOf(sound: CardSound): Lab {
       };
     case 'scale': return { kind: 'scale', rootPc: sound.rootPc, modeId: sound.modeId };
     case 'interval': return { kind: 'interval', rootPc: sound.rootPc, semitones: sound.semitones };
-    default: return { kind: 'progression' };
+    case 'progression':
+      // THE PROTOTYPE'S STARTING ROWS: Root position, Seventh chords,
+      // Nearest — except that a motion card naming its direction opens
+      // on it, so it sounds the move it is about.
+      return {
+        kind: 'progression',
+        keyPc: sound.keyPc,
+        slots: [...sound.slots],
+        startingPosition: 0,
+        thickness: 'seventh',
+        bassDirection: sound.bassDirection ?? 'nearest',
+      };
   }
 }
 
 const sameLab = (a: Lab, b: Lab) => JSON.stringify(a) === JSON.stringify(b);
 
-const ROOT_PCS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+const PCS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
 /** Everything Undo steps back through. */
 interface PanelState {
@@ -122,16 +153,21 @@ export default function DiaryPlayerPanel({
   const { lab, edit } = history.present;
   /** Bumped by a row tap, so the chord it made is heard once drawn. */
   const [rowTaps, setRowTaps] = useState(0);
+  /** Which chord of a loop is sounding, or was tapped. */
+  const [sounding, setSounding] = useState(0);
+  /** A slot just added, to take the cursor. */
+  const [focusSlot, setFocusSlot] = useState<number | null>(null);
 
   // THE ▶ WAS THE TAP, or a row was. Played from here, through the
   // player's handle, once the render with the new notes has landed — so
   // the shared player itself still has no effect that starts sound.
   useEffect(() => { player.current?.hear(); }, [playToken, rowTaps]);
 
-  /** A row tap: the lab moves, anything built by hand is let go, and the
-   *  result plays. */
+  /** A row tap: recorded, anything built by hand let go. */
+  const change = (next: Lab) => setHistory(h => record(h, { lab: next, edit: NO_EDIT }));
+  /** A row tap that plays what it made, as the prototype's rows do. */
   const move = (next: Lab) => {
-    setHistory(h => record(h, { lab: next, edit: NO_EDIT }));
+    change(next);
     setRowTaps(n => n + 1);
   };
 
@@ -181,7 +217,14 @@ export default function DiaryPlayerPanel({
   const chords: PlayerChord[] = useMemo(() => {
     switch (lab.kind) {
       case 'chord': return chordBuild === null ? [] : [chordBuild.chord];
-      case 'progression': return sound.kind === 'progression' ? sound.chords : [];
+      case 'progression':
+        return loopChords(lab.slots.map(text => parseSlot(text, lab.keyPc)), {
+          startingPosition: lab.startingPosition,
+          thickness: lab.thickness,
+          bassDirection: lab.bassDirection,
+          spelling,
+          progression,
+        });
       // A SCALE OR AN INTERVAL IS ONE HAND WITH NO BASS, so Together
       // strikes every note and the three runs play the line in their
       // direction — spec §6, through the same step a chord takes.
@@ -190,12 +233,16 @@ export default function DiaryPlayerPanel({
       case 'interval':
         return [{ hand: labIntervalNotes(lab.rootPc, lab.semitones), bass: null, rootPc: lab.rootPc, name: cardTitle }];
     }
-  }, [lab, chordBuild, sound, cardTitle]);
+  }, [lab, chordBuild, cardTitle, spelling, progression]);
 
   const wandered = !sameLab(lab, card) || isEdited(edit);
   const inversion = chordBuild === null || lab.kind !== 'chord'
     ? 0
     : Math.min(lab.inversion, chordBuild.handSize - 1);
+  /** A loop chord's name, the reader's where it was built by hand. */
+  const loopName = (chord: PlayerChord, i: number) => (edit.built[i] === undefined
+    ? chord.name
+    : builtChord(edit.built[i], { spelling, progression }).reading.name);
 
   // THE TITLE IS THE NAME OF WHAT IS LIT (spec §2). A progression's is
   // its chords, never with the key appended. A scale and an interval
@@ -209,11 +256,7 @@ export default function DiaryPlayerPanel({
         return `${spellNote(lab.rootPc, spelling)} ${qualityNameOf(lab.qualityId)}`
           + `${inversion > 0 ? ` · ${INVERSION_LABELS[inversion]} inversion` : ''}`;
       case 'progression':
-        return sound.kind === 'progression'
-          ? sound.names.map((name, i) => (edit.built[i] === undefined
-            ? name
-            : builtChord(edit.built[i], { spelling, progression }).reading.name)).join(' · ')
-          : cardTitle;
+        return chords.length === 0 ? cardTitle : chords.map(loopName).join(' · ');
       case 'scale': {
         const mode = MODE_CHIPS.find(m => m.id === lab.modeId);
         return wandered ? `${spellNote(lab.rootPc, spelling)} ${mode?.label ?? cardTitle}` : cardTitle;
@@ -223,7 +266,7 @@ export default function DiaryPlayerPanel({
     }
   })();
   const origin = [
-    sound.kind === 'progression' ? `in the key of ${spellNote(sound.keyPc, spelling)}` : null,
+    lab.kind === 'progression' ? `in the key of ${spellNote(lab.keyPc, spelling)}` : null,
     wandered ? `from the card ${cardTitle}` : null,
     skill?.moduleLabel ?? null,
     skill?.category ? skill.category : null,
@@ -231,7 +274,7 @@ export default function DiaryPlayerPanel({
 
   const rootRow = lab.kind === 'progression' ? null : (
     <PlayerRow label="Root" testId="row-root">
-      {ROOT_PCS.map(pc => (
+      {PCS.map(pc => (
         <PlayerChip
           key={pc}
           on={(built !== undefined && best !== null ? best.rootPc : lab.rootPc) === pc}
@@ -254,7 +297,163 @@ export default function DiaryPlayerPanel({
     </PlayerRow>
   );
 
-  const rows = (hands: ReactNode) => (
+  const backToCard = wandered && (
+    <button
+      type="button"
+      data-testid="back-to-card"
+      onClick={() => move(card)}
+      className={`${CHIP} ${CHIP_OFF}`}
+    >
+      ← Back to the card
+    </button>
+  );
+
+  // =====================================================================
+  // THE LOOP BUILDER'S ROWS (spec §7), in the prototype's order and words.
+  // =====================================================================
+  const loopRows = (loop: Extract<Lab, { kind: 'progression' }>, hands: ReactNode) => {
+    /** Letters typed into a slot: what sounds changes, and it is not an
+     *  Undo step. */
+    const type = (i: number, text: string) => setHistory(h => ({
+      ...h,
+      present: { lab: { ...loop, slots: loop.slots.map((s, j) => (j === i ? text : s)) }, edit: NO_EDIT },
+    }));
+    const shown = Math.min(sounding, Math.max(chords.length - 1, 0));
+    return (
+      <div className="space-y-3" data-testid="card-rows">
+        <PlayerRow label="Key" testId="row-key">
+          {PCS.map(pc => (
+            <PlayerChip key={pc} on={loop.keyPc === pc} testId={`key-${pc}`} onClick={() => move({ ...loop, keyPc: pc })}>
+              {spellNote(pc, spelling)}
+            </PlayerChip>
+          ))}
+        </PlayerRow>
+
+        <PlayerRow label="Chords · type a name (Cmaj7, G7) or a degree (1, 5, 6m, 4)" testId="row-slots">
+          {loop.slots.map((text, i) => {
+            const parsed = parseSlot(text, loop.keyPc);
+            return (
+              <span
+                key={i}
+                data-testid={`slot-${i}`}
+                data-parses={parsed === null ? 'no' : 'yes'}
+                className={`inline-flex items-center rounded-md border ${parsed === null
+                  ? 'border-red-500' : 'border-black/10 dark:border-white/20'} bg-black/[0.03] dark:bg-white/[0.06]`}
+              >
+                <input
+                  value={text}
+                  aria-label={`chord ${i + 1}`}
+                  data-testid={`slot-input-${i}`}
+                  autoFocus={focusSlot === i}
+                  onChange={e => type(i, e.target.value)}
+                  // ENTER IN A SLOT PLAYS THE LOOP (spec §7).
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter') return;
+                    e.currentTarget.blur();
+                    setRowTaps(n => n + 1);
+                  }}
+                  className="w-16 bg-transparent py-1.5 pl-2 pr-1 font-mono text-xs outline-none"
+                />
+                <b className="pr-1 text-[11px] font-normal text-neutral-500" data-testid={`slot-name-${i}`}>
+                  {parsed === null ? '?' : slotName(parsed, spelling, progression)}
+                </b>
+                <button
+                  type="button"
+                  aria-label="remove"
+                  data-testid={`slot-remove-${i}`}
+                  onClick={() => change({ ...loop, slots: loop.slots.filter((_, j) => j !== i) })}
+                  className="px-2 py-1.5 text-xs text-neutral-500"
+                >
+                  ✕
+                </button>
+              </span>
+            );
+          })}
+        </PlayerRow>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            data-testid="add-chord"
+            onClick={() => { change({ ...loop, slots: [...loop.slots, ''] }); setFocusSlot(loop.slots.length); }}
+            className={`${CHIP} ${CHIP_OFF}`}
+          >
+            + Add a chord
+          </button>
+          <button
+            type="button"
+            data-testid="rotate-loop"
+            onClick={() => move({ ...loop, slots: loop.slots.length === 0 ? [] : [...loop.slots.slice(1), loop.slots[0]] })}
+            className={`${CHIP} ${CHIP_OFF}`}
+          >
+            ↻ Rotate
+          </button>
+        </div>
+
+        {/* THE CHORDS, THE ONE SOUNDING MARKED. A tap plays that chord,
+            and a key tap then edits it (Silas, 14 Sep 2026). */}
+        <div className="flex flex-wrap gap-1.5 font-mono" data-testid="loop-names">
+          {chords.map((chord, i) => (
+            <PlayerChip
+              key={`${chord.name}-${i}`}
+              on={i === shown}
+              testId={`loop-name-${i}`}
+              onClick={() => { setSounding(i); player.current?.hearOne(i); }}
+            >
+              {loopName(chord, i)}
+            </PlayerChip>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+          <PlayerRow label="Starting position" testId="row-starting">
+            {STARTING_POSITION_LABELS.map((label, i) => (
+              <PlayerChip
+                key={label}
+                on={loop.startingPosition === i}
+                testId={`starting-${i}`}
+                onClick={() => move({ ...loop, startingPosition: i })}
+              >
+                {label}
+              </PlayerChip>
+            ))}
+          </PlayerRow>
+          <PlayerRow label="Thickness" testId="row-loop-thickness">
+            {LOOP_THICKNESS_OPTIONS.map(o => (
+              <PlayerChip
+                key={o.id}
+                on={loop.thickness === o.id}
+                testId={`loop-thickness-${o.id}`}
+                onClick={() => change({ ...loop, thickness: o.id })}
+              >
+                {o.label}
+              </PlayerChip>
+            ))}
+          </PlayerRow>
+        </div>
+
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
+          <PlayerRow label="Bass direction" testId="row-loop-bass">
+            {BASS_DIRECTION_OPTIONS.map(o => (
+              <PlayerChip
+                key={o.id}
+                on={loop.bassDirection === o.id}
+                testId={`loop-bass-${o.id}`}
+                onClick={() => change({ ...loop, bassDirection: o.id })}
+              >
+                {o.label}
+              </PlayerChip>
+            ))}
+          </PlayerRow>
+          {hands}
+        </div>
+
+        {backToCard}
+      </div>
+    );
+  };
+
+  const rows = (hands: ReactNode) => (lab.kind === 'progression' ? loopRows(lab, hands) : (
     <div className="space-y-3" data-testid="card-rows">
       {rootRow}
 
@@ -337,18 +536,9 @@ export default function DiaryPlayerPanel({
           i => ({ kind: 'chord', rootPc: best.rootPc, qualityId: best.quality.id, inversion: i, shaped: true }),
         )}
 
-      {wandered && (
-        <button
-          type="button"
-          data-testid="back-to-card"
-          onClick={() => move(card)}
-          className={`${CHIP} ${CHIP_OFF}`}
-        >
-          ← Back to the card
-        </button>
-      )}
+      {backToCard}
     </div>
-  );
+  ));
 
   return (
     <DiarySheet live title={title} subtitle={origin} onClose={onClose}>
@@ -358,7 +548,7 @@ export default function DiaryPlayerPanel({
         settings={settings}
         onSettings={onSettings}
         beats={BEATS[sound.kind]}
-        {...(sound.kind === 'progression' ? { orientPc: sound.keyPc } : {})}
+        {...(lab.kind === 'progression' ? { orientPc: lab.keyPc } : {})}
         // HANDS ON A CHORD AND A PROGRESSION. A scale or an interval
         // shows it once the panel has been made a chord (Silas, 14 Sep
         // 2026).
@@ -367,9 +557,12 @@ export default function DiaryPlayerPanel({
         showListen
         boardLabel={`What ${title} sounds like`}
         edit={held}
+        onStep={i => { if (i >= 0) setSounding(i); }}
         lab={{
           playedName: title,
-          ...(lab.kind === 'progression' ? {} : { rows, handsInRows: lab.kind === 'chord' }),
+          rows,
+          handsInRows: lab.kind === 'chord' || lab.kind === 'progression',
+          rowsFirst: lab.kind === 'progression',
         }}
       />
     </DiarySheet>
