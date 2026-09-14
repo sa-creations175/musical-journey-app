@@ -19,7 +19,7 @@ import { describe, expect, it } from 'vitest';
 import { CATEGORY_ORDER, FLASHCARDS, cardById } from '../catalog';
 import { MODE_BY_DEGREE } from '../catalogExpansions';
 import {
-  DUPLICATE_FOLDS, DUPLICATES_WITHOUT_DESTINATION,
+  DUPLICATE_FOLDS, DUPLICATES_WITHOUT_DESTINATION, SPELL_FOLDS, SPELL_RETIRED_WITHOUT_DESTINATION,
   EAR_THEORY_FOLDS, EAR_THEORY_WITHOUT_DESTINATION,
 } from '../../../lib/migrations/hfDeckCleanup';
 
@@ -41,6 +41,8 @@ const EAR_THEORY_PAIRS: readonly Pair[] = [
   { from: 'et-6', answered: 'deceptive cadences (V - vi)', to: 'fh-6', asks: /5 goes to the 6m/, answers: 'deceptive cadence' },
   { from: 'et-7', answered: 'sus4', to: 'cc-13', asks: /sus4/, answers: 'the 4th' },
   { from: 'et-8', answered: 'IV maj7#11', to: 'mo-15', asks: /Lydian/, answers: 'the 1 as a maj7♯11 chord' },
+  // cc-15 held et-9's history until it retired itself, rows deleted, on
+  // 14 Sep 2026 — see `RETIRED_TARGETS`.
   { from: 'et-9', answered: 'minor-major 7', to: 'cc-15', asks: /AmMaj7/, answers: 'A C E G♯' },
   { from: 'et-11', answered: 'major 3rd and minor 3rd', to: 'cc-9', asks: /7♯9/, answers: 'raised 9' },
   { from: 'et-14', answered: 'Mixolydian', to: 'mo-16', asks: /Mixolydian/, answers: 'the 1 as a 7 chord' },
@@ -63,8 +65,15 @@ describe('Ear-Theory Crossover is gone', () => {
   });
 });
 
+/** Targets that have retired since, and where that is recorded. */
+const RETIRED_TARGETS: ReadonlySet<string> = new Set(['cc-15']);
+
 describe('each Ear-Theory card folds onto the card that asks its fact', () => {
-  for (const pair of EAR_THEORY_PAIRS) {
+  it('names every retired target among the rows v48 deletes', () => {
+    for (const id of RETIRED_TARGETS) expect(SPELL_RETIRED_WITHOUT_DESTINATION).toContain(id);
+  });
+
+  for (const pair of EAR_THEORY_PAIRS.filter(p => !RETIRED_TARGETS.has(p.to))) {
     it(`${pair.from} (${pair.answered}) → ${pair.to}`, () => {
       const target = cardById(pair.to);
       expect(target, `${pair.to} is in the deck`).toBeDefined();
@@ -154,4 +163,37 @@ describe('cc-18 has one right answer', () => {
     expect(card.decoys).not.toContain('half-diminished 7');
     expect(card.decoys).toContain('minor 7');
   });
+});
+
+/**
+ * "CONTAINS THE NOTES" INTO SPELL THE CHORD (14 Sep 2026). Each retired
+ * card is recorded with its own chord and notes; the pair holds when the
+ * live card is the key of C card that builds that chord, with those notes.
+ */
+const CONTAINS_PAIRS = [
+  { from: 'cc-5', chord: 'Cmaj7', notes: ['C', 'E', 'G', 'B'], degree: '1' },
+  { from: 'cc-6', chord: 'G7', notes: ['G', 'B', 'D', 'F'], degree: '5' },
+  { from: 'cc-7', chord: 'Dm7', notes: ['D', 'F', 'A', 'C'], degree: '2' },
+  { from: 'cc-14', chord: 'Fmaj7', notes: ['F', 'A', 'C', 'E'], degree: '4' },
+] as const;
+
+describe('each "contains the notes" card folds onto the key of C card that builds its chord', () => {
+  it('folds exactly these, and retires the four that are not diatonic sevenths', () => {
+    expect(SPELL_FOLDS).toEqual(Object.fromEntries(
+      CONTAINS_PAIRS.map(p => [p.from, `cc-spell-major-C-${p.degree}`]),
+    ));
+    expect([...SPELL_RETIRED_WITHOUT_DESTINATION].sort()).toEqual(['cc-10', 'cc-11', 'cc-15', 'cc-17']);
+    for (const id of [...Object.keys(SPELL_FOLDS), ...SPELL_RETIRED_WITHOUT_DESTINATION]) {
+      expect(FLASHCARDS.some(c => c.id === id), id).toBe(false);
+    }
+  });
+
+  for (const pair of CONTAINS_PAIRS) {
+    it(`${pair.from} (${pair.chord}) → ${SPELL_FOLDS[pair.from]}`, () => {
+      const target = cardById(SPELL_FOLDS[pair.from]);
+      expect(target, 'in the deck').toBeDefined();
+      expect(target!.axis).toMatchObject({ key: 'C', degree: Number(pair.degree), scale: 'major' });
+      expect(target!.correctAnswer).toBe(`${pair.chord} · ${pair.notes.join(' ')}`);
+    });
+  }
 });

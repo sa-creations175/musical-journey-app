@@ -219,8 +219,8 @@ describe('there is one picker in the tree, and one player', () => {
     const built = FLASHCARDS.filter(c => builtTargetFor(c) !== null);
     const categories = new Set(built.map(c => c.category));
     expect([...categories].sort()).toEqual([
-      'key-signatures', 'pentatonic-scales', 'progressions', 'slash-chords',
+      'chord-construction', 'key-signatures', 'pentatonic-scales', 'progressions', 'slash-chords',
     ]);
-    expect(FLASHCARDS).toHaveLength(1597);
+    expect(FLASHCARDS).toHaveLength(1680);
   });
 });

@@ -50,15 +50,29 @@ import { itemRefMatcherForReadingGroup } from '../reading/coverageGroups';
 // catalog walk and produces the matching itemRefs (not just counts).
 // =====================================================================
 
-function enumerateHF(): string[] {
-  return FLASHCARDS.map(c => c.id);
+function enumerateHF(goal: Goal): string[] {
+  return FLASHCARDS.filter(c => hfCardInScope(goal, c)).map(c => c.id);
 }
 
-function enumerateHFByCategorySubArea(subArea: string): string[] {
+function enumerateHFByCategorySubArea(subArea: string, goal: Goal): string[] {
   const categories = HF_GROUP_CATEGORIES[subArea];
   if (!categories) return [];
   const set = new Set(categories);
-  return FLASHCARDS.filter(c => set.has(c.category)).map(c => c.id);
+  return FLASHCARDS.filter(c => set.has(c.category) && hfCardInScope(goal, c)).map(c => c.id);
+}
+
+/**
+ * The first day a goal's scope can hold a Spell the chord card: 1 September
+ * 2026, by the Circle of 4ths rule (Silas, 14 Sep 2026). A goal whose window
+ * ends before September never lists the family; a September goal does.
+ */
+export const SPELL_THE_CHORD_FROM = new Date(2026, 8, 1).getTime();
+
+/** Read off the card's own coordinates: the family is the Chord
+ *  Construction cards that carry a scale. */
+function hfCardInScope(goal: Goal, card: (typeof FLASHCARDS)[number]): boolean {
+  const spell = card.category === 'chord-construction' && card.axis?.scale !== undefined;
+  return !spell || goal.targetDate >= SPELL_THE_CHORD_FROM;
 }
 
 /**
@@ -194,7 +208,7 @@ export function enumerateScopeForGoal(goal: Goal): string[] {
   if (!metric) return [];
 
   if (isCoverageOverallMetric(metric)) {
-    if (metric === COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY) return enumerateHF();
+    if (metric === COVERAGE_OVERALL_METRIC.HARMONIC_FLUENCY) return enumerateHF(goal);
     if (metric === COVERAGE_OVERALL_METRIC.EAR_TRAINING)     return enumerateAllET();
     if (metric === COVERAGE_OVERALL_METRIC.SHAPES)           return enumerateAllShapes(circleInScope(goal));
     if (metric === COVERAGE_OVERALL_METRIC.PRODUCTION)       return enumerateAllProduction();
@@ -205,7 +219,7 @@ export function enumerateScopeForGoal(goal: Goal): string[] {
     if (!subArea) return [];
 
     if (metric === COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY) {
-      return enumerateHFByCategorySubArea(subArea);
+      return enumerateHFByCategorySubArea(subArea, goal);
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.EAR_TRAINING) {
       return enumerateETSub(subArea);

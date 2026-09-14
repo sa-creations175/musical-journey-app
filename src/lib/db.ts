@@ -6,7 +6,7 @@ import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
 import { foldRetiredChordCards } from './migrations/retire913';
 import { foldRetiredDiatonicCard } from './migrations/retireDqExtra1';
 import {
-  deleteRetiredCardRows, foldDuplicateCards, foldEarTheoryCrossover,
+  deleteRetiredCardRows, foldDuplicateCards, foldEarTheoryCrossover, retireContainsTheNotes,
 } from './migrations/hfDeckCleanup';
 import { describeCardDelete, describeCardFold } from './migrations/foldHarmonicFluencyCards';
 
@@ -4879,6 +4879,20 @@ export class AppDB extends Dexie {
     this.version(47).stores({}).upgrade(async tx => {
       const n = await deleteRetiredCardRows(tx);
       console.info(describeCardDelete('seven retired cards', n));
+    });
+
+    /**
+     * =================================================================
+     * v48 — "CONTAINS THE NOTES" RETIRES INTO SPELL THE CHORD (Silas,
+     * 14 Sep 2026). cc-5, cc-6, cc-7 and cc-14 fold into the key of C's
+     * new cards; cc-10, cc-11, cc-15 and cc-17 lose their rows. No index
+     * moves. Rules in `migrations/hfDeckCleanup.ts`.
+     * =================================================================
+     */
+    this.version(48).stores({}).upgrade(async tx => {
+      const { folded, deleted } = await retireContainsTheNotes(tx);
+      console.info(describeCardFold('contains-the-notes cards folded', folded));
+      console.info(describeCardDelete('four non-diatonic chord cards', deleted));
     });
   }
 }

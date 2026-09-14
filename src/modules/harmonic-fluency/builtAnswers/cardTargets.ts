@@ -34,6 +34,7 @@ import {
   progressionVoicing,
 } from '../catalogExpansions';
 import { majorPentatonic, minorPentatonic, relativeMinorRoot } from '../pentatonics';
+import { SPELL_SCALES, spellChord, type SpellScale } from '../spellChordCards';
 
 /** One chord of a progression, as the card wants it. */
 export interface TargetChord {
@@ -115,6 +116,22 @@ export type BuiltTarget =
     bassPc: number;
     /** The chord over the note, as the card's answer names it. */
     name: string;
+  }
+  | {
+    /**
+     * Spell the chord in a key (Silas, 14 Sep 2026): tap its notes.
+     * Graded on pitch class, any octave, nothing extra.
+     */
+    kind: 'spell';
+    keyPc: number;
+    keyName: string;
+    rootPc: number;
+    quality: QualityId;
+    /** "Eø" — the chord as the card's answer names it. */
+    name: string;
+    pcs: number[];
+    /** The chord placed on the board, for the reveal and the player. */
+    voicing: number[];
   };
 
 const MAJOR = [0, 2, 4, 5, 7, 9, 11];
@@ -316,6 +333,31 @@ export function builtTargetFor(card: Flashcard): BuiltTarget | null {
         minor,
         pcs: scaleOf(rootPc, minor ? NATURAL_MINOR : MAJOR),
         homePcs: triadOn(rootPc, minor),
+      };
+    }
+
+    case 'chord-construction': {
+      // SPELL THE CHORD. The hand-written fact cards carry no axis and
+      // keep their four buttons.
+      const degree = str(axis.degree);
+      const scale = str(axis.scale);
+      if (key === undefined || degree === undefined || scale === undefined) return null;
+      if (!(SPELL_SCALES as readonly string[]).includes(scale)) return null;
+      const chord = spellChord(key, degree, scale as SpellScale);
+      const keyPc = pitchClassOf(key);
+      const rootPc = pitchClassOf(chord.rootAscii);
+      if (keyPc === null || rootPc === null) return null;
+      // AROUND MIDDLE C: the root in the octave from G below it.
+      const bottom = 60 + rootPc - (rootPc > 6 ? 12 : 0);
+      return {
+        kind: 'spell',
+        keyPc,
+        keyName: noteLabel(key),
+        rootPc,
+        quality: chord.quality,
+        name: chord.symbol,
+        pcs: chord.pcs,
+        voicing: CHORD_INTERVALS[chord.quality].map(t => bottom + t),
       };
     }
 

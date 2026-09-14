@@ -143,7 +143,9 @@ describe('what a card is allowed to say', () => {
     // a facet on a card about how a chord FEELS would make a filter
     // claim it had found something.
     for (const cat of ['diatonic-qualities', 'chord-construction'] as const) {
-      for (const card of FLASHCARDS.filter(c => c.category === cat)) {
+      // Chord Construction's hand-written fact cards; Spell the chord in a
+      // key carries coordinates and says what they are.
+      for (const card of FLASHCARDS.filter(c => c.category === cat && c.axis === undefined)) {
         expect(card.facets, card.id).toBeUndefined();
       }
     }
@@ -231,12 +233,11 @@ describe('coverage, so a regression is visible', () => {
   it('covers every category in the deck or says why not', () => {
     const missing = CATEGORY_ORDER.filter(cat =>
       !FLASHCARDS.some(c => c.category === cat && c.facets !== undefined));
-    // The two that carry no coordinates at all (Ear-Theory Crossover was
-    // a third, until it retired). Named here so adding one is a decision
-    // rather than a drift.
-    expect(missing.sort()).toEqual(
-      ['chord-construction', 'diatonic-qualities'],
-    );
+    // The one that carries no coordinates at all. Ear-Theory Crossover was
+    // another until it retired, and Chord Construction until Spell the
+    // chord in a key arrived (14 Sep 2026). Named here so adding one is a
+    // decision rather than a drift.
+    expect(missing.sort()).toEqual(['diatonic-qualities']);
   });
 });
 

@@ -67,17 +67,17 @@ const renderPage = () => renderAt('/harmonic-fluency');
  * tests below measure a queue against.
  *
  * Ear-Theory Crossover did that on its own, at fifteen cards. It retired
- * on 14 Sep 2026, and the smallest category left, Chord Construction,
- * holds exactly a session's twenty. So half of it is marked answered and
- * not yet due: `buildSession` fills with due and unseen cards before it
- * ever practises ahead, so a run drawn from it alone serves the other
- * half and no more. Returns how many that is.
+ * on 14 Sep 2026, and no category left is smaller than a session. So all
+ * but ten of Chord Construction's cards are marked answered and not yet
+ * due: `buildSession` fills with due and unseen cards before it ever
+ * practises ahead, so a run drawn from it alone serves those ten and no
+ * more. Returns how many that is.
  */
 const SMALL = 'chord-construction' as const;
 async function serveFewerThanASession(): Promise<number> {
   const DAY = 24 * 60 * 60 * 1000;
   const cards = FLASHCARDS.filter(c => c.category === SMALL);
-  const answered = cards.slice(0, Math.ceil(cards.length / 2));
+  const answered = cards.slice(0, cards.length - 10);
   await db.spacingState.bulkPut(answered.map((c): SpacingState => ({
     id: `sp-${c.id}`,
     itemRef: c.id,

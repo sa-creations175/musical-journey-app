@@ -33,8 +33,8 @@ const DAY = 24 * 60 * 60 * 1000;
 
 // A SMALL CATEGORY, because every card in it has to be marked as not
 // due for the setup to mean anything. Tritone Pairs was 12 and
-// Ear-Theory Crossover 15, both retired; Chord Construction is 20, a
-// session's worth, and the smallest that is left.
+// Ear-Theory Crossover 15, both retired; Chord Construction was 20, a
+// session's worth, until Spell the chord in a key made it 103.
 const FINISHED: FlashcardCategory = 'chord-construction';
 const OTHER: FlashcardCategory = 'functional-harmony';
 
@@ -108,7 +108,10 @@ describe('drilling a category with nothing due', () => {
       categories: [FINISHED], target: 20, now: NOW,
     });
     expect(session.cards.every(c => c.category === FINISHED)).toBe(true);
-    expect(session.cards).toHaveLength(cardsIn(FINISHED).length);
+    // A session's worth at most: Chord Construction holds 103 since Spell
+    // the chord in a key arrived (14 Sep 2026), and no category is smaller
+    // than a session any more.
+    expect(session.cards).toHaveLength(Math.min(20, cardsIn(FINISHED).length));
   });
 
   it('hands back ordinary catalog cards — no ahead-of-schedule marking', async () => {

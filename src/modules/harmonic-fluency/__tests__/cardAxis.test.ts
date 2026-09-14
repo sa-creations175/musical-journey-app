@@ -131,6 +131,8 @@ describe('absent means flat list, not broken', () => {
       byCategory.set(c.category, (byCategory.get(c.category) ?? 0) + 1);
     }
     expect(Object.fromEntries([...byCategory].sort())).toEqual({
+      // Spell the chord in a key, 14 Sep 2026: thirteen keys, seven degrees.
+      'chord-construction': 91,
       'enharmonic-equivalents': 35,
       'scale-degree-math': 168,
       // 33 before the 2-5-1 moved to Progression Vocabulary — eleven

@@ -26,9 +26,11 @@ const everyText = (): Array<[string, string]> =>
   HAND_WRITTEN.flatMap(c => textsOf(c).map((t): [string, string] => [c.id, t]));
 
 describe('the cards in scope', () => {
-  it('are the forty-four that survived the cleanup', () => {
-    // 20 Chord Construction, 14 Functional Harmony, 10 Mode Identification.
-    expect(HAND_WRITTEN).toHaveLength(44);
+  it('are the thirty-six that survived the cleanup', () => {
+    // 12 Chord Construction (the eight "contains the notes" cards retired
+    // into Spell the chord on 14 Sep 2026), 14 Functional Harmony, 10 Mode
+    // Identification.
+    expect(HAND_WRITTEN).toHaveLength(36);
   });
 });
 
@@ -58,7 +60,7 @@ describe('the conventions', () => {
 
   it('names a quality the way the Diatonic cards do', () => {
     expect(FLASHCARDS.find(c => c.id === 'cc-8')!.correctAnswer).toBe('half-diminished (ø)');
-    expect(FLASHCARDS.find(c => c.id === 'cc-15')!.explanation).toContain('minor-major 7 (mMaj7)');
+    // cc-15, the minor-major 7 (mMaj7) card, retired on 14 Sep 2026.
     for (const [id, text] of everyText()) {
       expect(text, id).not.toContain('half-diminished 7');
       expect(text, id).not.toContain('m(maj7)');

@@ -102,3 +102,35 @@ export const RETIRED_WITHOUT_DESTINATION: readonly string[] = [
 export function deleteRetiredCardRows(tx: MigrationTx): Promise<CardDeleteCounts> {
   return deleteHarmonicFluencyCardRows(tx, RETIRED_WITHOUT_DESTINATION);
 }
+
+/**
+ * =====================================================================
+ * THE "CONTAINS THE NOTES" CARDS RETIRE INTO SPELL THE CHORD (v48).
+ *
+ * Silas, 14 Sep 2026. The eight key-of-C cards asked which notes a chord
+ * holds; Spell the chord in a key asks it in every key, on the keyboard.
+ * The four that are diatonic sevenths of C fold into the new card for
+ * that chord (`deckCleanupPairing.test.ts` proves each pair against the
+ * deck). The four that are not — Cadd9, C6/9, Am(maj7), C9 — have no
+ * destination, and on Silas's word their rows are deleted.
+ * =====================================================================
+ */
+export const SPELL_FOLDS: CardFolds = {
+  'cc-5': 'cc-spell-major-C-1',   // Cmaj7, the 1 of C
+  'cc-6': 'cc-spell-major-C-5',   // G7, the 5 of C
+  'cc-7': 'cc-spell-major-C-2',   // Dm7, the 2 of C
+  'cc-14': 'cc-spell-major-C-4',  // Fmaj7, the 4 of C
+};
+
+/** Not diatonic sevenths, so nowhere to go: rows deleted. */
+export const SPELL_RETIRED_WITHOUT_DESTINATION: readonly string[] = [
+  'cc-10', 'cc-11', 'cc-15', 'cc-17',
+];
+
+export async function retireContainsTheNotes(
+  tx: MigrationTx,
+): Promise<{ folded: CardFoldCounts; deleted: CardDeleteCounts }> {
+  const folded = await foldHarmonicFluencyCards(tx, SPELL_FOLDS);
+  const deleted = await deleteHarmonicFluencyCardRows(tx, SPELL_RETIRED_WITHOUT_DESTINATION);
+  return { folded, deleted };
+}

@@ -4,6 +4,7 @@ import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, degreeNoteCards } from './degreeNoteCards';
 import { DEGREE_MATH_CATEGORY_NAME } from './scaleDegreeQualityCards';
 import { withFacets } from './facets';
+import { generateSpellChordCards } from './spellChordCards';
 import {
   MODAL_IMPROV_CATEGORY_NAME, modalImprovisationCards,
 } from './modalImprovisation';
@@ -809,24 +810,12 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
     decoys: ["minor 3rd + minor 3rd + major 3rd", "major 3rd + minor 3rd + minor 3rd", "minor 3rd + major 3rd + minor 3rd"],
     explanation: "A diminished 7 stacks three minor 3rds in a row, every interval the same. It has no single tonal center, so jazz and gospel use it as a passing chord between two more stable ones.",
     skillTag: 'chord-construction-dim7' },
-  { id: 'cc-5', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
-    question: "Cmaj7 contains the notes _____",
-    correctAnswer: "C, E, G, B",
-    decoys: ["C, E, G, B♭", "C, E♭, G, B", "C, E, G♯, B"],
-    explanation: "Cmaj7 is C E G B: the C major triad with B, the major 7th, on top.",
-    skillTag: 'chord-notes-Cmaj7' },
-  { id: 'cc-6', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
-    question: "G7 contains the notes _____",
-    correctAnswer: "G, B, D, F",
-    decoys: ["G, B♭, D, F", "G, B, D, F♯", "G, B, D♯, F"],
-    explanation: "G7 is G B D F: the G major triad with F, the ♭7, on top. The tritone inside it, B and F, is what pulls G7 toward C, and why tritone substitutions work on the 5 chord.",
-    skillTag: 'chord-notes-G7' },
-  { id: 'cc-7', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
-    question: "Dm7 contains the notes _____",
-    correctAnswer: "D, F, A, C",
-    decoys: ["D, F♯, A, C", "D, F, A, C♯", "D, F, A♭, C"],
-    explanation: "Dm7 is D F A C: the D minor triad with C on top. It is the 2m chord in the key of C major, where every 2 · 5 · 1 starts: Dm7 · G7 · Cmaj7.",
-    skillTag: 'chord-notes-Dm7' },
+  // `cc-5`, `cc-6`, `cc-7`, `cc-10`, `cc-11`, `cc-14`, `cc-15` AND `cc-17`
+  // WERE HERE: "Cmaj7 contains the notes _____" and its siblings, in the key
+  // of C only. Spell the chord in a key (`spellChordCards.ts`) asks it in
+  // every key on the keyboard; cc-5, cc-6, cc-7 and cc-14 folded into its key
+  // of C cards, and the four that are not diatonic sevenths retired with
+  // their rows deleted (Silas, 14 Sep 2026). See `hfDeckCleanup.ts`.
   { id: 'cc-8', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
     question: "Bm7♭5 is also called _____",
     correctAnswer: "half-diminished (ø)",
@@ -839,18 +828,6 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
     decoys: ["flat 9", "sharp 11", "flat 13"],
     explanation: "A 7♯9 stacks a raised 9, an augmented 2nd above the root, on top of a dominant 7. It is the Hendrix chord: C7♯9 is C E G B♭ D♯. The ♯9 is the same key as the minor 3rd, so it sounds against the chord's major 3rd; you hear it in Hendrix, Stevie Wonder and gospel cadences.",
     skillTag: 'chord-construction-7-sharp-9' },
-  { id: 'cc-10', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
-    question: "A Cadd9 chord contains _____",
-    correctAnswer: "C E G D",
-    decoys: ["C E G B D", "C E G B♭ D", "C E♭ G D"],
-    explanation: "Cadd9 is the C major triad with an added 9 (D) and no 7th. You hear it all over indie pop and neo-soul: Tom Misch, Daniel Caesar, Frank Ocean.",
-    skillTag: 'chord-construction-add9' },
-  { id: 'cc-11', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
-    question: "C6/9 contains _____",
-    correctAnswer: "C E G A D",
-    decoys: ["C E G B D", "C E G A", "C E♭ G A D"],
-    explanation: "C6/9 stacks C E G with a 6 (A) and a 9 (D), and no 7th. It is the classic gospel and jazz final chord.",
-    skillTag: 'chord-construction-6-9' },
   { id: 'cc-12', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
     question: "A sus2 chord replaces the 3rd with _____",
     correctAnswer: "the 2nd",
@@ -863,30 +840,12 @@ const CHORD_CONSTRUCTION_CARDS: Flashcard[] = [
     decoys: ["the 2nd", "the 6th", "the 7th"],
     explanation: "A sus4 swaps the 3rd for the 4th: Csus4 is C F G. It is the held sound before a resolution, and gospel cadences lean on exactly this move: 5(7sus4) → 5(7) → 1.",
     skillTag: 'chord-construction-sus4' },
-  { id: 'cc-14', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
-    question: "Fmaj7 contains _____",
-    correctAnswer: "F A C E",
-    decoys: ["F A C E♭", "F A♭ C E", "F A C♯ E"],
-    explanation: "Fmaj7 is F A C E: the F major triad with E on top. It is the 4 chord in the key of C major, the 1 in the key of F major, and the default chord on the 4 of any major key.",
-    skillTag: 'chord-notes-Fmaj7' },
-  { id: 'cc-15', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
-    question: "AmMaj7 contains _____",
-    correctAnswer: "A C E G♯",
-    decoys: ["A C E G", "A C♯ E G♯", "A C E♭ G♯"],
-    explanation: "AmMaj7, a minor-major 7 (mMaj7), is A C E G♯: a minor triad with a raised 7th. It is the James Bond chord, used for a single moment rather than as a tonic to sit on.",
-    skillTag: 'chord-notes-Am-maj7' },
   { id: 'cc-16', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
     question: "The tritone interval inside a dom7 chord is between _____",
     correctAnswer: "the 3rd and the ♭7",
     decoys: ["the root and the 5", "the 5 and the ♭7", "the root and the ♭7"],
     explanation: "The tritone inside a dominant 7 lies between the 3rd and the ♭7: in G7, B and F. It is what pulls the 5 chord back to the 1, and why tritone substitutions work: G7 and D♭7 share the same tritone.",
     skillTag: 'dom7-tritone' },
-  { id: 'cc-17', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
-    question: "C9 (dominant 9) contains _____",
-    correctAnswer: "C E G B♭ D",
-    decoys: ["C E G B D", "C E G B♭ F", "C E♭ G B♭ D"],
-    explanation: "C9, a dominant 9, is C E G B♭ D: a C7 with the 9 on top. Common in funk, soul and gospel (think Stevie Wonder's 'I Wish' horn stabs).",
-    skillTag: 'chord-notes-C9' },
   { id: 'cc-18', category: 'chord-construction', categoryName: CATEGORY_LABELS['chord-construction'],
     question: "Which chord has no perfect 5th?",
     correctAnswer: "diminished 7",
@@ -1400,6 +1359,10 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   // for the reason every generated family is: its ids carry the key
   // and the chord, so nothing above can be renumbered by it.
   ...modalImprovisationCards(),
+  // Spell the chord in a key: thirteen keys × seven degrees of major
+  // (Silas, 14 Sep 2026). Appended like every generated family; its ids
+  // carry the scale, the key and the degree.
+  ...generateSpellChordCards(),
   ...F_SHARP_SURVIVOR,
 ]);
 

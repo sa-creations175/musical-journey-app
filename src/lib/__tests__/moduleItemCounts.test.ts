@@ -80,7 +80,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 1193 + 152 + 252 = 1597
+// Harmonic Fluency — 1193 + 235 + 252 = 1680
+// (14 Sep 2026, later: 1597 → 1680. Spell the chord in a key arrives in
+//  Chord Construction, 13 keys × 7 degrees of major = 91, and the eight
+//  key-of-C "contains the notes" cards retire into it. Chord
+//  Construction 20 → 103, Chords 152 → 235.)
 // (14 Sep 2026, the regroup: four groups become three and nothing is
 //  counted differently. Notes, Degrees, Scales & Keys is Foundational's
 //  949 with Intervals 143 and Mode Identification 101 = 1193; Chords is
@@ -208,16 +212,16 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.notesDegreesScalesKeys).toBe(1193);
   });
 
-  it('chordKnowledge = dq 29 + cc 20 + sc 103 = 152', () => {
-    expect(c.byGroup.chordKnowledge).toBe(152);
+  it('chordKnowledge = dq 29 + cc 103 + sc 103 = 235', () => {
+    expect(c.byGroup.chordKnowledge).toBe(235);
   });
 
   it('functionalApplied = fh 38 + pr 84 + mi 130 = 252', () => {
     expect(c.byGroup.functionalApplied).toBe(252);
   });
 
-  it('total = 1597 across all 13 categories', () => {
-    expect(c.total).toBe(1597);
+  it('total = 1680 across all 13 categories', () => {
+    expect(c.total).toBe(1680);
   });
 
   it('total equals sum of group totals', () => {

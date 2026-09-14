@@ -19,6 +19,7 @@ import RootAnswer from './RootAnswer';
 import ScaleAnswer from './ScaleAnswer';
 import SignatureAnswer from './SignatureAnswer';
 import SlashAnswer from './SlashAnswer';
+import SpellAnswer from './SpellAnswer';
 
 export default function BuiltAnswer({
   card, answered, answer,
@@ -73,6 +74,16 @@ export default function BuiltAnswer({
     case 'root':
       return (
         <RootAnswer
+          key={card.id}
+          card={card}
+          target={target}
+          answered={answered}
+          answer={answer}
+        />
+      );
+    case 'spell':
+      return (
+        <SpellAnswer
           key={card.id}
           card={card}
           target={target}

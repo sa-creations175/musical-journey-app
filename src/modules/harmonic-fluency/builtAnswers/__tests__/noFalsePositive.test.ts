@@ -27,7 +27,7 @@ import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../../catalog';
 import { builtTargetFor, type BuiltTarget } from '../cardTargets';
 import {
-  gradeProgression, gradeRoot, gradeScale, gradeSignature, gradeSlash,
+  gradeProgression, gradeRoot, gradeScale, gradeSignature, gradeSlash, gradeSpell,
   type BuiltChord,
 } from '../grade';
 import {
@@ -49,6 +49,23 @@ const ALL_QUALITIES = Object.keys(CHORD_INTERVALS) as QualityId[];
 /** Every wrong build worth trying against one card. */
 function wrongGrades(target: BuiltTarget): Array<{ built: string; correct: boolean }> {
   switch (target.kind) {
+    case 'spell': {
+      // Every note moved to every other key, one note missing, and one
+      // note too many: none of them is the chord.
+      const right = target.voicing;
+      const out: Array<{ built: string; correct: boolean }> = [];
+      for (let i = 0; i < right.length; i += 1) {
+        for (let shift = 1; shift < 12; shift += 1) {
+          out.push(gradeSpell(target, right.map((m, j) => (j === i ? m + shift : m))));
+        }
+        out.push(gradeSpell(target, right.filter((_, j) => j !== i)));
+      }
+      for (let pc = 0; pc < 12; pc += 1) {
+        if (target.pcs.includes(pc)) continue;
+        out.push(gradeSpell(target, [...right, 72 + pc]));
+      }
+      return out;
+    }
     case 'progression': {
       const right: BuiltChord[] = target.chords.map(c => ({
         rootPc: c.rootPc, quality: c.quality,
@@ -131,7 +148,8 @@ const built = FLASHCARDS
 
 describe('no wrong build can read as the right answer', () => {
   it('covers every card that builds its answer', () => {
-    expect(built).toHaveLength(272);
+    // 272 until Spell the chord in a key added 91 (14 Sep 2026).
+    expect(built).toHaveLength(363);
   });
 
   it('never describes a wrong answer as the card\'s own answer', () => {
@@ -156,7 +174,7 @@ describe('no wrong build can read as the right answer', () => {
       tried.set(target.kind, (tried.get(target.kind) ?? 0) + wrong.length);
     }
     expect([...tried.keys()].sort())
-      .toEqual(['progression', 'root', 'scale', 'signature', 'slash']);
+      .toEqual(['progression', 'root', 'scale', 'signature', 'slash', 'spell']);
     for (const [kind, n] of tried) {
       expect(n, kind).toBeGreaterThan(0);
     }

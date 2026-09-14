@@ -42,13 +42,15 @@ describe('which cards stop being multiple choice', () => {
       counts.set(card.category, (counts.get(card.category) ?? 0) + 1);
     }
     expect(Object.fromEntries([...counts].sort())).toEqual({
+      // Spell the chord in a key, 14 Sep 2026.
+      'chord-construction': 91,
       // 52 that answer with a key plus the 13 that answer with a count.
       'key-signatures': 65,
       'pentatonic-scales': 38,
       progressions: 78,
       'slash-chords': 91,
     });
-    expect(withTarget).toHaveLength(272);
+    expect(withTarget).toHaveLength(363);
   });
 
   it('leaves the rest of the deck alone', () => {
@@ -56,12 +58,14 @@ describe('which cards stop being multiple choice', () => {
     // before `dq-extra-1` retired on 14 Sep, 1,620 before Ear-Theory
     // Crossover's fifteen did, 1,605 before the duplicates) and does not move; what
     // changes is the answer surface on 259 of them.
-    expect(FLASHCARDS).toHaveLength(1597);
+    expect(FLASHCARDS).toHaveLength(1680);
     // The ten minor cards of 13 Sep 2026 stay on their buttons: 1339 →
     // 1349. The retired triad card was on its buttons too: 1349 → 1348.
     // Ear-Theory Crossover's fifteen were on buttons too: 1348 → 1333.
     // Ten hand-written duplicates out, two generated C cards in: 1325.
-    expect(FLASHCARDS.length - withTarget.length).toBe(1325);
+    // The eight "contains the notes" cards retired into Spell the chord,
+    // which answers on the keyboard: 1325 → 1317.
+    expect(FLASHCARDS.length - withTarget.length).toBe(1317);
   });
 
   it('leaves the parallel-minor cards on their buttons', () => {
@@ -77,7 +81,7 @@ describe('which cards stop being multiple choice', () => {
     // A family half-converted would be a reader meeting two different
     // answer surfaces for one question shape.
     for (const [prefix, n] of [
-      ['pr-prog-', 78], ['sc-slash-', 91], ['pent-notes-', 25],
+      ['pr-prog-', 78], ['sc-slash-', 91], ['cc-spell-major-', 91], ['pent-notes-', 25],
       ['pent-lick-', 13], ['ks-relminor-', 13], ['ks-relmajor-', 13],
       ['ks-count-', 13], ['ks-sig-major-', 13], ['ks-sig-minor-', 13],
     ] as const) {

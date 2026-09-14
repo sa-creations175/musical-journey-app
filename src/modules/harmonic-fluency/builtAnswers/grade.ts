@@ -218,3 +218,19 @@ export function gradeSignature(
     firstWrong: null,
   };
 }
+
+/**
+ * A chord spelled on the keyboard: the right pitch classes, any octave,
+ * nothing extra. Order and octave are never graded.
+ */
+export function gradeSpell(
+  target: Extract<BuiltTarget, { kind: 'spell' }>,
+  taps: ReadonlyArray<number>,
+): Grade {
+  const got = [...new Set(taps.map(m => ((m % 12) + 12) % 12))];
+  const want = new Set(target.pcs);
+  const correct = got.length === want.size && got.every(pc => want.has(pc));
+  const built = [...taps].sort((a, b) => a - b)
+    .map(m => spellInKey(((m % 12) + 12) % 12, target.keyName));
+  return { correct, built: [...new Set(built)].join(' ') || 'nothing', firstWrong: null };
+}

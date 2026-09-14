@@ -19,6 +19,7 @@ import type { MigrationTable, MigrationTx } from '../migrations/retire913';
 import {
   DUPLICATES_WITHOUT_DESTINATION, EAR_THEORY_FOLDS, EAR_THEORY_WITHOUT_DESTINATION,
   RETIRED_WITHOUT_DESTINATION, deleteRetiredCardRows, foldDuplicateCards, foldEarTheoryCrossover,
+  retireContainsTheNotes,
 } from '../migrations/hfDeckCleanup';
 
 const NOW = 1_700_000_000_000;
@@ -247,5 +248,34 @@ describe('v47 — the seven with nowhere to go', () => {
     await deleteRetiredCardRows(tx);
     const again = await deleteRetiredCardRows(tx);
     expect(Object.values(again).every(v => v === 0)).toBe(true);
+  });
+});
+
+describe('v48 — "contains the notes" into Spell the chord', () => {
+  it('folds the four diatonic sevenths and deletes the other four\'s rows', async () => {
+    await db.attempts.bulkPut([
+      { id: 'a1', moduleId: HF, itemId: 'cc-5', timestamp: NOW },
+      { id: 'a2', moduleId: HF, itemId: 'cc-14', timestamp: NOW },
+      { id: 'a3', moduleId: HF, itemId: 'cc-15', timestamp: NOW },
+      { id: 'a4', moduleId: HF, itemId: 'cc-9', timestamp: NOW },
+    ] as never);
+    await db.spacingState.bulkPut([spacingRow({ itemRef: 'cc-6' }), spacingRow({ itemRef: 'cc-17' })] as never);
+    const { folded, deleted } = await retireContainsTheNotes(tx);
+    expect(folded).toMatchObject({ attempts: 2, spacingMoved: 1 });
+    expect(deleted).toMatchObject({ attempts: 1, spacing: 1 });
+    expect((await db.attempts.get('a1'))?.itemId).toBe('cc-spell-major-C-1');
+    expect((await db.attempts.get('a2'))?.itemId).toBe('cc-spell-major-C-4');
+    expect(await db.attempts.get('a3')).toBeUndefined();
+    expect((await db.attempts.get('a4'))?.itemId).toBe('cc-9');
+    expect((await db.spacingState.get('sp-cc-6-both'))?.itemRef).toBe('cc-spell-major-C-5');
+    expect(await db.spacingState.get('sp-cc-17-both')).toBeUndefined();
+  });
+
+  it('a second run finds nothing', async () => {
+    await db.attempts.put({ id: 'a1', moduleId: HF, itemId: 'cc-7', timestamp: NOW } as never);
+    await retireContainsTheNotes(tx);
+    const again = await retireContainsTheNotes(tx);
+    expect(Object.values(again.folded).every(v => v === 0)).toBe(true);
+    expect(Object.values(again.deleted).every(v => v === 0)).toBe(true);
   });
 });

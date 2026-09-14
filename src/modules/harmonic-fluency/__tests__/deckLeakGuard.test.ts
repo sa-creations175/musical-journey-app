@@ -45,15 +45,11 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // they were explaining themselves with. See
   // __tests__/strippedParentheticals.test.ts, which holds the removed
   // text and asserts it survived into the explanations.
-  { category: 'chord-construction', rule: 'only-natural', cards: 4 },
-  // `shortest` is asserted in this category only — see the scope on the
-  // rule. A correctly spelled chord is the one with nothing added to
-  // it, so "C, E, G, B" sits beside three decoys that each carry an
-  // alteration. These five cannot be fixed by a chooser: the answer
-  // being the plain spelling is what the question is about. The entry
-  // exists so a NEW chord-construction card cannot arrive with the
-  // same defect unnoticed.
-  { category: 'chord-construction', rule: 'shortest', cards: 5 },
+  // chord-construction / only-natural stood at 4 and / shortest at 5: the
+  // key-of-C "contains the notes" cards, whose plain spelling sat beside
+  // three altered ones. They retired into Spell the chord in a key on
+  // 14 Sep 2026, whose decoys the chooser picks, and both went to 0. The
+  // `shortest` scope stays on the rule, so a new card cannot bring it back.
   // ear-theory / only-accidental stood at 1 and / longest at 8: its
   // answers named a feeling in words against decoys that named it in
   // shorthand. The category retired on 14 Sep 2026 and both went with it.
@@ -395,9 +391,11 @@ describe('no decoy pins its answer', () => {
     // 23 blind, 28 in all, until Ear-Theory Crossover retired on 14 Sep
     // 2026: eight of its cards were picked out by the longest option, and
     // they went with the category. 15 and 20 until the duplicates went the
-    // same day, taking five more with them.
+    // same day, taking five more with them. 10 and 15 until the key-of-C
+    // "contains the notes" cards retired into Spell the chord in a key,
+    // taking the five whose plain spelling gave them away.
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 10, tell: 5, distinct: 15 });
+      .toEqual({ blind: 5, tell: 5, distinct: 10 });
   });
 
   it('keeps the tell allowlist honest', () => {

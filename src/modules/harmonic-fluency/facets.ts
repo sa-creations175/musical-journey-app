@@ -417,8 +417,17 @@ export function facetsFor(card: Flashcard): CardFacets | undefined {
       f.slashDegrees = str(axis?.shape);
       break;
 
+    case 'chord-construction':
+      // SPELL THE CHORD (14 Sep 2026) carries a key and a degree. The
+      // hand-written fact cards carry no axis, and say nothing.
+      if (axis?.degree !== undefined) {
+        f.key = str(axis.key);
+        f.degree = str(axis.degree);
+      }
+      break;
+
     // NOTHING FOR THESE, AND THAT IS THE HONEST ANSWER. Diatonic Chord
-    // Qualities and Chord Construction carry no
+    // Qualities and Chord Construction's fact cards carry no
     // coordinates today. Inventing one would make a filter claim it had
     // found something.
     default:
