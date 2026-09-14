@@ -213,6 +213,7 @@ export default function MobileDashboard({
           onOpenCategory={openCategory}
           matches={matches}
           filtering={filtering}
+          sort={state.sort}
         />
       ) : (
         <div className="space-y-2">

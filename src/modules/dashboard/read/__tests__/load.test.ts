@@ -190,6 +190,16 @@ describe('routing sources to catalogs', () => {
     expect(touched.map(m => m.moduleId)).toEqual(['reading']);
   });
 
+  it('lists the S&P sections in the module s order', () => {
+    // Scale Drills · Chord Shape Drills · Chord Movements & Passes ·
+    // Mental Visualisation (14 Sep 2026) — the sidebar's order.
+    const dashboard = assembleDashboard(source({}), NOW);
+    const sp = dashboard.modules.find(m => m.moduleId === 'shapes-and-patterns')!;
+    expect(sp.root.children.map(c => c.label)).toEqual([
+      'Scales', 'Chord Shapes', 'Chord Movements & Passes', 'Mental Visualisation',
+    ]);
+  });
+
   it('sends drill sessions to the S&P branches, not the mental-viz one', () => {
     // Both are self-rated and both live under shapes-and-patterns; only
     // one reads drillSessions.

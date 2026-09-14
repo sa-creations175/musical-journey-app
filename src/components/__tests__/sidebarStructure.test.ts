@@ -41,6 +41,16 @@ describe('the sweep actually reads the file', () => {
   });
 });
 
+describe('Shapes & Patterns sections', () => {
+  it('run scales, chord shapes, movements, mental visualisation', () => {
+    const sp = between("id: 'shapes-and-patterns'", "id: 'repertoire'");
+    const at = (path: string) => sp.indexOf(`'/shapes-and-patterns/${path}'`);
+    const order = ['scales', 'chord-shapes', 'movements', 'mental-viz'].map(at);
+    for (const i of order) expect(i).toBeGreaterThan(-1);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+});
+
 describe('Dashboard leads the Overview group', () => {
   it('is listed before Goals', () => {
     const overview = between("id: 'overview'", "id: 'structured-learning'");

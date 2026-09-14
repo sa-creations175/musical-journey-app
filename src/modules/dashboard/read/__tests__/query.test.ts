@@ -15,9 +15,11 @@ import {
   matchesFilter,
   moduleIdResolver,
   sortNodes,
+  STATUS_ORDER,
   type FilterContext,
   type ModuleTree,
 } from '../query';
+import { tierForNode } from '../tierAdapter';
 
 const NOW = 1_700_000_000_000;
 const DAY = 86_400_000;
@@ -162,6 +164,69 @@ describe('sorting on coverage', () => {
     });
     expect(labels(sortNodes(mod.root.children, { field: 'coverage', direction: 'worst-first' }, NOW)))
       .toEqual(['bare', 'half', 'done']);
+  });
+});
+
+describe('sorting on status', () => {
+  /** A category that reads as a known tier, built as a node directly. */
+  function rated(label: string, over: Partial<TreeNode>): TreeNode {
+    return {
+      id: label, label, depth: 1, children: [],
+      itemRefs: [], accuracyKind: 'measured', mixedKinds: false,
+      excludedFromParentTotals: false, endsGroup: false,
+      score: null, gradedLeafCount: 1, coveredItems: 1, totalItems: 1,
+      engagementCount: 0,
+      recency: { mostRecentAt: NOW, stalestAt: NOW, hasUntouched: false },
+      ...over,
+    };
+  }
+  // Catalog order is deliberately scrambled against the ladder.
+  const subs = [
+    rated('never', { engagementCount: 0 }),
+    rated('weak', { score: 30, engagementCount: 20 }),
+    rated('top', { score: 100, engagementCount: 20 }),
+    rated('began', { score: 100, engagementCount: 2 }),
+    rated('old', {
+      score: 100, engagementCount: 20,
+      recency: { mostRecentAt: NOW - 400 * DAY, stalestAt: NOW - 400 * DAY, hasUntouched: false },
+    }),
+  ];
+  const rank = (n: TreeNode) => STATUS_ORDER.indexOf(tierForNode(n, NOW));
+
+  it('the fixture spans five different statuses', () => {
+    expect(new Set(subs.map(n => tierForNode(n, NOW))).size).toBe(5);
+  });
+
+  it('best first walks the ladder from Mastered down to Not Started', () => {
+    const sorted = sortNodes(subs, { field: 'status', direction: 'best-first' }, NOW);
+    expect(sorted.map(rank)).toEqual([...sorted.map(rank)].sort((a, b) => a - b));
+    expect(sorted[sorted.length - 1].label).toBe('never');
+  });
+
+  it('worst first is the same ladder reversed, Not Started leading', () => {
+    // Not Started is a status, not a dash, so it does not sink to the
+    // bottom the way an absent accuracy does.
+    const best = sortNodes(subs, { field: 'status', direction: 'best-first' }, NOW);
+    const worst = sortNodes(subs, { field: 'status', direction: 'worst-first' }, NOW);
+    expect(labels(worst)).toEqual(labels(best).reverse());
+    expect(worst[0].label).toBe('never');
+  });
+
+  it('keeps catalog order between two rows of one status', () => {
+    const tied = [rated('b', { score: 30, engagementCount: 20 }), rated('a', { score: 30, engagementCount: 20 })];
+    expect(labels(sortNodes(tied, { field: 'status', direction: 'best-first' }, NOW)))
+      .toEqual(['b', 'a']);
+  });
+
+  it('orders the tree view s module rows too', () => {
+    const strong = moduleOf('strong', { x: [stats({ score: 100, engagementCount: 20 })] });
+    const weak = moduleOf('weak', { x: [stats({ score: 20, engagementCount: 20 })] });
+    const view = groupedView(
+      [weak, strong],
+      { sort: { field: 'status', direction: 'best-first' }, filter: {}, grouping: true },
+      ctx,
+    );
+    expect(view.map(v => v.module.moduleId)).toEqual(['strong', 'weak']);
   });
 });
 

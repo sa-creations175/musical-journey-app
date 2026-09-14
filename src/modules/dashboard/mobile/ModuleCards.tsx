@@ -33,7 +33,7 @@ import { moduleMetaById } from '../../../lib/moduleMeta';
 import { TIER_BAR_CLASS, type Tier } from '../../../lib/tier';
 import { formatScore } from '../bands';
 import { MODULE_NAME_CLASS } from '../TreeRow';
-import type { ModuleTree } from '../read/query';
+import { sortNodes, type ModuleTree, type SortSpec } from '../read/query';
 import type { TreeNode } from '../read/tree';
 import { tierForNode } from '../read/tierAdapter';
 import { footerEntries, tierWord } from './tierLegend';
@@ -56,8 +56,11 @@ interface StripCell {
 }
 
 export default function ModuleCards({
-  modules, now, onOpenCategory, matches, filtering = false,
+  modules, now, onOpenCategory, matches, filtering = false, sort,
 }: {
+  /** The controls' sort. Only Status reorders a strip's squares — see
+   *  `stripOrder`. Absent means catalog order. */
+  sort?: SortSpec;
   /** ALREADY SORTED AND ALREADY NARROWED to the modules the pills
    *  chose. This file draws the cards it is given, in the order it is
    *  given them — an order decided here would be a second answer to a
@@ -82,6 +85,7 @@ export default function ModuleCards({
           now={now}
           onOpenCategory={onOpenCategory}
           {...(matches !== undefined ? { matches } : {})}
+          {...(sort !== undefined ? { sort } : {})}
           filtering={filtering}
         />
       ))}
@@ -89,9 +93,25 @@ export default function ModuleCards({
   );
 }
 
+/**
+ * The strip's squares, in the order they are drawn.
+ *
+ * CATALOG ORDER, EXCEPT UNDER STATUS. Status sorts the squares on the
+ * same ladder as the cards, so the footer — which lists colours in the
+ * order they first appear — follows it too. The other fields leave the
+ * strip alone: a strip reordered by accuracy stops being the module's
+ * shape, and Status is the one sort whose order IS the colours.
+ */
+export function stripOrder(
+  categories: TreeNode[], sort: SortSpec | undefined, now: number,
+): TreeNode[] {
+  return sort?.field === 'status' ? sortNodes(categories, sort, now) : categories;
+}
+
 function ModuleCard({
-  module, now, onOpenCategory, matches, filtering,
+  module, now, onOpenCategory, matches, filtering, sort,
 }: {
+  sort?: SortSpec;
   module: ModuleTree;
   now: number;
   onOpenCategory: (moduleId: string, node: TreeNode) => void;
@@ -113,7 +133,7 @@ function ModuleCard({
   /* THE MODULE'S CATEGORIES, which for production are not the row
      directly under it — see `stripCategories`. */
   const categories = stripCategories(module);
-  const cells: StripCell[] = categories.map(node => ({
+  const cells: StripCell[] = stripOrder(categories, sort, now).map(node => ({
     node,
     tier: tierForNode(node, now),
     matched: matches === undefined ? true : matches(node),

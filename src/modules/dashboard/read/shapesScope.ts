@@ -58,11 +58,12 @@ export function enumerateVoiceLeadingRefs(): string[] {
   return out;
 }
 
-/** All three sub-areas, in tree order. */
+/** All three sub-areas, in tree order — the module's section order
+ *  (14 Sep 2026), so the dashboard lists them as the sidebar does. */
 export function enumerateScopeForShapes(): string[] {
   return [
-    ...enumerateChordShapeRefs(),
     ...enumerateScaleRefs(),
+    ...enumerateChordShapeRefs(),
     ...enumerateVoiceLeadingRefs(),
   ];
 }

@@ -24,7 +24,9 @@
  * sorts ahead of every timestamp there. That is not a fabricated number
  * - the sort knows it is unbounded and the row still renders "never".
  */
+import type { Tier } from '../../../lib/tier';
 import { coverageFraction, type TreeNode } from './tree';
+import { tierForNode } from './tierAdapter';
 
 /**
  * `natural` is the DEFAULT and is not a sort at all — it means "leave
@@ -40,7 +42,23 @@ import { coverageFraction, type TreeNode } from './tree';
  * Implemented as a null sort key: every node compares equal, the sort
  * is stable, and the incoming order survives untouched.
  */
-export type SortField = 'natural' | 'accuracy' | 'coverage' | 'recency';
+export type SortField = 'natural' | 'accuracy' | 'coverage' | 'recency' | 'status';
+
+/**
+ * The Status sort's ladder, best first (Silas, 14 Sep 2026): **Mastered**,
+ * **Fluent**, **Developing**, **Needs Work**, **Stale**, **Started**,
+ * **Not Started**. A higher number is a better status.
+ *
+ * NOT STARTED IS A STATUS, NOT AN ABSENT VALUE, so it never takes the
+ * nulls-last exit: it ends best-first and leads worst-first, which is
+ * the ladder read the other way.
+ */
+export const STATUS_ORDER: ReadonlyArray<Tier> = [
+  'mastered', 'fluent', 'developing', 'needsWork', 'stale', 'started', 'untouched',
+];
+const STATUS_RANK: ReadonlyMap<Tier, number> = new Map(
+  STATUS_ORDER.map((tier, i) => [tier, STATUS_ORDER.length - i]),
+);
 
 /** `worst-first` is the default: the dashboard opens on what needs
  *  work, not on what is going well. */
@@ -207,6 +225,10 @@ function sortValue(node: TreeNode, spec: SortSpec, now: number): number | null {
       if (node.recency.mostRecentAt === null) return null;
       return now - node.recency.mostRecentAt;
     }
+    case 'status':
+      // The tier the card view paints the node with, so the order and
+      // the colours cannot tell two stories.
+      return STATUS_RANK.get(tierForNode(node, now))!;
   }
 }
 

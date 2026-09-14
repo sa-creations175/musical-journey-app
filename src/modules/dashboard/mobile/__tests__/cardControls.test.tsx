@@ -22,7 +22,8 @@ import MobileDashboard from '../MobileDashboard';
 import { DIMMED_CLASS, matchLine } from '../cardFilter';
 import { MODULE_NAME_CLASS } from '../../TreeRow';
 import { DEFAULT_VIEW_STATE, type DashboardViewState } from '../../read/urlState';
-import type { FilterContext, ModuleTree } from '../../read/query';
+import { STATUS_ORDER, type FilterContext, type ModuleTree } from '../../read/query';
+import type { Tier } from '../../../../lib/tier';
 import type { TreeNode } from '../../read/tree';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -222,6 +223,50 @@ describe('sort', () => {
 
     await press(el.querySelector('[data-testid="sort-direction"]')!);
     expect(cardModules()).toEqual(['ear-training', 'reading', 'harmonic-fluency']);
+  });
+
+  it('Status orders the cards, each strip and each footer on one ladder', async () => {
+    const fixture = [
+      moduleTree('reading', 'reading', 30, [
+        node('never', { engagementCount: 0 }),
+        graded('weak', 30),
+        graded('top', 100),
+        node('began', { score: 100, engagementCount: 2 }),
+      ]),
+      moduleTree('ear-training', 'ear training', 100, [graded('et-top', 100)]),
+    ];
+    const el = await render(DEFAULT_VIEW_STATE, fixture);
+    const rank = (t: string | null) => STATUS_ORDER.indexOf(t as Tier);
+    const readingCard = () => cards().find(c => c.getAttribute('data-module') === 'reading')!;
+    const stripTiers = () => [...readingCard()
+      .querySelectorAll('[data-testid="mobile-strip-cell"]')].map(s => s.getAttribute('data-tier'));
+    const footerTiers = () => [...readingCard()
+      .querySelectorAll('[data-testid="mobile-footer-entry"]')].map(e => e.getAttribute('data-tier'));
+
+    expect(stripTiers(), 'catalog order before').toEqual(
+      ['untouched', 'needsWork', 'mastered', 'started'],
+    );
+
+    await openControls();
+    await press(el.querySelector('[data-testid="sort-status"]')!);
+    expect(cardModules(), 'best module first').toEqual(['ear-training', 'reading']);
+    expect(stripTiers()).toEqual(['mastered', 'needsWork', 'started', 'untouched']);
+    expect(footerTiers()).toEqual(['mastered', 'needsWork', 'started', 'untouched']);
+    expect(stripTiers().map(rank)).toEqual([...stripTiers().map(rank)].sort((a, b) => a - b));
+
+    await press(el.querySelector('[data-testid="sort-direction"]')!);
+    expect(cardModules(), 'worst module first').toEqual(['reading', 'ear-training']);
+    expect(stripTiers()).toEqual(['untouched', 'started', 'needsWork', 'mastered']);
+    expect(footerTiers()).toEqual(['untouched', 'started', 'needsWork', 'mastered']);
+  });
+
+  it('leaves the strip in catalog order under the other sorts', async () => {
+    const el = await render();
+    await openControls();
+    await press(el.querySelector('[data-testid="sort-accuracy"]')!);
+    const et = cards().find(c => c.getAttribute('data-module') === 'ear-training')!;
+    expect([...et.querySelectorAll('[data-testid="mobile-strip-cell"]')]
+      .map(s => s.getAttribute('data-node'))).toEqual(['et-a', 'et-b', 'et-c']);
   });
 
   it('goes back to nav order on reset', async () => {

@@ -138,7 +138,7 @@ export default function ScaleAnswer({
 
       <BuiltAnswerKeyboard
         marks={marks}
-        label={`Tap the notes of ${card.categoryName}`}
+        label="Tap the notes of the pentatonic."
         {...(answered ? {} : {
           onTap: (midi: number) => {
             const pc = midi % 12;

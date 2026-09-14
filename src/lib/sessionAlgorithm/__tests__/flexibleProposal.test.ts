@@ -432,6 +432,18 @@ describe('deepFocusModuleOptions', () => {
     ]);
   });
 
+  it('offers the S&P submodules in the module s section order when no band separates them', () => {
+    const opts = deepFocusModuleOptions({
+      context: 'keys', weeklyPace: emptyPace,
+      goals: [], spacingRows: [], now: NOW,
+    });
+    expect(opts.map(o => o.key).filter(k => k.startsWith('shapes-and-patterns'))).toEqual([
+      'shapes-and-patterns:scale',
+      'shapes-and-patterns:chord-shape',
+      'shapes-and-patterns:vl',
+    ]);
+  });
+
   it('laptop context: top-level modules excluding S&P + Repertoire (both keyboard-required)', () => {
     const opts = deepFocusModuleOptions({
       context: 'laptop', weeklyPace: emptyPace,

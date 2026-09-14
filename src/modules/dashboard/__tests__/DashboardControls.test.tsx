@@ -116,6 +116,22 @@ describe('sort', () => {
     expect(find(coverage.el, 'sort-direction').textContent).toBe('most covered');
   });
 
+  it('opens Status best first, and leaves a chosen direction alone after that', () => {
+    const fresh = render();
+    click(find(fresh.el, 'sort-status'));
+    expect(fresh.onChange).toHaveBeenCalledWith(expect.objectContaining({
+      sort: { field: 'status', direction: 'best-first' },
+    }));
+    act(() => root!.unmount()); container!.remove();
+
+    const flipped = render(state({ sort: { field: 'status', direction: 'worst-first' } }));
+    expect(find(flipped.el, 'sort-direction').textContent).toBe('worst first');
+    click(find(flipped.el, 'sort-status'));
+    expect(flipped.onChange).toHaveBeenCalledWith(expect.objectContaining({
+      sort: { field: 'status', direction: 'worst-first' },
+    }));
+  });
+
   it('flips the direction without touching the field', () => {
     const { el, onChange } = render(
       state({ sort: { field: 'recency', direction: 'worst-first' } }),
@@ -366,7 +382,7 @@ describe('the nav-order default', () => {
     const fields = [...el.querySelectorAll('[data-testid^="sort-"]')]
       .filter(n => n.getAttribute('data-testid') !== 'sort-direction')
       .map(n => n.textContent);
-    expect(fields).toEqual(['Nav Order', 'Accuracy', 'Coverage', 'Recency']);
+    expect(fields).toEqual(['Nav Order', 'Accuracy', 'Coverage', 'Recency', 'Status']);
   });
 
   it('marks it active at the default view', () => {

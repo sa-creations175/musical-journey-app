@@ -100,7 +100,7 @@ describe('expansion indices address built order, never sorted order', () => {
     const built = module.root.children.map(c => c.label);
 
     for (const direction of ['worst-first', 'best-first'] as const) {
-      for (const field of ['accuracy', 'coverage', 'recency'] as const) {
+      for (const field of ['accuracy', 'coverage', 'recency', 'status'] as const) {
         sortNodes(module.root.children, { field, direction }, NOW);
         expect(module.root.children.map(c => c.label), `${field}/${direction}`)
           .toEqual(built);
@@ -263,6 +263,13 @@ describe('decoding is total', () => {
     expect(out.filter.accuracyBelow).toBeUndefined();
     expect(out.filter.coverageBelow).toBeUndefined();
     expect(out.filter.notPractisedInDays).toBeUndefined();
+  });
+
+  it('round-trips the Status sort', () => {
+    const out = decodeViewState(encodeViewState({
+      ...DEFAULT_VIEW_STATE, sort: { field: 'status', direction: 'best-first' },
+    }));
+    expect(out.sort).toEqual({ field: 'status', direction: 'best-first' });
   });
 
   it('keeps a half-readable sort rather than discarding both halves', () => {

@@ -167,10 +167,10 @@ const NAV_GROUPS: NavGroup[] = [
         children: [
           { label: 'scale drills',        to: '/shapes-and-patterns/scales' },
           { label: 'chord shape drills',  to: '/shapes-and-patterns/chord-shapes' },
-          { label: 'mental visualisation',to: '/shapes-and-patterns/mental-viz' },
           // ONE ENTRY, NOT TWO (ruling 19). The voice-leading page IS
           // the movements page; there was never anything to nest.
           { label: 'chord movements & passes', to: '/shapes-and-patterns/movements' },
+          { label: 'mental visualisation',to: '/shapes-and-patterns/mental-viz' },
         ],
       },
       {

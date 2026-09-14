@@ -396,18 +396,20 @@ export function deepFocusModuleOptions(args: {
   // display strings here. Accent inherits the S&P module color so
   // the pills read as part of the S&P family.
   const spAccent = moduleMetaById('shapes-and-patterns')?.accentHex ?? '#d4885a';
+  // The module's section order (14 Sep 2026): scales, chord shapes,
+  // movements. Equal bands keep it, since the sort below is stable.
   const spSubmoduleEntries: DeepFocusModuleOption[] = [
-    {
-      key: 'shapes-and-patterns:chord-shape',
-      label: 'Chord Shapes',
-      accentHex: spAccent,
-      band: spBandBySubmodule.get('shapes-and-patterns:chord-shape') ?? null,
-    },
     {
       key: 'shapes-and-patterns:scale',
       label: 'Scales (S&P)',
       accentHex: spAccent,
       band: spBandBySubmodule.get('shapes-and-patterns:scale') ?? null,
+    },
+    {
+      key: 'shapes-and-patterns:chord-shape',
+      label: 'Chord Shapes',
+      accentHex: spAccent,
+      band: spBandBySubmodule.get('shapes-and-patterns:chord-shape') ?? null,
     },
     {
       key: 'shapes-and-patterns:vl',

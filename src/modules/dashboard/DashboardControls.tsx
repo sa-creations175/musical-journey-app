@@ -77,6 +77,8 @@ const SORT_FIELDS: ReadonlyArray<{ id: SortField; label: string }> = [
   { id: 'accuracy', label: 'Accuracy' },
   { id: 'coverage', label: 'Coverage' },
   { id: 'recency', label: 'Recency' },
+  // The seven statuses, best first. See `STATUS_ORDER`.
+  { id: 'status', label: 'Status' },
 ];
 
 /**
@@ -93,7 +95,22 @@ const DIRECTION_WORDS: Readonly<Record<SortField, [string, string]>> = {
   accuracy: ['worst first', 'best first'],
   coverage: ['least covered', 'most covered'],
   recency: ['stalest first', 'most recent first'],
+  status: ['worst first', 'best first'],
 };
+
+/**
+ * Status opens best first (Silas, 14 Sep 2026) — every other field
+ * opens worst first — so choosing it sets the direction, and the toggle
+ * then flips it to worst first. Only on arrival: pressing Status again
+ * leaves a direction already chosen alone.
+ */
+function withSortField(state: DashboardViewState, field: SortField): DashboardViewState {
+  const arriving = field === 'status' && state.sort.field !== 'status';
+  return {
+    ...state,
+    sort: { field, direction: arriving ? 'best-first' : state.sort.direction },
+  };
+}
 
 const CONTROL = 'text-[11px] rounded border px-2 py-1 transition';
 const IDLE = 'border-neutral-300 text-neutral-600 hover:border-neutral-400 '
@@ -242,9 +259,7 @@ export default function DashboardControls({
             key={field.id}
             testId={`sort-${field.id}`}
             active={state.sort.field === field.id}
-            onClick={() => onChange({
-              ...state, sort: { ...state.sort, field: field.id },
-            })}
+            onClick={() => onChange(withSortField(state, field.id))}
           >
             {field.label}
           </Pill>

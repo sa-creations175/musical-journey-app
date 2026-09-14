@@ -173,10 +173,10 @@ export function withExpansionToggled(
 // =====================================================================
 
 const SORT_FIELD_CODE: Readonly<Record<SortField, string>> = {
-  natural: 'n', accuracy: 'a', coverage: 'c', recency: 'r',
+  natural: 'n', accuracy: 'a', coverage: 'c', recency: 'r', status: 's',
 };
 const SORT_FIELD_BY_CODE: Readonly<Record<string, SortField>> = {
-  n: 'natural', a: 'accuracy', c: 'coverage', r: 'recency',
+  n: 'natural', a: 'accuracy', c: 'coverage', r: 'recency', s: 'status',
 };
 const SORT_DIRECTION_CODE: Readonly<Record<SortDirection, string>> = {
   'worst-first': 'w', 'best-first': 'b',
