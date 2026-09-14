@@ -1096,22 +1096,22 @@ export const ENHARMONIC_NOTE_PAIRS: ReadonlyArray<[string, string, string]> = [
     ['Db', 'C#', 'Db in flat keys (Ab/Db/Gb); C# in sharp keys (D/A/E major).'],
     ['Eb', 'D#', 'Eb in flat keys; D# in sharp keys (E / B major).'],
     ['Gb', 'F#', 'Gb in flat keys (Db/Gb); F# in sharp keys (G/D/A major).'],
-    ['B#', 'C', 'B# is C re-spelled — the leading tone of C# major / raised numbers.'],
-    ['Cb', 'B', 'Cb is B re-spelled — the 4th of the key of Gb major and other flat-key contexts.'],
-    ['E#', 'F', 'E# is F re-spelled — the 3rd of C# major / raised numbers.'],
-    ['Fb', 'E', 'Fb is E re-spelled — appears in heavily-flat keys and lowered numbers.'],
+    ['B#', 'C', 'B# is C re-spelled: the leading tone of C# major / raised numbers.'],
+    ['Cb', 'B', 'Cb is B re-spelled: the 4th of the key of Gb major and other flat-key contexts.'],
+    ['E#', 'F', 'E# is F re-spelled: the 3rd of C# major / raised numbers.'],
+    ['Fb', 'E', 'Fb is E re-spelled: appears in heavily-flat keys and lowered numbers.'],
 ];
 
 /** The enharmonic degree groups, at module scope for the same
  *  reason as the note pairs above. */
 export const ENHARMONIC_INTERVAL_GROUPS:
   ReadonlyArray<{ members: readonly string[]; context: string }> = [
-    { members: ['2', '9'], context: 'Same pitch an octave apart — "2" in sus/add voicings, "9" in extended (9th / 13th) chords.' },
+    { members: ['2', '9'], context: 'Same pitch an octave apart: "2" in sus/add voicings, "9" in extended (9th / 13th) chords.' },
     { members: ['b2', 'b9'], context: 'b2 for a Phrygian / sus flavour; b9 as the altered-dominant tension. Same pitch, different role.' },
     { members: ['#2', 'b3', '#9'], context: 'All the minor-third pitch: b3 as the chord’s third, #2 as a raised-2nd passing tone, #9 as the "Hendrix" altered-dominant tension. Context decides the spelling.' },
-    { members: ['4', '11'], context: 'Same pitch an octave apart — "4" in sus/add voicings, "11" in extended chords.' },
+    { members: ['4', '11'], context: 'Same pitch an octave apart: "4" in sus/add voicings, "11" in extended chords.' },
     { members: ['#4', 'b5', '#11'], context: 'The tritone: #4 (Lydian, raising the 4th), b5 (altered dominant / half-diminished, lowering the 5th), #11 (the extended-chord name). Context decides the spelling.' },
-    { members: ['6', '13'], context: 'Same pitch an octave apart — "6" in sixth chords, "13" in extended dominants.' },
+    { members: ['6', '13'], context: 'Same pitch an octave apart: "6" in sixth chords, "13" in extended dominants.' },
     { members: ['b6', '#5', 'b13'], context: 'The augmented-fifth sound: #5 (augmented / altered dominant), b6 (minor / borrowed), b13 (the extended-dominant name). Context decides the spelling.' },
 ];
 
@@ -1172,7 +1172,7 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
       question: `Enharmonic equivalent of ${x}?`,
       correctAnswer: y,
       decoys: noteDecoys(y),
-      explanation: `${x} = ${y} — same key on the piano, different spelling. ${ctx}`,
+      explanation: `${x} = ${y}: same key on the piano, different spelling. ${ctx}`,
       skillTag: `enharmonic-note-${x}`,
     });
     cards.push({
@@ -1183,7 +1183,7 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
       question: `Enharmonic equivalent of ${y}?`,
       correctAnswer: x,
       decoys: noteDecoys(x),
-      explanation: `${y} = ${x} — same key on the piano, different spelling. ${ctx}`,
+      explanation: `${y} = ${x}: same key on the piano, different spelling. ${ctx}`,
       skillTag: `enharmonic-note-${y}`,
     });
   }
@@ -1250,7 +1250,7 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
         question: `Enharmonic equivalent of ${m}?`,
         correctAnswer: answer,
         decoys: intervalDecoys(answer, members, `enh-i-${m}`),
-        explanation: `${members.join(' = ')} — same pitch distance, different spelling. ${context}`,
+        explanation: `${members.join(' = ')}: same pitch distance, different spelling. ${context}`,
         skillTag: `enharmonic-interval-${m}`,
       });
     }

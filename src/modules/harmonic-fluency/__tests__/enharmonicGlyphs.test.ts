@@ -29,6 +29,10 @@ describe('the Enharmonic Equivalents cards', () => {
     }
   });
 
+  it('carry no em dash in their explanations (Silas, 14 Sep 2026)', () => {
+    for (const c of cards) expect(c.explanation ?? '', c.id).not.toContain('—');
+  });
+
   it('keep the stored spellings on the axis, which the chips and the grid read', () => {
     expect(new Set(cards.map(c => String(c.axis!.spelling)))).toEqual(new Set(ENHARMONIC_SPELLINGS));
     expect(cards.find(c => c.question === 'Enharmonic equivalent of A♭?')!.axis!.spelling).toBe('Ab');

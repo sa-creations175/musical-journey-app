@@ -38,7 +38,7 @@ describe('every Ear Training quiz counts a run', () => {
 
   it('says it in the aids fold, in Silas\'s words', () => {
     expect(source('AidsFold.tsx')).toContain(
-      'Tempo and octave are free. Bass only, Up, Down and Up and Down count, with a lower rating.',
+      'Tempo and octave are free. Bass only counts, with a lower rating.',
     );
   });
 });
