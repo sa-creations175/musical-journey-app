@@ -99,11 +99,12 @@ export function feelOfAttempt(
  * hands over its whole settings object and the decision about which
  * controls count lives here and only here.
  *
- * PLAY AS COUNTS ONLY WHERE THE SURFACE SAYS SO. Silas's spec of 13 Sep
- * 2026 makes Up, Down and Up and Down a listening aid on the Chord
- * Recognition quiz, where only Together is free, so that quiz passes
- * `playAsIsAid` and every other surface leaves it off. Bass only is an
- * aid everywhere.
+ * PLAY AS COUNTS WHERE THE SURFACE SAYS SO. Up, Down and Up and Down are
+ * a listening aid on every Ear Training quiz — Chord Recognition, Chord
+ * Motion and Full Progression (Silas, 13 Sep 2026: the 9 Sep rule covers
+ * all of Ear Training) — where only Together is free. Each of those
+ * passes `playAsIsAid`; a surface that is not a quiz leaves it off.
+ * Bass only is an aid everywhere.
  */
 export function isAided(
   settings: { listen: 'both' | 'bass'; playAs?: PlayAs },

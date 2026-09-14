@@ -93,7 +93,7 @@ export default function AidsFold({
       </summary>
       <div className="space-y-3 pt-2">
         <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-          Tempo and octave are free. Bass only and broken count, with a lower rating.
+          Tempo and octave are free. Bass only, Up, Down and Up and Down count, with a lower rating.
         </p>
 
         <Row label="Tempo">

@@ -550,7 +550,9 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
   // --- Answering -----------------------------------------------------
 
-  const aided = isAided(settings) || startingNote === 'given';
+  // A RUN IS AN AID HERE TOO (Silas, 13 Sep 2026): the 9 Sep rule covers
+  // all of Ear Training, not only Chord Recognition.
+  const aided = isAided(settings, { playAsIsAid: true }) || startingNote === 'given';
 
   /**
    * Grade an answer.
@@ -1023,6 +1025,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 settings={settings}
                 onSettings={setSettings}
                 showListen
+                playAsIsAid
                 startLit={1}
                 ring={ring}
                 thickness={{

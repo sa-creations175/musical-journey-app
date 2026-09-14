@@ -235,7 +235,7 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
     // needed the bass on its own, is Working on it; the wrong
     // progression is Struggled. The rule is `heardFeel` and nothing
     // decides it here.
-    const aided = isAided(settingsRef.current);
+    const aided = isAided(settingsRef.current, { playAsIsAid: true });
     const feel = heardFeel({
       firstRight: rightEntry, secondRight: rightPosition, replays, aided,
     });
@@ -505,6 +505,7 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
             orientPc={card.keyPc}
             settings={settings}
             onSettings={setSettings}
+            playAsIsAid
             handDirection={{
               value: handMoves,
               onChange: setHandMoves,
