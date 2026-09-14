@@ -39,6 +39,7 @@ const drawsVisualAid = (mode: string | undefined): boolean =>
   (mode ?? 'text') !== 'text';
 
 import { glossTheoreticalSpellings } from '../theoreticalSpellings';
+import { SCROLL_ROOM_CLASS, useSectionScroll } from '../scrollSectionToTop';
 
 export type TimerMode = 'off' | '5' | '10' | '15';
 
@@ -289,6 +290,19 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
   /** When the current card became answerable. See `shownAt` on
    *  CardAnsweredArgs for why this is not the countdown. */
   const shownAt = useRef<number>(Date.now());
+  /**
+   * THE VERDICT GOES TO THE TOP OF THE SCREEN THE MOMENT A CARD IS
+   * ANSWERED (Silas, 14 Sep 2026), on every card and every deck. A
+   * built-answer board or a long option list leaves the badge below the
+   * fold, and the answer you just gave looked like it did nothing.
+   *
+   * The app's one scroll (`scrollSectionToTop`), deferred a render by
+   * `useSectionScroll` so the feedback and the room under it exist when
+   * it lands. Asked from `handleAnswer`, not from `hasAnswered`, so
+   * stepping back to a card already answered does not move the page.
+   */
+  const verdictRef = useRef<HTMLDivElement | null>(null);
+  const scrollToVerdict = useSectionScroll(verdictRef);
   const card = queue[index];
   const currentOutcome = outcomes[index];
   const hasAnswered = currentOutcome !== undefined;
@@ -410,6 +424,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
       next.set(card.category, isCorrect ? cur + 1 : 0);
       return next;
     });
+    scrollToVerdict();
   }
 
   function handleNext() {
@@ -844,9 +859,14 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
       </div>
       )}
 
+      {/* EVERYTHING FROM THE VERDICT DOWN, in one block that carries the
+          room to scroll the verdict to the top once answered — a browser
+          cannot scroll past the end of the page, so a short reveal would
+          otherwise leave the badge part way down. See `SCROLL_ROOM_CLASS`. */}
+      <div className={hasAnswered ? `space-y-5 ${SCROLL_ROOM_CLASS}` : 'space-y-5'}>
       {/* Feedback */}
       {hasAnswered && (
-        <div className="space-y-2">
+        <div className="space-y-2" ref={verdictRef} data-testid="flashcard-verdict">
           <div className="text-sm text-center space-y-1">
             {chosen === card.correctAnswer ? (
               <AnswerVerdict state="correct" />
@@ -895,6 +915,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
       {renderFooter?.(card, { answered: hasAnswered })}
 
       {!hasAnswered && navigation}
+      </div>
     </section>
   );
 }

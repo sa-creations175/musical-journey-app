@@ -105,9 +105,13 @@ describe('the app has one scroll for a detail panel', () => {
       'modules/shapes-and-patterns/ScaleDrills.tsx',
       'modules/shapes-and-patterns/ChordShapeDrills.tsx',
       'modules/shapes-and-patterns/VoiceLeadingDrills.tsx',
+      // The verdict, to the top the moment a flashcard is answered.
+      'lib/flashcards/FlashcardSession.tsx',
     ];
     for (const file of converted) {
-      const src = SOURCES[`../../${file}`];
+      // The glob keys a file under `lib/` from here, one level up, and
+      // everything else from `src/`.
+      const src = SOURCES[`../../${file}`] ?? SOURCES[`../${file.replace(/^lib\//, '')}`];
       expect(src, file).toBeTypeOf('string');
       expect(
         src.includes('scrollSectionToTop(') || src.includes('useSectionScroll('),

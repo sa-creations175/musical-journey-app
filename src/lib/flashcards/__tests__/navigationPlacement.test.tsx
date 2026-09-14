@@ -75,7 +75,7 @@ describe('the navigation row', () => {
     // Below the footer, and the last thing on the card.
     const footer = el.querySelector('[data-testid="footer-before"]')!;
     expect(nav().previousElementSibling).toBe(footer);
-    expect(footer.previousElementSibling!.textContent).toContain(CARD.correctAnswer);
+    expect(footer.parentElement!.previousElementSibling!.textContent).toContain(CARD.correctAnswer);
     expect(nav().nextElementSibling).toBeNull();
   });
 
