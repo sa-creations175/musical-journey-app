@@ -1,5 +1,5 @@
 /**
- * Four octaves, addressed by MIDI, marked one key at a time.
+ * The shared board, addressed by MIDI, marked one key at a time.
  *
  * =====================================================================
  * WHY NOT `KeyboardVisual`, WHICH ALREADY DRAWS A KEYBOARD.
@@ -32,11 +32,19 @@
  * It is handed marks and it draws them; it is handed a tap handler and
  * it reports a MIDI number. Which note is right, which colour a third
  * is, and whether a tap should add or remove are the CARD's rules.
+ *
+ * =====================================================================
+ * FIFTY-SIX KEYS DO NOT FIT A PHONE, SO THE BOARD SCROLLS SIDEWAYS.
+ *
+ * Silas's answer of 14 Sep 2026 allows it, with the lit keys in view.
+ * Below `BOARD_MIN_WIDTH_PX` the board keeps its width and its frame
+ * scrolls, and whenever the lit keys change the frame centres them.
+ * Where the board fits, nothing scrolls and nothing moves.
  * =====================================================================
  */
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import {
-  BOARD_HEIGHT, BOARD_WIDTH, type BoardKey, type KeyMark, boardKeys, keyLabel,
+  BOARD_HEIGHT, BOARD_MIN_WIDTH_PX, BOARD_WIDTH, type BoardKey, type KeyMark, boardKeys, keyLabel,
 } from '../lib/builtAnswers/board';
 
 const PLAIN_FILL = '#C9E3F7';
@@ -59,8 +67,25 @@ export default function BuiltAnswerKeyboard({
   label: string;
 }) {
   const clipId = useId();
+  const frame = useRef<HTMLDivElement>(null);
   const { white, black } = boardKeys();
   const interactive = onTap !== undefined;
+
+  // THE LIT KEYS INTO VIEW, when the frame is narrower than the board.
+  // Keyed on which keys are lit, so a redraw that lights the same keys
+  // leaves a reader's own scroll where they put it.
+  const litKeys = [...marks.keys()].sort((a, b) => a - b).join(',');
+  useEffect(() => {
+    const el = frame.current;
+    if (el === null || litKeys === '' || el.scrollWidth <= el.clientWidth) return;
+    const lit = new Set(litKeys.split(',').map(Number));
+    const keys = [...boardKeys().white, ...boardKeys().black].filter(k => lit.has(k.midi));
+    if (keys.length === 0) return;
+    const lo = Math.min(...keys.map(k => k.x));
+    const hi = Math.max(...keys.map(k => k.x + k.width));
+    const scale = el.scrollWidth / BOARD_WIDTH;
+    el.scrollLeft = Math.max(0, ((lo + hi) / 2) * scale - el.clientWidth / 2);
+  }, [litKeys]);
 
   const fillOf = (mark: KeyMark | undefined, isBlack: boolean): string => {
     if (mark?.pressed === true) return PRESSED_FILL;
@@ -169,23 +194,26 @@ export default function BuiltAnswerKeyboard({
   };
 
   return (
-    <svg
-      viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`}
-      width="100%"
-      role="img"
-      aria-label={label}
-      className="select-none touch-manipulation"
-      data-testid="built-answer-keyboard"
-    >
-      <defs>
-        <clipPath id={clipId}>
-          <rect x={0} y={0} width={BOARD_WIDTH} height={BOARD_HEIGHT} />
-        </clipPath>
-      </defs>
-      <g clipPath={`url(#${clipId})`}>
-        {white.map(keyEl)}
-        {black.map(keyEl)}
-      </g>
-    </svg>
+    <div ref={frame} className="overflow-x-auto overscroll-x-contain" data-testid="board-frame">
+      <svg
+        viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`}
+        width="100%"
+        role="img"
+        aria-label={label}
+        className="block select-none touch-manipulation"
+        style={{ minWidth: BOARD_MIN_WIDTH_PX }}
+        data-testid="built-answer-keyboard"
+      >
+        <defs>
+          <clipPath id={clipId}>
+            <rect x={0} y={0} width={BOARD_WIDTH} height={BOARD_HEIGHT} />
+          </clipPath>
+        </defs>
+        <g clipPath={`url(#${clipId})`}>
+          {white.map(keyEl)}
+          {black.map(keyEl)}
+        </g>
+      </svg>
+    </div>
   );
 }

@@ -30,6 +30,12 @@
  *     keys mode, and unlit until the reader taps
  *   · chord motion adds "Starting note", the one aid no other surface
  *     has, and shows no Compare row
+ *   · the harmonic diary's panel is the LAB LAYOUT (Silas's spec of 12
+ *     Sep 2026, §2 and §4): the transport sits directly under the board
+ *     with a status line, Hands and Play as come out of the fold above
+ *     the Chord Color Legend, there are no Hear one chord chips, and it
+ *     plays the card whose ▶ was tapped — through `hear()` on this
+ *     component's handle, which is the same Hear it
  *
  * Anything else that differs is a bug. A surface chooses which ROWS it
  * shows and never what a row means — the tempo, the lift, the hands and
@@ -57,7 +63,9 @@
  * one allowed difference — everything else waits for a tap.
  * =====================================================================
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref,
+} from 'react';
 import BuiltAnswerKeyboard from './BuiltAnswerKeyboard';
 import { THICKNESSES, type Thickness } from '../lib/builtAnswers/chordShapes';
 import type { KeyMark } from '../lib/builtAnswers/board';
@@ -66,7 +74,7 @@ import type { PlaybackHandle } from '../lib/musicalPlayback';
 import { panelBeats, playPanel } from '../lib/builtAnswers/play';
 import {
   BPM_MAX, BPM_MIN, HANDS_LABEL, LADDER_RUNGS, LOOP_OPTIONS, clampBpm, readSettingsOpen,
-  writeSettingsOpen, type PlayerSettings,
+  writeSettingsOpen, type PlayAs, type PlayerSettings,
 } from '../lib/player/settings';
 import PlayAsRow from './PlayAsRow';
 import {
@@ -134,6 +142,26 @@ interface DirectionRow {
    *  bass is doing. */
   effective: ReadonlyArray<'up' | 'down'>;
 }
+
+/** What a surface can ask of the panel from outside a tap on it. */
+export interface SharedPlayerHandle {
+  /** The panel's own Hear it: starts over from the top. */
+  hear: () => void;
+}
+
+/**
+ * The lab layout — the harmonic diary's panel. See the allowed list at
+ * the top of this file.
+ */
+export interface LabLayout {
+  /** What the status line says has played: the panel's title. */
+  playedName: string;
+}
+
+/** The status line's word for each way of playing. The prototype's. */
+const PLAY_AS_WORD: Readonly<Record<PlayAs, string>> = {
+  together: 'together', up: 'up', down: 'down', upDown: 'up and down',
+};
 
 interface SharedPlayerProps {
   /** The chords, voiced and named. */
@@ -249,6 +277,10 @@ interface SharedPlayerProps {
   play?: (opts: { startAtBeat: number }) => Promise<PlaybackHandle>;
   /** How long the custom sequence runs, in beats. */
   totalBeats?: number;
+  /** The lab layout — see `LabLayout`. Absent everywhere but the diary. */
+  lab?: LabLayout;
+  /** `hear()`, for the one surface that plays on a tap outside it. */
+  ref?: Ref<SharedPlayerHandle>;
 }
 
 /**
@@ -282,7 +314,7 @@ export default function SharedPlayer({
   chords, orientPc, settings, onSettings, thickness,
   bassDirection, handDirection, showHands, showListen, playAsRow = true, playAsIsAid,
   board, boardLabel = 'What is sounding', caption, compare, children,
-  controls = true, onStep, beats, play, totalBeats, ring, startLit = 0,
+  controls = true, onStep, beats, play, totalBeats, ring, startLit = 0, lab, ref,
 }: SharedPlayerProps) {
   const { currentInstrument, setCurrentInstrument } = useInstrument();
   const [spelling] = useSpelling();
@@ -297,9 +329,18 @@ export default function SharedPlayer({
   const [visualTiming, setVisualTiming] = useState(readVisualTiming);
   /** Wall-clock start and the beat it started at, for Pause. */
   const clock = useRef<{ at: number; beat: number }>({ at: 0, beat: 0 });
+  /** The lab's "played ·" line: whether a sequence has run to its end. */
+  const [played, setPlayed] = useState(false);
+  const endTimer = useRef<number | null>(null);
+
+  const clearEnd = () => {
+    if (endTimer.current !== null) window.clearTimeout(endTimer.current);
+    endTimer.current = null;
+  };
 
   // Leaving the card mid-playback leaves nothing ringing.
   useEffect(() => () => { handle?.stop(); }, [handle]);
+  useEffect(() => () => { if (endTimer.current !== null) window.clearTimeout(endTimer.current); }, []);
 
   // THE CHORDS, NOT THEIR COUNT. A broken chord's slot grows to fit its
   // roll, so Pause has to measure against the chords themselves — a
@@ -317,8 +358,10 @@ export default function SharedPlayer({
 
   const run = (startAtBeat: number) => {
     handle?.stop();
+    clearEnd();
     clock.current = { at: Date.now(), beat: startAtBeat };
     setTransport('playing');
+    setPlayed(false);
     const started = play !== undefined
       ? play({ startAtBeat })
       : playPanel(voiced, settings, {
@@ -328,6 +371,17 @@ export default function SharedPlayer({
         onStep: (i: number) => { setLit(i); onStep?.(i); },
       });
     void started.then(setHandle).catch(() => { setTransport('stopped'); });
+    // THE LAB SAYS WHEN IT HAS FINISHED — "played · C Major 9". The
+    // engine hands back a stop and nothing else, so the end is measured
+    // from the same beats Pause measures against.
+    if (lab !== undefined && settings.loop !== 'untilStopped') {
+      const beatsLeft = Math.max(0, total * settings.loop - startAtBeat);
+      endTimer.current = window.setTimeout(() => {
+        endTimer.current = null;
+        setTransport('stopped');
+        setPlayed(true);
+      }, (beatsLeft * 60000) / settings.bpm);
+    }
   };
 
   /** How far in the sequence is, in beats. */
@@ -341,12 +395,15 @@ export default function SharedPlayer({
 
   const hearIt = () => run(0);
 
+  useImperativeHandle(ref, () => ({ hear: hearIt }));
+
   const pauseOrResume = () => {
     if (transport === 'paused') { run(clock.current.beat); return; }
     if (transport !== 'playing') return;
     const at = elapsedBeats();
     handle?.stop();
     setHandle(null);
+    clearEnd();
     clock.current = { at: Date.now(), beat: at };
     setTransport('paused');
   };
@@ -420,100 +477,154 @@ export default function SharedPlayer({
     </Row>
   );
 
+  const boardEl = board !== false && (
+    board === undefined
+      ? <BuiltAnswerKeyboard marks={marks} label={boardLabel} />
+      : board
+  );
+
+  // UNDER THE SHARED KEYBOARD, ON EVERY REVEAL. The board has been
+  // teaching a colour vocabulary nobody wrote down; this names it.
+  // Closed by default and remembered per device — see
+  // `ChordColorLegend`. In the lab it sits under Play as (spec §4).
+  const legendEl = board !== false && (
+    <ChordColorLegend
+      chord={lit === null ? (voiced[0] ?? null) : (voiced[lit] ?? null)}
+      settings={settings}
+      drop={drop}
+      spelling={spelling}
+      {...(ring === undefined ? {} : { ring })}
+    />
+  );
+
+  const status = transport === 'playing'
+    ? `playing · ${PLAY_AS_WORD[settings.playAs]}`
+    : played && lab !== undefined ? `played · ${lab.playedName}` : null;
+
+  const transportEl = controls && (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        data-testid="player-hear"
+        onClick={hearIt}
+        className={`${CHIP} ${CHIP_ON}`}
+      >
+        Hear it
+      </button>
+      <button
+        type="button"
+        data-testid="player-pause"
+        disabled={transport === 'stopped'}
+        onClick={pauseOrResume}
+        className={`${CHIP} ${CHIP_OFF} disabled:opacity-40 disabled:cursor-default`}
+      >
+        {transport === 'paused' ? 'Resume' : 'Pause'}
+      </button>
+      {transport === 'paused' && (
+        <span
+          className="text-[11px] text-neutral-500 dark:text-neutral-400"
+          data-testid="player-paused-note"
+        >
+          Paused where it was. Resume picks up from here; Hear it starts over.
+        </span>
+      )}
+      {lab !== undefined && status !== null && (
+        <span className="text-xs text-neutral-500 dark:text-neutral-400" data-testid="player-status">
+          {status}
+        </span>
+      )}
+    </div>
+  );
+
+  const handsEl = handsRow && (
+    <Row label="Hands">
+      {/* TWO RIGHT-HAND VOICINGS over the same bass — see `Hands`. The
+          left hand always plays the bass. */}
+      <Chip on={settings.hands === 'rootless'} testId="hands-rootless" onClick={() => set({ hands: 'rootless' })}>
+        {HANDS_LABEL.rootless}
+      </Chip>
+      <Chip on={settings.hands === 'root'} testId="hands-root" onClick={() => set({ hands: 'root' })}>
+        {HANDS_LABEL.root}
+      </Chip>
+    </Row>
+  );
+
+  // PLAY AS, IN THE SPOT CHORD SOUNDS HAD: last in the fold, on every
+  // surface (Silas, 12 and 13 Sep 2026). A scale card whose Direction row
+  // it replaced draws it there and turns this one off. In the lab it
+  // stands under Hands, out of the fold (spec §4).
+  const playAsEl = playAsRow && (
+    <PlayAsRow
+      value={settings.playAs}
+      onChange={p => set({ playAs: p })}
+      aidNote={playAsIsAid === true}
+    />
+  );
+
   return (
     <div
       className="space-y-3 rounded-xl border border-black/[0.07] dark:border-white/10 p-3"
       data-testid="shared-player"
     >
-      {board !== false && (
-        board === undefined
-          ? <BuiltAnswerKeyboard marks={marks} label={boardLabel} />
-          : board
-      )}
+      {lab === undefined ? (
+        <>
+          {boardEl}
+          {legendEl}
 
-      {/* UNDER THE SHARED KEYBOARD, ON EVERY REVEAL. The board has been
-          teaching a colour vocabulary nobody wrote down; this names it.
-          Closed by default and remembered per device — see
-          `ChordColorLegend`. */}
-      {board !== false && (
-        <ChordColorLegend
-          chord={lit === null ? (voiced[0] ?? null) : (voiced[lit] ?? null)}
-          settings={settings}
-          drop={drop}
-          spelling={spelling}
-          {...(ring === undefined ? {} : { ring })}
-        />
-      )}
-
-      {chords.length > 0 && controls && (
-        <Row label="Hear one chord">
-          {chords.map((c, i) => (
-            <Chip
-              key={`${c.name}-${i}`}
-              on={(lit ?? startLit) === i}
-              testId={`hear-one-${i}`}
-              onClick={() => hearOne(i)}
-            >
-              <span className="font-mono">{c.name}</span>
-            </Chip>
-          ))}
-        </Row>
-      )}
-
-      {caption !== undefined && (
-        <div className="font-mono text-sm" data-testid="play-it-names">{caption}</div>
-      )}
-
-      {compare !== undefined && compare}
-
-      {controls && thickness !== undefined && (
-        <Row
-          label={thickness.locked === true
-            ? 'Thickness · locked to this row'
-            : 'Thickness'}
-        >
-          {THICKNESSES.filter(t => rungs.includes(t.id)).map(t => (
-            <Chip
-              key={t.id}
-              on={thickness.value === t.id}
-              testId={`thickness-${t.id}`}
-              disabled={thickness.locked === true && t.id !== thickness.value}
-              onClick={() => thickness.onChange(t.id)}
-            >
-              {t.label}
-            </Chip>
-          ))}
-        </Row>
-      )}
-
-      {controls && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            data-testid="player-hear"
-            onClick={hearIt}
-            className={`${CHIP} ${CHIP_ON}`}
-          >
-            Hear it
-          </button>
-          <button
-            type="button"
-            data-testid="player-pause"
-            disabled={transport === 'stopped'}
-            onClick={pauseOrResume}
-            className={`${CHIP} ${CHIP_OFF} disabled:opacity-40 disabled:cursor-default`}
-          >
-            {transport === 'paused' ? 'Resume' : 'Pause'}
-          </button>
-          {transport === 'paused' && (
-            <span
-              className="text-[11px] text-neutral-500 dark:text-neutral-400"
-              data-testid="player-paused-note"
-            >
-              Paused where it was. Resume picks up from here; Hear it starts over.
-            </span>
+          {chords.length > 0 && controls && (
+            <Row label="Hear one chord">
+              {chords.map((c, i) => (
+                <Chip
+                  key={`${c.name}-${i}`}
+                  on={(lit ?? startLit) === i}
+                  testId={`hear-one-${i}`}
+                  onClick={() => hearOne(i)}
+                >
+                  <span className="font-mono">{c.name}</span>
+                </Chip>
+              ))}
+            </Row>
           )}
-        </div>
+
+          {caption !== undefined && (
+            <div className="font-mono text-sm" data-testid="play-it-names">{caption}</div>
+          )}
+
+          {compare !== undefined && compare}
+
+          {controls && thickness !== undefined && (
+            <Row
+              label={thickness.locked === true
+                ? 'Thickness · locked to this row'
+                : 'Thickness'}
+            >
+              {THICKNESSES.filter(t => rungs.includes(t.id)).map(t => (
+                <Chip
+                  key={t.id}
+                  on={thickness.value === t.id}
+                  testId={`thickness-${t.id}`}
+                  disabled={thickness.locked === true && t.id !== thickness.value}
+                  onClick={() => thickness.onChange(t.id)}
+                >
+                  {t.label}
+                </Chip>
+              ))}
+            </Row>
+          )}
+
+          {transportEl}
+        </>
+      ) : (
+        // THE LAB, top to bottom (spec §4): keyboard · transport · Hands
+        // · Play as · Chord Color Legend · the card's own rows · Settings.
+        <>
+          {boardEl}
+          {transportEl}
+          {controls && handsEl}
+          {controls && playAsEl}
+          {legendEl}
+          {compare !== undefined && compare}
+        </>
       )}
 
       {controls && (
@@ -558,18 +669,7 @@ export default function SharedPlayer({
               </Row>
             )}
 
-            {handsRow && (
-              <Row label="Hands">
-                {/* TWO RIGHT-HAND VOICINGS over the same bass — see
-                    `Hands`. The left hand always plays the bass. */}
-                <Chip on={settings.hands === 'rootless'} testId="hands-rootless" onClick={() => set({ hands: 'rootless' })}>
-                  {HANDS_LABEL.rootless}
-                </Chip>
-                <Chip on={settings.hands === 'root'} testId="hands-root" onClick={() => set({ hands: 'root' })}>
-                  {HANDS_LABEL.root}
-                </Chip>
-              </Row>
-            )}
+            {lab === undefined && handsEl}
 
             <Row label="Right hand">
               <Chip on={!settings.octaveUp} testId="hand-written" onClick={() => set({ octaveUp: false })}>
@@ -673,17 +773,7 @@ export default function SharedPlayer({
               If the keys light up before you hear the chord, slide left until they match. If they light up after, slide right.
             </p>
 
-            {/* PLAY AS, IN THE SPOT CHORD SOUNDS HAD: last in the fold,
-                on every surface (Silas, 12 and 13 Sep 2026). A scale
-                card whose Direction row it replaced draws it there and
-                turns this one off. */}
-            {playAsRow && (
-              <PlayAsRow
-                value={settings.playAs}
-                onChange={p => set({ playAs: p })}
-                aidNote={playAsIsAid === true}
-              />
-            )}
+            {lab === undefined && playAsEl}
           </div>
         </details>
       )}

@@ -11,7 +11,22 @@ import DiaryEntryEditor from './DiaryEntryEditor';
 import { loadAllDiaryEntries, migrateLegacyAssociationsIfNeeded, seedStartersIfNeeded } from './data';
 import './reset'; // side-effect: registers window.__resetHarmonicDiary
 import { EMOTIONAL_TAGS, defaultStarterFor, quoteForToday } from './vocab';
-import { playSkillAudio } from './audio';
+import { cardSound, diaryCardTitle, openingPlayAs, type CardSound } from './cardSound';
+import DiaryPlayerPanel from './DiaryPlayerPanel';
+import { usePlayerSettings } from '../../lib/player/usePlayerSettings';
+
+/** The card the player panel is on, and which ▶ tap it is answering. */
+interface Heard {
+  entryId: string;
+  token: number;
+}
+
+/** What each view needs to put a ▶ on a card. */
+interface HearProps {
+  sounds: ReadonlyMap<string, CardSound | null>;
+  hearingId: string | null;
+  onHear: (entry: HarmonicDiaryEntry) => void;
+}
 
 type ViewMode = 'moodboard' | 'list';
 
@@ -105,6 +120,28 @@ export default function HarmonicDiary() {
 
   const quote = useMemo(() => quoteForToday(), []);
 
+  // THE PLAYER PANEL (spec §1). One for the page: ▶ on a card opens it
+  // on that card and plays, ▶ on another switches it. Its settings are
+  // the page's, so tempo and the rest carry from card to card; Play as
+  // opens where each card says.
+  const sounds = useMemo(
+    () => new Map(entries.map(e => [e.entryId, cardSound(e.skillId)] as const)),
+    [entries],
+  );
+  const [heard, setHeard] = useState<Heard | null>(null);
+  const [playerSettings, setPlayerSettings] = usePlayerSettings();
+  const hear = (entry: HarmonicDiaryEntry) => {
+    const sound = sounds.get(entry.entryId) ?? null;
+    if (sound === null) return;
+    if (heard?.entryId !== entry.entryId) {
+      setPlayerSettings({ ...playerSettings, playAs: openingPlayAs(sound) });
+    }
+    setHeard(prev => ({ entryId: entry.entryId, token: (prev?.token ?? 0) + 1 }));
+  };
+  const heardEntry = heard === null ? null : entries.find(e => e.entryId === heard.entryId) ?? null;
+  const heardSound = heardEntry === null ? null : sounds.get(heardEntry.entryId) ?? null;
+  const hearProps: HearProps = { sounds, hearingId: heard?.entryId ?? null, onHear: hear };
+
   // Filter + search pipeline. Search matches everything that makes
   // a diary entry findable: user text, starter text, tags, and the
   // underlying skill's name / module label / category.
@@ -159,7 +196,12 @@ export default function HarmonicDiary() {
   };
 
   return (
-    <div className="diary-root space-y-5">
+    <div
+      className="diary-root space-y-5"
+      // ROOM UNDER THE LAST CARD, so the panel never sits over a card
+      // the reader cannot scroll clear of it.
+      style={heard === null ? undefined : { paddingBottom: '62vh' }}
+    >
       {/* Top header — editorial masthead. Single earth-tone palette
           for everything; no mode toggle, no emotion-driven shifts. */}
       <header className="space-y-4">
@@ -294,9 +336,22 @@ export default function HarmonicDiary() {
           entries={filteredEntries}
           skillsById={skillsById}
           onEdit={openEditor}
+          hear={hearProps}
         />
       ) : (
-        <ListView entries={filteredEntries} skillsById={skillsById} onEdit={openEditor} />
+        <ListView entries={filteredEntries} skillsById={skillsById} onEdit={openEditor} hear={hearProps} />
+      )}
+
+      {heardEntry !== null && heardSound !== null && heard !== null && (
+        <DiaryPlayerPanel
+          sound={heardSound}
+          skill={skillsById.get(heardEntry.skillId)}
+          cardTitle={diaryCardTitle(heardEntry.skillId, skillsById.get(heardEntry.skillId))}
+          settings={playerSettings}
+          onSettings={setPlayerSettings}
+          playToken={heard.token}
+          onClose={() => setHeard(null)}
+        />
       )}
 
       {editing && (
@@ -371,10 +426,12 @@ function MoodboardView({
   entries,
   skillsById,
   onEdit,
+  hear,
 }: {
   entries: HarmonicDiaryEntry[];
   skillsById: Map<string, SkillRecord>;
   onEdit: (e: HarmonicDiaryEntry) => void;
+  hear: HearProps;
 }) {
   // The gradient + grain lives on the outer `.diary-root`, so
   // MoodboardView just handles the masonry-ish card layout.
@@ -390,7 +447,8 @@ function MoodboardView({
             skill={skillsById.get(e.skillId)}
             variant="moodboard"
             onEdit={() => onEdit(e)}
-            onPlay={mode => playSkillAudio(skillsById.get(e.skillId), { mode })}
+            {...(hear.sounds.get(e.entryId) ? { onHear: () => hear.onHear(e) } : {})}
+            hearing={hear.hearingId === e.entryId}
           />
         </div>
       ))}
@@ -402,10 +460,12 @@ function ListView({
   entries,
   skillsById,
   onEdit,
+  hear,
 }: {
   entries: HarmonicDiaryEntry[];
   skillsById: Map<string, SkillRecord>;
   onEdit: (e: HarmonicDiaryEntry) => void;
+  hear: HearProps;
 }) {
   return (
     <div className="diary-list p-4 sm:p-5">
@@ -417,7 +477,8 @@ function ListView({
               skill={skillsById.get(e.skillId)}
               variant="list"
               onEdit={() => onEdit(e)}
-              onPlay={mode => playSkillAudio(skillsById.get(e.skillId), { mode })}
+              {...(hear.sounds.get(e.entryId) ? { onHear: () => hear.onHear(e) } : {})}
+              hearing={hear.hearingId === e.entryId}
             />
           </li>
         ))}

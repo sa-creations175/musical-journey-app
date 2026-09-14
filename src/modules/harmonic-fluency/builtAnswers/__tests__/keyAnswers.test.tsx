@@ -265,10 +265,11 @@ describe('the count card reveals the key it was about', () => {
     mountSignature(countG, true);
     expect(host.querySelector('[data-testid="built-answer-keyboard"]')).not.toBeNull();
     expect(lit()).toBeGreaterThanOrEqual(28);
-    // One black key in the key of G major, in each of the four octaves.
+    // One black key in the key of G major, F♯, on every F♯ the board has:
+    // F♯1 to F♯5 on the F1 to C6 board.
     const blackLit = [...host.querySelectorAll('rect[data-mark="marked"]')]
       .filter(r => [1, 3, 6, 8, 10].includes(Number(r.getAttribute('data-midi')) % 12));
-    expect(blackLit).toHaveLength(4);
+    expect(blackLit).toHaveLength(5);
   });
 
   it('says the count in words under the panel', () => {

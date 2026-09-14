@@ -2,13 +2,19 @@
  * The board the shared player is drawn on.
  *
  * =====================================================================
- * FOUR OCTAVES, C2 TO C6, AND THE BASS OCTAVE IS THE LEFT ONE.
+ * F1 TO C6, 56 KEYS. Silas's spec of 12 Sep 2026, §2, everywhere.
  *
- * It was three until 10 Sep 2026. The shared player's brief asks for
- * four — C2 to C6, with every C labelled by its number so C4 is
- * findable as middle C — because the surfaces moving onto this board
- * put a bass line under a hand that can also be lifted an octave, and
- * three octaves cannot hold both ends of that at once.
+ * It was C2 to C6 from 10 Sep 2026, and three octaves before that. The
+ * diary's player lights and taps keys a hand can reach below the bass
+ * octave, so the board reaches down to F1.
+ *
+ * THE WIDER BOARD MOVES NO BASS. Silas's answer of 14 Sep 2026: it is
+ * for lighting and tapping keys. Where a bass lands is the bass rule's
+ * business, and its floor is its own (`voices.ts`), not this board's.
+ *
+ * ON A PHONE THE BOARD SCROLLS SIDEWAYS rather than shrinking its keys
+ * past what a finger can hit, with the lit keys brought into view — see
+ * `BOARD_MIN_WIDTH_PX` and `BuiltAnswerKeyboard`.
  *
  * =====================================================================
  * THE OLD HEADER, WHICH STILL SAYS WHY THE BASS OCTAVE IS THERE.
@@ -18,8 +24,9 @@
  * underneath it at the same time. Two octaves cannot: the hand would
  * have to move to make room.
  *
- * IT RUNS C TO C. The closing key means a scale can land on its own
- * octave, which is where a run up and back turns.
+ * IT ENDS ON C. The closing key means a scale can land on its own
+ * octave, which is where a run up and back turns. Every C is labelled
+ * by its number, so C4 is findable as middle C.
  *
  * =====================================================================
  * WHERE THE KEYS SIT IS `lib/answerKeyboard`'s, NOT A SECOND SET OF
@@ -27,11 +34,12 @@
  * bug worth avoiding, and the geometry is the part that is shared.
  * =====================================================================
  */
-import { BH, BLACK_KEYS, BW, WH, WHITE_PCS, WHITE_PER_OCTAVE, WW } from '../answerKeyboard';
+import { BH, BW, WH, WHITE_PCS, WW } from '../answerKeyboard';
 
-export const KEYBOARD_LOW_MIDI = 36;
-export const KEYBOARD_OCTAVES = 4;
-export const KEYBOARD_HIGH_MIDI = KEYBOARD_LOW_MIDI + KEYBOARD_OCTAVES * 12;
+/** F1. */
+export const KEYBOARD_LOW_MIDI = 29;
+/** C6. */
+export const KEYBOARD_HIGH_MIDI = 84;
 
 /** How one key is marked. Absent fields are simply not drawn. */
 export interface KeyMark {
@@ -71,8 +79,27 @@ export interface BoardKey {
   isBlack: boolean;
 }
 
+const isWhite = (midi: number) => WHITE_PCS.includes(((midi % 12) + 12) % 12);
+
+/** How many white keys the board has: 33. */
+const WHITE_COUNT = (() => {
+  let n = 0;
+  for (let m = KEYBOARD_LOW_MIDI; m <= KEYBOARD_HIGH_MIDI; m += 1) if (isWhite(m)) n += 1;
+  return n;
+})();
+
 export const BOARD_HEIGHT = WH;
-export const BOARD_WIDTH = (KEYBOARD_OCTAVES * WHITE_PER_OCTAVE + 1) * WW;
+export const BOARD_WIDTH = WHITE_COUNT * WW;
+
+/**
+ * The narrowest the board is drawn, in CSS pixels, before it scrolls.
+ *
+ * SIXTEEN PIXELS A WHITE KEY. On a 390px phone all 33 would be eleven,
+ * a black key under seven: a tap lands on its neighbour as often as on
+ * itself. Sixteen keeps a black key over nine, and the board scrolls to
+ * make up the rest.
+ */
+export const BOARD_MIN_WIDTH_PX = WHITE_COUNT * 16;
 
 /** Whether a note is drawn at all. */
 export function onBoard(midi: number): boolean {
@@ -83,7 +110,7 @@ export function onBoard(midi: number): boolean {
  * The label a key carries, or null.
  *
  * ONLY THE Cs, AND EVERY ONE OF THEM. The prototype writes C2 through
- * C6 on the board and nothing else: a name on all 49 keys is noise, and
+ * C6 on the board and nothing else: a name on every key is noise, and
  * a board with no landmark at all leaves a reader counting up from the
  * left edge to find middle C.
  */
@@ -91,30 +118,24 @@ export function keyLabel(midi: number): string | null {
   return midi % 12 === 0 ? `C${Math.floor(midi / 12) - 1}` : null;
 }
 
-/** Every key, white before black so the black ones draw over them. */
+/**
+ * Every key, white before black so the black ones draw over them.
+ *
+ * WALKED BY MIDI NUMBER, because the board no longer starts on a C: a
+ * black key sits centred on the edge after the white key before it,
+ * wherever in the octave that is.
+ */
 export function boardKeys(): { white: BoardKey[]; black: BoardKey[] } {
   const white: BoardKey[] = [];
   const black: BoardKey[] = [];
-  for (let o = 0; o < KEYBOARD_OCTAVES; o += 1) {
-    for (let i = 0; i < WHITE_PER_OCTAVE; i += 1) {
-      white.push({
-        midi: KEYBOARD_LOW_MIDI + o * 12 + WHITE_PCS[i],
-        x: (o * WHITE_PER_OCTAVE + i) * WW,
-        width: WW, height: WH, isBlack: false,
-      });
-    }
-    for (const b of BLACK_KEYS) {
-      const centre = (o * WHITE_PER_OCTAVE + b.afterWhite + 1) * WW;
-      black.push({
-        midi: KEYBOARD_LOW_MIDI + o * 12 + b.pc,
-        x: centre - BW / 2, width: BW, height: BH, isBlack: true,
-      });
+  let whiteIndex = 0;
+  for (let midi = KEYBOARD_LOW_MIDI; midi <= KEYBOARD_HIGH_MIDI; midi += 1) {
+    if (isWhite(midi)) {
+      white.push({ midi, x: whiteIndex * WW, width: WW, height: WH, isBlack: false });
+      whiteIndex += 1;
+    } else {
+      black.push({ midi, x: whiteIndex * WW - BW / 2, width: BW, height: BH, isBlack: true });
     }
   }
-  white.push({
-    midi: KEYBOARD_HIGH_MIDI,
-    x: KEYBOARD_OCTAVES * WHITE_PER_OCTAVE * WW,
-    width: WW, height: WH, isBlack: false,
-  });
   return { white, black };
 }

@@ -7,50 +7,37 @@
  * triad on every miss. Silas: "the major 9(13), the dom7sus4, the
  * dom9(13) all sound the exact same." 10 Sep 2026.
  *
- * So every chord-recognition item is played through `playSkillAudio`
- * with the players captured, and what would sound is compared with the
- * seed Chord Recognition itself plays from.
+ * So every chord-recognition card is read through `cardSound`, and what
+ * the player panel would sound for it is compared with the seed Chord
+ * Recognition itself plays from.
  * =====================================================================
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { CHORD_SEEDS } from '../../ear-training/chord-recognition/seed';
 import { CHORD_QUALITIES, QUALITY_INTERVALS } from '../../shapes-and-patterns/catalog';
-import { bassDrop, soundingNotes, type PlayerChord } from '../../../lib/player/voices';
-import type { PlayerSettings } from '../../../lib/player/settings';
-import type { SkillRecord } from '../../skills/registry';
-
-/** Every note the diary asked a player to sound, per call. */
-const sounded: number[][] = [];
-vi.mock('../../../lib/musicalPlayback', () => ({
-  playBlocked: async (root: number, ivs: number[]) => { sounded.push(ivs.map(i => root + i)); },
-  playNoteSequence: async () => {},
-}));
-vi.mock('../../../lib/builtAnswers/play', () => ({
-  playRolled: async (ivs: number[], o: { rootMidi: number }) => { sounded.push(ivs.map(i => o.rootMidi + i)); },
-  // WHAT THE SHARED PLAYER WOULD SOUND, Forward bass and all.
-  playPanel: async (chords: PlayerChord[], settings: PlayerSettings) => {
-    sounded.push(soundingNotes(chords[0], settings, bassDrop(chords, settings)).notes);
-    return { stop() {} };
-  },
-}));
-
-const { playSkillAudio, diaryChordShape } = await import('../audio');
+import { bassDrop, soundingNotes } from '../../../lib/player/voices';
+import { DEFAULT_PLAYER_SETTINGS } from '../../../lib/player/settings';
+import { cardSound, diaryChordShape } from '../cardSound';
 
 const pcs = (notes: readonly number[]) =>
   [...new Set(notes.map(n => ((n % 12) + 12) % 12))].sort((a, b) => a - b);
-const skill = (skillId: string, name = skillId) => ({ skillId, name } as SkillRecord);
 
-async function playCR(id: string): Promise<number[]> {
-  sounded.length = 0;
-  await playSkillAudio(skill(`chord-recognition:item:${id}`));
-  expect(sounded, id).toHaveLength(1);
-  return sounded[0];
+/** WHAT THE PANEL WOULD SOUND for a chord card, Forward bass and all. */
+function chordNotes(skillId: string): number[] | null {
+  const sound = cardSound(skillId);
+  if (sound === null || sound.kind !== 'chord') return null;
+  const s = DEFAULT_PLAYER_SETTINGS;
+  return soundingNotes(sound.chord, s, bassDrop([sound.chord], s)).notes;
 }
 
-beforeEach(() => { sounded.length = 0; });
+function playCR(id: string): number[] {
+  const notes = chordNotes(`chord-recognition:item:${id}`);
+  expect(notes, id).not.toBeNull();
+  return notes!;
+}
 
 describe('chord-recognition entries play their own chord', () => {
-  it('every item sounds the seed’s notes — or, where Silas’s shape voices it, the shape’s', async () => {
+  it('every item sounds the seed’s notes — or, where Silas’s shape voices it, the shape’s', () => {
     const SHAPED: Record<string, number[] | 'exact'> = {
       dim7: 'exact', 'dom7#9#5': 'exact', maj9: 'exact', min9: 'exact', min6_9: 'exact',
       // The two 13 chords are played with the 5th left out (11 Sep
@@ -60,7 +47,7 @@ describe('chord-recognition entries play their own chord', () => {
       maj13: [0, 4, 9, 11, 14],
     };
     for (const seed of CHORD_SEEDS) {
-      const notes = await playCR(seed.id);
+      const notes = playCR(seed.id);
       const shaped = SHAPED[seed.id];
       const want = shaped === undefined || shaped === 'exact' ? seed.intervals : shaped;
       expect(pcs(notes), seed.id).toEqual(pcs(want));
@@ -69,13 +56,13 @@ describe('chord-recognition entries play their own chord', () => {
     }
   });
 
-  it('no two items with different intervals sound the same', async () => {
+  it('no two items with different intervals sound the same', () => {
     const byItem = new Map<string, string>();
     // THE NOTES AS PLAYED, not their pitch classes: an add2 and an add9
     // share theirs and still sound different — the 2 is inside the
     // chord, the 9 an octave up.
     for (const seed of CHORD_SEEDS) {
-      byItem.set(seed.id, [...await playCR(seed.id)].sort((a, b) => a - b).join(','));
+      byItem.set(seed.id, [...playCR(seed.id)].sort((a, b) => a - b).join(','));
     }
     for (const a of CHORD_SEEDS) {
       for (const b of CHORD_SEEDS) {
@@ -92,9 +79,8 @@ describe('chord-recognition entries play their own chord', () => {
       .not.toEqual(pcs(QUALITY_INTERVALS.maj));
   });
 
-  it('an id the seed does not have plays nothing, not a major triad', async () => {
-    await playSkillAudio(skill('chord-recognition:item:not-a-chord'));
-    expect(sounded).toHaveLength(0);
+  it('an id the seed does not have has nothing to hear, not a major triad', () => {
+    expect(cardSound('chord-recognition:item:not-a-chord')).toBeNull();
   });
 });
 
@@ -108,30 +94,28 @@ describe('shapes-and-patterns chord-shape entries read the id, not the name', ()
     expect(diaryChordShape('not-a-quality:C')).toBeNull();
   });
 
-  it('a renamed entry still plays its own chord, in its own key', async () => {
-    await playSkillAudio(skill('shapes-and-patterns:chord-shape:min7:F', 'my favourite'));
-    expect(sounded).toHaveLength(1);
-    expect(pcs(sounded[0])).toEqual(pcs([5, 8, 12, 15]));
+  it('a renamed entry still plays its own chord, in its own key', () => {
+    expect(pcs(chordNotes('shapes-and-patterns:chord-shape:min7:F')!)).toEqual(pcs([5, 8, 12, 15]));
   });
 });
 
 describe('every diary chord through the shared player, in one register', () => {
-  it('a shaped and a stacked entry on the same root share their bass note', async () => {
+  it('a shaped and a stacked entry on the same root share their bass note', () => {
     // maj9 is voiced by Silas's shape, min11 by the seed's stack.
-    const shaped = await playCR('maj9');
-    const stacked = await playCR('min11');
+    const shaped = playCR('maj9');
+    const stacked = playCR('min11');
     expect(shaped[0]).toBe(stacked[0]);
     // And the bass is the root: C.
     expect(shaped[0] % 12).toBe(0);
     // Every stacked entry takes that same bass, whatever its thickness.
     for (const id of ['maj', 'dom7sus4', 'add2', 'min11', 'dom7b9']) {
-      expect((await playCR(id))[0], id).toBe(shaped[0]);
+      expect(playCR(id)[0], id).toBe(shaped[0]);
     }
   });
 
-  it('the bass sits under the hand on every item', async () => {
+  it('the bass sits under the hand on every item', () => {
     for (const seed of CHORD_SEEDS) {
-      const [bass, ...hand] = await playCR(seed.id);
+      const [bass, ...hand] = playCR(seed.id);
       expect(Math.min(...hand), seed.id).toBeGreaterThan(bass);
     }
   });

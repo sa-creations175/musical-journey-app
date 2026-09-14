@@ -85,15 +85,17 @@ beforeEach(() => { /* fresh host per mount */ });
 afterEach(() => { act(() => { root.unmount(); }); host.remove(); });
 
 describe('every family that builds an answer goes through one board', () => {
-  it('draws the same four-octave board, C2 to C6, on all of them', () => {
+  it('draws the same board, F1 to C6, on all of them', () => {
     for (const id of Object.values(CARDS)) {
       // The count card is the one with no board before Submit, and it
       // draws the same one after.
       mount(id, id === CARDS.signature);
       const board = host.querySelector('[data-testid="built-answer-keyboard"]')!;
       expect(board, id).not.toBeNull();
-      // Four octaves plus the closing C: 36 to 84 and not a key past it.
-      expect(board.querySelectorAll('rect[data-midi="36"]'), id).toHaveLength(1);
+      // F1 to C6 (Silas's spec of 12 Sep 2026, §2): 29 to 84 and not a
+      // key past either end.
+      expect(board.querySelectorAll('rect[data-midi="28"]'), id).toHaveLength(0);
+      expect(board.querySelectorAll('rect[data-midi="29"]'), id).toHaveLength(1);
       expect(board.querySelectorAll('rect[data-midi="84"]'), id).toHaveLength(1);
       expect(board.querySelectorAll('rect[data-midi="85"]'), id).toHaveLength(0);
       // AND EVERY C SAYS WHICH C IT IS, so middle C is findable.

@@ -1,17 +1,17 @@
 import { Link } from 'react-router-dom';
 import type { HarmonicDiaryEntry } from '../../lib/db';
 import { parseSkillId, type SkillRecord } from '../skills/registry';
-import type { DiaryPlayMode } from './audio';
+import { diaryCardTitle } from './cardSound';
 
 interface Props {
   entry: HarmonicDiaryEntry;
   skill?: SkillRecord;
   onEdit: () => void;
-  /** Called when the user taps a play affordance. `mode` is supplied
-   *  for chord and progression entries, which choose between blocked
-   *  and broken; intervals call without an argument, because their
-   *  direction is part of the skill rather than a way of listening. */
-  onPlay?: (mode?: DiaryPlayMode) => void;
+  /** Opens the player panel on this card. Absent on a card with nothing
+   *  to hear, which then has no ▶. */
+  onHear?: () => void;
+  /** Whether this is the card the panel is playing. */
+  hearing?: boolean;
   /** Moodboard card sits on the atmospheric gradient; list variant
    *  sits on the flat `.diary-list` surface with tighter spacing. */
   variant?: 'moodboard' | 'list';
@@ -23,9 +23,21 @@ interface Props {
  * when the user toggles light/dark or searches a new emotion.
  * Pencil edit icon sits next to the heading so the affordance
  * visually connects to what it edits.
+ *
+ * =====================================================================
+ * ONE ▶, WHERE THE ▤ ↑ PAIR WAS. Silas's spec of 12 Sep 2026, §1.
+ *
+ * The card used to choose how its sound arrived — struck or run — and
+ * play it itself. That choice is the player panel's Play as row now, on
+ * every card type, so the card has one round "Hear it" that opens the
+ * panel on it. The card being heard keeps a thin outline in the diary's
+ * accent colour. Nothing else on the card changed.
+ * =====================================================================
  */
-export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant = 'moodboard' }: Props) {
-  const displayName = skill?.name ?? fallbackSkillName(entry.skillId);
+export default function DiaryEntryCard({
+  entry, skill, onEdit, onHear, hearing = false, variant = 'moodboard',
+}: Props) {
+  const displayName = diaryCardTitle(entry.skillId, skill);
   const moduleLabel = skill?.moduleLabel ?? fallbackModule(entry.skillId);
   const jumpTo = skill
     ? (skill.moduleJumpQuery ? `${skill.moduleRoute}?${skill.moduleJumpQuery}` : skill.moduleRoute)
@@ -34,18 +46,15 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
   const hasUserText = entry.userText.trim() !== '';
   const showStarter = !hasUserText && Boolean(entry.claudeStarterText);
 
-  // The blocked/broken pair applies to entries whose musical content
-  // is a chord, a sequence of chords, or a scale stack — anywhere that
-  // "all at once" and "one note at a time" are a real distinction.
-  // Intervals already carry their direction in the skillId (asc / desc
-  // / harmonic), so they keep the single-button form.
-  //
-  // IT WAS THREE BUTTONS — ascending, blocked, descending — until
-  // Silas's ruling of 10 Sep 2026 left the app one broken mode.
-  const showAttackButtons = isAttackChoiceSkill(entry.skillId);
-
   return (
-    <article className={`diary-card ${variant === 'moodboard' ? 'p-5' : 'p-4'}`}>
+    <article
+      className={`diary-card ${variant === 'moodboard' ? 'p-5' : 'p-4'}`}
+      data-hearing={hearing ? 'true' : undefined}
+      style={{
+        outline: `2px solid ${hearing ? 'var(--diary-accent)' : 'transparent'}`,
+        transition: 'outline-color .2s, box-shadow .2s',
+      }}
+    >
       <header className="flex items-start gap-2 mb-3">
         <div className="min-w-0 flex-1">
           {/* Heading is its own flex row so the title text can truncate
@@ -76,10 +85,25 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
             {moduleLabel}{skill?.category ? ` · ${skill.category}` : ''}
           </p>
         </div>
-        {onPlay && (
-          showAttackButtons
-            ? <PlayButtonGroup onPlay={onPlay} />
-            : <PlayButtonSingle onPlay={() => onPlay()} />
+        {onHear && (
+          <button
+            type="button"
+            onClick={onHear}
+            // A TAP ON THIS SWITCHES THE PANEL; the panel's own "tap
+            // outside closes" rule reads this mark and leaves it be.
+            data-diary-hear=""
+            aria-label="Hear it"
+            title="Hear it"
+            aria-pressed={hearing}
+            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-[13px] transition"
+            style={{
+              color: hearing ? 'var(--diary-text)' : 'var(--diary-text-muted)',
+              border: '1px solid var(--diary-accent-tan)',
+              background: hearing ? 'rgba(58, 61, 42, 0.06)' : 'transparent',
+            }}
+          >
+            ▶
+          </button>
         )}
       </header>
 
@@ -138,84 +162,7 @@ export default function DiaryEntryCard({ entry, skill, onEdit, onPlay, variant =
   );
 }
 
-// ── Play-button variants ────────────────────────────────────────────
-
-/** Existing single-affordance ▶. Used by intervals (direction baked
- *  into the skillId) and modes/scales (mode preview is a roadmap
- *  item — for now there's only one playback path). */
-function PlayButtonSingle({ onPlay }: { onPlay: () => void }) {
-  return (
-    <button
-      onClick={onPlay}
-      aria-label="hear this element"
-      title="Hear This Element"
-      className="shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-[11px] transition"
-      style={{
-        color: 'var(--diary-text-muted)',
-        border: '1px solid var(--diary-card-border)',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
-      onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
-    >
-      ▶
-    </button>
-  );
-}
-
-/** Two buttons for chord, progression, and mode entries: blocked and
- *  broken. Blocked leads because it is the default and the plainer
- *  sound; broken carries an upward arrow because the app's one broken
- *  mode rolls upward. Sizing is responsive: 36px / gap-0.5 on phones
- *  (mobile cards are ~232px wide internally so 44px buttons leave
- *  almost no room for the title), 44px / gap-1 on tablet+ where space
- *  is ample. The mobile size is below Apple HIG's 44px minimum but
- *  still finger-friendly; we accept the trade for keeping titles
- *  legible on phone-width cards. */
-function PlayButtonGroup({ onPlay }: { onPlay: (mode: DiaryPlayMode) => void }) {
-  return (
-    <div className="shrink-0 flex items-center gap-0.5 sm:gap-1">
-      <ModeButton onClick={() => onPlay('blocked')} label="Play Blocked" glyph="▤" />
-      <ModeButton onClick={() => onPlay('broken')} label="Play Broken" glyph="↑" />
-    </div>
-  );
-}
-
-function ModeButton({ onClick, label, glyph }: { onClick: () => void; label: string; glyph: string }) {
-  return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className="w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-[14px] transition"
-      style={{
-        color: 'var(--diary-text-muted)',
-        border: '1px solid var(--diary-card-border)',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.color = 'var(--diary-text)'; }}
-      onMouseLeave={e => { e.currentTarget.style.color = 'var(--diary-text-muted)'; }}
-    >
-      {glyph}
-    </button>
-  );
-}
-
 // ── Helpers ─────────────────────────────────────────────────────────
-
-function isAttackChoiceSkill(skillId: string): boolean {
-  const parsed = parseSkillId(skillId);
-  if (!parsed) return false;
-  if (parsed.moduleId === 'chord-recognition') return true;
-  if (parsed.moduleId === 'shapes-and-patterns' && parsed.subtype === 'chord-shape') return true;
-  if (parsed.moduleId === 'chord-progressions') return true;
-  if (parsed.moduleId === 'scales-modes') return true;
-  return false;
-}
-
-function fallbackSkillName(skillId: string): string {
-  const parsed = parseSkillId(skillId);
-  if (!parsed) return skillId;
-  return parsed.itemId.replace(/[-_]/g, ' ');
-}
 
 function fallbackModule(skillId: string): string {
   const parsed = parseSkillId(skillId);

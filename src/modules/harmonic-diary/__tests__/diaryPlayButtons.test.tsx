@@ -3,14 +3,12 @@
  * What a diary card offers to press.
  *
  * =====================================================================
- * TWO BUTTONS, NOT THREE, AND IT IS THE SAME TWO THE QUIZ OFFERS.
+ * ONE ▶, WHERE THE ▤ ↑ PAIR WAS. Silas's spec of 12 Sep 2026, §1.
  *
- * The card used to draw ascending, blocked and descending, and the two
- * arrows ran a sequencer of the diary's own — a second broken mode,
- * spread across each chord's beat budget rather than rolled at a
- * tempo. Silas's ruling of 10 Sep 2026 leaves the app one broken mode,
- * so the card offers the choice the shared player offers and nothing
- * else.
+ * The card used to choose how its sound arrived and play it itself.
+ * That choice is the player panel's Play as row now, so every card with
+ * something to hear has one round Hear it that opens the panel, and a
+ * card with nothing to hear has none.
  * =====================================================================
  */
 import { afterEach, describe, expect, it } from 'vitest';
@@ -19,13 +17,14 @@ import { act } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import DiaryEntryCard from '../DiaryEntryCard';
 import type { HarmonicDiaryEntry } from '../../../lib/db';
+import { cardSound } from '../cardSound';
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
 const ENTRY = {
   id: 'e1',
-  skillId: 'chord-recognition:quality:maj7',
+  skillId: 'chord-recognition:item:maj7',
   userText: 'warm',
   claudeStarterText: '',
   emotion: 'warm',
@@ -38,23 +37,19 @@ const ENTRY = {
 let host: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-function mount(entry: HarmonicDiaryEntry): HTMLDivElement {
+function mount(props: { onHear?: () => void; hearing?: boolean } = {}): HTMLDivElement {
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);
   act(() => {
     root!.render(
       <MemoryRouter>
-        <DiaryEntryCard entry={entry} onEdit={() => {}} onPlay={() => {}} />
+        <DiaryEntryCard entry={ENTRY} onEdit={() => {}} {...props} />
       </MemoryRouter>,
     );
   });
   return host;
 }
-
-const labels = (el: HTMLElement) =>
-  [...el.querySelectorAll('button[aria-label^="Play"]')]
-    .map(b => b.getAttribute('aria-label'));
 
 afterEach(() => {
   if (root) act(() => root!.unmount());
@@ -63,20 +58,49 @@ afterEach(() => {
   host = null;
 });
 
-describe('a chord entry chooses how the chord arrives', () => {
-  it('offers blocked and broken, and neither direction', () => {
-    const el = mount(ENTRY);
-    expect(labels(el)).toEqual(['Play Blocked', 'Play Broken']);
+describe('a card with something to hear', () => {
+  it('has one round Hear it, and neither ▤ nor ↑', () => {
+    let heard = 0;
+    const el = mount({ onHear: () => { heard += 1; } });
+    const buttons = [...el.querySelectorAll('button[aria-label="Hear it"]')];
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0].textContent).toBe('▶');
+    expect(el.querySelector('button[aria-label^="Play"]')).toBeNull();
+    act(() => { (buttons[0] as HTMLButtonElement).click(); });
+    expect(heard).toBe(1);
+  });
+
+  it('marks its ▶ so a tap on it switches the panel rather than closing it', () => {
+    const el = mount({ onHear: () => {} });
+    expect(el.querySelector('button[aria-label="Hear it"]')!.hasAttribute('data-diary-hear')).toBe(true);
+  });
+
+  it('keeps a thin outline in the accent colour while it is the card being heard', () => {
+    const on = mount({ onHear: () => {}, hearing: true }).querySelector('article')!;
+    expect(on.style.outline).toContain('var(--diary-accent)');
+    act(() => root!.unmount());
+    host!.remove();
+    const off = mount({ onHear: () => {}, hearing: false }).querySelector('article')!;
+    expect(off.style.outline).not.toContain('var(--diary-accent)');
   });
 });
 
-describe('an interval entry keeps its one button', () => {
-  it('does not offer the choice, because its direction is the skill', () => {
-    // An ascending third and a descending third are two different
-    // cards, so "which way" is not a way of listening here.
-    const el = mount({ ...ENTRY, skillId: 'intervals:m3:asc' });
-    expect(labels(el)).toEqual([]);
-    expect(el.querySelector('button[aria-label="hear this element"]'))
-      .not.toBeNull();
+describe('a card with nothing to hear', () => {
+  it('has no ▶ at all', () => {
+    const el = mount();
+    expect(el.querySelector('button[aria-label="Hear it"]')).toBeNull();
+  });
+
+  it('is every card the diary cannot sound: songs, drills, fluency cards', () => {
+    // The page puts a ▶ only where `cardSound` answers.
+    for (const id of ['repertoire:song:s1', 'harmonic-fluency:card:c1', 'shapes-and-patterns:mental-viz:x']) {
+      expect(cardSound(id), id).toBeNull();
+    }
+    for (const id of [
+      'chord-recognition:item:maj9', 'shapes-and-patterns:chord-shape:maj7:F',
+      'scales-modes:mode:dorian', 'intervals:asc:m3',
+    ]) {
+      expect(cardSound(id), id).not.toBeNull();
+    }
   });
 });

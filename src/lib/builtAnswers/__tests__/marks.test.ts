@@ -62,10 +62,10 @@ describe('the hand moves up an octave, note by note', () => {
 describe('a scale lights across the whole board', () => {
   it('lights every octave of every note in it', () => {
     const marks = scaleMarks([0, 4, 7], 0, 'plain');
-    // Four octaves and a closing C: five Cs, four Es, four Gs.
+    // F1 to C6: five Cs (C2–C6), four Es (E2–E5), five Gs (G1–G5).
     expect([...marks.keys()].filter(m => m % 12 === 0)).toHaveLength(5);
     expect([...marks.keys()].filter(m => m % 12 === 4)).toHaveLength(4);
-    expect([...marks.keys()].filter(m => m % 12 === 7)).toHaveLength(4);
+    expect([...marks.keys()].filter(m => m % 12 === 7)).toHaveLength(5);
   });
 
   it('is plain or by interval, and the root is green in both', () => {
