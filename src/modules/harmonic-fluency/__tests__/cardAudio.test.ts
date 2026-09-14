@@ -347,13 +347,12 @@ describe('what stays silent, and why', () => {
     expect(cardSound(card('sc-14'))).toBeNull();
   });
 
-  it('says nothing for the three families that carry no coordinates', () => {
-    // Modes and intervals got a voice under ruling 38. These three
+  it('says nothing for the two families that carry no coordinates', () => {
+    // Modes and intervals got a voice under ruling 38. These two
     // carry no `axis` at all — a prose card about how a chord feels has
     // no key and no notes — so giving them a sound would need a content
     // decision first. Listed in the report rather than invented.
-    for (const category of ['chord-construction',
-      'ear-theory', 'diatonic-qualities']) {
+    for (const category of ['chord-construction', 'diatonic-qualities']) {
       for (const c of FLASHCARDS.filter(x => x.category === category)) {
         expect(cardSound(c), c.id).toBeNull();
       }

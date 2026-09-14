@@ -142,7 +142,7 @@ describe('what a card is allowed to say', () => {
     // Prose cards carry no coordinates and none are invented for them —
     // a facet on a card about how a chord FEELS would make a filter
     // claim it had found something.
-    for (const cat of ['diatonic-qualities', 'chord-construction', 'ear-theory'] as const) {
+    for (const cat of ['diatonic-qualities', 'chord-construction'] as const) {
       for (const card of FLASHCARDS.filter(c => c.category === cat)) {
         expect(card.facets, card.id).toBeUndefined();
       }
@@ -210,7 +210,7 @@ describe('nothing moved', () => {
   it('is a pure reading of the card, not of its text', () => {
     // Facets come off the generator's own coordinates. A card with no
     // coordinates gets nothing, however much its prompt says.
-    const prose = FLASHCARDS.find(c => c.category === 'ear-theory')!;
+    const prose = FLASHCARDS.find(c => c.category === 'chord-construction')!;
     expect(facetsFor(prose)).toBeUndefined();
   });
 });
@@ -231,10 +231,11 @@ describe('coverage, so a regression is visible', () => {
   it('covers every category in the deck or says why not', () => {
     const missing = CATEGORY_ORDER.filter(cat =>
       !FLASHCARDS.some(c => c.category === cat && c.facets !== undefined));
-    // The three that carry no coordinates at all. Named here so adding
-    // a fourth is a decision rather than a drift.
+    // The two that carry no coordinates at all (Ear-Theory Crossover was
+    // a third, until it retired). Named here so adding one is a decision
+    // rather than a drift.
     expect(missing.sort()).toEqual(
-      ['chord-construction', 'diatonic-qualities', 'ear-theory'],
+      ['chord-construction', 'diatonic-qualities'],
     );
   });
 });

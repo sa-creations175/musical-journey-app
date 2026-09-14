@@ -99,7 +99,7 @@ describe('harmonicFluencyColdStartOrder', () => {
     const order = harmonicFluencyColdStartOrder();
     const cardById = new Map(FLASHCARDS.map(c => [c.id, c]));
     const foundationalCats = ['scale-degree-math', 'named-notes', 'key-signatures'];
-    const earCats = ['modes', 'intervals', 'ear-theory'];
+    const earCats = ['modes', 'intervals'];
 
     let lastFoundationalIdx = -1;
     let firstEarIdx = order.length;

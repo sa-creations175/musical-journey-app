@@ -51,7 +51,7 @@
  * =====================================================================
  * A CARD WITH NOTHING TO SAY CARRIES NOTHING.
  *
- * Diatonic Chord Qualities, Chord Construction and Ear-Theory Crossover
+ * Diatonic Chord Qualities and Chord Construction
  * carry no coordinates today, and none are invented for them: a prose
  * card about how a chord feels has no key and no degree, and giving it
  * one to fill the column would make a filter claim it had found
@@ -418,7 +418,7 @@ export function facetsFor(card: Flashcard): CardFacets | undefined {
       break;
 
     // NOTHING FOR THESE, AND THAT IS THE HONEST ANSWER. Diatonic Chord
-    // Qualities, Chord Construction and Ear-Theory Crossover carry no
+    // Qualities and Chord Construction carry no
     // coordinates today. Inventing one would make a filter claim it had
     // found something.
     default:

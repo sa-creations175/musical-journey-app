@@ -54,14 +54,9 @@ const BLIND_ALLOWLIST: ReadonlyArray<{ category: string; rule: string; cards: nu
   // exists so a NEW chord-construction card cannot arrive with the
   // same defect unnoticed.
   { category: 'chord-construction', rule: 'shortest', cards: 5 },
-  { category: 'ear-theory', rule: 'only-accidental', cards: 1 },
-  // `longest` is asserted in this category and in intervals only —
-  // see the scope on the rule for the numbers. Ear-theory asks what a
-  // sound IS, so its answers name a feeling in words ("suspension-and-
-  // release tension") against decoys that name it in shorthand. Every
-  // one of the eight is hand-written; the fix is authored decoys of
-  // comparable weight, not a chooser.
-  { category: 'ear-theory', rule: 'longest', cards: 8 },
+  // ear-theory / only-accidental stood at 1 and / longest at 8: its
+  // answers named a feeling in words against decoys that named it in
+  // shorthand. The category retired on 14 Sep 2026 and both went with it.
   // enharmonic-equivalents / only-slash and / only-prose stood at 9
   // each — a three-way group answers with a pair ("b3 / #9") against
   // decoys that were single degrees, so the answer was the only option
@@ -392,8 +387,11 @@ describe('no decoy pins its answer', () => {
       }
     }
     const both = new Set([...leaky, ...told]);
+    // 23 blind, 28 in all, until Ear-Theory Crossover retired on 14 Sep
+    // 2026: eight of its cards were picked out by the longest option, and
+    // they went with the category.
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 23, tell: 5, distinct: 28 });
+      .toEqual({ blind: 15, tell: 5, distinct: 20 });
   });
 
   it('keeps the tell allowlist honest', () => {
@@ -490,13 +488,12 @@ describe('the rules fire on a card built to be answerable', () => {
     }
   });
 
-  it('scopes `longest` to the two categories that measured as tells', () => {
+  it('scopes `longest` to the category that measured as a tell', () => {
     const rule = BLIND_RULES.find(r => r.id === 'longest')!;
     expect(rule.pick(['suspension-and-release tension', 'modal ambiguity',
       'chromatic descent', 'pedal point'])).toBe('suspension-and-release tension');
     expect(rule.pick(['Minor 3rd', 'Major 3rd', 'Minor 6th', 'Major 6th']))
       .toBeNull();
-    expect(rulesFor('ear-theory').map(r => r.id)).toContain('longest');
     expect(rulesFor('intervals').map(r => r.id)).toContain('longest');
     expect(rulesFor('slash-chords').map(r => r.id)).not.toContain('longest');
     // `shortest` is narrower still — one category, and BELOW chance

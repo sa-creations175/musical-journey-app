@@ -11,7 +11,7 @@ import {
 // Static data — no audio, no keys in the DB beyond per-user SM-2 state.
 // Programmatic generators fill systematic categories (scale-degree math,
 // reverse key pivots, intervals); hand-written cards cover nuanced
-// categories (functional harmony, slash chords, ear-theory crossover).
+// categories (functional harmony, slash chords, chord construction).
 
 export type FlashcardCategory =
   | 'scale-degree-math'
@@ -26,7 +26,6 @@ export type FlashcardCategory =
   | 'chord-construction'
   | 'progressions'
   | 'slash-chords'
-  | 'ear-theory'
   | 'tritone-pairs'
   | 'enharmonic-equivalents'
   | 'degree-notes'
@@ -45,7 +44,6 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   'chord-construction': 'Chord Construction',
   'progressions': 'Progression Vocabulary',
   'slash-chords': 'Slash Chords & Inversions',
-  'ear-theory': 'Ear-Theory Crossover',
   'tritone-pairs': 'Tritone Pairs',
   'enharmonic-equivalents': 'Enharmonic Equivalents',
   // PLACEHOLDER NAME. The most literal description of what the family
@@ -71,13 +69,18 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
  * They keep their labels and their place in `FlashcardCategory` because
  * the retired generators still describe them, and the migration needs
  * both sides of the mapping to be describable. Nothing renders them.
+ *
+ * `ear-theory` WENT FURTHER, on 14 Sep 2026: its label and its place in
+ * `FlashcardCategory` went with its cards, because nothing needs to
+ * describe them. Its fold names card ids, never a category — see
+ * `lib/migrations/hfDeckCleanup.ts`.
  */
 export const CATEGORY_ORDER: FlashcardCategory[] = [
   'scale-degree-math', 'degree-notes', 'enharmonic-equivalents',
   'diatonic-qualities', 'functional-harmony',
   'key-signatures', 'modes', 'pentatonic-scales', 'intervals',
   'chord-construction', 'progressions', 'modal-improvisation',
-  'slash-chords', 'ear-theory',
+  'slash-chords',
 ];
 
 export interface VisualHint {
@@ -1083,98 +1086,11 @@ const SLASH_CHORD_CARDS: Flashcard[] = [
     skillTag: 'inversion-V-first-bass-tone' },
 ];
 
-const EAR_THEORY_CARDS: Flashcard[] = [
-  { id: 'et-1', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A song moves from IV to a chord that feels darker and more emotional. The destination is most likely _____',
-    correctAnswer: 'iv minor',
-    decoys: ['vi', 'ii minor', 'V/IV'],
-    explanation: "When a major-key song slides from IV to iv (F to Fm in the key of C major), that minor-IV is borrowed from the parallel minor, and it's the most powerful borrowed-chord move in popular music. It's the 'gospel pull' — PJ Morton, Madison Ryan Ward, and countless church bridges live here. Theory books call it 'modal interchange'; working players just call it 'the minor 4.'",
-    skillTag: 'ear-theory-IV-to-iv' },
-  { id: 'et-2', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A gospel song has a signature move where V becomes a Dom7#9 before resolving. This creates _____',
-    correctAnswer: 'bluesy tension before the resolution',
-    decoys: ['a modal shift', 'a descending bass', 'a suspended feeling'],
-    explanation: "V7#9 — the 'Hendrix chord' acting as the V — stacks a minor third (the #9) against the major third, creating bluesy/gospel tension right before resolution. Common in gospel cadences in the moment just before the payoff back to I; you also hear it all over Stevie Wonder and funk.",
-    skillTag: 'ear-theory-7-sharp-9-tension' },
-  { id: 'et-3', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'If a song feels like it is in the key of C major but uses a Bb chord, that Bb is likely _____',
-    correctAnswer: 'bVII borrowed from Mixolydian',
-    decoys: ['a passing chord', 'a tritone substitution', 'a chromatic mediant'],
-    explanation: "When a C-major song drops a Bb chord (bVII), it's borrowing from Mixolydian or the parallel minor — a classic rock/gospel move. Stevie Wonder, Kirk Franklin, and countless worship tunes use bVII for that broad, bluesy lift without actually changing key.",
-    skillTag: 'ear-theory-bVII-borrowed' },
-  { id: 'et-4', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A song feels unresolved at the end, lingering on a bright chord a whole step below the tonic. That chord is likely _____',
-    correctAnswer: 'bVII',
-    decoys: ['IV', 'vi', 'ii'],
-    explanation: "A song that ends hanging on bVII (Bb in the key of C major) feels suspended, unfinished — it's a flat-seven ending instead of a clean tonic resolution. Common in modern indie, gospel-leaning soul, and any track where the writer wants to avoid too-tidy closure (Frank Ocean, Tom Misch sometimes leave songs there).",
-    skillTag: 'ear-theory-ending-on-bVII' },
-  { id: 'et-5', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A minor chord that sounds "floating" and contemplative when used as a tonic is most likely _____',
-    correctAnswer: 'i minor 11 (Dorian feel)',
-    decoys: ['i minor 7 (natural minor)', 'i half-diminished', 'i minor-major 7'],
-    explanation: "A 'floating' minor tonic chord is almost always a i minor 11 in a Dorian context — the natural 6 plus the rich stack of 9-11 extensions gives it the airy, never-quite-resolving quality you hear in D'Angelo, Erykah Badu, and Robert Glasper vamps.",
-    skillTag: 'ear-theory-dorian-floating' },
-  { id: 'et-6', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A progression that feels like it keeps "almost resolving" but defers is using _____',
-    correctAnswer: 'deceptive cadences (V - vi)',
-    decoys: ['plagal cadences (IV - I)', 'half cadences (ending on V)', 'modal interchange'],
-    explanation: "A progression that keeps 'almost resolving' is leaning on deceptive cadences — V slides to vi instead of I, postponing the real resolution. Soul, gospel, and R&B writers use this to extend a bridge or build emotional weight before the real landing finally arrives.",
-    skillTag: 'ear-theory-deferred-resolution' },
-  { id: 'et-7', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A chord that sounds "suspended" and wants to pull down to a major triad is most likely _____',
-    correctAnswer: 'sus4',
-    decoys: ['sus2', 'major 7', 'add9'],
-    explanation: "A sus4 chord replaces the 3rd with the 4th, creating a 'held' tension that wants to resolve down to a major triad. Gospel cadences (V7sus4 → V7 → I) lean on this exact move — that suspension-and-release is one of the most identifiable sounds in church music.",
-    skillTag: 'ear-theory-sus4-tension' },
-  { id: 'et-8', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A song in a major key suddenly sounds "cinematic and dreamy" on the IV chord. That chord is most likely _____',
-    correctAnswer: 'IV maj7#11',
-    decoys: ['IV 7', 'IV 6/9', 'iv minor'],
-    explanation: "A IV chord that sounds dreamy/cinematic is usually a maj7#11 — borrowing from Lydian. That raised 4th is the 'shimmering' color; PJ Morton, Robert Glasper, and modern gospel arrangers use it for lift on the IV when they want the song to bloom open.",
-    skillTag: 'ear-theory-lydian-IV' },
-  { id: 'et-9', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'The "James Bond chord" — a minor triad with a major 7 — is called _____',
-    correctAnswer: 'minor-major 7',
-    decoys: ['minor 7', 'half-diminished 7', 'minor 6'],
-    explanation: "A minor triad with a raised 7th is a minor-major 7 chord — nicknamed the 'James Bond chord' for its signature use in those scores. Tense, cinematic, used sparingly for a single striking moment rather than as a sit-and-groove chord.",
-    skillTag: 'ear-theory-min-maj7' },
-  { id: 'et-10', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A chord that sounds like "the neo-soul chord" with a stacked 9th, 11th, and 13th on minor is _____',
-    correctAnswer: 'minor 11',
-    decoys: ['minor 9', 'minor-major 9', 'minor 6/9'],
-    explanation: "A minor chord stacked with 9-11-13 is a minor 11 — 'the neo-soul chord.' Lush, cloudy, rarely resolving; the signature sound of Tom Misch, D'Angelo, Jazmine Sullivan, and H.E.R. vamps where everything hangs beautifully suspended.",
-    skillTag: 'ear-theory-min11-neo-soul' },
-  { id: 'et-11', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A "Hendrix chord" sound combines which two seemingly-conflicting tones?',
-    correctAnswer: 'major 3rd and minor 3rd',
-    decoys: ['major 7 and minor 7', 'natural 5 and flat 5', '#4 and 5'],
-    explanation: "The Hendrix chord is a dom7 with a raised 9 (#9) — the major 3rd and the minor 3rd (spelled as #9) colliding to create that bluesy, knife-edge tension. Hendrix made it his signature, and you hear it all over funk, gospel cadences, and any tune that wants that 'wrong-but-right' bite.",
-    skillTag: 'ear-theory-hendrix-chord' },
-  { id: 'et-12', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A gospel resolution often uses V7sus4 before V7 to create _____',
-    correctAnswer: 'suspension-and-release tension',
-    decoys: ['modal ambiguity', 'chromatic descent', 'a deceptive resolution'],
-    explanation: "V7sus4 resolving to V7 sets up suspense — the suspended 4th pulls down to the 3rd just before resolving to I. Gospel, R&B, and worship cadences use this 'hold-then-drop' tension constantly; once you can hear it, you'll catch it in every other Sunday-morning song.",
-    skillTag: 'ear-theory-V7sus4-release' },
-  { id: 'et-13', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'When a song\'s bass descends by step while chords change above it, the technique is called _____',
-    correctAnswer: 'descending bass line',
-    decoys: ['parallel motion', 'pedal point', 'oblique harmony'],
-    explanation: "When the bass walks down by step while chords shift on top, you have a descending bass line — maybe the most universal tool in ballad writing. It's a signature move in gospel, soul, and standards (think 'A Whiter Shade of Pale,' or any Donny Hathaway slow burn).",
-    skillTag: 'ear-theory-descending-bass' },
-  { id: 'et-14', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'A Dominant 7 that does NOT resolve (it acts as the tonic) reveals which mode?',
-    correctAnswer: 'Mixolydian',
-    decoys: ['Dorian', 'Lydian', 'Phrygian'],
-    explanation: "A dominant 7 chord acting as the tonic — sitting there, not resolving — reveals Mixolydian mode (the major scale with a flat 7 instead of the leading tone). It's the harmonic bedrock of rock, funky gospel vamps, and blues-based R&B.",
-    skillTag: 'ear-theory-non-resolving-dom7' },
-  { id: 'et-15', category: 'ear-theory', categoryName: CATEGORY_LABELS['ear-theory'],
-    question: 'The IV → I move is also nicknamed _____',
-    correctAnswer: 'the Amen cadence',
-    decoys: ['the leading-tone cadence', 'the deceptive cadence', 'the half cadence'],
-    explanation: "The IV → I move is the 'Amen cadence' — named for how hymns end on those two chords sung to the word 'Amen.' Every gospel and worship musician knows it as 'the 4 back to the 1'; classical theory books call the same move the 'plagal cadence.'",
-    skillTag: 'ear-theory-amen-cadence' },
-];
+// `EAR_THEORY_CARDS` WAS HERE. Ear-Theory Crossover retired on 14 Sep 2026
+// (Silas, 13 Sep): every card described a sound in adjectives and asked
+// for the label, with nothing to hear. Ten of the fifteen asked a fact
+// another deck asks and their history moved onto that card; see
+// `lib/migrations/hfDeckCleanup.ts`.
 
 // --- Combine all -----------------------------------------------------
 
@@ -1468,7 +1384,6 @@ export const FLASHCARDS: Flashcard[] = withFacets([
   ...CHORD_CONSTRUCTION_CARDS,
   ...PROGRESSION_CARDS,
   ...SLASH_CHORD_CARDS,
-  ...EAR_THEORY_CARDS,
   ...generateEnharmonicEquivalentCards(),
   // The twelve-key expansions. APPENDED, never interleaved: every
   // generator above numbers by position, so inserting into one of

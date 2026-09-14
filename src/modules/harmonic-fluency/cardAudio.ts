@@ -725,7 +725,7 @@ export function cardSound(card: Flashcard): CardSound | null {
     }
 
     // NOTHING FOR THE REST, AND THAT IS THE HONEST ANSWER. Diatonic
-    // Chord Qualities, Chord Construction and Ear-Theory Crossover
+    // Chord Qualities and Chord Construction
     // carry no coordinates at all — a prose card about how a chord
     // feels has no key and no notes — so they are named in the report
     // rather than given a sound nobody ruled on.

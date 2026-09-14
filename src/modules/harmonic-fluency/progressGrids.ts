@@ -198,8 +198,8 @@ export const HARMONIC_FLUENCY_GRIDS: Readonly<Record<string, GridSpec>> = {
   // are a key and a degree, but FOUR cards share every cell — name it,
   // place it, press it and which-key — and a grid whose cell means four
   // different questions is a cell that cannot be coloured honestly.
-  // Diatonic Chord Qualities, Chord Construction and Ear-Theory
-  // Crossover already render without one.
+  // Diatonic Chord Qualities and Chord Construction already render
+  // without one.
 
   // Intervals compare along their SPAN, and the starting note is what
   // makes two cards of the same span different questions.

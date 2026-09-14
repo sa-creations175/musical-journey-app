@@ -110,7 +110,6 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'chord construction',       to: '/harmonic-fluency/chord-construction' },
           { label: 'progression vocabulary',   to: '/harmonic-fluency/progressions' },
           { label: 'slash chords',             to: '/harmonic-fluency/slash-chords' },
-          { label: 'ear-theory crossover',     to: '/harmonic-fluency/ear-theory' },
           // NO HARMONIC DIARY HERE. It was dual-homed — listed under
           // harmonic fluency as well as under Creative Sessions — and
           // one page in two places in one nav makes the reader work out

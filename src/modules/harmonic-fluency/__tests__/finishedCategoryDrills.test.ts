@@ -32,10 +32,11 @@ const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;
 
 // A SMALL CATEGORY, because every card in it has to be marked as not
-// due for the setup to mean anything. Tritone Pairs was 12 and is
-// retired; Ear-Theory Crossover is 15 and is the smallest that is left.
-const FINISHED: FlashcardCategory = 'ear-theory';
-const OTHER: FlashcardCategory = 'chord-construction';
+// due for the setup to mean anything. Tritone Pairs was 12 and
+// Ear-Theory Crossover 15, both retired; Chord Construction is 20, a
+// session's worth, and the smallest that is left.
+const FINISHED: FlashcardCategory = 'chord-construction';
+const OTHER: FlashcardCategory = 'functional-harmony';
 
 const cardsIn = (category: FlashcardCategory) =>
   FLASHCARDS.filter(c => c.category === category);

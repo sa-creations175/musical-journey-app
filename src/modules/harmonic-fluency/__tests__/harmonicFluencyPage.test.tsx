@@ -16,7 +16,7 @@ import HarmonicFluency from '../HarmonicFluency';
 import HarmonicFluencyCategory from '../HarmonicFluencyCategory';
 import { CATEGORY_LABELS, CATEGORY_ORDER, FLASHCARDS } from '../catalog';
 import { mixedDrillLabel } from '../../../components/moduleHome/mixedDrillLabel';
-import { db, newAttemptId, type AttemptRecord } from '../../../lib/db';
+import { db, newAttemptId, type AttemptRecord, type SpacingState } from '../../../lib/db';
 
 // Attempts carry client-minted ids (see db.ts), so seed rows are
 // stamped the way the production write path stamps them.
@@ -62,6 +62,37 @@ async function renderAt(path: string): Promise<HTMLDivElement> {
 
 const renderPage = () => renderAt('/harmonic-fluency');
 
+/**
+ * A CATEGORY THAT SERVES FEWER CARDS THAN A SESSION HOLDS, which two
+ * tests below measure a queue against.
+ *
+ * Ear-Theory Crossover did that on its own, at fifteen cards. It retired
+ * on 14 Sep 2026, and the smallest category left, Chord Construction,
+ * holds exactly a session's twenty. So half of it is marked answered and
+ * not yet due: `buildSession` fills with due and unseen cards before it
+ * ever practises ahead, so a run drawn from it alone serves the other
+ * half and no more. Returns how many that is.
+ */
+const SMALL = 'chord-construction' as const;
+async function serveFewerThanASession(): Promise<number> {
+  const DAY = 24 * 60 * 60 * 1000;
+  const cards = FLASHCARDS.filter(c => c.category === SMALL);
+  const answered = cards.slice(0, Math.ceil(cards.length / 2));
+  await db.spacingState.bulkPut(answered.map((c): SpacingState => ({
+    id: `sp-${c.id}`,
+    itemRef: c.id,
+    moduleRef: 'harmonic-fluency',
+    hand: 'both',
+    memoryType: 'declarative',
+    acquisitionStage: 'acquired',
+    currentIntervalDays: 10,
+    lastEngagedAt: Date.now() - DAY,
+    nextDueAt: Date.now() + 10 * DAY,
+    performanceHistory: [],
+  })));
+  return cards.length - answered.length;
+}
+
 const at = () =>
   container!.querySelector('[data-testid="at"]')!.getAttribute('data-path');
 
@@ -85,6 +116,7 @@ async function settle(ready: () => boolean): Promise<void> {
 
 afterEach(async () => {
   await db.attempts.clear();
+  await db.spacingState.clear();
   // The page persists its filter and its display prefs, so a test that
   // seeds one must not leave it for the next.
   await db.userPrefs.clear();
@@ -202,7 +234,7 @@ describe('the two card actions', () => {
     // IT USED TO START A RUN HERE, which meant a category had no page
     // and the nav's sub-item pointing at one had nowhere to land.
     const el = await renderPage();
-    const cat = 'ear-theory';
+    const cat = 'chord-construction';
     await click(card(cat)!.querySelector('[data-testid="category-card-toggle"]'), 'expand');
     await click(card(cat)!.querySelector('[data-testid="category-card-drill"]'), 'drill');
     expect(at()).toBe(`/harmonic-fluency/${cat}`);
@@ -213,7 +245,7 @@ describe('the two card actions', () => {
   });
 
   it('starts only that category from its page', async () => {
-    const cat = 'ear-theory';
+    const cat = 'chord-construction';
     const supply = FLASHCARDS.filter(c => c.category === cat).length;
     const el = await renderAt(`/harmonic-fluency/${cat}`);
     // Title Case, matching the home's own button.
@@ -230,15 +262,15 @@ describe('the two card actions', () => {
 
   it('spans every lit category, not just its own', async () => {
     /**
-     * THE POOL IS WHAT IS LIT. `ear-theory` holds fewer cards than a
+     * THE POOL IS WHAT IS LIT. `SMALL` serves fewer cards than a
      * session targets, so a run drawn from it alone cannot reach the
      * target — lighting a category big enough to close the gap and
      * getting a full-length queue is proof the second one joined the
      * pool. Both numbers come off the catalog.
      */
-    const own = 'ear-theory';
+    const own = SMALL;
     const added = 'scale-degree-math';
-    const supply = FLASHCARDS.filter(c => c.category === own).length;
+    const supply = await serveFewerThanASession();
     const el = await renderAt(`/harmonic-fluency/${own}`);
 
     // It starts lit, alone.
@@ -275,14 +307,14 @@ describe('the two card actions', () => {
      * being true.
      *
      * MEASURED BY QUEUE LENGTH, and the fixture is what makes that
-     * mean something. `ear-theory` holds fewer cards than a session
+     * mean something. `SMALL` serves fewer cards than a session
      * targets, so a run drawn from it alone CANNOT reach the target —
      * a full-length queue is proof the pool was not the saved filter.
      * Both numbers come off the catalog, so the day either of them
      * changes this fails rather than quietly stops testing anything.
      */
-    const POISON = 'ear-theory';
-    const supply = FLASHCARDS.filter(c => c.category === POISON).length;
+    const POISON = SMALL;
+    const supply = await serveFewerThanASession();
     await db.userPrefs.put({ key: 'harmonicFluencyCategoryFilter', value: [POISON] });
 
     const el = await renderPage();
@@ -307,7 +339,7 @@ describe('the two card actions', () => {
     // ROUTE is what makes this fail on that implementation: a panel
     // opened in place would still satisfy the two lines below it.
     const el = await renderPage();
-    const cat = 'ear-theory';
+    const cat = 'chord-construction';
     await click(card(cat)!.querySelector('[data-testid="category-card-toggle"]'), 'expand');
     const detail = card(cat)!.querySelector('[data-testid="category-card-progress-detail"]');
     // Enabled here, unlike a module with no detail surface wired.

@@ -97,7 +97,8 @@ export const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroupSpec> = 
     id: 'earRecognition',
     unit: 'ear-recognition',
     title: 'Ear & Recognition',
-    categories: ['modes', 'intervals', 'ear-theory'],
+    // Ear-Theory Crossover was the third, until it retired on 14 Sep 2026.
+    categories: ['modes', 'intervals'],
   },
 ];
 

@@ -80,7 +80,11 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 152 + 254 + 265 = 1620
+// Harmonic Fluency — 949 + 152 + 254 + 250 = 1605
+// (14 Sep 2026, later: 1620 → 1605. Ear-Theory Crossover retired. Ten
+//  of its fifteen cards asked a fact another deck asks and their
+//  history folded onto that card; five had nothing to fold into.
+//  earRecognition 265 → 250, and the deck has thirteen categories.)
 // (14 Sep 2026: 1621 → 1620. `dq-extra-1`, major's 4 as a triad, is
 //  retired and its history folds into `dq-maj-4`. Diatonic Chord
 //  Qualities 30 → 29, chordKnowledge 153 → 152.)
@@ -201,12 +205,12 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(254);
   });
 
-  it('earRecognition = mo 107 + iv 143 + et 15 = 265', () => {
-    expect(c.byGroup.earRecognition).toBe(265);
+  it('earRecognition = mo 107 + iv 143 = 250', () => {
+    expect(c.byGroup.earRecognition).toBe(250);
   });
 
-  it('total = 1620 across all 14 categories', () => {
-    expect(c.total).toBe(1620);
+  it('total = 1605 across all 13 categories', () => {
+    expect(c.total).toBe(1605);
   });
 
   it('total equals sum of group totals', () => {
@@ -218,15 +222,14 @@ describe('harmonicFluencyCounts', () => {
     expect(groupSum).toBe(c.total);
   });
 
-  it('byCategory covers all 14 canonical categories', () => {
+  it('byCategory covers all 13 canonical categories', () => {
     // `named-notes`, `tritone-pairs` and `reverse-key-pivots` are absent
     // because their cards are: all three folded into `degree-notes` on
-    // 3 Sep 2026.
+    // 3 Sep 2026. `ear-theory` retired on 14 Sep 2026.
     expect(Object.keys(c.byCategory).sort()).toEqual([
       'chord-construction',
       'degree-notes',
       'diatonic-qualities',
-      'ear-theory',
       'enharmonic-equivalents',
       'functional-harmony',
       'intervals',

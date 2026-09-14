@@ -137,10 +137,6 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     'What a chord over a bass note is, and which inversion it makes. C/E '
     + 'is a C major triad with its third at the bottom — reading that '
     + 'instantly is what makes a bass line make sense.',
-  [`${HF}/Ear-Theory Crossover`]:
-    'Questions sitting between hearing and knowing: what a described '
-    + 'sound is, what a named interval feels like. The bridge the other '
-    + 'fourteen categories exist to build.',
 
   // ── Ear training ───────────────────────────────────────────────────
   [EAR]:

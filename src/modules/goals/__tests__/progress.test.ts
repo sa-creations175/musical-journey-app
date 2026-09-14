@@ -243,16 +243,15 @@ describe('getCoverageCount — specific (HF)', () => {
     )).toBe(2);
   });
 
-  it('ear-recognition group includes modes + intervals + ear-theory categories', async () => {
+  it('ear-recognition group includes modes + intervals categories', async () => {
     await db.spacingState.bulkAdd([
       makeSpacingRow(cardForCategory('modes'),     'harmonic-fluency', 'acquired'),
       makeSpacingRow(cardForCategory('intervals'), 'harmonic-fluency', 'acquired'),
-      makeSpacingRow(cardForCategory('ear-theory'),'harmonic-fluency', 'acquired'),
     ]);
     expect(await getCoverageCount(
       COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY,
       'ear-recognition',
-    )).toBe(3);
+    )).toBe(2);
   });
 
   it('returns 0 for unknown HF group id', async () => {

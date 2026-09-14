@@ -52,13 +52,15 @@ describe('which cards stop being multiple choice', () => {
   });
 
   it('leaves the rest of the deck alone', () => {
-    // The deck is 1,620 (1,611 before the minors of 13 Sep 2026, 1,621
-    // before `dq-extra-1` retired on 14 Sep) and does not move; what
+    // The deck is 1,605 (1,611 before the minors of 13 Sep 2026, 1,621
+    // before `dq-extra-1` retired on 14 Sep, 1,620 before Ear-Theory
+    // Crossover's fifteen did) and does not move; what
     // changes is the answer surface on 259 of them.
-    expect(FLASHCARDS).toHaveLength(1620);
+    expect(FLASHCARDS).toHaveLength(1605);
     // The ten minor cards of 13 Sep 2026 stay on their buttons: 1339 →
     // 1349. The retired triad card was on its buttons too: 1349 → 1348.
-    expect(FLASHCARDS.length - withTarget.length).toBe(1348);
+    // Ear-Theory Crossover's fifteen were on buttons too: 1348 → 1333.
+    expect(FLASHCARDS.length - withTarget.length).toBe(1333);
   });
 
   it('leaves the parallel-minor cards on their buttons', () => {

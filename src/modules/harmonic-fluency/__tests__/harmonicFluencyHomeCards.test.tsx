@@ -38,7 +38,7 @@ const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.now();
 
 /** Two items in ONE category, on very different schedules. */
-const CAT = 'ear-theory' as const;
+const CAT = 'chord-construction' as const;
 const ITEMS = FLASHCARDS.filter(c => c.category === CAT).slice(0, 2);
 const SLOW = ITEMS[0].id;   // 30-day interval
 const FAST = ITEMS[1].id;   // 2-day interval

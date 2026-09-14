@@ -228,7 +228,7 @@ export const BLIND_RULES: ReadonlyArray<BlindRule> = [
         : null;
     },
     scope: {
-      categories: ['intervals', 'ear-theory'],
+      categories: ['intervals'],
       because:
         'Deck-wide this fires on 211 cards and is right on 53 — 25%, which '
         + 'is chance exactly, and asserting it everywhere would fail cards '
@@ -236,8 +236,9 @@ export const BLIND_RULES: ReadonlyArray<BlindRule> = [
         + '8 of 13 (62%) and intervals 9 of 18 (50%), because an answer '
         + 'that names a sound in words sits beside decoys that name it in '
         + 'symbols. Measured after the fourteen bracketed answers were '
-        + 'stripped, which moved ear-theory from 9 of 14. Re-measure '
-        + 'before widening this.',
+        + 'stripped, which moved ear-theory from 9 of 14. Ear-Theory '
+        + 'Crossover retired on 14 Sep 2026, which leaves intervals. '
+        + 'Re-measure before widening this.',
     },
   },
   {

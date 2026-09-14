@@ -78,7 +78,8 @@ const card = (id: string) => {
 
 /** Retired since the strip, so there is nothing left to assert about
  *  their explanations. Named rather than filtered silently. */
-const RETIRED_SINCE = new Set(['pent-1', 'pent-9']);
+// `et-1`, `et-8` and `et-11` went with Ear-Theory Crossover on 14 Sep 2026.
+const RETIRED_SINCE = new Set(['pent-1', 'pent-9', 'et-1', 'et-8', 'et-11']);
 
 describe('the fourteen stripped answers', () => {
   it('covers every card that had a lone bracket', () => {

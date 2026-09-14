@@ -5,6 +5,8 @@ import type { PracticeActivity } from './practiceActivities';
 import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
 import { foldRetiredChordCards } from './migrations/retire913';
 import { foldRetiredDiatonicCard } from './migrations/retireDqExtra1';
+import { foldEarTheoryCrossover } from './migrations/hfDeckCleanup';
+import { describeCardFold } from './migrations/foldHarmonicFluencyCards';
 
 export interface IntervalData {
   id: string;
@@ -4833,12 +4835,21 @@ export class AppDB extends Dexie {
      */
     this.version(44).stores({}).upgrade(async tx => {
       const n = await foldRetiredDiatonicCard(tx);
-      console.info(
-        `[harmonic-fluency] dq-extra-1 folded into dq-maj-4: ${n.attempts} attempt(s), `
-        + `${n.spacingMoved} spacing row(s) moved and ${n.spacingMerged} merged, `
-        + `${n.diaryMoved} diary entr(ies) moved and ${n.diaryMerged} merged, `
-        + `${n.annotations} annotation(s), ${n.goals} goal(s), ${n.blocks} practice block(s).`,
-      );
+      console.info(describeCardFold('dq-extra-1 folded into dq-maj-4', n));
+    });
+
+    /**
+     * =================================================================
+     * v45 — EAR-THEORY CROSSOVER RETIRES (Silas, 13 Sep 2026). Ten of its
+     * fifteen cards ask a fact another deck already asks, and their
+     * history folds onto that card. The other five keep their rows where
+     * they are, for the orphan sweep to name. No index moves; the rules
+     * live in `migrations/hfDeckCleanup.ts`.
+     * =================================================================
+     */
+    this.version(45).stores({}).upgrade(async tx => {
+      const n = await foldEarTheoryCrossover(tx);
+      console.info(describeCardFold('Ear-Theory Crossover folded', n));
     });
   }
 }
