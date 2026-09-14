@@ -12,6 +12,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
+import { cardKind } from '../cardKind';
 import { GENERATED_CARD_PAIRING } from './generatedCardPairing';
 
 /**
@@ -38,11 +39,17 @@ const GENERATED_CATEGORIES = [
   'modal-improvisation',
 ] as const;
 
-/** Today's pairing, in the same `id|question` shape as the fixture. */
+/**
+ * Today's pairing, in the same `id|question` shape as the fixture.
+ *
+ * WALKED BY KIND, not by family, since Pentatonic Scales folded into
+ * Scales & Modes (14 Sep 2026): the fixture's sections are the families
+ * as they were, and not one card moved.
+ */
 function currentPairing(): string[] {
   const out: string[] = [];
   for (const cat of GENERATED_CATEGORIES) {
-    for (const c of FLASHCARDS.filter(c => c.category === cat)) {
+    for (const c of FLASHCARDS.filter(c => cardKind(c) === cat)) {
       out.push(`${c.id}|${c.question}`);
     }
   }
@@ -65,7 +72,7 @@ describe('every generated id still addresses its own card', () => {
     // checking less.
     const pinned = new Set(EXPECTED.map(l => l.split('|')[0]));
     for (const cat of GENERATED_CATEGORIES) {
-      const cards = FLASHCARDS.filter(c => c.category === cat);
+      const cards = FLASHCARDS.filter(c => cardKind(c) === cat);
       expect(cards.length).toBeGreaterThan(0);
       for (const c of cards) expect(pinned.has(c.id)).toBe(true);
     }

@@ -67,6 +67,21 @@ function rowNamed(el: HTMLElement, label: string): HTMLElement {
   return found;
 }
 
+/**
+ * The row named `label` inside one module.
+ *
+ * "Scales & Modes" names two rows since 14 Sep 2026: Ear Training's
+ * sub-module and Harmonic Fluency's family. The name alone would find
+ * whichever module the tree draws first.
+ */
+function rowNamedIn(el: HTMLElement, moduleId: string, label: string): HTMLElement {
+  const found = rows(el).find(r =>
+    r.getAttribute('data-node-id')?.startsWith(moduleId)
+    && r.querySelector('span[title]')?.textContent === label);
+  if (!found) throw new Error(`no ${moduleId} row labelled ${label}`);
+  return found;
+}
+
 function drillButton(row: HTMLElement): HTMLElement {
   return row.querySelector('[data-testid="drill-affordance"]') as HTMLElement;
 }
@@ -581,7 +596,7 @@ describe('the drill affordance', () => {
     // a scale and naming a mode over a vamp are different skills. The
     // right mode in the wrong tab is a drill of something else.
     const el = await renderScreen();
-    click(rowNamed(el, 'Scales & Modes').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamedIn(el, 'ear-training', 'Scales & Modes').querySelector('[data-testid="expand-toggle"]')!);
     click(rowNamed(el, 'Dorian').querySelector('[data-testid="expand-toggle"]')!);
 
     click(drillButton(rowNamed(el, 'Hear Mode In Context')));
@@ -598,7 +613,7 @@ describe('the drill affordance', () => {
   it('offers the whole submodule when one mode is too small', async () => {
     // The climb: Dorian is one mode, and the row above it is nine.
     const el = await renderScreen();
-    click(rowNamed(el, 'Scales & Modes').querySelector('[data-testid="expand-toggle"]')!);
+    click(rowNamedIn(el, 'ear-training', 'Scales & Modes').querySelector('[data-testid="expand-toggle"]')!);
     click(drillButton(rowNamed(el, 'Dorian')));
     expect(el.querySelector('[data-testid="small-pool-offer"]')!.textContent)
       .toBe('Drill Scales & Modes (9 items) instead');

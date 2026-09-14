@@ -22,6 +22,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS, CATEGORY_ORDER } from '../catalog';
+import { cardKind } from '../cardKind';
 import {
   FACET_VALUES, OPEN_VOCABULARY, facetsFor, withFacets,
   type CardFacets, type FacetName,
@@ -87,8 +88,9 @@ describe('the two collisions this ends', () => {
       expect(card.facets?.degree, card.id).toBeUndefined();
       expect(card.facets?.fromDegree, card.id).toBeTypeOf('number');
     }
+    // By KIND: Scales & Modes' pentatonic cards carry a note, not a degree.
     for (const cat of ['degree-notes', 'modes'] as const) {
-      for (const card of FLASHCARDS.filter(c => c.category === cat)) {
+      for (const card of FLASHCARDS.filter(c => cardKind(c) === cat)) {
         if (card.facets === undefined) continue;
         expect(card.facets.fromDegree, card.id).toBeUndefined();
         expect(card.facets.degree, card.id).toBeTypeOf('string');
@@ -106,7 +108,7 @@ describe('the two collisions this ends', () => {
     // The family adds `semitones` — the distance is a third thing it
     // knows and Mode Identification does not, and it is what lets the
     // ♯4 and the ♭5 be gathered with the interval cards.
-    const mode = FLASHCARDS.find(c => c.category === 'modes' && c.facets)!;
+    const mode = FLASHCARDS.find(c => cardKind(c) === 'modes' && c.facets)!;
     expect(Object.keys(mode.facets!).sort()).toEqual(['degree', 'key']);
     const dgn = FLASHCARDS.find(c => c.category === 'degree-notes' && c.facets)!;
     expect(Object.keys(dgn.facets!).sort())
@@ -115,7 +117,7 @@ describe('the two collisions this ends', () => {
 
   it('gives the four things that shared `shape` four different names', () => {
     const facetOf = (cat: string) => {
-      const card = FLASHCARDS.find(c => c.category === cat && c.facets)!;
+      const card = FLASHCARDS.find(c => cardKind(c) === cat && c.facets)!;
       return Object.keys(card.facets!).filter(k => k !== 'key' && k !== 'note');
     };
     // ONE FACET, NOT TWO (ruling 26). Functional Harmony's three and
@@ -131,7 +133,7 @@ describe('the two collisions this ends', () => {
     // `note`, `from`, `root` and `spelling` were four names for the
     // same claim.
     for (const cat of ['intervals', 'pentatonic-scales'] as const) {
-      const card = FLASHCARDS.find(c => c.category === cat && c.facets)!;
+      const card = FLASHCARDS.find(c => cardKind(c) === cat && c.facets)!;
       expect(card.facets!.note, cat).toBeTypeOf('string');
     }
   });

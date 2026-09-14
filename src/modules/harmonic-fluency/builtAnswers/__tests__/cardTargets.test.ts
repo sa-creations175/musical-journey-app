@@ -46,7 +46,9 @@ describe('which cards stop being multiple choice', () => {
       'chord-construction': 91,
       // 52 that answer with a key plus the 13 that answer with a count.
       'key-signatures': 65,
-      'pentatonic-scales': 38,
+      // The 38 pentatonic cards, filed under Scales & Modes since 14 Sep
+      // 2026 and building on the keyboard as they did before.
+      modes: 38,
       progressions: 78,
       'slash-chords': 91,
     });

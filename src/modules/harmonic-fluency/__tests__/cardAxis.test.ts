@@ -151,13 +151,12 @@ describe('absent means flat list, not broken', () => {
       'key-signatures': 73,
       // 33 before ruling 42 — three modes in eleven keys. Every mode
       // in every key now, and F♯ major and G♭ major are two of them.
-      'modes': 91,
+      // Scales & Modes since 14 Sep 2026: 91 generated mode cards and the
+      // 38 pentatonic cards, every one with coordinates.
+      'modes': 129,
       // Ruling 43: every note by every distance, less the six
       // combinations that would need a double accidental.
       'degree-notes': 625,
-      // 36 before commit 8, when five formula cards carried none.
-      // Every pentatonic card has a root now.
-      'pentatonic-scales': 38,
       // 6 before commit 8 — one shape in six keys. Six named
       // progressions across thirteen keys now, under a prefix that has
       // never existed.

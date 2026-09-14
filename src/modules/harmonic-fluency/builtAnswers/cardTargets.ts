@@ -29,6 +29,7 @@ import { pitchClassOf } from '../../../lib/spelling';
 import type { QualityId } from '../../../lib/builtAnswers/chordShapes';
 import { CHORD_INTERVALS } from '../../../lib/builtAnswers/chordShapes';
 import type { Flashcard } from '../catalog';
+import { cardKind } from '../cardKind';
 import {
   SLASH_SHAPES, degreeAsciiOrNull, noteLabel, progressionVariation,
   progressionVoicing,
@@ -166,7 +167,9 @@ export function builtTargetFor(card: Flashcard): BuiltTarget | null {
   const key = str(axis.key);
   const shape = str(axis.shape);
 
-  switch (card.category) {
+  // By kind: a pentatonic card builds on the keyboard in Scales & Modes
+  // exactly as it did in its own family.
+  switch (cardKind(card)) {
     case 'progressions': {
       if (key === undefined || shape === undefined) return null;
       const voicing = progressionVoicing(shape);

@@ -59,6 +59,7 @@
  * =====================================================================
  */
 import type { Flashcard } from './catalog';
+import { cardKind } from './cardKind';
 import { DEGREE_BY_ID } from './chromaticDegrees';
 import { LETTERS } from '../reading/pitch';
 import { qualityByShape } from './scaleDegreeQuality';
@@ -315,7 +316,9 @@ export function facetsFor(card: Flashcard): CardFacets | undefined {
   const axis = (card as Flashcard & { axis?: Axis }).axis;
   const f: CardFacets = {};
 
-  switch (card.category) {
+  // By the card's kind: Scales & Modes offers the union of what its mode
+  // and pentatonic cards each carry.
+  switch (cardKind(card)) {
     case 'scale-degree-math':
       // The one place `degree` meant a STARTING degree. It has its own
       // name now, and this category carries no key and no note.

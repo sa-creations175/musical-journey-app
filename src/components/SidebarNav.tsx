@@ -105,7 +105,7 @@ const NAV_GROUPS: NavGroup[] = [
           { label: 'diatonic chord qualities', to: '/harmonic-fluency/diatonic-qualities' },
           { label: 'functional harmony',       to: '/harmonic-fluency/functional-harmony' },
           { label: 'key signatures',           to: '/harmonic-fluency/key-signatures' },
-          { label: 'modes',                    to: '/harmonic-fluency/modes' },
+          { label: 'scales and modes',         to: '/harmonic-fluency/modes' },
           { label: 'intervals',                to: '/harmonic-fluency/intervals' },
           { label: 'chord construction',       to: '/harmonic-fluency/chord-construction' },
           { label: 'progression vocabulary',   to: '/harmonic-fluency/progressions' },

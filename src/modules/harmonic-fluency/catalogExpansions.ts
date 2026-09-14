@@ -18,6 +18,7 @@ import {
   noteLabel as pentNoteLabel, noteList, pentatonicDecoys,
   relativeMinorRoot, scaleName,
 } from './pentatonics';
+import { SCALES_AND_MODES_CATEGORY_NAME } from './cardKind';
 
 /**
  * The twelve keys, generated rather than hand-written.
@@ -487,7 +488,7 @@ function buildModeCards(
       const start = degreeLabel(root, degree);
       const startGlossed = degreeLabelGlossed(root, degree);
       out.push({
-        ...base('modes', 'Modes'),
+        ...base('modes', SCALES_AND_MODES_CATEGORY_NAME),
         id: opts.id(root, degree),
         // THE KEY AS WRITTEN. The coordinate has to separate F♯ major
         // from G♭ major for the same reason the id does — a filter that
@@ -1450,7 +1451,7 @@ export function generatePentatonicNotesCards(): Flashcard[] {
     const notes = minorPentatonic(root);
     if (notes === null) continue;
     out.push({
-      ...base('pentatonic-scales', 'Pentatonic Scales'),
+      ...base('modes', SCALES_AND_MODES_CATEGORY_NAME),
       id: `pent-notes-minor-${root}`,
       // THE IDENTITY ROOT FOR MINOR, THE ROOT AS WRITTEN FOR MAJOR,
       // and the asymmetry is the honest one. C♯ minor pentatonic and
@@ -1473,7 +1474,7 @@ export function generatePentatonicNotesCards(): Flashcard[] {
     const notes = majorPentatonic(root);
     if (notes === null) continue;
     out.push({
-      ...base('pentatonic-scales', 'Pentatonic Scales'),
+      ...base('modes', SCALES_AND_MODES_CATEGORY_NAME),
       id: `pent-notes-major-${root}`,
       axis: { root, shape: 'major' },
       question: `In ${scaleName(root, 'major')} major pentatonic, the notes are _____`,
@@ -1524,14 +1525,14 @@ export function generatePentatonicLickCards(): Flashcard[] {
     const id = `pent-lick-${root}`;
     const answer = `${pentNoteLabel(rel)} minor pentatonic`;
     return [{
-      ...base('pentatonic-scales', 'Pentatonic Scales'),
+      ...base('modes', SCALES_AND_MODES_CATEGORY_NAME),
       id,
       axis: { root, shape: 'lick' },
       question: `You're in the key of ${scaleName(root, 'major')} major. `
         + 'Which minor pentatonic fits for riffs and licks?',
       correctAnswer: answer,
       decoys: chooseDecoys(answer, answers, {
-        count: 3, seed: id, label: id, category: 'pentatonic-scales',
+        count: 3, seed: id, label: id, category: 'modes',
       }),
       explanation: `${scaleName(root, 'major')} major pentatonic is `
         + `${noteList(majorNotes)}. Start on the 6th and you are in `

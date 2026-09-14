@@ -55,9 +55,16 @@
  * keeps meaning what it meant on the day it was set: each keeps its own
  * family list (`HF_RETIRED_GROUPS`), is counted from it, and is offered by
  * no picker.
+ *
+ * SCALES & MODES, LATER THE SAME DAY. Pentatonic Scales folded into
+ * `modes`, so a live group lists `modes` once and holds all 139. The
+ * retired two still count by the families as they were filed that day —
+ * pentatonic cards in `foundational`, mode cards in `ear-recognition` —
+ * which is `hfUnitHoldsCard` reading `cardKind` for a retired unit.
  * =====================================================================
  */
 import type { FlashcardCategory } from './catalog';
+import { cardKind } from './cardKind';
 
 /** The camelCase field on `harmonicFluencyCounts().byGroup`. */
 export type HarmonicFluencyGroupId =
@@ -97,7 +104,7 @@ export const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroupSpec> = 
     title: 'Notes, Degrees, Scales & Keys',
     categories: [
       'degree-notes', 'scale-degree-math', 'key-signatures',
-      'enharmonic-equivalents', 'intervals', 'pentatonic-scales', 'modes',
+      'enharmonic-equivalents', 'intervals', 'modes',
     ],
   },
   {
@@ -166,3 +173,18 @@ export const HF_GROUP_TITLE: Readonly<Record<string, string>> = Object.fromEntri
   ...HARMONIC_FLUENCY_GROUPS.map(g => [g.unit, g.title] as const),
   ...HF_RETIRED_GROUPS.map(g => [g.unit, g.title] as const),
 ]);
+
+const RETIRED_UNITS: ReadonlySet<string> = new Set(HF_RETIRED_GROUPS.map(g => g.unit));
+
+/**
+ * Whether a stored unit holds this card. The one test every goal, stage
+ * and scope walk asks, so the retired units cannot be read two ways.
+ */
+export function hfUnitHoldsCard(
+  unit: string,
+  card: { id: string; category: FlashcardCategory },
+): boolean {
+  const categories = HF_CATEGORIES_BY_UNIT[unit];
+  if (categories === undefined) return false;
+  return categories.includes(RETIRED_UNITS.has(unit) ? cardKind(card) : card.category);
+}

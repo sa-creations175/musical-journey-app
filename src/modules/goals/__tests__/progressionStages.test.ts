@@ -18,6 +18,7 @@ import {
   progressionForGoal,
 } from '../progressionStages';
 import { FLASHCARDS } from '../../harmonic-fluency/catalog';
+import { cardKind } from '../../harmonic-fluency/cardKind';
 import { CHORD_SEEDS } from '../../ear-training/chord-recognition/seed';
 import { INTERVAL_SEEDS } from '../../ear-training/intervals/seed';
 import { PRODUCTION_PATHS } from '../../production/content/paths';
@@ -203,11 +204,16 @@ describe('HF progression — 3 category-group stages', () => {
     // A goal keeps meaning what it meant on the day it was set.
     const found = progressionForGoal('harmonic-fluency', 'foundational');
     expect(found.map(s => s.id)).toEqual(['hf-foundational']);
-    const cats = new Set(found[0].itemRefs.map(id => FLASHCARDS.find(c => c.id === id)!.category));
+    // BY KIND: the pentatonic cards are filed under Scales & Modes since
+    // 14 Sep 2026, and a goal set on Foundational still holds them.
+    const cats = new Set(found[0].itemRefs.map(id => cardKind(FLASHCARDS.find(c => c.id === id)!)));
     expect([...cats].sort()).toEqual(
       ['degree-notes', 'enharmonic-equivalents', 'key-signatures', 'pentatonic-scales', 'scale-degree-math'],
     );
-    expect(progressionForGoal('harmonic-fluency', 'ear-recognition').map(s => s.id)).toEqual(['hf-ear']);
+    const ear = progressionForGoal('harmonic-fluency', 'ear-recognition');
+    expect(ear.map(s => s.id)).toEqual(['hf-ear']);
+    // And Ear & Recognition does not gain them.
+    expect(ear[0].itemRefs.some(id => id.startsWith('pent-'))).toBe(false);
   });
 
   it('every stage item id maps to a real flashcard', () => {

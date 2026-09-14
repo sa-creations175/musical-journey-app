@@ -33,7 +33,7 @@
 import { db, type AcquisitionStage, type AttemptRecord, type Goal, type GoalScope, type SpacingState } from '../../lib/db';
 import { MIN_ATTEMPTS_FOR_TIER } from '../../lib/tier';
 import { cardById, type FlashcardCategory } from '../harmonic-fluency/catalog';
-import { HF_CATEGORIES_BY_UNIT } from '../harmonic-fluency/coverageGroups';
+import { HF_CATEGORIES_BY_UNIT, hfUnitHoldsCard } from '../harmonic-fluency/coverageGroups';
 import { lessonsByPath } from '../production/content/lessons';
 import {
   COVERAGE_OVERALL_METRIC,
@@ -237,12 +237,10 @@ export async function getCoverageCount(
   }
   if (metric === COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY) {
     if (!subArea) return 0;
-    const categories = HF_GROUP_CATEGORIES[subArea];
-    if (!categories) return 0;
-    const categorySet = new Set<FlashcardCategory>(categories);
+    if (!HF_GROUP_CATEGORIES[subArea]) return 0;
     return countCoveredSpacingRows([HF_MODULE_REF], itemRef => {
       const card = cardById(itemRef);
-      return card ? categorySet.has(card.category) : false;
+      return card ? hfUnitHoldsCard(subArea, card) : false;
     });
   }
   if (metric === COVERAGE_SPECIFIC_METRIC.SHAPES) {

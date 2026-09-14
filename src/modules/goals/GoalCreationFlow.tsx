@@ -19,6 +19,7 @@ import { computeSongLevelState } from '../repertoire/matrix/songLevelState';
 import { DEFAULT_STAGE } from '../repertoire/stage';
 import { assignNextLearningOrder } from '../repertoire/seedSongs';
 import { CATEGORY_LABELS, type FlashcardCategory } from '../harmonic-fluency/catalog';
+import { RETIRED_CATEGORY_HOME } from '../harmonic-fluency/cardKind';
 import {
   HARMONIC_FLUENCY_GROUPS as HF_COVERAGE_GROUPS,
 } from '../harmonic-fluency/coverageGroups';
@@ -4128,7 +4129,10 @@ export function decodeHarmonicFluency(goal: Goal): HarmonicFluencyTarget {
     t.accuracyEnabled = true;
     t.accuracyScope = 'specific';
     t.accuracyPercent = typeof goal.targetValue === 'number' ? goal.targetValue : t.accuracyPercent;
-    t.categoryId = (goal.targetUnit as FlashcardCategory) || null;
+    // A goal stored against a folded family edits as the family that
+    // holds its cards: `pentatonic-scales` opens on Scales & Modes.
+    const stored = (goal.targetUnit as FlashcardCategory) || null;
+    t.categoryId = stored === null ? null : (RETIRED_CATEGORY_HOME[stored] ?? stored);
   } else if (goal.targetMetric === 'harmonic_fluency_days_per_cadence') {
     t.consistencyEnabled = true;
     t.consistencyCount =

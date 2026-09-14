@@ -141,10 +141,10 @@ key is named, and the hand-written prose cards with it:
 | family | now reads |
 |---|---|
 | Progression Vocabulary | The 2-5-1 in the key of B♭ major is _____ |
-| Mode Identification | The mode of the key of C major starting on D is _____ |
+| Scales & Modes | The mode of the key of C major starting on D is _____ |
 | Notes of the Number System | In the key of C major, what is the ♭6? |
 | Functional Harmony | 5 of 6 in the key of C major resolves to _____ |
-| Pentatonic Scales | You're in the key of C major. Which minor pentatonic fits… |
+| Scales & Modes | You're in the key of C major. Which minor pentatonic fits… |
 | Key Signatures | The parallel minor of the key of D major is _____ |
 | Modal Improvisation | Dm is the 2 of the key of C major. |
 

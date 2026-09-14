@@ -109,7 +109,9 @@ describe('the nav moves the page', () => {
     await render('/harmonic-fluency/modes');
     expect(page().getAttribute('data-category')).toBe('modes');
     expect(litChips()).toEqual(['modes']);
-    expect(detailBlockKeys()).toEqual(['modes']);
+    // Scales & Modes draws two blocks for its one chip: the mode grid
+    // and the pentatonic grid (14 Sep 2026).
+    expect(detailBlockKeys()).toEqual(['modes', 'pentatonic-scales']);
 
     await click(navItem('intervals'));
 
@@ -140,8 +142,15 @@ describe('the detail block mirrors the chip row', () => {
 
   it('opens the page\u2019s own category and nothing else', async () => {
     await render('/harmonic-fluency/modes?also=intervals');
-    expect(detailKeys()!.sort()).toEqual(['intervals', 'modes']);
-    expect(expandedKeys()).toEqual(['modes']);
+    expect(detailKeys()!.sort()).toEqual(['intervals', 'modes', 'pentatonic-scales']);
+    // Both of the page's own family's blocks, and not the lit neighbour.
+    expect(expandedKeys()).toEqual(['modes', 'pentatonic-scales']);
+  });
+
+  it('sends the folded Pentatonic Scales address to Scales & Modes, keeping its query', async () => {
+    await render('/harmonic-fluency/pentatonic-scales?also=intervals');
+    expect(page().getAttribute('data-category')).toBe('modes');
+    expect(litChips().sort()).toEqual(['intervals', 'modes']);
   });
 
   it('gives Scale Degree Math its 7 x 24 grid', async () => {
@@ -180,7 +189,7 @@ describe('the chip row writes the same value', () => {
     expect(litChips().sort()).toEqual(['intervals', 'modes']);
     const details = [...container!.querySelectorAll('[data-testid="category-detail"]')];
     expect(details.map(d => d.getAttribute('data-detail-key')).sort())
-      .toEqual(['intervals', 'modes']);
+      .toEqual(['intervals', 'modes', 'pentatonic-scales']);
     // The new one arrives COLLAPSED — lighting is not opening.
     expect(details.find(d => d.getAttribute('data-detail-key') === 'intervals')!
       .getAttribute('data-expanded')).toBe('false');
@@ -211,8 +220,11 @@ describe('Select All on the chip row', () => {
     // that lit some fixed subset the catalogue has since outgrown.
     expect(litChips()).toEqual(allChips());
     expect(litChips().length).toBeGreaterThan(1);
-    // The detail blocks are derived from the same value, so they follow.
-    expect(detailBlockKeys()).toEqual(allChips());
+    // The detail blocks are derived from the same value, so they follow —
+    // Scales & Modes with its second, pentatonic block.
+    expect(detailBlockKeys()).toEqual(
+      allChips().flatMap(k => (k === 'modes' ? ['modes', 'pentatonic-scales'] : [k])),
+    );
   });
 
   it('has nothing left to do afterwards', async () => {

@@ -18,7 +18,7 @@
  * is always the one that falls behind.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import ModuleHomeHeader from '../../components/moduleHome/ModuleHomeHeader';
 import { db } from '../../lib/db';
@@ -42,14 +42,34 @@ import FacetFilterRow from './FacetFilterRow';
 import { readFacetFilter, withFacetValues, withoutFacets } from './facetFilter';
 import type { FacetName } from './facets';
 import { FLASHCARDS } from './catalog';
+import { isPentatonicCard, RETIRED_CATEGORY_HOME } from './cardKind';
 import { useDetailLanding } from '../../lib/detailLanding';
-import { isCategory } from './categoryRoutes';
+import { categoryPath, isCategory } from './categoryRoutes';
 import type { SessionStats } from './HarmonicFluencySession';
 import { CATEGORY_LABELS, CATEGORY_ORDER, type FlashcardCategory } from './catalog';
 
 /** The row's options — one per category, in the order the module
  *  teaches them. Derived, never listed. */
 const POOL_OPTIONS = CATEGORY_ORDER.map(id => ({ id, label: CATEGORY_LABELS[id] }));
+
+/**
+ * The detail blocks a family draws, each with its own grid.
+ *
+ * ONE PER FAMILY, EXCEPT SCALES & MODES. Its mode cards sit on a key ×
+ * number grid and its pentatonic cards on a root × shape grid, and one
+ * table cannot hold both axes. So the family draws two blocks: the mode
+ * grid under the family's name, the pentatonic grid under the name its
+ * grid has always had.
+ */
+function detailPartsOf(
+  category: FlashcardCategory,
+): Array<{ key: FlashcardCategory; holds: (itemId: string) => boolean }> {
+  if (category !== 'modes') return [{ key: category, holds: () => true }];
+  return [
+    { key: 'modes', holds: id => !isPentatonicCard({ id }) },
+    { key: 'pentatonic-scales', holds: id => isPentatonicCard({ id }) },
+  ];
+}
 
 /**
  * THE PARAM IS THE PAGE'S IDENTITY, so it keys the body.
@@ -62,6 +82,17 @@ const POOL_OPTIONS = CATEGORY_ORDER.map(id => ({ id, label: CATEGORY_LABELS[id] 
  */
 export default function HarmonicFluencyCategory() {
   const { category } = useParams<{ category: string }>();
+  const { search } = useLocation();
+
+  // A FOLDED FAMILY'S ADDRESS STILL ARRIVES. `/harmonic-fluency/pentatonic-scales`
+  // was a page until 14 Sep 2026; a saved link lands on the family that
+  // holds those cards now, with whatever it asked for kept.
+  const home = category === undefined
+    ? undefined
+    : RETIRED_CATEGORY_HOME[category as FlashcardCategory];
+  if (home !== undefined) {
+    return <Navigate to={`${categoryPath(home)}${search}`} replace />;
+  }
 
   // A slug that is not a category is a bad link, not a page. Home,
   // rather than an empty drill over nothing.
@@ -117,7 +148,7 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
    * would make it impossible.
    */
   const [expandedDetails, setExpandedDetails] = useState<ReadonlySet<string>>(
-    () => new Set([category]),
+    () => new Set(detailPartsOf(category).map(p => p.key)),
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [flaggedOnly, setFlaggedOnly] = useState(false);
@@ -183,14 +214,15 @@ function CategoryPage({ category }: { category: FlashcardCategory }) {
    * pool — the defect this page had before the pool moved to the URL.
    */
   const detailEntries: DetailEntry[] = useMemo(
-    () => CATEGORY_ORDER.filter(c => lit.has(c)).map(c => ({
-      key: c,
-      label: CATEGORY_LABELS[c],
-      grid: HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS[c]] ?? null,
+    () => CATEGORY_ORDER.filter(c => lit.has(c)).flatMap(c => detailPartsOf(c).map(part => ({
+      key: part.key,
+      label: CATEGORY_LABELS[part.key],
+      grid: HARMONIC_FLUENCY_GRIDS[CATEGORY_LABELS[part.key]] ?? null,
       items: (records ?? []).filter(
-        r => r.moduleId === MODULE_ID && r.category === CATEGORY_LABELS[c],
+        r => r.moduleId === MODULE_ID && r.category === CATEGORY_LABELS[c]
+          && part.holds(r.itemId),
       ),
-    })),
+    }))),
     [lit, records],
   );
 

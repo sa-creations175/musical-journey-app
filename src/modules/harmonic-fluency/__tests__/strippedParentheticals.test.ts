@@ -28,6 +28,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
+import { isPentatonicCard } from '../cardKind';
 import { BLIND_RULES } from '../decoyGuard';
 
 /**
@@ -149,7 +150,7 @@ describe('the fourteen stripped answers', () => {
     for (const id of ['pent-1', 'pent-2']) {
       expect(FLASHCARDS.some(c => c.id === id), id).toBe(false);
     }
-    expect(FLASHCARDS.some(c => c.category === 'pentatonic-scales'
+    expect(FLASHCARDS.some(c => isPentatonicCard(c)
       && /make up the .* pentatonic scale/.test(c.question))).toBe(false);
   });
 });

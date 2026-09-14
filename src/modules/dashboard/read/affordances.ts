@@ -111,13 +111,15 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
   // REVERSE KEY PIVOTS WAS HERE. It folded into Degrees And Notes on
   // 3 Sep 2026 and no longer exists as a row to describe. That family
   // still has no description of its own — see the note above.
-  [`${HF}/Mode Identification`]:
+  // SCALES & MODES SINCE 14 SEP 2026: Mode Identification's sentences and
+  // Pentatonic Scales' sentences, as written, under the one family. No new
+  // words — the family has no description of its own yet.
+  [`${HF}/Scales & Modes`]:
     'Naming a mode from its formula, or from where it sits relative to '
     + "the major scale it comes from. Theory rather than ear: Ear "
     + "Training's Scales & Modes is the same material by sound, and the "
-    + 'two are worth building separately.',
-  [`${HF}/Pentatonic Scales`]:
-    'The five-note scales, their starting points, and what they contain '
+    + 'two are worth building separately. '
+    + 'The five-note scales, their starting points, and what they contain '
     + 'in each key. The vocabulary most soloing actually sits on.',
   [`${HF}/Interval Identification`]:
     'Naming the distance between two notes on paper. The written '

@@ -21,6 +21,7 @@
 
 import type { AcquisitionStage, Goal } from '../db';
 import { cardById } from '../../modules/harmonic-fluency/catalog';
+import { hfUnitHoldsCard } from '../../modules/harmonic-fluency/coverageGroups';
 import {
   COVERAGE_OVERALL_METRIC,
   COVERAGE_SPECIFIC_METRIC,
@@ -169,12 +170,10 @@ export function candidateSpecForGoal(goal: Goal): CandidateSpec {
       };
     }
     if (metric === COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY) {
-      const categories = HF_GROUP_CATEGORIES[subArea];
-      if (!categories) return { kind: 'unsupported' };
-      const categorySet = new Set(categories);
+      if (!HF_GROUP_CATEGORIES[subArea]) return { kind: 'unsupported' };
       const base = (itemRef: string) => {
         const card = cardById(itemRef);
-        return card !== undefined && categorySet.has(card.category);
+        return card !== undefined && hfUnitHoldsCard(subArea, card);
       };
       return {
         kind: 'coverage',

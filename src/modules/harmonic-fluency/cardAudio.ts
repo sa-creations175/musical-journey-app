@@ -77,6 +77,7 @@
  * =====================================================================
  */
 import type { Flashcard } from './catalog';
+import { cardKind } from './cardKind';
 import { keyToRootMidi } from '../ear-training/chord-progressions/progressionTheory';
 import { DEGREE_BY_ID } from './chromaticDegrees';
 import {
@@ -498,7 +499,9 @@ export function cardSound(card: Flashcard): CardSound | null {
         keyPc: keyToRootMidi(key) % 12, keyName: `${noteLabel(key)} major`,
       };
 
-  switch (card.category) {
+  // THE CARD'S KIND, NOT ITS FAMILY: a pentatonic card sounds as it did
+  // before Scales & Modes held it.
+  switch (cardKind(card)) {
     // --- The two that already had a play control ---------------------
 
     case 'scale-degree-math': {

@@ -48,8 +48,9 @@ import {
   getShapesCoverageGroup, shapesCoverageDenominator,
 } from '../../modules/goals/shapesCoverageGroups';
 import {
-  HF_UNIT_TO_COUNT_GROUP, HF_CATEGORIES_BY_UNIT,
+  HF_UNIT_TO_COUNT_GROUP, HF_CATEGORIES_BY_UNIT, hfUnitHoldsCard,
 } from '../../modules/harmonic-fluency/coverageGroups';
+import { FLASHCARDS } from '../../modules/harmonic-fluency/catalog';
 import type { OutOfScore } from '../../modules/shapes-and-patterns/cellTargets';
 import { lessonsByPath } from '../../modules/production/content/lessons';
 
@@ -155,10 +156,11 @@ export function catalogTotalForGoal(
         if (group) return harmonicFluencyCounts().byGroup[group];
         // A GROUP RETIRED ON 14 SEP 2026 is counted from the families it
         // held, so a goal set before the regroup keeps its denominator.
-        const categories = HF_CATEGORIES_BY_UNIT[unit];
-        if (!categories) return null;
-        const byCategory = harmonicFluencyCounts().byCategory as Record<string, number>;
-        return categories.reduce((n, c) => n + (byCategory[c] ?? 0), 0);
+        // Card by card, as the families were filed that day: Scales &
+        // Modes folded later, and a pentatonic card still counts here
+        // for `foundational` rather than for `ear-recognition`.
+        if (!HF_CATEGORIES_BY_UNIT[unit]) return null;
+        return FLASHCARDS.filter(c => hfUnitHoldsCard(unit, c)).length;
       }
       case COVERAGE_SPECIFIC_METRIC.SHAPES: {
         // ASKED FRESH RATHER THAN READ OFF THE DEF, because the def's

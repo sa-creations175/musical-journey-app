@@ -56,7 +56,7 @@ import {
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { PROGRESSIONS } from '../ear-training/chord-progressions/catalog';
 import { CATEGORY_LABELS, FLASHCARDS } from '../harmonic-fluency/catalog';
-import { HF_GROUP_TITLE } from '../harmonic-fluency/coverageGroups';
+import { HF_GROUP_TITLE, hfUnitHoldsCard } from '../harmonic-fluency/coverageGroups';
 import { PRODUCTION_PATHS } from '../production/content/paths';
 import { lessonsByPath } from '../production/content/lessons';
 import { HF_GROUP_CATEGORIES } from './progress';
@@ -333,10 +333,8 @@ const SCALES_MODES_STAGES: ReadonlyArray<ProgressionStage> = [
  *  category list (HF_GROUP_CATEGORIES). Mirrors
  *  enumerateHFByCategorySubArea in scopeEnumeration.ts. */
 function hfStageItems(groupId: string): string[] {
-  const cats = HF_GROUP_CATEGORIES[groupId];
-  if (!cats) return [];
-  const set = new Set(cats);
-  return FLASHCARDS.filter(c => set.has(c.category)).map(c => c.id);
+  if (!HF_GROUP_CATEGORIES[groupId]) return [];
+  return FLASHCARDS.filter(c => hfUnitHoldsCard(groupId, c)).map(c => c.id);
 }
 
 /** A group as a stage: its title, and its families as the description —

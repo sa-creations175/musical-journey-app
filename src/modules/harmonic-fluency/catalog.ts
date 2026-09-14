@@ -3,6 +3,7 @@ import { chooseDecoys } from './decoyGuard';
 import { scaleDegreeQualityCards } from './scaleDegreeQualityCards';
 import { DEGREE_NOTE_CATEGORY_NAME, degreeNoteCards } from './degreeNoteCards';
 import { DEGREE_MATH_CATEGORY_NAME } from './scaleDegreeQualityCards';
+import { SCALES_AND_MODES_CATEGORY_NAME } from './cardKind';
 import { withFacets } from './facets';
 import { generateSpellChordCards } from './spellChordCards';
 import {
@@ -39,7 +40,10 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
   'functional-harmony': 'Functional Harmony',
   'key-signatures': 'Key Signatures & Relationships',
   'reverse-key-pivots': 'Reverse Key Pivots',
-  'modes': 'Mode Identification',
+  'modes': SCALES_AND_MODES_CATEGORY_NAME,
+  // FOLDED INTO `modes` ON 14 SEP 2026, and kept for what stored it: a
+  // goal or a link that named it resolves to Scales & Modes, and the
+  // family's page still labels the pentatonic grid by it. See `cardKind`.
   'pentatonic-scales': 'Pentatonic Scales',
   'intervals': 'Interval Identification',
   'chord-construction': 'Chord Construction',
@@ -75,11 +79,16 @@ export const CATEGORY_LABELS: Record<FlashcardCategory, string> = {
  * `FlashcardCategory` went with its cards, because nothing needs to
  * describe them. Its fold names card ids, never a category — see
  * `lib/migrations/hfDeckCleanup.ts`.
+ *
+ * `pentatonic-scales` WENT THE OTHER WAY, on 14 Sep 2026: its cards did
+ * not move, their family did. They are filed under `modes`, Scales &
+ * Modes, with their ids, answers, sounds and history as they were. See
+ * `cardKind.ts`.
  */
 export const CATEGORY_ORDER: FlashcardCategory[] = [
   'scale-degree-math', 'degree-notes', 'enharmonic-equivalents',
   'diatonic-qualities', 'functional-harmony',
-  'key-signatures', 'modes', 'pentatonic-scales', 'intervals',
+  'key-signatures', 'modes', 'intervals',
   'chord-construction', 'progressions', 'modal-improvisation',
   'slash-chords',
 ];

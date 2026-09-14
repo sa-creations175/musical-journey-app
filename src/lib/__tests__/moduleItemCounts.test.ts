@@ -81,6 +81,9 @@ describe('earTrainingCounts', () => {
 
 // -------------------------------------------------------------------
 // Harmonic Fluency — 1193 + 235 + 252 = 1680
+// (14 Sep 2026, last: 13 families → 12, nothing counted differently.
+//  Pentatonic Scales 38 and Mode Identification 101 are one family,
+//  Scales & Modes 139, filed under `modes`.)
 // (14 Sep 2026, later: 1597 → 1680. Spell the chord in a key arrives in
 //  Chord Construction, 13 keys × 7 degrees of major = 91, and the eight
 //  key-of-C "contains the notes" cards retire into it. Chord
@@ -208,8 +211,9 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('notesDegreesScalesKeys = dgn 625 + sdm 168 + ks 83 + enh 35 + iv 143 + pent 38 + mo 101 = 1193', () => {
+  it('notesDegreesScalesKeys = dgn 625 + sdm 168 + ks 83 + enh 35 + iv 143 + sm 139 = 1193', () => {
     expect(c.byGroup.notesDegreesScalesKeys).toBe(1193);
+    expect(c.byCategory.modes).toBe(139);
   });
 
   it('chordKnowledge = dq 29 + cc 103 + sc 103 = 235', () => {
@@ -220,7 +224,7 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(252);
   });
 
-  it('total = 1680 across all 13 categories', () => {
+  it('total = 1680 across all 12 categories', () => {
     expect(c.total).toBe(1680);
   });
 
@@ -232,10 +236,11 @@ describe('harmonicFluencyCounts', () => {
     expect(groupSum).toBe(c.total);
   });
 
-  it('byCategory covers all 13 canonical categories', () => {
+  it('byCategory covers all 12 canonical categories', () => {
     // `named-notes`, `tritone-pairs` and `reverse-key-pivots` are absent
     // because their cards are: all three folded into `degree-notes` on
-    // 3 Sep 2026. `ear-theory` retired on 14 Sep 2026.
+    // 3 Sep 2026. `ear-theory` retired on 14 Sep 2026, and
+    // `pentatonic-scales` folded into `modes` the same day.
     expect(Object.keys(c.byCategory).sort()).toEqual([
       'chord-construction',
       'degree-notes',
@@ -246,7 +251,6 @@ describe('harmonicFluencyCounts', () => {
       'key-signatures',
       'modal-improvisation',
       'modes',
-      'pentatonic-scales',
       'progressions',
       'scale-degree-math',
       'slash-chords',

@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
 import { cardSound, type CardSound } from '../cardAudio';
+import { cardKind } from '../cardKind';
 import { SLASH_SHAPES } from '../catalogExpansions';
 import { pitchClassOf } from '../../../lib/spelling';
 
@@ -287,7 +288,8 @@ describe('modes', () => {
     // opposite of what the card says.
     const MAJOR = [0, 2, 4, 5, 7, 9, 11];
     let seen = 0;
-    for (const c of FLASHCARDS.filter(x => x.category === 'modes')) {
+    // The mode cards: Scales & Modes' pentatonic cards sound their own way.
+    for (const c of FLASHCARDS.filter(x => cardKind(x) === 'modes')) {
       const s = cardSound(c);
       if (s === null) continue;
       seen += 1;

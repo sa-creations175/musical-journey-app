@@ -7,6 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
+import { isPentatonicCard } from '../cardKind';
 import {
   MAJOR_ROOTS, MINOR_ROOTS, majorPentatonic, minorPentatonic, noteList,
   pentatonicCardId, pentatonicDecoys, relativeMinorRoot, scaleName,
@@ -179,7 +180,8 @@ describe('the drilled ids survive', () => {
 });
 
 describe('the category as it now ships', () => {
-  const cards = () => FLASHCARDS.filter(c => c.category === 'pentatonic-scales');
+  // Filed under Scales & Modes since 14 Sep 2026; still every pentatonic card.
+  const cards = () => FLASHCARDS.filter(isPentatonicCard);
 
   it('is the notes in every key, plus the lick scale', () => {
     // Twelve minor, thirteen major, thirteen lick. It was 41 — five

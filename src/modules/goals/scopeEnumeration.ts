@@ -26,6 +26,7 @@ import {
 import { HF_GROUP_CATEGORIES } from './progress';
 import { itemRefMatcherForCoverageGroup } from './shapesCoverageGroups';
 import { FLASHCARDS } from '../harmonic-fluency/catalog';
+import { hfUnitHoldsCard } from '../harmonic-fluency/coverageGroups';
 import {
   CHORD_QUALITIES,
   CIRCLE_KEY,
@@ -55,10 +56,10 @@ function enumerateHF(goal: Goal): string[] {
 }
 
 function enumerateHFByCategorySubArea(subArea: string, goal: Goal): string[] {
-  const categories = HF_GROUP_CATEGORIES[subArea];
-  if (!categories) return [];
-  const set = new Set(categories);
-  return FLASHCARDS.filter(c => set.has(c.category) && hfCardInScope(goal, c)).map(c => c.id);
+  if (!HF_GROUP_CATEGORIES[subArea]) return [];
+  return FLASHCARDS
+    .filter(c => hfUnitHoldsCard(subArea, c) && hfCardInScope(goal, c))
+    .map(c => c.id);
 }
 
 /**

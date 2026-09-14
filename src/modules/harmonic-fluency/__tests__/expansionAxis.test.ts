@@ -8,6 +8,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { CATEGORY_LABELS, FLASHCARDS } from '../catalog';
+import { cardKind, isPentatonicCard } from '../cardKind';
 import { FLAT_TWELVE, MODE_BY_DEGREE, SLASH_SHAPES } from '../catalogExpansions';
 import { HARMONIC_FLUENCY_GRIDS } from '../progressGrids';
 import { placeItems } from '../../../components/moduleHome/placeItems';
@@ -79,7 +80,7 @@ describe('every keyed generator supplies coordinates', () => {
   }
 
   it('pentatonics carries root and shape across all three shapes', () => {
-    const cards = FLASHCARDS.filter(c => c.category === 'pentatonic-scales'
+    const cards = FLASHCARDS.filter(c => isPentatonicCard(c)
       && Object.hasOwn(c, 'axis'));
     // Commit 8: the five formula cards went, the twelve "share the
     // same" ones became thirteen lick cards, and major gained F♯.
@@ -87,7 +88,7 @@ describe('every keyed generator supplies coordinates', () => {
     // card in the category now carries a root.
     expect(cards).toHaveLength(38);
     expect(cards).toHaveLength(
-      FLASHCARDS.filter(c => c.category === 'pentatonic-scales').length,
+      FLASHCARDS.filter(isPentatonicCard).length,
     );
     const shapes = new Set(cards.map(c => c.axis!.shape));
     expect([...shapes].sort()).toEqual(['lick', 'major', 'minor']);
@@ -146,10 +147,12 @@ const asRecord = (c: typeof FLASHCARDS[number]): SkillRecord => ({
   ...(c.axis ? { axis: c.axis } : {}),
 });
 
+/** By the card's KIND, as the category page splits Scales & Modes into
+ *  its mode grid and its pentatonic grid. */
 const place = (categoryLabel: string) => {
   const grid = HARMONIC_FLUENCY_GRIDS[categoryLabel];
   const items = FLASHCARDS
-    .filter(c => CATEGORY_LABELS[c.category] === categoryLabel)
+    .filter(c => CATEGORY_LABELS[cardKind(c)] === categoryLabel)
     .map(asRecord);
   const colView = resolveView(grid.columns, null);
   const rowView = grid.rows ? resolveView(grid.rows, null) : SINGLE_ROW;
