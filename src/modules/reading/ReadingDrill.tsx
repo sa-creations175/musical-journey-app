@@ -20,6 +20,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReadingStaff from './ReadingStaff';
 import EndSessionButton from '../../components/EndSessionButton';
+import DailyGoalBar from '../../components/DailyGoalBar';
+import SessionCardCount from '../../components/SessionCardCount';
+import { READING_MODULE_ID } from './skillRecords';
 import FullSetPicker from '../../components/FullSetPicker';
 import AnswerVerdict from '../../components/AnswerVerdict';
 import { resolveReadingCard } from './renderCard';
@@ -255,6 +258,11 @@ export default function ReadingDrill({
    * =====================================================================
    */
   const shownAt = useRef<number | null>(null);
+  /** When this run began, for "cards this session". The drill mounts
+   *  when a run starts and unmounts on End Session, so this is the
+   *  run's own start — held here rather than on the line itself,
+   *  because the no-card branch below does not draw the line. */
+  const [startedAt] = useState(() => Date.now());
 
   const focusPool = useMemo(() => {
     if (!focusRefs || focusRefs.length === 0) return null;
@@ -429,7 +437,11 @@ export default function ReadingDrill({
     <div className="space-y-5" data-item-ref={card.itemRef} data-pool={poolKey}>
       {/* THE WAY OUT, top-right, where the flashcard shell puts it.
           Not a second control: the same component both drills render. */}
-      <div className="flex justify-end text-xs">
+      {/* THE TODAY BAR, above the drill as harmonic fluency's sits above
+          its session — the same component, the same editing. */}
+      <DailyGoalBar moduleId={READING_MODULE_ID} />
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <SessionCardCount moduleId={READING_MODULE_ID} since={startedAt} />
         <EndSessionButton onEnd={onEnd} />
       </div>
 

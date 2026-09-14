@@ -16,6 +16,8 @@ const MODULE_DEFAULT_GOALS: Record<string, number> = {
   // SESSION_TARGET in modules/production/VocabularySession.tsx — a
   // single completed session clears the bar.
   production: 10,
+  // Harmonic fluency's, which Reading's Today bar copies (14 Sep 2026).
+  reading: 10,
 };
 
 export function defaultDailyGoal(moduleId: string): number {

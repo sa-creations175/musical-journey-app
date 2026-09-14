@@ -37,6 +37,7 @@ import type { AttemptRecord } from '../../../lib/db';
 import { poolCountsTowardAccuracy } from '../../../lib/fluencyPool';
 import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice';
 import { addAttempt } from '../../../lib/practiceWrites';
+import SessionCardCount from '../../../components/SessionCardCount';
 import { recordEngagement } from '../../../lib/spacingState';
 import { updateDailySummary } from '../../../lib/dailySummaries';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
@@ -280,6 +281,7 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
 
   return (
     <div className="space-y-4" data-testid="full-progression-card">
+      <SessionCardCount moduleId={MODULE_ID} />
       {/* WHAT IS IN PLAY — the filter, folded away. */}
       <details
         data-testid="in-play"

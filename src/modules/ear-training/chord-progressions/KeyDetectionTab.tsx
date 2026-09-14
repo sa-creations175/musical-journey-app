@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import SessionCardCount from '../../../components/SessionCardCount';
 import { recordEngagement } from '../../../lib/spacingState';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import { ensureRunning, midiToFreq, playNote } from '../../../lib/audio';
@@ -287,6 +288,7 @@ export default function KeyDetectionTab({ attempts }: Props) {
             a progression plays three times — hum to find home, then pick the tonic.
           </p>
         </div>
+        <SessionCardCount moduleId={MODULE_ID} />
       </div>
 
       <p className="text-[11px] text-neutral-500 text-center">

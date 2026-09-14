@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import SessionCardCount from '../../../components/SessionCardCount';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
@@ -244,6 +245,7 @@ export default function HearScaleTab({ attempts, pool, focusActive }: Props) {
 
   return (
     <div data-testid="scales-tab-scale" className="space-y-4">
+      <SessionCardCount moduleId={MODULE_ID} />
       {focusProtected && <FluencyProtectionNotice />}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
         <label className="flex flex-col gap-1">

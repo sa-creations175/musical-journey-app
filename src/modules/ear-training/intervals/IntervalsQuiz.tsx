@@ -12,6 +12,7 @@ import {
 import { eligibleDirections } from './directionBalance';
 import { db, type AttemptRecord, type IntervalData } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import SessionCardCount from '../../../components/SessionCardCount';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
@@ -404,6 +405,7 @@ export default function IntervalsQuiz({ intervals, attempts, initialFocusKeys }:
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">Interval Quiz</h2>
+        <SessionCardCount moduleId={MODULE_ID} />
       </div>
 
       {/* Focus button + dynamic scope description. Direction tabs sit

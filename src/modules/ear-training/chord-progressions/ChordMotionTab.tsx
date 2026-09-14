@@ -33,6 +33,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { type AttemptRecord } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import SessionCardCount from '../../../components/SessionCardCount';
 import { recordEngagement } from '../../../lib/spacingState';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import { updateDailySummary } from '../../../lib/dailySummaries';
@@ -757,11 +758,14 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
 
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-3 sm:p-5 space-y-5">
-      <div>
-        <h2 className="text-base sm:text-lg font-medium tracking-tight">Chord Motion</h2>
-        <p className="text-xs text-neutral-500 mt-0.5">
-          hear two chords move, and say where the move landed. works in all 12 keys.
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h2 className="text-base sm:text-lg font-medium tracking-tight">Chord Motion</h2>
+          <p className="text-xs text-neutral-500 mt-0.5">
+            hear two chords move, and say where the move landed. works in all 12 keys.
+          </p>
+        </div>
+        <SessionCardCount moduleId={MODULE_ID} />
       </div>
 
       {focusProtected && <FluencyProtectionNotice />}

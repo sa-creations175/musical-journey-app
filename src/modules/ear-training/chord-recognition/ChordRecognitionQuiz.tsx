@@ -8,6 +8,7 @@ import {
 import { playRolled } from '../../../lib/builtAnswers/play';
 import { db, type AttemptRecord, type ChordData } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import SessionCardCount from '../../../components/SessionCardCount';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
@@ -1014,6 +1015,7 @@ export default function ChordRecognitionQuiz({
     >
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-base sm:text-lg font-medium tracking-tight">Chord Recognition Quiz</h2>
+        <SessionCardCount moduleId={MODULE_ID} />
       </div>
 
       {/* Scope selector (all-first) + focus button + dynamic status line.

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { type AttemptRecord, type ChordMovement } from '../../../lib/db';
 import { addAttempt } from '../../../lib/practiceWrites';
+import SessionCardCount from '../../../components/SessionCardCount';
 import { answerTimingFields, type AskedContext } from '../../../lib/attemptTiming';
 import {
   pickAdaptive,
@@ -342,6 +343,7 @@ export default function SitInsideTab({ attempts, pool, focusActive }: Props) {
 
   return (
     <div data-testid="scales-tab-vamp" className="space-y-4">
+      <SessionCardCount moduleId={MODULE_ID} />
       {focusProtected && <FluencyProtectionNotice />}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
         <label className="flex flex-col gap-1">

@@ -24,6 +24,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import FluencyProtectionNotice from '../../components/FluencyProtectionNotice';
 import AnswerVerdict from '../../components/AnswerVerdict';
 import EndSessionButton from '../../components/EndSessionButton';
+import SessionCardCount from '../../components/SessionCardCount';
 import { renderedOptions } from './optionOrder';
 
 /**
@@ -639,9 +640,7 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
           <span className="text-[10px] uppercase tracking-wide text-neutral-400">
             {card.categoryName}
           </span>
-          <span className="text-neutral-400">
-            cards this session: <span className="font-mono tabular-nums">{answeredCount}</span> / {queue.length}
-          </span>
+          <SessionCardCount count={answeredCount} total={queue.length} />
           {timeLeft !== null && !hasAnswered && (
             <span className={`font-mono tabular-nums ${timeLeft <= 3 ? 'text-needswork' : 'text-neutral-500'}`}>
               {timeLeft}s
