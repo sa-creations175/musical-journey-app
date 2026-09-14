@@ -598,6 +598,19 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
     ? renderVisualAid?.({ card, mode: visualMode, answered: hasAnswered, chosen })
     : null;
 
+  // ONE ROW, drawn under the verdict once answered and at the bottom
+  // before — see where it is placed below.
+  const navigation = (
+    <NavigationRow
+      onPrev={handlePrev}
+      canPrev={index > 0}
+      onNext={handleNext}
+      hasAnswered={hasAnswered}
+      isLast={isLast}
+      showFlag={!!onToggleFlag}
+    />
+  );
+
   return (
     <section className="rounded-2xl border border-black/[0.07] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] backdrop-blur p-4 sm:p-6 space-y-5">
       {focusProtected && <FluencyProtectionNotice />}
@@ -866,6 +879,13 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
         </div>
       )}
 
+      {/* THE NAVIGATION, ONCE ANSWERED, SITS UNDER THE VERDICT (Silas,
+          14 Sep 2026): directly below the badge and the explanation, above
+          whatever the deck reveals — a chart, a strip, any footer — so
+          Next is where the eye already is. Before answering it stays at
+          the bottom. One row, drawn in one of two places, every deck. */}
+      {hasAnswered && navigation}
+
       {isFaded && drawsVisualAid(visualMode) && (
         <p className="text-[11px] text-neutral-400 italic text-center">
           visuals faded — you're on a streak in this category. miss one and they'll return.
@@ -874,40 +894,59 @@ export default function FlashcardSession<TCard extends BaseFlashcard>({
 
       {renderFooter?.(card, { answered: hasAnswered })}
 
-      {/* Navigation */}
-      <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-neutral-200 dark:border-neutral-800">
-        <button
-          onClick={handlePrev}
-          disabled={index === 0}
-          className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Previous Card (←)"
-        >
-          ← Previous
-        </button>
-        <div className="text-[10px] text-neutral-400 hidden sm:block">
-          shortcuts: <span className="font-mono">1–4</span> answer ·
-          <span className="font-mono ml-1">Space</span>/<span className="font-mono">→</span> next ·
-          <span className="font-mono ml-1">←</span> previous
-          {onToggleFlag && (
-            <>
-              {' '}·<span className="font-mono ml-1">F</span> flag
-            </>
-          )}
-        </div>
-        <button
-          onClick={handleNext}
-          disabled={!hasAnswered}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium ${
-            hasAnswered
-              ? 'bg-fluent text-white hover:opacity-90'
-              : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
-          }`}
-          title={isLast ? 'Finish Session (Space / →)' : 'Next Card (Space / →)'}
-        >
-          {isLast ? 'finish →' : 'next →'}
-        </button>
-      </div>
+      {!hasAnswered && navigation}
     </section>
+  );
+}
+
+/** Previous, the shortcuts and Next — see where `FlashcardSession` draws it. */
+function NavigationRow({
+  onPrev, canPrev, onNext, hasAnswered, isLast, showFlag,
+}: {
+  onPrev: () => void;
+  canPrev: boolean;
+  onNext: () => void;
+  hasAnswered: boolean;
+  isLast: boolean;
+  /** Whether the deck offers the flag, so the shortcut line names F. */
+  showFlag: boolean;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-neutral-200 dark:border-neutral-800"
+      data-testid="flashcard-nav"
+    >
+      <button
+        onClick={onPrev}
+        disabled={!canPrev}
+        className="px-3 py-1.5 rounded-md border border-neutral-200 dark:border-neutral-700 text-xs hover:border-fluent hover:text-fluent disabled:opacity-40 disabled:cursor-not-allowed"
+        title="Previous Card (←)"
+      >
+        ← Previous
+      </button>
+      <div className="text-[10px] text-neutral-400 hidden sm:block">
+        shortcuts: <span className="font-mono">1–4</span> answer ·
+        <span className="font-mono ml-1">Space</span>/<span className="font-mono">→</span> next ·
+        <span className="font-mono ml-1">←</span> previous
+        {showFlag && (
+          <>
+            {' '}·<span className="font-mono ml-1">F</span> flag
+          </>
+        )}
+      </div>
+      <button
+        onClick={onNext}
+        disabled={!hasAnswered}
+        className={`px-4 py-1.5 rounded-md text-sm font-medium ${
+          hasAnswered
+            ? 'bg-fluent text-white hover:opacity-90'
+            : 'bg-neutral-200 dark:bg-neutral-800 text-neutral-400 cursor-not-allowed'
+        }`}
+        title={isLast ? 'Finish Session (Space / →)' : 'Next Card (Space / →)'}
+      >
+        {isLast ? 'finish →' : 'next →'}
+      </button>
+    </div>
   );
 }
 
