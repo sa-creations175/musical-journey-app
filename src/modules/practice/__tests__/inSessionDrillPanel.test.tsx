@@ -56,6 +56,7 @@ vi.mock('../../../lib/metronome', async (importOriginal) => {
       state: { playing: true, bpm: 90, timeSig: '4/4', groove: 'straight', volume: 0.5 },
       start: async () => {}, stop: () => {}, forceStop: () => {},
       subscribe: () => () => {},
+      onBeat: () => () => {},
     },
   };
 });
@@ -202,7 +203,7 @@ describe('a run started here records what a run started from a grid records', ()
     // cannot start with nothing sounding.
     await openTheDrill();
     await pressStartingWith('Test');
-    await pressStartingWith('Start Test Run');
+    await pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(61_000); });
     await settle();
     // Dexie's own awaits need a real clock, and the countdown has

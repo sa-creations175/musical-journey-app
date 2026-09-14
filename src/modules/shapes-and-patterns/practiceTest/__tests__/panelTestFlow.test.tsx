@@ -123,9 +123,9 @@ function render(s: DrillSurface = surface()) {
    * against an empty log and pass for the wrong reason.
    */
   const run = async (feel: string) => {
-    await pressStartingWith('Start Test Run');
+    await pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await pressStartingWith('End Test Run');
+    await pressStartingWith('End Drill');
     await pressStartingWith(feel);
   };
   return {
@@ -155,7 +155,7 @@ describe('the metronome gates a test run — on every surface', () => {
     await r.pressStartingWith('Test');
     expect(r.text()).toContain('Start the metronome to begin a test run.');
     const btn = [...document.body.querySelectorAll('button')]
-      .find(b => (b.textContent ?? '').startsWith('Start Test Run'));
+      .find(b => (b.textContent ?? '').startsWith('Start A Test Drill'));
     expect(btn?.hasAttribute('disabled')).toBe(true);
     r.unmount();
   });
@@ -191,7 +191,7 @@ describe('entering a test', () => {
     // one rate option — so the step does not render.
     const r = render();
     await r.pressStartingWith('Test');
-    expect(r.labels().some(l => l.startsWith('Start Test Run'))).toBe(true);
+    expect(r.labels().some(l => l.startsWith('Start A Test Drill'))).toBe(true);
     r.unmount();
   });
 
@@ -292,7 +292,8 @@ describe('a bad run resets the streak, visibly', () => {
     await r.run('Clean');
     await r.run('Clean');
     await r.run('Struggled');
-    expect(r.labels().some(l => l === 'Start Test Run 4')).toBe(true);
+    // The count in the pinned strip climbs with every run.
+    expect(r.text()).toContain('3 drills in this session');
     r.unmount();
   });
 
@@ -400,7 +401,7 @@ describe('a test asks its settings once, not before every run', () => {
     // scroll past is the thing this removes.
     const r = render(withSetup());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     expect(r.labels().some(l => l === 'Start Drill')).toBe(false);
     // In a run: the chips are on screen, because rating one is how a
     // run finishes now.
@@ -436,7 +437,7 @@ describe('a test asks its settings once, not before every run', () => {
     expect(r.labels().some(l => l === 'Start Drill')).toBe(false);
     // Straight into a run: the chips are on screen and the run has a
     // way to end.
-    expect(r.labels().some(l => l === 'End Practice Run')).toBe(true);
+    expect(r.labels().some(l => l === 'End Drill')).toBe(true);
     r.unmount();
   });
 
@@ -565,7 +566,7 @@ describe('Pause — the third exit', () => {
     await r.pressStartingWith('Test');
     await r.press('Pause Session');
     const start = [...document.body.querySelectorAll('button')]
-      .find(b => (b.textContent ?? '').startsWith('Start Test Run'));
+      .find(b => (b.textContent ?? '').startsWith('Start A Test Drill'));
     const end = [...document.body.querySelectorAll('button')]
       .find(b => (b.textContent ?? '').trim() === 'Log Session');
     expect(start?.hasAttribute('disabled')).toBe(true);
@@ -766,7 +767,7 @@ describe('stopping the metronome ends the run and asks — in both views', () =>
   it('asks in the PANEL', async () => {
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     await stopMetronome();
     expect(r.text()).toContain(
@@ -793,7 +794,7 @@ describe('stopping the metronome ends the run and asks — in both views', () =>
     // discard would make the question rhetorical.
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     await stopMetronome();
     expect(r.labels().some(l => l.startsWith('Clean'))).toBe(true);
@@ -807,7 +808,7 @@ describe('stopping the metronome ends the run and asks — in both views', () =>
     await r.pressStartingWith('Test');
     await r.run('Clean');
     await r.run('Clean');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     await stopMetronome();
     written.length = 0;
@@ -821,7 +822,7 @@ describe('stopping the metronome ends the run and asks — in both views', () =>
   it('rating it instead keeps the run', async () => {
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     await stopMetronome();
     await r.pressStartingWith('Clean');
@@ -855,7 +856,7 @@ describe('one rendering of the four ratings', () => {
     // them.
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(r.text()).toContain('Rate That Run');
     expect(r.text()).toContain('0 of 3');
@@ -865,16 +866,16 @@ describe('one rendering of the four ratings', () => {
   it('offers Start OR the rating, never both', async () => {
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    expect(r.labels().some(l => l.startsWith('Start Test Run'))).toBe(false);
+    expect(r.labels().some(l => l.startsWith('Start A Test Drill'))).toBe(false);
     r.unmount();
   });
 
   it('the retired label is gone', async () => {
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(r.text()).not.toContain('How Did That Go');
     r.unmount();
@@ -971,7 +972,7 @@ describe('the scope picker is a practice control', () => {
     await r.pressStartingWith('Practice');
     await r.pressStartingWith('Start A Practice');
     await act(async () => { vi.advanceTimersByTime(61_000); });
-    await r.pressStartingWith('End Practice Run');
+    await r.pressStartingWith('End Drill');
     expect(r.text()).toContain('What Was That Run');
     await r.press('Chorus');
     await r.pressStartingWith('Clean');
@@ -984,7 +985,7 @@ describe('the scope picker is a practice control', () => {
     // decides it and nothing after the run may widen it.
     const r = render(withSections());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(r.text()).toContain('Rate That Run');
     expect(r.text()).not.toContain('What Was That Run');
@@ -1018,7 +1019,7 @@ describe('playing a run does not take the screen', () => {
     const r = render(withEverything());
     await r.pressStartingWith('Test');
     await r.run('Clean');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
 
     expect(r.text()).toContain('1 of 3');                    // the circles
@@ -1036,7 +1037,7 @@ describe('playing a run does not take the screen', () => {
     await r.pressStartingWith('Test');
     expect(r.text()).toContain('Testing Session');
     expect(r.text()).not.toContain('Test Run ');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(r.text()).toContain('Testing Session');
     expect(r.text()).toContain('Test Run');
@@ -1048,7 +1049,7 @@ describe('playing a run does not take the screen', () => {
     // rate readout, and the button that finished a run.
     const r = render(withEverything());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(r.text()).not.toContain('AT TARGET');
     expect(r.text()).not.toContain('BELOW TARGET');
@@ -1060,13 +1061,13 @@ describe('playing a run does not take the screen', () => {
   it('rating a live run finishes it, and the clock goes', async () => {
     const r = render(withEverything());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('End Test Run');
+    await r.pressStartingWith('End Drill');
     await r.pressStartingWith('Clean');
     expect(written).toHaveLength(1);
     expect(r.text()).not.toContain('Rate That Run');
-    expect(r.labels().some(l => l.startsWith('Start Test Run'))).toBe(true);
+    expect(r.labels().some(l => l.startsWith('Start A Test Drill'))).toBe(true);
     r.unmount();
   });
 
@@ -1106,7 +1107,7 @@ describe('the ways out sit along the bottom', () => {
     // away exactly when a run was in progress.
     const r = render();
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(r.labels()).toContain('Pause Session');
     expect(r.labels()).toContain('Log Session');
@@ -1140,7 +1141,7 @@ describe('a run ends explicitly, then is rated', () => {
     // it can be answered.
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(chips()).toHaveLength(4);
     expect(chips().every(b => b.hasAttribute('disabled'))).toBe(true);
@@ -1151,7 +1152,7 @@ describe('a run ends explicitly, then is rated', () => {
   it('says "After the run" where "Required" goes', async () => {
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
     expect(r.text()).toContain('Rate That Run');
     expect(r.text()).toContain('After the run');
@@ -1162,24 +1163,24 @@ describe('a run ends explicitly, then is rated', () => {
   it('ending the run stops the clock and lights the chips', async () => {
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('End Test Run');
+    await r.pressStartingWith('End Drill');
 
     expect(chips().every(b => !b.hasAttribute('disabled'))).toBe(true);
     expect(r.text()).toContain('Required');
     expect(r.text()).not.toContain('After the run');
     // The End button has done its job and goes.
-    expect(r.labels().some(l => l.startsWith('End Test Run'))).toBe(false);
+    expect(r.labels().some(l => l.startsWith('End Drill'))).toBe(false);
     r.unmount();
   });
 
   it('THE CLOCK STOPS — the run keeps the length it had', async () => {
     const r = render(withSheet());
     await r.pressStartingWith('Test');
-    await r.pressStartingWith('Start Test Run');
+    await r.pressStartingWith('Start A Test Drill');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    await r.pressStartingWith('End Test Run');
+    await r.pressStartingWith('End Drill');
     // Time passing after the run ended must not lengthen it.
     await act(async () => { vi.advanceTimersByTime(60_000); });
     await r.pressStartingWith('Clean');
@@ -1187,12 +1188,12 @@ describe('a run ends explicitly, then is rated', () => {
     r.unmount();
   });
 
-  it('practice ends with its own words', async () => {
+  it('practice ends with End Drill too, in the panel', async () => {
     const r = render(withSheet());
     await r.pressStartingWith('Practice');
     await r.pressStartingWith('Start A Practice');
     await act(async () => { vi.advanceTimersByTime(31_000); });
-    expect(r.labels().some(l => l.startsWith('End Practice Run'))).toBe(true);
+    expect(r.labels().some(l => l === 'End Drill')).toBe(true);
     expect(r.labels().some(l => l.startsWith('End Test Run'))).toBe(false);
     r.unmount();
   });
@@ -1211,7 +1212,7 @@ describe('a run ends explicitly, then is rated', () => {
     await r.pressStartingWith('Start A Practice');
     await act(async () => { vi.advanceTimersByTime(61_000); });
 
-    expect(r.labels().some(l => l.startsWith('End Practice Run'))).toBe(false);
+    expect(r.labels().some(l => l.startsWith('End Drill'))).toBe(false);
     expect(chips().every(b => !b.hasAttribute('disabled'))).toBe(true);
     expect(r.text()).not.toContain('After the run');
     await r.pressStartingWith('Clean');
@@ -1456,6 +1457,31 @@ describe('the run list does not grow without limit', () => {
     await r.pressStartingWith('Test');
     await r.run('Clean');
     expect(r.text()).not.toContain('Show all');
+    r.unmount();
+  });
+});
+
+
+describe('the drill button is pinned under the header', () => {
+  it('sits beside the session clock, outside the scrolling body, and reads End Drill while a drill runs', async () => {
+    // SILAS, 14 SEP 2026: Start A Practice Drill is never below the fold.
+    const r = render(surface({
+      hasStyle: true,
+      countsUp: false,
+      rateOptions: [{ per: 1, label: 'One Shape Per Beat' }],
+      targetRate: 0,
+    }));
+    await r.pressStartingWith('Practice');
+    await r.press('Blocked');
+    const strip = () => document.body.querySelector('[data-testid="modal-pinned"]');
+    expect(strip()).not.toBeNull();
+    const inStrip = () => [...strip()!.querySelectorAll('button')].map(b => (b.textContent ?? '').trim());
+    expect(inStrip()).toContain('Start A Practice Drill');
+    expect(strip()!.textContent).toContain('Practice Session');
+    expect(strip()!.textContent).toContain('No drills yet, the clock is still counting.');
+    await r.pressStartingWith('Start A Practice Drill');
+    expect(inStrip()).toContain('End Drill');
+    expect(strip()!.textContent).toContain('Drill 1 running');
     r.unmount();
   });
 });

@@ -39,12 +39,56 @@ import { useCallback, useEffect, useState, type RefObject } from 'react';
 /** Breathing room between the chrome and the band. */
 const GAP_PX = 8;
 
+/**
+ * The element that actually scrolls the page under `el`.
+ *
+ * =====================================================================
+ * IT IS NOT THE WINDOW IN THIS APP, AND THAT WAS THE WHOLE BUG.
+ *
+ * `index.css` sets `html, body { height: 100%; overflow-x: hidden }`.
+ * An overflow on BOTH html and body stops body's being handed up to the
+ * viewport, so body keeps it — and `overflow-x: hidden` makes body's
+ * `overflow-y` compute to `auto`. Body, pinned at the viewport's height,
+ * becomes the scroll container, and the window never scrolls at all.
+ * `window.scrollTo` asked the one thing that cannot move, and a tapped
+ * cell's Progress Details stayed where it was. Measured in a real
+ * browser on 14 Sep 2026: under those two rules the window stays at 0
+ * and body moves; without the body rule the window moves.
+ *
+ * The CSS stays: it is what keeps a phone from scrolling sideways. So
+ * this finds the nearest ancestor that really scrolls, and falls back to
+ * the document's own scroller where none does.
+ * =====================================================================
+ */
+function scrollerFor(el: HTMLElement): HTMLElement | null {
+  for (let node = el.parentElement; node !== null; node = node.parentElement) {
+    const { overflowY } = window.getComputedStyle(node);
+    if ((overflowY === 'auto' || overflowY === 'scroll')
+      && node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+  }
+  return null;
+}
+
 export function scrollSectionToTop(el: HTMLElement | null): void {
   if (el === null || typeof window === 'undefined') return;
   const chrome = document.querySelector('[data-app-chrome="top"]');
   const chromeHeight = chrome === null
     ? 0
     : chrome.getBoundingClientRect().height;
+  const scroller = scrollerFor(el);
+  if (scroller !== null) {
+    // Measured against the scroller's own top, which is where its
+    // scrolled content starts; the sticky header sits inside it.
+    const top = el.getBoundingClientRect().top
+      - scroller.getBoundingClientRect().top
+      + scroller.scrollTop
+      - chromeHeight
+      - GAP_PX;
+    scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    return;
+  }
   const top = el.getBoundingClientRect().top
     + window.scrollY
     - chromeHeight

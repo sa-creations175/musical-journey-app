@@ -15,6 +15,9 @@ interface Props {
    *  Yearly) so users know what scope they're editing without
    *  parsing the title text. */
   titleBadge?: ReactNode;
+  /** A strip pinned under the header, outside the scrolling body — for
+   *  the controls a long body must never push below the fold. */
+  pinned?: ReactNode;
 }
 
 // Reusable modal with a portal into document.body so it escapes any
@@ -22,7 +25,7 @@ interface Props {
 // Locks body scroll while open, moves focus into the dialog on mount,
 // closes on Escape or backdrop click. Body scrolls internally; header and
 // footer stay pinned.
-export default function Modal({ open, onClose, title, description, children, footer, ariaLabel, titleBadge }: Props) {
+export default function Modal({ open, onClose, title, description, children, footer, ariaLabel, titleBadge, pinned }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Keep the latest onClose in a ref so the mount effect below can call
@@ -91,6 +94,15 @@ export default function Modal({ open, onClose, title, description, children, foo
             ×
           </button>
         </header>
+
+        {pinned !== undefined && pinned !== null && (
+          <div
+            className="shrink-0 px-4 sm:px-5 py-2.5 border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900"
+            data-testid="modal-pinned"
+          >
+            {pinned}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto overscroll-contain px-4 sm:px-5 py-4">
           {children}

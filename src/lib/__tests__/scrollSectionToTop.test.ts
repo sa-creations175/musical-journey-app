@@ -102,3 +102,39 @@ describe('the room a scrolled-to section needs below it', () => {
     expect(SCROLL_ROOM_CLASS).toBe('min-h-[85vh]');
   });
 });
+
+describe('the element that scrolls, which in this app is not the window', () => {
+  it('scrolls the nearest ancestor that really scrolls', () => {
+    // `index.css` gives html AND body `overflow-x: hidden`, which leaves
+    // body as the scroll container: measured in Chrome on 14 Sep 2026,
+    // `window.scrollTo` moved nothing and body did. So a scroller above
+    // the element is used before the window is.
+    stubWindow(0);
+    chromeOfHeight(64);
+    const scroller = document.createElement('div');
+    scroller.style.overflowY = 'auto';
+    Object.defineProperty(scroller, 'scrollHeight', { value: 5000, configurable: true });
+    Object.defineProperty(scroller, 'clientHeight', { value: 800, configurable: true });
+    scroller.scrollTop = 300;
+    scroller.getBoundingClientRect = () => ({ top: 0, height: 800 }) as DOMRect;
+    let asked: { top?: number; behavior?: string } | null = null;
+    scroller.scrollTo = ((opts: { top?: number; behavior?: string }) => { asked = opts; }) as unknown as typeof scroller.scrollTo;
+    const el = elementAt(500);
+    scroller.appendChild(el);
+    document.body.appendChild(scroller);
+
+    scrollSectionToTop(el);
+    // 500 down the scroller's view, 300 already scrolled, less the
+    // header and the breathing room.
+    expect(asked).toEqual({ top: 500 + 300 - 64 - GAP_PX, behavior: 'smooth' });
+    expect(scrolled).toBeNull();
+  });
+
+  it('falls back to the window where nothing above scrolls', () => {
+    stubWindow(200);
+    const el = elementAt(400);
+    document.body.appendChild(el);
+    scrollSectionToTop(el);
+    expect(scrolled).toEqual({ top: 200 + 400 - GAP_PX, behavior: 'smooth' });
+  });
+});

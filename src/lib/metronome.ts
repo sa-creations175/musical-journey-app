@@ -231,6 +231,12 @@ export function buildCountInSchedule(timeSig: TimeSig, bpm: number): CountInSche
   return { beats, intervalMs, beatsPerBar: n, totalBars, totalBeats: beats.length };
 }
 
+/** One beat as it sounds: which beat of the bar, counted from 0. */
+export interface MetronomeBeat {
+  index: number;
+  beatsPerBar: number;
+}
+
 export interface MetronomeState {
   playing: boolean;
   bpm: number;
@@ -508,6 +514,10 @@ class Metronome {
   private currentSlot = 0;
   private timer: number | null = null;
   private listeners = new Set<(s: MetronomeState) => void>();
+  /** Who hears each beat as it sounds — see `onBeat`. */
+  private beatListeners = new Set<(beat: MetronomeBeat) => void>();
+  /** Beat callbacks already scheduled, so a stop can cancel them. */
+  private beatTimers = new Set<number>();
 
   // Runtime flags: track "why" we started so auto-stop from a drill
   // (or a song-block inline control) doesn't kill a user-initiated
@@ -528,6 +538,28 @@ class Metronome {
 
   get isPlaying(): boolean {
     return this.state.playing;
+  }
+
+  /**
+   * Hear each beat as it sounds.
+   *
+   * =====================================================================
+   * ON THE AUDIO CLOCK, NOT A SECOND TIMER.
+   *
+   * The drill panel's beat dots and the Circle of 4ths drill's key steps
+   * follow the click the reader is hearing. A timer of their own at the
+   * same tempo would drift from it within a minute; this fires from the
+   * scheduler, at the moment each beat was scheduled to sound.
+   * =====================================================================
+   */
+  onBeat(listener: (beat: MetronomeBeat) => void): () => void {
+    this.beatListeners.add(listener);
+    return () => { this.beatListeners.delete(listener); };
+  }
+
+  private clearBeatTimers() {
+    this.beatTimers.forEach(id => window.clearTimeout(id));
+    this.beatTimers.clear();
   }
 
   subscribe(listener: (s: MetronomeState) => void): () => void {
@@ -612,6 +644,7 @@ class Metronome {
       window.clearTimeout(this.timer);
       this.timer = null;
     }
+    this.clearBeatTimers();
     this.state = { ...this.state, playing: false };
     this.emit();
   }
@@ -745,6 +778,7 @@ class Metronome {
       window.clearTimeout(this.timer);
       this.timer = null;
     }
+    this.clearBeatTimers();
     if (this.state.playing) {
       this.state = { ...this.state, playing: false };
       this.emit();
@@ -777,6 +811,16 @@ class Metronome {
     if (!this.ctx) return;
     const { groove, timeSig, volume } = this.state;
     const beatsPerBar = TIME_SIG_BEATS[timeSig];
+    // A BEAT STARTS EVERY FOURTH SLOT. Tell the beat listeners when it
+    // sounds, not when it was queued a lookahead early.
+    if (slot % 4 === 0 && this.beatListeners.size > 0) {
+      const beat: MetronomeBeat = { index: slot / 4, beatsPerBar };
+      const id = window.setTimeout(() => {
+        this.beatTimers.delete(id);
+        this.beatListeners.forEach(fn => fn(beat));
+      }, Math.max(0, (t - this.ctx.currentTime) * 1000));
+      this.beatTimers.add(id);
+    }
     const swing = groove === 'jazz-swing' || groove === 'shuffle';
     const hits = grooveHits(groove, slot % (beatsPerBar * 4), beatsPerBar, swing);
     for (const h of hits) {

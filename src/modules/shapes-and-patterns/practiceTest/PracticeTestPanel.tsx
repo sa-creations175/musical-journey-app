@@ -752,6 +752,38 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       onClose={close}
       title={surface.cellLabel}
       description={surface.skillLabel}
+      /* START AND END ARE NEVER BELOW THE FOLD (Silas, 14 Sep 2026). The
+         clock, the drill button, the beat and the count ride in a strip
+         pinned under the header; everything else in the panel stays
+         where it was. */
+      pinned={!confirmingCancel && step === 'session' && mode !== null ? (
+        <SessionControlStrip
+          mode={mode}
+          seconds={sessionSeconds}
+          /* SHOWN WHILE RUNNING AND AFTER, stopped. A clock that
+             vanished the moment the run ended would take the run's
+             length away at the moment you are being asked about it. */
+          runSeconds={runStartedAt !== null || awaitingRating ? currentRunSeconds : null}
+          runLive={runStartedAt !== null}
+          /* THE SAME TEST THE RATING BOX USES, so the button is gone
+             exactly while the box below is the next thing to do. */
+          ratingPending={(runStartedAt !== null || awaitingRating) && draft !== null}
+          drillsDone={drills.length}
+          /* A STYLE IS STILL REQUIRED WHERE THERE IS ONE TO PICK, and a
+             test still needs the metronome running. */
+          startDisabled={saving || paused
+            || (mode === 'test' && !metronomePlaying)
+            || (surface.hasStyle && sessionDraft?.style == null)}
+          onStart={() => {
+            // ONE PRESS. The settings were answered on this screen, in
+            // both modes, so Start starts a run rather than opening a
+            // form behind a button that said Start.
+            setDraft(sessionDraft ?? newDraft());
+            beginRun();
+          }}
+          onEnd={() => endRun(runSeconds)}
+        />
+      ) : undefined}
       /* NO FOOTER ON THE RESULT SCREEN. §4 asks for one exit and means
          it: a Close beside "Close And See It" would make the user
          choose between two ways of agreeing with a screen that is
@@ -887,21 +919,13 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
       {!confirmingCancel && step === 'session' && mode !== null && (
         <SessionStep
           mode={mode}
-          seconds={sessionSeconds}
           drills={drills}
-          saving={saving}
           surface={surface}
           draft={sessionDraft}
           onDraftChange={setSessionDraft}
           metronomeOn={metronomePlaying}
           /* RATED WHERE IT WAS PLAYED — under the run-throughs list and
              above Open Lead Sheet, exactly as the prototype draws it. */
-          /* SHOWN WHILE RUNNING AND AFTER, stopped. A clock that
-             vanished the moment the run ended would take the run's
-             length away at the moment you are being asked about it. */
-          runSeconds={runStartedAt !== null || awaitingRating ? currentRunSeconds : null}
-          runLive={runStartedAt !== null}
-          onEndRun={() => endRun(runSeconds)}
           rating={(runStartedAt !== null || awaitingRating) && draft !== null ? (
             <RunRatingBox
               live={runStartedAt !== null}
@@ -926,13 +950,6 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           ) : null}
           ladder={ladder}
           paused={paused}
-          onStartDrill={() => {
-            // ONE PRESS. The settings were answered on this screen, in
-            // both modes, so Start starts a run rather than opening a
-            // form behind a button that said Start.
-            setDraft(sessionDraft ?? newDraft());
-            beginRun();
-          }}
         />
       )}
 
@@ -1140,6 +1157,97 @@ function SessionClockFace({ seconds, mode, label }: {
   );
 }
 
+/**
+ * The session's controls, pinned under the panel's header.
+ *
+ * =====================================================================
+ * THE BUTTON YOU NEED IS NEVER BELOW THE FOLD. Silas, 14 Sep 2026.
+ *
+ * The drill settings, the test ladder and the run list all grow, and
+ * Start A Practice Drill sat under all of them — so on a phone the one
+ * thing a session is for was a scroll away. The prototype's strip: the
+ * clock (and the run's beside it while one is going), the drill button,
+ * the beat, and how many drills so far. While a drill runs the same
+ * button reads End Drill; while one waits to be rated there is no
+ * button, because the rating box below is the next thing.
+ *
+ * THE DOTS FOLLOW THE METRONOME the reader is hearing (`metronome.onBeat`)
+ * and sit still when it is silent.
+ * =====================================================================
+ */
+function SessionControlStrip({
+  mode, seconds, runSeconds, runLive, ratingPending, drillsDone,
+  startDisabled, onStart, onEnd,
+}: {
+  mode: SessionMode;
+  seconds: number;
+  runSeconds: number | null;
+  runLive: boolean;
+  /** A run is waiting to be rated in the box below. */
+  ratingPending: boolean;
+  drillsDone: number;
+  startDisabled: boolean;
+  onStart: () => void;
+  onEnd: () => void;
+}) {
+  const playing = useMetronomeState().playing;
+  const [beat, setBeat] = useState<{ index: number; beatsPerBar: number } | null>(null);
+  useEffect(() => {
+    if (!playing) return undefined;
+    return metronome.onBeat(setBeat);
+  }, [playing]);
+  const shown = playing ? beat : null;
+  const dots = shown?.beatsPerBar ?? 4;
+  const count = runLive
+    ? `Drill ${drillsDone + 1} running`
+    : drillsDone === 0
+      ? 'No drills yet, the clock is still counting.'
+      : `${drillsDone} drill${drillsDone === 1 ? '' : 's'} in this session`;
+
+  return (
+    <div className="flex items-center gap-3 flex-wrap" data-testid="session-control-strip">
+      <div className={runSeconds === null ? '' : 'flex gap-2'}>
+        <SessionClockFace seconds={seconds} mode={mode} />
+        {runSeconds !== null && (
+          <SessionClockFace
+            seconds={runSeconds}
+            mode={mode}
+            label={mode === 'test' ? 'Test Run' : 'Practice Run'}
+          />
+        )}
+      </div>
+      {runLive ? (
+        <button
+          type="button"
+          onClick={onEnd}
+          className="px-4 py-2 rounded-lg bg-needswork text-white text-sm font-medium hover:opacity-90"
+        >
+          End Drill
+        </button>
+      ) : !ratingPending && (
+        <button
+          type="button"
+          onClick={onStart}
+          disabled={startDisabled}
+          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
+        >
+          {mode === 'test' ? 'Start A Test Drill' : 'Start A Practice Drill'}
+        </button>
+      )}
+      <span className="inline-flex gap-1.5" aria-hidden data-testid="beat-dots">
+        {Array.from({ length: dots }, (_, i) => (
+          <span
+            key={i}
+            className={`inline-block w-2.5 h-2.5 rounded-full ${
+              shown?.index === i ? 'bg-fluent' : 'bg-neutral-200 dark:bg-neutral-700'}`}
+          />
+        ))}
+      </span>
+      <span className="ml-auto text-xs text-neutral-500" data-testid="drill-count">{count}</span>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------
 
 function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
@@ -1188,14 +1296,11 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 // ---------------------------------------------------------------------
 
 function SessionStep({
-  mode, seconds, drills, saving, surface, draft, onDraftChange,
-  metronomeOn, rating, runSeconds, runLive, onEndRun, ladder, paused,
-  onStartDrill,
+  mode, drills, surface, draft, onDraftChange,
+  metronomeOn, rating, ladder, paused,
 }: {
   mode: SessionMode;
-  seconds: number;
   drills: ReadonlyArray<CompletedDrill>;
-  saving: boolean;
   surface: DrillSurface;
   /** How the next run is set up. Null before a mode is picked. */
   draft: DrillDraft | null;
@@ -1206,18 +1311,10 @@ function SessionStep({
    *  they are the two answers to "what now" and only one is ever
    *  true. */
   rating: ReactNode | null;
-  /** Seconds into the run being played, or null when none is. It sits
-   *  BESIDE the session's clock rather than replacing the screen. */
-  runSeconds: number | null;
-  /** True while the run's clock is still going. */
-  runLive: boolean;
-  /** End the run. It does not rate it — that is the next thing. */
-  onEndRun: () => void;
   /** The rungs this test moves between, or null before the item's
    *  current standing has been read. */
   ladder: LadderRungs | null;
   paused: boolean;
-  onStartDrill: () => void;
 }) {
   const runs = drills.map(streakRun);
   const streak = projectTestStreak(runs);
@@ -1230,19 +1327,8 @@ function SessionStep({
 
   return (
     <div className="space-y-2.5">
-      {/* TWO CLOCKS, SIDE BY SIDE. The run's appears next to the
-          session's while it is being played and goes when it is over —
-          it never takes the screen. */}
-      <div className={runSeconds === null ? '' : 'grid grid-cols-2 gap-2'}>
-        <SessionClockFace seconds={seconds} mode={mode} />
-        {runSeconds !== null && (
-          <SessionClockFace
-            seconds={runSeconds}
-            mode={mode}
-            label={mode === 'test' ? 'Test Run' : 'Practice Run'}
-          />
-        )}
-      </div>
+      {/* THE CLOCKS AND THE DRILL BUTTON ARE IN THE PINNED STRIP above
+          this body — see `SessionControlStrip`. */}
 
       {/* THE BAND, DRAWN ALWAYS DURING A TEST — never only once a run
           is banked. The run number keeps climbing while the streak
@@ -1316,39 +1402,6 @@ function SessionStep({
           start another are two answers to "what now", and only one of
           them is ever true. */}
       {rating}
-
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* WHILE THE CLOCK IS GOING, ENDING IT IS THE ONLY THING TO DO,
-            so it is the one highlighted action. Rating comes after, and
-            the box above says so rather than offering itself. */}
-        {runLive && (
-          <button
-            type="button"
-            onClick={onEndRun}
-            className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90"
-          >
-            {mode === 'test' ? 'End Test Run' : 'End Practice Run'}
-          </button>
-        )}
-        {rating === null && (
-        <button
-          type="button"
-          onClick={onStartDrill}
-          /* A STYLE IS STILL REQUIRED WHERE THERE IS ONE TO PICK. The
-             old setup screen refused to start without it; the question
-             moved onto this screen and the refusal moved with it,
-             rather than a run being written with no manner. */
-          disabled={saving || paused
-            || (mode === 'test' && !metronomeOn)
-            || (surface.hasStyle && draft?.style == null)}
-          className="px-4 py-2 rounded-lg bg-fluent text-white text-sm font-medium hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
-        >
-          {mode === 'test'
-            ? `Start Test Run ${drills.length + 1}`
-            : 'Start A Practice Drill'}
-        </button>
-        )}
-      </div>
     </div>
   );
 }
