@@ -24,11 +24,21 @@ import { useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db, type SpacingState } from '../../lib/db';
 import {
+  CIRCLE_KEY,
+  CIRCLE_LABEL,
   KEYS_CIRCLE_OF_FOURTHS,
   VOICE_LEADING_PATTERN_BY_ID,
   voiceLeadingGridRows,
   type VoiceLeadingGridRow,
 } from './catalog';
+
+/**
+ * Thirteen cells a row: the twelve keys by fourths, then the Circle of
+ * 4ths cell (Silas, 13 Sep 2026), which drills the whole row round the
+ * circle and rates on its own target — built-in rows and captured
+ * movements alike.
+ */
+const GRID_KEYS: readonly string[] = [...KEYS_CIRCLE_OF_FOURTHS, CIRCLE_KEY];
 import { spellKey } from '../../lib/spelling';
 import { useSpelling } from '../../lib/spellingPref';
 import BandCell from './BandCell';
@@ -103,9 +113,13 @@ export default function VoiceLeadingPatternGrid({
   return (
     <KeyedGrid
       rows={rows.map(r => ({ rowKey: r.rowId, label: r.label, hint: r.hint }))}
-      keys={KEYS_CIRCLE_OF_FOURTHS}
+      keys={GRID_KEYS}
       layout={layout}
       spelling={spelling}
+      keyLabel={keyName => (keyName === CIRCLE_KEY
+        // GREEN AND HEAVIER, as the chord-shape grid draws its Circle row.
+        ? <span className="text-fluent font-semibold">{CIRCLE_LABEL}</span>
+        : spellKey(keyName, spelling))}
       renderCell={(rowId, keyName, showKeyLabel) => {
         const row = rows.find(r => r.rowId === rowId);
         if (!row) return null;
@@ -120,12 +134,14 @@ export default function VoiceLeadingPatternGrid({
         // lowercase "not started" read as a description rather than the
         // status it is. Both are marked; the separator is a middot so
         // the three facts read as three facts.
-        const title = `${row.label} · the key of ${spellKey(keyName, spelling)} — ${bandVerdictLabel(verdict)}`;
+        const circle = keyName === CIRCLE_KEY;
+        const title = `${row.label} · ${circle ? CIRCLE_LABEL : `the key of ${spellKey(keyName, spelling)}`}`
+          + ` — ${bandVerdictLabel(verdict)}`;
         return (
           <BandCell
             verdict={verdict}
             title={title}
-            keyLabel={showKeyLabel ? spellKey(keyName, spelling) : undefined}
+            keyLabel={showKeyLabel ? (circle ? CIRCLE_LABEL : spellKey(keyName, spelling)) : undefined}
             selected={itemRef === selectedRef}
             onClick={onCellOpen ? () => onCellOpen(itemRef) : undefined}
           />

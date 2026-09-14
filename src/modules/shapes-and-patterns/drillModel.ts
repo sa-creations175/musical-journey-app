@@ -534,6 +534,8 @@ export function labelFor(desc: SkillDescriptor): string {
     }
     case 'voice-leading': {
       const p = VOICE_LEADING_PATTERNS.find(x => x.id === desc.patternId);
+      // The Circle of 4ths cell is not a key: its name stands where one would.
+      if (desc.keyName === CIRCLE_KEY) return `${p?.label ?? 'Pattern'} · ${CIRCLE_LABEL}`;
       return `${p?.label ?? 'Pattern'} in ${desc.keyName}`;
     }
     case 'mental-viz': {

@@ -28,6 +28,7 @@ vi.mock('../../../../lib/useMetronome', () => ({
 
 import type { InversionState } from '../../../../lib/db';
 import CircleOfFourthsRow from '../CircleOfFourthsRow';
+import { chordShapeCircleRow, movementCircleRow } from '../circleRowContent';
 import { circlePosition } from '../circlePosition';
 
 let root: Root | null = null;
@@ -46,8 +47,7 @@ async function mount(quality: string, inversionState: InversionState, per: numbe
   await act(async () => {
     root!.render(
       <CircleOfFourthsRow
-        quality={quality}
-        inversionState={inversionState}
+        {...chordShapeCircleRow(quality, inversionState)}
         smallLine="Root position · Left hand"
         per={per}
       />,
@@ -125,5 +125,43 @@ describe('the row', () => {
     await beats(1);
     expect(current()).toBe('C');
     expect(read('circle-small-line')).toContain('lap 2');
+  });
+});
+
+describe('the same row, for a movement (Silas, 13 Sep 2026)', () => {
+  /** A 2-5-1, named in whichever key the drill is in. */
+  const TWO_FIVE_ONE: Record<string, string[]> = {
+    C: ['Dm7', 'G7', 'Cmaj7'],
+    F: ['Gm7', 'C7', 'Fmaj7'],
+  };
+
+  it('tiles the keys, says its own line above, and names the row\'s chords in the current key', async () => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    // Three chords at One Chord Every 2 Beats: six beats a key.
+    await act(async () => {
+      root!.render(
+        <CircleOfFourthsRow
+          {...movementCircleRow(keyName => TWO_FIVE_ONE[keyName] ?? [])}
+          smallLine="Major 2-5-1 · Guide tones · Position 1"
+          per={6}
+        />,
+      );
+    });
+    for (let i = 0; i < 4; i += 1) {
+      await act(async () => { await new Promise(r => setTimeout(r, 5)); });
+    }
+    expect(tiles().map(t => t.textContent)).toEqual(['C', 'F', 'B♭', 'E♭', 'A♭', 'D♭', 'G♭', 'B', 'E', 'A', 'D', 'G']);
+    expect(read('circle-note')).toBe(
+      'Drill this movement around the Circle of 4ths. This exercise counts toward the Circle of 4ths cell in the matrix.',
+    );
+    expect(read('circle-notes')).toBe('In C: Dm7 · G7 · Cmaj7');
+    await beats(6);
+    expect(current()).toBe('C');
+    await beats(1);
+    expect(current()).toBe('F');
+    expect(read('circle-notes')).toBe('In F: Gm7 · C7 · Fmaj7');
+    expect(read('circle-small-line')).toBe('Major 2-5-1 · Guide tones · Position 1 · lap 1');
   });
 });

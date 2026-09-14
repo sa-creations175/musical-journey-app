@@ -158,12 +158,13 @@ async function open() {
 }
 
 describe('the movement on the page', () => {
-  it('draws one row of twelve cells, like a pattern with one position', async () => {
+  it('draws one row of thirteen cells, like a pattern with one position', async () => {
     await db.chordMovements.add(MOVEMENT);
     const el = await open();
     const section = el.querySelector('[data-testid="movement-section-mv-walkup"]')!;
     const cells = section.querySelectorAll('[data-testid="band-cell"]');
-    expect(cells).toHaveLength(12);
+    // The twelve keys and the Circle of 4ths cell (Silas, 13 Sep 2026).
+    expect(cells).toHaveLength(13);
   });
 
   it('fills Progress Details when a cell is tapped', async () => {

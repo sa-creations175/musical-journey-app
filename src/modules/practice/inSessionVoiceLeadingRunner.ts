@@ -10,6 +10,8 @@
  */
 import {
   parseVoiceLeadingItemRef,
+  CIRCLE_KEY,
+  CIRCLE_LABEL,
   patternRowLabel,
   voiceLeadingRung,
   voiceLeadingSubCellLabel,
@@ -58,7 +60,7 @@ export function resolveVoiceLeadingRunnerItems(
       ? `${patternRowLabel(pattern.id, pattern.label, {
         ...(rowSpelling ? { settings: rowSpelling } : {}),
         rung: voiceLeadingRung(),
-      })} in ${spellKey(desc.keyName, spelling)}`
+      })}${desc.keyName === CIRCLE_KEY ? ` · ${CIRCLE_LABEL}` : ` in ${spellKey(desc.keyName, spelling)}`}`
       : item.itemRef;
     out.push({ ...item, label, subLabel: voiceLeadingSubCellLabel(desc) });
   }

@@ -36,7 +36,9 @@
 import type { ChordMovement } from '../../../lib/db';
 import type { Spelling } from '../../../lib/spelling';
 import { spellKey } from '../../../lib/spelling';
-import { KEYS_CIRCLE_OF_FOURTHS, type VoiceLeadingGridRow } from '../catalog';
+import {
+  CIRCLE_KEY, CIRCLE_LABEL, KEYS_CIRCLE_OF_FOURTHS, type VoiceLeadingGridRow,
+} from '../catalog';
 
 /** What an unnamed movement is called wherever one has to be named. */
 export const UNNAMED_MOVEMENT = 'Unnamed movement';
@@ -84,5 +86,8 @@ export function movementCellRefs(movementId: string): string[] {
 export function movementCellLabel(
   movement: ChordMovement, keyName: string, spelling: Spelling,
 ): string {
+  // "Walk-up · Circle of 4ths": the row's name with the key replaced
+  // (Silas, 13 Sep 2026).
+  if (keyName === CIRCLE_KEY) return `${movement.name || UNNAMED_MOVEMENT} · ${CIRCLE_LABEL}`;
   return `${movement.name || UNNAMED_MOVEMENT} in ${spellKey(keyName, spelling)}`;
 }

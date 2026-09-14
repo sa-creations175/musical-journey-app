@@ -15,6 +15,9 @@ import { createElement } from 'react';
 import type { DrillHand, DrillSkill, DrillType } from '../../../lib/db';
 import CellPlayer from '../CellPlayer';
 import CircleOfFourthsRow from './CircleOfFourthsRow';
+import { chordShapeCircleRow, movementCircleRow } from './circleRowContent';
+import { circleChordNames } from '../circleChordNames';
+import type { ChordMovement } from '../../../lib/db';
 import { CIRCLE_KEY } from '../catalog';
 import { getSpacingState, recordEngagement } from '../../../lib/spacingState';
 import { NOT_STARTED, type BandVerdict } from '../../../lib/spacing/banding';
@@ -134,8 +137,7 @@ export function chordShapeSurface(args: {
     // practice session gets the same row the grid's panel does.
     renderDuringDrill: args.skill.keyName === CIRCLE_KEY
       ? ({ per }) => createElement(CircleOfFourthsRow, {
-        quality: args.skill.quality ?? '',
-        inversionState: args.skill.inversionState ?? null,
+        ...chordShapeCircleRow(args.skill.quality ?? '', args.skill.inversionState ?? null),
         smallLine: args.skillLabel,
         per,
       })
@@ -270,7 +272,17 @@ export function voiceLeadingSurface(args: {
   cellLabel: string;
   skillLabel: string;
   itemRef: string;
+  /** The row's own name, for a Circle of 4ths drill's small line. */
+  rowLabel?: string;
+  /** The captured movement the cell belongs to, where it is one — its
+   *  lead sheet's chords go under the twelve in a Circle drill. */
+  movement?: ChordMovement;
 }): DrillSurface {
+  // THE CIRCLE OF 4THS CELL (Silas, 13 Sep 2026): one step is the whole
+  // row in a key, one chord a Rate interval, then the next key by fourths.
+  const circle = args.itemRef.endsWith(`:${CIRCLE_KEY}`);
+  const chordsIn = (keyName: string, spelling: Parameters<typeof circleChordNames>[2]) =>
+    circleChordNames(args.itemRef, keyName, spelling, args.movement);
   return {
     id: 'voice-leading',
     cellLabel: args.cellLabel,
@@ -303,6 +315,16 @@ export function voiceLeadingSurface(args: {
     // the grid, on the cell being drilled — a reference, not a rating,
     // and it writes nothing.
     renderReference: () => createElement(CellPlayer, { itemRef: args.itemRef }),
+    // THE CIRCLE OF 4THS ROW, the same one chord shapes draw: the twelve
+    // keys, and under them the row's chords in the current key. A key
+    // lasts one Rate interval a chord (Silas, 13 Sep 2026).
+    renderDuringDrill: circle
+      ? ({ per }) => createElement(CircleOfFourthsRow, {
+        ...movementCircleRow(chordsIn),
+        smallLine: args.rowLabel ?? args.cellLabel,
+        per: per * Math.max(1, chordsIn('C', 'flat').length),
+      })
+      : null,
     // The session IS the panel here, so there is no record to tell.
     onSessionPause: null,
     onSessionStart: null,

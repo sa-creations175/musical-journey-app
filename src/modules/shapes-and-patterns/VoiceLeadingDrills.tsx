@@ -8,7 +8,7 @@ import VoiceLeadingPatternGrid from './VoiceLeadingPatternGrid';
 import PracticeTestPanel from './practiceTest/PracticeTestPanel';
 import { voiceLeadingSurface } from './practiceTest/makeSurfaces';
 import {
-  parseVoiceLeadingItemRef, patternRowLabel, voiceLeadingRung,
+  CIRCLE_KEY, CIRCLE_LABEL, parseVoiceLeadingItemRef, patternRowLabel, voiceLeadingRung,
   voiceLeadingSubCellLabel,
 } from './catalog';
 import type { RowOptions } from '../../lib/progressionRow';
@@ -252,7 +252,9 @@ export default function VoiceLeadingDrills() {
         for (const s of matching) {
           const keyName = s.keyName ?? '';
           await db.drillSkills.update(s.id, {
-            label: `${trimmed} in ${spellKey(keyName, spelling)}`,
+            label: keyName === CIRCLE_KEY
+              ? `${trimmed} · ${CIRCLE_LABEL}`
+              : `${trimmed} in ${spellKey(keyName, spelling)}`,
           });
         }
       });
@@ -464,11 +466,19 @@ export default function VoiceLeadingDrills() {
             cellLabel: cellLabel(drilling),
             // A MOVEMENT HAS NO SUB-CELL, so there is no second line.
             // The panel joins the two with a middot and an empty one
-            // simply does not appear.
+            // simply does not appear. A CIRCLE OF 4THS CELL'S LABEL
+            // already carries its row, so it has no second line either.
             skillLabel: movementIdForRef(drilling, movementIds) === null
+              && !drilling.endsWith(`:${CIRCLE_KEY}`)
               ? voiceLeadingSubCellDescription(drilling)
               : '',
             itemRef: drilling,
+            // THE ROW'S NAME for a Circle drill's small line, and the
+            // captured movement whose chords go under the twelve.
+            rowLabel: cellLabel(drilling).replace(` · ${CIRCLE_LABEL}`, ''),
+            ...((m: ChordMovement | undefined) => (m === undefined ? {} : { movement: m }))(
+              movements.find(x => x.id === movementIdForRef(drilling, movementIds)),
+            ),
           })}
           onClose={() => setDrilling(null)}
         />
@@ -518,8 +528,12 @@ function voiceLeadingCellLabel(
   const desc = parseVoiceLeadingItemRef(itemRef);
   if (!desc) return 'Voice-leading';
   const pattern = VOICE_LEADING_PATTERN_BY_ID.get(desc.patternId);
-  if (!pattern) return `Pattern in ${spellKey(desc.keyName, spelling)}`;
-  const name = patternRowLabel(pattern.id, pattern.label, opts);
+  const name = pattern ? patternRowLabel(pattern.id, pattern.label, opts) : 'Pattern';
+  // "Major 2-5-1 · Guide tones · Position 1 · Circle of 4ths": the row's
+  // label with the key replaced (Silas, 13 Sep 2026).
+  if (desc.keyName === CIRCLE_KEY) {
+    return `${name} · ${voiceLeadingSubCellLabel(desc)} · ${CIRCLE_LABEL}`;
+  }
   return `${name} in ${spellKey(desc.keyName, spelling)}`;
 }
 

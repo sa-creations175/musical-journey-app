@@ -1159,7 +1159,9 @@ export function parseVoiceLeadingItemRef(
   if (parts.length < 4 || parts[0] !== 'vl') return null;
   const patternId = parts[1];
   const keyName = parts[parts.length - 1];
-  if (!KEY_SET.has(keyName)) return null;
+  // THE CIRCLE OF 4THS CELL stands where a key stands (Silas, 13 Sep
+  // 2026), so a Circle ref parses like any other sub-cell.
+  if (!KEY_SET.has(keyName) && keyName !== CIRCLE_KEY) return null;
 
   switch (patternId) {
     case 'five-one': {

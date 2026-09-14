@@ -15,7 +15,7 @@
  * own player and are not on this list.
  * =====================================================================
  */
-import { parseVoiceLeadingItemRef } from './catalog';
+import { CIRCLE_KEY, parseVoiceLeadingItemRef } from './catalog';
 import {
   SHARED_PROGRESSION_BY_ID, type ListRung,
 } from '../ear-training/chord-progressions/sharedList';
@@ -42,8 +42,11 @@ const POSITION_OF_TAG: Readonly<Record<string, number>> = {
 export function cellForPlayer(itemRef: string): {
   entryId: string; rung: ListRung; position: number; keyName: string;
 } | null {
-  const desc = parseVoiceLeadingItemRef(itemRef);
-  if (desc === null) return null;
+  const parsed = parseVoiceLeadingItemRef(itemRef);
+  if (parsed === null) return null;
+  // THE CIRCLE OF 4THS CELL PLAYS ITS ROW IN C, and nothing more
+  // (Silas, 13 Sep 2026): the drill is what goes round the circle.
+  const desc = parsed.keyName === CIRCLE_KEY ? { ...parsed, keyName: 'C' } : parsed;
   const entry = SHARED_PROGRESSION_BY_ID.get(desc.patternId);
   if (entry === undefined) return null;
   switch (desc.kind) {
