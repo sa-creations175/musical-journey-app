@@ -175,6 +175,18 @@ describe('catalogTotalForGoal', () => {
     }))).toBe(harmonicFluencyCounts().byGroup.chordKnowledge);
   });
 
+  it('a group retired on 14 Sep 2026 keeps the denominator it had', () => {
+    // A goal keeps meaning what it meant on the day it was set.
+    expect(catalogTotalForGoal(makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY,
+      targetUnit: 'foundational',
+    }))).toBe(949);
+    expect(catalogTotalForGoal(makeGoal({
+      targetMetric: COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY,
+      targetUnit: 'ear-recognition',
+    }))).toBe(244);
+  });
+
   it('ET sub-areas read their own count', () => {
     expect(catalogTotalForGoal(makeGoal({
       targetMetric: COVERAGE_SPECIFIC_METRIC.EAR_TRAINING,
@@ -210,7 +222,11 @@ describe('catalogTotalForGoal', () => {
     // the translation table still spans both vocabularies and that the
     // counts object still has those four fields. A group renamed on
     // one side only would still fail here.
-    const kebab = Object.keys(HF_GROUP_CATEGORIES).sort();
+    // THE TWO RETIRED UNITS (14 Sep 2026) resolve to categories and have
+    // no counts field — they are counted from their families — so the
+    // seam is checked on the live three.
+    const retired = new Set(['foundational', 'ear-recognition']);
+    const kebab = Object.keys(HF_GROUP_CATEGORIES).filter(u => !retired.has(u)).sort();
     const translated = Object.keys(HF_UNIT_TO_COUNT_GROUP).sort();
     expect(translated).toEqual(kebab);
     const camel = Object.keys(harmonicFluencyCounts().byGroup).sort();

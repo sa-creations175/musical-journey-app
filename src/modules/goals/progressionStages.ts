@@ -55,7 +55,8 @@ import {
 } from '../ear-training/chord-recognition/chordRecognitionTiers';
 import { INTERVAL_SEEDS } from '../ear-training/intervals/seed';
 import { PROGRESSIONS } from '../ear-training/chord-progressions/catalog';
-import { FLASHCARDS } from '../harmonic-fluency/catalog';
+import { CATEGORY_LABELS, FLASHCARDS } from '../harmonic-fluency/catalog';
+import { HF_GROUP_TITLE } from '../harmonic-fluency/coverageGroups';
 import { PRODUCTION_PATHS } from '../production/content/paths';
 import { lessonsByPath } from '../production/content/lessons';
 import { HF_GROUP_CATEGORIES } from './progress';
@@ -325,7 +326,7 @@ const SCALES_MODES_STAGES: ReadonlyArray<ProgressionStage> = [
 ];
 
 // =====================================================================
-// HF — 4 stages by category group
+// HF — 3 stages by coverage group (14 Sep 2026), and the retired two
 // =====================================================================
 
 /** All HF flashcard ids whose category falls in the given group's
@@ -338,32 +339,31 @@ function hfStageItems(groupId: string): string[] {
   return FLASHCARDS.filter(c => set.has(c.category)).map(c => c.id);
 }
 
+/** A group as a stage: its title, and its families as the description —
+ *  read off the groups, so the words cannot go stale again. */
+function hfStage(id: string, unit: string): ProgressionStage {
+  return {
+    id,
+    name: HF_GROUP_TITLE[unit] ?? unit,
+    description: (HF_GROUP_CATEGORIES[unit] ?? []).map(c => CATEGORY_LABELS[c]).join(' · '),
+    itemRefs: hfStageItems(unit),
+  };
+}
+
 const HF_STAGES: ReadonlyArray<ProgressionStage> = [
-  {
-    id: 'hf-foundational',
-    name: 'Foundational / Math',
-    description: 'Scale-degree math · Named notes across keys · Key signatures',
-    itemRefs: hfStageItems('foundational'),
-  },
-  {
-    id: 'hf-chord-knowledge',
-    name: 'Chord knowledge',
-    description: 'Diatonic chord qualities · Chord construction · Slash chords & inversions',
-    itemRefs: hfStageItems('chord-knowledge'),
-  },
-  {
-    id: 'hf-functional',
-    name: 'Functional / Applied',
-    description: 'Functional harmony · Reverse key pivots · Progression vocabulary',
-    itemRefs: hfStageItems('functional-applied'),
-  },
-  {
-    id: 'hf-ear',
-    name: 'Ear & Recognition',
-    description: 'Mode identification · Interval identification · Ear-theory crossover',
-    itemRefs: hfStageItems('ear-recognition'),
-  },
+  hfStage('hf-notes', 'notes-degrees-scales-keys'),
+  hfStage('hf-chord-knowledge', 'chord-knowledge'),
+  hfStage('hf-functional', 'functional-applied'),
 ];
+
+/**
+ * The two groups retired on 14 Sep 2026, as the stages they were. Reached
+ * only by a goal that stored the unit, which keeps meaning what it meant.
+ */
+const HF_RETIRED_STAGES = {
+  foundational: hfStage('hf-foundational', 'foundational'),
+  earRecognition: hfStage('hf-ear', 'ear-recognition'),
+} as const;
 
 // =====================================================================
 // Production — 6 lesson paths
@@ -451,11 +451,13 @@ export const SUB_AREA_PROGRESSIONS: Readonly<
   'chord-recognition':       CHORD_RECOGNITION_STAGES,
   'chord-progressions':      CHORD_PROGRESSION_STAGES,
   'scales-modes':            SCALES_MODES_STAGES,
-  // HF group IDs.
-  foundational:              [HF_STAGES[0]],
+  // HF group units: the three since 14 Sep 2026, and the retired two a
+  // goal set before then may still store.
+  'notes-degrees-scales-keys': [HF_STAGES[0]],
   'chord-knowledge':         [HF_STAGES[1]],
   'functional-applied':      [HF_STAGES[2]],
-  'ear-recognition':         [HF_STAGES[3]],
+  foundational:              [HF_RETIRED_STAGES.foundational],
+  'ear-recognition':         [HF_RETIRED_STAGES.earRecognition],
   // Production paths.
   ...Object.fromEntries(
     PRODUCTION_PATHS.map(p => [p.id, [PRODUCTION_STAGES.find(s => s.id === `prod-${p.id}`)!]]),

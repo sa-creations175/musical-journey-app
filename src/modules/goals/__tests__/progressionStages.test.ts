@@ -183,18 +183,31 @@ describe('ET Scales/Modes progression — brightness order + minor variants', ()
 });
 
 // =====================================================================
-// HF — 4 stages by group
+// HF — 3 stages by group (14 Sep 2026)
 // =====================================================================
 
-describe('HF progression — 4 category-group stages', () => {
-  it('foundational / chord-knowledge / functional / ear, in order', () => {
+describe('HF progression — 3 category-group stages', () => {
+  it('notes, degrees, scales & keys / chords / movement, in order', () => {
     const hf = MODULE_PROGRESSIONS['harmonic-fluency'];
     expect(hf.stages.map(s => s.id)).toEqual([
-      'hf-foundational',
+      'hf-notes',
       'hf-chord-knowledge',
       'hf-functional',
-      'hf-ear',
     ]);
+    expect(hf.stages.map(s => s.name)).toEqual([
+      'Notes, Degrees, Scales & Keys', 'Chords', 'Movement',
+    ]);
+  });
+
+  it('keeps a retired group\'s stage for a goal that stored it', () => {
+    // A goal keeps meaning what it meant on the day it was set.
+    const found = progressionForGoal('harmonic-fluency', 'foundational');
+    expect(found.map(s => s.id)).toEqual(['hf-foundational']);
+    const cats = new Set(found[0].itemRefs.map(id => FLASHCARDS.find(c => c.id === id)!.category));
+    expect([...cats].sort()).toEqual(
+      ['degree-notes', 'enharmonic-equivalents', 'key-signatures', 'pentatonic-scales', 'scale-degree-math'],
+    );
+    expect(progressionForGoal('harmonic-fluency', 'ear-recognition').map(s => s.id)).toEqual(['hf-ear']);
   });
 
   it('every stage item id maps to a real flashcard', () => {

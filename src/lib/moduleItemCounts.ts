@@ -142,7 +142,7 @@ export interface HarmonicFluencyCounts {
   /** Raw per-category counts. Useful for any surface that drills
    *  below the group level (e.g. accuracy-specific picker). */
   byCategory: Record<FlashcardCategory, number>;
-  /** Sum across all categories = sum across all 4 groups. */
+  /** Sum across all categories = sum across all 3 groups. */
   total: number;
 }
 

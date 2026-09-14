@@ -2,6 +2,7 @@ import {
   defaultHarmonicFluency,
   type HarmonicFluencyTarget,
 } from '../GoalCreationFlow';
+import { harmonicFluencyCounts } from '../../../lib/moduleItemCounts';
 
 export interface MonthlySuggestion<T> {
   /** Pre-populated target slice the focus section renders. The user
@@ -20,7 +21,7 @@ export interface MonthlySuggestion<T> {
 
 /**
  * Build the monthly Harmonic Fluency suggestion. v1 (clean-slate):
- * baseline foundational / math group, cover-to-acquired. The
+ * baseline Notes, Degrees, Scales & Keys group, cover-to-acquired. The
  * consistency target is on by default (5 days/week) via
  * `defaultHarmonicFluency()` — spreading flashcard work across days
  * matters more for retention than total time. The user can toggle
@@ -30,13 +31,14 @@ export function suggestHfMonthly(): MonthlySuggestion<HarmonicFluencyTarget> {
   const target = defaultHarmonicFluency();
   target.coverageEnabled = true;
   target.coverageScope = 'specific';
-  target.coverageGroupIds = ['foundational'];
+  target.coverageGroupIds = ['notes-degrees-scales-keys'];
+  const cards = harmonicFluencyCounts().byGroup.notesDegreesScalesKeys;
 
   return {
     target,
     contextLines: [
-      'Start with foundational scale-degree math, named notes, and key signatures.',
-      'Reach the acquired stage on all 130 cards in this group.',
+      'Start with Notes, Degrees, Scales & Keys: the notes of every key, scale-degree math, key signatures, intervals and modes.',
+      `Reach the acquired stage on all ${cards} cards in this group.`,
       'Default: 5 days/week — frequent short sessions over occasional long ones.',
     ],
   };

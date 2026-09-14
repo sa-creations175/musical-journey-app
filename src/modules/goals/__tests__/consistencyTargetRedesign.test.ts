@@ -184,11 +184,11 @@ describe('coverageWeeklyMinutes', () => {
   });
 
   it('HF: items × 10 attempts/item × per-attempt-minutes / weeks', () => {
-    // HF foundational group is the default suggestion (130 items).
+    // The Notes, Degrees, Scales & Keys group is the default suggestion.
     const records = encodeHarmonicFluency(hf({
       coverageEnabled: true,
       coverageScope: 'specific',
-      coverageGroupIds: ['foundational'],
+      coverageGroupIds: ['notes-degrees-scales-keys'],
     }));
     const minutes = coverageWeeklyMinutes({
       records,

@@ -59,12 +59,11 @@ describe('module ordering constants', () => {
     ]);
   });
 
-  it('HF group order matches the four coverage groups', () => {
+  it('HF group order matches the three coverage groups (14 Sep 2026)', () => {
     expect(HF_GROUP_ORDER).toEqual([
-      'foundational',
+      'notes-degrees-scales-keys',
       'chord-knowledge',
       'functional-applied',
-      'ear-recognition',
     ]);
   });
 });
@@ -95,11 +94,11 @@ describe('harmonicFluencyColdStartOrder', () => {
     }
   });
 
-  it('foundational-group cards come before ear-recognition cards', () => {
+  it('notes, degrees, scales & keys cards come before movement cards', () => {
     const order = harmonicFluencyColdStartOrder();
     const cardById = new Map(FLASHCARDS.map(c => [c.id, c]));
-    const foundationalCats = ['scale-degree-math', 'named-notes', 'key-signatures'];
-    const earCats = ['modes', 'intervals'];
+    const foundationalCats = ['scale-degree-math', 'degree-notes', 'key-signatures', 'intervals', 'modes'];
+    const earCats = ['progressions', 'modal-improvisation', 'functional-harmony'];
 
     let lastFoundationalIdx = -1;
     let firstEarIdx = order.length;

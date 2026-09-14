@@ -180,10 +180,10 @@ describe('encodeDimensionRecords — Harmonic Fluency', () => {
     expect(breadth.targetUnit).toBe('cards');
   });
 
-  it('Mastery covering all 4 HF groups uses the overall mastery metric', () => {
+  it('Mastery covering all 3 HF groups uses the overall mastery metric', () => {
     const e: HarmonicFluencyAnchor = {
       ...baseHf,
-      mastery: { groupIds: ['foundational', 'chord-knowledge', 'functional-applied', 'ear-recognition'] },
+      mastery: { groupIds: ['notes-degrees-scales-keys', 'chord-knowledge', 'functional-applied'] },
     };
     const records = encodeDimensionRecords(hf(e));
     const mastery = records.find(r => r.targetMetric.includes('mastery'));

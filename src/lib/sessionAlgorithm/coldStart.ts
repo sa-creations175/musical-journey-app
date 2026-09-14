@@ -25,9 +25,9 @@
  *   Song Repertoire   — goal-driven only. Algorithm defers entirely
  *                        to the user's declared songs.
  *
- *   Harmonic Fluency  — concept-grouped: the four coverage groups
- *                        (foundational → chord-knowledge →
- *                        functional-applied → ear-recognition);
+ *   Harmonic Fluency  — concept-grouped: the three coverage groups in
+ *                        `coverageGroups.ts` order (notes, degrees,
+ *                        scales & keys → chords → movement);
  *                        within each group, the constituent
  *                        categories in CATEGORY_ORDER; within each
  *                        category, FLASHCARDS in catalog order.
@@ -37,6 +37,7 @@
  */
 
 import { HF_GROUP_CATEGORIES } from '../../modules/goals/progress';
+import { HARMONIC_FLUENCY_GROUPS } from '../../modules/harmonic-fluency/coverageGroups';
 import {
   CATEGORY_ORDER,
   FLASHCARDS,
@@ -105,22 +106,17 @@ export const SHAPES_AREA_PREFIX_ORDER: ReadonlyArray<string> = [
 
 /**
  * Harmonic Fluency coverage-group order. Concept-focused
- * progression: foundational math → chord knowledge → functional
- * applied → ear recognition. Algorithm sticks with one group until
+ * progression: notes, degrees, scales & keys → chords → movement. Algorithm sticks with one group until
  * basic acquisition before broadening — that emergent behavior comes
  * from the picker skipping touched/acquired items, not from this
  * order alone.
  */
-// DERIVED, not written out again. The four groups and their order
-// live in `harmonic-fluency/coverageGroups.ts`; `coverageGroups.test`
-// asserts this is that order, so a fifth group joins the walk without
-// anyone remembering to add it here.
-export const HF_GROUP_ORDER: ReadonlyArray<string> = [
-  'foundational',
-  'chord-knowledge',
-  'functional-applied',
-  'ear-recognition',
-];
+// DERIVED, not written out again. The groups and their order live in
+// `harmonic-fluency/coverageGroups.ts`, so a new group joins the walk
+// without anyone remembering to add it here. (It was a hand-written list
+// of four until the regroup of 14 Sep 2026.)
+export const HF_GROUP_ORDER: ReadonlyArray<string> =
+  HARMONIC_FLUENCY_GROUPS.map(g => g.unit);
 
 /**
  * High-level cold-start rule per module. Declarative; the algorithm

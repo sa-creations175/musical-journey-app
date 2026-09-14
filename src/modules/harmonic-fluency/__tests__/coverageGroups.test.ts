@@ -87,3 +87,25 @@ describe('the readings all come off the one list', () => {
     expect(HF_GROUP_ORDER).toEqual(HARMONIC_FLUENCY_GROUPS.map(g => g.unit));
   });
 });
+
+describe('the regroup of 14 Sep 2026', () => {
+  it('is three groups, in the walked order, with the walked titles', async () => {
+    const { HARMONIC_FLUENCY_GROUPS } = await import('../coverageGroups');
+    expect(HARMONIC_FLUENCY_GROUPS.map(g => [g.unit, g.title])).toEqual([
+      ['notes-degrees-scales-keys', 'Notes, Degrees, Scales & Keys'],
+      ['chord-knowledge', 'Chords'],
+      ['functional-applied', 'Movement'],
+    ]);
+  });
+
+  it('keeps the two retired units resolving to the families they held, offered by no picker', async () => {
+    const { HARMONIC_FLUENCY_GROUPS, HF_CATEGORIES_BY_UNIT } = await import('../coverageGroups');
+    expect([...HF_CATEGORIES_BY_UNIT.foundational].sort()).toEqual(
+      ['degree-notes', 'enharmonic-equivalents', 'key-signatures', 'pentatonic-scales', 'scale-degree-math'],
+    );
+    expect([...HF_CATEGORIES_BY_UNIT['ear-recognition']].sort()).toEqual(['intervals', 'modes']);
+    const offered = HARMONIC_FLUENCY_GROUPS.map(g => g.unit as string);
+    expect(offered).not.toContain('foundational');
+    expect(offered).not.toContain('ear-recognition');
+  });
+});

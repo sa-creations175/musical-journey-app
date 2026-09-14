@@ -151,10 +151,9 @@ interface HfCoverageGroupOption {
 }
 
 const HF_GROUP_ACCENT: Readonly<Record<string, string>> = {
-  'foundational':       DASHBOARD_META.accentHex,                              // slate-blue
+  'notes-degrees-scales-keys': DASHBOARD_META.accentHex,                       // slate-blue
   'chord-knowledge':    moduleMetaById('repertoire')?.accentHex ?? '#a8556b',   // deep rose
   'functional-applied': PRACTICE_SESSIONS_META.accentHex,                      // teal
-  'ear-recognition':    moduleMetaById('ear-training')?.accentHex ?? '#5a8752', // forest green
 };
 
 /** The coverage pills — the same four groups, with their live

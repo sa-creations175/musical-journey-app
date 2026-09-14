@@ -248,18 +248,17 @@ function isEarTrainingValid(et: EarTrainingAnchor): boolean {
 // Harmonic Fluency dimension state
 // =====================================================================
 
-/** Group identifiers for HF coverage / mastery. Mirror the four
- *  groups GoalCreationFlow already exposes via the
+/** Group identifiers for HF coverage / mastery. Mirror the three
+ *  groups (since 14 Sep 2026) GoalCreationFlow already exposes via the
  *  HARMONIC_FLUENCY_COVERAGE_GROUPS constant — same kebab-case ids
  *  stored in `targetUnit` for HF coverage_specific goals — so any
  *  future progress read can treat the two surfaces interchangeably.
  *  Keys also match `HF_GROUP_CATEGORIES` in `progress.ts` so the
  *  Step 4 progress router resolves them with no translation. */
 export type HarmonicFluencyGroupId =
-  | 'foundational'
+  | 'notes-degrees-scales-keys'
   | 'chord-knowledge'
-  | 'functional-applied'
-  | 'ear-recognition';
+  | 'functional-applied';
 
 export interface HarmonicFluencyAnchor {
   breadth: BreadthState;
@@ -271,17 +270,15 @@ export interface HarmonicFluencyAnchor {
 }
 
 export const HF_GROUP_LABELS: Record<HarmonicFluencyGroupId, string> = {
-  'foundational':       'foundational / math',
-  'chord-knowledge':    'chord knowledge',
-  'functional-applied': 'functional / applied',
-  'ear-recognition':    'ear & recognition',
+  'notes-degrees-scales-keys': 'notes, degrees, scales & keys',
+  'chord-knowledge':           'chords',
+  'functional-applied':        'movement',
 };
 
 const HF_GROUP_IDS: ReadonlyArray<HarmonicFluencyGroupId> = [
-  'foundational',
+  'notes-degrees-scales-keys',
   'chord-knowledge',
   'functional-applied',
-  'ear-recognition',
 ];
 
 function defaultHarmonicFluency(): HarmonicFluencyAnchor {
@@ -1618,8 +1615,8 @@ function Screen1EarTraining({
 /**
  * Harmonic Fluency dimension surface. Same four-section shape as
  * Ear Training (Breadth → Mastery → Depth → Consistency) but with
- * HF's four groups (Foundational / Math, Chord Knowledge,
- * Functional / Applied, Ear & Recognition) and per-group accent
+ * HF's three groups (Notes, Degrees, Scales & Keys, Chords and
+ * Movement, since 14 Sep 2026) and per-group accent
  * colors so the picker reads the same as GoalCreationFlow's
  * existing accuracy-specific HF picker. Slate-blue / deep-rose /
  * teal / forest-green — borrowed from sibling modules so each group
@@ -1652,10 +1649,9 @@ function Screen1HarmonicFluency({
   // two surfaces stay in lockstep visually. If a hex is ever retuned
   // in moduleMeta the change flows through here.
   const HF_GROUP_ACCENTS: Record<HarmonicFluencyGroupId, string> = {
-    'foundational':       DASHBOARD_META.accentHex,                                        // slate-blue
+    'notes-degrees-scales-keys': DASHBOARD_META.accentHex,                                 // slate-blue
     'chord-knowledge':    moduleMetaById('repertoire')?.accentHex      ?? '#a8556b',        // deep rose
     'functional-applied': PRACTICE_SESSIONS_META.accentHex,                                // teal
-    'ear-recognition':    moduleMetaById('ear-training')?.accentHex    ?? '#5a8752',        // forest green
   };
 
   const breadthGroupOptions: BreadthGroupOption[] = HF_GROUP_IDS.map(id => ({

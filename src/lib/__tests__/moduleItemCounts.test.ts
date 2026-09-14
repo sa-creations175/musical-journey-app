@@ -80,7 +80,12 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 152 + 252 + 244 = 1597
+// Harmonic Fluency — 1193 + 152 + 252 = 1597
+// (14 Sep 2026, the regroup: four groups become three and nothing is
+//  counted differently. Notes, Degrees, Scales & Keys is Foundational's
+//  949 with Intervals 143 and Mode Identification 101 = 1193; Chords is
+//  Chord Knowledge's 152 and Movement is Functional / Applied's 252, the
+//  same families under new titles.)
 // (14 Sep 2026, later still: 1605 → 1597. Mode Identification's
 //  `mo-1` to `mo-6` fold into the generated mode cards in the key of
 //  C; Functional Harmony's `fh-11` and `fh-12` fold into generated C
@@ -199,8 +204,8 @@ describe('earTrainingCounts', () => {
 describe('harmonicFluencyCounts', () => {
   const c = harmonicFluencyCounts();
 
-  it('foundational = sdm 168 + dgn 625 + ks 83 + pent 38 + enh 35 = 949', () => {
-    expect(c.byGroup.foundational).toBe(949);
+  it('notesDegreesScalesKeys = dgn 625 + sdm 168 + ks 83 + enh 35 + iv 143 + pent 38 + mo 101 = 1193', () => {
+    expect(c.byGroup.notesDegreesScalesKeys).toBe(1193);
   });
 
   it('chordKnowledge = dq 29 + cc 20 + sc 103 = 152', () => {
@@ -211,20 +216,15 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.functionalApplied).toBe(252);
   });
 
-  it('earRecognition = mo 101 + iv 143 = 244', () => {
-    expect(c.byGroup.earRecognition).toBe(244);
-  });
-
   it('total = 1597 across all 13 categories', () => {
     expect(c.total).toBe(1597);
   });
 
   it('total equals sum of group totals', () => {
     const groupSum =
-      c.byGroup.foundational +
+      c.byGroup.notesDegreesScalesKeys +
       c.byGroup.chordKnowledge +
-      c.byGroup.functionalApplied +
-      c.byGroup.earRecognition;
+      c.byGroup.functionalApplied;
     expect(groupSum).toBe(c.total);
   });
 

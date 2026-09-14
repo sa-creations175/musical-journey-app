@@ -48,7 +48,7 @@ import {
   getShapesCoverageGroup, shapesCoverageDenominator,
 } from '../../modules/goals/shapesCoverageGroups';
 import {
-  HF_UNIT_TO_COUNT_GROUP,
+  HF_UNIT_TO_COUNT_GROUP, HF_CATEGORIES_BY_UNIT,
 } from '../../modules/harmonic-fluency/coverageGroups';
 import type { OutOfScore } from '../../modules/shapes-and-patterns/cellTargets';
 import { lessonsByPath } from '../../modules/production/content/lessons';
@@ -152,7 +152,13 @@ export function catalogTotalForGoal(
       }
       case COVERAGE_SPECIFIC_METRIC.HARMONIC_FLUENCY: {
         const group = HF_UNIT_TO_COUNT_GROUP[unit];
-        return group ? harmonicFluencyCounts().byGroup[group] : null;
+        if (group) return harmonicFluencyCounts().byGroup[group];
+        // A GROUP RETIRED ON 14 SEP 2026 is counted from the families it
+        // held, so a goal set before the regroup keeps its denominator.
+        const categories = HF_CATEGORIES_BY_UNIT[unit];
+        if (!categories) return null;
+        const byCategory = harmonicFluencyCounts().byCategory as Record<string, number>;
+        return categories.reduce((n, c) => n + (byCategory[c] ?? 0), 0);
       }
       case COVERAGE_SPECIFIC_METRIC.SHAPES: {
         // ASKED FRESH RATHER THAN READ OFF THE DEF, because the def's

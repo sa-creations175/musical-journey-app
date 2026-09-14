@@ -2114,10 +2114,9 @@ function previewEarTrainingTarget(target: EarTrainingTarget): string | null {
  * which cards are in which group.
  */
 const HF_GROUP_ACCENT: Readonly<Record<string, string>> = {
-  'foundational':       DASHBOARD_META.accentHex,                              // slate-blue
+  'notes-degrees-scales-keys': DASHBOARD_META.accentHex,                       // slate-blue
   'chord-knowledge':    moduleMetaById('repertoire')?.accentHex ?? '#a8556b',   // deep rose
   'functional-applied': PRACTICE_SESSIONS_META.accentHex,                      // teal
-  'ear-recognition':    moduleMetaById('ear-training')?.accentHex ?? '#5a8752', // forest green
 };
 
 interface HarmonicFluencyGroup {
@@ -2145,11 +2144,8 @@ const HARMONIC_FLUENCY_GROUPS: ReadonlyArray<HarmonicFluencyGroup> =
  * instead, which is a different concern, so the two constants are
  * kept separate).
  *
- *   foundational       = sdm 84 + nn 24 + ks 22 = 130
- *   chord-knowledge    = dq 20 + cc 20 + sc 15  = 55
- *   functional-applied = fh 19 + rkp 24 + pr 20 = 63
- *   ear-recognition    = mo 19 + iv 20 + et 15  = 54
- *   total                                        = 302
+ * The groups and their families are `harmonic-fluency/coverageGroups.ts`
+ * (three since 14 Sep 2026); the numbers are counted, never written here.
  *
  * Accent colors mirror HARMONIC_FLUENCY_GROUPS so the coverage pills
  * read the same as the existing accuracy-specific picker.
