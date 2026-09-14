@@ -93,7 +93,7 @@ describe('countsTowardShapesCoverage', () => {
     expect(countsTowardShapesCoverage('')).toBe(false);
   });
 
-  it('the surviving catalog is exactly 12 qualities / 1944 drills', () => {
+  it('the surviving catalog is exactly 12 qualities / 2106 drills', () => {
     // Guard against a quality quietly coming back without a decision.
     const catalogRefs: string[] = [];
     for (const q of ['maj', 'min', 'dim', 'aug', 'sus2', 'sus4']) {
@@ -109,9 +109,10 @@ describe('countsTowardShapesCoverage', () => {
       }
     }
     expect(catalogRefs.every(countsTowardShapesCoverage)).toBe(true);
-    // 54 refs in one key × 12 keys × 3 hands = 1944 drills.
+    // 54 refs in one cell × 13 cells (twelve keys and the Circle of
+    // 4ths, 14 Sep 2026) × 3 hands = 2106 drills.
     expect(catalogRefs.length).toBe(54);
-    expect(catalogRefs.length * 12 * 3).toBe(1944);
-    expect(shapesCounts().chordShapeDrills).toBe(1944);
+    expect(catalogRefs.length * 13 * 3).toBe(2106);
+    expect(shapesCounts().chordShapeDrills).toBe(2106);
   });
 });

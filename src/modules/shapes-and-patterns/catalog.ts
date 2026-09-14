@@ -50,6 +50,18 @@ export type KeyName = typeof KEYS[number];
 export const KEYS_CIRCLE_OF_FOURTHS: ReadonlyArray<KeyName> =
   sortByCircleOfFourths(KEYS) as ReadonlyArray<KeyName>;
 
+/**
+ * The Circle of 4ths cell on the chord-shape grid (Silas, 14 Sep 2026).
+ *
+ * A thirteenth entry after G in every quality column. It is not a key:
+ * its drill takes the shape through all twelve by fourths, and it rates
+ * on its own targets. So it stands where a key name stands in the
+ * itemRef (`chord-shape:maj:circle:root`), and nothing it writes
+ * reaches the twelve key cells.
+ */
+export const CIRCLE_KEY = 'circle';
+export const CIRCLE_LABEL = 'Circle of 4ths';
+
 /** True when this key name prefers flat spellings in display (kept
  *  consistent with the rest of the app). */
 export function keyPrefersFlats(k: string): boolean {

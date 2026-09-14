@@ -128,7 +128,8 @@ describe('the four cards', () => {
     // triad cell is twelve; voice leading and mental visualisation are
     // one target per cell and are untouched by the hand axis.
     expect(cards.get('scales')!.itemCount).toBe(288);
-    expect(cards.get('chord-shapes')!.itemCount).toBe(1944);
+    // 1944 key targets and 162 Circle of 4ths targets (14 Sep 2026).
+    expect(cards.get('chord-shapes')!.itemCount).toBe(2106);
     expect(cards.get('voice-leading')!.itemCount).toBe(828);
     expect(cards.get('mental-viz')!.itemCount).toBe(504);
   });
@@ -145,8 +146,9 @@ describe('the four cards', () => {
     expect(cards.get('voice-leading')!.itemCount).toBe(shapesCounts().voiceLeading);
     // A chord cell is still ONE square on the grid; it is twelve
     // drills. The two are different questions and both are asked.
+    // Thirteen squares to a column: the keys and the Circle of 4ths.
     expect(sectionCells('chord-shapes').length)
-      .toBe(CHORD_QUALITIES.length * KEYS.length);
+      .toBe(CHORD_QUALITIES.length * (KEYS.length + 1));
   });
 
   it('and taking a target out lowers CARD, GRID, GOAL and SCOPE by one', () => {

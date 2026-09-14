@@ -11,6 +11,8 @@ import {
 import { addDrillSession } from '../../lib/practiceWrites';
 import {
   CHORD_QUALITY_BY_ID,
+  CIRCLE_KEY,
+  CIRCLE_LABEL,
   defaultDrillForChordShape,
   isCatalogQuality,
   defaultDrillTypesForMentalViz,
@@ -506,7 +508,11 @@ export function labelFor(desc: SkillDescriptor): string {
   switch (desc.kind) {
     case 'chord-shape': {
       const q = CHORD_QUALITY_BY_ID.get(desc.quality);
-      const short = `${desc.keyName}${q?.suffix ?? ''}`;
+      // The Circle of 4ths cell is not a key and takes no suffix: its
+      // name stands where the chord would.
+      const short = desc.keyName === CIRCLE_KEY
+        ? CIRCLE_LABEL
+        : `${desc.keyName}${q?.suffix ?? ''}`;
       const longName = q?.label ?? 'chord';
       // Don't duplicate when short-form already matches long-form
       // (e.g. bare "C" vs. "Major" — still worth the parenthetical

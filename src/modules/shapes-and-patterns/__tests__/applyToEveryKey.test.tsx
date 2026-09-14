@@ -154,18 +154,20 @@ const chordCellFor = (quality: string, keyName: string) => {
 // ---------------------------------------------------------------------
 
 describe('the key is the axis and the row is the limit', () => {
-  it('a chord target reaches its own quality and state in twelve keys', () => {
+  it('a chord target reaches its own quality and state in twelve keys and the Circle of 4ths', () => {
     const t = chordCellTargets(Q, K)[0]; // Root position · Left
     const siblings = targetsAcrossKeys(targetKey(t.itemRef, t.hand));
-    expect(siblings).toHaveLength(12);
-    // Same quality, same inversion state, same hand — every key once.
+    // THIRTEEN since 14 Sep 2026: the Circle of 4ths cell is in the row.
+    expect(siblings).toHaveLength(13);
+    // Same quality, same inversion state, same hand — every cell once.
     for (const s of siblings) {
       expect(s).toContain(`chord-shape:${Q}:`);
       expect(s.endsWith(` ${t.hand}`)).toBe(true);
       expect(s).toContain(':root ');
     }
-    expect(new Set(siblings).size).toBe(12);
+    expect(new Set(siblings).size).toBe(13);
     expect(siblings).toContain(targetKey(t.itemRef, t.hand));
+    expect(siblings).toContain(targetKey(`chord-shape:${Q}:circle:root`, t.hand));
   });
 
   it('and NOT other qualities, other states or other hands', () => {

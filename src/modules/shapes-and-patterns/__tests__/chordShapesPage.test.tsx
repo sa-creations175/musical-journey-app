@@ -22,7 +22,7 @@ import ChordShapeDrills from '../ChordShapeDrills';
 import { db, type SpacingState } from '../../../lib/db';
 import { chordCellTargets, targetKey } from '../cellTargets';
 import { statusColour } from '../../../lib/spacing/statusColour';
-import { CHORD_QUALITIES, KEYS_CIRCLE_OF_FOURTHS } from '../catalog';
+import { CHORD_QUALITIES, CIRCLE_KEY, KEYS_CIRCLE_OF_FOURTHS } from '../catalog';
 
 /** The first cell on the grid: the first quality, in the first key. */
 const Q = CHORD_QUALITIES[0].id;
@@ -104,10 +104,53 @@ const press = async (label: string) => {
   await click(b);
 };
 
+describe('the Circle of 4ths row (Silas, 14 Sep 2026)', () => {
+  const circleCells = () => cells()
+    .filter(c => (c.getAttribute('title') ?? '').includes('Circle of 4ths'));
+
+  it('sits after G, in every quality column', async () => {
+    await render();
+    expect(circleCells()).toHaveLength(CHORD_QUALITIES.length);
+    const rows = [...document.body.querySelectorAll('tbody tr')];
+    expect(rows[rows.length - 1].querySelector('th')?.textContent).toBe('Circle of 4ths');
+    expect(rows[rows.length - 2].querySelector('th')?.textContent).toBe('G');
+  });
+
+  it('is the last column in both across layouts', async () => {
+    await render();
+    for (const layout of ['12 across', '6 + 6 across']) {
+      await press(layout);
+      const firstRow = cells().slice(0, KEYS_CIRCLE_OF_FOURTHS.length + 1);
+      expect(firstRow[11].textContent).toContain('G');
+      expect(firstRow[12].textContent).toContain('Circle of 4ths');
+    }
+  });
+
+  it("opens as Circle of 4ths (Major), with a key cell's targets and the shape in C", async () => {
+    await render();
+    await click(circleCells()[0]);
+    expect(text()).toContain('Circle of 4ths (Major)');
+    expect(targetRows()).toHaveLength(chordCellTargets(Q, CIRCLE_KEY).length);
+    expect(document.body.querySelector('[data-testid="chord-cell-player-title"]')?.textContent)
+      .toBe('C Major · Root position');
+  });
+
+  it('rates on its own: its rows move the Circle cell and no key cell', async () => {
+    await db.spacingState.bulkAdd(
+      chordCellTargets(Q, CIRCLE_KEY).map(t => tested(t.itemRef, t.hand, 4)),
+    );
+    await render();
+    expect(circleCells()[0].textContent).not.toContain('Not Started');
+    const keyCells = cells().filter(c => !circleCells().includes(c));
+    expect(keyCells.every(c => (c.textContent ?? '').includes('Not Started'))).toBe(true);
+  });
+});
+
 describe('a cell names its status', () => {
   it('prints one of the six words on every tile', async () => {
     await render();
-    expect(cells().length).toBe(CHORD_QUALITIES.length * KEYS_CIRCLE_OF_FOURTHS.length);
+    // Twelve keys and the Circle of 4ths cell in every column.
+    expect(cells().length).toBe(CHORD_QUALITIES.length * (KEYS_CIRCLE_OF_FOURTHS.length + 1));
     for (const c of cells().slice(0, 5)) {
       expect(c.textContent).toMatch(
         /Not Started|Started|Needs Work|Developing|Fluent|Mastered/,

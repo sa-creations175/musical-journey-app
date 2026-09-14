@@ -47,6 +47,7 @@ import type { BandVerdict } from '../../lib/spacing/banding';
 import {
   CHORD_QUALITIES,
   CHORD_QUALITY_BY_ID,
+  CIRCLE_KEY,
   INVERSION_STATES_FOR_CHORD_SHAPE_KIND,
   KEYS,
   VOICE_LEADING_PATTERNS,
@@ -249,7 +250,9 @@ export function targetsAcrossKeys(key: string): string[] {
   if (itemRef.startsWith('chord-shape:')) {
     const [, quality, , state] = itemRef.split(':');
     if (!quality) return [key];
-    return KEYS.flatMap(k => chordCellTargets(quality, k)
+    // THE CIRCLE OF 4THS CELL IS IN THE ROW, so the row-wide gesture
+    // reaches it too: thirteen cells, from whichever one was clicked.
+    return [...KEYS, CIRCLE_KEY].flatMap(k => chordCellTargets(quality, k)
       .filter(t => (t.itemRef.split(':')[3] ?? null) === (state ?? null)
         && t.hand === hand)
       .map(t => targetKey(t.itemRef, t.hand)));
@@ -304,8 +307,13 @@ function allSectionCells(
       // The grid's own rows and columns: every catalog quality against
       // every key. The inversion states are INSIDE a cell, which is
       // exactly the difference this function exists to hold.
+      //
+      // AND THE CIRCLE OF 4THS CELL, the thirteenth in every column
+      // (14 Sep 2026). It has a key cell's targets on its own itemRefs,
+      // so every total that reads this counts it: 1944 key targets
+      // and 162 circle targets.
       return CHORD_QUALITIES.flatMap(
-        q => KEYS.map(k => chordCellTargets(q.id, k)),
+        q => [...KEYS, CIRCLE_KEY].map(k => chordCellTargets(q.id, k)),
       );
     case 'voice-leading':
       return [

@@ -329,6 +329,15 @@ export interface DrillSurface {
    * =====================================================================
    */
   renderReference: (() => ReactNode) | null;
+  /**
+   * Something to WATCH while a drill runs, or absent.
+   *
+   * The Circle of 4ths chord-shape cell (Silas, 14 Sep 2026) is the one
+   * surface that has it: the twelve keys in a row, the current one lit.
+   * It is drawn only while a run is live, and it is handed the Rate the
+   * run was started at, which is what moves it. It writes nothing.
+   */
+  renderDuringDrill?: ((run: { per: number }) => ReactNode) | null;
 
   /**
    * Tell the surface the session paused or resumed.

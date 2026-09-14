@@ -132,7 +132,8 @@ describe('a section is a list of cells, from the catalog', () => {
 
   it('chord shapes are quality × key — the states are INSIDE a cell', () => {
     const cells = sectionCells('chord-shapes');
-    expect(cells).toHaveLength(CHORD_QUALITIES.length * KEYS.length);
+    // Twelve keys and the Circle of 4ths cell in every quality column.
+    expect(cells).toHaveLength(CHORD_QUALITIES.length * (KEYS.length + 1));
     // A triad cell carries twelve targets. If this ever equalled the
     // cell count, the states would have escaped to the outside again.
     expect(cells[0]).toHaveLength(12);

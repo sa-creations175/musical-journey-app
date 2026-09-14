@@ -1484,4 +1484,26 @@ describe('the drill button is pinned under the header', () => {
     expect(strip()!.textContent).toContain('Drill 1 running');
     r.unmount();
   });
+
+  it('draws what a surface shows during a drill in the body, only while the drill runs', async () => {
+    // The Circle of 4ths row's slot (14 Sep 2026), handed the Rate the
+    // drill was started at.
+    const r = render(surface({
+      hasStyle: true,
+      countsUp: false,
+      rateOptions: [{ per: 2, label: 'One Shape Every 2 Beats' }],
+      targetRate: 0,
+      renderDuringDrill: ({ per }) => <div data-testid="during">{`every ${per} beats`}</div>,
+    }));
+    await r.pressStartingWith('Practice');
+    await r.press('Blocked');
+    const during = () => document.body.querySelector('[data-testid="during"]');
+    expect(during()).toBeNull();
+    await r.pressStartingWith('Start A Practice Drill');
+    expect(during()?.textContent).toBe('every 2 beats');
+    expect(document.body.querySelector('[data-testid="modal-pinned"]')!.contains(during())).toBe(false);
+    await r.press('End Drill');
+    expect(during()).toBeNull();
+    r.unmount();
+  });
 });

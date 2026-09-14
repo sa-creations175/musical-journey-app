@@ -61,6 +61,14 @@ interface Props {
   layout: Layout;
   spelling: Spelling;
   /**
+   * What the side says for a key, where the key is not a pitch.
+   *
+   * Chord shapes' thirteenth row, Circle of 4ths (14 Sep 2026), is the
+   * one entry on any grid that is not a key and cannot be spelled.
+   * Absent, every key is spelled as it always was.
+   */
+  keyLabel?: (keyName: string) => ReactNode;
+  /**
    * One tile.
    *
    * `showKeyLabel` is true in the ACROSS layouts, where the key is not
@@ -74,7 +82,7 @@ interface Props {
 }
 
 export default function KeyedGrid({
-  rows, keys, layout, spelling, renderCell,
+  rows, keys, layout, spelling, keyLabel, renderCell,
 }: Props) {
   if (layout === 'keysdown') {
     return (
@@ -120,7 +128,7 @@ export default function KeyedGrid({
                   style={{ width: GRID_GUTTER }}
                   data-testid="grid-gutter"
                 >
-                  {spellKey(key, spelling)}
+                  {keyLabel ? keyLabel(key) : spellKey(key, spelling)}
                 </th>
                 {rows.map(r => (
                   <td key={r.rowKey} className="p-0.5">

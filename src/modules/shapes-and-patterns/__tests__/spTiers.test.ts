@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { SpacingState } from '../../../lib/db';
-import { CHORD_QUALITIES } from '../catalog';
+import { CHORD_QUALITIES, CIRCLE_KEY } from '../catalog';
 import { sectionTargetCount, sectionTargets, type CellTarget } from '../cellTargets';
 import {
   CIRCLE_OF_FOURTHS,
@@ -147,10 +147,13 @@ describe('tierTotalCells', () => {
     expect(tierTotalCells(2)).toBe(6 * 5 * 12 * 3);
   });
 
-  it('the two tiers sum to the 1944 catalog', () => {
+  it('the two tiers sum to the catalog\'s 1944 key targets', () => {
     expect(tierTotalCells(1) + tierTotalCells(2)).toBe(1944);
+    // THE CIRCLE OF 4THS CELL IS NOT IN THE GATE (14 Sep 2026). Its
+    // 162 targets are in the grid's total; counting them here would
+    // raise the bar under anyone already past it and shut Tier 2 again.
     expect(tierTotalCells(1) + tierTotalCells(2))
-      .toBe(sectionTargetCount('chord-shapes'));
+      .toBe(sectionTargetCount('chord-shapes') - 162);
   });
 
   it('the tier-2 unlock bar is half the tier, in drills', () => {
@@ -196,10 +199,14 @@ function ratedRow(
   } as unknown as SpacingState;
 }
 
-/** The first `count` drills of a tier, from the catalog. */
+/** The first `count` drills of a tier, from the catalog. The Circle of
+ *  4ths cell's are not in the gate, so they are not handed to it. */
 function tierDrills(tier: SPTier, count: number): CellTarget[] {
   const inTier = new Set(SP_TIERS[tier]);
-  const all = sectionTargets('chord-shapes').filter(t => inTier.has(t.itemRef.split(':')[1]));
+  const all = sectionTargets('chord-shapes').filter(t => {
+    const [, quality, keyName] = t.itemRef.split(':');
+    return inTier.has(quality) && keyName !== CIRCLE_KEY;
+  });
   expect(all.length).toBeGreaterThanOrEqual(count);
   return all.slice(0, count);
 }

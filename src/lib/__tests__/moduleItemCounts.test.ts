@@ -259,7 +259,7 @@ describe('harmonicFluencyCounts', () => {
 describe('shapesCounts', () => {
   const c = shapesCounts();
 
-  it('COUNTS DRILLABLE THINGS: 1944 chord-shape drills', () => {
+  it('COUNTS DRILLABLE THINGS: 2106 chord-shape drills', () => {
     /**
      * =================================================================
      * IT COUNTED 720, AND 720 WAS TWO MISTAKES CANCELLING NEITHER.
@@ -283,10 +283,14 @@ describe('shapesCounts', () => {
      * 2160 would be the figure with supplementary still in; 720 the
      * figure with no hand axis and supplementary in. Neither is a count
      * of things you sit down and drill.
+     *
+     * THE CIRCLE OF 4THS CELL joined on 14 Sep 2026: a thirteenth cell
+     * in every quality column, with a key cell's targets on its own
+     * itemRefs. 72 triad targets and 90 seventh targets, so 2106.
      * =================================================================
      */
-    expect(c.chordShapeDrills).toBe(1944);
-    expect(c.chordShapeDrills).toBe(864 + 1080);
+    expect(c.chordShapeDrills).toBe(2106);
+    expect(c.chordShapeDrills).toBe(864 + 1080 + 72 + 90);
   });
 
   it('and 288 scale drills — 96 cells, three hands each', () => {
@@ -305,10 +309,11 @@ describe('shapesCounts', () => {
     expect(c.voiceLeading).toBe(828);
   });
 
-  it('total = 3060 (sum of sub-areas)', () => {
-    // 1944 chord-shape + 288 scale + 828 voice-leading. Was 2640,
-    // before the five named progressions joined the passes.
-    expect(c.total).toBe(3060);
+  it('total = 3222 (sum of sub-areas)', () => {
+    // 2106 chord-shape + 288 scale + 828 voice-leading. Was 3060 before
+    // the Circle of 4ths cell, and 2640 before the five named
+    // progressions joined the passes.
+    expect(c.total).toBe(3222);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 

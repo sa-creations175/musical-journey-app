@@ -28,15 +28,16 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     for (const id of TRIAD_QUALITY_IDS) {
       const def = getShapesCoverageGroup(id);
       expect(def, `missing group def for ${id}`).toBeDefined();
-      // 1 quality × 12 keys × 4 inversion states × 3 HANDS = 144.
+      // 1 quality × 13 cells × 4 inversion states × 3 HANDS = 156.
       // The hand axis arrived on 31 Aug 2026: a denominator has to
       // count what the numerator counts, and the numerator has always
-      // counted spacingState rows, which are per hand.
-      expect(def!.denominator).toBe(144);
+      // counted spacingState rows, which are per hand. Thirteen cells
+      // since 14 Sep 2026: the twelve keys and the Circle of 4ths.
+      expect(def!.denominator).toBe(156);
       expect(def!.activityArea).toBe('chord_shape_drills');
     }
-    // Legacy "all triads" shortcut still present at 864 (6 × 144).
-    expect(getShapesCoverageGroup('chord_shape_triads')!.denominator).toBe(864);
+    // Legacy "all triads" shortcut still present at 936 (6 × 156).
+    expect(getShapesCoverageGroup('chord_shape_triads')!.denominator).toBe(936);
   });
 
   it('Layer 2 denominators sum to the Layer 1 triad-inversions denominator', () => {
@@ -89,10 +90,11 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     //
     // The seventh figures went 432 → 1080 on 31 Aug 2026: supplementary
     // left the score (6 inversion states per quality back to 5) and the
-    // hand axis arrived (×3).
+    // hand axis arrived (×3). And every figure is thirteen cells rather
+    // than twelve since the Circle of 4ths cell joined on 14 Sep 2026.
     const chordShapeSide =
-      864 + 6 * 144 +
-      1080 + 6 * 180 +
+      936 + 6 * 156 +
+      1170 + 6 * 195 +
       0 + 0 +
       0;
     // Scales gain the hand axis too — 96 cells are 288 drills.
@@ -475,13 +477,14 @@ describe('Seventh-chord per-quality coverage groups', () => {
     { id: 'chord_shape_sevenths_mmaj7', quality: 'mmaj7' },
   ];
 
-  it('exposes all 6 per-quality seventh defs at 180 drills each', () => {
+  it('exposes all 6 per-quality seventh defs at 195 drills each', () => {
     for (const d of SEVENTH_QUALITY_IDS) {
       const def = getShapesCoverageGroup(d.id);
       expect(def, `missing def for ${d.id}`).toBeDefined();
-      // 12 keys × 5 inversion states × 3 hands = 180. Supplementary
-      // is the sixth state and is out of the score.
-      expect(def!.denominator).toBe(180);
+      // 13 cells (twelve keys and the Circle of 4ths) × 5 inversion
+      // states × 3 hands = 195. Supplementary is the sixth state and is
+      // out of the score.
+      expect(def!.denominator).toBe(195);
       expect(def!.activityArea).toBe('chord_shape_drills');
     }
   });
@@ -492,7 +495,7 @@ describe('Seventh-chord per-quality coverage groups', () => {
       0,
     );
     expect(sum).toBe(getShapesCoverageGroup('chord_shape_sevenths')!.denominator);
-    expect(sum).toBe(1080);
+    expect(sum).toBe(1170);
   });
 
   it('each matcher accepts only its own quality', () => {
@@ -522,13 +525,13 @@ describe('Seventh-chord per-quality coverage groups', () => {
      * row. What decides whether it counts is the ENUMERATION, and
      * `chordCellTargets` has never emitted it.
      *
-     * So the denominator is 180 and not 216, and no amount of
+     * So the denominator is 195 and not 234, and no amount of
      * supplementary drilling can push a coverage goal past 100%,
      * because `countsTowardShapesCoverage` drops those rows on the
      * numerator side too. Both sides or neither.
      */
     const denom = getShapesCoverageGroup('chord_shape_sevenths_min7')!.denominator;
-    expect(denom).toBe(180);
+    expect(denom).toBe(195);
     expect(shapesTargetUniverse().some(t => t.itemRef.endsWith(':supplementary')))
       .toBe(false);
     expect(countsTowardShapesCoverage('chord-shape:min7:C:supplementary')).toBe(false);

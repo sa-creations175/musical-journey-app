@@ -191,12 +191,13 @@ export function harmonicFluencyCounts(): HarmonicFluencyCounts {
  *
  * Supplementary left the score on 31 Aug 2026 — see `catalog.ts` for
  * the ruling and `cellTargets.ts` for where it is enforced. It is why
- * the chord-shape figure is 1944 and not 2160.
+ * the chord-shape figure is 2106 and not 2340.
  * =====================================================================
  */
 export interface ShapesCounts {
-  /** Chord-shape drills: triads (6 qualities × 12 keys × 4 inversion
-   *  states × 3 hands = 864) + sevenths (6 × 12 × 5 × 3 = 1080) = 1944.
+  /** Chord-shape drills: triads (6 qualities × 13 cells × 4 inversion
+   *  states × 3 hands = 936) + sevenths (6 × 13 × 5 × 3 = 1170) = 2106.
+   *  Thirteen cells: the twelve keys and the Circle of 4ths (14 Sep 2026).
    *  Extensions and special/sixth contribute 0 — cut from the catalog
    *  on 20 Aug 2026. Supplementary is out of the score. */
   chordShapeDrills: number;

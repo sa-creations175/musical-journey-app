@@ -923,6 +923,11 @@ export default function PracticeTestPanel({ surface, onClose }: Props) {
           surface={surface}
           draft={sessionDraft}
           onDraftChange={setSessionDraft}
+          /* WHAT A LIVE RUN SHOWS WHILE IT GOES, keyed by the run so
+             every drill starts from the beginning again. */
+          during={runStartedAt !== null && draft !== null && surface.renderDuringDrill
+            ? <div key={runStartedAt}>{surface.renderDuringDrill({ per: draft.per })}</div>
+            : null}
           metronomeOn={metronomePlaying}
           /* RATED WHERE IT WAS PLAYED — under the run-throughs list and
              above Open Lead Sheet, exactly as the prototype draws it. */
@@ -1296,7 +1301,7 @@ function ModeChooser({ onPick }: { onPick: (mode: SessionMode) => void }) {
 // ---------------------------------------------------------------------
 
 function SessionStep({
-  mode, drills, surface, draft, onDraftChange,
+  mode, drills, surface, draft, onDraftChange, during,
   metronomeOn, rating, ladder, paused,
 }: {
   mode: SessionMode;
@@ -1305,6 +1310,9 @@ function SessionStep({
   /** How the next run is set up. Null before a mode is picked. */
   draft: DrillDraft | null;
   onDraftChange: (next: DrillDraft) => void;
+  /** What the surface shows while a run is live, or null. See
+   *  `renderDuringDrill`. */
+  during: ReactNode | null;
   metronomeOn: boolean;
   /** The rating box for the run just played, or null when no run is
    *  waiting to be rated. It sits where the Start button goes, because
@@ -1329,6 +1337,10 @@ function SessionStep({
     <div className="space-y-2.5">
       {/* THE CLOCKS AND THE DRILL BUTTON ARE IN THE PINNED STRIP above
           this body — see `SessionControlStrip`. */}
+
+      {/* AT THE TOP OF THE BODY, as the prototype puts it, so it is the
+          first thing under the strip while the drill runs. */}
+      {during}
 
       {/* THE BAND, DRAWN ALWAYS DURING A TEST — never only once a run
           is banked. The run number keeps climbing while the streak

@@ -14,6 +14,8 @@ import { testFloorBpm } from '../../repertoire/tempoGate';
 import { createElement } from 'react';
 import type { DrillHand, DrillSkill, DrillType } from '../../../lib/db';
 import CellPlayer from '../CellPlayer';
+import CircleOfFourthsRow from './CircleOfFourthsRow';
+import { CIRCLE_KEY } from '../catalog';
 import { getSpacingState, recordEngagement } from '../../../lib/spacingState';
 import { NOT_STARTED, type BandVerdict } from '../../../lib/spacing/banding';
 import { bandVerdictForRow } from '../../../lib/spacing/row';
@@ -126,6 +128,18 @@ export function chordShapeSurface(args: {
     // target rate is always set, so there is nothing to prompt for.
     renderMetronome: null,
     renderReference: null,
+    // THE CIRCLE OF 4THS CELL (14 Sep 2026) is the one chord shape
+    // whose drill shows something while it runs: the twelve keys, lit
+    // as it goes. Decided by the skill, so a Circle item served in a
+    // practice session gets the same row the grid's panel does.
+    renderDuringDrill: args.skill.keyName === CIRCLE_KEY
+      ? ({ per }) => createElement(CircleOfFourthsRow, {
+        quality: args.skill.quality ?? '',
+        inversionState: args.skill.inversionState ?? null,
+        smallLine: args.skillLabel,
+        per,
+      })
+      : null,
     // The session IS the panel here, so there is no record to tell.
     onSessionPause: null,
     onSessionStart: null,

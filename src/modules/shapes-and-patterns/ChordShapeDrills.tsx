@@ -37,6 +37,8 @@ import {
 import {
   CHORD_QUALITIES,
   CHORD_QUALITY_BY_ID,
+  CIRCLE_KEY,
+  CIRCLE_LABEL,
   KEYS_CIRCLE_OF_FOURTHS,
   inversionStateLabel,
   type QualityKind,
@@ -86,6 +88,13 @@ const KIND_OPTIONS: Array<QualityKind | 'all'> = [
 ];
 
 type RollupRule = 'furthest' | 'lowest';
+
+/**
+ * The grid's thirteen columns: the twelve keys by fourths, then the
+ * Circle of 4ths cell (Silas, 14 Sep 2026), which drills the shape
+ * through all twelve and rates on its own targets.
+ */
+const GRID_KEYS: readonly string[] = [...KEYS_CIRCLE_OF_FOURTHS, CIRCLE_KEY];
 
 interface SelectedCell {
   quality: string;
@@ -284,9 +293,13 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
           rowKey: q.id,
           label: q.suffix ? `${q.label} (${q.suffix})` : q.label,
         }))}
-        keys={KEYS_CIRCLE_OF_FOURTHS}
+        keys={GRID_KEYS}
         layout={layout}
         spelling={spelling}
+        keyLabel={keyName => (keyName === CIRCLE_KEY
+          // GREEN AND HEAVIER, as the walked prototype draws the row.
+          ? <span className="text-fluent font-semibold">{CIRCLE_LABEL}</span>
+          : spellKey(keyName, spelling))}
         renderCell={(rowKey, keyName, showKeyLabel) => {
           const q = qualities.find(x => x.id === rowKey);
           if (!q) return null;
@@ -295,9 +308,13 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
             <StatusCell
               verdict={verdict}
               count={cellCount(q.id, keyName)}
-              keyLabel={showKeyLabel ? spellKey(keyName, spelling) : undefined}
+              keyLabel={showKeyLabel
+                ? (keyName === CIRCLE_KEY ? CIRCLE_LABEL : spellKey(keyName, spelling))
+                : undefined}
               selected={selected?.quality === q.id && selected?.keyName === keyName}
-              title={`${q.label} · the key of ${spellKey(keyName, spelling)} — ${bandVerdictLabel(verdict)}`}
+              title={`${q.label} · ${keyName === CIRCLE_KEY
+                ? CIRCLE_LABEL
+                : `the key of ${spellKey(keyName, spelling)}`} — ${bandVerdictLabel(verdict)}`}
               onPick={() => pickCell(q.id, keyName)}
             />
           );
@@ -311,7 +328,9 @@ export default function ChordShapeDrills({ scope, onScopeChange }: Props) {
         <ChordCellPlayer
           key={`${selected.quality}:${selected.keyName}`}
           quality={selected.quality}
-          keyName={selected.keyName}
+          /* THE CIRCLE OF 4THS CELL plays its shape in C, the first
+             key, and nothing more (14 Sep 2026). */
+          keyName={selected.keyName === CIRCLE_KEY ? KEYS_CIRCLE_OF_FOURTHS[0] : selected.keyName}
         />
       )}
 
@@ -371,7 +390,10 @@ function refOf(key: string): string {
 function chordCellLabel(quality: string, keyName: string, spelling: Parameters<typeof spellKey>[1]): string {
   const entry = CHORD_QUALITY_BY_ID.get(quality);
   const suffix = entry?.suffix ?? '';
-  return `${spellKey(keyName, spelling)}${suffix} (${entry?.label ?? quality})`;
+  const label = entry?.label ?? quality;
+  // "Circle of 4ths (Major)": the row's name stands where a key would.
+  if (keyName === CIRCLE_KEY) return `${CIRCLE_LABEL} (${label})`;
+  return `${spellKey(keyName, spelling)}${suffix} (${label})`;
 }
 
 function verdictOf(
