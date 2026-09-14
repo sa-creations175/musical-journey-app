@@ -23,6 +23,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { FLASHCARDS } from '../catalog';
+import { LYDIAN_CHORD_CARDS, lydianRowsFor } from '../lydianCards';
+import { QUADRANT_ROOTS } from '../lydianChords';
+import { pitchClassOf } from '../../../lib/spelling';
 
 const SOURCES: Record<string, string> = import.meta.glob(
   '../**/*.{ts,tsx}',
@@ -79,31 +82,53 @@ describe('the rows render through renderFooter, not renderVisualAid', () => {
 });
 
 describe('which cards carry them', () => {
-  it('is the Lydian signature-chord card, opening on the first of each quadrant', () => {
-    const src = codeOf(read('HarmonicFluencySession.tsx'));
-    const from = src.indexOf('LYDIAN_CHORD_CARDS');
-    const table = src.slice(from, src.indexOf('}', from));
-    expect(table).toContain("'mo-15': undefined");
-    // `mo-3` opened them on F until it retired into the generated F Lydian
-    // card on 14 Sep 2026. That card does not carry them.
-    expect(table).not.toContain("'mo-3'");
+  it('names the signature-chord card by hand, opening on the first of each quadrant', () => {
+    expect(LYDIAN_CHORD_CARDS).toEqual({ 'mo-15': undefined });
+    expect(lydianRowsFor(FLASHCARDS.find(c => c.id === 'mo-15')!)).toEqual({});
   });
 
   it('names cards that actually exist', () => {
     // A footer keyed on an id no card has is a feature that renders
     // nowhere and fails no test.
-    const src = codeOf(read('HarmonicFluencySession.tsx'));
-    const from = src.indexOf('LYDIAN_CHORD_CARDS');
-    const table = src.slice(from, src.indexOf('}', from));
     const ids = new Set(FLASHCARDS.map(c => c.id));
-    const named = [...table.matchAll(/'([^']+)':/g)].map(m => m[1]);
-    expect(named.length).toBeGreaterThan(0);
-    for (const id of named) expect(ids.has(id), id).toBe(true);
+    for (const id of Object.keys(LYDIAN_CHORD_CARDS)) expect(ids.has(id), id).toBe(true);
   });
 
   it('still asks what it asked', () => {
     const byId = new Map(FLASHCARDS.map(c => [c.id, c]));
     // In the app's numbers since 14 Sep 2026; it was 'I maj7#11'.
     expect(byId.get('mo-15')!.correctAnswer).toBe('the 1 as a maj7♯11 chord');
+  });
+
+  it('reaches the rows from the card reference', () => {
+    const src = codeOf(read('HarmonicFluencySession.tsx'));
+    const from = src.indexOf('function CardReference');
+    expect(src.slice(from)).toContain('lydianRowsFor(card)');
+  });
+});
+
+describe('the generated Lydian card in every key carries them too (Silas, 14 Sep 2026)', () => {
+  const lydianCards = FLASHCARDS.filter(c => c.category === 'modes'
+    && c.axis?.degree === 4 && c.correctAnswer.endsWith(' Lydian'));
+
+  it('is thirteen cards, one per key', () => {
+    expect(lydianCards).toHaveLength(13);
+  });
+
+  it('opens each one on its own Lydian root, spelled as the rows spell it', () => {
+    const roots = QUADRANT_ROOTS.flat();
+    for (const card of lydianCards) {
+      const opened = lydianRowsFor(card);
+      expect(opened?.openWith, card.id).toBeDefined();
+      expect(roots, card.id).toContain(opened!.openWith);
+      expect(pitchClassOf(opened!.openWith!), card.id)
+        .toBe(pitchClassOf(card.correctAnswer.replace(/ Lydian$/, '')));
+    }
+    expect(lydianRowsFor(FLASHCARDS.find(c => c.id === 'mo-mode-C-4')!)).toEqual({ openWith: 'F' });
+  });
+
+  it('gives the other modes nothing', () => {
+    expect(lydianRowsFor(FLASHCARDS.find(c => c.id === 'mo-mode-C-2')!)).toBeNull();
+    expect(lydianRowsFor(FLASHCARDS.find(c => c.id === 'fh-4')!)).toBeNull();
   });
 });

@@ -25,6 +25,7 @@ import {
 } from '../../lib/flashcards/cardSpacing';
 import { recordEngagement } from '../../lib/spacingState';
 import LydianChordRows from './LydianChordRows';
+import { LYDIAN_CHORD_CARDS, lydianRowsFor } from './lydianCards';
 import DegreeGroundedRows from './DegreeGroundedRows';
 import CardPlayback from './CardPlayback';
 import DegreeNoteReveal from './DegreeNoteReveal';
@@ -357,16 +358,9 @@ function VisualAid({
 // So they render through `renderFooter`, which sits outside both gates.
 // ---------------------------------------------------------------------
 
-/** Which cards carry the chord rows, and which key each opens on. */
-const LYDIAN_CHORD_CARDS: Readonly<Record<string, string | undefined>> = {
-  // "The signature chord that says 'Lydian'" — no key of its own, so
-  // it opens on the first of each quadrant.
-  'mo-15': undefined,
-  // `mo-3`, "Lydian mode starts on which scale degree?", opened these on
-  // F. It retired on 14 Sep 2026 into the generated F Lydian card, which
-  // does not carry them: putting a reference on a card that has never
-  // shown one is a screen change, and that one is Silas's to make.
-};
+// WHICH CARDS CARRY THE CHORD ROWS, and which root each opens on, is
+// `lydianCards.ts`: the signature-chord card and the Lydian card in
+// every key (Silas, 14 Sep 2026).
 
 function CardReference({ card, answered }: { card: Flashcard; answered: boolean }) {
   // Reveal-side only. Before answering, the rows would hand over the
@@ -383,9 +377,19 @@ function CardReference({ card, answered }: { card: Flashcard; answered: boolean 
   if (cell !== null) {
     return <ChordQualitiesChart select={cell} modesFolded framed />;
   }
-  if (card.id in LYDIAN_CHORD_CARDS) {
-    const openWith = LYDIAN_CHORD_CARDS[card.id];
-    return <LydianChordRows {...(openWith ? { openWith } : {})} />;
+  const lydian = lydianRowsFor(card);
+  if (lydian !== null && card.id in LYDIAN_CHORD_CARDS) {
+    return <LydianChordRows {...lydian} />;
+  }
+  if (lydian !== null) {
+    // THE GENERATED LYDIAN CARD keeps the sound every mode card has, with
+    // the rows above it.
+    return (
+      <>
+        <LydianChordRows {...lydian} />
+        <CardPlayback card={card} />
+      </>
+    );
   }
   const degree = qualityOfCardId(card.id);
   if (degree !== null) {

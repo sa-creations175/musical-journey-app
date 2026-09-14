@@ -286,7 +286,7 @@ const base = (category: Flashcard['category'], categoryName: string) =>
 // =====================================================================
 
 const SECONDARY_DOMINANT_CONTEXT =
-  'A secondary dominant is the V-of-a-chord-that-is-not-the-tonic. Gospel '
+  'A secondary dominant is the 5 of a chord that is not the tonic. Gospel '
   + 'bridges, Stevie Wonder verses and jazz tunes use them to tour through '
   + 'keys without ever leaving home.';
 
@@ -296,6 +296,10 @@ const SECONDARY_DOMINANT_CONTEXT =
  * EVERY KEY, THE KEY OF C INCLUDED, since 14 Sep 2026. C was skipped here
  * and in the V/vi generator below while the hand-written `fh-11` and
  * `fh-12` asked it; both retired into the generated C cards.
+ *
+ * SAYS "5 of 5" AND "5 of 6" since 14 Sep 2026, the words the filter chips
+ * and the rest of the deck use. The stored shape is still `V/V` and `V/vi`,
+ * so every link and facet that named one still resolves.
  */
 export function generateVofVCards(): Flashcard[] {
   const out: Flashcard[] = [];
@@ -308,14 +312,14 @@ export function generateVofVCards(): Flashcard[] {
       ...base('functional-harmony', 'Functional Harmony'),
       id: `fh-v-of-v-${identityRoot(root)}`,
       axis: { key: identityRoot(root), shape: 'V/V' },
-      question: 'A secondary dominant V/V in the key of '
+      question: 'A secondary dominant 5 of 5 in the key of '
         + `${noteLabel(root)} major is which chord?`,
       correctAnswer: `${two}7`,
       // The other three dominants a player might reach for: the real V,
       // the VI7 and the III7.
       decoys: [`${five}7`, `${six}7`, `${three}7`],
-      explanation: 'V/V points at the V. In the key of '
-        + `${noteLabel(root)} major the V is `
+      explanation: '5 of 5 points at the 5. In the key of '
+        + `${noteLabel(root)} major the 5 is `
         + `${five}, so its own dominant is ${two}7 — the 2 chord made major `
         + `and sevenths, resolving to ${five}7.`
         + keyboardNote(degreeAscii(root, '2'), degreeAscii(root, '5'))
@@ -338,11 +342,11 @@ export function generateVofViCards(): Flashcard[] {
       ...base('functional-harmony', 'Functional Harmony'),
       id: `fh-v-of-vi-${identityRoot(root)}`,
       axis: { key: identityRoot(root), shape: 'V/vi' },
-      question: `V/vi in the key of ${noteLabel(root)} major resolves to _____`,
+      question: `5 of 6 in the key of ${noteLabel(root)} major resolves to _____`,
       correctAnswer: `${six}m`,
       decoys: [`${three}m`, `${two}m`, `${four}maj7`],
-      explanation: 'V/vi is the V chord pointing at the vi. In the key of '
-        + `${noteLabel(root)} major the vi is ${six}m, so the move is `
+      explanation: '5 of 6 is the 5 chord pointing at the 6m. In the key of '
+        + `${noteLabel(root)} major the 6m is ${six}m, so the move is `
         + `${degreeLabel(root, '3')}7 → ${six}m. You hear it whenever a song `
         + `pivots into its relative minor for a bridge before drifting home.`
         + keyboardNote(degreeAscii(root, '6'), degreeAscii(root, '3')),

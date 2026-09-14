@@ -279,6 +279,32 @@ describe('the rows a surface may drop', () => {
     expect(calls).toHaveLength(2);
   });
 
+  it('plays Resolved to major from the play row: the sus chord, then the major triad', () => {
+    mount({
+      chords: [{ hand: [60, 65, 67], bass: null, rootPc: 0, name: 'C Sus4' }],
+      orientPc: undefined,
+      alsoPlay: {
+        label: 'Resolved to major',
+        testId: 'play-resolved-major',
+        chords: [
+          { hand: [60, 65, 67], bass: null, rootPc: 0, name: 'C Sus4' },
+          { hand: [60, 64, 67], bass: null, rootPc: 0, name: 'C Major' },
+        ],
+        moving: [5, 4],
+      },
+    });
+    const button = byTestId('play-resolved-major')!;
+    expect(button.textContent).toBe('♪ Resolved to major');
+    expect(button.closest('[data-testid="player-play-chips"]')).not.toBeNull();
+    tap(button);
+    expect(calls).toHaveLength(1);
+    const steps = calls[0].chords as Array<{ intervals: number[] }>;
+    const sounded = steps.map(st => st.intervals.map(m => ((m % 12) + 12) % 12));
+    expect(sounded.some(pcs => pcs.includes(5) && !pcs.includes(4))).toBe(true);
+    expect(sounded.some(pcs => pcs.includes(4) && !pcs.includes(5))).toBe(true);
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+  });
+
   it('locks the ladder to one rung beside a drill', () => {
     mount({
       thickness: { value: 'seventh', onChange: () => {}, locked: true },

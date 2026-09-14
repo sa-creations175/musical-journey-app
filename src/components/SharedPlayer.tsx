@@ -14,7 +14,8 @@
  *
  *   · a quiz hides the board before the answer and may play on arrival;
  *     every other surface waits for a tap
- *   · chord recognition never re-voices
+ *   · chord recognition never re-voices, and on a sus card adds
+ *     ♪ Resolved to major after the play chips (`alsoPlay`)
  *   · beside a drill the ladder is locked to the row and nothing is
  *     rated
  *   · the melody ring appears only where a surface has a melody line
@@ -109,7 +110,7 @@ import {
 import type { InKeyRing } from '../lib/player/inKeyColour';
 import type { Instrument } from '../lib/audio';
 
-import { CHIP, CHIP_OFF } from './playerChipStyles';
+import { CHIP, CHIP_OFF, CHIP_ON } from './playerChipStyles';
 import { PlayerChip as Chip, PlayerRow as Row } from './PlayerRow';
 
 /** A direction row: the chord names with a tappable arrow between. */
@@ -287,7 +288,25 @@ interface SharedPlayerProps {
   edit?: HeldEdit;
   /** `hear()`, for the one surface that plays on a tap outside it. */
   ref?: Ref<SharedPlayerHandle>;
+  /**
+   * One more thing to play, in the play row after the four chips.
+   *
+   * CHORD RECOGNITION'S ♪ RESOLVED TO MAJOR on a sus card (Silas, 14 Sep
+   * 2026): the sus chord, then the major triad, in the lit mode. `moving`
+   * is the pitch class that moves in each chord, lit orange while that
+   * chord shows: sus4's 4 falling to the 3, sus2's 2 rising to it.
+   */
+  alsoPlay?: {
+    label: string;
+    testId: string;
+    chords: ReadonlyArray<PlayerChord>;
+    moving: ReadonlyArray<number>;
+  };
 }
+
+/** The moving note's orange: the app's own (`borrowed`), which is the
+ *  orange the prototype lights it in. */
+const MOVING_NOTE = '#F0722B';
 
 /**
  * The chord's root, ringed in its degree-of-the-key colour.
@@ -330,7 +349,7 @@ function applyEdit(
 
 export default function SharedPlayer({
   chords: given, orientPc, settings, onSettings, thickness,
-  bassDirection, handDirection, showHands, showListen,
+  bassDirection, handDirection, showHands, showListen, alsoPlay,
   board, boardLabel = 'What is sounding', caption, compare, children,
   controls = true, onStep, beats, play, totalBeats, ring, startLit = 0, lab, edit: heldEdit, ref,
 }: SharedPlayerProps) {
@@ -485,14 +504,17 @@ export default function SharedPlayer({
    */
   const [picked, setPicked] = useState<number | null>(null);
 
-  const hearIt = () => { setPicked(null); run(0); };
+  const hearIt = () => { setPicked(null); setShowingAlso(false); run(0); };
 
+  /** Whether the board is showing `alsoPlay`'s chords rather than the card's. */
+  const [showingAlso, setShowingAlso] = useState(false);
   /** A chip that changed the mode, waiting for the surface to hand it back. */
   const pendingPlay = useRef<PlayAs | null>(null);
 
   /** A play chip: that mode, from the top, now. */
   const playIn = (mode: PlayAs) => {
     setPicked(null);
+    setShowingAlso(false);
     if (mode === settings.playAs) { run(0); return; }
     pendingPlay.current = mode;
     onSettings({ ...settings, playAs: mode });
@@ -507,6 +529,13 @@ export default function SharedPlayer({
     // ONLY THE MODE ARRIVING STARTS IT; `run` is rebuilt every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.playAs]);
+
+  const playAlso = () => {
+    if (alsoPlay === undefined) return;
+    setPicked(null);
+    setShowingAlso(true);
+    run(0, alsoPlay.chords);
+  };
 
   const pauseOrResume = () => {
     if (transport === 'paused') { run(clock.current.beat); return; }
@@ -534,6 +563,7 @@ export default function SharedPlayer({
   const hearOne = (i: number) => {
     const chord = voiced[i];
     if (chord === undefined) return;
+    setShowingAlso(false);
     handle?.stop();
     setTransport('playing');
     void playPanel([chord], settings, {
@@ -584,6 +614,7 @@ export default function SharedPlayer({
   };
   const tapBoardKey = (midi: number) => {
     halt();
+    setShowingAlso(false);
     const { edit: next, litChanged } = tapKey(boardEdit, selected, litNow(), midi, settings.selectNotesBy);
     afterEdit(next, litChanged);
   };
@@ -614,9 +645,21 @@ export default function SharedPlayer({
   // THE LIT KEYS ARE THE SOUNDING KEYS. `voiced` has the bass where the
   // register put it, and the board follows it — Silas's law of 10 Sep
   // 2026, for every surface.
-  const sounding = voiced[lit ?? startLit] ?? voiced[0] ?? null;
+  const alsoVoiced = useMemo(
+    () => (alsoPlay === undefined ? [] : handsForSetting(placeBass(alsoPlay.chords, settings), settings)),
+    [alsoPlay, settings],
+  );
+  const shown = showingAlso && alsoVoiced.length > 0 ? alsoVoiced : voiced;
+  const sounding = shown[lit ?? startLit] ?? shown[0] ?? null;
   const marks: ReadonlyMap<number, KeyMark> = (() => {
     const out = new Map(ringed(playerMarks(sounding, settings), sounding, ring));
+    // THE NOTE THAT MOVES, orange, while Resolved to major's chord shows.
+    const movingPc = showingAlso ? alsoPlay?.moving[lit ?? 0] : undefined;
+    if (movingPc !== undefined) {
+      for (const [midi, mark] of out) {
+        if (((midi % 12) + 12) % 12 === movingPc) out.set(midi, { ...mark, fill: MOVING_NOTE });
+      }
+    }
     // THE RINGS OF A GROUP BEING BUILT, on the chord the board shows.
     for (const midi of rings) {
       const mark = out.get(midi);
@@ -672,7 +715,7 @@ export default function SharedPlayer({
   // `ChordColorLegend`. In the lab it sits under Play as (spec §4).
   const legendEl = board !== false && (
     <ChordColorLegend
-      chord={lit === null ? (voiced[0] ?? null) : (voiced[lit] ?? null)}
+      chord={lit === null ? (shown[0] ?? null) : (shown[lit] ?? null)}
       settings={settings}
       spelling={spelling}
       {...(ring === undefined ? {} : { ring })}
@@ -691,7 +734,20 @@ export default function SharedPlayer({
 
   const transportEl = controls && (
     <div className="flex flex-wrap items-center gap-2">
-      <PlayChips value={settings.playAs} onPlay={playIn} />
+      <PlayChips value={settings.playAs} onPlay={playIn}>
+        {alsoPlay !== undefined && (
+          <button
+            type="button"
+            data-testid={alsoPlay.testId}
+            aria-pressed={showingAlso}
+            onClick={playAlso}
+            className={`${CHIP} ${showingAlso ? CHIP_ON : CHIP_OFF}`}
+          >
+            <span aria-hidden>♪ </span>
+            {alsoPlay.label}
+          </button>
+        )}
+      </PlayChips>
       <button
         type="button"
         data-testid="player-pause"

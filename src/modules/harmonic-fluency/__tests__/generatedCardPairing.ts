@@ -325,6 +325,12 @@
  * in a row, and the Circle of 4ths. THE IDS DID NOT MOVE, and each card
  * asks what it asked in the words the rest of the app uses.
  * ---------------------------------------------------------------
+ * 14 SEPTEMBER 2026, LATER STILL — TWENTY-FOUR `fh-v-of-` QUESTIONS
+ * RE-PINNED, IDS UNMOVED.
+ *
+ * The generated secondary dominants say "5 of 5" and "5 of 6" where they
+ * said V/V and V/vi, the words the filter chips already used.
+ * ---------------------------------------------------------------
  */
 export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   // --- scale-degree-math ---
@@ -1385,30 +1391,30 @@ export const GENERATED_CARD_PAIRING: ReadonlyArray<string> = [
   'fh-15|The 4m chord in a major key is borrowed from _____',
   'fh-17|The Circle of 4ths moves each chord by _____',
   'fh-18|In a 1 · 5 · 6m · 4 progression, swapping the plain 5 for a fuller version typically means using _____',
-  'fh-v-of-v-C|A secondary dominant V/V in the key of C major is which chord?',
-  'fh-v-of-v-Db|A secondary dominant V/V in the key of D♭ major is which chord?',
-  'fh-v-of-v-D|A secondary dominant V/V in the key of D major is which chord?',
-  'fh-v-of-v-Eb|A secondary dominant V/V in the key of E♭ major is which chord?',
-  'fh-v-of-v-E|A secondary dominant V/V in the key of E major is which chord?',
-  'fh-v-of-v-F|A secondary dominant V/V in the key of F major is which chord?',
-  'fh-v-of-v-F#|A secondary dominant V/V in the key of G♭ major is which chord?',
-  'fh-v-of-v-G|A secondary dominant V/V in the key of G major is which chord?',
-  'fh-v-of-v-Ab|A secondary dominant V/V in the key of A♭ major is which chord?',
-  'fh-v-of-v-A|A secondary dominant V/V in the key of A major is which chord?',
-  'fh-v-of-v-Bb|A secondary dominant V/V in the key of B♭ major is which chord?',
-  'fh-v-of-v-B|A secondary dominant V/V in the key of B major is which chord?',
-  'fh-v-of-vi-C|V/vi in the key of C major resolves to _____',
-  'fh-v-of-vi-Db|V/vi in the key of D♭ major resolves to _____',
-  'fh-v-of-vi-D|V/vi in the key of D major resolves to _____',
-  'fh-v-of-vi-Eb|V/vi in the key of E♭ major resolves to _____',
-  'fh-v-of-vi-E|V/vi in the key of E major resolves to _____',
-  'fh-v-of-vi-F|V/vi in the key of F major resolves to _____',
-  'fh-v-of-vi-F#|V/vi in the key of G♭ major resolves to _____',
-  'fh-v-of-vi-G|V/vi in the key of G major resolves to _____',
-  'fh-v-of-vi-Ab|V/vi in the key of A♭ major resolves to _____',
-  'fh-v-of-vi-A|V/vi in the key of A major resolves to _____',
-  'fh-v-of-vi-Bb|V/vi in the key of B♭ major resolves to _____',
-  'fh-v-of-vi-B|V/vi in the key of B major resolves to _____',
+  'fh-v-of-v-C|A secondary dominant 5 of 5 in the key of C major is which chord?',
+  'fh-v-of-v-Db|A secondary dominant 5 of 5 in the key of D♭ major is which chord?',
+  'fh-v-of-v-D|A secondary dominant 5 of 5 in the key of D major is which chord?',
+  'fh-v-of-v-Eb|A secondary dominant 5 of 5 in the key of E♭ major is which chord?',
+  'fh-v-of-v-E|A secondary dominant 5 of 5 in the key of E major is which chord?',
+  'fh-v-of-v-F|A secondary dominant 5 of 5 in the key of F major is which chord?',
+  'fh-v-of-v-F#|A secondary dominant 5 of 5 in the key of G♭ major is which chord?',
+  'fh-v-of-v-G|A secondary dominant 5 of 5 in the key of G major is which chord?',
+  'fh-v-of-v-Ab|A secondary dominant 5 of 5 in the key of A♭ major is which chord?',
+  'fh-v-of-v-A|A secondary dominant 5 of 5 in the key of A major is which chord?',
+  'fh-v-of-v-Bb|A secondary dominant 5 of 5 in the key of B♭ major is which chord?',
+  'fh-v-of-v-B|A secondary dominant 5 of 5 in the key of B major is which chord?',
+  'fh-v-of-vi-C|5 of 6 in the key of C major resolves to _____',
+  'fh-v-of-vi-Db|5 of 6 in the key of D♭ major resolves to _____',
+  'fh-v-of-vi-D|5 of 6 in the key of D major resolves to _____',
+  'fh-v-of-vi-Eb|5 of 6 in the key of E♭ major resolves to _____',
+  'fh-v-of-vi-E|5 of 6 in the key of E major resolves to _____',
+  'fh-v-of-vi-F|5 of 6 in the key of F major resolves to _____',
+  'fh-v-of-vi-F#|5 of 6 in the key of G♭ major resolves to _____',
+  'fh-v-of-vi-G|5 of 6 in the key of G major resolves to _____',
+  'fh-v-of-vi-Ab|5 of 6 in the key of A♭ major resolves to _____',
+  'fh-v-of-vi-A|5 of 6 in the key of A major resolves to _____',
+  'fh-v-of-vi-Bb|5 of 6 in the key of B♭ major resolves to _____',
+  'fh-v-of-vi-B|5 of 6 in the key of B major resolves to _____',
   // --- modes ---
   'mo-7|Mixolydian mode\'s signature altered note is _____',
   'mo-8|Lydian mode\'s signature altered note is _____',

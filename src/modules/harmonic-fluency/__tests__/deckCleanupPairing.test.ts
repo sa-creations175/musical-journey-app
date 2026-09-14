@@ -136,7 +136,10 @@ describe('each secondary dominant folds onto the generated card that asks it wor
       expect(DUPLICATE_FOLDS[pair.from]).toBe(pair.to);
       const target = cardById(pair.to);
       expect(target, 'in the deck').toBeDefined();
-      expect(target!.question).toBe(pair.question);
+      // Word for word, in the numbers the generated cards have said
+      // since later on 14 Sep 2026: V/V is 5 of 5 and V/vi is 5 of 6.
+      expect(target!.question)
+        .toBe(pair.question.replace('V/V', '5 of 5').replace('V/vi', '5 of 6'));
       expect(target!.correctAnswer).toBe(pair.correctAnswer);
       expect(target!.decoys).toEqual(pair.decoys);
     });

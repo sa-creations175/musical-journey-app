@@ -18,7 +18,7 @@ import { db } from '../db';
 import type { MigrationTable, MigrationTx } from '../migrations/retire913';
 import {
   DUPLICATES_WITHOUT_DESTINATION, EAR_THEORY_FOLDS, EAR_THEORY_WITHOUT_DESTINATION,
-  foldDuplicateCards, foldEarTheoryCrossover,
+  RETIRED_WITHOUT_DESTINATION, deleteRetiredCardRows, foldDuplicateCards, foldEarTheoryCrossover,
 } from '../migrations/hfDeckCleanup';
 
 const NOW = 1_700_000_000_000;
@@ -199,6 +199,53 @@ describe('v46 — the duplicates', () => {
     await db.attempts.put({ id: 'a1', moduleId: HF, itemId: 'mo-1', timestamp: NOW } as never);
     await foldDuplicateCards(tx);
     const again = await foldDuplicateCards(tx);
+    expect(Object.values(again).every(v => v === 0)).toBe(true);
+  });
+});
+
+describe('v47 — the seven with nowhere to go', () => {
+  it('names exactly the seven', () => {
+    expect([...RETIRED_WITHOUT_DESTINATION].sort()).toEqual(
+      ['et-10', 'et-12', 'et-13', 'et-2', 'et-5', 'fh-16', 'fh-19'],
+    );
+  });
+
+  it('deletes every answer row of the seven, and nobody else\'s', async () => {
+    await db.attempts.bulkPut([
+      { id: 'a1', moduleId: HF, itemId: 'et-2', timestamp: NOW },
+      { id: 'a2', moduleId: HF, itemId: 'fh-19', timestamp: NOW },
+      { id: 'a3', moduleId: HF, itemId: 'fh-4', timestamp: NOW },
+      { id: 'a4', moduleId: 'chord-recognition', itemId: 'et-2', timestamp: NOW },
+    ] as never);
+    await db.spacingState.bulkPut([
+      spacingRow({ itemRef: 'et-5' }), spacingRow({ itemRef: 'fh-16' }), spacingRow({ itemRef: 'fh-4' }),
+    ] as never);
+    await db.harmonicDiaryEntries.bulkPut([
+      { entryId: 'e1', skillId: skill('et-10'), userText: 'gone', emotionalTags: [], genreTags: [], lastEdited: NOW },
+      { entryId: 'e2', skillId: skill('fh-4'), userText: 'kept', emotionalTags: [], genreTags: [], lastEdited: NOW },
+    ] as never);
+    await db.skillAnnotations.bulkPut([
+      { skillId: skill('et-12'), tags: [], note: 'gone', updatedAt: NOW },
+      { skillId: skill('fh-4'), tags: [], note: 'kept', updatedAt: NOW },
+    ] as never);
+    await db.goals.put({ id: 'g1', relatedItems: ['et-13', 'fh-4'] } as never);
+    await db.practiceBlocks.put({ id: 'b1', itemRefs: ['fh-19', 'cc-1'] } as never);
+
+    const n = await deleteRetiredCardRows(tx);
+
+    expect(n).toEqual({ attempts: 2, spacing: 2, diary: 1, annotations: 1, goals: 1, blocks: 1 });
+    expect((await db.attempts.toArray()).map(a => a.id).sort()).toEqual(['a3', 'a4']);
+    expect((await db.spacingState.toArray()).map(r => r.itemRef)).toEqual(['fh-4']);
+    expect((await db.harmonicDiaryEntries.toArray()).map(e => e.entryId)).toEqual(['e2']);
+    expect((await db.skillAnnotations.toArray()).map(a => a.skillId)).toEqual([skill('fh-4')]);
+    expect((await db.goals.get('g1'))?.relatedItems).toEqual(['fh-4']);
+    expect((await db.practiceBlocks.get('b1'))?.itemRefs).toEqual(['cc-1']);
+  });
+
+  it('a second run, or the other device\'s, finds nothing', async () => {
+    await db.attempts.put({ id: 'a1', moduleId: HF, itemId: 'et-13', timestamp: NOW } as never);
+    await deleteRetiredCardRows(tx);
+    const again = await deleteRetiredCardRows(tx);
     expect(Object.values(again).every(v => v === 0)).toBe(true);
   });
 });

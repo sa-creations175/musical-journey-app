@@ -13,7 +13,8 @@
  *     as the Play as setting did — read off the attempt written.
  *   · Every new card plays Together and the aid does not carry: the next
  *     card, answered with no tap, is rated as a first listen.
- *   · The reveal plays from the same chips, and has no Hear it.
+ *   · A sus card's reveal has no Compare row (the quiz never asks a sus
+ *     chord in inversion) and has ♪ Resolved to major in its play row.
  * =====================================================================
  */
 import 'fake-indexeddb/auto';
@@ -40,6 +41,8 @@ vi.mock('../../../../lib/audio', () => ({
   CHORD_RING_BEATS: 3,
   chordBlockedAnswerableMs: () => 50,
   chordBrokenAnswerableMs: () => 1_250,
+  // THE INSTRUMENT PROVIDER the reveal's player needs reads these.
+  setInstrument: () => {},
 }));
 
 let container: HTMLDivElement | null = null;
@@ -170,13 +173,21 @@ describe('the rating', () => {
   });
 });
 
-describe('the reveal', () => {
-  it('plays from the chips, with no Hear it', async () => {
+describe('a sus card\'s reveal', () => {
+  it('has no Compare row, and plays Resolved to major from the play row', async () => {
     const el = await render();
     await click(byId(el, 'play-chord'));
     await answerSus4(el);
-    expect(byId(el, 'shared-player')).not.toBeNull();
+    const player = byId(el, 'shared-player');
+    expect(player).not.toBeNull();
+    expect(byId(el, 'compare-inversions')).toBeNull();
     expect(byId(el, 'player-hear')).toBeNull();
-    expect(byId(el, 'player-play-together')).not.toBeNull();
+    const resolved = byId(el, 'play-resolved-major');
+    expect(resolved?.textContent).toContain('Resolved to major');
+    expect(resolved?.closest('[data-testid="player-play-chips"]')).not.toBeNull();
+    const runsBefore = played.runs;
+    await click(resolved);
+    expect(played.runs).toBe(runsBefore + 1);
+    expect(resolved?.getAttribute('aria-pressed')).toBe('true');
   });
 });

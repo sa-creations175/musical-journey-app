@@ -5,8 +5,10 @@ import type { PracticeActivity } from './practiceActivities';
 import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
 import { foldRetiredChordCards } from './migrations/retire913';
 import { foldRetiredDiatonicCard } from './migrations/retireDqExtra1';
-import { foldDuplicateCards, foldEarTheoryCrossover } from './migrations/hfDeckCleanup';
-import { describeCardFold } from './migrations/foldHarmonicFluencyCards';
+import {
+  deleteRetiredCardRows, foldDuplicateCards, foldEarTheoryCrossover,
+} from './migrations/hfDeckCleanup';
+import { describeCardDelete, describeCardFold } from './migrations/foldHarmonicFluencyCards';
 
 export interface IntervalData {
   id: string;
@@ -4864,6 +4866,19 @@ export class AppDB extends Dexie {
     this.version(46).stores({}).upgrade(async tx => {
       const n = await foldDuplicateCards(tx);
       console.info(describeCardFold('duplicate cards folded', n));
+    });
+
+    /**
+     * =================================================================
+     * v47 — THE SEVEN RETIRED CARDS WITH NOWHERE TO FOLD LOSE THEIR ROWS
+     * (Silas, 14 Sep 2026). v45 and v46 left them for him to rule on.
+     * No index moves; idempotent by data, so the laptop and the phone can
+     * each run it in either order. Rules in `migrations/hfDeckCleanup.ts`.
+     * =================================================================
+     */
+    this.version(47).stores({}).upgrade(async tx => {
+      const n = await deleteRetiredCardRows(tx);
+      console.info(describeCardDelete('seven retired cards', n));
     });
   }
 }

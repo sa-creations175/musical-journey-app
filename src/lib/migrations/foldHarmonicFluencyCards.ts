@@ -199,3 +199,75 @@ export function describeCardFold(what: string, n: CardFoldCounts): string {
     + `${n.diaryMoved} diary entr(ies) moved and ${n.diaryMerged} merged, `
     + `${n.annotations} annotation(s), ${n.goals} goal(s), ${n.blocks} practice block(s).`;
 }
+
+export interface CardDeleteCounts {
+  attempts: number;
+  spacing: number;
+  diary: number;
+  annotations: number;
+  goals: number;
+  blocks: number;
+}
+
+/**
+ * Delete everything filed under retired cards that have nothing to fold
+ * into: the same six places a fold moves, emptied instead of moved.
+ *
+ * FOR A RULING, NOT A RULE. Nothing deletes a card's history because the
+ * card is missing from the deck (`lib/orphanSweep.ts` says why); a caller
+ * names the exact ids a decision authorised. Idempotent by data: a second
+ * run, or the other device running it later, finds nothing to delete.
+ */
+export async function deleteHarmonicFluencyCardRows(
+  tx: MigrationTx,
+  ids: readonly string[],
+): Promise<CardDeleteCounts> {
+  const counts: CardDeleteCounts = {
+    attempts: 0, spacing: 0, diary: 0, annotations: 0, goals: 0, blocks: 0,
+  };
+  const gone = new Set(ids);
+  const skills = new Set(ids.map(id => `${SKILL_PREFIX}${id}`));
+
+  for (const row of (await tx.table('attempts').toArray()) as Row[]) {
+    if (row.moduleId !== MODULE_REF || !gone.has(String(row.itemId))) continue;
+    await tx.table('attempts').delete(String(row.id));
+    counts.attempts += 1;
+  }
+  for (const row of (await tx.table('spacingState').toArray()) as Row[]) {
+    if (row.moduleRef !== MODULE_REF || !gone.has(String(row.itemRef))) continue;
+    await tx.table('spacingState').delete(String(row.id));
+    counts.spacing += 1;
+  }
+  for (const row of (await tx.table('harmonicDiaryEntries').toArray()) as Row[]) {
+    if (!skills.has(String(row.skillId))) continue;
+    await tx.table('harmonicDiaryEntries').delete(String(row.entryId));
+    counts.diary += 1;
+  }
+  for (const row of (await tx.table('skillAnnotations').toArray()) as Row[]) {
+    if (!skills.has(String(row.skillId))) continue;
+    await tx.table('skillAnnotations').delete(String(row.skillId));
+    counts.annotations += 1;
+  }
+  for (const goal of (await tx.table('goals').toArray()) as Row[]) {
+    if (!Array.isArray(goal.relatedItems)) continue;
+    const refs = (goal.relatedItems as unknown[]).map(String);
+    if (!refs.some(r => gone.has(r))) continue;
+    await tx.table('goals').update(String(goal.id), { relatedItems: refs.filter(r => !gone.has(r)) });
+    counts.goals += 1;
+  }
+  for (const block of (await tx.table('practiceBlocks').toArray()) as Row[]) {
+    if (!Array.isArray(block.itemRefs)) continue;
+    const refs = (block.itemRefs as unknown[]).map(String);
+    if (!refs.some(r => gone.has(r))) continue;
+    await tx.table('practiceBlocks').update(String(block.id), { itemRefs: refs.filter(r => !gone.has(r)) });
+    counts.blocks += 1;
+  }
+  return counts;
+}
+
+/** The console line a deleting upgrade prints. */
+export function describeCardDelete(what: string, n: CardDeleteCounts): string {
+  return `[harmonic-fluency] ${what}: ${n.attempts} attempt(s), ${n.spacing} spacing row(s), `
+    + `${n.diary} diary entr(ies), ${n.annotations} annotation(s) deleted; `
+    + `${n.goals} goal scope(s) and ${n.blocks} practice block(s) no longer name them.`;
+}

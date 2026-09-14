@@ -164,7 +164,7 @@ describe('key names carry their mode', () => {
       .toBe('The mode of the key of C major starting on D is _____');
     expect(asks('dgn-C-b6')).toBe('In the key of C major, what is the ♭6?');
     expect(asks('fh-v-of-vi-Db'))
-      .toBe('V/vi in the key of D♭ major resolves to _____');
+      .toBe('5 of 6 in the key of D♭ major resolves to _____');
     expect(asks('ks-parallel-Db'))
       .toBe('The parallel minor of the key of D♭ major is _____');
     expect(asks('pent-lick-C')).toBe(

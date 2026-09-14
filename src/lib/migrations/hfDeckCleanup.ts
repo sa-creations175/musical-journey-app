@@ -18,12 +18,14 @@
  * Since 10 Sep nothing in the app deletes on the rule alone, and deleting
  * a reader's attempts is the one step in this cleanup that cannot be
  * taken back. So the rows stay where they are, the orphan sweep names
- * them on start, and whether they go is Silas's call.
+ * them on start, and whether they go was Silas's call. He ruled on
+ * 14 Sep 2026: v47, at the bottom of this file, deletes them.
  * =====================================================================
  */
 import type { MigrationTx } from './retire913';
 import {
-  foldHarmonicFluencyCards, type CardFoldCounts, type CardFolds,
+  deleteHarmonicFluencyCardRows, foldHarmonicFluencyCards,
+  type CardDeleteCounts, type CardFoldCounts, type CardFolds,
 } from './foldHarmonicFluencyCards';
 
 /** Ear-Theory Crossover card → the card that already asks its fact. */
@@ -40,7 +42,7 @@ export const EAR_THEORY_FOLDS: CardFolds = {
   'et-15': 'fh-4',   // the plagal (Amen) cadence
 };
 
-/** Retired with nothing to fold into. Their rows are left alone. */
+/** Retired with nothing to fold into. v47 deletes their rows. */
 export const EAR_THEORY_WITHOUT_DESTINATION: readonly string[] = [
   'et-2', 'et-5', 'et-10', 'et-12', 'et-13',
 ];
@@ -61,7 +63,7 @@ export function foldEarTheoryCrossover(tx: MigrationTx): Promise<CardFoldCounts>
  *
  * `fh-16` answered with an adjective and `fh-19` with a claim true of
  * several chords. Nothing else asks what they asked, so, like the five
- * Ear-Theory cards above, their rows stay where they are.
+ * Ear-Theory cards above, their rows stayed where they were until v47.
  * =====================================================================
  */
 export const DUPLICATE_FOLDS: CardFolds = {
@@ -75,9 +77,28 @@ export const DUPLICATE_FOLDS: CardFolds = {
   'fh-12': 'fh-v-of-vi-C', // V/vi in the key of C, word for word
 };
 
-/** Retired with nothing to fold into. Their rows are left alone. */
+/** Retired with nothing to fold into. v47 deletes their rows. */
 export const DUPLICATES_WITHOUT_DESTINATION: readonly string[] = ['fh-16', 'fh-19'];
 
 export function foldDuplicateCards(tx: MigrationTx): Promise<CardFoldCounts> {
   return foldHarmonicFluencyCards(tx, DUPLICATE_FOLDS);
+}
+
+/**
+ * =====================================================================
+ * THE SEVEN WITH NOWHERE TO GO, DELETED (v47).
+ *
+ * Silas, 14 Sep 2026: delete the answer rows of `et-2`, `et-5`, `et-10`,
+ * `et-12`, `et-13`, `fh-16` and `fh-19`. v45 and v46 left them where they
+ * were because deleting a reader's history cannot be undone and was his to
+ * rule on. Attempts, spacing rows, diary entries and annotations go, and
+ * the ids leave goal scopes and past practice blocks.
+ * =====================================================================
+ */
+export const RETIRED_WITHOUT_DESTINATION: readonly string[] = [
+  ...EAR_THEORY_WITHOUT_DESTINATION, ...DUPLICATES_WITHOUT_DESTINATION,
+];
+
+export function deleteRetiredCardRows(tx: MigrationTx): Promise<CardDeleteCounts> {
+  return deleteHarmonicFluencyCardRows(tx, RETIRED_WITHOUT_DESTINATION);
 }

@@ -148,6 +148,21 @@ const FAMILY_FILTER_OPTIONS: FilterOption[] = [
   { key: 'aug',   label: 'Augmented',  colorClass: FAMILY_DOT.aug },
 ];
 
+/** The sus chords, which resolve to the major triad on the same root. */
+function resolvesToMajor(chordId: string): boolean {
+  return chordId === 'sus2' || chordId === 'sus4';
+}
+
+/**
+ * The note that moves when a sus chord resolves: sus4's 4 falls to the 3,
+ * sus2's 2 rises to it. One pitch class per chord of the pair.
+ */
+function movingPitchClasses(chordId: string, rootMidi: number): number[] {
+  const rootPc = ((rootMidi % 12) + 12) % 12;
+  const from = chordId === 'sus4' ? 5 : 2;
+  return [(rootPc + from) % 12, (rootPc + 4) % 12];
+}
+
 interface Props {
   chords: ChordData[];
   attempts: AttemptRecord[];
@@ -882,6 +897,15 @@ export default function ChordRecognitionQuiz({
   // suffix can't get lost in JSX whitespace nuances. Always shows
   // root + name; appends ", <inversion label>" on the wrong-quality
   // path when training was active.
+  /**
+   * WHAT COMPARE OFFERS: the inversions the quiz asks for this chord, and
+   * nothing it never asks (Silas, 14 Sep 2026). A chord asked in one
+   * position — a sus chord, say — has no Compare row at all.
+   */
+  const comparable: Inversion[] = current === null ? [] : reachableInversions(current.chord)
+    .filter(inv => inv === current.inversion
+      || positionsForTier(inversionSettings, current.chord.tier).includes(inv));
+
   const identityText = current
     ? buildChordIdentityText({
         rootMidi: current.rootMidi,
@@ -1210,32 +1234,45 @@ export default function ChordRecognitionQuiz({
                       ? ['triads', 'guide', 'seventh']
                       : ['triads'],
                   }}
-                  compare={(
+                  {...(resolvesToMajor(current.chord.id) ? {
+                    alsoPlay: {
+                      label: 'Resolved to major',
+                      testId: 'play-resolved-major',
+                      chords: [
+                        ...crChords(current.chord, current.rootMidi, 0, settings, identityText, rung),
+                        ...crChords(
+                          { ...current.chord, id: 'maj', name: 'Major', intervals: [0, 4, 7], formula: '1, 3, 5' },
+                          current.rootMidi, 0, settings, `${rootName} Major`, 'triads',
+                        ),
+                      ],
+                      moving: movingPitchClasses(current.chord.id, current.rootMidi),
+                    },
+                  } : {})}
+                  {...(comparable.length > 1 ? { compare: (
                     <div className="space-y-1.5">
                       <div className="text-[10px] uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
                         Compare
                       </div>
                       <div className="flex flex-wrap gap-1.5" data-testid="compare-inversions">
-                        {inversionsForIntervalCount(current.chord.intervals.length)
-                          .map(inv => (
-                            <button
-                              key={inv}
-                              type="button"
-                              aria-pressed={inv === showInversion}
-                              data-testid={`compare-inversion-${inv}`}
-                              onClick={() => setShowInversion(inv)}
-                              className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${
-                                inv === showInversion
-                                  ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
-                                  : 'border-black/10 dark:border-white/20'}`}
-                            >
-                              {INVERSION_LABEL[inv]}
-                              {inv === current.inversion ? ' (asked)' : ''}
-                            </button>
-                          ))}
+                        {comparable.map(inv => (
+                          <button
+                            key={inv}
+                            type="button"
+                            aria-pressed={inv === showInversion}
+                            data-testid={`compare-inversion-${inv}`}
+                            onClick={() => setShowInversion(inv)}
+                            className={`rounded-md border px-2.5 py-1.5 text-xs font-medium ${
+                              inv === showInversion
+                                ? 'border-neutral-900 bg-neutral-900 text-white dark:border-neutral-100 dark:bg-neutral-100 dark:text-neutral-900'
+                                : 'border-black/10 dark:border-white/20'}`}
+                          >
+                            {INVERSION_LABEL[inv]}
+                            {inv === current.inversion ? ' (asked)' : ''}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                  )}
+                  ) } : {})}
                 />
               </div>
             )}
