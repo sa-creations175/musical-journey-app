@@ -24,6 +24,7 @@
  */
 
 import type { Thickness } from '../builtAnswers/chordShapes';
+import type { SelectNotesBy } from './boardEdit';
 
 /** Bass and chords, or the bass line alone. */
 export type ListenTo = 'both' | 'bass';
@@ -205,6 +206,9 @@ export interface PlayerSettings {
   bass: BassLevel;
   /** Where the bass line lives — see `BassRegister`. */
   bassRegister: BassRegister;
+  /** How a lit key gets a ring when building by hand — see
+   *  `lib/player/boardEdit`. */
+  selectNotesBy: SelectNotesBy;
 }
 
 /**
@@ -232,6 +236,8 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   // C2 TO G3 BY DEFAULT (Silas, 14 Sep 2026), which leaves today's
   // single chords where they were.
   bassRegister: 'c2',
+  // TAP AGAIN BY DEFAULT (spec §5).
+  selectNotesBy: 'tap',
 };
 
 /** The Loop row, in the prototype's order. */

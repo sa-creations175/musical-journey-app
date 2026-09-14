@@ -285,3 +285,76 @@ describe('what each card type shows (spec §8)', () => {
     expect(q('hands-rootless')).not.toBeNull();
   });
 });
+
+describe('the rows read from the keyboard (spec §4, §5)', () => {
+  const title = () => q('diary-sheet-title')!.textContent;
+  const pressed = (id: string) => q(id)?.getAttribute('aria-pressed') === 'true';
+  const key = (midi: number) => document.body.querySelector(`rect[data-midi="${midi}"]`)!;
+  /** Under Tap again a lit key unlights on its second tap. */
+  const unlight = (midi: number) => { click(key(midi)); click(key(midi)); };
+
+  it('a key lit by hand is named by the reader, and Root and Colour follow it', () => {
+    // C Major 7 is C2 under E4 G4 B4; D5 makes it a major 9.
+    mount('chord-recognition:item:maj7', { name: 'Major 7' });
+    click(key(74));
+    expect(title()).toBe('Cmaj9');
+    expect(q('diary-sheet-subtitle')!.textContent).toContain('from the card Major 7');
+    expect(pressed('root-0')).toBe(true);
+    expect(pressed('colour-maj9')).toBe(true);
+    expect(pressed('colour-maj7')).toBe(false);
+    expect(q('back-to-card')).not.toBeNull();
+  });
+
+  it('switches Colour to the reader\'s family, and a chip continues from the reader\'s root', () => {
+    mount('chord-recognition:item:maj7', { name: 'Major 7' });
+    unlight(36);
+    // E G B alone: E minor.
+    expect(title()).toBe('Em');
+    expect(q('row-colour')!.textContent).toContain('Colour · Minor');
+    expect(pressed('root-4')).toBe(true);
+    expect(pressed('colour-min')).toBe(true);
+    click(q('colour-min7')!);
+    expect(title()!.startsWith('E ')).toBe(true);
+    expect(q('back-to-card')).not.toBeNull();
+  });
+
+  it('where the reader cannot name it exactly, only Root lights', () => {
+    mount('chord-recognition:item:maj7', { name: 'Major 7' });
+    unlight(64);
+    expect(title()).toBe('Cmaj7 (no 3rd)');
+    expect(pressed('root-0')).toBe(true);
+    const colours = [...document.body.querySelectorAll('[data-testid^="colour-"][aria-pressed="true"]')];
+    expect(colours).toHaveLength(0);
+    const inversions = [...document.body.querySelectorAll('[data-testid^="inversion-"][aria-pressed="true"]')];
+    expect(inversions).toHaveLength(0);
+  });
+
+  it('one Undo steps back through a key and a Root tap', () => {
+    mount('chord-recognition:item:maj7', { name: 'Major 7' });
+    click(q('root-3')!);
+    expect(title()).toBe('E♭ Major 7');
+    // F5, which E♭ Major 7 does not have lit.
+    click(key(77));
+    expect(title()).not.toBe('E♭ Major 7');
+    click(q('player-undo')!);
+    expect(title()).toBe('E♭ Major 7');
+    click(q('player-undo')!);
+    expect(title()).toBe('C Major 7');
+  });
+
+  it('a scale card whose lit notes read as a chord shows Inversion, and a tap makes it that chord', () => {
+    mount('scales-modes:mode:dorian', { name: 'Dorian' });
+    expect(q('row-inversion')).toBeNull();
+    // Dorian on D is D3 E3 F3 G3 A3 B3 C4 D4; leave D F A, D in the bass.
+    for (const midi of [52, 55, 59, 60, 62]) unlight(midi);
+    expect(title()).toBe('Dm');
+    expect(q('row-inversion')).not.toBeNull();
+    expect(q('hands-rootless')).toBeNull();
+    click(q('inversion-0')!);
+    expect(title()).toBe('D Minor');
+    expect(q('row-colour')).not.toBeNull();
+    expect(q('hands-rootless')).not.toBeNull();
+    click(q('back-to-card')!);
+    expect(title()).toBe('Dorian');
+  });
+});

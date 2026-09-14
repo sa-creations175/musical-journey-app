@@ -36,6 +36,13 @@
  *     the Chord Color Legend, there are no Hear one chord chips, and it
  *     plays the card whose ▶ was tapped — through `hear()` on this
  *     component's handle, which is the same Hear it
+ *   · building by hand (spec §5) is on the panel's own board, wherever
+ *     it plays through `playPanel`; a surface that draws its own board
+ *     (Chord Motion's Piano keys question) or plays through its own
+ *     function (the scale cards) has none, because the keys it would
+ *     light are not what it plays. With one chord a tap that changes the
+ *     keys plays them; with more, it stops the loop and waits (Silas, 14
+ *     Sep 2026)
  *
  * Anything else that differs is a bug. A surface chooses which ROWS it
  * shows and never what a row means — the tempo, the lift, the hands and
@@ -79,7 +86,13 @@ import {
 } from '../lib/player/settings';
 import PlayAsRow from './PlayAsRow';
 import {
-  handsForSetting, placeBass, playerMarks, type PlayerChord,
+  NO_EDIT, SELECT_NOTES_BY_OPTIONS, builtChord, clearRings, historyOf, holdKey, record, ringsOf,
+  shiftOctave, tapKey, undo, type BoardEdit, type History,
+} from '../lib/player/boardEdit';
+import { useProgressionSpelling } from '../lib/progressionSpelling';
+import { onBoard } from '../lib/builtAnswers/board';
+import {
+  handsForSetting, placeBass, playerMarks, soundingNotes, type PlayerChord,
 } from '../lib/player/voices';
 import { useInstrument } from '../lib/instrumentContext';
 import { useSpelling } from '../lib/spellingPref';
@@ -110,6 +123,15 @@ interface DirectionRow {
 export interface SharedPlayerHandle {
   /** The panel's own Hear it: starts over from the top. */
   hear: () => void;
+}
+
+/** A board built by hand, held by the surface rather than the panel. */
+export interface HeldEdit {
+  value: BoardEdit;
+  /** A change, recorded so Undo steps back over it. */
+  onChange: (next: BoardEdit) => void;
+  onUndo: () => void;
+  canUndo: boolean;
 }
 
 /**
@@ -250,6 +272,15 @@ interface SharedPlayerProps {
   totalBeats?: number;
   /** The lab layout — see `LabLayout`. Absent everywhere but the diary. */
   lab?: LabLayout;
+  /**
+   * What has been built by hand, held by the surface.
+   *
+   * ABSENT, THE PANEL HOLDS IT ITSELF, and starts over whenever the
+   * chords it is handed change. The diary holds it, because its Undo
+   * steps back through Root, Colour and Inversion taps as well as keys
+   * (spec §5), and those are the diary's.
+   */
+  edit?: HeldEdit;
   /** `hear()`, for the one surface that plays on a tap outside it. */
   ref?: Ref<SharedPlayerHandle>;
 }
@@ -281,14 +312,58 @@ function ringed(
 /** Where the transport is, so Pause knows what to do. */
 type Transport = 'stopped' | 'playing' | 'paused';
 
+/** The surface's chords with what has been built by hand in their place. */
+function applyEdit(
+  given: ReadonlyArray<PlayerChord>,
+  edit: BoardEdit,
+  opts: Parameters<typeof builtChord>[1],
+): PlayerChord[] {
+  return given.map((c, i) => {
+    const built = edit.built[i];
+    return built === undefined ? c : builtChord(built, opts).chord;
+  });
+}
+
 export default function SharedPlayer({
-  chords, orientPc, settings, onSettings, thickness,
+  chords: given, orientPc, settings, onSettings, thickness,
   bassDirection, handDirection, showHands, showListen, playAsRow = true, playAsIsAid,
   board, boardLabel = 'What is sounding', caption, compare, children,
-  controls = true, onStep, beats, play, totalBeats, ring, startLit = 0, lab, ref,
+  controls = true, onStep, beats, play, totalBeats, ring, startLit = 0, lab, edit: heldEdit, ref,
 }: SharedPlayerProps) {
   const { currentInstrument, setCurrentInstrument } = useInstrument();
   const [spelling] = useSpelling();
+  const [progression] = useProgressionSpelling();
+
+  // =====================================================================
+  // BUILDING BY HAND (spec §5), on the panel's own board. A surface with
+  // its own board or its own play function has none: the keys it would
+  // light are not what it plays.
+  //
+  // HELD HERE UNLESS THE SURFACE HOLDS IT, and let go whenever the chords
+  // the surface hands in change — a new card, a new question, a new rung.
+  // Compared by content, since several surfaces build their list afresh
+  // on every render.
+  // =====================================================================
+  const editable = controls && board === undefined && play === undefined;
+  const signature = JSON.stringify(given.map(c => [c.hand, c.bass, c.rootPc, c.name]));
+  const [own, setOwn] = useState<{ signature: string; history: History<BoardEdit> }>(
+    () => ({ signature, history: historyOf(NO_EDIT) }),
+  );
+  const ownHistory = own.signature === signature ? own.history : historyOf(NO_EDIT);
+  const boardEdit = editable ? heldEdit?.value ?? ownHistory.present : NO_EDIT;
+  const commitEdit = (next: BoardEdit) => {
+    if (heldEdit !== undefined) { heldEdit.onChange(next); return; }
+    setOwn({ signature, history: record(ownHistory, next) });
+  };
+  const undoEdit = () => {
+    if (heldEdit !== undefined) { heldEdit.onUndo(); return; }
+    setOwn({ signature, history: undo(ownHistory) });
+  };
+  const canUndo = heldEdit?.canUndo ?? ownHistory.past.length > 0;
+  const chords = useMemo(
+    () => applyEdit(given, boardEdit, { spelling, progression }),
+    [given, boardEdit, spelling, progression],
+  );
   const [handle, setHandle] = useState<PlaybackHandle | null>(null);
   const [transport, setTransport] = useState<Transport>('stopped');
   const [lit, setLit] = useState<number | null>(null);
@@ -331,15 +406,31 @@ export default function SharedPlayer({
     [chords, settings],
   );
 
-  const run = (startAtBeat: number) => {
+  /** A list as it sounds: the bass in its register, then the Hands row. */
+  const voice = (list: ReadonlyArray<PlayerChord>) => handsForSetting(placeBass(list, settings), settings);
+
+  /**
+   * Play from a beat.
+   *
+   * `source` IS THE CHORDS TO PLAY, where a tap has just changed them:
+   * the render that draws the new keys has not landed yet, and a play
+   * from here must not sound the old ones.
+   */
+  const run = (startAtBeat: number, source: ReadonlyArray<PlayerChord> = chords) => {
     handle?.stop();
     clearEnd();
     clock.current = { at: Date.now(), beat: startAtBeat };
     setTransport('playing');
     setPlayed(false);
+    const list = source === chords ? voiced : voice(source);
+    const length = source === chords ? total : totalBeats ?? panelBeats(source, {
+      settings,
+      ...(orientPc === undefined ? {} : { orientPc }),
+      ...(beats === undefined ? {} : { beats }),
+    });
     const started = play !== undefined
       ? play({ startAtBeat })
-      : playPanel(voiced, settings, {
+      : playPanel(list, settings, {
         ...(orientPc === undefined ? {} : { orientPc }),
         ...(beats === undefined ? {} : { beats }),
         ...(startAtBeat > 0 ? { startAtBeat } : {}),
@@ -350,7 +441,7 @@ export default function SharedPlayer({
     // engine hands back a stop and nothing else, so the end is measured
     // from the same beats Pause measures against.
     if (lab !== undefined && settings.loop !== 'untilStopped') {
-      const beatsLeft = Math.max(0, total * settings.loop - startAtBeat);
+      const beatsLeft = Math.max(0, length * settings.loop - startAtBeat);
       endTimer.current = window.setTimeout(() => {
         endTimer.current = null;
         setTransport('stopped');
@@ -409,6 +500,58 @@ export default function SharedPlayer({
       .catch(() => { setTransport('stopped'); });
   };
 
+  // =====================================================================
+  // THE TAPS THAT BUILD BY HAND. A tap edits the chord the board shows —
+  // on a surface with more than one chord, the selected one — and stops
+  // whatever is playing first (Silas, 14 Sep 2026). With one chord, a
+  // change to what is lit plays it, as the prototype does; with more, the
+  // tap waits for Hear it, so a loop is not restarted under the finger.
+  // =====================================================================
+  const selected = Math.min(Math.max(lit ?? startLit, 0), Math.max(chords.length - 1, 0));
+  const rings = ringsOf(boardEdit, selected);
+  /** Every note the selected chord has lit, bass and hand, as drawn. */
+  const litNow = (): number[] => {
+    const built = boardEdit.built[selected];
+    if (built !== undefined) return [...built];
+    const chord = voiced[selected];
+    return chord === undefined
+      ? []
+      : soundingNotes(chord, { ...settings, listen: 'both' }).notes.filter(onBoard);
+  };
+  const halt = () => {
+    if (transport === 'stopped') return;
+    handle?.stop();
+    setHandle(null);
+    clearEnd();
+    setTransport('stopped');
+  };
+  const afterEdit = (next: BoardEdit, litChanged: boolean) => {
+    commitEdit(next);
+    if (litChanged && chords.length === 1) run(0, applyEdit(given, next, { spelling, progression }));
+  };
+  const tapBoardKey = (midi: number) => {
+    halt();
+    const { edit: next, litChanged } = tapKey(boardEdit, selected, litNow(), midi, settings.selectNotesBy);
+    afterEdit(next, litChanged);
+  };
+  const holdBoardKey = (midi: number) => {
+    halt();
+    commitEdit(holdKey(boardEdit, selected, litNow(), midi));
+  };
+  const moveOctave = (by: 12 | -12) => {
+    halt();
+    afterEdit(shiftOctave(boardEdit, selected, litNow(), by), true);
+  };
+  const dropRings = () => { if (boardEdit.rings.length > 0) commitEdit(clearRings(boardEdit)); };
+  /** What the reader says about the selected chord, where it was built by hand. */
+  const selectedBuilt = boardEdit.built[selected];
+  const alsoLine = selectedBuilt === undefined
+    ? null
+    : (() => {
+      const { alts } = builtChord(selectedBuilt, { spelling, progression }).reading;
+      return alts.length > 0 ? `also: ${alts.join(' · ')}` : null;
+    })();
+
   const set = (patch: Partial<PlayerSettings>) => onSettings({ ...settings, ...patch });
 
   const rungs = thickness?.rungs ?? LADDER_RUNGS;
@@ -419,9 +562,15 @@ export default function SharedPlayer({
   // register put it, and the board follows it — Silas's law of 10 Sep
   // 2026, for every surface.
   const sounding = voiced[lit ?? startLit] ?? voiced[0] ?? null;
-  const marks: ReadonlyMap<number, KeyMark> = ringed(
-    playerMarks(sounding, settings), sounding, ring,
-  );
+  const marks: ReadonlyMap<number, KeyMark> = (() => {
+    const out = new Map(ringed(playerMarks(sounding, settings), sounding, ring));
+    // THE RINGS OF A GROUP BEING BUILT, on the chord the board shows.
+    for (const midi of rings) {
+      const mark = out.get(midi);
+      if (mark !== undefined) out.set(midi, { ...mark, selectionRing: true });
+    }
+    return out;
+  })();
 
   const directionRow = (
     label: string, row: DirectionRow, what: string, testId: string,
@@ -453,7 +602,14 @@ export default function SharedPlayer({
 
   const boardEl = board !== false && (
     board === undefined
-      ? <BuiltAnswerKeyboard marks={marks} label={boardLabel} />
+      ? (
+        <BuiltAnswerKeyboard
+          marks={marks}
+          label={boardLabel}
+          {...(editable ? { onTap: tapBoardKey } : {})}
+          {...(editable && settings.selectNotesBy === 'hold' ? { onHold: holdBoardKey } : {})}
+        />
+      )
       : board
   );
 
@@ -493,6 +649,47 @@ export default function SharedPlayer({
       >
         {transport === 'paused' ? 'Resume' : 'Pause'}
       </button>
+      {/* THE HAND-BUILDING TOOLS, in the transport row (spec §2). */}
+      {editable && (
+        <>
+          <button
+            type="button"
+            data-testid="player-octave-down"
+            title="Move down an octave"
+            onClick={() => moveOctave(-12)}
+            className={`${CHIP} ${CHIP_OFF}`}
+          >
+            ↓ octave
+          </button>
+          <button
+            type="button"
+            data-testid="player-octave-up"
+            title="Move up an octave"
+            onClick={() => moveOctave(12)}
+            className={`${CHIP} ${CHIP_OFF}`}
+          >
+            ↑ octave
+          </button>
+          <button
+            type="button"
+            data-testid="player-undo"
+            disabled={!canUndo}
+            onClick={undoEdit}
+            className={`${CHIP} ${CHIP_OFF} disabled:opacity-40 disabled:cursor-default`}
+          >
+            ↶ Undo
+          </button>
+          <button
+            type="button"
+            data-testid="player-clear-rings"
+            disabled={boardEdit.rings.length === 0}
+            onClick={dropRings}
+            className={`${CHIP} ${CHIP_OFF} disabled:opacity-40 disabled:cursor-default`}
+          >
+            Clear rings
+          </button>
+        </>
+      )}
       {transport === 'paused' && (
         <span
           className="text-[11px] text-neutral-500 dark:text-neutral-400"
@@ -504,6 +701,12 @@ export default function SharedPlayer({
       {lab !== undefined && status !== null && (
         <span className="text-xs text-neutral-500 dark:text-neutral-400" data-testid="player-status">
           {status}
+        </span>
+      )}
+      {/* THE READER'S OTHER NAMES for keys lit by hand (spec §2, §3). */}
+      {alsoLine !== null && (
+        <span className="text-xs text-neutral-500 dark:text-neutral-400 font-mono" data-testid="player-also">
+          {alsoLine}
         </span>
       )}
     </div>
@@ -535,9 +738,18 @@ export default function SharedPlayer({
   );
 
   return (
+    // A TAP ON EMPTY SPACE IN THE PANEL DROPS EVERY RING (spec §5): not a
+    // key, a chip, a button, an input or a fold's heading.
     <div
       className="space-y-3 rounded-xl border border-black/[0.07] dark:border-white/10 p-3"
       data-testid="shared-player"
+      onClick={e => {
+        if (!editable || boardEdit.rings.length === 0) return;
+        const target = e.target;
+        if (!(target instanceof Element)) return;
+        if (target.closest('button, input, select, textarea, summary, a, label, [data-midi]') !== null) return;
+        dropRings();
+      }}
     >
       {lab === undefined ? (
         <>
@@ -655,6 +867,23 @@ export default function SharedPlayer({
                     on={settings.bassRegister === o.id}
                     testId={`bass-register-${o.id}`}
                     onClick={() => set({ bassRegister: o.id })}
+                  >
+                    {o.label}
+                  </Chip>
+                ))}
+              </Row>
+            )}
+
+            {/* HOW A LIT KEY GETS A RING (spec §5). Changing it drops the
+                rings there are, as the prototype does. */}
+            {editable && (
+              <Row label="Select notes by">
+                {SELECT_NOTES_BY_OPTIONS.map(o => (
+                  <Chip
+                    key={o.id}
+                    on={settings.selectNotesBy === o.id}
+                    testId={`select-by-${o.id}`}
+                    onClick={() => { set({ selectNotesBy: o.id }); dropRings(); }}
                   >
                     {o.label}
                   </Chip>

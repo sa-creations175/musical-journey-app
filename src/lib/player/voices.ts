@@ -65,6 +65,14 @@ export interface PlayerChord extends VoicedChord {
    * to C1. So a placed chord says so, and is not placed again.
    */
   bassPlaced?: boolean;
+  /**
+   * Built by hand on the board (spec §5) — see `builtChord`.
+   *
+   * HEAR IT PLAYS EXACTLY WHAT IS LIT, so no rule moves a note of it: the
+   * register leaves its bass, the Hands row adds no root, and Up an
+   * octave does not lift its hand.
+   */
+  byHand?: boolean;
 }
 
 /**
@@ -125,7 +133,7 @@ export function placeBass(
 ): PlayerChord[] {
   const open = chords
     .map((c, i) => ({ c, i }))
-    .filter(({ c }) => c.bass !== null && c.bassPlaced !== true);
+    .filter(({ c }) => c.bass !== null && c.bassPlaced !== true && c.byHand !== true);
   if (open.length === 0) return [...chords];
   const { low, high } = bassWindow(settings.bassRegister);
   const forward = settings.bass === 'forward';
@@ -210,7 +218,8 @@ export function handsForSetting(
   return chords.map(chord => {
     const pc = (m: number) => (((m - chord.rootPc) % 12) + 12) % 12;
     const hand = chord.hand;
-    if (hand.length < 3 || hand.some(m => pc(m) === 0)) {
+    // A CHORD BUILT BY HAND IS WHAT IS LIT, and gains no root.
+    if (chord.byHand === true || hand.length < 3 || hand.some(m => pc(m) === 0)) {
       if (hand.length > 0) previous = [...hand];
       return chord;
     }
@@ -253,7 +262,8 @@ export function soundingNotes(
       ? { notes: [], hands: [] }
       : { notes: [low], hands: ['L'] };
   }
-  const hand = liftHand(chord.hand, settings.octaveUp);
+  // A CHORD BUILT BY HAND IS WHAT IS LIT: Up an octave does not lift it.
+  const hand = chord.byHand === true ? [...chord.hand] : liftHand(chord.hand, settings.octaveUp);
   if (bass === null) {
     return { notes: hand, hands: hand.map((): 'R' => 'R') };
   }

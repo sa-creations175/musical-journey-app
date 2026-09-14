@@ -68,6 +68,15 @@ export interface KeyMark {
    * =====================================================================
    */
   ring?: string;
+  /**
+   * A selection ring: this lit note is in the group ↓ octave and
+   * ↑ octave move (spec §5).
+   *
+   * NOT `ring`, which is Chord Motion's degree-of-the-key colour. A
+   * selection says nothing about music, so it is drawn in the board's
+   * own dark ink rather than a palette colour.
+   */
+  selectionRing?: boolean;
 }
 
 export interface BoardKey {

@@ -46,6 +46,7 @@ import { useEffect, useId, useRef } from 'react';
 import {
   BOARD_HEIGHT, BOARD_MIN_WIDTH_PX, BOARD_WIDTH, type BoardKey, type KeyMark, boardKeys, keyLabel,
 } from '../lib/builtAnswers/board';
+import { HOLD_MS } from '../lib/player/boardEdit';
 
 const PLAIN_FILL = '#C9E3F7';
 const PLAIN_EDGE = '#5E93C4';
@@ -58,18 +59,44 @@ const PRESSED_FILL = '#378ADD';
 const BASS_GREEN = '#0F6E56';
 
 export default function BuiltAnswerKeyboard({
-  marks, onTap, label,
+  marks, onTap, onHold, label,
 }: {
   /** Marks by MIDI number. */
   marks: ReadonlyMap<number, KeyMark>;
   /** Absent makes the board a picture rather than an input. */
   onTap?: (midi: number) => void;
+  /**
+   * A press held on a key for `HOLD_MS`. The tap that ends the press is
+   * then not reported, so a hold is never also a tap.
+   */
+  onHold?: (midi: number) => void;
   label: string;
 }) {
   const clipId = useId();
   const frame = useRef<HTMLDivElement>(null);
+  const holdTimer = useRef<number | null>(null);
+  const held = useRef(false);
   const { white, black } = boardKeys();
   const interactive = onTap !== undefined;
+
+  const endPress = () => {
+    if (holdTimer.current !== null) window.clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+  };
+  const startPress = (midi: number) => {
+    held.current = false;
+    if (onHold === undefined) return;
+    endPress();
+    holdTimer.current = window.setTimeout(() => {
+      holdTimer.current = null;
+      held.current = true;
+      onHold(midi);
+    }, HOLD_MS);
+  };
+  const tapKey = (midi: number) => {
+    if (held.current) { held.current = false; return; }
+    onTap?.(midi);
+  };
 
   // THE LIT KEYS INTO VIEW, when the frame is narrower than the board.
   // Keyed on which keys are lit, so a redraw that lights the same keys
@@ -117,7 +144,11 @@ export default function BuiltAnswerKeyboard({
               tabIndex: 0,
               'aria-label': `${label} key ${k.midi}`,
               className: 'cursor-pointer',
-              onClick: () => onTap(k.midi),
+              onClick: () => tapKey(k.midi),
+              onPointerDown: () => startPress(k.midi),
+              onPointerUp: endPress,
+              onPointerLeave: endPress,
+              onPointerCancel: endPress,
             }
             : {})}
           data-midi={k.midi}
@@ -171,6 +202,24 @@ export default function BuiltAnswerKeyboard({
               pointerEvents="none"
             />
           </>
+        )}
+        {/* THE SELECTION RING, a group ↓ octave and ↑ octave move. Dark
+            ink on a white key, white on a black one, as the prototype
+            draws it — a mark about the reader's hand, not about the
+            music, so no palette colour. */}
+        {mark?.selectionRing === true && (
+          <rect
+            x={k.x + 3}
+            y={3}
+            width={k.width - 6}
+            height={k.height - 6}
+            rx={2}
+            fill="none"
+            stroke={k.isBlack ? '#FFFFFF' : '#1A1D21'}
+            strokeWidth={3}
+            data-testid={`selection-ring-${k.midi}`}
+            pointerEvents="none"
+          />
         )}
         {/* THE Cs CARRY THEIR NUMBER, so middle C is findable without
             counting from the edge. Drawn above the bass band's line and
