@@ -219,6 +219,6 @@ describe('there is one picker in the tree, and one player', () => {
     expect([...categories].sort()).toEqual([
       'key-signatures', 'pentatonic-scales', 'progressions', 'slash-chords',
     ]);
-    expect(FLASHCARDS).toHaveLength(1611);
+    expect(FLASHCARDS).toHaveLength(1621);
   });
 });

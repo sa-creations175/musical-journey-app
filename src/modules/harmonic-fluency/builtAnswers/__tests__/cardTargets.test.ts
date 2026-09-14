@@ -52,10 +52,11 @@ describe('which cards stop being multiple choice', () => {
   });
 
   it('leaves the rest of the deck alone', () => {
-    // The deck is 1,611 and does not move; what changes is the answer
+    // The deck is 1,621 (1,611 before the minors of 13 Sep 2026) and does not move; what changes is the answer
     // surface on 259 of them.
-    expect(FLASHCARDS).toHaveLength(1611);
-    expect(FLASHCARDS.length - withTarget.length).toBe(1339);
+    expect(FLASHCARDS).toHaveLength(1621);
+    // The ten minor cards of 13 Sep 2026 stay on their buttons: 1339 → 1349.
+    expect(FLASHCARDS.length - withTarget.length).toBe(1349);
   });
 
   it('leaves the parallel-minor cards on their buttons', () => {

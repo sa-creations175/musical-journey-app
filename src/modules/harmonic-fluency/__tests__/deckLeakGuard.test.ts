@@ -304,8 +304,10 @@ describe('the answer is not drawn in a predictable slot', () => {
 // --- Allowlist 2: which decoys appear at all -------------------------
 
 const TELL_ALLOWLIST: ReadonlyArray<{ category: string; tokeniser: string; cards: number }> = [
-  { category: 'diatonic-qualities', tokeniser: 'whole', cards: 2 },
-  { category: 'diatonic-qualities', tokeniser: 'without-key', cards: 2 },
+  // diatonic-qualities / whole and / without-key stood at 2. "diminished 7"
+  // sat as a decoy only beside a half-diminished answer, on two cards,
+  // so it named the answer. The minors of 13 Sep 2026 put it beside a
+  // minor 7 as well, and it points at nothing now.
   { category: 'functional-harmony', tokeniser: 'last-word', cards: 2 },
   // pentatonic-scales stood at 12 on all four readings and is now 0.
   // Those twelve were the "share the same _____" cards: every one
@@ -391,7 +393,7 @@ describe('no decoy pins its answer', () => {
     }
     const both = new Set([...leaky, ...told]);
     expect({ blind: leaky.size, tell: told.size, distinct: both.size })
-      .toEqual({ blind: 23, tell: 7, distinct: 30 });
+      .toEqual({ blind: 23, tell: 5, distinct: 28 });
   });
 
   it('keeps the tell allowlist honest', () => {

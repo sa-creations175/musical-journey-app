@@ -80,7 +80,9 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 143 + 254 + 265 = 1611
+// Harmonic Fluency — 949 + 153 + 254 + 265 = 1621
+// (13 Sep 2026: 1611 → 1621. Diatonic Chord Qualities gains harmonic
+//  minor's three missing degrees and all seven of melodic minor.)
 // (9 Sep 2026: 1607 → 1611. The four Modal Improvisation cards whose
 //  own key could not give them a fair set of wrong answers come back,
 //  drawing on one neighbouring key. Modal Improvisation 126 → 130,
@@ -188,8 +190,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.foundational).toBe(949);
   });
 
-  it('chordKnowledge = dq 20 + cc 20 + sc 103 = 143', () => {
-    expect(c.byGroup.chordKnowledge).toBe(143);
+  it('chordKnowledge = dq 30 + cc 20 + sc 103 = 153', () => {
+    expect(c.byGroup.chordKnowledge).toBe(153);
   });
 
   it('functionalApplied = fh 40 + pr 84 + mi 130 = 254', () => {
@@ -200,8 +202,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(265);
   });
 
-  it('total = 1611 across all 14 categories', () => {
-    expect(c.total).toBe(1611);
+  it('total = 1621 across all 14 categories', () => {
+    expect(c.total).toBe(1621);
   });
 
   it('total equals sum of group totals', () => {
