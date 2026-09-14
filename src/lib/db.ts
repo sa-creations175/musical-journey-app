@@ -4,6 +4,7 @@ import type { Feel } from './fluencyScale';
 import type { PracticeActivity } from './practiceActivities';
 import { onAnotherTabUpgrading, onUpgradeBlocked } from './dbLifecycle';
 import { foldRetiredChordCards } from './migrations/retire913';
+import { foldRetiredDiatonicCard } from './migrations/retireDqExtra1';
 
 export interface IntervalData {
   id: string;
@@ -4817,6 +4818,26 @@ export class AppDB extends Dexie {
         + `${n.annotations} annotation(s), ${n.curations} curation(s), `
         + `${n.chordRows} catalog row(s) deleted, ${n.goals} goal(s), `
         + `${n.blocks} practice block(s), ${n.focusKeys} focus selection(s).`,
+      );
+    });
+
+    /**
+     * =================================================================
+     * v44 — `dq-extra-1` FOLDS INTO `dq-maj-4`. Silas's answer of 14 Sep
+     * 2026: the triad card on major's 4 is retired, and its history
+     * goes where retired cards' history goes — the card that asks the
+     * same chord. No index moves; the version is here to hang the
+     * upgrade on. The rules live in `migrations/retireDqExtra1.ts`, and
+     * its test calls the same function.
+     * =================================================================
+     */
+    this.version(44).stores({}).upgrade(async tx => {
+      const n = await foldRetiredDiatonicCard(tx);
+      console.info(
+        `[harmonic-fluency] dq-extra-1 folded into dq-maj-4: ${n.attempts} attempt(s), `
+        + `${n.spacingMoved} spacing row(s) moved and ${n.spacingMerged} merged, `
+        + `${n.diaryMoved} diary entr(ies) moved and ${n.diaryMerged} merged, `
+        + `${n.annotations} annotation(s), ${n.goals} goal(s), ${n.blocks} practice block(s).`,
       );
     });
   }

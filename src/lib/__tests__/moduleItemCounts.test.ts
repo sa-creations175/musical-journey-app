@@ -80,7 +80,10 @@ describe('earTrainingCounts', () => {
 });
 
 // -------------------------------------------------------------------
-// Harmonic Fluency — 949 + 153 + 254 + 265 = 1621
+// Harmonic Fluency — 949 + 152 + 254 + 265 = 1620
+// (14 Sep 2026: 1621 → 1620. `dq-extra-1`, major's 4 as a triad, is
+//  retired and its history folds into `dq-maj-4`. Diatonic Chord
+//  Qualities 30 → 29, chordKnowledge 153 → 152.)
 // (13 Sep 2026: 1611 → 1621. Diatonic Chord Qualities gains harmonic
 //  minor's three missing degrees and all seven of melodic minor.)
 // (9 Sep 2026: 1607 → 1611. The four Modal Improvisation cards whose
@@ -190,8 +193,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.foundational).toBe(949);
   });
 
-  it('chordKnowledge = dq 30 + cc 20 + sc 103 = 153', () => {
-    expect(c.byGroup.chordKnowledge).toBe(153);
+  it('chordKnowledge = dq 29 + cc 20 + sc 103 = 152', () => {
+    expect(c.byGroup.chordKnowledge).toBe(152);
   });
 
   it('functionalApplied = fh 40 + pr 84 + mi 130 = 254', () => {
@@ -202,8 +205,8 @@ describe('harmonicFluencyCounts', () => {
     expect(c.byGroup.earRecognition).toBe(265);
   });
 
-  it('total = 1621 across all 14 categories', () => {
-    expect(c.total).toBe(1621);
+  it('total = 1620 across all 14 categories', () => {
+    expect(c.total).toBe(1620);
   });
 
   it('total equals sum of group totals', () => {

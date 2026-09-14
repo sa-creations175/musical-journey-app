@@ -495,15 +495,14 @@ const DIATONIC_QUALITY_CARDS: Flashcard[] = [
   { id: 'dq-hm-5', category: 'diatonic-qualities', categoryName: CATEGORY_LABELS['diatonic-qualities'],
     question: "Moving the 5 chord from minor 7 to dominant 7 within a minor key means switching to _____",
     correctAnswer: "harmonic minor",
-    decoys: ["natural minor", "melodic minor", "Dorian"],
+    // NOT MELODIC MINOR, which raises the 7 too and so was a second right
+    // answer (Silas, 14 Sep 2026).
+    decoys: ["natural minor", "Dorian", "Phrygian"],
     explanation: "Switching from minor v to dominant V inside a minor key means you've borrowed the raised 7th from harmonic minor — that's the move that makes the resolution strong. Every minor-key gospel cadence and jazz turnaround uses this.",
     skillTag: 'chord-quality-minor-modes' },
-  { id: 'dq-extra-1', category: 'diatonic-qualities', categoryName: CATEGORY_LABELS['diatonic-qualities'],
-    question: "In major, what quality is the 4 chord as a triad?",
-    correctAnswer: "major",
-    decoys: ["minor", "diminished", "augmented"],
-    explanation: "The IV chord in a major key is major — just a major triad, no extensions needed. F in the key of C major, Bb in the key of F major. When a session leader calls 'the 4', this is what they mean before any color tones get added on top.",
-    skillTag: 'chord-quality-major-IV-triad' },
+  // `dq-extra-1`, major's 4 as a triad, was retired on 14 Sep 2026: the
+  // deck is seventh chords, and `dq-maj-4` asks the same chord. Its
+  // history folded into `dq-maj-4` — `lib/migrations/retireDqExtra1.ts`.
 ];
 
 /**

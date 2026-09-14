@@ -94,10 +94,12 @@ const BY_NODE_ID: Readonly<Record<string, string>> = {
     + 'are written differently for a reason; naming the alternative on '
     + 'demand is what reading in an unfamiliar key asks for constantly.',
   [`${HF}/Diatonic Chord Qualities`]:
-    'Which quality sits on each number of the major scale — major, minor, '
-    + 'minor, major, dominant, minor, diminished. Held by NUMBER rather '
-    + 'than by key, which is what lets you harmonise a melody without '
-    + 'working it out from scratch each time.',
+    // THE FIRST SENTENCE IS SILAS'S OF 14 SEP 2026, for the deck with the
+    // three minors in it.
+    'Which quality sits on each degree of major and the three minors: '
+    + 'natural, harmonic and melodic. Held by NUMBER rather than by key, '
+    + 'which is what lets you harmonise a melody without working it out '
+    + 'from scratch each time.',
   [`${HF}/Functional Harmony`]:
     'What a chord DOES rather than what it is. Tonic, subdominant, '
     + 'dominant, and the pull between them — the reason a V wants to '

@@ -96,14 +96,15 @@ describe('the cells', () => {
 });
 
 describe('the marks', () => {
-  it('arrive seeded, and the dotted list leaves out the major row', async () => {
+  it('arrive seeded, and the dotted list includes the major row', async () => {
     await mount();
     expect($('dot-harmonic-7')).not.toBeNull();
     expect($('dot-major-1')).not.toBeNull();
     const list = $('cqc-used')!.textContent ?? '';
     expect(list).toContain('harmonic minor · 7 · °7');
     expect(list).toContain('the pass into the 1 (B°7 in C)');
-    expect(list).not.toContain('major · 1 ·');
+    // SILAS, 14 SEP 2026: major's dots are dots, and the list has them.
+    expect(list).toContain('major · 1 ·');
   });
 
   it('switches a dot on with the switch, and off again, keeping nothing', async () => {

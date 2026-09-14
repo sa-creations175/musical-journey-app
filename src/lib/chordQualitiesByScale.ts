@@ -80,8 +80,9 @@ const QUALITY: Readonly<Record<string, Seventh>> = {
   '3,7,10': { name: 'minor 7', symbol: 'm7' },
   '3,6,10': { name: 'half-diminished', symbol: 'ø' },
   '3,6,9': { name: 'diminished 7', symbol: '°7' },
-  '3,7,11': { name: 'minor(maj7)', symbol: 'mMaj7' },
-  '4,8,11': { name: 'augmented(maj7)', symbol: '+maj7' },
+  // ONE SET OF NAMES, the cards' and the chart's (Silas, 14 Sep 2026).
+  '3,7,11': { name: 'minor-major 7', symbol: 'mMaj7' },
+  '4,8,11': { name: 'augmented major 7', symbol: '+maj7' },
   '4,8,10': { name: 'augmented 7', symbol: '+7' },
 };
 

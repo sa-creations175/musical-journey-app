@@ -106,10 +106,18 @@ describe('what was there stays there', () => {
       ...[1, 2, 3, 4, 5, 6, 7].map(n => `dq-maj-${n}`),
       ...[1, 2, 3, 4, 5, 6, 7].map(n => `dq-nm-${n}`),
       ...[1, 2, 3, 4, 5].map(n => `dq-hm-${n}`),
-      'dq-extra-1',
     ];
     for (const id of existing) expect(ids.has(id), id).toBe(true);
-    expect(DECK).toHaveLength(30);
+    // `dq-extra-1`, the triad card, was retired on 14 Sep 2026 and its
+    // history folded into `dq-maj-4`.
+    expect(ids.has('dq-extra-1')).toBe(false);
+    expect(DECK).toHaveLength(29);
+  });
+
+  it('asks which scale gives a minor key a real dominant with no second right answer among the decoys', () => {
+    // MELODIC MINOR RAISES THE 7 TOO, so it was a right answer wearing a
+    // decoy's clothes (Silas, 14 Sep 2026).
+    expect(DECK.find(c => c.id === 'dq-hm-5')!.decoys).toEqual(['natural minor', 'Dorian', 'Phrygian']);
   });
 
   it('puts Silas\'s own lines at the head of the explanation, verbatim', () => {

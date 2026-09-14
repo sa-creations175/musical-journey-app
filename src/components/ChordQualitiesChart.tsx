@@ -143,9 +143,8 @@ export default function ChordQualitiesChart({
   );
 
   const dotted = [...MAIN_ROWS, ...MODE_ROWS]
-    // THE MAJOR ROW'S DOTS ARE NOT LISTED, as the prototype does not
-    // list them: home, the 2, the 4 are the ones a reader already knows.
-    .filter(r => r.id !== 'major')
+    // EVERY DOTTED CELL IS LISTED, the major row's too (Silas, 14 Sep
+    // 2026): the list is the ones with a dot, and major's are dots.
     .flatMap(r => DEGREES.map(d => ({ scale: r.id, degree: d, key: cellKey(r.id, d) })))
     .filter(c => c.key in have);
 

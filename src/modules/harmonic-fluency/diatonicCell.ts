@@ -12,9 +12,9 @@
  * one exact shape — so this reads it, and its own test proves every card
  * lands on a cell whose chord is the card's answer.
  *
- * TWO CARDS ARE NOT "WHAT QUALITY IS THE N CHORD", and are named here:
- * the which-scale card is about harmonic minor's 5, and the triad card
- * about major's 4.
+ * ONE CARD IS NOT "WHAT QUALITY IS THE N CHORD", and is named here: the
+ * which-scale card is about harmonic minor's 5. (The triad card on
+ * major's 4 was the other, until it was retired on 14 Sep 2026.)
  * =====================================================================
  */
 import type { ScaleId } from '../../lib/chordQualitiesByScale';
@@ -29,7 +29,6 @@ const SCALE_BY_NAME: Readonly<Record<string, ScaleId>> = {
 
 const NOT_A_DEGREE_QUESTION: Readonly<Record<string, { scale: ScaleId; degree: number }>> = {
   'dq-hm-5': { scale: 'harmonic', degree: 5 },
-  'dq-extra-1': { scale: 'major', degree: 4 },
 };
 
 const DEGREE_QUESTION =

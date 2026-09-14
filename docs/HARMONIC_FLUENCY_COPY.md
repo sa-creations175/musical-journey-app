@@ -396,7 +396,7 @@ Outside the cards, two panels and one page:
 
 | where | now reads |
 |---|---|
-| Diatonic Chord Qualities panel | Which quality sits on each number of the major scale |
+| Diatonic Chord Qualities panel | Which quality sits on each degree of major and the three minors: natural, harmonic and melodic (Silas, 14 Sep 2026) |
 | Diatonic Chord Qualities panel | Held by NUMBER rather than by key |
 | Harmonic Fluency intro | numbers up, down and around |
 
