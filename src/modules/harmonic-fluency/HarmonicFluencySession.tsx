@@ -29,8 +29,7 @@ import DegreeGroundedRows from './DegreeGroundedRows';
 import CardPlayback from './CardPlayback';
 import DegreeNoteReveal from './DegreeNoteReveal';
 import ModalScaleReveal from './ModalScaleReveal';
-import DegreeKeyboardAnswer from './DegreeKeyboardAnswer';
-import BuiltAnswer from './builtAnswers/BuiltAnswer';
+import { renderHfAnswerSurface } from './answerSurface';
 import CardExplanation from './CardExplanation';
 import { degreeNoteOptionLabel, isPressedCard, parsePressedId } from './degreeNoteCards';
 import DegreeKeyboard, { degreeKeyboardSpec } from './DegreeKeyboard';
@@ -231,26 +230,11 @@ export default function HarmonicFluencySession({
       renderFooter={(card, { answered }) => (
         <CardReference card={card} answered={answered} />
       )}
-      /* THE KEYBOARD IN PLACE OF THE FOUR BUTTONS, on the pressed cards
-         and nowhere else. Returning null everywhere else is what lets
-         one family answer two ways without a second session component
-         — see `renderAnswerSurface`. */
-      renderAnswerSurface={({ card, answered, chosen, answer }) => (
-        isPressedCard(card.id)
-          ? (
-            <DegreeKeyboardAnswer
-              card={card}
-              answered={answered}
-              chosen={chosen}
-              answer={answer}
-            />
-          )
-          // SIX FAMILIES BUILD THEIR ANSWER INSTEAD OF PICKING IT.
-          // `builtTargetFor` returns null for every other card, which
-          // leaves the four buttons — see `renderAnswerSurface`'s own
-          // note on returning null.
-          : <BuiltAnswer card={card} answered={answered} answer={answer} />
-      )}
+      /* THE KEYBOARD OR A BUILT ANSWER IN PLACE OF THE FOUR BUTTONS,
+         where a card has one, and NULL everywhere else — decided before
+         an element exists, because an element is never null and the
+         buttons only draw on null. See `renderHfAnswerSurface`. */
+      renderAnswerSurface={renderHfAnswerSurface}
       focusProtected={focusProtected}
     />
   );
