@@ -317,8 +317,10 @@ function allSectionCells(
       );
     case 'voice-leading':
       return [
+        // THE TWELVE KEYS AND THE CIRCLE OF 4THS CELL on every row
+        // (Silas, 13 Sep 2026): 69 sub-cells × 13 = 897.
         ...VOICE_LEADING_PATTERNS.flatMap(
-          p => KEYS.flatMap(
+          p => [...KEYS, CIRCLE_KEY].flatMap(
             k => enumerateVoiceLeadingCells(p, k).map(itemCellTargets),
           ),
         ),

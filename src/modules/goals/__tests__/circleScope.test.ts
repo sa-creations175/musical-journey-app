@@ -59,11 +59,31 @@ describe('a goal holds the Circle of 4ths cell from the month it arrived', () =>
     expect(enumerateScopeForGoal(september)).toHaveLength(52);
   });
 
-  it('this month\'s whole Shapes & Patterns scope is the dashboard\'s 1626', () => {
+  it('this month\'s whole Shapes & Patterns scope is the dashboard\'s 1695', () => {
+    // 1626 with the chord shapes' Circle, and 69 more with the Circle
+    // cell on every Chord Movements & Passes row (13 Sep 2026).
     const overall = monthly(2026, 8, { targetMetric: 'shapes_coverage_at_acquired', targetUnit: null });
-    expect(enumerateScopeForGoal(overall)).toHaveLength(1626);
+    expect(enumerateScopeForGoal(overall)).toHaveLength(1695);
     expect(enumerateScopeForGoal(monthly(2026, 7, {
       targetMetric: 'shapes_coverage_at_acquired', targetUnit: null,
     }))).toHaveLength(1572);
+  });
+});
+
+describe('Chord Movements & Passes takes the same rule (Silas, 13 Sep 2026)', () => {
+  const movements = (year: number, month: number) => monthly(year, month, { targetUnit: 'voice_leading' });
+
+  it('an August 2026 monthly lists no Circle cell: the twelve keys, 828', () => {
+    const august = movements(2026, 7);
+    expect(circle(enumerateScopeForGoal(august))).toEqual([]);
+    expect(enumerateScopeForGoal(august)).toHaveLength(828);
+    expect(circle(effectiveScopeForGoal(august))).toEqual([]);
+  });
+
+  it('a September 2026 monthly lists the Circle cell on every row: 69 × 13 = 897', () => {
+    const september = movements(2026, 8);
+    expect(circle(enumerateScopeForGoal(september))).toHaveLength(69);
+    expect(enumerateScopeForGoal(september)).toHaveLength(897);
+    expect(enumerateScopeForGoal(september)).toContain('vl:major-251:guide-tones:A:circle');
   });
 });

@@ -1012,11 +1012,12 @@ export function voiceLeadingCellsPerKey(pattern: VoiceLeadingPattern): number {
 }
 
 /** Total VL cell count across the whole catalog: sum of per-pattern
- *  fan-outs × number of keys. 828 today (69 sub-cells/key × 12). */
+ *  fan-outs × the twelve keys and the Circle of 4ths cell (13 Sep 2026).
+ *  897 today (69 sub-cells × 13). */
 export function voiceLeadingTotalCellCount(): number {
   return VOICE_LEADING_PATTERNS.reduce(
     (sum, p) => sum + voiceLeadingCellsPerKey(p), 0,
-  ) * KEYS.length;
+  ) * (KEYS.length + 1);
 }
 
 /**

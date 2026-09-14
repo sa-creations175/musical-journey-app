@@ -112,10 +112,14 @@ function enumerateAllScales(): string[] {
   return SCALE_CELLS.map(c => c.itemRef);
 }
 
-function enumerateAllVoiceLeading(): string[] {
+function enumerateAllVoiceLeading(withCircle: boolean): string[] {
   const out: string[] = [];
+  // The twelve keys, and the Circle of 4ths cell on every row where the
+  // goal's window reaches it (Silas, 13 Sep 2026) — the same rule as the
+  // chord shapes' Circle, `CIRCLE_OF_FOURTHS_FROM`.
+  const cells = withCircle ? [...KEYS, CIRCLE_KEY] : [...KEYS];
   for (const p of VOICE_LEADING_PATTERNS) {
-    for (const key of KEYS) {
+    for (const key of cells) {
       for (const ref of enumerateVoiceLeadingCells(p, key)) {
         out.push(ref);
       }
@@ -128,7 +132,7 @@ function enumerateAllShapes(withCircle: boolean): string[] {
   return [
     ...enumerateAllChordShapes(withCircle),
     ...enumerateAllScales(),
-    ...enumerateAllVoiceLeading(),
+    ...enumerateAllVoiceLeading(withCircle),
   ];
 }
 

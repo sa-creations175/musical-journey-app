@@ -617,7 +617,12 @@ export const shapesCatalog: ModuleCatalog = {
     if (ref.startsWith('scale:')) {
       return one(ref, ref.slice('scale:'.length), ['shapes & patterns', 'Scales']);
     }
-    return one(ref, ref.slice('vl:'.length), ['shapes & patterns', 'Chord Movements & Passes']);
+    // A CIRCLE OF 4THS CELL IS NAMED, never spelled `circle` (13 Sep 2026).
+    return one(
+      ref,
+      ref.slice('vl:'.length).replace(new RegExp(`:${CIRCLE_KEY}$`), ` · ${CIRCLE_LABEL}`),
+      ['shapes & patterns', 'Chord Movements & Passes'],
+    );
   }),
 };
 

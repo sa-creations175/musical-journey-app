@@ -86,10 +86,11 @@ describe('a movement’s cell is an ordinary Shapes itemRef', () => {
     expect(movementIdForRef('vl:five-one:guide-tones:posA:Eb', known)).toBeNull();
   });
 
-  it('is one row across twelve keys', () => {
+  it('is one row across twelve keys and the Circle of 4ths cell', () => {
     expect(movementGridRows(MOVEMENT)).toHaveLength(1);
-    expect(movementCellRefs('mv-walkup')).toHaveLength(12);
-    expect(new Set(movementCellRefs('mv-walkup')).size).toBe(12);
+    expect(movementCellRefs('mv-walkup')).toHaveLength(13);
+    expect(new Set(movementCellRefs('mv-walkup')).size).toBe(13);
+    expect(movementCellRefs('mv-walkup')[12]).toBe('vl:mv-walkup:circle');
   });
 
   it('names its cell the way a pattern names one', () => {
@@ -105,16 +106,16 @@ describe('a movement’s cell is an ordinary Shapes itemRef', () => {
 // =====================================================================
 
 describe('a movement counts where the patterns count', () => {
-  it('adds twelve to the section’s targets', () => {
+  it('adds thirteen to the section’s targets', () => {
     const without = sectionTargetCount('voice-leading');
     expect(sectionTargetCount('voice-leading', undefined, ['mv-walkup']))
-      .toBe(without + 12);
+      .toBe(without + 13);
   });
 
   it('and to the card, which is the same enumeration', () => {
     const card = (ids: string[]) => shapesCards([], [], Date.now(), new Map(), undefined, ids)
       .find(c => c.key === 'voice-leading')!;
-    expect(card(['mv-walkup']).itemCount).toBe(card([]).itemCount + 12);
+    expect(card(['mv-walkup']).itemCount).toBe(card([]).itemCount + 13);
   });
 
   it('a caller with no movements gets exactly the old answer', () => {

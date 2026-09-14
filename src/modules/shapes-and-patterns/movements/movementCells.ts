@@ -76,9 +76,10 @@ export function movementGridRows(movement: ChordMovement): VoiceLeadingGridRow[]
   }];
 }
 
-/** Every cell a movement contributes — twelve keys, one row. */
+/** Every cell a movement contributes — twelve keys and the Circle of
+ *  4ths cell (Silas, 13 Sep 2026), one row. */
 export function movementCellRefs(movementId: string): string[] {
-  return KEYS_CIRCLE_OF_FOURTHS.map(k => movementItemRef(movementId, k));
+  return [...KEYS_CIRCLE_OF_FOURTHS, CIRCLE_KEY].map(k => movementItemRef(movementId, k));
 }
 
 /** "Walk-up in E♭" — what Progress Details and the drill panel call a

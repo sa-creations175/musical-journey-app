@@ -130,7 +130,8 @@ describe('the four cards', () => {
     expect(cards.get('scales')!.itemCount).toBe(288);
     // 1944 key targets and 162 Circle of 4ths targets (14 Sep 2026).
     expect(cards.get('chord-shapes')!.itemCount).toBe(2106);
-    expect(cards.get('voice-leading')!.itemCount).toBe(828);
+    // 69 sub-cells × the twelve keys and the Circle of 4ths cell.
+    expect(cards.get('voice-leading')!.itemCount).toBe(897);
     expect(cards.get('mental-viz')!.itemCount).toBe(504);
   });
 

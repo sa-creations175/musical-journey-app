@@ -101,9 +101,10 @@ describe('SHAPES_COVERAGE_GROUP_DEFS — Layer 2 triad qualities', () => {
     const scalesSide = 288 + 36 + 36 + 108 + 3 * 36 + 108 + 3 * 36;
     // Voice leading is two-handed by nature: one target per cell and
     // nothing to multiply. The broad bucket plus the twelve
-    // per-pattern groups — eight of them 84, since the five named
-    // progressions are shaped like Major 2-5-1.
-    const vlSide = 828 + 36 + 84 * 8 + 24 + 48 + 48;
+    // per-pattern groups — eight of them 91, since the five named
+    // progressions are shaped like Major 2-5-1. Thirteen cells a row:
+    // the twelve keys and the Circle of 4ths cell (13 Sep 2026).
+    const vlSide = 897 + 39 + 91 * 8 + 26 + 52 + 52;
     expect(defSum).toBe(chordShapeSide + scalesSide + vlSide);
   });
 });
@@ -330,75 +331,75 @@ describe('Voice-leading per-pattern coverage groups', () => {
     {
       id: 'voice_leading_diatonic_cycle',
       patternId: 'diatonic-cycle',
-      denominator: 36,
+      denominator: 39,
       sampleRef: 'vl:diatonic-cycle:pos1:C',
     },
     {
       id: 'voice_leading_five_one',
       patternId: 'five-one',
-      denominator: 84,
+      denominator: 91,
       sampleRef: 'vl:five-one:guide-tones:A:C',
     },
     {
       id: 'voice_leading_major_251',
       patternId: 'major-251',
-      denominator: 84,
+      denominator: 91,
       sampleRef: 'vl:major-251:seventh-chords:B:Bb',
     },
     {
       id: 'voice_leading_minor_251',
       patternId: 'minor-251',
-      denominator: 84,
+      denominator: 91,
       sampleRef: 'vl:minor-251:full-voicing:A:F',
     },
     {
       id: 'voice_leading_minor_aba',
       patternId: 'minor-aba',
-      denominator: 24,
+      denominator: 26,
       sampleRef: 'vl:minor-aba:pos-A:G',
     },
     {
       id: 'voice_leading_dom7b9',
       patternId: 'dom7b9',
-      denominator: 48,
+      denominator: 52,
       sampleRef: 'vl:dom7b9:pos2:D',
     },
     {
       id: 'voice_leading_dim7',
       patternId: 'dim7',
-      denominator: 48,
+      denominator: 52,
       sampleRef: 'vl:dim7:pos4:Eb',
     },
     // The five named progressions, added to the passes 9 Sep 2026.
-    // Shaped like Major 2-5-1, so 7 cells a key and 84 in all.
+    // Shaped like Major 2-5-1, so 7 cells a key and 91 in all, over the twelve keys and the Circle of 4ths cell.
     {
       id: 'voice_leading_1_5_6_4',
       patternId: '1-5-6-4',
-      denominator: 84,
+      denominator: 91,
       sampleRef: 'vl:1-5-6-4:guide-tones:A:C',
     },
     {
       id: 'voice_leading_1_6_4_5',
       patternId: '1-6-4-5',
-      denominator: 84,
+      denominator: 91,
       sampleRef: 'vl:1-6-4-5:seventh-chords:C:F',
     },
     {
       id: 'voice_leading_1_6_2_5',
       patternId: '1-6-2-5',
-      denominator: 84,
+      denominator: 91,
       sampleRef: 'vl:1-6-2-5:full-voicing:B:G',
     },
     {
       id: 'voice_leading_1_4_5',
       patternId: '1-4-5',
-      denominator: 84,
+      denominator: 91,
       sampleRef: 'vl:1-4-5:guide-tones:B:Bb',
     },
     {
       id: 'voice_leading_backdoor',
       patternId: 'backdoor',
-      denominator: 84,
+      denominator: 91,
       sampleRef: 'vl:backdoor:seventh-chords:A:Eb',
     },
   ];
@@ -412,7 +413,7 @@ describe('Voice-leading per-pattern coverage groups', () => {
     }
   });
 
-  it('per-pattern denominators sum to the broad voice_leading bucket (828)', () => {
+  it('per-pattern denominators sum to the broad voice_leading bucket (897)', () => {
     const sum = VL_PATTERN_DEFS.reduce(
       (acc, d) => acc + getShapesCoverageGroup(d.id)!.denominator,
       0,
@@ -421,7 +422,7 @@ describe('Voice-leading per-pattern coverage groups', () => {
     // 408 until the five named progressions joined the passes on
     // 9 Sep 2026. Every one of them has a per-pattern group of its
     // own, which is what keeps this sum equal to the bucket.
-    expect(sum).toBe(828);
+    expect(sum).toBe(897);
   });
 
   it('every per-pattern id routes to the voice_leading activity area', () => {

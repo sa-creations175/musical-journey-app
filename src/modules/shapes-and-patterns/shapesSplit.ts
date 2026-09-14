@@ -42,6 +42,7 @@ import {
 } from '../../lib/sessionAlgorithm/timePerAttempt';
 import {
   CHORD_QUALITY_BY_ID,
+  CIRCLE_KEY,
   enumerateVoiceLeadingCells,
   KEYS,
   parseVoiceLeadingItemRef,
@@ -974,7 +975,10 @@ function buildVoiceLeadingSegment(
   const cells: VLCell[] = [];
   let enumIdx = 0;
   for (const pattern of VOICE_LEADING_PATTERNS) {
-    for (const keyName of KEYS) {
+    // THE TWELVE KEYS AND THE CIRCLE OF 4THS CELL (Silas, 13 Sep 2026).
+    // `vlKeyIndex` puts the Circle after G, so a capped segment still
+    // spreads across the keys first.
+    for (const keyName of [...KEYS, CIRCLE_KEY]) {
       const itemRefs = enumerateVoiceLeadingCells(pattern, keyName);
       for (const itemRef of itemRefs) {
         const desc = parseVoiceLeadingItemRef(itemRef);
@@ -1068,7 +1072,13 @@ function buildVoiceLeadingSegment(
       if (aDue !== bDue) return aDue - bDue;
       return a.blockIndex - b.blockIndex;
     }
-    // UNSTARTED tier — catalog priority + within-pattern progression.
+    // UNSTARTED tier — the Circle of 4ths cells after every key cell
+    // (Silas, 13 Sep 2026), so a capped segment spreads across the keys
+    // first, as the chord shapes' Circle does; then catalog priority +
+    // within-pattern progression.
+    const aCircle = a.keyName === CIRCLE_KEY ? 1 : 0;
+    const bCircle = b.keyName === CIRCLE_KEY ? 1 : 0;
+    if (aCircle !== bCircle) return aCircle - bCircle;
     if (a.patternIndex !== b.patternIndex) return a.patternIndex - b.patternIndex;
     if (a.typeIndex !== b.typeIndex) return a.typeIndex - b.typeIndex;
     if (a.positionIndex !== b.positionIndex) return a.positionIndex - b.positionIndex;

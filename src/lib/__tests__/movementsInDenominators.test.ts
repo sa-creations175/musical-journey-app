@@ -13,9 +13,10 @@
  * catalog was the same shape waiting to happen again.
  *
  * =====================================================================
- * TWELVE PER MOVEMENT, AND THE NUMBER IS THE POINT.
+ * THIRTEEN PER MOVEMENT, AND THE NUMBER IS THE POINT.
  *
- * One row across twelve keys (ruling 20). These assert the arithmetic
+ * One row across twelve keys (ruling 20), and the Circle of 4ths cell
+ * after them (Silas, 13 Sep 2026). These assert the arithmetic
  * rather than "it went up", because a denominator that grew by the
  * wrong amount is a denominator that is still wrong.
  *
@@ -38,11 +39,11 @@ import { encodeShapesPatterns } from '../../modules/goals/GoalCreationFlow';
 import { encodeDimensionRecords } from '../../modules/goals/YearlyAnchorFlow';
 import { dimensionRowsFor } from '../../modules/goals/yearlyAnchorReview';
 
-const KEYS_PER_MOVEMENT = 12;
+const KEYS_PER_MOVEMENT = 13;
 const MOVEMENTS = ['mv-walk-up', 'mv-turnaround'];
 
 describe('the count', () => {
-  it('adds twelve targets per movement, on the voice-leading section', () => {
+  it('adds thirteen targets per movement, on the voice-leading section', () => {
     const before = shapesCounts();
     const after = shapesCounts(undefined, MOVEMENTS);
     expect(after.voiceLeading - before.voiceLeading)

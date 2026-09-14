@@ -89,20 +89,22 @@ describe('catalog sizes — the denominators', () => {
     expect(productionLessonsCatalog.accuracyKind).toBe('self-rated');
   });
 
-  it('shapes & patterns: 702 chord shapes + 96 scales + 828 VL = 1626', () => {
+  it('shapes & patterns: 702 chord shapes + 96 scales + 897 VL = 1695', () => {
     // THE TREE IS ITEMREFS, NOT DRILLS. It is a browsable list of the
     // things in the module, one row each; the hand axis that the
     // COUNTING unit gained on 31 Aug 2026 would triple the rows without
     // telling the reader anything the row does not already say.
     //
     // 702 = 648 in the twelve keys + 54 for the Circle of 4ths cell,
-    // counted on the dashboard since 14 Sep 2026.
-    expect(catalogItemCount(shapesCatalog)).toBe(1626);
+    // counted on the dashboard since 14 Sep 2026. And 897 voice-leading =
+    // 828 in the twelve keys + 69 for its Circle of 4ths cell, since 13 Sep.
+    expect(catalogItemCount(shapesCatalog)).toBe(1695);
     const refs = catalogRefSet(shapesCatalog);
     expect([...refs].filter(r => r.startsWith('chord-shape:'))).toHaveLength(702);
     expect([...refs].filter(r => r.includes(':circle:'))).toHaveLength(54);
     expect([...refs].filter(r => r.startsWith('scale:'))).toHaveLength(96);
-    expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(828);
+    expect([...refs].filter(r => r.startsWith('vl:') && r.endsWith(':circle'))).toHaveLength(69);
+    expect([...refs].filter(r => r.startsWith('vl:'))).toHaveLength(897);
   });
 
   it('EXCLUDES the 72 supplementary rows — 648, not 720', () => {
@@ -423,7 +425,9 @@ describe('the capitalisation convention, across every catalog', () => {
     // the five are labelled from an itemRef that opens on a DIGIT
     // (`1-5-6-4:guide-tones:A:C`), which has no first letter to check.
     // They are the same gap wearing a different first character.
-    expect(lower.get('shapes-and-patterns')).toHaveLength(588);
+    // 629 since 13 Sep 2026: the Circle of 4ths cell added 69 raw-ref
+    // rows here, and 41 of them open on a letter.
+    expect(lower.get('shapes-and-patterns')).toHaveLength(629);
 
     // EXCEPTION TWO, and it is correct as it stands. Harmonic fluency's
     // leaf label is the card's whole QUESTION, left as written — and two

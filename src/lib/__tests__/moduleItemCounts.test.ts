@@ -304,28 +304,31 @@ describe('shapesCounts', () => {
     expect(c.scaleDrills).toBe(96 * 3);
   });
 
-  it('voiceLeading = 69 sub-cells × 12 keys = 828', () => {
+  it('voiceLeading = 69 sub-cells × 13 cells = 897', () => {
     // Eight patterns shaped 2+3+2 (five-one, major-251, minor-251 and
     // the five named progressions added 9 Sep 2026) = 56, plus
     // diatonic-cycle (3) + minor-aba (2) + dom7b9 (4) + dim7 (4)
-    // = 69 sub-cells per key × 12 keys. Was 408.
-    expect(c.voiceLeading).toBe(828);
+    // = 69 sub-cells per key × the twelve keys and the Circle of 4ths
+    // cell (13 Sep 2026). Was 828 before the Circle, and 408 before that.
+    expect(c.voiceLeading).toBe(897);
+    expect(c.voiceLeading).toBe(69 * 13);
   });
 
-  it('total = 3222 (sum of sub-areas)', () => {
-    // 2106 chord-shape + 288 scale + 828 voice-leading. Was 3060 before
-    // the Circle of 4ths cell, and 2640 before the five named
-    // progressions joined the passes.
-    expect(c.total).toBe(3222);
+  it('total = 3291 (sum of sub-areas)', () => {
+    // 2106 chord-shape + 288 scale + 897 voice-leading. Was 3222 before
+    // the Chord Movements & Passes Circle cell, 3060 before the chord
+    // shapes' one, and 2640 before the five named progressions joined
+    // the passes.
+    expect(c.total).toBe(3291);
     expect(c.total).toBe(c.chordShapeDrills + c.scaleDrills + c.voiceLeading);
   });
 
   it('voice leading and mental visualisation are UNTOUCHED by the hand axis', () => {
     // Voice leading is two-handed by nature and mental visualisation
     // is away from the keyboard entirely: one target per cell, so
-    // there is nothing to multiply. 828 and 504 either way.
-    expect(c.voiceLeading).toBe(828);
-    expect(sectionTargetCount('voice-leading')).toBe(828);
+    // there is nothing to multiply. 897 and 504 either way.
+    expect(c.voiceLeading).toBe(897);
+    expect(sectionTargetCount('voice-leading')).toBe(897);
     expect(sectionTargetCount('mental-viz')).toBe(504);
   });
 

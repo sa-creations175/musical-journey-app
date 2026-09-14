@@ -49,7 +49,9 @@ export function enumerateScaleRefs(): string[] {
 export function enumerateVoiceLeadingRefs(): string[] {
   const out: string[] = [];
   for (const pattern of VOICE_LEADING_PATTERNS) {
-    for (const key of KEYS) {
+    // The twelve keys and the Circle of 4ths cell, as the grid counts
+    // (Silas, 13 Sep 2026). Today's catalog, so the Circle is in outright.
+    for (const key of [...KEYS, CIRCLE_KEY]) {
       for (const ref of enumerateVoiceLeadingCells(pattern, key)) out.push(ref);
     }
   }
