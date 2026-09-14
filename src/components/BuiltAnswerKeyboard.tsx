@@ -44,7 +44,8 @@
  */
 import { useEffect, useId, useRef } from 'react';
 import {
-  BOARD_HEIGHT, BOARD_MIN_WIDTH_PX, BOARD_WIDTH, type BoardKey, type KeyMark, boardKeys, keyLabel,
+  BOARD_HEIGHT, DEFAULT_BOARD_RANGE, type BoardKey, type BoardRange, type KeyMark,
+  boardKeys, boardMinWidthPx, boardWidth, keyLabel,
 } from '../lib/builtAnswers/board';
 import { HOLD_MS } from '../lib/player/boardEdit';
 
@@ -59,7 +60,7 @@ const PRESSED_FILL = '#378ADD';
 const BASS_GREEN = '#0F6E56';
 
 export default function BuiltAnswerKeyboard({
-  marks, onTap, onHold, label,
+  marks, onTap, onHold, label, range = DEFAULT_BOARD_RANGE,
 }: {
   /** Marks by MIDI number. */
   marks: ReadonlyMap<number, KeyMark>;
@@ -71,12 +72,14 @@ export default function BuiltAnswerKeyboard({
    */
   onHold?: (midi: number) => void;
   label: string;
+  /** Which keys to draw. Absent, the shared player's F1 to C6. */
+  range?: BoardRange;
 }) {
   const clipId = useId();
   const frame = useRef<HTMLDivElement>(null);
   const holdTimer = useRef<number | null>(null);
   const held = useRef(false);
-  const { white, black } = boardKeys();
+  const { white, black } = boardKeys(range);
   const interactive = onTap !== undefined;
 
   const endPress = () => {
@@ -106,13 +109,13 @@ export default function BuiltAnswerKeyboard({
     const el = frame.current;
     if (el === null || litKeys === '' || el.scrollWidth <= el.clientWidth) return;
     const lit = new Set(litKeys.split(',').map(Number));
-    const keys = [...boardKeys().white, ...boardKeys().black].filter(k => lit.has(k.midi));
+    const keys = [...boardKeys(range).white, ...boardKeys(range).black].filter(k => lit.has(k.midi));
     if (keys.length === 0) return;
     const lo = Math.min(...keys.map(k => k.x));
     const hi = Math.max(...keys.map(k => k.x + k.width));
-    const scale = el.scrollWidth / BOARD_WIDTH;
+    const scale = el.scrollWidth / boardWidth(range);
     el.scrollLeft = Math.max(0, ((lo + hi) / 2) * scale - el.clientWidth / 2);
-  }, [litKeys]);
+  }, [litKeys, range]);
 
   const fillOf = (mark: KeyMark | undefined, isBlack: boolean): string => {
     if (mark?.pressed === true) return PRESSED_FILL;
@@ -245,17 +248,17 @@ export default function BuiltAnswerKeyboard({
   return (
     <div ref={frame} className="overflow-x-auto overscroll-x-contain" data-testid="board-frame">
       <svg
-        viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`}
+        viewBox={`0 0 ${boardWidth(range)} ${BOARD_HEIGHT}`}
         width="100%"
         role="img"
         aria-label={label}
         className="block select-none touch-manipulation"
-        style={{ minWidth: BOARD_MIN_WIDTH_PX }}
+        style={{ minWidth: boardMinWidthPx(range) }}
         data-testid="built-answer-keyboard"
       >
         <defs>
           <clipPath id={clipId}>
-            <rect x={0} y={0} width={BOARD_WIDTH} height={BOARD_HEIGHT} />
+            <rect x={0} y={0} width={boardWidth(range)} height={BOARD_HEIGHT} />
           </clipPath>
         </defs>
         <g clipPath={`url(#${clipId})`}>

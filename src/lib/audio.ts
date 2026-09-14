@@ -581,6 +581,69 @@ export interface SeqChordsOptions {
 const PAINT_SLACK = 0.005;
 
 /**
+ * Paints held to the audio clock: `at(time, paint)` fires `paint` on the
+ * first frame the SOUND scheduled at `time` has reached the speakers.
+ *
+ * =====================================================================
+ * ONE TIMING LAW FOR EVERY SCREEN THAT LIGHTS WHAT IT PLAYS.
+ *
+ * It was the inside of `playSeqChords`, and the Harmonic Fluency card
+ * sound needs the same thing: the bar you are in and the key being played
+ * lit when they are heard (Silas, 13 Sep 2026). A second loop computed
+ * alike would drift from this one the first time either changed, so the
+ * loop is here and both use it.
+ *
+ * ON THE AUDIO CLOCK, NOT A SCREEN TIMER. A `setTimeout` computed from
+ * the same moment looks equivalent and is not: the timer queue is starved
+ * by a busy main thread and throttled outright in a background tab, while
+ * the audio graph plays on. So each paint carries the audio time it
+ * belongs to, and a frame loop fires the ones the clock has reached; a
+ * late frame catches up instead of accumulating a lag.
+ *
+ * WHEN THE SOUND ARRIVES, NOT WHEN IT WAS SCHEDULED. The browser reports
+ * the output delay (over Bluetooth, a fifth of a second) and each paint
+ * is held by it, plus the reader's own Visual timing dial for headphones
+ * that report nothing, read every frame so moving the dial moves the
+ * very next repaint. A negative dial delays the paint.
+ *
+ * IN TIME ORDER, WHATEVER ORDER THEY ARRIVE IN. A sound with several
+ * lanes (a run over held chords over a pedal) asks for its paints lane
+ * by lane, so they are kept sorted rather than assumed to be.
+ * =====================================================================
+ */
+export interface AudioClockPainter {
+  at: (time: number, paint: () => void) => void;
+  stop: () => void;
+}
+
+export function paintOnAudioClock(context: AudioContext): AudioClockPainter {
+  const pending: Array<{ at: number; paint: () => void }> = [];
+  let frame: number | null = null;
+  let stopped = false;
+  const pump = () => {
+    if (stopped) return;
+    const latency = outputLatency(context) - visualTimingSeconds();
+    while (pending.length > 0 && pending[0].at + latency <= context.currentTime + PAINT_SLACK) {
+      pending.shift()!.paint();
+    }
+    frame = requestAnimationFrame(pump);
+  };
+  return {
+    at: (time, paint) => {
+      if (stopped) return;
+      let i = pending.length;
+      while (i > 0 && pending[i - 1].at > time) i -= 1;
+      pending.splice(i, 0, { at: time, paint });
+      if (frame === null) pump();
+    },
+    stop: () => {
+      stopped = true;
+      if (frame !== null) cancelAnimationFrame(frame);
+    },
+  };
+}
+
+/**
  * How far behind the clock the sound actually is.
  *
  * `baseLatency` is what the graph adds between a scheduled time and the
@@ -709,48 +772,10 @@ export async function playSeqChords(
 
   const voices: Voice[] = [];
   const timers: number[] = [];
-  const paints: Array<{ at: number; index: number }> = [];
   let stopped = false;
-  let frame: number | null = null;
-  let painted = 0;
-
-  /**
-   * THE BOARD REPAINTS ON THE AUDIO CLOCK, NOT ON A SCREEN TIMER.
-   *
-   * A `setTimeout` computed from the same moment looks equivalent and is
-   * not: the timer queue is starved by a busy main thread and throttled
-   * outright in a background tab, while the audio graph plays on. The
-   * lights drift away from the notes and never come back, because
-   * nothing rechecks. So each step carries the audio time it sounds at
-   * and a frame loop fires the ones the audio clock has reached — a late
-   * frame catches up instead of accumulating a lag. It is what the
-   * prototype does, and it is a law of the shared player.
-   *
-   * `paints` is in time order and `painted` is how far down it we have
-   * got, so a pass armed mid-flight (`'untilStopped'`) simply extends
-   * the queue.
-   */
-  const pump = () => {
-    if (stopped) return;
-    // WHEN THE SOUND ARRIVES, NOT WHEN IT WAS SCHEDULED. A note handed
-    // to the graph at time T leaves the speakers a little after T, and
-    // over Bluetooth "a little" is a fifth of a second — long enough
-    // that keys lighting at T look wrong. The browser reports the two
-    // halves of that delay and this holds the paint by their sum.
-    //
-    // PLUS THE READER'S OWN DIAL, for headphones that report nothing —
-    // see `visualTiming`. The prototype's formula is `now = currentTime
-    // + offset − latency`, so the offset comes OFF the hold: a negative
-    // dial delays the paint. Read every frame, so moving the dial while
-    // a sequence plays moves the very next repaint.
-    const latency = outputLatency(context) - visualTimingSeconds();
-    while (painted < paints.length
-      && paints[painted].at + latency <= context.currentTime + PAINT_SLACK) {
-      opts.onStep?.(paints[painted].index);
-      painted += 1;
-    }
-    frame = requestAnimationFrame(pump);
-  };
+  // THE BOARD REPAINTS ON THE AUDIO CLOCK. See `paintOnAudioClock`,
+  // which is where the timing law is written down.
+  const painter = paintOnAudioClock(context);
 
   /**
    * One pass through the sequence, starting at an absolute time.
@@ -778,7 +803,10 @@ export async function playSeqChords(
       // ONE TIMESTAMP, TWO JOBS. `step.at` is the moment the step's
       // first note strikes and the moment the board is told to repaint —
       // one number read twice, rather than two numbers computed alike.
-      if (opts.onStep) paints.push({ at: step.at, index: step.index });
+      if (opts.onStep) {
+        const onStep = opts.onStep;
+        painter.at(step.at, () => onStep(step.index));
+      }
     }
     return endsAt;
   };
@@ -812,15 +840,13 @@ export async function playSeqChords(
     }
   }
 
-  if (opts.onStep) pump();
-
   return {
     stop: () => {
       stopped = true;
       const fadeAt = context.currentTime + 0.05;
       for (const v of voices) v.stop(fadeAt);
       for (const id of timers) window.clearTimeout(id);
-      if (frame !== null) cancelAnimationFrame(frame);
+      painter.stop();
     },
   };
 }

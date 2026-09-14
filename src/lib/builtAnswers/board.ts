@@ -110,6 +110,37 @@ export const BOARD_WIDTH = WHITE_COUNT * WW;
  */
 export const BOARD_MIN_WIDTH_PX = WHITE_COUNT * 16;
 
+/**
+ * Which keys a board draws, lowest and highest MIDI.
+ *
+ * THE SHARED PLAYER'S F1 TO C6 UNLESS A SURFACE SAYS OTHERWISE. The
+ * Harmonic Fluency Hear it strip draws C2 to C7 (Silas, 13 Sep 2026): its
+ * runs reach E6 and its held chords, an octave lower, C2. Same geometry,
+ * same sixteen-pixel floor a white key, a different span.
+ */
+export interface BoardRange {
+  low: number;
+  high: number;
+}
+
+export const DEFAULT_BOARD_RANGE: BoardRange = { low: KEYBOARD_LOW_MIDI, high: KEYBOARD_HIGH_MIDI };
+
+function whiteCountOf(range: BoardRange): number {
+  let n = 0;
+  for (let m = range.low; m <= range.high; m += 1) if (isWhite(m)) n += 1;
+  return n;
+}
+
+/** A range's width, in viewBox units. */
+export function boardWidth(range: BoardRange): number {
+  return whiteCountOf(range) * WW;
+}
+
+/** The narrowest a range is drawn before it scrolls, in CSS pixels. */
+export function boardMinWidthPx(range: BoardRange): number {
+  return whiteCountOf(range) * 16;
+}
+
 /** Whether a note is drawn at all. */
 export function onBoard(midi: number): boolean {
   return midi >= KEYBOARD_LOW_MIDI && midi <= KEYBOARD_HIGH_MIDI;
@@ -134,11 +165,11 @@ export function keyLabel(midi: number): string | null {
  * black key sits centred on the edge after the white key before it,
  * wherever in the octave that is.
  */
-export function boardKeys(): { white: BoardKey[]; black: BoardKey[] } {
+export function boardKeys(range: BoardRange = DEFAULT_BOARD_RANGE): { white: BoardKey[]; black: BoardKey[] } {
   const white: BoardKey[] = [];
   const black: BoardKey[] = [];
   let whiteIndex = 0;
-  for (let midi = KEYBOARD_LOW_MIDI; midi <= KEYBOARD_HIGH_MIDI; midi += 1) {
+  for (let midi = range.low; midi <= range.high; midi += 1) {
     if (isWhite(midi)) {
       white.push({ midi, x: whiteIndex * WW, width: WW, height: WH, isBlack: false });
       whiteIndex += 1;

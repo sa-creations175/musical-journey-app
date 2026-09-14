@@ -79,8 +79,12 @@
 import type { Flashcard } from './catalog';
 import { keyToRootMidi } from '../ear-training/chord-progressions/progressionTheory';
 import { DEGREE_BY_ID } from './chromaticDegrees';
-import { SLASH_SHAPES, progressionVoicing } from './catalogExpansions';
-import { MINOR_TARGETS, MODAL_CHORDS, type ModalChord } from './modalImprovisation';
+import {
+  SLASH_SHAPES, degreeAscii, noteLabel, progressionVoicing,
+} from './catalogExpansions';
+import {
+  MINOR_TARGETS, MODAL_CHORDS, modalAnswerScale, modalCardText, type ModalChord,
+} from './modalImprovisation';
 import { INTERVAL_QUALITIES, type Direction } from './scaleDegreeQuality';
 
 /**
@@ -94,6 +98,36 @@ export interface SoundStep {
   semitones: readonly number[];
   /** Beats, at this file's one tempo. */
   beats: number;
+}
+
+/**
+ * One chip of the Hear it strip: what one stretch of the sound is called.
+ *
+ * =====================================================================
+ * THE STRIP SAYS WHAT IT PLAYS (Silas, 13 Sep 2026): "it doesn't tell you
+ * what you're hearing at all. That's the gap." So every stretch of a
+ * card's sound is named before it plays and lit while it does.
+ *
+ * READ OFF THE SAME DATA THE SOUND IS BUILT FROM, never a second
+ * description: Modal Improvisation writes its bars in the same loop that
+ * writes its phrase (below); every other family's are read off `steps`
+ * by `soundBars`.
+ * =====================================================================
+ */
+export interface SoundBar {
+  /** Large, in mono: the chord ("E7"), or the note or notes. */
+  name: string;
+  /** Small, under it: the scale ("A melodic minor, from E"), or empty. */
+  detail: string;
+  /** Whether it carries a note the card's key does not hold. */
+  outside: boolean;
+  /** The orienting chord, or a stretch of `steps`. */
+  lane: 'orient' | 'steps';
+  /** Which steps it is, `from` inclusive, `to` exclusive. */
+  from: number;
+  to: number;
+  /** How each of those steps' notes is spelled, for the now line. */
+  noteNames: readonly string[];
 }
 
 export interface CardSound {
@@ -136,6 +170,16 @@ export interface CardSound {
    * the deck's. See entry 8 of the allowed-to-differ list.
    */
   bpm?: number;
+  /**
+   * The key the card names, as a pitch class and in words ("C major"):
+   * what the Hear it strip marks a note as outside of. Absent where the
+   * card names no key.
+   */
+  keyPc?: number;
+  keyName?: string;
+  /** The Hear it strip's bars, where the family writes them itself —
+   *  Modal Improvisation. See `SoundBar`. */
+  bars?: readonly SoundBar[];
 }
 
 /**
@@ -321,6 +365,77 @@ function modalSegments(keyPc: number, chord: ModalChord): ModalSegment[] {
   ];
 }
 
+/** The degrees of a major scale, as the card spells them. Melodic minor's
+ *  come from `modalAnswerScale`, which already spells them. */
+const MAJOR_DEGREE_NAMES: readonly string[] = ['1', '2', '3', '4', '5', '6', '7'];
+
+/** The key's own mode on each degree, by the name a player uses. */
+const MODE_ON_DEGREE: readonly string[] = [
+  'major', 'Dorian', 'Phrygian', 'Lydian', 'Mixolydian', 'natural minor', 'Locrian',
+];
+
+/**
+ * What one segment of a Modal Improvisation phrase is called: the chord,
+ * the scale it runs and where from, and each note of the run spelled.
+ *
+ * THE SAME SEGMENTS `modalSegments` BUILDS, in the same order, spelled
+ * the way the card spells them (`degreeAscii`, `modalAnswerScale`,
+ * `modalCardText`), so the strip cannot name a note the phrase does not
+ * play. "C · C major, from C", "E7 · A melodic minor, from E",
+ * "Am · A natural minor, from A", "C · C major, home".
+ */
+function modalBarWords(
+  key: string, chord: ModalChord, index: number, count: number,
+): { name: string; detail: string; noteNames: readonly string[] } {
+  const home = noteLabel(key);
+  const run = (spellFrom: string, degrees: readonly string[], rotateBy: number) => {
+    const names = degrees.map(d => noteLabel(degreeAscii(spellFrom, d)));
+    const turned = [...names.slice(rotateBy), ...names.slice(0, rotateBy)];
+    return [...turned, turned[0]];
+  };
+  if (index === 0 || index === count - 1) {
+    return {
+      name: home,
+      detail: index === 0 ? `${home} major, from ${home}` : `${home} major, home`,
+      noteNames: run(key, MAJOR_DEGREE_NAMES, 0),
+    };
+  }
+  const text = modalCardText(key, chord);
+  if (chord.kind === 'in') {
+    const from = Number(chord.degree) - 1;
+    const rootName = text.chordName.slice(0, text.chordName.length - (chord.quality ?? '').length);
+    return {
+      name: text.chordName,
+      detail: `${rootName} ${MODE_ON_DEGREE[from]}, from ${rootName}`,
+      noteNames: run(key, MAJOR_DEGREE_NAMES, from),
+    };
+  }
+  const from = Number(chord.target) - 1;
+  const target = noteLabel(degreeAscii(key, chord.target!));
+  const minor = MINOR_TARGETS.has(chord.target!);
+  if (index === 1) {
+    const rootName = text.chordName.replace(/7$/, '');
+    const answer = modalAnswerScale(key, chord).map(n => n.note);
+    const turned = [...answer.slice(4), ...answer.slice(0, 4)];
+    return {
+      name: text.chordName,
+      detail: `${target} ${minor ? 'melodic minor' : 'major'}, from ${rootName}`,
+      noteNames: [...turned, turned[0]],
+    };
+  }
+  return minor
+    ? {
+      name: `${target}m`,
+      detail: `${target} ${MODE_ON_DEGREE[from]}, from ${target}`,
+      noteNames: run(key, MAJOR_DEGREE_NAMES, from),
+    }
+    : {
+      name: target,
+      detail: `${target} major, from ${target}`,
+      noteNames: run(degreeAscii(key, chord.target!), MAJOR_DEGREE_NAMES, 0),
+    };
+}
+
 /** Whether a mode's own third is major or minor — which decides the
  *  chord it orients on. Locrian's third is minor, and its diminished
  *  fifth is not what a one-chord orientation is for. */
@@ -378,7 +493,10 @@ export function cardSound(card: Flashcard): CardSound | null {
   const keyed = (steps: readonly SoundStep[], orientChord = MAJ): CardSound | null =>
     key === undefined || steps.length === 0
       ? null
-      : { rootMidi: keyToRootMidi(key), orient: orientChord, steps };
+      : {
+        rootMidi: keyToRootMidi(key), orient: orientChord, steps,
+        keyPc: keyToRootMidi(key) % 12, keyName: `${noteLabel(key)} major`,
+      };
 
   switch (card.category) {
     // --- The two that already had a play control ---------------------
@@ -534,6 +652,8 @@ export function cardSound(card: Flashcard): CardSound | null {
         // UNDERNEATH, an octave down. The scale walks away from its own
         // tonic and the drone is what keeps the ear on it.
         pedal: -12,
+        keyPc: keyToRootMidi(key) % 12,
+        keyName: `${noteLabel(key)} major`,
       };
     }
 
@@ -550,7 +670,9 @@ export function cardSound(card: Flashcard): CardSound | null {
       const steps: SoundStep[] = [];
       const under: SoundStep[] = [];
       const segments = modalSegments(keyPc, chord);
+      const bars: SoundBar[] = [];
       segments.forEach((segment, i) => {
+        const from = steps.length;
         // THE RUN, from the chord's root up an octave. The prototype's
         // register rule, kept: a chord rooted above F drops its run an
         // octave so the phrase stays under one hand.
@@ -570,13 +692,24 @@ export function cardSound(card: Flashcard): CardSound | null {
             .map(v => 48 + segment.rootPc + v - rootMidi),
           beats: run.length * RUN_NOTE_BEATS,
         });
+        // THE BAR'S WORDS, from this same segment.
+        bars.push({
+          ...modalBarWords(key, chord, i, segments.length),
+          outside: run.some(d => !MAJOR_SCALE.includes((((segment.rootPc + d - keyPc) % 12) + 12) % 12)),
+          lane: 'steps',
+          from,
+          to: steps.length,
+        });
         if (i < segments.length - 1) {
           const rest = { semitones: [], beats: SEGMENT_GAP_BEATS };
           steps.push(rest);
           under.push(rest);
         }
       });
-      return { rootMidi, orient: null, steps, under, bpm: MODAL_IMPROV_BPM };
+      return {
+        rootMidi, orient: null, steps, under, bpm: MODAL_IMPROV_BPM,
+        keyPc, keyName: `${noteLabel(key)} major`, bars,
+      };
     }
 
     case 'intervals': {

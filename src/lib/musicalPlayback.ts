@@ -1,4 +1,4 @@
-import { ensureRunning, midiToFreq, playNote } from './audio';
+import { ensureRunning, midiToFreq, paintOnAudioClock, playNote } from './audio';
 
 /**
  * Single-voice note-sequence + blocked-chord primitive that sits between
@@ -164,7 +164,14 @@ export async function playBlockedSequence(
   steps: ReadonlyArray<{ semitones: readonly number[]; beats: number }>,
   rootMidi: number,
   bpm: number,
-  opts: { speedMultiplier?: number; gapBeats?: number } = {},
+  opts: {
+    speedMultiplier?: number;
+    gapBeats?: number;
+    /** Fires as each step SOUNDS, on the audio clock (`paintOnAudioClock`). */
+    onStep?: (index: number) => void;
+    /** Fires as the last step ends, on the same clock. */
+    onEnd?: () => void;
+  } = {},
 ): Promise<PlaybackHandle> {
   const ctx = await ensureRunning();
   const m = clampSpeed(opts.speedMultiplier ?? 1.0);
@@ -172,8 +179,13 @@ export async function playBlockedSequence(
   const gap = (opts.gapBeats ?? 0) * secPerBeat;
   const voices: Array<{ stop: (time: number) => void }> = [];
 
+  // WHAT LIGHTS IS WHAT SOUNDS: each step's paint carries the same moment
+  // its notes are scheduled at. See `paintOnAudioClock`.
+  const painter = opts.onStep !== undefined || opts.onEnd !== undefined
+    ? paintOnAudioClock(ctx) : null;
+
   let cursor = ctx.currentTime + 0.05;
-  for (const step of steps) {
+  steps.forEach((step, index) => {
     const dur = step.beats * secPerBeat;
     // The same √-polyphony scaling `playBlocked` uses, so a five-note
     // step and a one-note step sit at the same apparent loudness.
@@ -181,13 +193,19 @@ export async function playBlockedSequence(
     for (const semi of step.semitones) {
       voices.push(playNote(midiToFreq(rootMidi + semi), cursor, dur, ctx, vol));
     }
-    cursor += dur + gap;
-  }
+    if (opts.onStep !== undefined) {
+      const onStep = opts.onStep;
+      painter?.at(cursor, () => onStep(index));
+    }
+    cursor += dur + (index < steps.length - 1 ? gap : 0);
+  });
+  if (opts.onEnd !== undefined) painter?.at(cursor, opts.onEnd);
 
   return {
     stop: () => {
       const fadeAt = ctx.currentTime + 0.05;
       for (const v of voices) v.stop(fadeAt);
+      painter?.stop();
     },
   };
 }
@@ -203,7 +221,13 @@ export async function playBlocked(
   intervals: number[],
   durationBeats: number,
   bpm: number,
-  opts: { speedMultiplier?: number; velocity?: number } = {},
+  opts: {
+    speedMultiplier?: number;
+    velocity?: number;
+    /** Fires as the chord sounds, and as it ends, on the audio clock. */
+    onStart?: () => void;
+    onEnd?: () => void;
+  } = {},
 ): Promise<PlaybackHandle> {
   const ctx = await ensureRunning();
   const m = clampSpeed(opts.speedMultiplier ?? 1.0);
@@ -218,11 +242,16 @@ export async function playBlocked(
   const voices = intervals.map(iv =>
     playNote(midiToFreq(rootMidi + iv), now, dur, ctx, vol),
   );
+  const painter = opts.onStart !== undefined || opts.onEnd !== undefined
+    ? paintOnAudioClock(ctx) : null;
+  if (opts.onStart !== undefined) painter?.at(now, opts.onStart);
+  if (opts.onEnd !== undefined) painter?.at(now + dur, opts.onEnd);
 
   return {
     stop: () => {
       const fadeAt = ctx.currentTime + 0.05;
       for (const v of voices) v.stop(fadeAt);
+      painter?.stop();
     },
   };
 }
