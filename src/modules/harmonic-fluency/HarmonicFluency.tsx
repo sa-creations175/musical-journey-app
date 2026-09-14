@@ -30,6 +30,20 @@ import {
   FLASHCARDS,
   type FlashcardCategory,
 } from './catalog';
+import { HARMONIC_FLUENCY_GROUPS } from './coverageGroups';
+import type { CardGroup } from '../../components/moduleHome/cardGroups';
+
+/**
+ * THE THREE GROUPS AS HEADINGS (Silas, 14 Sep 2026; walked in
+ * `hf-home-groups-prototype.html`). Read off the coverage groups, so the
+ * home, the goal pickers and the counts cannot disagree about which
+ * family sits where or in what order.
+ */
+const HOME_GROUPS: readonly CardGroup[] = HARMONIC_FLUENCY_GROUPS.map(g => ({
+  key: g.unit,
+  title: g.title,
+  cardKeys: g.categories,
+}));
 
 /** What a running drill was started with. Null when none is running. */
 interface RunningDrill {
@@ -224,6 +238,7 @@ export default function HarmonicFluency() {
               if (isCategory(key)) navigate(detailHref(categoryPath(key)));
             }}
             sortable
+            groups={HOME_GROUPS}
             now={now}
           />
 

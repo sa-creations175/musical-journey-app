@@ -30,6 +30,7 @@ import {
   resolveCardSort, sortCards, type CardSortId,
 } from './cardSort';
 import { useAxisViews } from './useAxisViews';
+import { groupCardTotal, groupedCards, type CardGroup } from './cardGroups';
 import type { CategoryCardModel } from './model';
 
 /**
@@ -69,6 +70,19 @@ export interface CategoryCardGridProps {
    * before.
    */
   sortable?: boolean;
+  /**
+   * Draw the cards under headings.
+   *
+   * PASSED BY HARMONIC FLUENCY ONLY (14 Sep 2026, walked in
+   * `hf-home-groups-prototype.html`). Omitted, the grid renders exactly
+   * what it rendered before: one grid, no headings.
+   *
+   * THE HEADINGS ALWAYS STAY. A sort reorders the cards inside each group
+   * and never across groups, and "In order" is each group's own `cardKeys`
+   * order. A card no group names still renders, after the groups, rather
+   * than silently vanishing from the page.
+   */
+  groups?: readonly CardGroup[];
   now: number;
 }
 
@@ -133,18 +147,18 @@ function SortableCardGrid(props: CategoryCardGridProps) {
       </div>
       {/* THE SAME COMPONENT INSTANCE ACROSS A REORDER, so which cards
           are open survives one. */}
-      <Cards {...props} cards={sortCards(props.cards, order)} />
+      <Cards {...props} order={order} />
     </div>
   );
 }
 
 function Cards({
-  cards, moduleId, onDrill, onProgressDetail, now,
-}: CategoryCardGridProps) {
+  cards, moduleId, onDrill, onProgressDetail, groups, now, order = 'declared',
+}: CategoryCardGridProps & { order?: CardSortId }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const accentHex = moduleMetaById(moduleId)?.accentHex ?? NO_MODULE_ACCENT;
 
-  return (
+  const grid = (list: readonly CategoryCardModel[]) => (
     /* THE GRID OWNS THE SIZE, and `cardShell` owns the grid — a page
        cannot set its own. Reading's cards came out smaller than ear
        training's and both differed from harmonic fluency's, because the
@@ -152,7 +166,7 @@ function Cards({
        px-4`, the other two let the shell's width through. Three pages,
        three widths, one component that never knew. */
     <CardGrid>
-      {cards.map(card => (
+      {list.map(card => (
         <CategoryCard
           key={card.key}
           card={card}
@@ -171,5 +185,38 @@ function Cards({
         />
       ))}
     </CardGrid>
+  );
+
+  if (groups === undefined) return grid(sortCards(cards, order));
+
+  return (
+    <div>
+      {groupedCards(cards, groups, order).map(({ group, cards: list }) => (
+        <section
+          key={group?.key ?? '__ungrouped'}
+          data-testid="card-group"
+          data-group-key={group?.key}
+        >
+          {group !== null && (
+            /* Title, then the group's card total in mono, a hairline
+               under. The total is the sum of the cards' own counts, which
+               the adapter derives from the catalog. */
+            <div
+              className="flex items-baseline gap-2.5 mt-5 mb-2 pb-1.5 border-b border-neutral-200 dark:border-neutral-700"
+              data-testid="card-group-heading"
+            >
+              <h3 className="text-[15px] font-semibold">{group.title}</h3>
+              <span
+                className="font-mono text-xs text-neutral-500"
+                data-testid="card-group-count"
+              >
+                {groupCardTotal(list).toLocaleString('en-US')} cards
+              </span>
+            </div>
+          )}
+          {grid(list)}
+        </section>
+      ))}
+    </div>
   );
 }

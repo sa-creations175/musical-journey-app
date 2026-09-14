@@ -15,6 +15,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import HarmonicFluency from '../HarmonicFluency';
 import HarmonicFluencyCategory from '../HarmonicFluencyCategory';
 import { CATEGORY_LABELS, CATEGORY_ORDER, FLASHCARDS } from '../catalog';
+import { HARMONIC_FLUENCY_GROUPS } from '../coverageGroups';
 import { mixedDrillLabel } from '../../../components/moduleHome/mixedDrillLabel';
 import { db, newAttemptId, type AttemptRecord, type SpacingState } from '../../../lib/db';
 
@@ -146,14 +147,17 @@ async function click(el: Element | null | undefined, what: string) {
 }
 
 describe('the page opens as cards', () => {
-  it('renders one card per category, in CATEGORY_ORDER', async () => {
+  it('renders one card per category, group by group', async () => {
     const el = await renderPage();
     const keys = [...el.querySelectorAll('[data-card-key]')]
       .map(c => c.getAttribute('data-card-key'));
-    // DERIVED, and fifteen today. ASYMMETRIC: the order is pedagogical
-    // rather than alphabetical, so a grid that sorted would differ.
-    expect(keys).toEqual([...CATEGORY_ORDER]);
-    expect(keys).not.toEqual([...CATEGORY_ORDER].sort());
+    // DERIVED. Since 14 Sep 2026 the home draws its families under the
+    // three group headings, in each group's own order.
+    const grouped = HARMONIC_FLUENCY_GROUPS.flatMap(g => [...g.categories]);
+    expect(keys).toEqual(grouped);
+    expect([...keys].sort()).toEqual([...CATEGORY_ORDER].sort());
+    // ASYMMETRIC: the order is pedagogical rather than alphabetical.
+    expect(keys).not.toEqual([...grouped].sort());
   });
 
   it('counts each category off the catalog, not a written number', async () => {
