@@ -1126,6 +1126,35 @@ export const ENHARMONIC_SPELLINGS: ReadonlyArray<string> = [
   ...ENHARMONIC_INTERVAL_GROUPS.flatMap(g => g.members),
 ];
 
+/**
+ * ♭ AND ♯ IN THE CARD'S TEXT (Silas, 14 Sep 2026): a note's accidental
+ * (B♭, G♯) and a degree's (♭2, ♯9, ♯11). Applied to what a reader sees —
+ * question, answer, decoys, explanation — after the decoys are chosen.
+ * NOT to `axis` or `skillTag`: those are the stored spellings the facet
+ * chips, the grid's columns and the card's sound are keyed by.
+ *
+ * Only a letter A to G or a digit in the accidental's place is touched,
+ * so a word with a b in it is left alone.
+ */
+function enharmonicGlyphs(text: string): string {
+  return text
+    .replace(/(^|[^A-Za-z])([A-G])b(?![a-z])/g, '$1$2♭')
+    .replace(/([A-G])#/g, '$1♯')
+    .replace(/(^|[^A-Za-z])b(\d)/g, '$1♭$2')
+    .replace(/#(\d)/g, '♯$1');
+}
+
+/** A card with every accidental in its text written as a glyph. */
+function withEnharmonicGlyphs(card: Flashcard): Flashcard {
+  return {
+    ...card,
+    question: enharmonicGlyphs(card.question),
+    correctAnswer: enharmonicGlyphs(card.correctAnswer),
+    decoys: card.decoys.map(enharmonicGlyphs),
+    ...(card.explanation === undefined ? {} : { explanation: enharmonicGlyphs(card.explanation) }),
+  };
+}
+
 function generateEnharmonicEquivalentCards(): Flashcard[] {
   const cards: Flashcard[] = [];
   let i = 1;
@@ -1227,7 +1256,7 @@ function generateEnharmonicEquivalentCards(): Flashcard[] {
     }
   }
 
-  return cards;
+  return cards.map(withEnharmonicGlyphs);
 }
 
 

@@ -222,8 +222,8 @@ describe('enharmonic equivalents', () => {
     // The claim the whole category makes, made audible: if ♯4 and ♭5
     // sounded differently the cards would be teaching the opposite of
     // what they say.
-    const sharp = FLASHCARDS.find(c => c.question === 'Enharmonic equivalent of #4?')!;
-    const flat = FLASHCARDS.find(c => c.question === 'Enharmonic equivalent of b5?')!;
+    const sharp = FLASHCARDS.find(c => c.question === 'Enharmonic equivalent of ♯4?')!;
+    const flat = FLASHCARDS.find(c => c.question === 'Enharmonic equivalent of ♭5?')!;
     expect(steps(cardSound(sharp)!)).toEqual(steps(cardSound(flat)!));
   });
 });

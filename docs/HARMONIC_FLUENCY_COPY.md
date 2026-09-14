@@ -381,8 +381,8 @@ slash-chord explanations, the mode questions, the leading-tone card. A **bare**
 | fh-19 | The iii — the chord built on the 3rd number — is |
 | mo-1 | starting on the 2nd number. |
 | mo-6 | Locrian starts on the 7th number — unstable |
-| enh-n-11 | the leading tone of C# major / raised numbers. |
-| enh-n-15 | the 3rd of C# major / raised numbers. |
+| enh-n-11 | the leading tone of C♯ major / raised numbers. |
+| enh-n-15 | the 3rd of C♯ major / raised numbers. |
 | enh-n-17 | heavily-flat keys and lowered numbers. |
 | nn-12 | number 4 is B. |
 | iv-inv-sum | both ends count the number they sit on |
