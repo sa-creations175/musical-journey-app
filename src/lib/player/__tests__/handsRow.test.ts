@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { seqSchedule } from '../../audio';
-import { bassDrop, chordStep, handsForSetting, type PlayerChord } from '../voices';
+import { chordStep, handsForSetting, placeBass, type PlayerChord } from '../voices';
 import { DEFAULT_PLAYER_SETTINGS, type PlayerSettings } from '../settings';
 import { handTones } from '../../builtAnswers/chordShapes';
 import { voiceAll } from '../../builtAnswers/voiceLeading';
@@ -30,9 +30,8 @@ const ROOT: PlayerSettings = { ...DEFAULT_PLAYER_SETTINGS, hands: 'root' };
 
 /** What the sequencer schedules, per chord: the bass and the right hand. */
 function scheduled(chords: PlayerChord[], settings: PlayerSettings) {
-  const played = handsForSetting(chords, settings);
-  const drop = bassDrop(chords, settings);
-  const { steps } = seqSchedule(played.map(c => chordStep(c, settings, 2, drop)), 0, 1, 0);
+  const played = handsForSetting(placeBass(chords, settings), settings);
+  const { steps } = seqSchedule(played.map(c => chordStep(c, settings, 2)), 0, 1, 0);
   return steps.map((s, i) => ({
     bass: s.notes.filter(n => n.hand === 'L').map(n => n.midi),
     right: s.notes.filter(n => n.hand === 'R').map(n => n.midi),

@@ -250,6 +250,21 @@ describe('the rows a surface may drop', () => {
     expect(listen!.nextElementSibling).toBe(bass);
   });
 
+  it('has a Bass register row after Bass, C2 to G3 by default, and a tap sets it', () => {
+    // SILAS'S ANSWERS OF 14 SEP 2026: three windows in his words, the
+    // default the middle one, the same row on every surface with a bass.
+    let settings = DEFAULT_PLAYER_SETTINGS;
+    mount({ onSettings: (next: typeof settings) => { settings = next; } });
+    const bass = byTestId('bass-forward')!.closest('.space-y-1\\.5');
+    const register = byTestId('bass-register-c2')!.closest('.space-y-1\\.5');
+    expect(bass!.nextElementSibling).toBe(register);
+    expect(['c1', 'c2', 'c3'].map(id => byTestId(`bass-register-${id}`)!.textContent))
+      .toEqual(['C1 to G2', 'C2 to G3', 'C3 to G4']);
+    expect(byTestId('bass-register-c2')!.getAttribute('aria-pressed')).toBe('true');
+    tap(byTestId('bass-register-c3'));
+    expect(settings.bassRegister).toBe('c3');
+  });
+
   it('hands a run to the player when Up is chosen', async () => {
     // THE ROW DOES SOMETHING, not only draws. A progression's chords
     // each carry their run inside their own bar.

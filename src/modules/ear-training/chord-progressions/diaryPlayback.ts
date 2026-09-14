@@ -159,12 +159,17 @@ export function motionChordsById(
   // chord from its own numeral; the direction hint moves the second
   // chord's whole voicing an octave.
   const shift = chord2RootSemis - numeralOffset(def.numerals[1]);
-  const shifted = shift === 0 ? chords : [
+  // AN ASCENDING OR DESCENDING CARD NAMES ITS MOVE, so the Bass register
+  // moves the pair as a block (Silas, 14 Sep 2026). A deceptive card
+  // names a surprise, not a direction.
+  const named = def.direction === 'deceptive' ? {} : { namesMove: true };
+  const shifted = [
     chords[0],
     {
       ...chords[1],
       hand: chords[1].hand.map(m => m + shift),
       bass: chords[1].bass === null ? null : chords[1].bass + shift,
+      ...named,
     },
   ];
   return { chords: shifted, keyPc: ((rootMidi % 12) + 12) % 12, names: namesOf(shifted, def.qualities) };

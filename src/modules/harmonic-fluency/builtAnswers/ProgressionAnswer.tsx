@@ -221,9 +221,12 @@ export default function ProgressionAnswer({
     .map((v, i) => (v === null ? null : {
       ...v,
       name: `${spellInKey(shownChords[i].rootPc, target.keyName)}${played[i]}`,
+      // AN ARROW THE READER TAPPED NAMES THE MOVE, so the register keeps
+      // it (Silas, 14 Sep 2026) — see `placeBass`.
+      ...(i > 0 && (bassMoves[i - 1] ?? 'auto') !== 'auto' ? { namesMove: true } : {}),
     }))
     .filter((v): v is PlayerChord => v !== null),
-  [voiced, shownChords, played, target.keyName]);
+  [voiced, shownChords, played, target.keyName, bassMoves]);
 
   /** Which way each move ACTUALLY went, for the arrows. */
   const effective = (pick: (v: NonNullable<typeof voiced[number]>) => number | null) =>

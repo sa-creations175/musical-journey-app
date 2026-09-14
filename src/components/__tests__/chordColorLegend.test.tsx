@@ -21,6 +21,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react';
 import ChordColorLegend from '../ChordColorLegend';
 import { DEFAULT_PLAYER_SETTINGS } from '../../lib/player/settings';
+import { placeBass } from '../../lib/player/voices';
 import { inKeyRing } from '../../lib/player/inKeyColour';
 import { intervalColor } from '../../lib/voicingColors';
 
@@ -125,11 +126,11 @@ describe('one chip per sounding note, named and coloured', () => {
     expect(chips()).toEqual(['D root · bass']);
   });
 
-  it('follows the bass drop, so a chip names the key that is lit', () => {
-    render({ drop: -12 });
+  it('follows the bass where the register placed it, so a chip names the key that is lit', () => {
+    render({ chord: placeBass([DM7], DEFAULT_PLAYER_SETTINGS)[0] });
     open();
-    // The bass D fell an octave; the chips still name it D, and there
-    // is still exactly one of it.
+    // Forward placed the bass D an octave down; the chips still name it
+    // D, and there is still exactly one of it.
     expect(chips().filter(c => c.includes('bass'))).toEqual(['D root · bass']);
   });
 

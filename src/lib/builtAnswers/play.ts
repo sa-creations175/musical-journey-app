@@ -32,7 +32,7 @@ import {
   DEFAULT_BPM as PANEL_BPM, type PlayAs, type PlayerSettings,
 } from '../player/settings';
 import {
-  RUN_RELEASE, bassDrop, chordStep, handsForSetting, stepBeats, strikeOrder,
+  RUN_RELEASE, chordStep, handsForSetting, placeBass, stepBeats, strikeOrder,
   type PlayerChord,
 } from '../player/voices';
 
@@ -150,16 +150,14 @@ export async function playPanel(
   } = {},
 ): Promise<PlaybackHandle> {
   const beats = opts.beats ?? CHORD_BEATS;
-  // ONE DROP FOR THE WHOLE SEQUENCE — see `bassDrop`. Computed here
-  // because this is the only place that holds every chord the line is
-  // made of, and the rule is "the whole line or none of it".
-  const drop = bassDrop(chords, settings);
   const bars = inBars(chords);
-  // THE HANDS ROW — the root joins the right hand or it does not, the
-  // bass untouched. Idempotent, so a panel that already applied it is
-  // not applied twice. See `handsForSetting`.
-  const steps = handsForSetting(chords, settings)
-    .map(c => chordStep(c, settings, beats, drop, bars));
+  // THE BASS IN ITS REGISTER, THEN THE HANDS ROW. Placed here because
+  // this is the one place that holds every chord the line is made of —
+  // see `placeBass`. The bass is marked once placed and the Hands row is
+  // idempotent, so a panel that already applied them hands over a list
+  // neither moves again.
+  const steps = handsForSetting(placeBass(chords, settings), settings)
+    .map(c => chordStep(c, settings, beats, bars));
   const lead = opts.orientPc === undefined ? [] : [tonicStep(opts.orientPc)];
   const offset = lead.length;
   return playSeqChords([...lead, ...steps], 0, settings.bpm, {

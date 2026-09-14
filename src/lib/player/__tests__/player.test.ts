@@ -13,11 +13,11 @@ import { describe, expect, it } from 'vitest';
 import { bassLine, nearest, voiceAll } from '../../builtAnswers/voiceLeading';
 import { handTones } from '../../builtAnswers/chordShapes';
 import {
-  bassDrop, chordStep, handsForSetting, liftHand, playerMarks, soundingNotes, stepBeats,
+  chordStep, handsForSetting, liftHand, placeBass, playerMarks, soundingNotes, stepBeats,
 } from '../voices';
 import { panelBeats } from '../../builtAnswers/play';
 import { BROKEN_STEP_BEATS } from '../../audio';
-import { DEFAULT_PLAYER_SETTINGS, LADDER_RUNGS, handsFrom } from '../settings';
+import { DEFAULT_PLAYER_SETTINGS, LADDER_RUNGS, bassWindow, handsFrom } from '../settings';
 
 describe('the bass walks by the rule', () => {
   /**
@@ -288,7 +288,7 @@ describe('Play as runs the chord and changes nothing else', () => {
     // SILAS'S ANSWER OF 13 SEP 2026. The bar keeps its length and the
     // run is fitted into it, so the next chord lands on its beat.
     expect(stepBeats(chord, upDown, 2, true)).toBe(2);
-    const step = chordStep(chord, upDown, 2, 0, true);
+    const step = chordStep(chord, upDown, 2, true);
     expect(step.beats).toBe(2);
     const lastStrike = (step.intervals.length - 1) * step.roll!;
     expect(lastStrike + step.release!).toBeLessThanOrEqual(2);
@@ -327,62 +327,87 @@ describe('the bass level', () => {
   const forward = DEFAULT_PLAYER_SETTINGS;
   const blended = { ...DEFAULT_PLAYER_SETTINGS, bass: 'blended' as const };
 
-  /** A line whose lowest bass has room to fall. */
-  const roomy = [
-    { name: 'F', rootPc: 5, bass: 53, hand: [60, 64, 69] },
-    { name: 'C', rootPc: 0, bass: 48, hand: [60, 64, 67] },
+  /** A 2-5-1 in F as the bass rule places it: G2 C3 F2, hands above. */
+  const twoFiveOne = [
+    { name: 'Gm7', rootPc: 7, bass: 43, hand: [58, 62, 65] },
+    { name: 'C7', rootPc: 0, bass: 48, hand: [58, 64, 67] },
+    { name: 'Fmaj7', rootPc: 5, bass: 41, hand: [57, 60, 64] },
   ];
-  /** A line whose lowest bass is already on the board's floor. */
-  const low = [
-    { name: 'C', rootPc: 0, bass: 48, hand: [60, 64, 67] },
-    { name: 'F', rootPc: 5, bass: 41, hand: [60, 65, 69] },
-  ];
+  const basses = (chords: ReadonlyArray<{ bass: number | null }>) => chords.map(c => c.bass);
 
-  it('opens on Forward, because the bass is what a progression is doing', () => {
+  it('opens on Forward, in C2 to G3', () => {
     expect(DEFAULT_PLAYER_SETTINGS.bass).toBe('forward');
+    expect(DEFAULT_PLAYER_SETTINGS.bassRegister).toBe('c2');
+    expect(bassWindow('c2')).toEqual({ low: 36, high: 55 });
+    expect(bassWindow('c1')).toEqual({ low: 24, high: 43 });
+    expect(bassWindow('c3')).toEqual({ low: 48, high: 67 });
   });
 
-  it('drops the whole line an octave where there is room', () => {
-    expect(bassDrop(roomy, forward)).toBe(-12);
-    expect(soundingNotes(roomy[0], forward, -12).notes[0]).toBe(41);
-    expect(soundingNotes(roomy[1], forward, -12).notes[0]).toBe(36);
+  it('Silas’s own example: a 2-5-1 in F is G2 C2 F2 on Forward and G2 C3 F2 on Blended', () => {
+    // NOTHING NAMES THE DIRECTION, so each bass is placed on its own:
+    // Forward drops it an octave unless that leaves the window.
+    expect(basses(placeBass(twoFiveOne, forward))).toEqual([43, 36, 41]);
+    expect(basses(placeBass(twoFiveOne, blended))).toEqual([43, 48, 41]);
   });
 
-  it('drops none of it when one note of the line would fall off the board', () => {
-    // THE WHOLE POINT. 41 - 12 is 29, below the four-octave board, so
-    // the line stays where it is rather than moving the notes that can
-    // and leaving the one that cannot.
-    expect(bassDrop(low, forward)).toBe(0);
+  it('a named direction moves the whole line as a block: lowest fit on Forward, highest on Blended', () => {
+    const named = twoFiveOne.map((c, i) => (i === 0 ? c : { ...c, namesMove: true }));
+    expect(basses(placeBass(named, forward))).toEqual([43, 48, 41]);
+    // Blended's highest octave that fits C2 to G3 is the same one here —
+    // the line spans G2 to C3 and the window has no room an octave up.
+    expect(basses(placeBass(named, blended))).toEqual([43, 48, 41]);
+    // A small pair has room for two octaves, and the two settings part.
+    const pair = [
+      { name: 'C', rootPc: 0, bass: 48, hand: [60, 64, 67] },
+      { name: 'D', rootPc: 2, bass: 50, hand: [62, 66, 69], namesMove: true },
+    ];
+    expect(basses(placeBass(pair, forward))).toEqual([36, 38]);
+    expect(basses(placeBass(pair, blended))).toEqual([48, 50]);
   });
 
-  it('does not move a blended line at all', () => {
-    expect(bassDrop(roomy, blended)).toBe(0);
-    expect(soundingNotes(roomy[0], blended).notes[0]).toBe(53);
+  it('never leaves the window, on any register', () => {
+    for (const bassRegister of ['c1', 'c2', 'c3'] as const) {
+      const { low, high } = bassWindow(bassRegister);
+      for (const settings of [forward, blended]) {
+        for (const b of basses(placeBass(twoFiveOne, { ...settings, bassRegister }))) {
+          expect(b).toBeGreaterThanOrEqual(low);
+          expect(b).toBeLessThanOrEqual(high);
+        }
+      }
+    }
+  });
+
+  it('is placed once: a placed list handed on to the sequencer is not moved again', () => {
+    // NOT IDEMPOTENT BY ITSELF, which is why the mark exists: on C1 to G2
+    // Forward takes a C3 bass to C2, inside the window, and a second pass
+    // would take it on to C1.
+    const named = twoFiveOne.map((c, i) => (i === 0 ? c : { ...c, namesMove: true }));
+    const high = twoFiveOne.map(c => ({ ...c, bass: (c.bass as number) + 24, hand: c.hand.map(m => m + 12) }));
+    for (const bassRegister of ['c1', 'c2', 'c3'] as const) {
+      for (const settings of [forward, blended]) {
+        for (const line of [twoFiveOne, named, high]) {
+          const s = { ...settings, bassRegister };
+          const once = placeBass(line, s);
+          expect(basses(placeBass(once, s)), `${bassRegister} ${settings.bass}`).toEqual(basses(once));
+        }
+      }
+    }
   });
 
   it('moves the bass and nothing else', () => {
     // A bass control that lifted the hand would be a second octave
     // control wearing this one's clothes.
-    const dropped = soundingNotes(roomy[0], forward, -12);
-    const level = soundingNotes(roomy[0], blended);
-    expect(dropped.notes.slice(1)).toEqual(level.notes.slice(1));
-  });
-
-  it('drops only the bass under Root in the right hand too', () => {
-    const rooted = handsForSetting(roomy, { ...forward, hands: 'root' });
-    const dropped = soundingNotes(rooted[0], forward, -12);
-    const level = soundingNotes(rooted[0], blended, 0);
-    expect(dropped.notes.slice(1)).toEqual(level.notes.slice(1));
-    expect(dropped.notes[0]).toBe(level.notes[0] - 12);
+    const placed = placeBass(twoFiveOne, forward);
+    placed.forEach((c, i) => expect(c.hand).toEqual(twoFiveOne[i].hand));
   });
 
   it('lights the key it actually sounds', () => {
-    // THE LAW, and the reason `playerMarks` takes the drop at all: the
-    // board would otherwise paint the bass an octave above where it is
-    // heard, and teach the wrong note.
-    const lit = [...playerMarks(roomy[0], forward, -12).keys()];
-    expect(lit).toContain(41);
-    expect(lit).not.toContain(53);
-    expect([...playerMarks(roomy[0], blended, 0).keys()]).toContain(53);
+    // THE LAW: the board paints the placed bass, never where the rule
+    // first put it.
+    const placed = placeBass(twoFiveOne, forward);
+    const lit = [...playerMarks(placed[1], forward).keys()];
+    expect(lit).toContain(36);
+    expect(lit).not.toContain(48);
+    expect(soundingNotes(placed[1], forward).notes[0]).toBe(36);
   });
 });

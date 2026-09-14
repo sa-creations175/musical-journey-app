@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { seqSchedule } from '../../../../lib/audio';
-import { bassDrop, chordStep, type PlayerChord } from '../../../../lib/player/voices';
+import { chordStep, placeBass, type PlayerChord } from '../../../../lib/player/voices';
 import { DEFAULT_PLAYER_SETTINGS, type PlayerSettings } from '../../../../lib/player/settings';
 import { ALL_MOTIONS, motionId } from '../chordMotionPool';
 import { bassMove, motionChords } from '../motionChords';
@@ -22,8 +22,7 @@ const RULED = [
 
 /** The bass pair the sequencer was handed, and when each sounds. */
 function scheduledBass(chords: PlayerChord[], settings: PlayerSettings): [number, number] {
-  const drop = bassDrop(chords, settings);
-  const { steps } = seqSchedule(chords.map(c => chordStep(c, settings, 2, drop)), 0, 1, 0);
+  const { steps } = seqSchedule(placeBass(chords, settings).map(c => chordStep(c, settings, 2)), 0, 1, 0);
   return [steps[0].notes[0].midi, steps[1].notes[0].midi];
 }
 
@@ -60,7 +59,9 @@ describe('the verdict follows the bass', () => {
           chords.forEach((c, i) => {
             const b = [from, to][i];
             expect(b, where).toBeLessThan(Math.min(...c.hand));
-            expect(b, where).toBeGreaterThanOrEqual(36);
+            // On the board, which starts at F1. The register can sit a
+            // wide named jump a few keys under C2 rather than flip it.
+            expect(b, where).toBeGreaterThanOrEqual(29);
           });
           directions.add(bassMove(chords, settings)!.direction);
           checked += 1;
@@ -72,19 +73,22 @@ describe('the verdict follows the bass', () => {
     expect(directions).toEqual(new Set(['up', 'down', 'same']));
   });
 
-  it('reads the Forward bass where it sounds, an octave down, and names the same move', () => {
-    // A motion high enough for Forward to drop the line — not every one
-    // is: the drop waits until every bass fits above the board's floor.
-    const dropped = KEYS.flatMap(key => ALL_MOTIONS.map(m =>
-      motionChords(key, m.startLabel, m.destLabel, 'seventh').chords))
-      .find(chords => bassDrop(chords, MODES[0]) === -12);
+  it('reads the Forward bass where it sounds, an octave under Blended, and names the same move', () => {
+    // A NAMED PAIR SMALL ENOUGH TO FIT THE WINDOW TWICE: Forward takes the
+    // lowest octave that fits, Blended the highest (Silas, 14 Sep 2026).
+    const both = KEYS.flatMap(key => ALL_MOTIONS
+      .filter(m => m.direction !== 'same')
+      .map(m => motionChords(key, m.startLabel, m.destLabel, 'seventh', 'flat', m.direction).chords))
+      .find(chords => scheduledBass(chords, MODES[0])[0] !== scheduledBass(chords, MODES[1])[0]);
     // Guard: such a motion exists, so this is not vacuous.
-    expect(dropped).toBeDefined();
-    const [f] = scheduledBass(dropped!, MODES[0]);
-    const [b] = scheduledBass(dropped!, MODES[1]);
+    expect(both).toBeDefined();
+    const [f] = scheduledBass(both!, MODES[0]);
+    const [b] = scheduledBass(both!, MODES[1]);
     expect(f).toBe(b - 12);
-    expect(bassMove(dropped!, MODES[0])?.from).toBe(f);
-    expect(bassMove(dropped!, MODES[0])?.words).toBe(bassMove(dropped!, MODES[1])?.words);
+    expect(f).toBeGreaterThanOrEqual(36);
+    expect(b).toBeLessThanOrEqual(55);
+    expect(bassMove(both!, MODES[0])?.from).toBe(f);
+    expect(bassMove(both!, MODES[0])?.words).toBe(bassMove(both!, MODES[1])?.words);
   });
 
   it('key of C, Cmaj7 → Am7, bass C down to A: down a minor 3rd', () => {

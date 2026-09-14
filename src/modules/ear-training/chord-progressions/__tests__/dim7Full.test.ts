@@ -7,7 +7,7 @@
  * sounding pitch classes checked against the chord's own four.
  */
 import { describe, expect, it } from 'vitest';
-import { bassDrop, chordStep } from '../../../../lib/player/voices';
+import { chordStep, placeBass } from '../../../../lib/player/voices';
 import { DEFAULT_PLAYER_SETTINGS, type PlayerSettings } from '../../../../lib/player/settings';
 import { handTones } from '../../../../lib/builtAnswers/chordShapes';
 import { ALL_MOTIONS, motionId } from '../chordMotionPool';
@@ -39,7 +39,7 @@ describe('a dim7 at Full Voicing', () => {
         const root = chords[i].rootPc;
         const allowed = new Set([0, 3, 6, 9].map(iv => (root + iv) % 12));
         for (const settings of SETTINGS) {
-          const step = chordStep(chords[i], settings, 2, bassDrop(chords, settings));
+          const step = chordStep(placeBass(chords, settings)[i], settings, 2);
           for (const midi of step.intervals) {
             expect(allowed.has(((midi % 12) + 12) % 12), `${key} ${motionId(m)}`).toBe(true);
           }

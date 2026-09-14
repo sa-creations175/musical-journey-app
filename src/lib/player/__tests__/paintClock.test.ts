@@ -18,7 +18,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { seqSchedule, type SeqChord } from '../../audio';
-import { bassDrop, chordStep } from '../voices';
+import { chordStep, placeBass } from '../voices';
 import { DEFAULT_PLAYER_SETTINGS } from '../settings';
 import { motionChords } from '../../../modules/ear-training/chord-progressions/motionChords';
 
@@ -68,8 +68,7 @@ describe('a chord motion sounds exactly the notes it schedules', () => {
   it('schedules the same pitches the step carries, in the same order', () => {
     const settings = DEFAULT_PLAYER_SETTINGS;
     const { chords: motion } = motionChords(5, '2', '5', 'seventh');
-    const drop = bassDrop(motion, settings);
-    const seq = motion.map(c => chordStep(c, settings, 2, drop));
+    const seq = placeBass(motion, settings).map(c => chordStep(c, settings, 2));
     const { steps } = seqSchedule(seq, 0, SEC_PER_BEAT, 0);
     steps.forEach((step, i) => {
       expect(step.notes.map(n => n.midi)).toEqual(seq[i].intervals);

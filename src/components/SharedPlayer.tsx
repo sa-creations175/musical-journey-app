@@ -73,12 +73,13 @@ import type { Move } from '../lib/builtAnswers/voiceLeading';
 import type { PlaybackHandle } from '../lib/musicalPlayback';
 import { panelBeats, playPanel } from '../lib/builtAnswers/play';
 import {
-  BPM_MAX, BPM_MIN, HANDS_LABEL, LADDER_RUNGS, LOOP_OPTIONS, clampBpm, readSettingsOpen,
+  BASS_REGISTER_OPTIONS, BPM_MAX, BPM_MIN, HANDS_LABEL, LADDER_RUNGS, LOOP_OPTIONS, clampBpm,
+  readSettingsOpen,
   writeSettingsOpen, type PlayAs, type PlayerSettings,
 } from '../lib/player/settings';
 import PlayAsRow from './PlayAsRow';
 import {
-  bassDrop, handsForSetting, playerMarks, type PlayerChord,
+  handsForSetting, placeBass, playerMarks, type PlayerChord,
 } from '../lib/player/voices';
 import { useInstrument } from '../lib/instrumentContext';
 import { useSpelling } from '../lib/spellingPref';
@@ -321,10 +322,14 @@ export default function SharedPlayer({
     ...(beats === undefined ? {} : { beats }),
   });
 
-  // THE HANDS ROW, APPLIED ONCE FOR THE WHOLE LIST — see
-  // `handsForSetting`. What plays, what lights and what the legend names
-  // all read this, so "Root in the right hand" is one voicing everywhere.
-  const voiced = useMemo(() => handsForSetting(chords, settings), [chords, settings]);
+  // THE BASS IN ITS REGISTER, THEN THE HANDS ROW, APPLIED ONCE FOR THE
+  // WHOLE LIST — see `placeBass` and `handsForSetting`. What plays, what
+  // lights and what the legend names all read this, so the bass and
+  // "Root in the right hand" are one voicing everywhere.
+  const voiced = useMemo(
+    () => handsForSetting(placeBass(chords, settings), settings),
+    [chords, settings],
+  );
 
   const run = (startAtBeat: number) => {
     handle?.stop();
@@ -410,13 +415,12 @@ export default function SharedPlayer({
   const hasBass = chords.some(c => c.bass !== null);
   const handsRow = showHands ?? hasBass;
   const listenRow = showListen ?? hasBass;
-  // THE LIT KEYS ARE THE SOUNDING KEYS. With Bass on Forward the line
-  // drops an octave, and the board follows it down — Silas's law of
-  // 10 Sep 2026, for every surface.
-  const drop = bassDrop(chords, settings);
+  // THE LIT KEYS ARE THE SOUNDING KEYS. `voiced` has the bass where the
+  // register put it, and the board follows it — Silas's law of 10 Sep
+  // 2026, for every surface.
   const sounding = voiced[lit ?? startLit] ?? voiced[0] ?? null;
   const marks: ReadonlyMap<number, KeyMark> = ringed(
-    playerMarks(sounding, settings, drop), sounding, ring,
+    playerMarks(sounding, settings), sounding, ring,
   );
 
   const directionRow = (
@@ -461,7 +465,6 @@ export default function SharedPlayer({
     <ChordColorLegend
       chord={lit === null ? (voiced[0] ?? null) : (voiced[lit] ?? null)}
       settings={settings}
-      drop={drop}
       spelling={spelling}
       {...(ring === undefined ? {} : { ring })}
     />
@@ -639,6 +642,23 @@ export default function SharedPlayer({
                 <Chip on={settings.bass === 'blended'} testId="bass-blended" onClick={() => set({ bass: 'blended' })}>
                   Blended
                 </Chip>
+              </Row>
+            )}
+
+            {/* THE WINDOW THE BASS LIVES IN, beside the row that says how
+                loud it is — spec §6's order (Silas, 14 Sep 2026). */}
+            {listenRow && (
+              <Row label="Bass register">
+                {BASS_REGISTER_OPTIONS.map(o => (
+                  <Chip
+                    key={o.id}
+                    on={settings.bassRegister === o.id}
+                    testId={`bass-register-${o.id}`}
+                    onClick={() => set({ bassRegister: o.id })}
+                  >
+                    {o.label}
+                  </Chip>
+                ))}
               </Row>
             )}
 

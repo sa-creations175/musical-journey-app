@@ -27,7 +27,7 @@
  * =====================================================================
  */
 import { bassLine, nearest, allVoicings } from '../../../lib/builtAnswers/voiceLeading';
-import { bassDrop, chordStep, handsForSetting, playerMarks } from '../../../lib/player/voices';
+import { chordStep, handsForSetting, placeBass, playerMarks } from '../../../lib/player/voices';
 import { intervalFromSemitones, moveWords } from './intervalQuality';
 import type { PlayerSettings } from '../../../lib/player/settings';
 import type { KeyMark } from '../../../lib/builtAnswers/board';
@@ -225,6 +225,9 @@ export function motionChords(
       rootPc: step.rootPc,
       name: chordName(step.root, step.quality, rung, rowSpelling),
       rootLetter: step.root,
+      // THE CARD NAMES THE MOVE, so the register moves the pair as a
+      // block and the jump keeps its direction (Silas, 14 Sep 2026).
+      ...(i === 1 && dir !== 'same' ? { namesMove: true } : {}),
     });
   });
 
@@ -245,9 +248,10 @@ export function motionMarks(
   index: number,
   settings: PlayerSettings,
 ): ReadonlyMap<number, KeyMark> {
-  // THE HANDS ROW APPLIED TO THE LIST, as the sequencer applies it.
-  const played = handsForSetting(chords, settings);
-  return playerMarks(played[index] ?? null, settings, bassDrop(chords, settings));
+  // THE REGISTER AND THE HANDS ROW APPLIED TO THE LIST, as the sequencer
+  // applies them.
+  const played = handsForSetting(placeBass(chords, settings), settings);
+  return playerMarks(played[index] ?? null, settings);
 }
 
 /** What the bass did between the two chords, as it was heard. */
@@ -295,9 +299,9 @@ export function bassMove(
   settings: PlayerSettings,
 ): BassMove | null {
   if (chords.length < 2) return null;
-  const drop = bassDrop(chords, settings);
-  const [from, to] = [chords[0], chords[1]]
-    .map(c => chordStep(c, settings, 2, drop).intervals[0]);
+  const placed = placeBass(chords, settings);
+  const [from, to] = [placed[0], placed[1]]
+    .map(c => chordStep(c, settings, 2).intervals[0]);
   if (from === undefined || to === undefined) return null;
   // NO DIRECTION AND NO INTERVAL when the bass holds: the verdict reads
   // `4 → 4m · same root · F → Fm`.

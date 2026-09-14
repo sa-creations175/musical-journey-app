@@ -24,8 +24,8 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_MOTIONS, motionId } from '../chordMotionPool';
 import { motionChords, motionMarks } from '../motionChords';
-import { bassDrop, chordStep, handsForSetting } from '../../../../lib/player/voices';
-import { DEFAULT_PLAYER_SETTINGS } from '../../../../lib/player/settings';
+import { chordStep, handsForSetting, placeBass } from '../../../../lib/player/voices';
+import { DEFAULT_PLAYER_SETTINGS, bassWindow } from '../../../../lib/player/settings';
 import { onBoard } from '../../../../lib/builtAnswers/board';
 import { keyToRootMidi } from '../progressionTheory';
 import { LIST_RUNGS } from '../sharedList';
@@ -52,11 +52,11 @@ describe('the lit keys are the sounding keys', () => {
             const { chords } = motionChords(
               keyPc, motion.startLabel, motion.destLabel, rung,
             );
-            const drop = bassDrop(chords, settings);
-            // What the sequencer plays: the Hands row applied to the list.
-            const played = handsForSetting(chords, settings);
+            // What the sequencer plays: the register, then the Hands row,
+            // applied to the list.
+            const played = handsForSetting(placeBass(chords, settings), settings);
             played.forEach((chord, i) => {
-              const scheduled = chordStep(chord, settings, 2, drop).intervals
+              const scheduled = chordStep(chord, settings, 2).intervals
                 .filter(onBoard)
                 .sort((a, b) => a - b);
               const painted = [...motionMarks(chords, i, settings).keys()]
@@ -71,17 +71,33 @@ describe('the lit keys are the sounding keys', () => {
   }
 });
 
-describe('the bass drop is the whole line or none of it', () => {
-  it('never lights one chord an octave below the other', () => {
-    const settings = { ...DEFAULT_PLAYER_SETTINGS, bass: 'forward' as const };
-    for (const key of KEYS) {
-      const keyPc = ((keyToRootMidi(key) % 12) + 12) % 12;
-      for (const motion of ALL_MOTIONS) {
-        const { chords } = motionChords(
-          keyPc, motion.startLabel, motion.destLabel, 'seventh',
-        );
-        const drop = bassDrop(chords, settings);
-        expect([0, -12], motionId(motion)).toContain(drop);
+describe('a named motion moves into the register as one block', () => {
+  it('shifts both basses by the same octaves, inside the window, on every register', () => {
+    for (const bassRegister of ['c1', 'c2', 'c3'] as const) {
+      for (const bass of ['forward', 'blended'] as const) {
+        const settings = { ...DEFAULT_PLAYER_SETTINGS, bass, bassRegister };
+        const { low, high } = bassWindow(bassRegister);
+        for (const key of KEYS) {
+          const keyPc = ((keyToRootMidi(key) % 12) + 12) % 12;
+          for (const motion of ALL_MOTIONS) {
+            const { chords } = motionChords(
+              keyPc, motion.startLabel, motion.destLabel, 'seventh', 'flat', motion.direction,
+            );
+            const placed = placeBass(chords, settings);
+            const where = `${bassRegister} ${bass} ${key} ${motionId(motion)}`;
+            const shifts = placed.map((c, i) => (c.bass as number) - (chords[i].bass as number));
+            expect(Math.abs(shifts[0] % 12), where).toBe(0);
+            expect(shifts[1], where).toBe(shifts[0]);
+            // THE DIRECTION WINS. A jump of up to a major 6th always fits
+            // the window at some octave; a wider one (a minor 6th's twin
+            // up to a major 7th) may not, and then the pair sits as little
+            // outside it as an octave shift allows — never more than the
+            // jump's size less eight.
+            const [a, b] = placed.map(c => c.bass as number);
+            const outside = [a, b].reduce((n, m) => n + Math.max(0, low - m) + Math.max(0, m - high), 0);
+            expect(outside, where).toBeLessThanOrEqual(Math.max(0, Math.abs(b - a) - 8));
+          }
+        }
       }
     }
   });

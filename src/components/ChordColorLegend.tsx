@@ -94,8 +94,6 @@ interface Props {
   /** The chord sounding now, or null before anything has played. */
   chord: PlayerChord | null;
   settings: PlayerSettings;
-  /** The sequence's bass drop, so the chips follow the board. */
-  drop?: number;
   spelling: Spelling;
   /** The ring this surface draws on the chord's root, where it draws
    *  one. Omitted, the ring line is not written. */
@@ -103,12 +101,14 @@ interface Props {
 }
 
 export default function ChordColorLegend({
-  chord, settings, drop = 0, spelling, ring,
+  chord, settings, spelling, ring,
 }: Props) {
   const [open, setOpen] = useState(readLegendOpen);
+  // THE CHORD AS IT SOUNDS, its bass already in its register — so the
+  // chips follow the board.
   const { notes, hands } = chord === null
     ? { notes: [] as number[], hands: [] as Array<'L' | 'R'> }
-    : soundingNotes(chord, settings, drop);
+    : soundingNotes(chord, settings);
 
   // ONE CHIP PER SOUNDING PITCH CLASS. The same note in two octaves is
   // one fact about the chord, and two identical chips would read as

@@ -155,6 +155,38 @@ export function playStyleOf(playAs: PlayAs): 'blocked' | 'broken' {
  */
 export type BassLevel = 'forward' | 'blended';
 
+/**
+ * The window the bass line lives in.
+ *
+ * =====================================================================
+ * AN OCTAVE AND A HALF, AND THE BASS NEVER LEAVES IT. Silas's answers of
+ * 14 Sep 2026, on every surface that plays a bass.
+ *
+ * Where a card or the reader names the bass's direction, the whole line
+ * moves into the window as one block, so no jump is ever flipped: on
+ * Forward the lowest octave that fits, on Blended the highest. Where
+ * nothing names it, each bass is placed as the bass rule places it, and
+ * Forward drops each one an octave unless that takes it below the
+ * window. A bass outside the window goes an octave back inside. See
+ * `placeBass`.
+ * =====================================================================
+ */
+export type BassRegister = 'c1' | 'c2' | 'c3';
+
+/** The row, in Silas's words, with each window's lowest MIDI note. */
+export const BASS_REGISTER_OPTIONS: ReadonlyArray<{ id: BassRegister; label: string; low: number }> = [
+  { id: 'c1', label: 'C1 to G2', low: 24 },
+  { id: 'c2', label: 'C2 to G3', low: 36 },
+  { id: 'c3', label: 'C3 to G4', low: 48 },
+];
+
+/** A register's lowest and highest note: C to the G an octave and a
+ *  fifth above it. */
+export function bassWindow(register: BassRegister): { low: number; high: number } {
+  const low = BASS_REGISTER_OPTIONS.find(o => o.id === register)?.low ?? 36;
+  return { low, high: low + 19 };
+}
+
 /** How many times through. */
 export type LoopCount = 1 | 2 | 4 | 'untilStopped';
 
@@ -171,6 +203,8 @@ export interface PlayerSettings {
   playAs: PlayAs;
   /** How much room the bass gets — see `BassLevel`. */
   bass: BassLevel;
+  /** Where the bass line lives — see `BassRegister`. */
+  bassRegister: BassRegister;
 }
 
 /**
@@ -195,6 +229,9 @@ export const DEFAULT_PLAYER_SETTINGS: PlayerSettings = {
   // FORWARD BY DEFAULT. The bass is what a progression is doing, and
   // the reader arrives at a card to hear it move.
   bass: 'forward',
+  // C2 TO G3 BY DEFAULT (Silas, 14 Sep 2026), which leaves today's
+  // single chords where they were.
+  bassRegister: 'c2',
 };
 
 /** The Loop row, in the prototype's order. */

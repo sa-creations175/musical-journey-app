@@ -15,7 +15,7 @@
 import { describe, expect, it } from 'vitest';
 import { CHORD_SEEDS } from '../../ear-training/chord-recognition/seed';
 import { CHORD_QUALITIES, QUALITY_INTERVALS } from '../../shapes-and-patterns/catalog';
-import { bassDrop, soundingNotes } from '../../../lib/player/voices';
+import { placeBass, soundingNotes } from '../../../lib/player/voices';
 import { DEFAULT_PLAYER_SETTINGS } from '../../../lib/player/settings';
 import { cardSound, diaryChordShape } from '../cardSound';
 
@@ -27,7 +27,7 @@ function chordNotes(skillId: string): number[] | null {
   const sound = cardSound(skillId);
   if (sound === null || sound.kind !== 'chord') return null;
   const s = DEFAULT_PLAYER_SETTINGS;
-  return soundingNotes(sound.chord, s, bassDrop([sound.chord], s)).notes;
+  return soundingNotes(placeBass([sound.chord], s)[0], s).notes;
 }
 
 function playCR(id: string): number[] {

@@ -21,7 +21,7 @@ import { onBoard } from '../builtAnswers/board';
 import type { KeyMark } from '../builtAnswers/board';
 import { voicingDistance, type VoicedChord } from '../builtAnswers/voiceLeading';
 import { intervalColor } from '../voicingColors';
-import type { PlayerSettings } from './settings';
+import { bassWindow, type PlayerSettings } from './settings';
 
 /** One chord the player can sound and draw, with the name it goes by. */
 export interface PlayerChord extends VoicedChord {
@@ -49,6 +49,22 @@ export interface PlayerChord extends VoicedChord {
    * make the E♭ a D♯.
    */
   rootLetter?: string;
+  /**
+   * The bass move INTO this chord was named — by the card (Chord
+   * Motion's up or down) or by a direction someone set.
+   *
+   * ONE NAMED MOVE MAKES THE WHOLE LINE A BLOCK in the Bass register
+   * window, so no jump in it is flipped. See `placeBass`.
+   */
+  namesMove?: boolean;
+  /**
+   * The bass has been put in its register already — see `placeBass`.
+   *
+   * THE RULE IS NOT IDEMPOTENT ON ITS OWN: on C1 to G2, Forward takes a
+   * C3 bass to C2, inside the window, and a second pass would take it on
+   * to C1. So a placed chord says so, and is not placed again.
+   */
+  bassPlaced?: boolean;
 }
 
 /**
@@ -70,37 +86,91 @@ export function liftHand(
 }
 
 /**
- * The board's lowest key. A bass dropped below it would be inaudible
- * and unlightable, which is what makes it the floor of the drop.
+ * The lowest note a root joins the hand above when a chord has no bass.
  */
 const BOARD_FLOOR = 36;
 
 /**
- * How far the whole bass line moves under "Bass: Forward".
+ * The bass line, placed in the Bass register window.
  *
  * =====================================================================
- * AN OCTAVE, OR NOTHING, FOR THE WHOLE SEQUENCE.
+ * THE WINDOW IS WHERE THE BASS LIVES, AND IT NEVER LEAVES IT. Silas's
+ * answers of 14 Sep 2026, replacing the 10 Sep whole-line drop.
  *
- * Silas's ruling of 10 Sep 2026. The bass rule chooses where each root
- * goes RELATIVE to the one before it, so dropping one note of that line
- * and not another would replace the move it chose with a different one:
- * a fourth up becomes a fifth down. So every bass drops together, and
- * only when the LOWEST of them still clears the board's floor.
+ * WHERE A DIRECTION IS NAMED — Chord Motion's up or down, a progression
+ * whose bass moves the card or the reader set — THE DIRECTION WINS. The
+ * whole line moves into the window as one block, so every jump keeps
+ * its direction and its size: on Forward the lowest octave that fits,
+ * on Blended the highest.
  *
- * Taken over the chords the sequence will actually play, which is why
- * this is a function of the list rather than of a chord.
+ * ELSEWHERE each bass is placed as the bass rule placed it; on Forward
+ * each drops an octave unless that takes it below the window; any bass
+ * above the window comes down an octave, and any below it goes up. With
+ * the default window a 2-5-1 in F sounds G2 → C2 → F2 on Forward and
+ * G2 → C3 → F2 on Blended.
+ *
+ * INSIDE THE WINDOW, THE BASS STAYS UNDER ITS HAND where a placement
+ * allows it: a block takes the next octave that fits and clears the
+ * hands, and a single bass sitting on its hand goes down an octave if
+ * the window has room. The window is never left to do it.
+ *
+ * APPLIED ONCE, BEFORE THE HANDS ROW, and marked (`bassPlaced`), so a
+ * list the panel has placed and then hands to the sequencer is not
+ * placed twice.
  * =====================================================================
  */
-export function bassDrop(
+export function placeBass(
   chords: ReadonlyArray<PlayerChord>,
   settings: PlayerSettings,
-): number {
-  if (settings.bass !== 'forward') return 0;
-  const basses = chords
-    .map(c => c.bass)
-    .filter((b): b is number => b !== null);
-  if (basses.length === 0) return 0;
-  return Math.min(...basses) - 12 >= BOARD_FLOOR ? -12 : 0;
+): PlayerChord[] {
+  const open = chords
+    .map((c, i) => ({ c, i }))
+    .filter(({ c }) => c.bass !== null && c.bassPlaced !== true);
+  if (open.length === 0) return [...chords];
+  const { low, high } = bassWindow(settings.bassRegister);
+  const forward = settings.bass === 'forward';
+  const underHand = (bass: number, chord: PlayerChord) =>
+    chord.hand.length === 0 || bass < Math.min(...chord.hand);
+
+  const shifts = new Map<number, number>();
+  if (chords.some(c => c.namesMove === true)) {
+    const basses = open.map(({ c }) => c.bass as number);
+    const lo = Math.min(...basses);
+    const hi = Math.max(...basses);
+    const candidates: number[] = [];
+    for (let s = -60; s <= 60; s += 12) {
+      if (lo + s >= low && hi + s <= high) candidates.push(s);
+    }
+    // A LINE WIDER THAN THE WINDOW still moves as a block: to the octave
+    // that leaves the least of it outside.
+    if (candidates.length === 0) {
+      const outside = (s: number) => basses.reduce(
+        (n, b) => n + Math.max(0, low - (b + s)) + Math.max(0, b + s - high), 0);
+      let best = 0;
+      for (let s = -60; s <= 60; s += 12) {
+        if (outside(s) < outside(best) || (outside(s) === outside(best) && (forward ? s < best : s > best))) best = s;
+      }
+      candidates.push(best);
+    }
+    const ordered = forward ? candidates : [...candidates].reverse();
+    const shift = ordered.find(s => open.every(({ c }) => underHand((c.bass as number) + s, c)))
+      ?? ordered[0];
+    open.forEach(({ i }) => shifts.set(i, shift));
+  } else {
+    open.forEach(({ c, i }) => {
+      const at = c.bass as number;
+      let b = at;
+      if (forward && b - 12 >= low) b -= 12;
+      while (b > high) b -= 12;
+      while (b < low) b += 12;
+      while (!underHand(b, c) && b - 12 >= low) b -= 12;
+      shifts.set(i, b - at);
+    });
+  }
+  return chords.map((c, i) => {
+    const shift = shifts.get(i);
+    return shift === undefined ? c : { ...c, bass: (c.bass as number) + shift, bassPlaced: true };
+  });
 }
 
 /**
@@ -171,16 +241,12 @@ export function handsForSetting(
 export function soundingNotes(
   chord: PlayerChord,
   settings: PlayerSettings,
-  /** How far this sequence's bass line has been moved — see `bassDrop`.
-   *  Zero unless the caller knows the whole line. */
-  drop = 0,
 ): { notes: number[]; hands: Array<'L' | 'R'> } {
   // BASS ONLY MEANS THE LOWEST NOTE AND NOTHING ELSE. On a chord with
   // no bass of its own — a single quiz chord — that is the bottom of
   // the hand, which is what the brief says in terms.
-  // THE DROP APPLIES TO THE BASS AND TO NOTHING ELSE. It is a bass
-  // control; moving the hand with it would be a second octave lift.
-  const bass = chord.bass === null ? null : chord.bass + drop;
+  // THE BASS IS WHERE `placeBass` PUT IT; nothing here moves it.
+  const bass = chord.bass;
   if (settings.listen === 'bass') {
     const low = bass ?? (chord.hand.length > 0 ? chord.hand[0] : null);
     return low === null
@@ -279,11 +345,10 @@ export function chordStep(
   chord: PlayerChord,
   settings: PlayerSettings,
   beats: number,
-  drop = 0,
   /** Whether this chord is one bar of a progression. */
   inBar = false,
 ): SeqChord {
-  const { notes, hands } = soundingNotes(chord, settings, drop);
+  const { notes, hands } = soundingNotes(chord, settings);
   const length = stepBeats(chord, settings, beats, inBar);
   if (settings.playAs === 'together') return { intervals: notes, beats: length, hands };
   // A RUN IS A ROLL ON THE STEP, and the sequencer does the rest —
@@ -310,13 +375,13 @@ export function chordStep(
 export function playerMarks(
   chord: PlayerChord | null,
   settings: PlayerSettings,
-  /** The sequence's bass drop — see `bassDrop`. THE LIT KEYS ARE THE
-   *  SOUNDING KEYS, so a dropped bass lights where it sounds. */
-  drop = 0,
 ): Map<number, KeyMark> {
   const marks = new Map<number, KeyMark>();
   if (chord === null) return marks;
-  const { notes, hands } = soundingNotes(chord, settings, drop);
+  // THE LIT KEYS ARE THE SOUNDING KEYS: the chord is handed in with its
+  // bass already in its register (`placeBass`), so it lights where it
+  // sounds.
+  const { notes, hands } = soundingNotes(chord, settings);
   notes.forEach((midi, i) => {
     if (!onBoard(midi)) return;
     if (hands[i] === 'L') return;

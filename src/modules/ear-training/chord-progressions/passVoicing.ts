@@ -112,7 +112,7 @@ export function voiceEntry(
 
   const shapes = shapesFor(entry, chords, rung, position);
   if (shapes !== null) {
-    return placeShapes(shapes, chords, rootPcs, line, opts, keyPc, spelling);
+    return namedMoves(placeShapes(shapes, chords, rootPcs, line, opts, keyPc, spelling), opts.bassMoves);
   }
 
   // GUIDE TONES AND SEVENTH CHORDS: a rootless right hand, the first
@@ -132,7 +132,19 @@ export function voiceEntry(
       name: chordName(chord, keyPc, spelling),
     });
   });
-  return out;
+  return namedMoves(out, opts.bassMoves);
+}
+
+/**
+ * The chords whose bass move the card set, marked.
+ *
+ * A SET MOVE IS A NAMED DIRECTION (Silas, 14 Sep 2026): the card's coin
+ * flip, or an arrow the reader tapped. The register then moves the whole
+ * line as a block, so that move is never flipped — see `placeBass`.
+ */
+function namedMoves(chords: PlayerChord[], moves: ReadonlyArray<Move> | undefined): PlayerChord[] {
+  return chords.map((c, i) => (i > 0 && (moves?.[i - 1] ?? 'auto') !== 'auto'
+    ? { ...c, namesMove: true } : c));
 }
 
 /**
