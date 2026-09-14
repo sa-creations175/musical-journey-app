@@ -138,7 +138,7 @@ describe('the page stays live under it', () => {
 
   it('does not close on a tap inside it, or on another card\'s ▶', () => {
     mount('chord-recognition:item:maj7');
-    click(q('play-as-up')!);
+    click(q('player-play-up')!);
     expect(closed).toBe(0);
     const other = document.createElement('button');
     other.setAttribute('data-diary-hear', '');
@@ -163,20 +163,22 @@ describe('the panel, top to bottom (spec §4)', () => {
     expect([...at].sort((a, b) => a - b)).toEqual(at);
   };
 
-  it('keyboard · transport · Hands · Play as · Chord Color Legend · Settings', () => {
+  it('keyboard · transport, the play chips first · Hands · Chord Color Legend · Settings', () => {
     mount('chord-progressions:motion:2-to-5-asc');
-    inOrder(['built-answer-keyboard', 'player-hear', 'hands-rootless', 'play-as-row',
+    inOrder(['built-answer-keyboard', 'player-play-chips', 'hands-rootless',
       'chord-color-legend', 'player-settings']);
   });
 
   it('on a chord card Hands stands beside Inversion, under Root and Colour', () => {
     mount('chord-recognition:item:maj7');
-    inOrder(['built-answer-keyboard', 'player-hear', 'play-as-row', 'chord-color-legend',
+    inOrder(['built-answer-keyboard', 'player-play-chips', 'chord-color-legend',
       'row-root', 'row-colour', 'row-inversion', 'hands-rootless', 'player-settings']);
-    // Hands and Play as came out of the fold, so they are not in it twice.
+    // Hands came out of the fold, and the play chips are the transport, so
+    // neither is in it twice.
     const fold = q('player-settings')!;
     expect(fold.querySelector('[data-testid="hands-rootless"]')).toBeNull();
-    expect(fold.querySelector('[data-testid="play-as-row"]')).toBeNull();
+    expect(fold.querySelector('[data-testid="player-play-chips"]')).toBeNull();
+    expect(q('player-hear')).toBeNull();
     expect(q('hear-one-0')).toBeNull();
   });
 
@@ -273,7 +275,7 @@ describe('what each card type shows (spec §8)', () => {
     expect(openingPlayAs(cardSound('intervals:desc:m3')!)).toBe('down');
     expect(openingPlayAs(cardSound('chord-recognition:item:maj7')!)).toBe('together');
     mount('intervals:desc:m3', { name: 'Minor 3rd' });
-    expect(q('play-as-down')!.getAttribute('aria-pressed')).toBe('true');
+    expect(q('player-play-down')!.getAttribute('aria-pressed')).toBe('true');
     expect(q('hands-rootless')).toBeNull();
   });
 
@@ -429,7 +431,7 @@ describe('a progression card is the loop builder (spec §7)', () => {
     click(document.body.querySelector('rect[data-midi="81"]')!);
     expect(q('loop-name-1')!.textContent).not.toBe('G7');
     expect(q('loop-name-0')!.textContent).toBe('Dm7');
-    // More than one chord: the tap waits for Hear it.
+    // More than one chord: the tap waits for a play chip.
     expect(calls.length).toBe(played);
   });
 

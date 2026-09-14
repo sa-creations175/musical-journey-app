@@ -31,7 +31,8 @@ import FluencyProtectionNotice from '../../../components/FluencyProtectionNotice
 import AidsFold from '../../../components/AidsFold';
 import SharedPlayer from '../../../components/SharedPlayer';
 import { usePlayerSettings } from '../../../lib/player/usePlayerSettings';
-import { playAsFrom, playStyleOf } from '../../../lib/player/settings';
+import { PLAY_AS_AID_LINE, playStyleOf, type PlayAs } from '../../../lib/player/settings';
+import PlayChips from '../../../components/PlayChips';
 import type { Thickness } from '../../../lib/builtAnswers/chordShapes';
 import { crChords, crQuizChord } from './crPlayer';
 import { feelOfAttempt, heardFeel, isAided } from '../../../lib/earTraining/heardFeel';
@@ -87,24 +88,10 @@ const MODULE_ID = 'chord-recognition';
 /** From `moduleMeta`, never a local hex — one hue per module. */
 const ACCENT = moduleMetaById(MODULE_ID)?.accentHex ?? '#5a8752';
 const PREF_FOCUS = focusSelectionKey(MODULE_ID);
-const PREF_BROKEN_DIRECTION = 'chordRecognitionBrokenDirection';
-/**
- * Play as, the one listening setting this surface remembers.
- *
- * =====================================================================
- * ONE KEY THAT HAS HELD THREE SHAPES, AND AN OLDER ONE READ AS FALLBACK.
- *
- * The surface had a blocked/broken toggle that was never stored and a
- * direction (`asc` / `desc` / `both`) that was. That became "Chord
- * sounds" under this key; since 13 Sep 2026 it holds Play as —
- * `together`, `up`, `down` or `upDown` — and whatever it held before
- * reads into those through `playAsFrom` (an old "broken" is Up).
- *
- * The old direction key is READ and never WRITTEN: nothing migrates,
- * and the old value stays where it is.
- * =====================================================================
- */
-const PREF_CHORD_SOUNDS = 'chordRecognitionChordSounds';
+// `chordRecognitionChordSounds` and `chordRecognitionBrokenDirection`
+// held Play as until 14 Sep 2026, when every card began playing Together
+// with the aid chosen per card. Neither is read or written any more; the
+// stored values stay where they are.
 const PREF_INVERSION_POSITIONS = 'chordRecognitionInversionPositions';
 
 
@@ -263,24 +250,12 @@ export default function ChordRecognitionQuiz({
     [],
   ) ?? [];
 
-  // Hydrate Play as + inversion positions from userPrefs.
+  // Hydrate inversion positions from userPrefs.
   useEffect(() => {
     (async () => {
-      // THE NEW KEY FIRST, THEN THE OLD DIRECTION AS A FALLBACK.
-      //
-      // FOUR LIVE VALUES, AND WHAT WAS STORED BEFORE READS INTO THEM.
-      // Silas's answer of 13 Sep 2026: an old "broken" reads as Up, the
-      // one direction the app played from 10 Sep until the Play as row
-      // — see `playAsFrom`. The older direction key says the same thing
-      // a step further back: a stored descending direction meant broken,
-      // so it is Up too.
-      const sounds = await getPref<string | null>(PREF_CHORD_SOUNDS, null);
-      if (sounds !== null) {
-        setSettings({ ...settingsRef.current, playAs: playAsFrom(sounds) });
-      } else {
-        const old = await getPref<string>(PREF_BROKEN_DIRECTION, 'asc');
-        if (old === 'desc') setSettings({ ...settingsRef.current, playAs: 'up' });
-      }
+      // PLAY AS IS NOT READ BACK. Since 14 Sep 2026 every new card plays
+      // Together and the choice is per card, so the stored mode the quiz
+      // used to carry from one session to the next is left unread.
 
       // ACCEPTS THE OLD SHAPE. The preference used to be one list for
       // every tier; a reader upgrading has that stored, and
@@ -292,10 +267,7 @@ export default function ChordRecognitionQuiz({
       );
       setInversionSettings(sanitizeInversionSettings(storedInversions));
     })();
-    // ONCE, ON ARRIVAL. `setSettings` is a state setter and stable;
-    // listing it would re-run the hydration on every render and undo
-    // whatever the reader had just changed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // ONCE, ON ARRIVAL.
   }, []);
 
   const saveInversionPositionsForTier = async (tier: string, next: Inversion[]) => {
@@ -305,19 +277,28 @@ export default function ChordRecognitionQuiz({
   };
 
   /**
-   * The panel's settings, and the one of them this surface remembers.
-   *
-   * PLAY AS IS STORED; the tempo, the lift and Listen to are not.
-   * That matches what the surface stored before — a direction, and
-   * nothing else — and the shared player's own rule that a setting
-   * starts where it starts unless Silas has asked for it to persist.
+   * The panel's settings. NOTHING IS STORED (14 Sep 2026): Play as was,
+   * until every card began playing Together with the aid chosen per card.
    */
   const applySettings = (next: typeof settings) => {
+    settingsRef.current = next;
     setSettings(next);
-    if (next.playAs !== settingsRef.current.playAs) {
-      void setPref(PREF_CHORD_SOUNDS, next.playAs);
-    }
   };
+
+  /**
+   * THE AID THIS CARD TOOK, which is what the rating reads.
+   *
+   * A tap on ♪ Up, ♪ Down or ♪ Up and Down counts for the card it was made
+   * on, exactly as the Play as setting did, and a later tap on ♪ Together
+   * does not take it back: the run was heard. Reset on every new card.
+   */
+  const aidPlayAs = useRef<PlayAs>('together');
+  /** The reveal's own mode, which may carry from card to card. */
+  const [revealPlayAs, setRevealPlayAs] = useState<PlayAs>('together');
+  const revealSettings = useMemo(
+    () => ({ ...settings, playAs: revealPlayAs }),
+    [settings, revealPlayAs],
+  );
 
   // Only fluency-tracked attempts feed the rolling window. Small-pool
   // focus sessions log with excludeFromFluency=true so they don't
@@ -598,6 +579,11 @@ export default function ChordRecognitionQuiz({
     // THE REVEAL OPENS ON THE ONE THAT WAS ASKED, on every card.
     setShowInversion(picked.inversion);
     replays.current = 0;
+    // EVERY NEW CARD PLAYS TOGETHER, and the aid starts untaken (Silas,
+    // 14 Sep 2026). Set on the ref too, so the clock and the first play
+    // below read it now.
+    aidPlayAs.current = 'together';
+    applySettings({ ...settingsRef.current, playAs: 'together' });
     setRung(picked.chord.intervals.length >= 4 ? 'seventh' : 'triads');
     setSelectedId(null);
     setSelectedInversion(null);
@@ -615,8 +601,14 @@ export default function ChordRecognitionQuiz({
     await playChord(picked.chord, rootMidi, picked.inversion);
   };
 
-  const replay = async () => {
+  /**
+   * A play chip on the question. It plays again in that mode — a replay,
+   * counted as Play again's were — and a run is this card's aid.
+   */
+  const replayIn = async (mode: PlayAs) => {
     if (!current) return;
+    if (mode !== 'together') aidPlayAs.current = mode;
+    applySettings({ ...settingsRef.current, playAs: mode });
     replays.current += 1;
     await playChord(current.chord, current.rootMidi, current.inversion);
   };
@@ -653,7 +645,7 @@ export default function ChordRecognitionQuiz({
     // NO SECOND QUESTION WAS ASKED ON THIS PATH, so the quality answer
     // is the whole of it: right on the first listen with no aid is In
     // flow, right after replays is Clean, wrong is Struggled.
-    const aidedQuality = isAided(settingsRef.current, { playAsIsAid: true });
+    const aidedQuality = isAided({ ...settingsRef.current, playAs: aidPlayAs.current }, { playAsIsAid: true });
     const feelQuality = heardFeel({
       firstRight: isCorrect,
       secondRight: isCorrect,
@@ -700,7 +692,7 @@ export default function ChordRecognitionQuiz({
     // THE QUALITY WAS RIGHT ON THIS PATH — that is what made step two
     // fire — so a wrong inversion is half right, which is Working on
     // it and not Struggled. You heard the chord and not the voicing.
-    const aidedInv = isAided(settingsRef.current, { playAsIsAid: true });
+    const aidedInv = isAided({ ...settingsRef.current, playAs: aidPlayAs.current }, { playAsIsAid: true });
     const feelInv = heardFeel({
       firstRight: true,
       secondRight: isCorrect,
@@ -1120,7 +1112,7 @@ export default function ChordRecognitionQuiz({
             live in the aids fold, because the panel itself would BE the
             answer — its board lights the notes. */}
         <div className="w-full max-w-sm">
-          <AidsFold settings={settings} onSettings={applySettings} playAs />
+          <AidsFold settings={settings} onSettings={applySettings} />
         </div>
 
         <div className="text-center">
@@ -1144,17 +1136,23 @@ export default function ChordRecognitionQuiz({
               play chord
             </button>
           ) : (
-            /* PLAY AGAIN, ALWAYS AVAILABLE, AND IT DOES NOT TOUCH THE
-               CLOCK. The question became answerable the first time it
-               sounded; a reader who needs three replays took that long
-               to answer, and `playChord` is the only thing this calls. */
-            <button
-              onClick={replay}
-              data-testid="play-again"
-              className="px-4 py-2 rounded-lg border border-fluent text-fluent text-sm font-medium hover:bg-fluent/10"
-            >
-              Play again
-            </button>
+            /* THE PLAY CHIPS, WHERE PLAY AGAIN WAS (Silas, 14 Sep 2026).
+               They do not touch the clock: the question became answerable
+               the first time it sounded, and `playChord` is the only
+               thing a tap calls. */
+            <div className="w-full flex flex-col items-center gap-1.5">
+              <PlayChips
+                value={settings.playAs}
+                onPlay={mode => { void replayIn(mode); }}
+                testIdPrefix="question-play"
+              />
+              <p
+                className="text-[11px] text-neutral-500 dark:text-neutral-400 text-center"
+                data-testid="question-play-aid-line"
+              >
+                {PLAY_AS_AID_LINE}
+              </p>
+            </div>
           )}
           {cardIsTerminal && (
             <button
@@ -1198,11 +1196,13 @@ export default function ChordRecognitionQuiz({
                     `${identityText} · ${INVERSION_LABEL[showInversion]}`,
                     rung,
                   )}
-                  settings={settings}
-                  onSettings={applySettings}
+                  settings={revealSettings}
+                  onSettings={next => {
+                    setRevealPlayAs(next.playAs);
+                    applySettings({ ...next, playAs: settingsRef.current.playAs });
+                  }}
                   showHands={false}
                   showListen
-                  playAsIsAid
                   thickness={{
                     value: rung,
                     onChange: setRung,

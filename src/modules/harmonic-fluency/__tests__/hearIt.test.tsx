@@ -102,13 +102,13 @@ describe('the strip, as it plays', () => {
     expect([0, 1, 2, 3].map(i => q(`hear-bar-${i}`)!.textContent)).toEqual([
       'CC major, from C', 'E7A melodic minor, from E', 'AmA natural minor, from A', 'CC major, home',
     ]);
-    expect(q('hear-now')!.textContent).toBe("Press Hear it. The bar you're in lights up here and on the keys below.");
+    expect(q('hear-now')!.textContent).toBe("Tap a ♪ chip. The bar you're in lights up here and on the keys below.");
     expect(q('hear-bar-1')!.getAttribute('data-outside')).toBe('true');
   });
 
   it('lights the bar and the keys from the player\'s own events, and says what is sounding', async () => {
     await render();
-    await act(async () => { q('card-play')!.click(); });
+    await act(async () => { q('card-play-up')!.click(); });
     await settle();
     // The E7 under the run (lane step 2), and G♯, the third note of its run (step 11).
     fire('onUnder', 2);
@@ -123,7 +123,7 @@ describe('the strip, as it plays', () => {
 
   it('Stop clears every light and every chip; the end says so', async () => {
     await render();
-    await act(async () => { q('card-play')!.click(); });
+    await act(async () => { q('card-play-up')!.click(); });
     await settle();
     fire('onUnder', 2);
     fire('onStep', 11);
@@ -133,11 +133,11 @@ describe('the strip, as it plays', () => {
     expect(container!.querySelectorAll('rect[data-mark="marked"]')).toHaveLength(0);
     expect([0, 1, 2, 3].every(i => q(`hear-bar-${i}`)!.getAttribute('data-state') === 'idle')).toBe(true);
 
-    await act(async () => { q('card-play')!.click(); });
+    await act(async () => { q('card-play-up')!.click(); });
     await settle();
     fire('onStep', 0);
     fire('onDone');
-    expect(q('hear-now')!.textContent).toBe('Done. Press Hear it to play it again.');
+    expect(q('hear-now')!.textContent).toBe('Done. Tap a ♪ chip to play it again.');
     expect(container!.querySelectorAll('rect[data-mark="marked"]')).toHaveLength(0);
   });
 
@@ -150,12 +150,27 @@ describe('the strip, as it plays', () => {
   });
 });
 
+describe('the play chips (Silas, 14 Sep 2026)', () => {
+  it('replace Hear it, light none until one is chosen, and remember the choice', async () => {
+    await render();
+    expect(q('card-play')).toBeNull();
+    for (const mode of ['together', 'up', 'down', 'upDown']) {
+      expect(q(`card-play-${mode}`)!.getAttribute('aria-pressed'), mode).toBe('false');
+    }
+    expect(q('card-stop')).not.toBeNull();
+    await act(async () => { q('card-play-down')!.click(); });
+    await settle();
+    expect(q('card-play-down')!.getAttribute('aria-pressed')).toBe('true');
+    expect(prefs.get('harmonicFluencyPlayAs')).toBe('down');
+  });
+});
+
 describe('Chord under the run', () => {
   it('drops the held chords an octave for the next play, and is remembered', async () => {
     await render();
     const select = q('chord-under-run') as HTMLSelectElement;
     expect([...select.options].map(o => o.textContent)).toEqual(['as the app plays it', 'an octave lower']);
-    await act(async () => { q('card-play')!.click(); });
+    await act(async () => { q('card-play-up')!.click(); });
     expect(plays.list[0].opts.chordShift).toBe(0);
     await act(async () => {
       select.value = '-12';
@@ -163,7 +178,7 @@ describe('Chord under the run', () => {
     });
     await settle();
     expect(prefs.get('harmonicFluencyChordUnderRun')).toBe(-12);
-    await act(async () => { q('card-play')!.click(); });
+    await act(async () => { q('card-play-up')!.click(); });
     expect(plays.list[1].opts.chordShift).toBe(-12);
     // The held E7 lights where it now sounds, an octave down.
     await settle();

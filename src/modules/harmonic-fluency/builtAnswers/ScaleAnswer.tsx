@@ -35,7 +35,6 @@
  */
 import { useMemo, useState } from 'react';
 import BuiltAnswerKeyboard from '../../../components/BuiltAnswerKeyboard';
-import PlayAsRow from '../../../components/PlayAsRow';
 import SharedPlayer from '../../../components/SharedPlayer';
 import { scaleMarks, tapMarks } from '../../../lib/builtAnswers/marks';
 import { directionOf, scaleLine } from '../../../lib/builtAnswers/scaleLine';
@@ -188,7 +187,6 @@ export default function ScaleAnswer({
             play={({ startAtBeat }) => hear(startAtBeat)}
             totalBeats={scaleBeats(line.length, together)}
             caption={target.pcs.map(pc => spellInKey(pc, target.rootName)).join(' ')}
-            playAsRow={false}
           >
             {/* STARTING POINTS ARE THE PENTATONIC CARDS' OWN. Those are
                 the hand shapes Shapes & Patterns drills; a seven-note
@@ -214,12 +212,6 @@ export default function ScaleAnswer({
                   </button>
                 ))}
               </div>
-              {/* PLAY AS, WHERE DIRECTION WAS. Up, Down and Up and Down
-                  are the three directions it had; Together is new. */}
-              <PlayAsRow
-                value={settings.playAs}
-                onChange={p => setSettings({ ...settings, playAs: p })}
-              />
             </div>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
               {`The home chord of the key, then the scale with ${

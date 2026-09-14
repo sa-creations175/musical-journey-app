@@ -25,13 +25,16 @@ const source = (suffix: string) => Object.entries(SOURCES).find(([p]) => p.endsW
 
 describe('every Ear Training quiz counts a run', () => {
   for (const file of ['ChordRecognitionQuiz.tsx', 'ChordMotionTab.tsx', 'FullProgressionCard.tsx']) {
-    it(`${file} grades with Play as as an aid, and says so under the row`, () => {
+    it(`${file} grades with Play as as an aid`, () => {
       const src = source(file);
       expect(src).toMatch(/isAided\([^)]*\{ playAsIsAid: true \}\)/);
       expect(src).not.toMatch(/isAided\((settings|settingsRef\.current)\)/);
-      expect(src).toMatch(/playAsIsAid\s*(\n|\/>|[a-zA-Z])/);
     });
   }
+
+  it('says so under the play chips on Chord Recognition\'s question (14 Sep 2026)', () => {
+    expect(source('ChordRecognitionQuiz.tsx')).toContain('{PLAY_AS_AID_LINE}');
+  });
 
   it('says it in the aids fold, in Silas\'s words', () => {
     expect(source('AidsFold.tsx')).toContain(

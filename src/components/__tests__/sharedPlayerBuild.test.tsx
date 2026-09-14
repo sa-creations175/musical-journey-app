@@ -178,7 +178,7 @@ describe('Select notes by', () => {
 describe('a board with more than one chord (Silas, 14 Sep 2026)', () => {
   it('a tap stops what is playing and edits the chord the board shows, without playing', async () => {
     mount({ chords: TWO });
-    await act(async () => { byTestId('player-hear')!.click(); await Promise.resolve(); });
+    await act(async () => { byTestId('player-play-together')!.click(); await Promise.resolve(); });
     expect(calls).toHaveLength(1);
     tap(key(74));
     expect(stops).toBeGreaterThan(0);

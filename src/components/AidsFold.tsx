@@ -24,7 +24,6 @@ import type { ReactNode } from 'react';
 import {
   BPM_MAX, BPM_MIN, clampBpm, type PlayerSettings,
 } from '../lib/player/settings';
-import PlayAsRow from './PlayAsRow';
 
 const CHIP = 'rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors';
 const CHIP_OFF = 'border-black/10 dark:border-white/20 bg-black/[0.03] '
@@ -62,13 +61,10 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export default function AidsFold({
-  settings, onSettings, playAs, showListen = true, extra,
+  settings, onSettings, showListen = true, extra,
 }: {
   settings: PlayerSettings;
   onSettings: (next: PlayerSettings) => void;
-  /** Play as, in the spot Chord sounds had. Chord Recognition only: a
-   *  run is an aid there. Omit where the surface has no such row. */
-  playAs?: boolean;
   /**
    * A row this surface adds of its own.
    *
@@ -151,17 +147,9 @@ export default function AidsFold({
           </Chip>
         </Row>
 
-        {/* PLAY AS, IN THE SPOT CHORD SOUNDS HAD. Chord Recognition
-            only, where a run is an aid and the row says so in Silas's
-            words of 13 Sep 2026. */}
-        {playAs === true && (
-          <PlayAsRow
-            value={settings.playAs}
-            onChange={p => set({ playAs: p })}
-            testIdPrefix="aid-play-as"
-            aidNote
-          />
-        )}
+        {/* PLAY AS IS NOT HERE. Since 14 Sep 2026 its chips are the play
+            buttons, under the root note on Chord Recognition's question,
+            with the line about the aid under them. */}
 
         {extra}
       </div>

@@ -186,6 +186,12 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
     // ask which key — it is named on the reveal — but a progression
     // only ever heard in C is a shape you have learned in one place.
     const keyPc = LIST_KEYS.indexOf(pick(LIST_KEYS));
+    // EVERY NEW CARD PLAYS TOGETHER, and a run chosen on the last card's
+    // reveal is not an aid on this one (Silas, 14 Sep 2026).
+    if (settingsRef.current.playAs !== 'together') {
+      settingsRef.current = { ...settingsRef.current, playAs: 'together' };
+      setSettings(settingsRef.current);
+    }
     // THE HANDS FILTER FORCES THE PANEL ONLY WHERE IT NARROWS. With
     // both on, the reader's own setting stands; with one, the card is
     // dealt the way they asked to hear it.
@@ -505,7 +511,6 @@ export default function FullProgressionCard({ attempts }: { attempts: AttemptRec
             orientPc={card.keyPc}
             settings={settings}
             onSettings={setSettings}
-            playAsIsAid
             handDirection={{
               value: handMoves,
               onChange: setHandMoves,

@@ -33,8 +33,15 @@
  *   · THE KEYBOARD, C2 to C7, scrolling sideways on a phone: the note
  *     played green (orange outside the key), the chord held under it and
  *     the pedal pale green.
- *   · THE CONTROLS: Hear it, Stop, Playback Speed, and "Chord under the
- *     run" where a card holds chords or a pedal under its run.
+ *   · THE CONTROLS: the play chips, Stop, Playback Speed, and "Chord under
+ *     the run" where a card holds chords or a pedal under its run.
+ *
+ * THE PLAY CHIPS WHERE HEAR IT WAS (Silas, 14 Sep 2026): ♪ Together · ♪ Up ·
+ * ♪ Down · ♪ Up and Down, the shared player's one component. A tap plays
+ * the card in that mode at once and lights the chip; the choice is
+ * remembered beside Playback Speed. What each mode does to a card's sound
+ * is `cardPlayAs`. Until a chip is chosen none is lit, and the card
+ * sounds as it always has.
  *
  * Every light comes from the moment the players scheduled the sound at
  * (`playCardSound`'s events, on the audio clock), never a parallel
@@ -70,6 +77,10 @@ import type { Flashcard } from './catalog';
 import { cardSound } from './cardAudio';
 import { isOutside, soundBars } from './cardBars';
 import { CARD_AUDIO_MODULE, playCardSound } from './playCardSound';
+import { soundInMode, type SoundInMode } from './cardPlayAs';
+import PlayChips from '../../components/PlayChips';
+import type { PlayAs } from '../../lib/player/settings';
+import { spellNote } from '../../lib/spelling';
 
 /** The pref chord progressions writes. One switch, every caller. */
 const PREF_TONIC = 'chordProgressionsTonicContext';
@@ -80,9 +91,8 @@ const PREF_TONIC = 'chordProgressionsTonicContext';
  */
 export const PREF_CHORD_UNDER_RUN = 'harmonicFluencyChordUnderRun';
 
-/** The label, on every family. Carried over from the degree-and-note
- *  card, which is the one that already had a written one. */
-export const HEAR_IT_LABEL = 'Hear it';
+/** Where the strip's play mode is remembered, beside Playback Speed. */
+export const PREF_CARD_PLAY_AS = 'harmonicFluencyPlayAs';
 
 /** C2 to C7: room for a held chord an octave down and the top of a run. */
 const HEAR_IT_RANGE: BoardRange = { low: 36, high: 96 };
@@ -92,8 +102,8 @@ const PLAYED = '#1D9E75';
 const OUTSIDE = '#F0722B';
 const HELD = '#A7DCC6';
 
-const BEFORE = "Press Hear it. The bar you're in lights up here and on the keys below.";
-const AFTER = 'Done. Press Hear it to play it again.';
+const BEFORE = "Tap a ♪ chip. The bar you're in lights up here and on the keys below.";
+const AFTER = 'Done. Tap a ♪ chip to play it again.';
 const STOPPED = 'Stopped.';
 
 type Phase = 'idle' | 'playing' | 'done' | 'stopped';
@@ -129,6 +139,14 @@ export default function CardPlayback({
   );
   const [chosenShift, setChosenShift] = useState<number | null>(null);
   const shift = chosenShift ?? storedShift ?? 0;
+  const storedMode = useLiveQuery(
+    async () => getPref<PlayAs | null>(PREF_CARD_PLAY_AS, null),
+    [],
+  );
+  const [chosenMode, setChosenMode] = useState<PlayAs | null>(null);
+  const mode = chosenMode ?? storedMode ?? null;
+  /** The sound as it is playing, in the mode it was started in. */
+  const [played, setPlayed] = useState<SoundInMode | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -163,14 +181,18 @@ export default function CardPlayback({
     setPhase('stopped');
   };
 
-  const play = () => {
+  const play = (chosen: PlayAs | null) => {
     playing.current?.stop();
     setBusy(true);
     setLights(DARK);
     setPhase('playing');
     setPlayedShift(shift);
+    const inMode: SoundInMode = chosen === null
+      ? { sound, origin: sound.steps.map((_, i) => i) }
+      : soundInMode(sound, chosen);
+    setPlayed(inMode);
     const orientBar = bars.findIndex(b => b.lane === 'orient');
-    playCardSound(sound, context, {
+    playCardSound(inMode.sound, context, {
       chordShift: shift,
       events: {
         onOrient: sounding => setLights(l => ({
@@ -179,8 +201,9 @@ export default function CardPlayback({
         onPedal: sounding => setLights(l => ({ ...l, pedal: sounding })),
         onUnder: index => setLights(l => ({ ...l, under: index })),
         onStep: index => setLights(l => {
-          const bar = bars.findIndex(b => b.lane === 'steps' && index >= b.from && index < b.to);
-          const note = sound.steps[index]?.semitones.length ? index : null;
+          const written = inMode.origin[index] ?? index;
+          const bar = bars.findIndex(b => b.lane === 'steps' && written >= b.from && written < b.to);
+          const note = inMode.sound.steps[index]?.semitones.length ? index : null;
           return { ...l, step: note, bar: bar >= 0 ? bar : l.bar };
         }),
         onDone: () => { setLights(DARK); setPhase('done'); },
@@ -191,6 +214,12 @@ export default function CardPlayback({
       .finally(() => { setBusy(false); });
   };
 
+  const chooseMode = (next: PlayAs) => {
+    setChosenMode(next);
+    void setPref(PREF_CARD_PLAY_AS, next).catch(() => {});
+    play(next);
+  };
+
   const chooseShift = (next: number) => {
     setChosenShift(next);
     void setPref(PREF_CHORD_UNDER_RUN, next).catch(() => {});
@@ -199,13 +228,14 @@ export default function CardPlayback({
   // THE KEYS THAT ARE SOUNDING, from the same steps the sound was built from.
   const marks = new Map<number, KeyMark>();
   const held = (m: number) => marks.set(m, { fill: HELD });
-  const played = (m: number) => marks.set(m, { fill: isOutside(m, sound.keyPc) ? OUTSIDE : PLAYED });
+  const lit = (m: number) => marks.set(m, { fill: isOutside(m, sound.keyPc) ? OUTSIDE : PLAYED });
   if (lights.pedal && sound.pedal !== undefined) held(sound.rootMidi + sound.pedal + playedShift);
   if (lights.under !== null) {
     sound.under?.[lights.under]?.semitones.forEach(s => held(sound.rootMidi + s + playedShift));
   }
-  if (lights.orient && sound.orient !== null) sound.orient.forEach(s => played(sound.rootMidi + s));
-  if (lights.step !== null) sound.steps[lights.step]?.semitones.forEach(s => played(sound.rootMidi + s));
+  if (lights.orient && sound.orient !== null) sound.orient.forEach(s => lit(sound.rootMidi + s));
+  const steps = (played ?? { sound }).sound.steps;
+  if (lights.step !== null) steps[lights.step]?.semitones.forEach(s => lit(sound.rootMidi + s));
 
   const bar = lights.bar === null ? null : bars[lights.bar];
   const nowLine = (() => {
@@ -216,9 +246,15 @@ export default function CardPlayback({
     const label = `${bar.name}${bar.detail ? ` · ${bar.detail.replace(', from ', ' from ')}` : ''}`;
     const notes = lights.orient && bar.lane === 'orient'
       ? sound.orient ?? []
-      : lights.step === null ? [] : sound.steps[lights.step]?.semitones ?? [];
+      : lights.step === null ? [] : steps[lights.step]?.semitones ?? [];
     if (notes.length === 0) return <>{label}</>;
-    const name = bar.lane === 'orient' ? bar.noteNames[0] : bar.noteNames[(lights.step ?? 0) - bar.from] ?? '';
+    const written = played?.origin[lights.step ?? 0] ?? lights.step ?? 0;
+    const name = bar.lane === 'orient'
+      ? bar.noteNames[0]
+      // A LINE SOUNDED TOGETHER names every note of it.
+      : notes.length > 1
+        ? notes.map(s => spellNote((sound.rootMidi + s) % 12, spelling)).join(' ')
+        : bar.noteNames[written - bar.from] ?? '';
     const out = notes.some(s => isOutside(sound.rootMidi + s, sound.keyPc));
     return (
       <>
@@ -265,23 +301,14 @@ export default function CardPlayback({
       <div className="font-mono text-sm min-h-5" data-testid="hear-now">{nowLine}</div>
 
       {/* THE KEYBOARD, lit from the sound's own steps. */}
-      <BuiltAnswerKeyboard marks={marks} label="What Hear it plays" range={HEAR_IT_RANGE} />
+      <BuiltAnswerKeyboard marks={marks} label="What this card plays" range={HEAR_IT_RANGE} />
 
       {/* THE CONTROLS. */}
       <div
         className={`flex items-center gap-3 flex-wrap ${align === 'center' ? 'justify-center' : ''}`}
         data-testid="card-playback-controls"
       >
-        <button
-          type="button"
-          data-testid="card-play"
-          onClick={play}
-          disabled={busy}
-          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md border border-black/10 dark:border-white/20 text-xs font-medium hover:bg-black/[0.04] dark:hover:bg-white/10 disabled:opacity-50 transition-colors"
-        >
-          <span aria-hidden className="text-sm leading-none">♪</span>
-          {HEAR_IT_LABEL}
-        </button>
+        <PlayChips value={mode} onPlay={chooseMode} testIdPrefix="card-play" disabled={busy} />
         <button
           type="button"
           data-testid="card-stop"

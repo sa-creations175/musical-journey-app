@@ -260,12 +260,12 @@ describe('the reveal is the card\'s progression', () => {
     expect(names()).toBe('Cm9 - F9 - B♭maj9');
   });
 
-  it('still plays nothing until Hear it is tapped', () => {
+  it('still plays nothing until a play chip is tapped', () => {
     mount(true);
     expect(played.seq).toHaveLength(0);
     tap(byTestId('thickness-triads'));
     expect(played.seq).toHaveLength(0);
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     expect(played.seq).toHaveLength(1);
   });
 });
@@ -324,7 +324,7 @@ describe('rotate — the same chords, entered by a different door', () => {
   it('plays the rotated order, still behind the key\'s own low tonic', () => {
     mount(true);
     tap(byTestId('rotate'));
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     const steps = played.seq[0] as Array<{ intervals: number[] }>;
     expect(steps).toHaveLength(4);
     // The orienting note is the KEY's tonic, not the rotation's first
@@ -336,7 +336,7 @@ describe('rotate — the same chords, entered by a different door', () => {
       .toBe(true);
   });
 
-  it('is silent until Hear it is tapped', () => {
+  it('is silent until a play chip is tapped', () => {
     mount(true);
     tap(byTestId('rotate'));
     tap(byTestId('rotate'));
@@ -463,7 +463,7 @@ describe('hear the other version', () => {
     mountOther('pr-prog-1-6-2-5-C');
     tap(byTestId('version-other'));
     expect(played.seq).toHaveLength(0);
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     const steps = played.seq[0] as Array<{ intervals: number[] }>;
     // Tonic, then the four chords; the second of them carries a C♯.
     expect(steps).toHaveLength(5);

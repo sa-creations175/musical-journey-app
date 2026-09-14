@@ -14,10 +14,7 @@
  *
  *   · a quiz hides the board before the answer and may play on arrival;
  *     every other surface waits for a tap
- *   · chord recognition never re-voices, and says under Play as that a
- *     run is an aid there
- *   · a scale card that had a Direction row shows Play as in its place
- *     rather than at the end of Settings
+ *   · chord recognition never re-voices
  *   · beside a drill the ladder is locked to the row and nothing is
  *     rated
  *   · the melody ring appears only where a surface has a melody line
@@ -32,10 +29,10 @@
  *     has, and shows no Compare row
  *   · the harmonic diary's panel is the LAB LAYOUT (Silas's spec of 12
  *     Sep 2026, §2 and §4): the transport sits directly under the board
- *     with a status line, Hands and Play as come out of the fold above
- *     the Chord Color Legend, there are no Hear one chord chips, and it
- *     plays the card whose ▶ was tapped — through `hear()` on this
- *     component's handle, which is the same Hear it
+ *     with a status line, Hands comes out of the fold above the Chord
+ *     Color Legend, there are no Hear one chord chips, and it plays the
+ *     card whose ▶ was tapped — through `hear()` on this component's
+ *     handle, which plays in the lit mode as a chip does
  *   · building by hand (spec §5) is on the panel's own board, wherever
  *     it plays through `playPanel`; a surface that draws its own board
  *     (Chord Motion's Piano keys question) or plays through its own
@@ -58,16 +55,24 @@
  * one place. So this component calls the player and the caller hands it
  * chords.
  *
- * PAUSE STOPS WHERE IT IS. RESUME PICKS UP FROM THERE. HEAR IT ALWAYS
- * STARTS OVER. The three are different on purpose and the prototype
- * says so on the screen.
+ * PAUSE STOPS WHERE IT IS. RESUME PICKS UP FROM THERE. A PLAY CHIP
+ * ALWAYS STARTS OVER. The three are different on purpose.
+ *
+ * THE PLAY CHIPS ARE THE PLAY BUTTONS (Silas, 14 Sep 2026; walked in
+ * `play-as-chips-prototype.html`): ♪ Together · ♪ Up · ♪ Down · ♪ Up and
+ * Down, first in the control row, then Pause and the octave buttons. A
+ * tap plays at once in that mode, lights it and hands the choice to the
+ * surface to remember; a tap on the lit chip plays again. There is no
+ * Hear it and no Play as row in Settings.
  *
  * =====================================================================
  * NOTHING AUTOPLAYS EXCEPT A QUIZ CARD ON ARRIVAL.
  *
- * This component has no effect that starts audio. A quiz that plays as
- * its card arrives does it from its own arrival handler, which is the
- * one allowed difference — everything else waits for a tap.
+ * The one effect here that starts audio finishes a tap: a chip that
+ * changes the mode plays once the surface has handed the new mode back,
+ * so a surface that builds its sound from the mode never plays the old
+ * one. A quiz that plays as its card arrives does it from its own arrival
+ * handler — everything else waits for a tap.
  * =====================================================================
  */
 import {
@@ -84,7 +89,7 @@ import {
   readSettingsOpen,
   writeSettingsOpen, type PlayAs, type PlayerSettings,
 } from '../lib/player/settings';
-import PlayAsRow from './PlayAsRow';
+import PlayChips from './PlayChips';
 import {
   NO_EDIT, SELECT_NOTES_BY_OPTIONS, builtChord, clearRings, historyOf, holdKey, record, ringsOf,
   shiftOctave, tapKey, undo, type BoardEdit, type History,
@@ -104,7 +109,7 @@ import {
 import type { InKeyRing } from '../lib/player/inKeyColour';
 import type { Instrument } from '../lib/audio';
 
-import { CHIP, CHIP_OFF, CHIP_ON } from './playerChipStyles';
+import { CHIP, CHIP_OFF } from './playerChipStyles';
 import { PlayerChip as Chip, PlayerRow as Row } from './PlayerRow';
 
 /** A direction row: the chord names with a tappable arrow between. */
@@ -201,16 +206,6 @@ interface SharedPlayerProps {
    */
   showHands?: boolean;
   showListen?: boolean;
-  /**
-   * Draw Play as at the end of Settings. On by default: the row is on
-   * every surface (Silas, 12 Sep 2026). A scale card whose Direction row
-   * it replaced draws it in that row's place and turns this off, so the
-   * row is never on a screen twice.
-   */
-  playAsRow?: boolean;
-  /** Chord Recognition only: a run is an aid there, and a line under the
-   *  row says so. */
-  playAsIsAid?: boolean;
   /**
    * The ring this surface draws on the sounding chord's root, in its
    * degree-of-the-key colour.
@@ -335,7 +330,7 @@ function applyEdit(
 
 export default function SharedPlayer({
   chords: given, orientPc, settings, onSettings, thickness,
-  bassDirection, handDirection, showHands, showListen, playAsRow = true, playAsIsAid,
+  bassDirection, handDirection, showHands, showListen,
   board, boardLabel = 'What is sounding', caption, compare, children,
   controls = true, onStep, beats, play, totalBeats, ring, startLit = 0, lab, edit: heldEdit, ref,
 }: SharedPlayerProps) {
@@ -491,6 +486,27 @@ export default function SharedPlayer({
   const [picked, setPicked] = useState<number | null>(null);
 
   const hearIt = () => { setPicked(null); run(0); };
+
+  /** A chip that changed the mode, waiting for the surface to hand it back. */
+  const pendingPlay = useRef<PlayAs | null>(null);
+
+  /** A play chip: that mode, from the top, now. */
+  const playIn = (mode: PlayAs) => {
+    setPicked(null);
+    if (mode === settings.playAs) { run(0); return; }
+    pendingPlay.current = mode;
+    onSettings({ ...settings, playAs: mode });
+  };
+
+  // THE TAP'S PLAY, once the mode it chose is the mode in force — a
+  // surface that plays through its own function builds its line from it.
+  useEffect(() => {
+    if (pendingPlay.current === null || pendingPlay.current !== settings.playAs) return;
+    pendingPlay.current = null;
+    run(0);
+    // ONLY THE MODE ARRIVING STARTS IT; `run` is rebuilt every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.playAs]);
 
   const pauseOrResume = () => {
     if (transport === 'paused') { run(clock.current.beat); return; }
@@ -675,14 +691,7 @@ export default function SharedPlayer({
 
   const transportEl = controls && (
     <div className="flex flex-wrap items-center gap-2">
-      <button
-        type="button"
-        data-testid="player-hear"
-        onClick={hearIt}
-        className={`${CHIP} ${CHIP_ON}`}
-      >
-        Hear it
-      </button>
+      <PlayChips value={settings.playAs} onPlay={playIn} />
       <button
         type="button"
         data-testid="player-pause"
@@ -738,7 +747,7 @@ export default function SharedPlayer({
           className="text-[11px] text-neutral-500 dark:text-neutral-400"
           data-testid="player-paused-note"
         >
-          Paused where it was. Resume picks up from here; Hear it starts over.
+          Paused where it was. Resume picks up from here.
         </span>
       )}
       {lab !== undefined && status !== null && (
@@ -768,17 +777,6 @@ export default function SharedPlayer({
     </Row>
   );
 
-  // PLAY AS, IN THE SPOT CHORD SOUNDS HAD: last in the fold, on every
-  // surface (Silas, 12 and 13 Sep 2026). A scale card whose Direction row
-  // it replaced draws it there and turns this one off. In the lab it
-  // stands under Hands, out of the fold (spec §4).
-  const playAsEl = playAsRow && (
-    <PlayAsRow
-      value={settings.playAs}
-      onChange={p => set({ playAs: p })}
-      aidNote={playAsIsAid === true}
-    />
-  );
 
   return (
     // A TAP ON EMPTY SPACE IN THE PANEL DROPS EVERY RING (spec §5): not a
@@ -843,8 +841,9 @@ export default function SharedPlayer({
           {transportEl}
         </>
       ) : (
-        // THE LAB, top to bottom (spec §4): keyboard · transport · Hands
-        // · Play as · Chord Color Legend · the card's own rows · Settings.
+        // THE LAB, top to bottom (spec §4): keyboard · transport (the play
+        // chips first) · Hands · Chord Color Legend · the card's own rows ·
+        // Settings.
         // A chord card draws Hands beside Inversion instead, as the walked
         // prototype does.
         <>
@@ -853,7 +852,6 @@ export default function SharedPlayer({
           {/* THE LOOP BUILDER'S ROWS COME FIRST (spec §7). */}
           {lab.rowsFirst === true && lab.rows?.(controls && lab.handsInRows === true ? handsEl : null)}
           {controls && lab.handsInRows !== true && handsEl}
-          {controls && playAsEl}
           {legendEl}
           {compare !== undefined && compare}
           {lab.rowsFirst !== true && lab.rows?.(controls && lab.handsInRows === true ? handsEl : null)}
@@ -1040,7 +1038,6 @@ export default function SharedPlayer({
               If the keys light up before you hear the chord, slide left until they match. If they light up after, slide right.
             </p>
 
-            {lab === undefined && playAsEl}
           </div>
         </details>
       )}

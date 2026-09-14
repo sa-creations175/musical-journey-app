@@ -132,14 +132,14 @@ describe('the reveal', () => {
   });
 
   it('offers a way to hear it, and only after the answer', async () => {
-    // `card-play` RATHER THAN A TEST ID OF THIS CARD'S OWN. Ruling 33
-    // made the button one component for every family, so the id it
-    // carries is the shared one — and this card's control being the
-    // same control is the claim worth pinning.
+    // `card-play-chips` RATHER THAN A TEST ID OF THIS CARD'S OWN. Ruling 33
+    // made the control one component for every family, and since 14 Sep
+    // 2026 it is the play chips — so the id it carries is the shared one,
+    // and this card's control being the same control is the claim.
     await renderCard();
-    expect(container!.querySelector('[data-testid="card-play"]')).toBeNull();
+    expect(container!.querySelector('[data-testid="card-play-chips"]')).toBeNull();
     await answerWith('Ab');
-    expect(container!.querySelector('[data-testid="card-play"]')).not.toBeNull();
+    expect(container!.querySelector('[data-testid="card-play-chips"]')).not.toBeNull();
   });
 
   it('is offered on the note→degree direction too', async () => {

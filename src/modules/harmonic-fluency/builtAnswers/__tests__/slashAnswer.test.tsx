@@ -171,7 +171,7 @@ describe('the reveal plays it in context', () => {
 
   it('plays the tonic and the phrase, in order', () => {
     mount(true);
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     // 1 · 5/7 · 6m, with a low tonic in front of it.
     expect(played.seq[0]).toHaveLength(4);
   });
@@ -179,7 +179,7 @@ describe('the reveal plays it in context', () => {
   it('plays the chord alone when that is chosen', () => {
     mount(true);
     tap(byTestId('context-alone'));
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     expect(played.seq[0]).toHaveLength(2);
   });
 
@@ -188,7 +188,7 @@ describe('the reveal plays it in context', () => {
     // One row asks it, on every screen that sounds a bass line.
     mount(true);
     tap(byTestId('listen-bass'));
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     const steps = played.seq[0] as Array<{ intervals: number[] }>;
     // The tonic, then three steps each of one note.
     for (const step of steps.slice(1)) expect(step.intervals).toHaveLength(1);

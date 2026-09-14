@@ -14,21 +14,24 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRoot, type Root } from 'react-dom/client';
-import { act } from 'react';
+import { act, useState } from 'react';
 import playerSrc from '../SharedPlayer.tsx?raw';
 
 /** Every call the engine was asked to make. */
-const calls: Array<{ bpm: number; opts: Record<string, unknown> }> = [];
+const calls: Array<{ bpm: number; opts: Record<string, unknown>; chords: unknown }> = [];
 let stops = 0;
 
 vi.mock('../../lib/audio', () => ({
   playSeqChords: (
-    _chords: unknown, _root: number, bpm: number, opts: Record<string, unknown>,
+    chords: unknown, _root: number, bpm: number, opts: Record<string, unknown>,
   ) => {
-    calls.push({ bpm, opts });
+    calls.push({ bpm, opts, chords });
     return Promise.resolve({ stop: () => { stops += 1; } });
   },
   setInstrument: () => {},
+  // A RUN READS THE PLAYER'S TIMING, so a test that plays one needs it.
+  BROKEN_STEP_BEATS: 0.75,
+  CHORD_RING_BEATS: 3,
 }));
 vi.mock('../../lib/musicalPlayback', () => ({
   playBlocked: () => Promise.resolve({ stop: () => {} }),
@@ -92,24 +95,27 @@ describe('nothing autoplays', () => {
     // THE GREP IS THE REAL GUARD. `useEffect` appears in the file — it
     // stops what is sounding on unmount — and none of them may START
     // anything. Every play in this component hangs off a click.
+    // ONE EFFECT MAY START A SOUND, AND ONLY TO FINISH A TAP (14 Sep
+    // 2026): a play chip that changed the mode plays once the surface
+    // hands the new mode back. It is named, so a second one fails here.
     const effects = playerSrc.match(/useEffect\([\s\S]*?\}, \[[^\]]*\]\);/g) ?? [];
-    for (const effect of effects) {
-      expect(effect, effect).not.toMatch(/playPanel|\bplay\(/);
-    }
+    const starting = effects.filter(e => /playPanel|\bplay\(|\brun\(/.test(e));
+    expect(starting).toHaveLength(1);
+    expect(starting[0]).toContain('pendingPlay.current');
   });
 
-  it('sounds when Hear it is tapped, and not before', () => {
+  it('sounds when a play chip is tapped, and not before', () => {
     mount();
     expect(calls).toHaveLength(0);
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     expect(calls).toHaveLength(1);
   });
 });
 
 describe('Pause stops where it is and Resume picks up from there', () => {
-  it('starts at the top on Hear it', () => {
+  it('starts at the top on a play chip', () => {
     mount();
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     expect(calls[0].opts.startAtBeat).toBeUndefined();
   });
 
@@ -117,7 +123,7 @@ describe('Pause stops where it is and Resume picks up from there', () => {
     vi.useFakeTimers();
     try {
       mount();
-      await tapAndSettle(byTestId('player-hear'));
+      await tapAndSettle(byTestId('player-play-together'));
       // Two seconds at 50 bpm is a beat and two thirds.
       vi.setSystemTime(Date.now() + 2000);
       tap(byTestId('player-pause'));
@@ -135,14 +141,14 @@ describe('Pause stops where it is and Resume picks up from there', () => {
     }
   });
 
-  it('starts over on Hear it even after a pause', async () => {
+  it('starts over on a play chip even after a pause', async () => {
     vi.useFakeTimers();
     try {
       mount();
-      await tapAndSettle(byTestId('player-hear'));
+      await tapAndSettle(byTestId('player-play-together'));
       vi.setSystemTime(Date.now() + 2000);
       tap(byTestId('player-pause'));
-      tap(byTestId('player-hear'));
+      tap(byTestId('player-play-together'));
       expect(calls[1].opts.startAtBeat).toBeUndefined();
       expect(byTestId('player-pause')!.textContent).toBe('Pause');
     } finally {
@@ -159,10 +165,10 @@ describe('Pause stops where it is and Resume picks up from there', () => {
     vi.useFakeTimers();
     try {
       mount();
-      await tapAndSettle(byTestId('player-hear'));
+      await tapAndSettle(byTestId('player-play-together'));
       tap(byTestId('player-pause'));
       expect(byTestId('player-paused-note')!.textContent)
-        .toContain('Resume picks up from here; Hear it starts over.');
+        .toContain('Resume picks up from here.');
     } finally {
       vi.useRealTimers();
     }
@@ -175,7 +181,7 @@ describe('the caller can take every control away', () => {
     // button; a panel offering a second one would let a reader hear the
     // answer laid out beside the question.
     mount({ controls: false, board: false });
-    expect(byTestId('player-hear')).toBeNull();
+    expect(byTestId('player-play-chips')).toBeNull();
     expect(byTestId('player-settings')).toBeNull();
     expect(byTestId('thickness-triads')).toBeNull();
     expect(byTestId('hear-one-0')).toBeNull();
@@ -211,32 +217,17 @@ describe('the rows a surface may drop', () => {
     expect(byTestId('listen-bass')).not.toBeNull();
   });
 
-  it('ends Settings with Play as, on every surface', () => {
-    // SILAS'S RULING OF 12 SEP 2026, placed on 13 Sep: one row, every
-    // surface, in the spot Chord sounds had.
+  it('puts the play chips first in the control row, and none in Settings (14 Sep 2026)', () => {
     mount();
-    expect([...byTestId('play-as-chips')!.children].map(c => c.textContent))
-      .toEqual(['Together', 'Up', 'Down', 'Up and Down']);
-    const fold = byTestId('player-settings')!.querySelector('.space-y-3')!;
-    expect(fold.lastElementChild).toBe(byTestId('play-as-row'));
-    expect(host.textContent).not.toContain('Chord sounds');
-    expect(byTestId('play-as-together')!.getAttribute('aria-pressed')).toBe('true');
-  });
-
-  it('says a run is an aid only where the surface says so', () => {
-    mount();
-    expect(byTestId('play-as-aid-note')).toBeNull();
-    act(() => { root.unmount(); });
-    host.remove();
-    mount({ playAsIsAid: true });
-    expect(byTestId('play-as-aid-note')!.textContent).toBe(
-      'Listening modes matter: Up, Down, and Up and Down are an aid, with a lower rating.',
-    );
-  });
-
-  it('leaves the row out where the surface draws it in a place of its own', () => {
-    mount({ playAsRow: false });
-    expect(byTestId('play-as-row')).toBeNull();
+    expect([...byTestId('player-play-chips')!.children].map(c => c.textContent))
+      .toEqual(['♪ Together', '♪ Up', '♪ Down', '♪ Up and Down']);
+    expect(byTestId('player-play-chips')!.nextElementSibling).toBe(byTestId('player-pause'));
+    expect(byTestId('player-play-together')!.getAttribute('aria-pressed')).toBe('true');
+    expect(byTestId('player-hear')).toBeNull();
+    const fold = byTestId('player-settings')!;
+    expect(fold.querySelector('[data-testid="player-play-chips"]')).toBeNull();
+    expect(fold.textContent).not.toContain('Play as');
+    expect(host.textContent).not.toContain('Listening modes matter');
   });
 
   it('puts Bass directly under Listen to, on every surface with a bass', () => {
@@ -265,13 +256,27 @@ describe('the rows a surface may drop', () => {
     expect(settings.bassRegister).toBe('c3');
   });
 
-  it('hands a run to the player when Up is chosen', async () => {
-    // THE ROW DOES SOMETHING, not only draws. A progression's chords
-    // each carry their run inside their own bar.
-    let settings = DEFAULT_PLAYER_SETTINGS;
-    mount({ onSettings: (next: typeof settings) => { settings = next; } });
-    tap(byTestId('play-as-up'));
-    expect(settings.playAs).toBe('up');
+  it('plays a tapped mode once the surface hands it back, lit, and replays on the lit chip', async () => {
+    function Surface() {
+      const [settings, setSettings] = useState(DEFAULT_PLAYER_SETTINGS);
+      return (
+        <SharedPlayer chords={CHORDS} orientPc={0} settings={settings} onSettings={setSettings} />
+      );
+    }
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+    act(() => { root.render(<InstrumentProvider><Surface /></InstrumentProvider>); });
+    // THE PLAY LANDS WHEN THE MODE DOES, a render after the tap.
+    await tapAndSettle(byTestId('player-play-up'));
+    await act(async () => { await Promise.resolve(); });
+    expect(calls).toHaveLength(1);
+    // A RUN: the chords carry a roll.
+    expect((calls[0].chords as Array<{ roll?: number }>).some(c => c.roll !== undefined)).toBe(true);
+    expect(byTestId('player-play-up')!.getAttribute('aria-pressed')).toBe('true');
+    expect(byTestId('player-play-together')!.getAttribute('aria-pressed')).toBe('false');
+    await tapAndSettle(byTestId('player-play-up'));
+    expect(calls).toHaveLength(2);
   });
 
   it('locks the ladder to one rung beside a drill', () => {

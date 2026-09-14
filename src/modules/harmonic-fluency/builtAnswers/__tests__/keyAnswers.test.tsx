@@ -185,14 +185,14 @@ describe('the relative key reveals its scale', () => {
   it('runs to the octave and back, with no starting points', () => {
     mountRoot(relMinor, true);
     expect(byTestId('start-row')).toBeNull();
-    // PLAY AS, WHERE DIRECTION WAS, since 13 Sep 2026.
-    expect(byTestId('play-as-row')).not.toBeNull();
+    // THE PLAY CHIPS, WHERE DIRECTION WAS (13 and 14 Sep 2026).
+    expect(byTestId('player-play-chips')).not.toBeNull();
     expect(byTestId('direction-row')).toBeNull();
   });
 
   it('plays the home chord, then the scale over its own root', async () => {
     mountRoot(relMinor, true);
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-upDown'));
     await settle();
     // The home chord, then fifteen notes: seven up, the octave, seven
     // back.
@@ -200,7 +200,7 @@ describe('the relative key reveals its scale', () => {
     expect(played.drones).toEqual([36 + relMinor.target.rootPc]);
   });
 
-  it('plays nothing until Hear it is tapped', async () => {
+  it('plays nothing until a play chip is tapped', async () => {
     mountRoot(relMinor, true);
     await settle();
     expect(played.seq).toHaveLength(0);

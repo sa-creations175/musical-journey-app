@@ -103,10 +103,10 @@ export const PLAY_AS_OPTIONS: ReadonlyArray<{ id: PlayAs; label: string }> = [
   { id: 'upDown', label: 'Up and Down' },
 ];
 
-/** The line under the row on the Chord Recognition quiz. Silas's
- *  words, 13 Sep 2026. */
-export const PLAY_AS_AID_NOTE =
-  'Listening modes matter: Up, Down, and Up and Down are an aid, with a lower rating.';
+/** The line under the play chips on Chord Recognition's question. Silas's
+ *  words, 14 Sep 2026, in `play-as-chips-prototype.html`. */
+export const PLAY_AS_AID_LINE =
+  'Up, Down and Up and Down are a listening aid, with a lower rating.';
 
 /**
  * A Play as value from anywhere, including what was stored before it.

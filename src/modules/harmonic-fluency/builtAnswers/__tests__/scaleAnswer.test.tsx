@@ -188,20 +188,20 @@ describe('the reveal lights the scale and plays it over a drone', () => {
     expect(lit.length).toBeGreaterThanOrEqual(15);
   });
 
-  it('offers a starting point per note, and Play as where Direction was', () => {
+  it('offers a starting point per note, and the play chips where Direction was', () => {
     mount(notes, true);
     expect(byTestId('start-row')!.children).toHaveLength(5);
-    expect([...byTestId('play-as-chips')!.children].map(c => c.textContent))
-      .toEqual(['Together', 'Up', 'Down', 'Up and Down']);
-    // ONE ROW, not a second one at the end of Settings.
-    expect(host.querySelectorAll('[data-testid="play-as-row"]')).toHaveLength(1);
+    expect([...byTestId('player-play-chips')!.children].map(c => c.textContent))
+      .toEqual(['♪ Together', '♪ Up', '♪ Down', '♪ Up and Down']);
+    // ONE SET, in the control row, and no Play as row anywhere.
+    expect(host.querySelectorAll('[data-testid="player-play-chips"]')).toHaveLength(1);
+    expect(host.querySelector('[data-testid="play-as-row"]')).toBeNull();
     expect(byTestId('direction-row')).toBeNull();
   });
 
   it('plays every note at once on Together', async () => {
     mount(notes, true);
-    tap(byTestId('play-as-together'));
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-together'));
     await settle();
     const steps = played.seq[0] as Array<{ intervals: number[] }>;
     // The home chord, then one step holding the scale and its octave.
@@ -212,7 +212,7 @@ describe('the reveal lights the scale and plays it over a drone', () => {
   it('drones on the KEY and not on the scale, on the lick card', async () => {
     // The prototype's rule: A♭ under F minor pentatonic.
     mount(lick, true);
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-upDown'));
     await settle();
     expect(played.drones).toEqual([36 + lick.target.dronePc]);
     expect(lick.target.dronePc).not.toBe(lick.target.rootPc);
@@ -220,7 +220,7 @@ describe('the reveal lights the scale and plays it over a drone', () => {
 
   it('turns at the top note, not at the octave', async () => {
     mount(notes, true);
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-upDown'));
     await settle();
     const steps = played.seq[0] as unknown[];
     // The home chord, then five up and four back.
@@ -229,8 +229,7 @@ describe('the reveal lights the scale and plays it over a drone', () => {
 
   it('runs the full octave when one direction is chosen', async () => {
     mount(notes, true);
-    tap(byTestId('play-as-up'));
-    tap(byTestId('player-hear'));
+    tap(byTestId('player-play-up'));
     await settle();
     expect(played.seq[0]).toHaveLength(1 + 6);
   });

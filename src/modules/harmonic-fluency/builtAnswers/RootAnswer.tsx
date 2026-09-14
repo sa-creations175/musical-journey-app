@@ -27,7 +27,6 @@
  */
 import { useMemo, useState } from 'react';
 import ChordPicker from '../../../components/ChordPicker';
-import PlayAsRow from '../../../components/PlayAsRow';
 import SharedPlayer from '../../../components/SharedPlayer';
 import {
   type RootPick, pickFromPitchClass, rootLabel, rootPitchClass,
@@ -182,18 +181,11 @@ export default function RootAnswer({
             play={({ startAtBeat }) => hear(startAtBeat)}
             totalBeats={scaleBeats(line.length, together)}
             caption={`${target.rootName} ${mode}`}
-            playAsRow={false}
           >
             {/* NO STARTING POINTS ON A KEY CARD. A seven-note scale
                 from another note is a mode, and the Modes family
-                already plays those — the prototype's own note.
-
-                PLAY AS, WHERE DIRECTION WAS. Up, Down and Up and Down
-                are the three directions it had; Together is new. */}
-            <PlayAsRow
-              value={settings.playAs}
-              onChange={p => setSettings({ ...settings, playAs: p })}
-            />
+                already plays those — the prototype's own note. Its
+                directions are the play chips above. */}
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
               {`The home chord of the key of ${target.rootName} ${mode}, then its `
                 + 'scale to the octave and back, with the root held low underneath.'}

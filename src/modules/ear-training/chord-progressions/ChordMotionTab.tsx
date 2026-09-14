@@ -480,10 +480,10 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
   // --- Playback ------------------------------------------------------
 
   /** Sound the round: the key's low tonic, then the two chords. */
-  const play = async (r: Round, revealed: boolean) => {
+  const play = async (r: Round, revealed: boolean, live: typeof settings = settings) => {
     handle.current?.stop();
     setLit(null);
-    const h = await playPanel(r.chords, settings, {
+    const h = await playPanel(r.chords, live, {
       orientPc: r.keyPc,
       loop: 1,
       // THE LEAD-IN LIGHTS ITS OWN KEY and then each chord lights as it
@@ -495,7 +495,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     if (!revealed) {
       asked.current = {
         playbackEndsAt: Date.now(),
-        playbackBpm: settings.bpm,
+        playbackBpm: live.bpm,
       };
     }
   };
@@ -520,6 +520,10 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
       destPc: degreePc(keyPc, motion.destLabel),
     };
     replays.current = 0;
+    // EVERY NEW CARD PLAYS TOGETHER, and a run chosen on the last card's
+    // reveal is not an aid on this one (Silas, 14 Sep 2026).
+    const live = settings.playAs === 'together' ? settings : { ...settings, playAs: 'together' as const };
+    if (live !== settings) setSettings(live);
     setRound(next);
     setPhase('answering');
     setPickedStart(null);
@@ -528,7 +532,7 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
     setFeel(null);
     setAnswered(null);
     setRung(DEFAULT_RUNG);
-    await play(next, false);
+    await play(next, false, live);
   };
 
   const replay = async () => {
@@ -1025,7 +1029,6 @@ export default function ChordMotionTab({ attempts, initialFocusKeys }: Props) {
                 settings={settings}
                 onSettings={setSettings}
                 showListen
-                playAsIsAid
                 startLit={1}
                 ring={ring}
                 thickness={{

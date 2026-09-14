@@ -420,6 +420,8 @@ be treated as approved.
   when ruling 33 made one control out of two. The degree-math card's old
   label — "hear it — home, then {n}, then the answer" — is gone, because one
   control cannot say a different sentence per family.
+  *Replaced on 14 Sep 2026* by the play chips, ♪ Together · ♪ Up · ♪ Down ·
+  ♪ Up and Down (`play-as-chips-prototype.html`). Stop stays.
 - **Filter chips with no ruled wording** — the Pentatonic row (`major`, `minor`,
   `relative`), the Maj/Min Key Relation row (`relative`, `parallel`) and the
   Enharmonic row (`note`, `interval`) print their stored value as-is.
